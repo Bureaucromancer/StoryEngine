@@ -103,14 +103,65 @@ export function looksLikeZip(bytes: Uint8Array): boolean {
  * header may carry zeroes for both sizes and defer them to a data descriptor
  * *after* the compressed bytes — which makes the sizes unknowable until the
  * entry has been read, which is exactly what the bounds exist to avoid doing.
+ *
+ * ***Two halves since [P13.8]***, {@link locateCentralDirectory} and
+ * {@link parseCentralDirectory}, because a second reader needs them apart:
+ * `zip-file.ts` reads an archive that is on disk rather than in memory, so it
+ * has the file's tail and then the directory, never the whole — and the
+ * parse, which is where every refusal below is made, is the part that must
+ * not exist twice.
  */
 export function readZipDirectory(
   bytes: Uint8Array,
   limits: ZipLimits = DEFAULT_ZIP_LIMITS,
 ): ZipDirectory {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const located = locateCentralDirectory(bytes, 0, bytes.length);
+  if (!located.ok) return located;
+  if (located.count > limits.maxEntries) return { ok: false, refusal: 'too-large' };
+  return parseCentralDirectory(
+    bytes.subarray(located.offset, located.offset + located.size),
+    located.count,
+    bytes.length,
+    limits,
+  );
+}
 
-  const eocd = findEocd(view, bytes.length);
+/**
+ * How much of an archive's end has to be read to find its central directory:
+ * the end record's 22 bytes, the longest comment that may follow it, and the
+ * 20 bytes of a zip64 locator that may precede it — [P13.8]'s window.
+ *
+ * *The last twenty are the ones that are easy to forget.* The end record is
+ * searched for in the last 22 + 65535 bytes, which is where it can be; but
+ * the question of whether the archive is zip64 is asked of the 20 bytes
+ * **before** the record, and with a maximum-length comment those lie outside
+ * a window of 22 + 65535. A reader with that window would miss the locator
+ * and read the zip64 archive's placeholder offsets as real ones — which is
+ * the half-right zip64 parse this file refuses to be.
+ */
+export const ZIP_TAIL_BYTES = 22 + 0xffff + 20;
+
+/** Where the central directory is, as the end record states it. */
+export type CentralDirectoryLocation =
+  { ok: true; count: number; size: number; offset: number } | { ok: false; refusal: ZipRefusal };
+
+/**
+ * Finds the end record in an archive's tail and reads where the central
+ * directory is — **refusing zip64, and a directory that would leave the
+ * archive**, before anybody reads it.
+ *
+ * `tail` is the archive's last bytes, or all of them; `tailStart` is where
+ * they begin in the archive and `archiveLength` how long it is, so offsets
+ * the record states are checked against the archive and not the window.
+ */
+export function locateCentralDirectory(
+  tail: Uint8Array,
+  tailStart: number,
+  archiveLength: number,
+): CentralDirectoryLocation {
+  const view = new DataView(tail.buffer, tail.byteOffset, tail.byteLength);
+
+  const eocd = findEocd(view, tail.length);
   if (eocd < 0) return { ok: false, refusal: 'not-a-zip' };
 
   // A zip64 locator sits immediately before the EOCD when one is in use.
@@ -124,15 +175,44 @@ export function readZipDirectory(
   if (count === 0xffff || size === ZIP64_SENTINEL || offset === ZIP64_SENTINEL) {
     return { ok: false, refusal: 'unsupported' };
   }
-  if (count > limits.maxEntries) return { ok: false, refusal: 'too-large' };
-  if (offset + size > bytes.length) return { ok: false, refusal: 'malformed' };
+  // The directory ends where the end record begins, or before: a directory
+  // said to run past it is an archive cut short or lying about itself.
+  if (offset + size > Math.min(archiveLength, tailStart + eocd)) {
+    return { ok: false, refusal: 'malformed' };
+  }
+  return { ok: true, count, size, offset };
+}
 
+/**
+ * What {@link parseCentralDirectory} holds each entry to. `maxTotalBytes` is
+ * the sum of *declared* sizes, and `null` switches it off — for a reader that
+ * counts what it actually inflates instead (`zip-file.ts`), and for that
+ * reason only.
+ */
+export interface CentralDirectoryLimits {
+  maxEntryBytes: number;
+  maxTotalBytes: number | null;
+}
+
+/**
+ * The entries of a central directory, every bound applied — see the file
+ * header for the four and why each is one. `central` is the directory's own
+ * bytes, `count` the entries the end record promised, and `archiveLength`
+ * what a local header's offset is checked against.
+ */
+export function parseCentralDirectory(
+  central: Uint8Array,
+  count: number,
+  archiveLength: number,
+  limits: CentralDirectoryLimits,
+): ZipDirectory {
+  const view = new DataView(central.buffer, central.byteOffset, central.byteLength);
   const entries: ZipEntry[] = [];
   let total = 0;
-  let at = offset;
+  let at = 0;
 
   for (let i = 0; i < count; i += 1) {
-    if (at + 46 > bytes.length) return { ok: false, refusal: 'malformed' };
+    if (at + 46 > central.length) return { ok: false, refusal: 'malformed' };
     if (view.getUint32(at, true) !== CENTRAL) return { ok: false, refusal: 'malformed' };
 
     const compression = view.getUint16(at + 10, true);
@@ -152,8 +232,8 @@ export function readZipDirectory(
     }
 
     const nameAt = at + 46;
-    if (nameAt + nameLength > bytes.length) return { ok: false, refusal: 'malformed' };
-    const raw = new TextDecoder().decode(bytes.subarray(nameAt, nameAt + nameLength));
+    if (nameAt + nameLength > central.length) return { ok: false, refusal: 'malformed' };
+    const raw = new TextDecoder().decode(central.subarray(nameAt, nameAt + nameLength));
 
     // Directory entries are the archive's own bookkeeping and carry no bytes;
     // the paths imply the directories, exactly as `MemoryFileSource` does.
@@ -166,8 +246,14 @@ export function readZipDirectory(
         return { ok: false, refusal: 'unsupported-compression' };
       }
       if (uncompressedSize > limits.maxEntryBytes) return { ok: false, refusal: 'too-large' };
-      total += uncompressedSize;
-      if (total > limits.maxTotalBytes) return { ok: false, refusal: 'too-large' };
+      if (limits.maxTotalBytes !== null) {
+        total += uncompressedSize;
+        if (total > limits.maxTotalBytes) return { ok: false, refusal: 'too-large' };
+      }
+      // A header that begins past the archive's end is not an entry. The
+      // in-memory reader found this later, as a `null` read; a reader on disk
+      // would rather not seek there to find out.
+      if (localOffset + 30 > archiveLength) return { ok: false, refusal: 'malformed' };
 
       entries.push({ name, compression, compressedSize, uncompressedSize, offset: localOffset });
     }
@@ -177,6 +263,27 @@ export function readZipDirectory(
 
   return { ok: true, entries };
 }
+
+/**
+ * Where an entry's compressed bytes begin, from its **local** header — the
+ * thirty bytes at `entry.offset` — or `null` when those are not a local
+ * header. Shared by both readers for the reason the comment inside gives.
+ */
+export function entryDataStart(header: Uint8Array, entry: ZipEntry): number | null {
+  if (header.length < 30) return null;
+  const view = new DataView(header.buffer, header.byteOffset, header.byteLength);
+  if (view.getUint32(0, true) !== LOCAL) return null;
+  // **The local header's own name and extra lengths, not the central
+  // directory's.** They are allowed to differ, and taking the central
+  // directory's is the classic way to land in the middle of an entry's data.
+  const nameLength = view.getUint16(26, true);
+  const extraLength = view.getUint16(28, true);
+  return entry.offset + 30 + nameLength + extraLength;
+}
+
+/** The two compression methods read here: stored, and deflate. */
+export const ZIP_STORED = STORED;
+export const ZIP_DEFLATED = DEFLATED;
 
 /**
  * The bytes of one entry, or null if the archive lied about them.
@@ -190,16 +297,9 @@ export function readZipEntry(
   entry: ZipEntry,
   limits: ZipLimits = DEFAULT_ZIP_LIMITS,
 ): Uint8Array | null {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (entry.offset + 30 > bytes.length) return null;
-  if (view.getUint32(entry.offset, true) !== LOCAL) return null;
-
-  // **The local header's own name and extra lengths, not the central
-  // directory's.** They are allowed to differ, and taking the central
-  // directory's is the classic way to land in the middle of an entry's data.
-  const nameLength = view.getUint16(entry.offset + 26, true);
-  const extraLength = view.getUint16(entry.offset + 28, true);
-  const from = entry.offset + 30 + nameLength + extraLength;
+  const from = entryDataStart(bytes.subarray(entry.offset, entry.offset + 30), entry);
+  if (from === null) return null;
   const to = from + entry.compressedSize;
   if (to > bytes.length) return null;
 

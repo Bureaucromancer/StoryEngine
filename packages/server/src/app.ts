@@ -369,6 +369,21 @@ export interface AppServices {
    */
   restoring: boolean;
   /**
+   * ***A large import upload is being landed*** —
+   * [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md)'s *one
+   * large upload in flight*.
+   *
+   * Set by `routes/import-upload.ts` before the first byte of a landing larger
+   * than `limits.maxUploadMb` is written, and cleared when the landing's
+   * import is over, however it ended. Two such uploads at once are two
+   * copies of somebody's install arriving at the data volume together — and
+   * then, each, a database inflated beside it and a snapshot of that — so the
+   * second is refused with `503` and `retry-after` rather than let the pair
+   * find out together that the disk was not big enough for both. Server-wide
+   * rather than per account, because the disk is.
+   */
+  largeUploadInFlight: boolean;
+  /**
    * How much the disk has free: `storage/files.ts`'s `freeBytes`, on the
    * services so a test can answer *full*, which no test can make a real disk
    * be. Read by the backup's room check.
@@ -933,6 +948,7 @@ async function assembleWithState(
     exit: null,
     draining: false,
     restoring: false,
+    largeUploadInFlight: false,
     freeBytes,
     updates: UNCHECKED,
     // Replaced by `startUpdateCheck`, which `buildApp` runs once a logger

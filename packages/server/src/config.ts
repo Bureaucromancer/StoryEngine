@@ -248,6 +248,24 @@ export const ConfigSchema = Type.Object(
     }),
     limits: Type.Object({
       maxUploadMb: Type.Integer({ minimum: 1, default: 64 }),
+      /**
+       * ***The largest archive or database the one-file import takes*** —
+       * [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md).
+       *
+       * `POST /import/file` lands a zip or a SQLite file in scratch as it
+       * arrives rather than buffering it, because an Aventuras backup is a
+       * whole install with its gallery in it as base64, and hundreds of
+       * megabytes is ordinary. This is that landing's bound, and only that
+       * one's: everything else still buffers under `maxUploadMb`.
+       *
+       * ***A separate cap, not a `max()` against `maxUploadMb`***, and that is
+       * the point of its being a key. Taking the larger of the two would leave
+       * an operator no way to *tighten* the one upload that is written to the
+       * data volume at any size — and that upload is not behind `fileAccess`,
+       * so every signed-in account can send one. So lowering this lowers it,
+       * even below `maxUploadMb`.
+       */
+      maxImportUploadMb: Type.Integer({ minimum: 1, default: 1024 }),
       extensionStorageQuotaMb: Type.Integer({ minimum: 1, default: 32 }),
       /**
        * The context window a turn may assemble into, when the endpoint does not
@@ -380,6 +398,7 @@ export const CONFIG_TIERS = {
   'sessions.streamKeepaliveMs': 'reconnect',
   'sessions.streamCoalesceMs': 'live',
   'limits.maxUploadMb': 'live',
+  'limits.maxImportUploadMb': 'live',
   'limits.extensionStorageQuotaMb': 'live',
   'limits.contextTokens': 'live',
   'limits.reservedCompletionTokens': 'live',
@@ -484,6 +503,15 @@ export const LIVE_APPLIERS = {
    */
   'limits.maxUploadMb': 'applied',
 
+  /**
+   * ***Applied from the day it was added*** — [P13.8]. Read per request by the
+   * one-file import, off the live reference, as `maxUploadMb` is: before a
+   * byte is read, against the request's declared length, and again as the
+   * landing counts what it writes. `routes/import-landing.test.ts` lowers it
+   * through the settings route and watches the next upload refused.
+   */
+  'limits.maxImportUploadMb': 'applied',
+
   // Extensions appear in no phase list. Nothing reads this.
   'limits.extensionStorageQuotaMb': 'unread',
 
@@ -569,6 +597,7 @@ export const DEFAULT_CONFIG: Config = {
   sessions: { snapshotEveryNTurns: 10, streamKeepaliveMs: 15000, streamCoalesceMs: 250 },
   limits: {
     maxUploadMb: 64,
+    maxImportUploadMb: 1024,
     extensionStorageQuotaMb: 32,
     contextTokens: 8192,
     reservedCompletionTokens: 1024,

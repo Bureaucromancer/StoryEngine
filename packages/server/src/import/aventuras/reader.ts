@@ -92,8 +92,9 @@ import { TAG_TABLE, vaultTagItems } from './vault-tag.js';
  * | The file source | The snapshot's input | Ceiling |
  * |---|---|---|
  * | has `realPath` — a server-path sweep | `path`, which `VACUUM INTO`s or copies the real file | none |
- * | has none — a folder upload, a zip | `bytes`: `aventura.db` and any `aventura.db-wal`, through `read` | the transport's: the upload limit, a zip entry's 64 MB (§1.11) |
- * | — (the constructor was handed one) | `owned`: a file already in our scratch — [P13.8]'s landing | none |
+ * | has `land` — an upload streamed to scratch, or an archive's entry landed there | `owned`: the landed file and its log, handed over | the upload's: `limits.maxImportUploadMb` ([P13.8]) |
+ * | has none of these — a folder upload, a zip in memory | `bytes`: `aventura.db` and any `aventura.db-wal`, through `read` | the transport's: the upload limit, a zip entry's 64 MB (§1.11) |
+ * | — (the constructor was handed one) | `owned`: a file already in our scratch | none |
  *
  * **A `null` from `realPath` refuses, and does not fall back to `read`** —
  * `FileSource.realPath`'s own rule: that answer is a refusal of the path (out
@@ -429,6 +430,13 @@ export class AventurasReader implements SourceReader {
     if (this.#files.realPath !== undefined) {
       const path = await this.#files.realPath(AVENTURAS_DATABASE);
       return path === null ? null : { kind: 'path', path };
+    }
+    // [P13.8]: a file that is ours already, on disk. A `null` is final, as
+    // `realPath`'s is — `read` of a landed upload holds nothing to fall back
+    // to, and an archive entry that would not land will not read either.
+    if (this.#files.land !== undefined) {
+      const landed = await this.#files.land(AVENTURAS_DATABASE);
+      return landed === null ? null : { kind: 'owned', space: landed.space, name: landed.name };
     }
     const database = await this.#files.read(AVENTURAS_DATABASE);
     if (database === null) return null;

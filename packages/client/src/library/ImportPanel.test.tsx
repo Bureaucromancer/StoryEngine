@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ImportPreview } from '@storyengine/shared';
 
-import { api, type LibraryObject } from '../api.js';
+import { api, uploadFailure, type LibraryObject } from '../api.js';
 import { useLibrary } from '../queries.js';
 import { ImportPanel } from './ImportPanel.js';
 
@@ -583,6 +583,98 @@ describe('choosing one file', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('too large');
+    });
+  });
+});
+
+/**
+ * ***An archive, and a large upload*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-aventuras-import.md)'s client
+ * half. An archive or a database is looked at here from its first bytes and
+ * not sent for a preview; the word's upload shows how far it has got; and a
+ * failure with no word of ours in it reaches the person as a sentence.
+ */
+describe('an archive, and a large upload', () => {
+  const zip = () =>
+    new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3])], 'aventura-backup.zip', {
+      type: 'application/zip',
+    });
+  const database = () =>
+    new File([new TextEncoder().encode('SQLite format 3\0 and its pages')], 'aventura.db');
+  const input = (): HTMLInputElement =>
+    document.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+  it('looks at an archive without sending it, and says it imports as a folder', async () => {
+    const preview = vi.spyOn(api, 'importFilePreview');
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+
+    expect(await screen.findByText(/Everything inside would be imported\./)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^import$/i })).toBeTruthy();
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('does the same for a bare database, by its bytes and not its name', async () => {
+    const preview = vi.spyOn(api, 'importFilePreview');
+    render(mount());
+
+    await userEvent.upload(input(), database());
+
+    expect(await screen.findByText(/Everything inside would be imported\./)).toBeTruthy();
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('shows how far the upload has got, and then that it is being read', async () => {
+    let report: ((progress: { sent: number; total: number }) => void) | undefined;
+    const commit = vi
+      .spyOn(api, 'importFile')
+      .mockImplementation((file, onConflict, destination, onProgress) => {
+        report = onProgress;
+        return new Promise(() => undefined);
+      });
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+    await waitFor(() => {
+      expect(commit).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      report?.({ sent: 25 * 1024 * 1024, total: 100 * 1024 * 1024 });
+    });
+    expect(await screen.findByText(/Sending… 25% of 100 MB/)).toBeTruthy();
+
+    act(() => {
+      report?.({ sent: 100 * 1024 * 1024, total: 100 * 1024 * 1024 });
+    });
+    expect(await screen.findByText(/Sent\. Reading it into your library…/)).toBeTruthy();
+  });
+
+  it('says what a dropped connection may mean, rather than that the file was bad', async () => {
+    vi.spyOn(api, 'importFile').mockRejectedValue(uploadFailure(0, null));
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toMatch(/connection was lost/);
+    });
+    // The meter is gone with the upload.
+    expect(screen.queryByText(/Sending…/)).toBeNull();
+  });
+
+  it('says a proxy’s refusal is a proxy’s', async () => {
+    vi.spyOn(api, 'importFile').mockRejectedValue(uploadFailure(413, null));
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toMatch(/reverse proxy/);
     });
   });
 });

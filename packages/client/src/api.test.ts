@@ -14,6 +14,7 @@ import {
   LIBRARY_KINDS,
   renameSession,
   setSessionLore,
+  uploadFailure,
 } from './api.js';
 import { formatTimestamp, timestampsOf } from './format.js';
 
@@ -409,5 +410,39 @@ describe('formatTimestamp', () => {
 
   it('returns an unparsable value unchanged rather than hiding it', () => {
     expect(formatTimestamp('yesterday', 'en-GB')).toBe('yesterday');
+  });
+});
+
+/**
+ * ***A failed upload, said*** — [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * The two failures a large upload usually meets carry no word from
+ * StoryEngine, and each gets a sentence; one that does carry ours keeps it.
+ */
+describe('an upload that failed', () => {
+  it('keeps the server’s own code and message when it sent them', () => {
+    const failure = uploadFailure(413, {
+      error: 'too-large',
+      message: 'That file is larger than the 1024 MB import upload limit.',
+    });
+    expect(failure.code).toBe('too-large');
+    expect(failure.message).toContain('1024 MB');
+  });
+
+  it('says a dropped connection may have been a refusal, not a broken file', () => {
+    const failure = uploadFailure(0, null);
+    expect(failure.code).toBe('connection-lost');
+    expect(failure.message).toMatch(/connection was lost/);
+    expect(failure.message).toMatch(/proxy/);
+  });
+
+  it('says a 413 with no word of ours in it came from something in front of the server', () => {
+    const failure = uploadFailure(413, null);
+    expect(failure.status).toBe(413);
+    expect(failure.code).toBe('proxy-too-large');
+    expect(failure.message).toMatch(/reverse proxy/);
+  });
+
+  it('falls back to the status for anything else', () => {
+    expect(uploadFailure(502, null).message).toBe('The server answered with status 502.');
   });
 });

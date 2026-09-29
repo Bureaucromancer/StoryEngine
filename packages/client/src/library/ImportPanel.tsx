@@ -12,12 +12,13 @@ import type {
   NearMissOffer,
 } from '@storyengine/shared';
 
-import { api, type ImportReport } from '../api.js';
+import { api, type ImportReport, type UploadProgress } from '../api.js';
 import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { control, disclosure } from '../ui/classes.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
+import { landedPreview, sniffImportFile } from './import-sniff.js';
 import { sentence } from './note-labels.js';
 import { labels } from '../i18n/catalogue.js';
 
@@ -194,6 +195,13 @@ export function ImportPanel(): JSX.Element {
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * ***How far the word's upload has got*** — [P13.8]. `null` when nothing is
+   * being sent. An Aventuras backup can be a gigabyte, and an Import button
+   * that stays pressed for ten minutes with nothing moving reads as a page that
+   * has hung.
+   */
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [root, setRoot] = useState('');
 
@@ -321,7 +329,16 @@ export function ImportPanel(): JSX.Element {
        * and nothing is written there, which is what keeps this short of the
        * staging area [P4 §1.4] refused.
        */
-      const { preview } = await api.importFilePreview(file);
+      /**
+       * ***An archive or a database is looked at here, not sent*** — [P13.8],
+       * amending [P4]'s *a look, then a word* (`import-sniff.ts`). The server
+       * would only have said *a folder in a file*, and would have had the
+       * whole file to say it: a gigabyte sent to be told what its first bytes
+       * said, and then sent again on the word.
+       */
+      const landed = await sniffImportFile(file);
+      const preview =
+        landed === null ? (await api.importFilePreview(file)).preview : landedPreview(file);
       if (asked.current !== mine) return;
       setOutcome({
         kind: 'preview',
@@ -401,6 +418,7 @@ export function ImportPanel(): JSX.Element {
         outcome.file,
         outcome.onConflict,
         outcome.destination ?? undefined,
+        setProgress,
       );
       setOutcome({
         kind: 'report',
@@ -416,6 +434,7 @@ export function ImportPanel(): JSX.Element {
       setError(cause instanceof Error ? cause.message : 'The import failed.');
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -544,7 +563,7 @@ export function ImportPanel(): JSX.Element {
               ref={fileInput}
               id="import-file"
               type="file"
-              accept=".png,.json,.charx,.seactor"
+              accept=".png,.json,.charx,.seactor,.zip,.db"
               onChange={(event) => void onFile(event)}
               disabled={pending}
               className="sr-only"
@@ -708,6 +727,7 @@ export function ImportPanel(): JSX.Element {
           preview={outcome.preview}
           onConflict={outcome.onConflict}
           busy={busy}
+          progress={progress}
           onPolicy={(onConflict) => {
             setOutcome({ ...outcome, onConflict });
           }}
@@ -898,6 +918,8 @@ function Preview(props: {
   preview: ImportPreview;
   onConflict: PreviewPolicy;
   busy: boolean;
+  /** The word's upload, while it is being sent. */
+  progress: UploadProgress | null;
   onPolicy: (policy: PreviewPolicy) => void;
   onDestination: (destination: ImportDestination) => void;
   onImport: () => void;
@@ -1044,6 +1066,8 @@ function Preview(props: {
         <Note>This is identical to what is already here, so importing writes nothing.</Note>
       ) : null}
 
+      {props.progress !== null ? <UploadMeter progress={props.progress} /> : null}
+
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -1059,6 +1083,32 @@ function Preview(props: {
       </div>
     </section>
   );
+}
+
+/**
+ * ***The upload, going*** — [P13.8]. A bar and a sentence, because a bar alone
+ * says nothing to somebody who cannot see it, and because the moment the last
+ * byte is sent is not the moment the import is done: a backup is then
+ * unpacked, copied and read, which for a large one takes a while of its own,
+ * and a bar sitting full with nothing said would read as stuck.
+ */
+function UploadMeter(props: { progress: UploadProgress }): JSX.Element {
+  const { sent, total } = props.progress;
+  const percent = total > 0 ? Math.min(100, Math.floor((sent / total) * 100)) : 0;
+  return (
+    <div className="flex flex-col gap-1">
+      <progress className="w-full" max={total} value={sent} aria-label="Upload" />
+      <Note role="status">
+        {sent >= total
+          ? 'Sent. Reading it into your library…'
+          : `Sending… ${String(percent)}% of ${megabytes(total)}`}
+      </Note>
+    </div>
+  );
+}
+
+function megabytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
 /** The one line that says what the file is and what would come of it. */

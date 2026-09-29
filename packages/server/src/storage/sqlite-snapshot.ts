@@ -245,8 +245,11 @@ const HEADER_BYTES = 100;
 /**
  * Whether bytes begin like a SQLite database.
  *
- * Beside `storage/zip.ts`'s `looksLikeZip`, and for the same caller: [P13.7]'s
- * bare-`.db` upload sniffs with it before choosing a transport.
+ * Beside `storage/zip.ts`'s `looksLikeZip`, and for the same caller: ~~[P13.7]'s
+ * bare-`.db` upload sniffs with it before choosing a transport~~ *[P13.8]'s
+ * streamed upload does* (`routes/import-upload.ts`) — a file that begins with
+ * this is landed on disk rather than buffered, which is the transport choice
+ * the bare `.db` needed, made one stage early.
  */
 export function looksLikeSqlite(bytes: Uint8Array): boolean {
   if (bytes.length < SQLITE_HEADER.length) return false;

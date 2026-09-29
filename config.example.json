@@ -182,6 +182,14 @@
     // live — the largest upload accepted, in megabytes: one file, or a whole
     // folder added up. Read on every upload, so a change applies to the next.
     "maxUploadMb": 64,
+    // live — the largest archive or database accepted by the one-file import,
+    // in megabytes. An Aventuras backup is somebody's whole install with its
+    // pictures in it, so these are written to disk as they arrive rather than
+    // held in memory, and bounded by this rather than by maxUploadMb. Lower it
+    // to tighten what an account may send; raising maxUploadMb does not raise
+    // this. A reverse proxy in front has a body limit and a read timeout of
+    // its own, which will refuse a large upload before this does (docs/deploy.md).
+    "maxImportUploadMb": 1024,
     // live
     "extensionStorageQuotaMb": 32,
 

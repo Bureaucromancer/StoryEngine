@@ -36,8 +36,13 @@ import {
 } from '../import/jobs.js';
 import { convertOne, sweep, type SweepOutcome, type SweepRequest } from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
+import { LandedDatabaseSource, LandedZipSource } from '../import/landed-source.js';
+import type { FileSource } from '../import/source.js';
 import { SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
+import { LandingSpaceError } from '../storage/upload-landing.js';
 import { looksLikeZip } from '../storage/zip.js';
+import { DEFAULT_ZIP_FILE_LIMITS } from '../storage/zip-file.js';
+import { receiveImportUpload, type ReceivedUpload } from './import-upload.js';
 import {
   openLocalSource,
   openParentSource,
@@ -123,13 +128,15 @@ const MAX_FOLDER_FILES = 50_000;
  */
 export function answeredNoRoom(error: unknown, reply: FastifyReply): boolean {
   const late = (error as NodeJS.ErrnoException | null)?.code === 'ENOSPC';
-  if (!(error instanceof SnapshotSpaceError) && !late) return false;
+  // `LandingSpaceError` since [P13.8]: the landing answers its own, with the
+  // connection closed behind it, and this is the backstop for one that is not.
+  const early = error instanceof SnapshotSpaceError || error instanceof LandingSpaceError;
+  if (!early && !late) return false;
   void reply.code(507).send({
     error: 'no-space',
-    message:
-      error instanceof SnapshotSpaceError
-        ? error.message
-        : 'There is not enough free space on the disk to read this import.',
+    message: early
+      ? error.message
+      : 'There is not enough free space on the disk to read this import.',
   });
   return true;
 }
@@ -271,7 +278,11 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     // CSRF is the app-wide hook's business and applies here like any mutation —
     // named because an upload route is exactly where somebody would be tempted
     // to make an exception for a form post.
-    const part = await readOnePart(request, reply, services);
+    //
+    // ***Not `readOnePart` since [P13.8]***: an archive or a database is landed
+    // on disk rather than buffered (`import-upload.ts`), and everything else is
+    // buffered under the limit it always had.
+    const part = await receiveImportUpload(request, reply, services);
     if (part === null) return;
 
     /**
@@ -302,23 +313,39 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      */
     const into = destination(part.field('destination'));
 
-    let result: UploadResult;
+    let result: UploadResult | null = null;
+    let failure: { error: unknown } | null = null;
     try {
       // An archive holding an `aventura.db` is swept like any root, and the
       // sweep may need room for a copy of it.
-      result = await importOneFile(
-        services,
-        account.handle,
-        part.filename,
-        part.bytes,
-        onConflict,
-        into,
-        request.log,
-      );
+      result =
+        part.kind === 'landed'
+          ? await importLanded(services, account.handle, part, onConflict, request.log)
+          : await importOneFile(
+              services,
+              account.handle,
+              part.filename,
+              part.bytes,
+              onConflict,
+              into,
+            );
     } catch (error) {
-      if (answeredNoRoom(error, reply)) return reply;
-      throw error;
+      failure = { error };
+    } finally {
+      /**
+       * The landing, and the large-upload slot, however the import ended —
+       * ***and before anything is answered***. A reply sent first lets the
+       * client, and the next request, see a server still holding a gigabyte
+       * of scratch and the slot for a moment after it said it was done; found
+       * by the test that looks at scratch as soon as a `507` arrives.
+       */
+      if (part.kind === 'landed') await part.release().catch(() => undefined);
     }
+    if (failure !== null) {
+      if (answeredNoRoom(failure.error, reply)) return reply;
+      throw failure.error;
+    }
+    if (result === null) throw new Error('An import finished with neither a result nor a failure.');
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
   });
 
@@ -980,8 +1007,6 @@ async function importOneFile(
   bytes: Uint8Array,
   onConflict?: ConflictPolicy,
   into?: ImportDestination,
-  /** The request's logger, for the one thing a sweep cannot put in its report ({@link SweepRequest.log}). */
-  log?: SweepRequest['log'],
 ): Promise<UploadResult> {
   const item = (
     disposition: ImportItemReport['disposition'],
@@ -995,55 +1020,11 @@ async function importOneFile(
   });
 
   /**
-   * **An archive is a root, so it is swept rather than read as an item**
-   * ([P4 §1.3], [§7.5]).
-   *
-   * This is the same argument the profile envelope below makes, and it pays for
-   * three things at once rather than one: a CHARX (`card.json` and its assets),
-   * a zipped Marinara data root — the archive form P4.3 deferred for want of
-   * exactly this reader — and a zip somebody made of their cards folder, which
-   * classifies as `loose-files` and sweeps like any other. None of the readers
-   * learns that the bytes came out of an archive.
-   *
-   * Tried before JSON because a zip is never JSON, and `looksLikeZip` is a
-   * four-byte signature rather than a parse.
+   * ~~**An archive is a root, so it is swept rather than read as an item**~~ —
+   * *moved to {@link importLanded} at [P13.8]*, with its reasoning, because an
+   * archive no longer reaches this function: it is landed on disk before a
+   * byte of it is buffered, and these bytes are never a zip.
    */
-  if (looksLikeZip(bytes)) {
-    const opened = ZipFileSource.open(bytes);
-    if (!opened.ok) {
-      return item('unrecognised', [
-        {
-          key: 'import.file.badArchive',
-          params: { file: filename, refusal: opened.refusal },
-          level: 'warn',
-        },
-      ]);
-    }
-
-    const outcome = await sweep({
-      library: services.library,
-      handle,
-      tags: services.tags,
-      files: opened.source,
-      // What a CHARX is identified by: the file the person sent, rather than
-      // the `card.json` inside every one of them.
-      rootName: filename,
-      freeBytes: services.freeBytes,
-      ...(log === undefined ? {} : { log }),
-      ...(onConflict === undefined ? {} : { onConflict }),
-    });
-    if (!outcome.ok) {
-      return item('unrecognised', [
-        {
-          key: 'import.file.refused',
-          params: { file: filename, refusal: outcome.refusal },
-          level: 'warn',
-        },
-      ]);
-    }
-    return reportAsUpload(filename, outcome.report.items);
-  }
-
   // Marinara's own export formats, which are the same reader over a different
   // file source ([P4 §1.3]) — a `.marinara.json` is one row of a table that
   // happens to have travelled alone.
@@ -1143,6 +1124,117 @@ async function importOneFile(
     ]);
   }
   return { item: { ...answer, notes }, notes };
+}
+
+/**
+ * ***An archive or a database that was landed on disk*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * **An archive is a root, so it is swept rather than read as an item**
+ * ([P4 §1.3], [§7.5]) — moved here from `importOneFile` when archives stopped
+ * being buffered. This is the same argument the profile envelope makes, and it
+ * pays for several things at once rather than one: a CHARX (`card.json` and
+ * its assets), a zipped Marinara data root, a zip somebody made of their cards
+ * folder, which classifies as `loose-files` — and, since P13, an Aventuras
+ * backup. None of the readers learns that the bytes came out of an archive,
+ * nor now that the archive is on disk.
+ *
+ * **A bare database is a root too**, of one file: [P13 §1.1]'s fourth
+ * transport, *recognised by the SQLite header*. It is landed under the name
+ * the probe looks for, so it classifies as `aventuras` by that name, and the
+ * reader takes the landing itself as the snapshot's `owned` input
+ * (`FileSource.land`) — no second copy, and none of it in memory. A database
+ * that is not Aventuras' is refused by the reader's column gate, as one found
+ * in a folder would be.
+ *
+ * The landing is the caller's to release; this only reads it. The archive's
+ * handle is closed here, in a `finally`, before the release removes the file.
+ */
+async function importLanded(
+  services: AppServices,
+  handle: string,
+  part: Extract<ReceivedUpload, { kind: 'landed' }>,
+  onConflict?: ConflictPolicy,
+  /** The request's logger, for the one thing a sweep cannot put in its report ({@link SweepRequest.log}). */
+  log?: SweepRequest['log'],
+): Promise<UploadResult> {
+  const { filename } = part;
+  const unrecognised = (note: ImportNote): UploadResult => ({
+    item: { source: filename, disposition: 'unrecognised', notes: [note] },
+    notes: [note],
+  });
+
+  let files: FileSource;
+  let archive: LandedZipSource | null = null;
+  if (part.format === 'zip') {
+    const opened = await LandedZipSource.open(part.space.path(part.name), {
+      layout: services.layout,
+      limits: landedZipLimits(services),
+      freeBytes: services.freeBytes,
+    });
+    if (!opened.ok) {
+      return unrecognised({
+        key: 'import.file.badArchive',
+        params: { file: filename, refusal: opened.refusal },
+        level: 'warn',
+      });
+    }
+    archive = opened.source;
+    files = archive;
+  } else {
+    files = new LandedDatabaseSource(part.space, part.name);
+  }
+
+  try {
+    const outcome = await sweep({
+      library: services.library,
+      handle,
+      tags: services.tags,
+      files,
+      // What a CHARX is identified by: the file the person sent, rather than
+      // the `card.json` inside every one of them.
+      rootName: filename,
+      freeBytes: services.freeBytes,
+      ...(log === undefined ? {} : { log }),
+      ...(onConflict === undefined ? {} : { onConflict }),
+    });
+    if (!outcome.ok) {
+      return unrecognised({
+        key: 'import.file.refused',
+        params: { file: filename, refusal: outcome.refusal },
+        level: 'warn',
+      });
+    }
+    return reportAsUpload(filename, outcome.report.items);
+  } finally {
+    await archive?.close();
+  }
+}
+
+/**
+ * ***How far one entry of a landed archive may declare itself***, as a
+ * multiple of the import upload limit — [P13.8]'s *per-entry cap at parse
+ * time*.
+ *
+ * The in-memory reader's 64 MB per entry was a bound on the heap; an entry
+ * landed on disk is bounded by the disk instead, and the one that is landed
+ * is somebody's database, which can be larger than the archive that carried
+ * it. Aventuras deflates at level 1, and a database's bulk is its pictures as
+ * base64, which barely compress — so a real one is under twice its entry.
+ * Four times is room for a database with little in it but text, and it keeps
+ * a bomb to a known multiple of what the operator already agreed to receive;
+ * past it, the archive is refused before anything is inflated. At the default
+ * of 1024 MB it is the zip format's own ceiling without zip64, which is not
+ * read here at all.
+ */
+const ENTRY_ALLOWANCE = 4;
+
+function landedZipLimits(services: AppServices): typeof DEFAULT_ZIP_FILE_LIMITS {
+  const cap = services.config.limits.maxImportUploadMb * MEGABYTE * ENTRY_ALLOWANCE;
+  return {
+    ...DEFAULT_ZIP_FILE_LIMITS,
+    maxEntryBytes: Math.min(cap, DEFAULT_ZIP_FILE_LIMITS.maxEntryBytes),
+  };
 }
 
 /**

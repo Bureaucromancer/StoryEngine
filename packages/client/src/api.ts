@@ -360,6 +360,104 @@ async function requestForm<T>(url: string, body: FormData): Promise<T> {
   return payload as T;
 }
 
+/**
+ * ***How far an upload has got*** — [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * `sent` of `total` bytes of the request body, as the browser reports them.
+ */
+export interface UploadProgress {
+  sent: number;
+  total: number;
+}
+
+/**
+ * ***A failed upload, as a sentence a person can act on*** — [P13.8]'s *maps a
+ * dropped connection or a proxy's 413 to a sentence*.
+ *
+ * Two failures reach the browser without a word from StoryEngine in them, and
+ * both are the ordinary way a large upload fails:
+ *
+ * - **The connection dropped** (`status` 0). A browser sending a large body
+ *   does not read the answer until it has sent all of it, so a refusal —
+ *   ours, which closes the connection, or a proxy's, which may not answer at
+ *   all — can reach it as a reset. So can a network that gave out. Neither is
+ *   *the file is bad*, and the sentence says what it might be instead.
+ * - **A `413` that is not ours**: StoryEngine's own carries `too-large` and a
+ *   message naming the limit, which is used as it is. One with no JSON body
+ *   came from something in front of the server — nginx's default body limit
+ *   is one megabyte — and the person who can fix it needs to be told that
+ *   the limit is not the one in Settings.
+ *
+ * Anything else with no JSON is the server's status, as `requestForm` has
+ * always said it. Exported for its test.
+ */
+export function uploadFailure(status: number, payload: Record<string, unknown> | null): ApiError {
+  const code = typeof payload?.['error'] === 'string' ? payload['error'] : null;
+  const message = typeof payload?.['message'] === 'string' ? payload['message'] : null;
+  if (code !== null && message !== null) return new ApiError(status, code, message);
+  if (status === 0) {
+    return new ApiError(
+      0,
+      'connection-lost',
+      'The connection was lost before the upload finished. If the file is large, the server — or a proxy in front of it — may have refused it part way; otherwise, try again.',
+    );
+  }
+  if (status === 413) {
+    return new ApiError(
+      413,
+      'proxy-too-large',
+      'Something between you and StoryEngine refused this file as too large — usually a reverse proxy’s upload limit, which is set apart from StoryEngine’s own. Whoever runs the server can raise it.',
+    );
+  }
+  return new ApiError(
+    status,
+    code ?? 'unknown',
+    message ?? `The server answered with status ${String(status)}.`,
+  );
+}
+
+/**
+ * `requestForm`, with the upload's progress — **an `XMLHttpRequest`, not
+ * `fetch`**, because `fetch` still reports nothing about a request body while
+ * it is being sent, and a gigabyte with no progress reads as a page that has
+ * hung. Everything else is `requestForm`'s: the CSRF header, the cookies (the
+ * same origin, so an XHR sends them), and the error's code and message from
+ * the body — through {@link uploadFailure} for the two failures that carry
+ * none.
+ */
+function requestFormWithProgress<T>(
+  url: string,
+  body: FormData,
+  onProgress: (progress: UploadProgress) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    const token = cookieValue(document.cookie, CSRF_COOKIE);
+    if (token !== null) xhr.setRequestHeader(CSRF_HEADER, token);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress({ sent: event.loaded, total: event.total });
+    };
+    xhr.onload = () => {
+      let payload: Record<string, unknown> | null = null;
+      try {
+        payload = JSON.parse(xhr.responseText) as Record<string, unknown>;
+      } catch {
+        // Not JSON: a proxy's page, or nothing. `uploadFailure` says which.
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(payload as T);
+      else reject(uploadFailure(xhr.status, payload));
+    };
+    // A reset, a refusal the browser never read, a network that gave out.
+    xhr.onerror = () => {
+      reject(uploadFailure(0, null));
+    };
+    xhr.onabort = () => {
+      reject(uploadFailure(0, null));
+    };
+    xhr.send(body);
+  });
+}
+
 /** One row of the import review — the shared vocabulary, as the client sees it. */
 export interface ImportItem {
   source: string;
@@ -781,13 +879,20 @@ export const api = {
     file: File,
     onConflict?: 'replace' | 'keep-both' | 'skip',
     destination?: ImportDestination,
+    /**
+     * How far the upload has got — [P13.8]. Given, the upload goes through
+     * {@link requestFormWithProgress}; an Aventuras backup can be a gigabyte.
+     */
+    onProgress?: (progress: UploadProgress) => void,
   ): Promise<ImportFileResult> => {
     const body = new FormData();
     if (onConflict !== undefined) body.append('onConflict', onConflict);
     // Same rule, same reason: appended before the file so the route sees it.
     if (destination !== undefined) body.append('destination', destination);
     body.append('file', file);
-    return requestForm('/api/import/file', body);
+    return onProgress === undefined
+      ? requestForm('/api/import/file', body)
+      : requestFormWithProgress('/api/import/file', body, onProgress);
   },
 
   /**

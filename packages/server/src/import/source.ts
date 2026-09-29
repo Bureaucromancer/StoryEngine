@@ -3,6 +3,8 @@
 
 import type { ImportItemReport, ImportNote } from '@storyengine/shared';
 
+import type { ScratchSpace } from '../storage/import-scratch.js';
+
 /**
  * The seam the whole import phase is built on, and the one thing P4.0 exists to
  * get right before anything is written on top of it
@@ -101,6 +103,38 @@ export interface FileSource {
    * implementation checks where it really leads rather than how it is spelled.
    */
   realPath?(path: string): Promise<string | null>;
+
+  /**
+   * ***The file, landed on our own disk, and handed over*** —
+   * [P13.8](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * `realPath`'s counterpart for a source whose file is **ours** rather than
+   * somebody else's: an upload that was streamed into the import scratch root
+   * rather than held in memory, or an entry of an archive landed there. The
+   * answer is a scratch space of its own with the file in it under `name`, and
+   * **the space is the caller's from here** — the snapshot's `owned` input,
+   * which keeps it or disposes of it. A `<path>-wal` the source also holds is
+   * landed beside it as `<name>-wal`, since the file without its log is an
+   * older database that looks whole ([P13 §1.2]).
+   *
+   * `null` when the path is not there, or is not what the source said it was
+   * — an archive entry that will not inflate to its declared size — or its
+   * log is named and could not be landed. Final, as `realPath`'s is: a reader
+   * does not then ask `read`, which for a landed upload holds nothing.
+   *
+   * **Optional, and asked after `realPath`**: a source with a real path has
+   * no reason to make a copy of its own when the snapshot will make one. It
+   * exists for SQLite, as `realPath` does, and throws what landing throws —
+   * no room above all (`SnapshotSpaceError`, a `507`).
+   */
+  land?(path: string): Promise<LandedFile | null>;
+}
+
+/** A file in a scratch space whose ownership has passed to whoever holds this. */
+export interface LandedFile {
+  space: ScratchSpace;
+  /** The file's name inside the space. */
+  name: string;
 }
 
 /** Which source a root turned out to be. Open by intent — a new source adds an arm. */

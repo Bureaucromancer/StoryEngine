@@ -456,13 +456,46 @@ prose ([P4 §1.4](design/workplan/16-p4-implementation.md)).
 - `413 {"error":"too-large"}` over `limits.maxUploadMb`, **read per request**.
   That is what moved the key from `unread` to `applied` after three phases as
   the standing example of a live key nobody read: raise the limit in Settings and
-  the next upload takes the file, without a restart. Fastify's constructor
-  `bodyLimit` stays as the outer bound.
+  the next upload takes the file, without a restart. ~~Fastify's constructor
+  `bodyLimit` stays as the outer bound.~~ *Corrected 2026-09-27:* Fastify's
+  `bodyLimit` never sees a multipart body, so this is the only bound. **Since
+  [P13.8](design/workplan/30-p13-aventuras-import.md) a zip or a SQLite database
+  is bounded by `limits.maxImportUploadMb` instead** (below), and the message
+  names which of the two refused it. A request whose declared length is past
+  both is refused before its body is read.
 - `415 {"error":"not-multipart"}` for a body that is not multipart.
 - `400 {"error":"no-file"}` for a multipart body with no file in it.
-- `507 {"error":"no-space"}` when the file is an archive swept as a root — a
-  zip holding an Aventuras `aventura.db` — and there is no room for the copy of
-  the database the sweep reads from.
+- `507 {"error":"no-space"}` when there is no room on the disk: for 1.1× a
+  landed upload and a reserve before it is written (below), or for the copy of
+  an Aventuras database the sweep reads from.
+- `503 {"error":"upload-busy"}`, with `retry-after`, when another **large**
+  upload is being landed — one declared larger than `limits.maxUploadMb`, or
+  declaring no length at all. One at a time, server-wide, because the disk is.
+- `408 {"error":"upload-stalled"}` when the file stopped arriving for a minute
+  part way through.
+
+**Every refusal made before the body has been read through carries
+`Connection: close`** ([P13.8](design/workplan/30-p13-aventuras-import.md)). A browser sending a large body reads nothing
+until it has finished sending, so a refusal left on an open connection reaches
+it as a reset rather than as this answer; closing is what lets the answer
+through. It is not a guarantee, and a client should read a dropped connection
+during an upload as *the server or something in front of it refused this*.
+
+**A zip or a SQLite database is landed, not buffered** —
+[P13.8](design/workplan/30-p13-aventuras-import.md). The first sixteen bytes are
+sniffed (across however many chunks they arrive in), and a file that begins
+like a zip or like SQLite is written to the import scratch root as it arrives,
+under `limits.maxImportUploadMb` — a limit of its own, which can be set below
+`maxUploadMb` — and read from there. Everything else is buffered as before.
+**A zip** is swept as a root, read on disk with the limits split: an entry is
+held to four times the import limit by its declared size, anything read into
+memory to 64 MB, and the archive's total to 256 MB of what was actually read —
+so an Aventuras backup's database is inflated to scratch at whatever size, and
+the `stories/*.avt` an old backup carries beside it cost nothing. **A bare
+SQLite database**, whatever it was called, is swept as an Aventuras root of one
+file, `aventura.db`, from where it landed; one that is not Aventuras' is
+refused by the reader's column gate, `unrecognised` with an
+`import.file.refused` note.
 
 CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
@@ -494,9 +527,15 @@ it costs the opening messages, which a lorebook has nowhere to hold.
 ### `POST /api/import/file/preview`
 
 **What that upload would do, with nothing written.** `multipart/form-data` with
-one file part → `200 { preview }`. Same limits, same three transport refusals and
+one file part → `200 { preview }`. ~~Same limits, same three transport refusals and
 the same CSRF rule as `/import/file`, because both doors read the part through
-the same function.
+the same function.~~ *Since [P13.8](design/workplan/30-p13-aventuras-import.md)*
+the same three transport refusals and the same CSRF rule, and **not the same
+limits**: this door still buffers every file under `limits.maxUploadMb`, and
+lands nothing. An archive or a database is only ever answered *this is a folder
+in a file*, which the client knows from the file's first bytes without sending
+it — so the client does not send one here at all, and a large backup is not
+uploaded twice to be told what its name already said.
 
 `preview` is `{ source, disposition, notes, advisories, object, reimport }`.
 `disposition` and `reimport` are **predictions**, not records — the file could
