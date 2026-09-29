@@ -582,8 +582,21 @@ export interface SurfaceContribution {
    *   mark on a message. Adding an arm is exactly what [10 §8.1]'s paired
    *   commitment requires of the widget vocabulary, and the same sentence
    *   governs regions: *"ask what widget would let it, and add that."*
+   * - `settings` — ***the session's settings***, added at [P13.5a] for
+   *   [P13 §1.9.6]: *"switches in the session's settings, grouped under
+   *   Agents because that is what a Marinara user will look for"*. A switch
+   *   that costs a model call every turn is configuration, and the panel stack
+   *   is where the story's state is read; putting six tracker switches beside
+   *   the trackers would be a settings form in the middle of the story.
    */
-  region: 'hud' | 'panel' | 'message' | 'stage';
+  region: 'hud' | 'panel' | 'message' | 'stage' | 'settings';
+  /**
+   * ***The heading a contribution goes under within its region*** — added at
+   * [P13.5a], for the same sentence of [P13 §1.9.6]. Authored content, like a
+   * widget's label; contributions sharing one are drawn together, in
+   * declaration order. Absent is the region's own, ungrouped.
+   */
+  group?: string;
   /**
    * The channel whose value this renders.
    *

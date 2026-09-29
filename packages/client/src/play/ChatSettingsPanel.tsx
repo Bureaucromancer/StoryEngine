@@ -11,6 +11,7 @@ import { Button } from '../ui/Button.js';
 import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
 import { disclosure } from '../ui/classes.js';
 import { CardPrompts } from './CardPrompts.js';
+import { ModeRegion } from './ModeRegion.js';
 
 /**
  * ***How this chat plays*** —
@@ -69,6 +70,7 @@ const WORDS = labels('play.chat-settings', {
   removeNote: 'Remove the note',
   cards: 'What each card sends',
   failed: 'That setting could not be saved.',
+  modeSettings: 'Session settings',
 });
 
 /**
@@ -96,14 +98,40 @@ const NAMES_WORDS: Readonly<Record<string, string>> = labels('play.names-in-hist
 export function ChatSettingsPanel(props: { sessionId: string }): JSX.Element | null {
   const session = useSession(props.sessionId);
   const chat = session.data?.chat;
-  if (chat === undefined) return null;
-  return <Settings sessionId={props.sessionId} chat={chat} roster={session.data?.session.cast} />;
+  /**
+   * ***What the mode put in settings*** — the `settings` region, [P13.5a]:
+   * [P13 §1.9.6]'s agent switches, *"in the session's settings, grouped under
+   * Agents"*. Inside this panel for a chat, which is where a Marinara user
+   * looks; on its own for a mode that declares settings and does not play as a
+   * chat, so a switch never goes missing with the panel around it.
+   */
+  const declared = (
+    <ModeRegion sessionId={props.sessionId} surfaces={session.data?.surfaces} region="settings" />
+  );
+  if (chat === undefined) {
+    if (!(session.data?.surfaces ?? []).some((one) => one.region === 'settings')) return null;
+    return (
+      <details className="rounded-control border border-line bg-surface px-3 py-2">
+        <summary className={`${disclosure.quiet} text-sm`}>{WORDS.modeSettings}</summary>
+        <div className="mt-3">{declared}</div>
+      </details>
+    );
+  }
+  return (
+    <Settings
+      sessionId={props.sessionId}
+      chat={chat}
+      roster={session.data?.session.cast}
+      declared={declared}
+    />
+  );
 }
 
 function Settings(props: {
   sessionId: string;
   chat: ChatSettings;
   roster: { persona: string | null; actors: string[] } | undefined;
+  declared: JSX.Element;
 }): JSX.Element {
   const { chat } = props;
   const write = useSetChatSettings(props.sessionId);
@@ -228,6 +256,8 @@ function Settings(props: {
               ))}
           </div>
         )}
+
+        {props.declared}
 
         {write.isError ? <AlertNote role="alert">{WORDS.failed}</AlertNote> : null}
       </div>

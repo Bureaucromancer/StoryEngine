@@ -187,6 +187,8 @@ const LOREBOOK_ENTRIES = [
  * - An orphaned message in `orphaned-rows.json`, counted and not imported.
  * - A `.json.bak` beside a message shard and a swipe shard, as Marinara keeps
  *   one beside every shard: the same rows again, which must not double them.
+ * - *Since [P13.5a]*, `chat_1` runs three trackers manually and its messages
+ *   carry tracker snapshots — see {@link SNAPSHOTS}.
  */
 const at = (minute: number): string => new Date(Date.UTC(2026, 7, 2, 21, minute)).toISOString();
 
@@ -356,8 +358,137 @@ function chatRow(
   };
 }
 
+/**
+ * ***The trackers' state*** — [P13.5a], [P13 §2.6]'s *"`game_state_snapshots`
+ * row for a message's swipe"*.
+ *
+ * Rows in the stored shape (`db/schema/game-state.ts`): every list and object
+ * column as JSON text, one row per `(message, swipe)` the trackers ran over.
+ * What each proves:
+ * - **`msg_03`'s two swipes each have their own**: the active one (index 1)
+ *   has Vera in the harbour office with the ledger in hand; the other (index
+ *   0) was in the customs shed. Swiping is a sibling here, so each sibling
+ *   carries its own state.
+ * - **A dockhand with no card** is in the active swipe's scene. The character
+ *   tracker is per actor, so they have nowhere to go.
+ * - **`msg_06` is written twice**, an older run and a newer, and the newer is
+ *   what Marinara shows. It moves the weather and Vera's mood and keeps the
+ *   ledger — so the turn carries the world and Vera and not the inventory —
+ *   and it locks the location and Vera's mood (by her id), hides her thoughts,
+ *   and holds one lock by an index no row has, which cannot be carried. It
+ *   also locks rows, not fields — Vera's *Patience* bar and an item called
+ *   *Crate #2* (hidden too), whose `#` is a row name's, not a member's.
+ * - **The branch copied `msg_03`'s snapshot** with its messages, as Marinara
+ *   branches copy every snapshot (`chats.routes.ts:3904`), and then moved to
+ *   the bonded warehouse at `msg_b5`.
+ */
+function snapshot(
+  id: string,
+  chatId: string,
+  messageId: string,
+  swipeIndex: number,
+  minute: number,
+  state: {
+    location: string;
+    weather?: string;
+    characters?: Record<string, unknown>[];
+    carrying?: string[];
+    locks?: Record<string, boolean>;
+    hidden?: Record<string, boolean>;
+  },
+) {
+  return {
+    id,
+    chatId,
+    messageId,
+    swipeIndex,
+    date: 'The ninth of Rain',
+    time: 'Night',
+    location: state.location,
+    weather: state.weather ?? 'drizzle',
+    temperature: null,
+    worldCustomFields: '[]',
+    presentCharacters: json(state.characters ?? []),
+    recentEvents: '[]',
+    playerStats: json({
+      stats: [],
+      attributes: null,
+      skills: {},
+      inventory: [],
+      activeQuests: [],
+      status: '',
+      inventoryTrackerCurrencies: [],
+      inventoryTrackerEquipped: [],
+      inventoryTrackerInventory: (state.carrying ?? []).map((name) => ({ name })),
+    }),
+    personaStats: null,
+    manualOverrides: null,
+    fieldLocks: state.locks === undefined ? null : json(state.locks),
+    hiddenTrackerFields: state.hidden === undefined ? null : json(state.hidden),
+    committed: 1,
+    createdAt: at(minute),
+  };
+}
+
+const vera = (mood: string) => ({
+  characterId: 'char_vera',
+  name: 'Vera Solano',
+  emoji: '⚓',
+  mood,
+  appearance: 'Oilskin coat',
+  outfit: null,
+  customFields: { holding: 'a pencil' },
+  stats: [{ name: 'Patience', value: 4, max: 10, color: '#888888' }],
+  thoughts: 'He is early.',
+});
+
+const OFFICE = {
+  location: 'the harbour office',
+  characters: [
+    vera('guarded'),
+    { characterId: '', name: 'A dockhand', mood: 'bored', customFields: {}, stats: [] },
+  ],
+  carrying: ['Manifest ledger'],
+};
+
+const SNAPSHOTS = [
+  snapshot('gs_03_0', 'chat_1', 'msg_03', 0, 2, { location: 'the customs shed' }),
+  snapshot('gs_03_1', 'chat_1', 'msg_03', 1, 2, OFFICE),
+  snapshot('gs_06_old', 'chat_1', 'msg_06', 0, 5, { ...OFFICE, weather: 'sleet' }),
+  snapshot('gs_06', 'chat_1', 'msg_06', 0, 6, {
+    ...OFFICE,
+    weather: 'rain',
+    characters: [vera('curt')],
+    locks: {
+      'world.location': true,
+      'characters.id:char_vera.mood': true,
+      'characters.id:char_vera.stats.name:Patience.value': true,
+      'player.inventoryTracker.inventory.name:Crate%20%232': true,
+      'characters.index:7.mood': true,
+    },
+    hidden: {
+      'characters.id:char_vera.thoughts': true,
+      'player.inventoryTracker.inventory.name:Crate%20%232': true,
+    },
+  }),
+  snapshot('gs_b3_1', 'chat_2', 'msg_b3', 1, 2, OFFICE),
+  snapshot('gs_b5', 'chat_2', 'msg_b5', 0, 7, { ...OFFICE, location: 'the bonded warehouse' }),
+];
+
 const CHATS = [
-  chatRow('chat_1', 'Harbour Night', 'roleplay', ['char_vera'], {}, 0),
+  chatRow(
+    'chat_1',
+    'Harbour Night',
+    'roleplay',
+    ['char_vera'],
+    {
+      // Three trackers on, and only when asked — [P13.5a].
+      enableAgents: true,
+      activeAgentIds: ['world-state', 'character-tracker', 'inventory-tracker'],
+      manualTrackers: true,
+    },
+    0,
+  ),
   chatRow(
     'chat_2',
     'Harbour Night',
@@ -442,6 +573,7 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
           (sum, chat) => sum + chat.swipes.length,
           0,
         ),
+        game_state_snapshots: SNAPSHOTS.length,
       },
     }),
     // A `.bak` beside the manifest, which holds the same rows rather than more
@@ -485,6 +617,8 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
     'storage/tables/messages/chat_2.json': json(BRANCH.messages),
     'storage/tables/messages/chat_group.json': json(GROUP.messages),
     'storage/tables/messages/chat_dm.json': json(DM.messages),
+    // The trackers' state ([P13.5a]), flat.
+    'storage/tables/game_state_snapshots.json': json(SNAPSHOTS),
     'storage/tables/messages/orphaned-rows.json': json([
       {
         id: 'msg_orphan',

@@ -45,6 +45,7 @@ import {
   type ChatPatch,
   setSessionLore,
   setSessionPreset,
+  runSessionStep,
   writeSessionChannel,
   type Account,
   type AccountPatch,
@@ -967,6 +968,26 @@ export function useSetHidden(
  * *No `onError` special-casing, because a refusal is not an error*: the route
  * answers 200 with an unapplied effect, and the caller decides what to say.
  */
+/**
+ * ***Update trackers*** — a declared on-demand step, run between turns
+ * ([P13.5a]). It writes an engine turn under the head — the shape a channel
+ * write writes, and no transcript row — so it refreshes what a channel write
+ * refreshes. *Pending until the refetch lands*, as the chat settings' write
+ * is: the button stays disabled until the cards show what it wrote.
+ */
+export function useRunStep(
+  sessionId: string,
+): UseMutationResult<Awaited<ReturnType<typeof runSessionStep>>, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (stepId: string) => runSessionStep(sessionId, stepId),
+    onSuccess: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
 export function useWriteChannel(
   sessionId: string,
 ): UseMutationResult<
@@ -976,13 +997,31 @@ export function useWriteChannel(
 > {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: channelWriteKey(sessionId),
     mutationFn: (write: { key: string; value: unknown }) =>
       writeSessionChannel(sessionId, write.key, write.value),
+    /**
+     * ***The refetch is part of the write*** (2026-09-29, the [P13.5a] review):
+     * returned, so `isPending` — and `useIsMutating` over
+     * {@link channelWriteKey} — lasts until the session read holds the value
+     * just written. A control that re-enabled before that would build its next
+     * write from the value the person saw *before* this one, and the second
+     * write would quietly undo the first: a lock toggled twice fast, or a Save
+     * over a tracker the model updated meanwhile.
+     */
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
+}
+
+/**
+ * The key every channel write for a session shares, so a card can wait for
+ * any of them — a lock set is one value that several cards write.
+ */
+export function channelWriteKey(sessionId: string): readonly unknown[] {
+  return ['channel-write', sessionId];
 }
 
 /**

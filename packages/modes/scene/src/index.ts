@@ -30,6 +30,7 @@ export {
   TRACK_STEP,
   TRACKERS,
   TRACKING_CHANNELS,
+  TRACKING_SURFACES,
   WORLD,
   track,
   trackerPath,

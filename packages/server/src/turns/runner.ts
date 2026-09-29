@@ -99,7 +99,8 @@ import type { EffectProposal } from './effects.js';
 import { planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
 import { TALKATIVENESS_DEFAULT, talkativenessMap, turnSelection } from './speakers.js';
-import { chatSettingsOf } from '../sessions/chat-settings.js';
+import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
+import { readPresence } from '../sessions/cast.js';
 
 /**
  * The step loop — [P2 §2.5], [P2 §2.10], [06 §6].
@@ -1770,7 +1771,10 @@ export class TurnRunner {
              * `filterReads` drops it for a step that did not declare `cast`, so
              * this is the whole cast and the filter is where it narrows.
              */
-            cast: castEntries(cast),
+            cast: castEntries(cast, {
+              channels: running,
+              castIsPresent: castIsPresentFor(chat, mode.definition),
+            }),
             channels: running,
             history,
             ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),
@@ -3326,17 +3330,36 @@ function castTerms(
  * a mode staging a scene has no reason to leave the player's own character out
  * of it.
  */
-export function castEntries(cast: {
-  persona: CastMember | null;
-  actors: readonly CastMember[];
-}): CastEntry[] {
+export function castEntries(
+  cast: {
+    persona: CastMember | null;
+    actors: readonly CastMember[];
+  },
+  /**
+   * ***Presence, as the collector reads it*** (2026-09-29, the [P13.5a]
+   * review) — the channels and `castIsPresentFor`'s answer. Only under that
+   * reading is a member marked `present: false` (muted); without it nothing is
+   * marked, as the collector's `present` filters nothing. Omitted by a caller
+   * that has no scene to be in (an illustration's cast).
+   */
+  presence?: {
+    channels: Readonly<Record<string, { value: unknown; degraded?: unknown }>>;
+    castIsPresent: boolean;
+  },
+): CastEntry[] {
   const everyone = cast.persona === null ? cast.actors : [cast.persona, ...cast.actors];
+  const muted = (member: CastMember): boolean =>
+    presence !== undefined &&
+    presence.castIsPresent &&
+    member !== cast.persona &&
+    !readPresence(presence.channels, member.actor.id, true);
   return everyone.map((member) => ({
     actorId: member.actor.id,
     name: member.actor.name,
     kind: 'actors',
     // Said rather than left to position ([P13.5a]) — see `CastEntry.persona`.
     ...(member === cast.persona ? { persona: true as const } : {}),
+    ...(muted(member) ? { present: false as const } : {}),
     media: member.actor.media.map((one) => ({
       id: one.id,
       role: one.role,

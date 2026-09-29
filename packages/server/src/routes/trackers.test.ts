@@ -258,6 +258,61 @@ describe('a turn with trackers on', () => {
   });
 });
 
+describe('a muted member', () => {
+  /**
+   * ***Out of the room is out of the trackers*** (2026-09-29, the review). The
+   * panel closes a muted member's card; the step and the state block read
+   * presence the same way, so no call is spent on them and no prompt carries
+   * them — and their value waits on the tree for when they are back.
+   */
+  it('is left out of the tracker call and the state block, and keeps their value', async () => {
+    const ned = await anActor('Ned');
+    const vera = await anActor('Vera');
+    const oskar = await anActor('Oskar');
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Harbour', cast: { persona: ned, actors: [vera, oskar] } },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const sessionId = created.body.session.id as string;
+    await switchOn(sessionId, 'world', 'character');
+
+    await play(sessionId, 'I follow them.', [
+      { text: TO_THE_DOCKS },
+      { object: { characters: { Vera: { mood: 'wary' }, Oskar: { mood: 'loud' } } } },
+    ]);
+    const asked = (request: RecordedRequest | undefined): string[] =>
+      Object.keys(
+        (request?.schema as { properties: { characters: { properties: object } } }).properties
+          .characters.properties,
+      );
+    expect(asked(trackerCalls()[0])).toEqual(['Vera', 'Oskar']);
+
+    await put(sessionId, `se.presence#${vera}`, false);
+    const before = provider.requests.length;
+    await play(sessionId, 'I look around.', [
+      { text: 'Gulls.' },
+      { object: { world: { location: 'the quay' } } },
+    ]);
+    const after = provider.requests.slice(before);
+    const call = after.find((one) => one.schema !== undefined);
+    expect(asked(call)).toEqual(['Oskar']);
+    const shown = (call?.messages ?? []).find((one) => one.content.includes('tracked state now'));
+    expect(shown?.content).toContain('Oskar');
+    expect(shown?.content).not.toContain('Vera');
+
+    const sent = everything(after.find((one) => one.schema === undefined));
+    expect(sent).toContain(STATE_HEADING);
+    expect(sent).toContain('— Oskar');
+    expect(sent).not.toContain('— Vera');
+
+    expect((await channels(sessionId))[`se.track.character#${vera}`]?.value).toMatchObject({
+      mood: 'wary',
+    });
+  });
+});
+
 describe('the tree', () => {
   /** ***P13.5a's third claim***: *"a swipe of that turn has its own tracker state"*. */
   it('gives a swipe its own tracker state, and the next prompt the state of its line', async () => {
@@ -397,5 +452,90 @@ describe('manual mode, and Update trackers', () => {
       expect(refused.status, stepId).toBe(404);
       expect(refused.body.error).toBe('no-such-step');
     }
+  });
+});
+
+/**
+ * ***What the tracker panel reads*** — the client half of [P13.5a]. The panel
+ * knows no tracker: it draws the `record` surfaces the session read hands it,
+ * and offers the actions it lists. So the claims are about that read — a card
+ * only for a tracker that is on, a character card per present member but the
+ * persona, the locks and hidden fields beside the value, and *Update trackers*
+ * only while it has something to update.
+ */
+describe('what the tracker panel reads', () => {
+  interface Surface {
+    region: string;
+    key: string;
+    channelId: string;
+    scopeKey: string | null;
+    kind: string;
+    group?: string;
+    on?: boolean;
+    record?: {
+      value: unknown;
+      fields: { key: string; show: string }[];
+      locks: { key: string; paths: string[] } | null;
+      hidden: { key: string; paths: string[] } | null;
+    };
+  }
+
+  async function read(sessionId: string): Promise<{ surfaces: Surface[]; actions: unknown[] }> {
+    const got = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(got.status).toBe(200);
+    return got.body as { surfaces: Surface[]; actions: unknown[] };
+  }
+
+  it('shows no card and offers no update while every tracker is off, and the switches in settings', async () => {
+    const { sessionId } = await aScene();
+    const { surfaces, actions } = await read(sessionId);
+    expect(surfaces.filter((one) => one.kind === 'record' && one.region === 'panel')).toEqual([]);
+    expect(actions).toEqual([]);
+    const switches = surfaces.filter((one) => one.region === 'settings' && one.kind === 'toggle');
+    expect(switches).toHaveLength(6);
+    for (const one of switches) {
+      expect(one.group).toBe('Agents');
+      expect(one.on).toBe(false);
+    }
+    // The cadence is a card of its own among them, whatever is on.
+    expect(surfaces.find((one) => one.channelId === 'se.track.cadence')?.record?.value).toEqual({
+      everyNTurns: 1,
+      manual: false,
+    });
+  });
+
+  it('draws a card per tracker that is on, with its locks and hidden fields', async () => {
+    const { sessionId } = await aScene();
+    await switchOn(sessionId, 'world', 'quests');
+    await put(sessionId, 'se.track.locks', ['se.track.world/location']);
+    await put(sessionId, 'se.track.hidden', ['se.track.world/weather']);
+
+    const { surfaces, actions } = await read(sessionId);
+    const cards = surfaces.filter((one) => one.region === 'panel' && one.kind === 'record');
+    expect(cards.map((one) => one.channelId)).toEqual(['se.track.world', 'se.track.quests']);
+    const world = cards[0]?.record;
+    expect(world?.value).toMatchObject({ location: '', recent: [] });
+    expect(world?.locks).toEqual({ key: 'se.track.locks', paths: ['se.track.world/location'] });
+    expect(world?.hidden).toEqual({ key: 'se.track.hidden', paths: ['se.track.world/weather'] });
+    expect(cards[1]?.record?.fields).toEqual([{ key: '', label: 'Quests', show: 'checklists' }]);
+    expect(actions).toEqual([{ stepId: 'se.scene.track', label: 'Update trackers' }]);
+  });
+
+  it('draws a character card for each present member but the player, before the tracker reaches them', async () => {
+    const { sessionId, vera } = await aScene();
+    await switchOn(sessionId, 'character', 'persona');
+    const { surfaces } = await read(sessionId);
+    const characters = surfaces.filter((one) => one.channelId === 'se.track.character');
+    expect(characters.map((one) => [one.key, one.scopeKey])).toEqual([
+      [`se.track.character#${vera}`, vera],
+    ]);
+    expect(characters[0]?.record?.value).toMatchObject({ mood: '', stats: [] });
+    // The player's own card is the persona tracker, unscoped.
+    expect(surfaces.filter((one) => one.channelId === 'se.track.persona')).toHaveLength(1);
+
+    // Muted, she leaves the room and her card closes; her value stays on the tree.
+    await put(sessionId, `se.presence#${vera}`, false);
+    const after = await read(sessionId);
+    expect(after.surfaces.filter((one) => one.channelId === 'se.track.character')).toEqual([]);
   });
 });

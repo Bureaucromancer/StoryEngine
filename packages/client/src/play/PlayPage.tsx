@@ -75,7 +75,7 @@ import {
   type ComposerPicture,
 } from './Pictures.js';
 import { preparePicture } from './preparePicture.js';
-import { ModeRegion } from './ModeRegion.js';
+import { ModeActions, ModeRegion } from './ModeRegion.js';
 import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
@@ -1012,7 +1012,20 @@ export function PlayPage({
           Last in the panel stack because the four above it are the engine's own
           and a mode's additions belong after them, and because a mode that
           declares none renders nothing here at all. */}
-      <ModeRegion sessionId={sessionId} surfaces={session.data?.surfaces} region="panel" />
+      {/* ***What a person may run between turns*** — [P13.5a]'s *Update
+          trackers*, above the cards it updates. Renders nothing unless the
+          server lists an action, which it does only while a tracker is on. */}
+      <ModeActions
+        sessionId={sessionId}
+        actions={session.data?.actions}
+        busy={running || send.isPending}
+      />
+      <ModeRegion
+        sessionId={sessionId}
+        surfaces={session.data?.surfaces}
+        region="panel"
+        nameOf={(actorId) => actorObjects.find((one) => one.id === actorId)?.name ?? actorId}
+      />
 
       {/* **The stage** — [06 §7.2], [10 §2.3], [P7.11]. The picture the story is
           staged against, and it behaves like chrome: *"The prose wins,

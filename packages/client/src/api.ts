@@ -1597,6 +1597,39 @@ export interface ModeSurface {
   text?: string;
   image?: { url: string; alt: string };
   on?: boolean;
+  /** The contribution's heading within its region — [P13.5a]. */
+  group?: string;
+  /** `meter`: the bar, bounded — [P13.5a]. */
+  meter?: { value: number; min: number; max: number };
+  /**
+   * `record`: the value and the fields it is shown by — [P13.5a]. Raw JSON
+   * because a record is edited, and the edit is the whole value written back
+   * through the channel route; `locks` and `hidden` are sets of field paths
+   * (`<channel key>/<JSON Pointer>`) written back the same way.
+   */
+  record?: {
+    value: unknown;
+    fields: RecordField[];
+    locks: { key: string; paths: string[] } | null;
+    hidden: { key: string; paths: string[] } | null;
+  };
+}
+
+/**
+ * One field of a record — `RecordField` in `@storyengine/sdk`, spelled here
+ * because the client does not import the SDK. A `show` this build does not
+ * know is skipped, as an unknown widget arm is.
+ */
+export interface RecordField {
+  key: string;
+  label: string;
+  show: string;
+}
+
+/** A step a person may run between turns — `modeActions`, [P13.5a]. */
+export interface ModeAction {
+  stepId: string;
+  label: string;
 }
 
 export interface DialAxes {
@@ -1694,6 +1727,11 @@ export function readSession(sessionId: string): Promise<{
    * does not know is skipped, which is what keeps the vocabulary additive.
    */
   surfaces?: ModeSurface[];
+  /**
+   * What a person may run between turns — [P13.5a]'s *Update trackers*, while
+   * something it writes is switched on. Absent from an older server.
+   */
+  actions?: ModeAction[];
   /**
    * How this session plays as a chat — [P13.5]. **Absent for a mode that does
    * not play as one**, which is `dials`' rule: nothing to render rather than
@@ -1852,6 +1890,21 @@ export interface DegradedChannel {
  * which is the whole reason recovery is safe to offer, and a status code would
  * throw away the record the workbench is meant to show. Callers read the effect.
  */
+/**
+ * ***Runs a step the mode declares on demand*** — `POST /sessions/:id/steps/
+ * :stepId/run`, [P13.5a]'s *Update trackers*. The answer is the engine turn it
+ * wrote, or `turn: null` when there was nothing to change.
+ */
+export function runSessionStep(
+  sessionId: string,
+  stepId: string,
+): Promise<{ turn: { id: string } | null }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/steps/${encodeURIComponent(stepId)}/run`,
+  );
+}
+
 export function writeSessionChannel(
   sessionId: string,
   key: string,

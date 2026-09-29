@@ -2070,11 +2070,19 @@ function channelText(channelId: string, context: CollectContext): string {
  * send the same bytes. `keys` is what the record says the block carried.
  */
 function establishedState(context: CollectContext): { text: string; keys: string[] } {
+  /**
+   * ***The persona and the present cast*** — {@link present}'s reading, the
+   * one the cards and the panel use (correction, 2026-09-29: this was every
+   * actor). A muted member's card has left the prompt and their tracker card
+   * the panel; their tracked state riding every turn would be the story still
+   * describing somebody the player took out of the room, with nothing on the
+   * panel to edit or lock it by. Their scoped keys drop out as *not in the
+   * cast* below, and stay on the tree untouched for when they come back.
+   */
   const names = new Map<string, string>(
-    [...(context.persona === null ? [] : [context.persona]), ...context.actors].map(({ actor }) => [
-      actor.id,
-      actor.name,
-    ]),
+    [...(context.persona === null ? [] : [context.persona]), ...present(context)].map(
+      ({ actor }) => [actor.id, actor.name],
+    ),
   );
   const parts: string[] = [];
   const keys: string[] = [];

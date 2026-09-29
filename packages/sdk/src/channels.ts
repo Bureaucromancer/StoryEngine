@@ -164,7 +164,88 @@ export type WidgetSpec =
    * schema, so the arm that serves them is a different shape and should be
    * designed against them rather than ahead of them.
    */
-  | { kind: 'toggle'; label: string };
+  | { kind: 'toggle'; label: string }
+  /**
+   * ***A stat bar*** — [P13 §1.9.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.5a], and it is [10 §8.0]'s *"a `meter` arrives with the
+   * first numeric channel"* arriving.
+   *
+   * **Over a number, or over a value that carries its own ceiling.** A plain
+   * number is bounded by the declaration (`min`, else 0; `max`); a
+   * `{ value, max }` is bounded by itself, which is Marinara's `CharacterStat`
+   * and the shape every tracker stat is — a character's health has a ceiling
+   * the story sets, not one the mode could know when it was written. The
+   * trackers' stats are rows of a {@link RecordField} `meters` field rather
+   * than channels of their own, and the host draws both with one bar, so the
+   * arm and the field are one thing seen from two sizes.
+   *
+   * *A readout, never a control*: a bar dragged to a value is a number edited,
+   * and the record's editor is where a number is edited.
+   */
+  | { kind: 'meter'; label: string; min?: number; max?: number }
+  /**
+   * ***A structured value, read and edited field by field*** — [P13 §1.9.2],
+   * added at [P13.5a]. *"Which is new here."*
+   *
+   * **The fields are declared, not inferred from the schema.** A JSON Schema
+   * says what a value may be; it does not say that `stats` is a row of bars,
+   * that `objectives` is a checklist, or which of eight strings a person reads
+   * first — and a host guessing presentation from `type: 'array'` would be the
+   * second description of a value that 10 §8 exists to prevent a mode shipping
+   * as code. So a record names each field and how it is shown, from a small
+   * closed vocabulary ({@link RecordField}), and a field whose `show` the host
+   * does not know is skipped, as an arm is.
+   *
+   * ***`locks` and `hidden` name channels, and that is the whole of the per-field
+   * affordances.*** Each is the id of a set-valued channel of field paths
+   * (`<channel key>/<JSON Pointer>`, a list row addressed by its `name`); the
+   * host offers *lock* and *hide* on each field and writes the set through the
+   * ordinary channel route, so what a lock *means* stays the mode's — the
+   * trackers write a locked field back before proposing — and the widget only
+   * says where the set lives. Absent, the field has neither control.
+   *
+   * *Editing is the channel write every widget uses*: the whole value, changed
+   * at one field, through `PUT /sessions/:id/channels/:key` — an engine turn
+   * with a `user` effect, branch-correct and undoable, and still refused by the
+   * channel's own `update` policy where it refuses.
+   */
+  | {
+      kind: 'record';
+      label: string;
+      fields: readonly RecordField[];
+      locks?: string;
+      hidden?: string;
+    };
+
+/**
+ * ***One field of a {@link WidgetSpec} `record`*** — [P13.5a].
+ *
+ * `key` is one property of the value, or `''` for **the value itself** — JSON
+ * Pointer's own spelling of the whole document — which is how a record shows a
+ * channel whose value is a list (the quests, the custom fields).
+ *
+ * `show` is how, and each is a shape the host knows how to read and edit:
+ *
+ * - `line` — a short string. `number` — a number. `flag` — a boolean.
+ * - `lines` — a list of strings, newest last.
+ * - `pairs` — rows of `{ name, value }`; `map` — an object of name to string.
+ *   A person may add and remove rows; *which names exist* is theirs to say,
+ *   which is the custom tracker's whole contract.
+ * - `items` — rows of `{ name, qty? }`.
+ * - `meters` — rows of `{ name, value, max, color? }`, each a {@link WidgetSpec}
+ *   `meter`.
+ * - `checklists` — rows of `{ name, stage?, objectives: [{ text, completed }],
+ *   completed }`, each objective a box a person can tick.
+ *
+ * *Closed, and grown the way the arms grow*: a field no `show` here can say is
+ * a reason to add one — [10 §8.1]'s *"ask what widget would let it, and add
+ * that"* — never a reason for a mode to ship a component.
+ */
+export interface RecordField {
+  key: string;
+  label: string;
+  show: 'line' | 'number' | 'flag' | 'lines' | 'pairs' | 'map' | 'items' | 'meters' | 'checklists';
+}
 
 /**
  * ***Part of what the story has established*** —

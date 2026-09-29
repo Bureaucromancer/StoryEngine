@@ -16,6 +16,7 @@ import type {
   ChatResolution,
   ChatSettings,
   ChatSourceChat,
+  ChatStateValue,
   ForeignRef,
 } from './types.js';
 
@@ -913,5 +914,118 @@ describe('a group’s roster and muted members — P13.9', () => {
       params: { name: 'Lund' },
       level: 'warn',
     });
+  });
+});
+
+/**
+ * ***The source's state, as effects — [P13.5a]***. The builder knows no
+ * tracker: it is handed `ChatStateValue`s and writes each where it moves the
+ * state along the path. The sweep over Marinara's fixture holds the Marinara
+ * half (`marinara/trackers.test.ts`); this holds the builder to its own.
+ */
+describe('the source’s state — P13.5a', () => {
+  const place = (value: string, member?: ForeignRef): ChatStateValue[] => [
+    {
+      channelId: member === undefined ? 'x.place' : 'x.mood',
+      version: 1,
+      init: '',
+      value,
+      ...(member === undefined ? {} : { member }),
+    },
+  ];
+
+  it('writes a value where it moves, never where it repeats, and a swipe’s own on its sibling', () => {
+    const of = family(
+      chat('c', [
+        said(VERA, 'Hello.', 1000, { state: place('') }),
+        user('Where are we?', 2000),
+        said(VERA, 'The docks.', 3000, {
+          state: place('docks'),
+          swipes: [
+            { text: 'The chapel.', at: 3000, state: place('chapel') },
+            { text: 'The docks.', at: 3000 },
+          ],
+          activeSwipe: 1,
+        }),
+        user('And now?', 4000),
+        said(VERA, 'Still the docks.', 5000, { state: place('docks') }),
+      ]),
+    );
+    const built = build(of, LIBRARY);
+    const effects = (turn: Turn | undefined) =>
+      (turn?.effects ?? []).map((effect) => [effect.channelId, effect.after]);
+
+    const [opening, round, next] = headPath(built);
+    // Empty is the channel's `init`: nothing moved, nothing written.
+    expect(effects(opening)).toEqual([]);
+    expect(effects(round)).toEqual([['x.place', 'docks']]);
+    expect(effects(next)).toEqual([]);
+    const sibling = childrenOf(built, opening?.id ?? null).find((turn) => turn.id !== round?.id);
+    expect(effects(sibling)).toEqual([['x.place', 'chapel']]);
+    expect(sessionOf(built).channels['x.place']?.value).toBe('docks');
+  });
+
+  it('scopes a member’s value to their actor, and counts one it cannot place', () => {
+    const of = family(
+      chat('c', [
+        said(VERA, 'Hello.', 1000, {
+          state: [...place('wary', VERA), ...place('loud', OSKAR)],
+        }),
+      ]),
+    );
+    const built = build(of, LIBRARY);
+    expect(headPath(built)[0]?.effects.map((effect) => [effect.scopeKey, effect.after])).toEqual([
+      ['actor-vera', 'wary'],
+    ]);
+    expect(built.notes).toContainEqual({
+      key: 'import.chat.stateMemberUnresolved',
+      params: { count: 1, names: 'Oskar' },
+      level: 'warn',
+    });
+  });
+
+  it('rewrites a path naming a member to their actor, and drops one naming nobody here', () => {
+    const of = family(chat('c', [said(VERA, 'Hello.', 1000)]));
+    const built = build(of, LIBRARY, {
+      state: [
+        {
+          channelId: 'x.locks',
+          version: 1,
+          init: [],
+          value: ['x.place/where', 'x.mood#Vera.png/mood', 'x.mood#Oskar.png/mood'],
+          paths: true,
+        },
+      ],
+    });
+    expect(headPath(built)[0]?.effects.map((effect) => effect.after)).toEqual([
+      ['x.place/where', 'x.mood#actor-vera/mood'],
+    ]);
+    // The dropped path is counted, not lost without a word.
+    expect(built.notes).toContainEqual({
+      key: 'import.chat.stateMemberUnresolved',
+      params: { count: 1, names: 'Oskar.png' },
+      level: 'warn',
+    });
+  });
+
+  it('reads a `#` past the channel key as a row name, not a member', () => {
+    // An unscoped tracker's row is a person's words — "Quest #1" — and a `#`
+    // in it once read as a member reference and dropped the path silently.
+    const of = family(chat('c', [said(VERA, 'Hello.', 1000)]));
+    const built = build(of, LIBRARY, {
+      state: [
+        {
+          channelId: 'x.locks',
+          version: 1,
+          init: [],
+          value: ['x.quests/Quest #1', 'x.mood#Vera.png/Potion #2'],
+          paths: true,
+        },
+      ],
+    });
+    expect(headPath(built)[0]?.effects.map((effect) => effect.after)).toEqual([
+      ['x.quests/Quest #1', 'x.mood#actor-vera/Potion #2'],
+    ]);
+    expect(built.notes.map((note) => note.key)).not.toContain('import.chat.stateMemberUnresolved');
   });
 });

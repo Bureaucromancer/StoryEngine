@@ -143,6 +143,16 @@ describe('a mode can be written against the SDK alone', () => {
       { kind: 'text', label: 'Time' },
       { kind: 'image', label: 'Behind you' },
       { kind: 'toggle', label: 'Show the scene' },
+      // [P13.5a]'s two, and the record is the one with a payload of its own:
+      // field names from a closed vocabulary and two channel ids, never markup.
+      { kind: 'meter', label: 'Health', max: 10 },
+      {
+        kind: 'record',
+        label: 'The world',
+        fields: [{ key: 'location', label: 'Location', show: 'line' }],
+        locks: 'se.track.locks',
+        hidden: 'se.track.hidden',
+      },
     ];
 
     for (const widget of arms) {
@@ -151,6 +161,13 @@ describe('a mode can be written against the SDK alone', () => {
       // Not `html`, and not anything that would smuggle one in.
       for (const banned of ['html', 'dangerouslySetInnerHTML', 'component', 'render', 'script']) {
         expect(keys, `${widget.kind} carries ${banned}`).not.toContain(banned);
+      }
+      // A record's fields are data too — and `show` is from a closed set, so
+      // nothing there can name a component either.
+      if (widget.kind === 'record') {
+        for (const field of widget.fields) {
+          expect(Object.keys(field).sort()).toEqual(['key', 'label', 'show']);
+        }
       }
     }
   });

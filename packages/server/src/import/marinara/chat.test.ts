@@ -323,7 +323,11 @@ describe('a Marinara chat, joined from its tables', () => {
         chat(
           'c1',
           {},
-          { summary: 'They met.', enableAgents: true, activeAgentIds: ['world-state'] },
+          {
+            summary: 'They met.',
+            enableAgents: true,
+            activeAgentIds: ['world-state', 'director'],
+          },
         ),
       ],
       messages: [
@@ -346,7 +350,13 @@ describe('a Marinara chat, joined from its tables', () => {
       'import.chat.hiddenFromUserShown',
       'import.chat.rewriteOriginalsNotCarried',
       'import.chat.summaryNotCarried',
+      // [P13.5a]: the world tracker's switch came across, the director's did
+      // not, and the trackers' models are Marinara's global ones.
       'import.chat.agentsNotCarried',
+      'import.chat.agentModelsNotCarried',
+    ]);
+    expect(only(read).state).toEqual([
+      { channelId: 'se.track.world.on', version: 1, init: false, value: true },
     ]);
   });
 });

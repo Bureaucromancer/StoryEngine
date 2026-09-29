@@ -4,6 +4,7 @@
 import type {
   Mode,
   ModeDefinition,
+  RecordField,
   StepDefinition,
   SurfaceContribution,
   WidgetSpec,
@@ -11,11 +12,13 @@ import type {
 
 import {
   channelDefinition,
+  channelKey,
   channelSurfaces,
   initialValue,
   keyBelongsTo,
   registerChannel,
   splitChannelKey,
+  stateEnabled,
   type ChannelSurface,
 } from './sessions/channels.js';
 import type { ChannelState } from './sessions/types.js';
@@ -416,6 +419,54 @@ export interface ModeSurface {
   image?: { url: string; alt: string };
   /** `toggle`: what the switch is currently on. */
   on?: boolean;
+  /** The contribution's heading within its region — `SurfaceContribution.group`, [P13.5a]. */
+  group?: string;
+  /**
+   * `meter`: the bar, bounded — a number bounded by the declaration, or a
+   * `{ value, max }` bounded by itself ([P13.5a]).
+   */
+  meter?: { value: number; min: number; max: number };
+  /**
+   * `record`: ***the value itself, and the declaration that reads it*** —
+   * [P13.5a].
+   *
+   * **Raw JSON where every other arm sends a rendered string**, and the
+   * difference is the arm's purpose rather than an exception to the posture:
+   * a record is *edited* field by field, and an editor needs the value it is
+   * editing. What crosses is still data — a value the channel's schema has
+   * already admitted, a list of fields from a closed vocabulary, and two sets
+   * of paths — never a template or markup, so 10 §8's line holds.
+   *
+   * `locks` and `hidden` are the current sets, with the channel keys they are
+   * written back through; `null` when the widget declared none.
+   */
+  record?: {
+    value: unknown;
+    fields: readonly RecordField[];
+    locks: { key: string; paths: string[] } | null;
+    hidden: { key: string; paths: string[] } | null;
+  };
+}
+
+/**
+ * ***Who an actor-scoped record is about*** — [P13.5a]'s *"each present
+ * character"*, handed in by the caller that knows the cast.
+ *
+ * **Only for a `record`, and that is the difference between showing and
+ * editing.** A sprite beside a speaker's line shows a value that exists, so
+ * the region walks the keys the map holds, as it always has. A record is where
+ * a person *writes* a value that may not exist yet — a character the tracker
+ * has not reached — so it walks the people it could be about instead: every
+ * present member but the persona, whose own tracker is a different shape
+ * (`CastEntry.persona`, and the character tracker skips them for the same
+ * reason). A key the map holds for somebody not listed is somebody who left
+ * the room, and their card closes with them; the value stays on the tree.
+ *
+ * Absent, an actor-scoped record falls back to the keys the map holds — the
+ * shape every caller that has no cast in hand gets.
+ */
+export interface SurfaceMembers {
+  actors: readonly string[];
 }
 
 export function modeSurfaces(
@@ -432,6 +483,8 @@ export function modeSurfaces(
    * was in.
    */
   sessionId: string | null = null,
+  /** Who an actor-scoped record is about — see {@link SurfaceMembers}. */
+  members?: SurfaceMembers,
 ): ModeSurface[] {
   const mode = modeById(modeId);
   if (mode === null) return [];
@@ -441,16 +494,32 @@ export function modeSurfaces(
     if (!channelInPlay(contribution.channelId, modeId)) continue;
     const definition = channelDefinition(contribution.channelId);
     if (definition === null || definition.visibility === 'hidden') continue;
+    /**
+     * ***A switched-off channel has no surface*** — `EstablishedState.enabledBy`,
+     * [P13.5a]. The declaration already says the channel is *"rendered
+     * anywhere"* only while its switch is on; a tracker card for a tracker
+     * nobody switched on would be a form for state nothing keeps.
+     */
+    if (!stateEnabled(definition, channels)) continue;
 
     /**
      * **Every key the channel owns**, the same walk the HUD makes — an
      * actor-scoped channel is one surface per actor, which is what a sprite
-     * beside each speaker's line *is*.
+     * beside each speaker's line *is*. *A record over an actor-scoped channel
+     * walks the members instead* ({@link SurfaceMembers}).
      */
-    const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
-    for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
+    const held = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
+    const keys =
+      contribution.widget.kind === 'record' && definition.scope === 'actor'
+        ? members === undefined
+          ? held.filter((key) => key !== definition.id)
+          : members.actors.map((actorId) => channelKey(definition.id, actorId))
+        : held.length === 0
+          ? [definition.id]
+          : held;
+    for (const key of [...keys].sort()) {
       const value = channels[key]?.value ?? initialValue(definition.id);
-      const rendered = renderSurface(contribution.widget, value, sessionId);
+      const rendered = renderSurface(contribution.widget, value, sessionId, channels);
       // Nothing to show is not shown — the same answer `omitWhenEmpty` gives a
       // preset slot, and the one [10 §2.3] insists on for a backdrop: *"with
       // the backdrop off Play is the surface it was before, not a surface with
@@ -464,6 +533,7 @@ export function modeSurfaces(
         scopeKey,
         kind: contribution.widget.kind,
         label: contribution.widget.label,
+        ...(contribution.group === undefined ? {} : { group: contribution.group }),
         ...rendered,
       });
     }
@@ -483,8 +553,45 @@ function renderSurface(
   widget: WidgetSpec,
   value: unknown,
   sessionId: string | null,
-): Pick<ModeSurface, 'text' | 'image' | 'on'> | null {
+  channels: Readonly<Record<string, ChannelState>>,
+): Pick<ModeSurface, 'text' | 'image' | 'on' | 'meter' | 'record'> | null {
   switch (widget.kind) {
+    case 'meter': {
+      // A number bounded by the declaration, or a stat bounded by itself; a
+      // bar with no ceiling to fill towards is not a bar, and shows nothing.
+      const own =
+        typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+      const at = typeof value === 'number' ? value : own?.['value'];
+      const max = own !== null && typeof own['max'] === 'number' ? own['max'] : widget.max;
+      const min = widget.min ?? 0;
+      if (typeof at !== 'number' || !Number.isFinite(at) || max === undefined || !(max > min)) {
+        return null;
+      }
+      return { meter: { value: at, min, max } };
+    }
+    case 'record': {
+      // *Shown whatever the value is*, as a toggle is: an empty tracker is the
+      // state a person fills in, not an absence — and the card is where they
+      // do it.
+      const paths = (key: string | undefined): { key: string; paths: string[] } | null => {
+        if (key === undefined) return null;
+        const set = channels[key]?.value ?? initialValue(key);
+        return {
+          key,
+          paths: Array.isArray(set)
+            ? set.filter((one): one is string => typeof one === 'string')
+            : [],
+        };
+      };
+      return {
+        record: {
+          value,
+          fields: widget.fields,
+          locks: paths(widget.locks),
+          hidden: paths(widget.hidden),
+        },
+      };
+    }
     case 'text':
       return typeof value === 'string' && value.trim() !== '' ? { text: value.trim() } : null;
     case 'toggle':
@@ -547,4 +654,45 @@ function mediaUrlFor(value: unknown, sessionId: string | null): string | null {
     `/api/library/${encodeURIComponent(selection.kind)}/${encodeURIComponent(selection.objectId)}` +
     `/media/${encodeURIComponent(selection.mediaId)}`
   );
+}
+
+/**
+ * ***What a person may run between turns, here and now*** — the declared
+ * {@link StepDefinition.onDemand} steps, [P13.5a]'s *Update trackers*.
+ *
+ * **Live only while something it writes is switched on.** A step that writes
+ * only channels whose `EstablishedState.enabledBy` is off has nothing to do,
+ * and a button that answers *nothing to change* every time it is pressed is a
+ * control that does nothing — [P7.8]'s rule for a dial a mode does not
+ * declare. Derived from the declaration, so no mode's step is named here: the
+ * step says what it writes, the channels say what switches them, and this
+ * reads both.
+ *
+ * *The same refusals the route makes* are not repeated: a step this lists is
+ * one the route will run, because both take it from the mode's own
+ * declaration (`onDemandStep`, `turns/on-demand.ts`).
+ */
+export interface ModeAction {
+  stepId: string;
+  label: string;
+}
+
+export function modeActions(
+  channels: Readonly<Record<string, ChannelState>>,
+  modeId: string,
+): ModeAction[] {
+  const mode = modeById(modeId);
+  if (mode === null) return [];
+  const out: ModeAction[] = [];
+  for (const step of mode.definition.steps) {
+    if (step.onDemand === undefined || step.stage !== 'post' || step.contributes === 'messages') {
+      continue;
+    }
+    const live = step.writes.some((id) => {
+      const definition = channelDefinition(id);
+      return definition !== null && stateEnabled(definition, channels);
+    });
+    if (live) out.push({ stepId: step.id, label: step.onDemand.label });
+  }
+  return out;
 }

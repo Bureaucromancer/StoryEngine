@@ -194,11 +194,13 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // Party- and mode-shaped: P7 ([P7 §1.10]).
   character_groups: 'recorded',
   persona_groups: 'recorded',
-  // Tracker state, per message and swipe. [P13 §2.6] maps it onto tracker
-  // effects on the imported turns — but that needs [P13.5a]'s channels to
-  // write, so it stays `recorded` past [P13.10], and a chat that ran agents
-  // says so in its own row (`import.chat.agentsNotCarried`).
-  game_state_snapshots: 'recorded',
+  // Tracker state, per message and swipe. ~~Stays `recorded` past [P13.10]:
+  // it needs [P13.5a]'s channels to write.~~ ***`converted` at [P13.5a]***:
+  // each roleplay chat's snapshots are effects on the turn holding their
+  // message's swipe, with the field locks and hidden fields as the trackers'
+  // two sets (`marinara/trackers.ts`, [P13 §2.6]). A snapshot of a
+  // conversation or game chat goes where its chat goes — recorded.
+  game_state_snapshots: 'converted',
   game_engine_state: 'recorded',
   game_checkpoints: 'recorded',
   game_scene_videos: 'recorded',
@@ -206,6 +208,10 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   game_turn_storyboard_keyframes: 'recorded',
   spatial_context_snapshots: 'recorded',
   // Agent- and extension-shaped: waiting on the extension host P7 makes real.
+  // *And never the source of a tracker's model* ([P13 §2.6]): Marinara's
+  // per-agent connection is global, not per chat, so a chat's trackers run on
+  // the session's `stepRoles` here and the chat row says so
+  // (`import.chat.agentModelsNotCarried`).
   agent_configs: 'recorded',
   agent_runs: 'recorded',
   // Holds the narrative director's secret plot ([P13 §2.6]: `overarchingArc`

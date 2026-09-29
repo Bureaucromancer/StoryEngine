@@ -106,9 +106,15 @@ export interface StepDefinition {
    * {@link StepInput.onDemand}, which is how one declared `when` can mean *on
    * a cadence, and also whenever somebody presses the button*.
    *
-   * Absent is `false`, which is every step written before this.
+   * Absent is *never on demand*, which is every step written before this.
+   *
+   * ***`{ label }` rather than `true`*** — changed at [P13.5a]'s client half.
+   * A control that runs the step has to say something, and what it says is
+   * authored content that travels with the mode, as a widget's label does:
+   * *Update trackers* is Scene's sentence, and a host that minted the words
+   * from the step's id would be the engine naming a mode's feature.
    */
-  onDemand?: boolean;
+  onDemand?: { label: string };
 }
 
 /**
@@ -294,6 +300,22 @@ export interface CastEntry {
    * Absent means an ordinary member of the cast.
    */
   persona?: true;
+  /**
+   * ***This member is muted*** — out of the room by the mode's own reading of
+   * presence, added 2026-09-29 (the [P13.5a] review).
+   *
+   * The cards and the tracker panel have left a muted member out since
+   * [P13.3], but the character tracker asked about everyone in this list, so a
+   * call a turn went on somebody the player had taken out of the scene —
+   * Marinara's character tracker follows only the characters present. The
+   * host says it here, from the one reading the collector and the panel use,
+   * rather than handing a step the presence channel: a step that read
+   * `se.presence` would be the engine's reading of presence written twice.
+   *
+   * Absent means present, which is what every mode without a reading of
+   * presence gets.
+   */
+  present?: false;
 }
 
 export interface StepInput {

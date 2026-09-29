@@ -541,3 +541,17 @@ function pendingStatuses(path: readonly Turn[]): Map<string, string> {
 
   return pending;
 }
+
+/**
+ * ***Who a per-character card is about*** — the present members of the cast
+ * but the persona, [P13.5a]'s *"each present character"*.
+ *
+ * *The persona is left out* because the player has a tracker of their own, a
+ * different shape (`CastEntry.persona`); a character card for them would be
+ * the same person described twice, which the character tracker's step already
+ * refuses to do. *Present*, read off the rows, so it is presence as the mode
+ * reads it — a member nobody muted in an embodied chat is in the room.
+ */
+export function presentMembers(rows: readonly CastRow[], persona: string | null): string[] {
+  return rows.filter((row) => row.presence && row.actorId !== persona).map((row) => row.actorId);
+}

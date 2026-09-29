@@ -7,10 +7,12 @@ import type {
   ChatMessage,
   ChatSettings,
   ChatSourceChat,
+  ChatStateValue,
   ChatSwipe,
   ForeignRef,
 } from '../chat/types.js';
 import { parseTimestamp } from '../sillytavern/chat.js';
+import { snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
 
 /**
  * ***Marinara's chats, read from its tables*** —
@@ -42,14 +44,16 @@ import { parseTimestamp } from '../sillytavern/chat.js';
  * converter written against one shape reads nothing of the other, and no test
  * written against the same shape notices.
  *
- * ***Not in this stage***, and deliberately: `game_state_snapshots` onto
+ * ~~***Not in this stage***, and deliberately: `game_state_snapshots` onto
  * tracker effects, `agent_memory`'s secret plot, and the chat's agent switches
- * ([P13 §2.6]'s second table). Each needs the channels [P13.5a] declares —
- * a tracker effect with no channel to write is an effect nobody reads, and a
- * switch for an agent that does not exist here is a setting that switches
- * nothing. So a chat that ran agents says so in a note
- * (`import.chat.agentsNotCarried`), and the tables stay `recorded` in the
- * registry (`registries/marinara.ts`) until that stage reads them.
+ * ([P13 §2.6]'s second table).~~ ***The trackers came at [P13.5a]***, with the
+ * channels they needed: each message and swipe carries the state its
+ * snapshot established (`ChatMessage.state`, `ChatSwipe.state`, read by
+ * `trackers.ts`), the builder writes it as effects on the turn holding it, and
+ * the chat's tracker switches travel as {@link MarinaraChat.state}.
+ * `agent_memory`'s secret plot still waits on [P13.5b]'s channel, and a chat
+ * running agents that are not trackers still says so
+ * (`import.chat.agentsNotCarried`).
  */
 
 /** The candidate format the store reader hands the session pass (`reader.ts`). */
@@ -73,6 +77,11 @@ export interface MarinaraTables {
   swipes: readonly Row[];
   characters?: readonly Row[];
   personas?: readonly Row[];
+  /**
+   * `game_state_snapshots` — the trackers' state per message and swipe
+   * ([P13.5a]). Absent is a store that never ran them.
+   */
+  snapshots?: readonly Row[];
 }
 
 /**
@@ -108,6 +117,13 @@ export interface MarinaraChat {
   metadata: Readonly<Record<string, unknown>>;
   earliest: number | null;
   notes: ImportNote[];
+  /**
+   * ***The chat's tracker switches*** — `activeAgentIds` and `manualTrackers`
+   * as `se.track.*` values ([P13.5a], `trackers.ts`), for the family's
+   * opening turns. The session pass takes the root's, as it takes the root's
+   * group settings.
+   */
+  state: ChatStateValue[];
 }
 
 /** A chat that is not `roleplay`, recorded by the pass rather than imported. */
@@ -198,6 +214,15 @@ export function parseMarinaraChats(tables: MarinaraTables): MarinaraChats {
     else held.push(row);
   }
 
+  /** Every snapshot row by its message, for the chat that holds the message. */
+  const snapshotsOf = new Map<string, Row[]>();
+  for (const row of tables.snapshots ?? []) {
+    const messageId = str(row['messageId']);
+    const held = snapshotsOf.get(messageId);
+    if (held === undefined) snapshotsOf.set(messageId, [row]);
+    else held.push(row);
+  }
+
   const chats: MarinaraChat[] = [];
   const other: MarinaraOtherChat[] = [];
   const rows = [...tables.chats]
@@ -216,7 +241,15 @@ export function parseMarinaraChats(tables: MarinaraTables): MarinaraChats {
       other.push({ id, name, mode: mode === '' ? 'unknown' : mode });
       continue;
     }
-    chats.push(chatOf(row, messagesOf.get(id) ?? [], swipesOf, { characterNames, personaNames }));
+    chats.push(
+      chatOf(
+        row,
+        messagesOf.get(id) ?? [],
+        swipesOf,
+        { characterNames, personaNames },
+        snapshotsOf,
+      ),
+    );
   }
 
   return { chats, other, orphans: { messages: orphanMessages, swipes: orphanSwipes } };
@@ -233,6 +266,7 @@ function chatOf(
   rows: readonly Row[],
   swipesOf: ReadonlyMap<string, readonly Row[]>,
   names: Names,
+  snapshotsOf: ReadonlyMap<string, readonly Row[]>,
 ): MarinaraChat {
   const id = str(row['id']);
   const title = str(row['name']) || id;
@@ -293,6 +327,15 @@ function chatOf(
     ),
   );
 
+  /**
+   * ***What the trackers had established, by message and swipe*** —
+   * `trackers.ts`. Each snapshot is placed on the line or swipe it names;
+   * one naming a swipe the message does not have is counted, not guessed at.
+   */
+  const chatSnapshots = rows.flatMap((message) => snapshotsOf.get(str(message['id'])) ?? []);
+  const states = snapshotStates(chatSnapshots);
+  let placed = 0;
+
   const counts = {
     unknownRole: 0,
     attachments: 0,
@@ -334,6 +377,10 @@ function chatOf(
     if (beforeStart) counts.beforeStart += 1;
     const hidden = (extra['hiddenFromAI'] === true && !bySummary) || beforeStart;
 
+    const bySwipe = states.get(foreignId);
+    const active = Number(message['activeSwipeIndex'] ?? 0);
+    const own = bySwipe?.get(Number.isInteger(active) && active >= 0 ? active : 0);
+    if (own !== undefined) placed += 1;
     const line: ChatMessage = {
       role,
       text,
@@ -341,6 +388,7 @@ function chatOf(
       at,
       foreignId,
       ...(hidden ? { hidden: true } : {}),
+      ...(own === undefined ? {} : { state: own }),
     };
     if (role === 'character') {
       /**
@@ -354,8 +402,14 @@ function chatOf(
       if (key !== '') {
         line.speaker = { key, name: names.characterNames.get(key) ?? '' };
       }
-      const swipes = swipesOfMessage(message, extra, swipesOf.get(line.foreignId) ?? []);
+      const swipes = swipesOfMessage(
+        message,
+        extra,
+        swipesOf.get(line.foreignId) ?? [],
+        bySwipe ?? new Map<number, ChatStateValue[]>(),
+      );
       if (swipes !== null) {
+        placed += swipes.placed;
         line.swipes = swipes.swipes;
         if (swipes.activeSwipe !== undefined) line.activeSwipe = swipes.activeSwipe;
       }
@@ -382,6 +436,8 @@ function chatOf(
 
   noteCounts(notes, label, counts);
   noteChatState(notes, label, metadata, counts.summaryRestored);
+  const state = trackerSwitches(metadata, label, notes);
+  noteSnapshots(notes, label, chatSnapshots, states, placed);
 
   let earliest: number | null = null;
   for (const message of messages) {
@@ -413,7 +469,46 @@ function chatOf(
     metadata,
     earliest: earliest ?? createdAt,
     notes,
+    state,
   };
+}
+
+/**
+ * ***What the snapshots came to*** — how many were carried, how many named a
+ * swipe the chat does not have, and how many lock or hidden keys could not be
+ * read as a field path. Said per chat, as every Marinara note is.
+ */
+function noteSnapshots(
+  notes: ImportNote[],
+  chat: string,
+  rows: readonly Row[],
+  states: ReadonlyMap<string, ReadonlyMap<number, unknown>>,
+  placed: number,
+): void {
+  let total = 0;
+  for (const bySwipe of states.values()) total += bySwipe.size;
+  if (placed > 0) {
+    notes.push({
+      key: 'import.chat.trackersCarried',
+      params: { chat, count: placed },
+      level: 'info',
+    });
+  }
+  if (total > placed) {
+    notes.push({
+      key: 'import.chat.trackerSnapshotsUnplaced',
+      params: { chat, count: total - placed },
+      level: 'warn',
+    });
+  }
+  const unread = unreadKeys(rows);
+  if (unread > 0) {
+    notes.push({
+      key: 'import.chat.trackerKeysNotCarried',
+      params: { chat, count: unread },
+      level: 'info',
+    });
+  }
 }
 
 /**
@@ -441,8 +536,11 @@ function swipesOfMessage(
   message: Row,
   extra: Readonly<Record<string, unknown>>,
   rows: readonly Row[],
-): { swipes: ChatSwipe[]; activeSwipe?: number } | null {
+  /** The message's snapshots by swipe index — each inactive swipe takes its own. */
+  states: ReadonlyMap<number, ChatStateValue[]>,
+): { swipes: ChatSwipe[]; activeSwipe?: number; placed: number } | null {
   if (rows.length < 2) return null;
+  let placed = 0;
   const ordered = [...rows].sort(
     (a, b) => indexOf(a) - indexOf(b) || compare(str(a['id']), str(b['id'])),
   );
@@ -457,13 +555,18 @@ function swipesOfMessage(
       return { text, ...(reasoning === '' ? {} : { reasoning }), at };
     }
     const own = str(recordOf(row['extra'])['thinking']);
+    // *By the row's own index*, which is the snapshot's `swipeIndex` — the
+    // name a swipe has for itself, gaps and all.
+    const state = states.get(indexOf(row));
+    if (state !== undefined) placed += 1;
     return {
       text: str(row['content']),
       ...(own === '' ? {} : { reasoning: own }),
       at: parseTimestamp(row['createdAt']),
+      ...(state === undefined ? {} : { state }),
     };
   });
-  return active === -1 ? { swipes } : { swipes, activeSwipe: active };
+  return active === -1 ? { swipes, placed } : { swipes, activeSwipe: active, placed };
 }
 
 /** A swipe row's `index`, or past the end when it has none a number can read. */
@@ -651,9 +754,10 @@ function noteCounts(
 
 /**
  * ***What the chat's metadata keeps that this stage does not bring*** — the
- * rolling summary ([P13 §2.6]'s *"Marinara rolling summaries"*, a note), and
- * the agents: switches, trackers and the secret plot, which wait on [P13.5a]'s
- * channels (see this module's header).
+ * rolling summary ([P13 §2.6]'s *"Marinara rolling summaries"*, a note).
+ * ~~And the agents: switches, trackers and the secret plot, which wait on
+ * [P13.5a]'s channels.~~ The trackers' switches came at [P13.5a]
+ * (`trackers.ts`, which also notes the agents that are still to come).
  */
 function noteChatState(
   notes: ImportNote[],
@@ -673,13 +777,8 @@ function noteChatState(
       level: 'info',
     });
   }
-  const agents =
-    metadata['enableAgents'] === true ||
-    stringsOf(metadata['activeAgentIds']).length > 0 ||
-    metadata['narrativeDirectorSecretPlotEnabled'] === true;
-  if (agents) {
-    notes.push({ key: 'import.chat.agentsNotCarried', params: { chat }, level: 'info' });
-  }
+  // The agents' switches are `trackers.ts`'s now ([P13.5a]), and so is the
+  // note about the agents that are not trackers.
 }
 
 /** Marinara's `attachments`, and the older single image a message could hold. */

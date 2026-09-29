@@ -27,7 +27,13 @@
 
 export * from '@storyengine/shared';
 
-export type { ChannelDefinition, EstablishedState, InitPolicy, WidgetSpec } from './channels.js';
+export type {
+  ChannelDefinition,
+  EstablishedState,
+  InitPolicy,
+  RecordField,
+  WidgetSpec,
+} from './channels.js';
 export {
   DIAL_CHANNELS,
   dialChannel,

@@ -50,7 +50,7 @@ import {
   writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
-import { actorsWithState, castRows } from '../sessions/cast.js';
+import { actorsWithState, castRows, presentMembers } from '../sessions/cast.js';
 import {
   castIsPresentFor,
   chatSettingsAtCreation,
@@ -78,7 +78,7 @@ import { illustrateTurn } from '../renditions/illustrate.js';
 import { assetPath } from '../renditions/worker.js';
 import { readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
-import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
+import { channelInPlay, modeActions, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
 import { DIAL_CHANNELS, packLevels, readDial, resolveLevel } from '../sessions/dials.js';
 import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
@@ -1523,6 +1523,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       };
     }
 
+    // Presence read as the mode reads it — [P13.3]: under `castIsPresent` a
+    // member nobody has muted is present, and the panel says so. ***In an
+    // embodied session only*** (2026-09-29, the review): a narrated one reads
+    // presence as it always did — see `castIsPresentFor`.
+    const cast = castRows(
+      session.cast,
+      session.channels,
+      path,
+      packMode !== null &&
+        castIsPresentFor(chatSettingsOf(session, packMode.definition), packMode.definition),
+    );
+
     return reply.send({
       session: presentSession(session),
       activeJob: job,
@@ -1541,18 +1553,16 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * appends to the strip; the other three regions have nowhere else to come
        * from.
        */
-      surfaces: modeSurfaces(session.channels, modeId),
-      // Presence read as the mode reads it — [P13.3]: under `castIsPresent` a
-      // member nobody has muted is present, and the panel says so. ***In an
-      // embodied session only*** (2026-09-29, the review): a narrated one reads
-      // presence as it always did — see `castIsPresentFor`.
-      cast: castRows(
-        session.cast,
-        session.channels,
-        path,
-        packMode !== null &&
-          castIsPresentFor(chatSettingsOf(session, packMode.definition), packMode.definition),
-      ),
+      surfaces: modeSurfaces(session.channels, modeId, null, {
+        actors: presentMembers(cast, session.cast?.persona ?? null),
+      }),
+      /**
+       * ***What a person may run between turns*** — `modeActions`, [P13.5a]:
+       * *Update trackers*, while a tracker is on. Here for `inputs`' reason
+       * below: a property of this session's mode, on the route the page polls.
+       */
+      actions: modeActions(session.channels, modeId),
+      cast,
       /**
        * ***How this session plays as a chat*** — [P13 §1.2], [P13 §1.5],
        * [P13.5]: the effective voice, dispatch, speaker policy, author's note,

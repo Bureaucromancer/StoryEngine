@@ -472,7 +472,27 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.chat.branchLinkMissing':
     '“{chat}” was a branch in Marinara, but the export removed its link to the chat it came from. It is a session of its own, repeating the start it shares with that chat.',
   'import.chat.agentsNotCarried':
-    '“{chat}” ran Marinara agents. Their switches, tracker values and secret plot are not imported yet; they arrive with trackers and the narrative director.',
+    '“{chat}” ran Marinara agents that are not trackers — the narrative director, the prose guardian, the echo chamber or the secret plot. Their switches and state are not imported yet; they arrive with those features.',
+
+  /**
+   * **The trackers' state** —
+   * [P13.5a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * What came across is counted; what did not is said, each with why. The
+   * models are the one a Marinara user will look for: they are global there,
+   * so here the trackers run on the session's own model roles.
+   */
+  'import.chat.trackersCarried':
+    '{count} tracker snapshots in “{chat}” came across as the tracked state of the messages they belong to, each swipe with its own.',
+  'import.chat.trackerSnapshotsUnplaced':
+    '{count} tracker snapshots in “{chat}” name a swipe its message does not have, so they were not placed.',
+  'import.chat.trackerKeysNotCarried':
+    '{count} locked or hidden tracker fields in “{chat}” name a row or field this version does not keep, so they were not carried.',
+  'import.chat.manualTrackersPerAgent':
+    '“{chat}” set some trackers to run only when asked. Here that is one setting for every tracker: if every tracker the chat ran was set that way, they all run only when asked; otherwise those ones were left switched off, so none runs every turn where Marinara ran it only on request. Switch them on and use Update trackers to run them.',
+  'import.chat.agentModelsNotCarried':
+    '“{chat}” ran trackers on models Marinara chooses per agent, for every chat. Those were not imported: the trackers here use this session’s model roles.',
+  'import.chat.stateMemberUnresolved':
+    'Tracked state for {count} characters ({names}) came with the chat, but they are not in this session’s cast, so it was left out.',
 
   /**
    * **The other direction, and it is new at this stage.**

@@ -217,6 +217,8 @@ export class MarinaraReader implements SourceReader {
         swipes,
         characters: await this.#rows('characters'),
         personas: await this.#rows('personas'),
+        // The trackers' state per message and swipe — [P13 §2.6], [P13.5a].
+        snapshots: await this.#rows('game_state_snapshots'),
       },
     });
   }

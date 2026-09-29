@@ -9,7 +9,7 @@ import { planFor } from '../mode-registry.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { randomOver } from '../rng/random.js';
 import { Rng } from '../rng/rng.js';
-import { chatSettingsOf } from '../sessions/chat-settings.js';
+import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
 import { storyTurns } from '../sessions/depth.js';
 import {
   appendEngineTurnLocked,
@@ -107,7 +107,7 @@ export function onDemandStep(steps: readonly TurnStep[], stepId: string): TurnSt
   const found = steps.find((one) => one.definition.id === stepId);
   if (found === undefined) return null;
   const { definition } = found;
-  return definition.onDemand === true &&
+  return definition.onDemand !== undefined &&
     definition.stage === 'post' &&
     definition.contributes !== 'messages'
     ? found
@@ -170,7 +170,10 @@ export async function runOnDemand(
             }),
         voice: chat.voice,
         dispatch: chat.dispatch,
-        cast: castEntries(inputs.cast),
+        cast: castEntries(inputs.cast, {
+          channels: inputs.channels,
+          castIsPresent: castIsPresentFor(chat, inputs.mode.definition),
+        }),
         channels: inputs.channels,
         history: before,
         ...(last?.output === undefined ? {} : { output: { text: last.output.text } }),

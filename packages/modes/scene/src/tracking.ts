@@ -6,10 +6,12 @@ import type {
   CastEntry,
   ChannelDefinition,
   EffectProposal,
+  RecordField,
   StepDefinition,
   StepHost,
   StepInput,
   StepResult,
+  SurfaceContribution,
   TranscriptTurn,
 } from '@storyengine/sdk';
 
@@ -383,11 +385,24 @@ export const LOCKS: ChannelDefinition = {
  * ***Fields the player would rather not see*** — [P13 §1.9.2]: *"the
  * channel's `visibility`, extended to a field list the same way"* as the locks.
  *
- * **Hidden from the reader, not from the narrator**, and that is Marinara's
- * meaning too: its `hiddenTrackerFields` are read only by its HUD components
- * (`RoleplayHUDPanels.tsx`, the tracker cards). A character's thoughts are the
- * case — worth the narrator knowing, a spoiler on the panel. The engine reads
- * nothing here; the tracker panel does. Same path grammar as {@link LOCKS}.
+ * **Hidden from the reader, not from the narrator.** A character's thoughts
+ * are the case — worth the narrator knowing, a spoiler on the panel. Same path
+ * grammar as {@link LOCKS}.
+ *
+ * ~~and that is Marinara's meaning too: its `hiddenTrackerFields` are read only
+ * by its HUD components. The engine reads nothing here; the tracker panel
+ * does.~~ *Corrected 2026-09-29* (the [P13.5a] review): Marinara also strips
+ * hidden character fields from the **tracker agents'** own context —
+ * `compactGameStateForAgentContext` (`agent-executor.ts:345-411`, used at
+ * `:2252` and `:2628`) deletes a hidden `mood`, `appearance`, `outfit` or
+ * `thoughts` from each present character and the locks on hidden paths, while
+ * the narrator's prompt keeps them. StoryEngine now does the same, for
+ * Marinara's reason: a field a person hid is theirs to keep as it is, and a
+ * tracker model shown it would rewrite it every turn from a value nobody is
+ * looking at. So {@link track} leaves those fields out of the state it shows
+ * the model and writes them back unchanged, as it does a locked field; the
+ * state block (`assembly/collect.ts`) still renders them for the narrator. The
+ * step shows the model no locks at all, so there is none to drop.
  */
 export const HIDDEN: ChannelDefinition = { ...LOCKS, id: 'se.track.hidden' };
 
@@ -426,6 +441,103 @@ export const TRACKING_CHANNELS: readonly ChannelDefinition[] = [
   LOCKS,
   HIDDEN,
   CADENCE,
+];
+
+/**
+ * ***Where the trackers are shown, and where they are switched*** — the
+ * client half of [P13.5a]: [P13 §1.9.2]'s *"a tracker panel: world, each
+ * present character, the persona, quests with checkable objectives,
+ * inventory, custom fields, with lock and hide per field"*, and [P13 §1.9.6]'s
+ * switches *"in the session's settings, grouped under Agents"*.
+ *
+ * ***Declared, as every surface is***, so the host draws a tracker card
+ * knowing no tracker: each is a `record` widget naming its fields from the
+ * vocabulary's closed set and the two channels its locks and hidden fields
+ * live in. The card for a tracker that is off is not drawn — the host reads
+ * the channel's own `state.enabledBy` — and the character card is drawn once
+ * per present member but the persona, which is the host's reading of an
+ * actor-scoped record.
+ *
+ * *In the panel stack*, grouped, because the trackers are the story's state
+ * and are read beside it; *the switches and the cadence in settings*, because
+ * each switch costs a model call and a person decides that once, not while
+ * reading. The cadence is a record too: two fields, a number and a flag.
+ */
+/**
+ * The switches' words — each names what it costs, since a tracker switched
+ * on is a share of one more call every turn it runs.
+ */
+const TOGGLE_LABELS: Readonly<Record<Tracker['answer'], string>> = {
+  world: 'Track the world: date, time, place, weather',
+  characters: 'Track each character: mood, appearance, outfit, thoughts',
+  persona: 'Track your character: status and stats',
+  quests: 'Track quests and their objectives',
+  inventory: 'Track your inventory and money',
+  custom: 'Track custom fields you name',
+};
+
+const TRACKED = 'Tracked';
+const AGENTS = 'Agents';
+
+const recordOf = (
+  one: Tracker,
+  label: string,
+  fields: readonly RecordField[],
+): SurfaceContribution => ({
+  region: 'panel',
+  group: TRACKED,
+  channelId: one.channel.id,
+  widget: { kind: 'record', label, fields, locks: LOCKS.id, hidden: HIDDEN.id },
+});
+
+export const TRACKING_SURFACES: readonly SurfaceContribution[] = [
+  recordOf(WORLD, 'The world', [
+    { key: 'date', label: 'Date', show: 'line' },
+    { key: 'time', label: 'Time', show: 'line' },
+    { key: 'location', label: 'Location', show: 'line' },
+    { key: 'weather', label: 'Weather', show: 'line' },
+    { key: 'temperature', label: 'Temperature', show: 'line' },
+    { key: 'fields', label: 'Also', show: 'pairs' },
+    { key: 'recent', label: 'Recently', show: 'lines' },
+  ]),
+  recordOf(CHARACTER, 'Character', [
+    { key: 'mood', label: 'Mood', show: 'line' },
+    { key: 'appearance', label: 'Appearance', show: 'line' },
+    { key: 'outfit', label: 'Outfit', show: 'line' },
+    { key: 'thoughts', label: 'Thoughts', show: 'line' },
+    { key: 'fields', label: 'Also', show: 'map' },
+    { key: 'stats', label: 'Stats', show: 'meters' },
+  ]),
+  recordOf(PERSONA, 'You', [
+    { key: 'status', label: 'Status', show: 'line' },
+    { key: 'stats', label: 'Stats', show: 'meters' },
+  ]),
+  recordOf(QUESTS, 'Quests', [{ key: '', label: 'Quests', show: 'checklists' }]),
+  recordOf(INVENTORY, 'Inventory', [
+    { key: 'currencies', label: 'Money', show: 'items' },
+    { key: 'equipped', label: 'Equipped', show: 'items' },
+    { key: 'inventory', label: 'Carrying', show: 'items' },
+  ]),
+  recordOf(CUSTOM, 'Custom fields', [{ key: '', label: 'Fields', show: 'pairs' }]),
+  ...TRACKERS.map((one): SurfaceContribution => ({
+    region: 'settings',
+    group: AGENTS,
+    channelId: one.toggle.id,
+    widget: { kind: 'toggle', label: TOGGLE_LABELS[one.answer] },
+  })),
+  {
+    region: 'settings',
+    group: AGENTS,
+    channelId: CADENCE.id,
+    widget: {
+      kind: 'record',
+      label: 'When the trackers update',
+      fields: [
+        { key: 'everyNTurns', label: 'Every how many turns', show: 'number' },
+        { key: 'manual', label: 'Only when I press Update trackers', show: 'flag' },
+      ],
+    },
+  },
 ];
 
 /**
@@ -472,7 +584,7 @@ export const TRACK_STEP: StepDefinition = {
   /** `prose`, for [25 C15]'s reason, and `stepRoles` binds a cheaper model here. */
   role: 'prose',
   /** *Update trackers* — the one on-demand step in this phase ([P13 §1.9.2]). */
-  onDemand: true,
+  onDemand: { label: 'Update trackers' },
 };
 
 /**
@@ -507,15 +619,20 @@ function cadenceOf(channels: StepInput['channels']): { everyNTurns: number; manu
 /**
  * The characters the tracker follows, each under a name the model can read.
  *
- * *Everyone in the cast but the persona*, who has a tracker of their own
- * ({@link CastEntry.persona}). Two members with one name are told apart by a
+ * *Everyone present in the cast but the persona*, who has a tracker of their
+ * own ({@link CastEntry.persona}). *Present* is the host's word
+ * ({@link CastEntry.present}), the reading the prompt's cards and the panel's
+ * use: a muted member is out of the room, and Marinara's character tracker
+ * follows only the characters in the scene (correction, 2026-09-29 — this
+ * asked about everyone, a call's share every turn about somebody the player
+ * had taken out). Their stored value stays as it was. Two members with one name are told apart by a
  * number, because the answer is keyed by name and a collision would write one
  * person's mood onto the other.
  */
 function charactersOf(cast: readonly CastEntry[]): { actorId: string; label: string }[] {
   const seen = new Map<string, number>();
   return cast
-    .filter((member) => member.persona !== true)
+    .filter((member) => member.persona !== true && member.present !== false)
     .map((member) => {
       const count = (seen.get(member.name) ?? 0) + 1;
       seen.set(member.name, count);
@@ -572,7 +689,11 @@ export async function track(input: StepInput, host: StepHost): Promise<StepResul
       block(
         'se.scene.track.state',
         'system',
-        `The tracked state now:\n${JSON.stringify(stateNow(input, asked, characters), null, 2)}`,
+        `The tracked state now:\n${JSON.stringify(
+          stateNow(input, asked, characters, hiddenCharacterFields(input.channels)),
+          null,
+          2,
+        )}`,
       ),
       ...(recent(input.transcript ?? [], player) === ''
         ? []
@@ -599,7 +720,8 @@ export async function track(input: StepInput, host: StepHost): Promise<StepResul
     throw new Error('The model did not answer with the tracked state.');
   }
   const answer = result.object as Record<string, unknown>;
-  const locks = locksOf(input.channels);
+  // Hidden character fields are held as a lock is — see `HIDDEN`.
+  const locks = [...locksOf(input.channels), ...hiddenCharacterFields(input.channels)];
   const by = { kind: 'model' as const, callId: result.callId };
 
   const effects: EffectProposal[] = [];
@@ -663,12 +785,27 @@ function stateNow(
   input: StepInput,
   asked: readonly Tracker[],
   characters: readonly { actorId: string; label: string }[],
+  hidden: readonly string[],
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const one of asked) {
     if (one === CHARACTER) {
       out['characters'] = Object.fromEntries(
-        characters.map((character) => [character.label, current(input, one, character.actorId)]),
+        characters.map((character) => {
+          const value = current(input, one, character.actorId);
+          const key = `${CHARACTER.channel.id}#${character.actorId}`;
+          // A hidden field is not shown to the tracker model — see `HIDDEN`.
+          return [
+            character.label,
+            isRecord(value)
+              ? Object.fromEntries(
+                  Object.entries(value).filter(
+                    ([field]) => !hidden.includes(trackerPath(key, field)),
+                  ),
+                )
+              : value,
+          ];
+        }),
       );
     } else if (one === CUSTOM) {
       out['custom'] = Object.fromEntries(
@@ -748,9 +885,40 @@ function merge(one: Tracker, was: unknown, given: unknown): unknown {
   if (!isRecord(given) || !isRecord(was)) return was;
   const out: Record<string, unknown> = { ...was };
   for (const key of Object.keys(one.empty as Record<string, unknown>)) {
-    if (given[key] !== undefined) out[key] = given[key];
+    if (given[key] === undefined) continue;
+    /**
+     * *A blank world line is absent, not empty* — Marinara's world-state
+     * merge reads each of date, time, location, weather and temperature as
+     * `coerceGameStateTextValue(gs.x) ?? prev` (`generate.routes.ts:8263-8313`),
+     * and that coercion turns a string that trims to nothing into `null`
+     * (`game-state-text.ts:39-42`), so a blank keeps the old value. A model
+     * filling every key of the schema with `""` for what it did not mention
+     * would otherwise wipe the place the story is in (correction, 2026-09-29).
+     * World only: Marinara's character tracker replaces its characters whole,
+     * blanks and all, and so does this one.
+     */
+    if (one === WORLD && typeof given[key] === 'string' && given[key].trim() === '') continue;
+    out[key] = given[key];
   }
   return out;
+}
+
+const HIDEABLE = ['mood', 'appearance', 'outfit', 'thoughts'] as const;
+
+/**
+ * The hidden character fields that stand now — Marinara's
+ * `HIDEABLE_CHARACTER_TRACKER_FIELDS` (`agent-executor.ts:345`), the four a
+ * tracker agent is not shown when hidden; see {@link HIDDEN}.
+ */
+function hiddenCharacterFields(channels: StepInput['channels']): string[] {
+  const value = channels[HIDDEN.id]?.value;
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (one): one is string =>
+      typeof one === 'string' &&
+      one.startsWith(`${CHARACTER.channel.id}#`) &&
+      HIDEABLE.some((field) => one.endsWith(`/${field}`) && one.split('/').length === 2),
+  );
 }
 
 /** The locks that stand now, read defensively. */

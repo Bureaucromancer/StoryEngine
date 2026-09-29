@@ -15,7 +15,7 @@ import type {
 
 import { SCENE_PRESET } from './preset.js';
 import { STAGE_STEP, stage } from './staging.js';
-import { TRACK_STEP, TRACKING_CHANNELS, track } from './tracking.js';
+import { TRACK_STEP, TRACKING_CHANNELS, TRACKING_SURFACES, track } from './tracking.js';
 
 /**
  * Scene — the P2 mode, and it is **allowed to be embarrassingly small**.
@@ -651,6 +651,8 @@ export const SCENE: ModeDefinition = {
       channelId: BACKDROP_ON_CHANNEL.id,
       widget: { kind: 'toggle', label: 'Stage a backdrop' },
     },
+    // The trackers' cards and their switches — [P13.5a], see `tracking.ts`.
+    ...TRACKING_SURFACES,
   ],
   /**
    * ***What Scene wants of pictures before anybody says otherwise*** —

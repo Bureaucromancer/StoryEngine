@@ -61,6 +61,45 @@ export interface ChatSwipe {
   text: string;
   reasoning?: string;
   at: number | null;
+  /** What the source had established as of this alternative — {@link ChatStateValue}. */
+  state?: readonly ChatStateValue[];
+}
+
+/**
+ * ***A channel's value, as the source had it at a message*** — [P13 §2.6]'s
+ * *"`game_state_snapshots` row for a message's swipe → effects on the turn
+ * holding that message"*, added at [P13.5a].
+ *
+ * **Source-neutral, like everything here**: a channel id and a value in that
+ * channel's shape, which the source's own parser has already translated
+ * (`marinara/trackers.ts`). The builder knows no tracker; it writes each value
+ * as an effect on the turn holding the message or swipe it came with, and only
+ * where it moves the state along that path.
+ *
+ * - **`version`** is the channel's, which the effect records
+ *   (`channelVersion`); the parser that spells the id spells the version with
+ *   it, and a test pins both to the registered channel.
+ * - **`init`** is what the channel reads before anything wrote it — its
+ *   declared `init`. A value equal to what the path already holds, *or to this
+ *   when nothing has written it*, is no effect: a source that records every
+ *   tracker in every snapshot, most of them empty, would otherwise give every
+ *   turn six effects saying nothing.
+ * - **`member`**, for an actor-scoped channel, is who it is about **as the
+ *   source names them** — resolved to an actor by the builder, as a speaker
+ *   is, and skipped (and counted) when the library has no such actor or the
+ *   cast does not hold them.
+ * - **`paths`**: the value is a list of field paths (`<channel key>/<JSON
+ *   Pointer>`), and a key `<channel>#<member key>` in one names a member the
+ *   source's way. The builder rewrites each to the actor, and drops one it
+ *   cannot — a lock on a character who is not in the session locks nothing.
+ */
+export interface ChatStateValue {
+  channelId: string;
+  version: number;
+  init: unknown;
+  value: unknown;
+  member?: ForeignRef;
+  paths?: true;
 }
 
 /**
@@ -119,6 +158,12 @@ export interface ChatMessage {
   hiddenByImport?: true;
   batch?: string;
   foreignId: string;
+  /**
+   * What the source had established as of this line — its active swipe's, for
+   * a reply with alternatives, each of which carries its own on
+   * {@link ChatSwipe.state}. See {@link ChatStateValue}.
+   */
+  state?: readonly ChatStateValue[];
 }
 
 /**
@@ -268,6 +313,15 @@ export interface ChatSettings {
   note?: NonNullable<SessionFile['note']>;
   hidden?: readonly string[];
   muted?: readonly string[];
+  /**
+   * ***State the source keeps for the chat rather than for a message*** —
+   * Marinara's agent switches (`activeAgentIds`, `manualTrackers`), [P13 §2.6]'s
+   * *"the session's agent switches"*, added at [P13.5a]. Written on every
+   * opening turn beside the muted members' presence and for their reason: the
+   * source says it, a session keeps it only as state at a node, and the
+   * opening is the one node every branch of the family inherits from.
+   */
+  state?: readonly ChatStateValue[];
 }
 
 /**

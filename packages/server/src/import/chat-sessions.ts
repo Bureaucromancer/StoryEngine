@@ -1020,7 +1020,12 @@ async function importMarinaraChats(
         // solo root whose branch became a group is a group session, and it
         // plays as Marinara plays a group whose metadata never said otherwise —
         // merged, in order, no names — rather than with no group settings at all.
-        settings: roster.length > 1 ? marinaraGroupSettings(root.chat.metadata, roster) : {},
+        settings: {
+          ...(roster.length > 1 ? marinaraGroupSettings(root.chat.metadata, roster) : {}),
+          // The root's tracker switches, for its group settings' reason —
+          // [P13 §2.6], [P13.5a]. Written on the opening turns.
+          ...(root.chat.state.length === 0 ? {} : { state: root.chat.state }),
+        },
         notes: [...plan.chats.flatMap(({ chat }) => chat.notes), ...plan.notes],
       },
       library,
@@ -1068,5 +1073,6 @@ function tablesOf(payload: unknown): MarinaraTables {
     swipes: rows('swipes'),
     characters: rows('characters'),
     personas: rows('personas'),
+    snapshots: rows('snapshots'),
   };
 }

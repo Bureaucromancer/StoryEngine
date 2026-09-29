@@ -471,12 +471,21 @@ describe('what Scene declares, and what the engine does with it', () => {
    * surface pointing at somebody else's channel is what `channelInPlay` refuses
    * on the server; catching it here is catching it at the declaration.
    */
-  it('contributes four surfaces, each over a channel it owns', () => {
+  it('contributes its surfaces, each over a channel it owns', () => {
     const owned = new Set(SCENE.channels.map((channel) => channel.id));
     // The fourth is the backdrop's own switch, added at [P9.4] — beside the
     // staging toggle rather than over the picture, because a control floating
-    // on a backdrop is a control competing with the thing it controls.
-    expect(SCENE.surfaces.map((one) => one.region)).toEqual(['stage', 'message', 'panel', 'panel']);
+    // on a backdrop is a control competing with the thing it controls. The
+    // rest are [P13.5a]'s: six tracker cards in the panel, and six switches
+    // and the cadence in settings.
+    expect(SCENE.surfaces.map((one) => one.region)).toEqual([
+      'stage',
+      'message',
+      'panel',
+      'panel',
+      ...Array<string>(6).fill('panel'),
+      ...Array<string>(7).fill('settings'),
+    ]);
     for (const contribution of SCENE.surfaces) {
       expect(owned.has(contribution.channelId)).toBe(true);
       // Authored content travelling with the mode, like a preset's prose — so a

@@ -23,6 +23,7 @@ import {
   TRACK_STEP,
   TRACKERS,
   TRACKING_CHANNELS,
+  TRACKING_SURFACES,
   WORLD,
   track,
   trackerPath,
@@ -142,11 +143,44 @@ describe('what is declared', () => {
   });
 
   it('may be run between turns, and writes only the trackers', () => {
-    expect(TRACK_STEP.onDemand).toBe(true);
+    expect(TRACK_STEP.onDemand).toEqual({ label: 'Update trackers' });
     expect(TRACK_STEP.stage).toBe('post');
     expect(TRACK_STEP.contributes).toBe('effects');
     expect(TRACK_STEP.failure).toBe('warn');
     expect(TRACK_STEP.writes).toEqual(TRACKERS.map((one) => one.channel.id));
+  });
+});
+
+/**
+ * ***The cards and the switches*** — the client half of [P13.5a]. A card is a
+ * `record` whose fields are declared rather than inferred, so the claim worth
+ * holding is that every declared field is a property the channel's schema
+ * actually has: a field naming nothing would be a row the host draws empty
+ * forever and an edit written somewhere the schema then refuses.
+ */
+describe('where the trackers are shown', () => {
+  it('gives every tracker a card whose fields its schema has, with locks and hiding', () => {
+    for (const one of TRACKERS) {
+      const card = TRACKING_SURFACES.find((surface) => surface.channelId === one.channel.id);
+      if (card?.widget.kind !== 'record') throw new Error(one.channel.id);
+      expect(card.region).toBe('panel');
+      expect(card.widget.locks).toBe(LOCKS.id);
+      expect(card.widget.hidden).toBe(HIDDEN.id);
+      const schema = one.channel.schema as { type: string; properties?: Record<string, unknown> };
+      for (const field of card.widget.fields) {
+        if (field.key === '') expect(schema.type).toBe('array');
+        else expect(Object.keys(schema.properties ?? {}), field.key).toContain(field.key);
+      }
+    }
+  });
+
+  it('puts each switch and the cadence in settings, under Agents', () => {
+    const settings = TRACKING_SURFACES.filter((surface) => surface.region === 'settings');
+    expect(settings.map((surface) => surface.channelId)).toEqual([
+      ...TRACKERS.map((one) => one.toggle.id),
+      CADENCE.id,
+    ]);
+    for (const surface of settings) expect(surface.group).toBe('Agents');
   });
 });
 
@@ -229,6 +263,15 @@ describe('a turn with trackers on', () => {
     });
   });
 
+  it('reads a blank world line as absent, keeping the stored one — Marinara’s `?? prev`', async () => {
+    const standing = { ...(WORLD.empty as object), location: 'the docks', weather: 'fog' };
+    const result = await track(
+      input(on([WORLD.channel.id], { 'se.track.world': state(standing) })),
+      host({ world: { location: '  ', weather: 'rain' } }),
+    );
+    expect(result.effects?.[0]?.after).toMatchObject({ location: 'the docks', weather: 'rain' });
+  });
+
   it('proposes nothing for a tracker the answer leaves as it was', async () => {
     const result = await track(input(on([WORLD.channel.id])), host({ world: { location: '' } }));
     expect(result).toEqual({});
@@ -249,6 +292,33 @@ describe('a turn with trackers on', () => {
     expect(result.effects?.[0]?.after).toMatchObject({
       location: 'the harbourmaster’s office',
       weather: 'fog',
+    });
+  });
+
+  it('does not show the model a hidden character field, and keeps it as it was', async () => {
+    // Marinara's `compactGameStateForAgentContext`: hidden from the tracker
+    // agents, kept for the narrator.
+    const standing = {
+      ...(CHARACTER.empty as object),
+      mood: 'calm',
+      thoughts: 'He knows about the key.',
+    };
+    const asked = host({ characters: { Vera: { mood: 'wary', thoughts: 'Nothing.' } } });
+    const result = await track(
+      input(
+        on([CHARACTER.channel.id], {
+          'se.track.character#a-vera': state(standing),
+          'se.track.hidden': state([trackerPath('se.track.character#a-vera', 'thoughts')]),
+        }),
+      ),
+      asked,
+    );
+    const shown = JSON.stringify(asked.asked[0]?.candidates);
+    expect(shown).toContain('calm');
+    expect(shown).not.toContain('He knows about the key.');
+    expect(result.effects?.[0]?.after).toMatchObject({
+      mood: 'wary',
+      thoughts: 'He knows about the key.',
     });
   });
 
@@ -310,6 +380,22 @@ describe('the lock grammar', () => {
     expect(
       writeBack(proposed, was, ['se.track.quests/Either~1Or/completed'], 'se.track.quests'),
     ).toEqual(was);
+  });
+
+  it('holds a quest’s `completed` and lets its objectives move — an imported quest-field lock', () => {
+    // What the Marinara import writes for `quests.<q>.completed`: the field,
+    // not the row, so the objectives nested in the quest still tick.
+    const was = [
+      { name: 'The mill', objectives: [{ text: 'Ask', completed: false }], completed: false },
+    ];
+    const proposed = [
+      { name: 'The mill', objectives: [{ text: 'Ask', completed: true }], completed: true },
+    ];
+    expect(
+      writeBack(proposed, was, ['se.track.quests/The mill/completed'], 'se.track.quests'),
+    ).toEqual([
+      { name: 'The mill', objectives: [{ text: 'Ask', completed: true }], completed: false },
+    ]);
   });
 
   it('puts back a locked row the model dropped, and keeps out one the story never had', () => {

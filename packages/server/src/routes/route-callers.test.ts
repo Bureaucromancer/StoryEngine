@@ -289,10 +289,12 @@ const OWED = new Map<string, string>([
    * ghost and its hide action, which name the address. Discharged by building
    * the surface.
    */
-  [
-    'POST /api/sessions/:p/steps/:p/run',
-    "P13.5a's server half built Update trackers as a route; the control is the tracker panel's, which is the same stage's client half (P13 §1.9.2's surface paragraph).",
-  ],
+  /**
+   * ***The on-demand run stood here for half a stage and is gone.*** [P13.5a]'s
+   * server half built *Update trackers* as a route; its client half built the
+   * control (`ModeActions`, from the session read's `actions`), and `api.ts`'s
+   * `runSessionStep` names the address. Discharged by building the surface.
+   */
   [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",

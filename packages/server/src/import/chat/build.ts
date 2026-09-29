@@ -13,6 +13,7 @@ import {
 } from '@storyengine/shared';
 
 import { PRESENCE_CHANNEL, SE_PRESENCE } from '../../sessions/cast.js';
+import { channelKey } from '../../sessions/channels.js';
 import { SPEAKER_DEFAULTS } from '../../sessions/chat-settings.js';
 import { applyEffects } from '../../sessions/store.js';
 import type { SessionFile } from '../../sessions/types.js';
@@ -35,6 +36,7 @@ import type {
   ChatResolution,
   ChatSettings,
   ChatSourceChat,
+  ChatStateValue,
   ForeignRef,
   ResolvedRef,
 } from './types.js';
@@ -122,6 +124,8 @@ interface Line {
   hidden: boolean;
   /** The source line this is, for counting what was hidden once per line. */
   line: string;
+  /** What the source had established as of this line — `ChatMessage.state`. */
+  state?: readonly ChatStateValue[];
 }
 
 /** One turn-to-be: a key, where it hangs, when, and what it says. */
@@ -134,7 +138,12 @@ interface Node {
    * family hides one of them (see `place`): a round and its swipes' siblings
    * share the objects they were built from, and each is merged on its own.
    */
-  input: { text: string; hidden: boolean; line: string } | null;
+  input: {
+    text: string;
+    hidden: boolean;
+    line: string;
+    state?: readonly ChatStateValue[];
+  } | null;
   lines: Line[];
   /** `Turn.foreign.id` — see {@link foreignIdOf}. */
   foreignId: string;
@@ -320,6 +329,13 @@ export function buildSession(
   const sessionTime = headOf(walked, nodes)?.time ?? 0;
   const sessionId = uuidv7Shaped(sessionTime, sessionKey(context.account, family.key));
   const muted = mutedMembers(family, settings, resolution, cast, notes);
+  const effectsOf = stateEffects(ordered, id, {
+    muted,
+    opening: settings.state ?? [],
+    resolution,
+    cast,
+    notes,
+  });
   const turns = ordered.map((node) =>
     turnOf(node, {
       id: id(node.key),
@@ -328,7 +344,7 @@ export function buildSession(
       source: family.source,
       persona: resolution.persona,
       refOf,
-      effects: node.parentKey === null ? mutedEffects(node, id(node.key), muted) : [],
+      effects: effectsOf.get(node.key) ?? [],
     }),
   );
 
@@ -620,6 +636,10 @@ function placeSwipes(
           // flag is on the message in both sources, not on the swipe.
           hidden: own.hidden,
           line: own.line,
+          // *The swipe's own state, never the line's*: Marinara keys a snapshot
+          // by `(message, swipe)`, and a swipe having its own tracker state is
+          // the tree doing what it does ([P13 §1.9]).
+          ...(swipe.state === undefined ? {} : { state: swipe.state }),
         },
       ];
       // The sibling's time is the round's, whichever swipe it holds: see
@@ -890,11 +910,179 @@ function mutedEffects(node: Node, turnId: string, muted: readonly Muted[]): Chan
 }
 
 // ---------------------------------------------------------------------------
+// The source's state — [P13 §2.6], [P13.5a]
+// ---------------------------------------------------------------------------
+
+/**
+ * ***Every turn's effects: the source's state, where it moves along the path***
+ * — [P13 §2.6]'s *"`game_state_snapshots` row for a message's swipe → effects
+ * on the turn holding that message, one per enabled tracker channel,
+ * `proposedBy: engine`; the snapshot keying* is *the tree's"*, and
+ * {@link mutedEffects}' exception to [P13 §2.2] widened to it for the same
+ * reason: the source *says* what it had established at that message, and a
+ * session keeps such a thing only as an effect on a turn.
+ *
+ * **The turn holding the message's swipe** is the node whose line it is: the
+ * round's own turn for the active swipe, a sibling for any other, since
+ * {@link placeSwipes} carries each swipe's own state onto its sibling. A round
+ * of several messages takes each one's state in order, the later message's
+ * winning where two say the same channel — the turn is the round's end.
+ *
+ * ***Only where it moves***, measured against the state at the parent: a
+ * snapshot records every tracker every time, so an effect per tracker per turn
+ * would bury the six that changed under the hundred that did not. A channel
+ * nothing on the path has written reads as its declared `init`
+ * (`ChatStateValue.init`), so an empty tracker costs nothing either.
+ *
+ * - ***Walked in id order***, which puts every parent before its children
+ *   ({@link placeTime}), so each node's starting state is its parent's end.
+ * - ***On an opening turn, the chat's own state first*** —
+ *   `ChatSettings.state`, the agent switches — beside the muted members'
+ *   presence, for {@link mutedEffects}' argument about where a chat-wide fact
+ *   goes; then the opening's lines. The mutes stay first and are never
+ *   deduplicated: [P13.10a]'s sync reads them as the source's word on the path.
+ * - ***`proposedBy: engine`, applied, `before` the value at the parent*** —
+ *   what `acceptEffect` records, built here for {@link mutedEffects}' reason
+ *   (it mints a random id), with the id from `effectKey` over the turn's key,
+ *   the channel and the member's *foreign* key.
+ * - ***A member the library does not have, or the cast does not hold, is
+ *   skipped and counted*** (`import.chat.stateMemberUnresolved`). A scoped
+ *   effect under a foreign key would be a value about nobody, and a lock path
+ *   naming one would lock nothing — so those paths are dropped too.
+ */
+function stateEffects(
+  ordered: readonly Node[],
+  id: (key: string) => string,
+  on: {
+    muted: readonly Muted[];
+    opening: readonly ChatStateValue[];
+    resolution: ChatResolution;
+    cast: readonly string[];
+    notes: ImportNote[];
+  },
+): Map<string, ChannelEffect[]> {
+  const out = new Map<string, ChannelEffect[]>();
+  const after = new Map<string, SessionFile['channels']>();
+  const unresolved = new Set<string>();
+
+  const actorOf = (member: ForeignRef): string | null => {
+    const resolved = on.resolution.speakers.get(member.key) ?? null;
+    if (resolved === null || !on.cast.includes(resolved.id)) {
+      unresolved.add(member.name === '' ? member.key : member.name);
+      return null;
+    }
+    return resolved.id;
+  };
+  /**
+   * A field path's `#<member key>`, as the actor — or null when the member does
+   * not resolve. The separator is looked for only in the channel-key part,
+   * before the first `/`: past it the path is a JSON Pointer into the value,
+   * whose row names are a person's words and may hold a `#` of their own
+   * ("Quest #1", "Potion #2"). Reading the first `#` anywhere took such a row
+   * for a member reference and dropped an unscoped lock without a word
+   * (correction, 2026-09-29). A scoped path whose member does not resolve is
+   * counted with the unresolved members, so its drop is visible.
+   */
+  const pathOf = (path: string): string | null => {
+    const slash = path.indexOf('/');
+    const keyPart = slash === -1 ? path : path.slice(0, slash);
+    const hash = keyPart.indexOf('#');
+    if (hash === -1) return path;
+    const memberKey = keyPart.slice(hash + 1);
+    const resolved = on.resolution.speakers.get(memberKey) ?? null;
+    if (resolved === null || !on.cast.includes(resolved.id)) {
+      unresolved.add(memberKey);
+      return null;
+    }
+    return `${keyPart.slice(0, hash + 1)}${resolved.id}${slash === -1 ? '' : path.slice(slash)}`;
+  };
+
+  for (const node of ordered) {
+    const opening = node.parentKey === null;
+    const turnId = id(node.key);
+    const start = opening ? {} : (after.get(node.parentKey ?? '') ?? {});
+    const effects: ChannelEffect[] = opening ? mutedEffects(node, turnId, on.muted) : [];
+    const running = applyEffects(start, effects);
+
+    /** The node's wanted values, one per channel key, the last word winning. */
+    const wanted = new Map<
+      string,
+      { from: ChatStateValue; scopeKey: string | null; value: unknown }
+    >();
+    const said = [
+      ...(opening ? on.opening : []),
+      ...(node.input?.state ?? []),
+      ...node.lines.flatMap((line) => line.state ?? []),
+    ];
+    for (const from of said) {
+      let scopeKey: string | null = null;
+      if (from.member !== undefined) {
+        scopeKey = actorOf(from.member);
+        if (scopeKey === null) continue;
+      }
+      const value =
+        from.paths === true && Array.isArray(from.value)
+          ? [
+              ...new Set(
+                from.value.flatMap((path) => {
+                  const rewritten = typeof path === 'string' ? pathOf(path) : null;
+                  return rewritten === null ? [] : [rewritten];
+                }),
+              ),
+            ]
+          : from.value;
+      wanted.set(channelKey(from.channelId, scopeKey), { from, scopeKey, value });
+    }
+
+    for (const [key, { from, scopeKey, value }] of wanted) {
+      const held = running[key];
+      if (sameJson(held === undefined ? from.init : held.value, value)) continue;
+      effects.push({
+        id: uuidv7Shaped(node.time, effectKey(node.key, from.channelId, from.member?.key ?? '')),
+        turnId,
+        channelId: from.channelId,
+        scopeKey,
+        op: { type: 'set', path: '/' },
+        before: held === undefined ? null : held.value,
+        after: value,
+        proposedBy: { kind: 'engine' },
+        applied: true,
+        rejectedReason: null,
+        supersedes: null,
+        channelVersion: from.version,
+        scope: 'session',
+      });
+    }
+    out.set(node.key, effects);
+    after.set(node.key, applyEffects(start, effects));
+  }
+
+  if (unresolved.size > 0) {
+    on.notes.push({
+      key: 'import.chat.stateMemberUnresolved',
+      params: { count: unresolved.size, names: [...unresolved].join(', ') },
+      level: 'warn',
+    });
+  }
+  return out;
+}
+
+/** JSON equality — every value here is plain data the parser built. */
+function sameJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// ---------------------------------------------------------------------------
 // One node, one turn
 // ---------------------------------------------------------------------------
 
 function inputOf(message: ChatMessage, hiddenLines: ReadonlySet<string>): Node['input'] {
-  return { text: message.text, hidden: hiddenHere(message, hiddenLines), line: message.foreignId };
+  return {
+    text: message.text,
+    hidden: hiddenHere(message, hiddenLines),
+    line: message.foreignId,
+    ...(message.state === undefined ? {} : { state: message.state }),
+  };
 }
 
 /** The source hid it: on the line, or where the source keeps hiding instead. */
@@ -920,6 +1108,7 @@ function lineOf(message: ChatMessage, hiddenLines: ReadonlySet<string>): Line {
     carried: false,
     hidden: hiddenHere(message, hiddenLines),
     line: message.foreignId,
+    ...(message.state === undefined ? {} : { state: message.state }),
   };
 }
 

@@ -1683,8 +1683,16 @@ step's own claims are `modes/scene/src/tracking.test.ts`, the state block's
   and `manualTrackers` can put them. **Cadence and manual mode are one more,
   `se.track.cadence` `{ everyNTurns, manual }`**, counted in story turns over
   `transcript` as `evaluateCondition` counts; **hidden fields are
-  `se.track.hidden`**, the locks' twin, read by the panel only — hidden from
-  the reader, not the narrator, as Marinara's are.
+  `se.track.hidden`**, the locks' twin, ~~read by the panel only~~ — hidden from
+  the reader, not the narrator, ~~as Marinara's are~~. *Corrected 2026-09-29*:
+  Marinara's `compactGameStateForAgentContext` (`agent-executor.ts:345-411`,
+  used at `:2252` and `:2628`) also strips a hidden character field (`mood`,
+  `appearance`, `outfit`, `thoughts`) and the locks on hidden paths from the
+  **tracker agents'** context, keeping them in the narrator's. StoryEngine now
+  matches it: the step leaves those fields out of the state it shows the model
+  and writes them back unchanged, as a locked field is, so a field a person hid
+  is not rewritten from a value nobody is looking at; the state block still
+  renders them for the narrator.
 - **The contract grew four fields rather than the engine naming anything.**
   `ChannelDefinition.state` (`EstablishedState { label, enabledBy }`) is what
   the `{ of: 'state' }` slot renders, so the collector walks declarations and
@@ -1720,6 +1728,133 @@ step's own claims are `modes/scene/src/tracking.test.ts`, the state block's
 *Not in this half:* the `meter` and `record` widget arms and the tracker panel
 (the client half). `POST …/steps/:p/run` is owed in `route-callers.test.ts`
 until the panel names it.
+
+*As built, 2026-09-29 — the client half and the import.* The panel is
+`ModeRegion.test.tsx`'s *a record, a meter and a group* and
+`routes/trackers.test.ts`'s *what the tracker panel reads*; the settings group
+is `ChatSettingsPanel.test.tsx`'s last case; the import is
+`import/marinara/trackers.test.ts` over the shared fixture, which now carries
+tracker snapshots (`fixtures/test-marinara.ts`), and the builder's half is
+`chat/build.test.ts`'s *the source's state*. What was decided:
+
+- **The panel knows no tracker.** Scene declares six `record` surfaces in the
+  `panel` region (group *Tracked*) and its six switches plus the cadence in a
+  new **`settings`** region (group *Agents*), `tracking.ts`'s
+  `TRACKING_SURFACES`; the client draws them through `ModeRegion` and a new
+  `RecordCard`, neither of which names a channel. `SurfaceContribution` grew
+  `settings` and an optional `group`, which is [10 §8.1]'s *"ask what widget
+  would let it"* applied to regions again.
+- **`record` declares its fields; it does not infer them from the schema.**
+  `{ kind: 'record', label, fields: [{ key, label, show }], locks?, hidden? }`,
+  `show` from a closed set (`line`, `number`, `flag`, `lines`, `pairs`, `map`,
+  `items`, `meters`, `checklists`), `key: ''` for a value that is itself a
+  list. A schema says what a value may be, not that `stats` is a row of bars;
+  guessing presentation from `type: 'array'` would be a second description of
+  the value. `locks` and `hidden` name the two set channels, and a lock or a
+  hide is the ordinary channel write of the whole set. **The value crosses as
+  raw JSON** — every other arm sends a rendered string — because a record is
+  edited; it is still data, and `contract.test.ts` now asserts a record's
+  fields carry nothing but `key`, `label`, `show`.
+- **`meter` is an arm over a number or a `{ value, max }`**, and the tracker
+  stats are `meters` rows drawn by the same bar (the platform's `<meter>`). No
+  Scene channel is a bare number, so the top-level arm's only consumer today
+  is the server's render and the tests; the rows are its subject.
+- **Surfaces obey the switches**: a channel whose `state.enabledBy` is off has
+  no surface (`modeSurfaces`), so a tracker's card appears when it is switched
+  on. An actor-scoped `record` is one card per **present member but the
+  persona**, whether or not the tracker has reached them (`SurfaceMembers`,
+  `presentMembers`), so a person can fill a character in before the model
+  does; a muted member's card closes and their value stays on the tree.
+- **Editing is Save, not per keystroke** — a tracker is several fields of one
+  value, and a write per keystroke would be an engine turn each. *A quest
+  objective's box writes at once*, which is *"checkable objectives"*. A value
+  the channel refuses is said beside the card (`effect.rejectedReason`).
+  Hidden fields are left off the card with a *Show N hidden* control, and stay
+  in every prompt.
+- **Update trackers**: `StepDefinition.onDemand` became `{ label }` (the
+  button's words are the mode's, as a widget's label is), and the session read
+  sends `actions: [{ stepId, label }]`, each **only while a channel the step
+  writes is switched on** (`modeActions`). `ModeActions` draws them above the
+  panel region, disabled while a turn runs. The route-callers debt is paid.
+- **The import** (`import/marinara/trackers.ts`, [§2.6]'s second table):
+  - *Snapshots are effects on the turn holding their message's swipe*: the
+    parser hangs each `(messageId, swipeIndex)` snapshot — the latest, by
+    `createdAt` — on the line (active swipe) or on the `ChatSwipe` (any other),
+    and the builder writes them on the round's turn or the swipe's sibling.
+    `ChatMessage.state`, `ChatSwipe.state` and `ChatSettings.state` are
+    source-neutral `ChatStateValue`s; the builder knows no tracker.
+  - *Only where the state moves*, against the parent's end state, a channel
+    nobody wrote reading as its `init` — a snapshot is a whole state every
+    time, and six effects per turn saying nothing would bury the changes. Ids
+    are `effectKey` over the turn's key, the channel and the member's foreign
+    key, as P13.9's presence effects are; `proposedBy: engine`, applied,
+    `before` the parent's value; the head cache is the head path's replay, so
+    opening the session reconciles nothing (asserted).
+  - *Per-character values are per actor*: a present character is written only
+    when the library resolved their `characterId` and the cast holds them; one
+    with no card (an NPC the tracker named) has nowhere to go, and whoever
+    cannot be placed is counted (`import.chat.stateMemberUnresolved`).
+  - *Locks and hidden fields* are Marinara's lock keys read as field paths —
+    `world.location` → `se.track.world/location`,
+    `characters.id:<id>.mood` → `se.track.character#<actor>/mood` (the
+    builder rewrites the member key), `quests.id:<q>` by the quest's name, and
+    so on. A row's `.name` and `.value` locks collapse to one path, since a
+    lock here is on the row. Keys naming what is not kept (emoji, an `index:`
+    past the end) are counted (`trackerKeysNotCarried`).
+  - *Switches* from the root chat: an agent's switch is on only when
+    `enableAgents` **and** `activeAgentIds` say so, which is when Marinara ran
+    it; `manualTrackers` is the cadence's `manual`. Written on the opening
+    turns beside the mutes, for P13.9's reason.
+  - *Not carried, each a note*: agent models (`agentModelsNotCarried` —
+    global in Marinara, the session's `stepRoles` here), per-agent manual
+    (`manualTrackersPerAgent`), a quest's stage *number* (an index into
+    lorebook stages that did not come), and the non-tracker agents
+    (`agentsNotCarried`, narrowed to them). `game_state_snapshots` is
+    `converted` in `registries/marinara.ts`.
+- **The entry bundle is 318.7 kB gzip against the 320 kB ceiling** (315.2
+  before this half): within it, with 1.3 kB left. Recorded rather than raised.
+  *2026-09-29*: **319.65 kB** after the review's row locks and write ordering
+  in `RecordCard` — 0.35 kB left, so the next client addition meets the
+  ceiling and has to argue for it.
+
+*Corrections from the review, 2026-09-29.*
+
+- **The trackers follow the present cast.** `CastEntry` grew `present?: false`,
+  set by `castEntries` from `castIsPresentFor` and `readPresence` — the reading
+  the cards and the panel use — and the character tracker skips a muted
+  member, as Marinara's follows only the characters in the scene. The state
+  block builds its names from the persona and the collector's `present`, so a
+  muted member's state leaves the prompt; their value stays on the tree.
+- **A blank world line is absent**: Marinara's `coerceGameStateTextValue(x) ??
+  prev` (`generate.routes.ts:8263-8313`, `game-state-text.ts:39-42`). The
+  character fields are not treated so, since Marinara replaces a character
+  whole.
+- **Quest field locks stay per field** — the import writes
+  `quests.<q>.completed` as `se.track.quests/<q>/completed`, not the row,
+  because a quest nests its objectives and a row lock would freeze them;
+  `currentStage` is counted as not carried.
+- **Per-agent manual trackers** (`manualTrackerAgentTypes`) no longer arrive as
+  every-turn trackers: when every tracker switched on was per-agent manual the
+  cadence is manual; when only some were, those are left switched off.
+- **A `#` past the channel key is a row name**: the builder looks for the actor
+  separator only before the first `/`, and counts a scoped path whose member
+  does not resolve.
+- **The panel locks and hides named rows** (a stat, an item, a custom world
+  field, an objective), not only whole fields, so an imported row lock shows
+  and clears; a path the card cannot place is listed with a control to clear
+  it. Lock and hide toggles compute the next set from the freshest cached
+  session, the controls wait while a write to the set is pending, and Save
+  merges only the fields a person edited onto the current value.
+
+*Where this departs from the text above, left for its owner.*
+[10 §8.0](../10-ui-surfaces.md) still says *"three widget arms ship"* and
+*"a `meter` arrives with the first numeric channel… Neither is scheduled"*;
+five ship now, and its region count (four) is five. A **switch change in
+Marinara after the first import does not arrive on a sync**: switches are
+written on opening turns, and §2.7's graft rule carries only presence. And
+**Update trackers' model is the session's `stepRoles` at `se.scene.track`**,
+which has no control yet (`PUT …/roles` is still owed, P7B §1.12), so a
+Marinara user looking for a tracker model finds the note and no setting.
 
 #### P13.5b — The director and the secret plot
 

@@ -189,3 +189,36 @@ describe('the chat settings', () => {
     expect(view.container.textContent).toBe('');
   });
 });
+
+/**
+ * ***The Agents group*** — [P13 §1.9.6], [P13.5a]: the mode's `settings`
+ * region, drawn inside this panel under the heading the mode gave it. The
+ * panel knows no tracker; it draws what the session read hands it.
+ */
+describe('what the mode put in settings', () => {
+  it('draws the mode’s switches under their group, inside the chat settings', async () => {
+    readSession.mockResolvedValue({
+      session: { id: SESSION_ID, name: 'Harbour', cast: { persona: null, actors: [] } },
+      activeJob: null,
+      health: [],
+      hud: [],
+      cast: [],
+      chat: CHAT,
+      surfaces: [
+        {
+          region: 'settings',
+          group: 'Agents',
+          key: 'se.track.world.on',
+          channelId: 'se.track.world.on',
+          scopeKey: null,
+          kind: 'toggle',
+          label: 'Track the world',
+          on: false,
+        },
+      ],
+    });
+    await open();
+    const group = screen.getByRole('region', { name: 'Agents' });
+    expect(group.textContent).toContain('Track the world');
+  });
+});
