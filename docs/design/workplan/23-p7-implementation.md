@@ -1101,6 +1101,11 @@ Two items — 3 and 8 — were discharged earlier, in the stage that needed them
    `collect.ts` resolves `{{user}}` to `context.persona?.actor.name ?? 'the
    player'`. **Every session started in a browser had `persona: null`** — the
    slot emitted nothing and the narrator was instructed to address *the player*.
+   *(Correction, 2026-09-27: `{{user}}` was resolved in text-block templates
+   only, and no shipped block's template said it, so **with** a persona the
+   narrator still never read its name — the persona slot sent the sections'
+   bodies bare. The persona and actor wrappers name who each block is about
+   since then; see `wrap` in `collect.ts`.)*
    That is not a missing panel, it is the model being told nothing about who it
    is narrating for, on every turn of every browser-made session, and sitting K
    is walked against browser-made sessions.
@@ -3393,10 +3398,13 @@ relaxed: the value arrived the day something could produce it.*
   without the first.
 - ***Patience is bounded and the deadline is a lapse.*** Three turns, a constant
   rather than a setting because *"a number nobody has played against is a guess,
-  not a tunable"*. The count is written out as `chances = path.length - made`
-  with the off-by-one argued in place: the commitment's own turn is the channel
-  write, which runs no selector, so the first chance is the turn after it. A
-  fourth would be due at `chances > 3`, and that is where it lapses — *"one that
+  not a tunable"*. The count is written out as ~~`chances = path.length - made`~~
+  `chances = storyDepth(path.slice(made + 1)) + 1` (2026-09-27: the path's
+  length counted every channel write after the commitment as a chance, and none
+  of them ran the selector — [06 §6.1]'s dated note) with the off-by-one argued
+  in place: the commitment's own turn is the channel write, which runs no
+  selector, so the first chance is the turn after it. A fourth would be due at
+  `chances > 3`, and that is where it lapses — *"one that
   fires anyway at the deadline delivers the twist at the exact moment the
   selector has already rejected three times"*.
 - ***Counted on the path.*** `committedAt` walks the path for the effect rather
@@ -4157,6 +4165,12 @@ generate.
 (`neutral.png` → `neutral`). Marinara's reader already carried `sprites/` and
 CHARX already collected every non-`card.json` entry; what was missing was the
 conversion, not the bytes.
+
+*Corrected 2026-09-27.* ~~Marinara's reader already carried `sprites/`~~: it
+carried the avatar alone, and reported `sprites/` as converted with nothing
+carrying them, so no Marinara actor ever arrived with an expression. They are
+reported as recorded now, until a reader turns them into expressions. CHARX's
+half was true, and its expressions now keep their ids across re-imports.
 
 *Label, not `tags`, and `common.ts` is explicit about why*: **role** is a closed
 union the engine reads and acts on, **tags** are open and *"nothing in the engine

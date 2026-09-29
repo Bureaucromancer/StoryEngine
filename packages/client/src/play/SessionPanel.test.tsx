@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,6 +32,8 @@ const deleteSession = vi.fn();
 const navigate = vi.fn();
 
 let session: Record<string, unknown> = {};
+/** The transcript the panel reads — empty unless a test gives it turns. */
+let turns: Record<string, unknown>[] = [];
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -39,6 +41,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   setSessionArchived: (...a: unknown[]) => setSessionArchived(...a) as unknown,
   deleteSession: (...a: unknown[]) => deleteSession(...a) as unknown,
   readSession: () => Promise.resolve({ session }),
+  readTranscript: () => Promise.resolve({ turns }),
   api: { listLibrary: () => Promise.resolve({ objects: [] }) },
 }));
 
@@ -86,6 +89,7 @@ beforeEach(() => {
   setSessionPreset.mockResolvedValue({ session: {} });
   setSessionArchived.mockResolvedValue({ session: {} });
   deleteSession.mockResolvedValue(undefined);
+  turns = [];
   session = {
     id: SESSION_ID,
     name: 'The Ashfall Road',
@@ -117,22 +121,80 @@ describe('what a session is prompted with', () => {
     renderPanel();
     const user = await open();
 
-    // One character, deliberately. The control is fed from the session query
-    // and the fixture never changes, so the value does not round-trip here the
-    // way it does against a real server — typing two digits would send `1` and
-    // then `0`, which is an artefact of the stub rather than of the panel.
-    await user.type(screen.getByLabelText(/Maximum reply length/), '9');
+    // Three characters and one write, on Enter. ~~One character, deliberately~~:
+    // the control used to write on every keystroke, so typing `400` sent `4`,
+    // `40` and `400`, and a test typing one character was working around the
+    // bug rather than an artefact of the stub (2026-09-27).
+    await user.type(screen.getByLabelText(/Maximum reply length/), '400{Enter}');
 
-    expect(setSessionPreset).toHaveBeenCalled();
+    expect(setSessionPreset).toHaveBeenCalledTimes(1);
     const [, body] = setSessionPreset.mock.calls.at(-1) as [
       string,
       { preset: Record<string, unknown> },
     ];
-    expect((body.preset['params'] as Record<string, unknown>)['maxTokens']).toBe(9);
+    expect((body.preset['params'] as Record<string, unknown>)['maxTokens']).toBe(400);
     // Untouched fields ride through: the route takes the whole pack, so a panel
     // that rebuilt it from its own two controls would silently drop the rest.
     expect((body.preset['params'] as Record<string, unknown>)['temperature']).toBe(0.8);
     expect(body.preset['name']).toBe('Scene');
+  });
+
+  /**
+   * ***A decimal, typed*** (2026-09-27). `0.75` passes through `0` and `0.` on
+   * the way, and writing each of those sent a zero and then a string that is not
+   * a number.
+   */
+  it('sends the temperature typed, once, when the box is left', async () => {
+    renderPanel();
+    const user = await open();
+
+    const temperature = screen.getByLabelText(/Temperature/);
+    await user.clear(temperature);
+    await user.type(temperature, '0.75');
+    expect(setSessionPreset).not.toHaveBeenCalled();
+    await user.tab();
+
+    expect(setSessionPreset).toHaveBeenCalledTimes(1);
+    const [, body] = setSessionPreset.mock.calls[0] as [
+      string,
+      { preset: Record<string, unknown> },
+    ];
+    expect(body.preset['params']).toEqual({ temperature: 0.75 });
+  });
+
+  it('says what a reply length has to be, and sends nothing until it is one', async () => {
+    renderPanel();
+    const user = await open();
+
+    await user.type(screen.getByLabelText(/Maximum reply length/), '0.5{Enter}');
+
+    expect(await screen.findByText('A whole number of tokens, 1 or more.')).toBeTruthy();
+    expect(setSessionPreset).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ***The second write builds on the first*** (2026-09-27). Every write sends
+   * the whole pack from the session in the cache, and the cache caught up only
+   * when the refetch after a write landed — so a second write made while the
+   * first was on its way put the first back.
+   */
+  it('builds a second setting on the first while the first is still on its way', async () => {
+    setSessionPreset.mockImplementationOnce(() => new Promise(() => undefined));
+    renderPanel();
+    const user = await open();
+
+    const temperature = screen.getByLabelText(/Temperature/);
+    await user.clear(temperature);
+    await user.type(temperature, '0.75{Enter}');
+    await user.type(screen.getByLabelText(/Maximum reply length/), '400{Enter}');
+
+    const sent = setSessionPreset.mock.calls.map(
+      (call) => (call[1] as { preset: { params: Record<string, unknown> } }).preset.params,
+    );
+    expect(sent.find((params) => params['maxTokens'] === 400)).toEqual({
+      temperature: 0.75,
+      maxTokens: 400,
+    });
   });
 
   it('archives through the field the client was already able to send', async () => {
@@ -210,10 +272,143 @@ describe('editing one block of the pack', () => {
     expect((body.preset['params'] as Record<string, unknown>)['temperature']).toBe(0.8);
   });
 
+  /**
+   * ***A draft belongs to one block*** (2026-09-27). The page stays mounted when
+   * only `?block=` changes, and the draft typed for one block used to stand in
+   * the next one's field under the next one's label, with *Save* live — so
+   * saving it wrote the first block's prose over the second's.
+   */
+  it('starts a fresh draft when the address names another block', async () => {
+    const preset = session['preset'] as { blocks: Record<string, unknown>[] };
+    preset.blocks.push({ id: 'se.style', template: 'Short sentences.' });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const panel = (block: string): ReactNode => (
+      <QueryClientProvider client={client}>
+        <SessionPanel sessionId={SESSION_ID} block={block} />
+      </QueryClientProvider>
+    );
+    const view = render(panel('se.instruction'));
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText('Block: se.instruction'), ' And the rain.');
+    view.rerender(panel('se.style'));
+
+    expect(await screen.findByLabelText('Block: se.style')).toHaveProperty(
+      'value',
+      'Short sentences.',
+    );
+    expect(screen.getByRole('button', { name: 'Save this block' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+
+  /** The draft is let go once the pack is written — not when the write is asked for. */
+  it('keeps the draft when the save fails', async () => {
+    setSessionPreset.mockRejectedValue(new Error('The server could not be reached.'));
+    renderPanel('se.instruction');
+    const user = userEvent.setup();
+
+    const field = await screen.findByLabelText('Block: se.instruction');
+    await user.clear(field);
+    await user.type(field, 'You are a weary harbourmaster.');
+    await user.click(screen.getByRole('button', { name: 'Save this block' }));
+
+    expect(await screen.findByText('The server could not be reached.')).toBeTruthy();
+    expect(screen.getByLabelText('Block: se.instruction')).toHaveProperty(
+      'value',
+      'You are a weary harbourmaster.',
+    );
+  });
+
   it('says so for a slot, which has no text in the pack to edit', async () => {
     renderPanel('se.lore');
 
     expect(await screen.findByText(/positions something the engine supplies/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Save this block' })).toBeNull();
+  });
+});
+
+/**
+ * ***An export containing attachments should say so*** — [25 E15], said where
+ * the choice is made.
+ *
+ * An export is the story's text: it carries the record of every picture and
+ * its caption, and not the picture. A person choosing between *Export* and a
+ * backup is owed that sentence **before** the file is on another install and
+ * the pictures are placeholders — and owed its absence on a story with no
+ * pictures, where it would be a warning about nothing, which is how a
+ * warning teaches people to stop reading warnings.
+ */
+describe('exporting a story with pictures', () => {
+  const NOTE = /travel as their captions\. A backup carries the pictures themselves\./;
+
+  /** A turn with a move, and whatever that move carried. */
+  function turnWith(id: string, input: Record<string, unknown>): Record<string, unknown> {
+    return {
+      id,
+      sessionId: SESSION_ID,
+      parentTurnId: null,
+      createdAt: '2026-09-27T10:00:00.000Z',
+      status: 'complete',
+      input: { actorId: null, text: 'I hold it up.', kind: 'do', raw: 'I hold it up.', ...input },
+      output: { text: 'The light catches it.' },
+      effects: [],
+      tape: [],
+    };
+  }
+
+  /**
+   * Mounted with a client the test keeps, so the negative case can wait for
+   * the transcript to have **landed** before asserting that nothing is shown.
+   * Asserted any earlier, the note's absence would be the absence of an answer
+   * rather than the answer — a test that passes against a panel that never
+   * reads the transcript at all.
+   */
+  async function renderSettled(): Promise<ReturnType<typeof userEvent.setup>> {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SessionPanel sessionId={SESSION_ID} />
+      </QueryClientProvider>,
+    );
+    const user = await open();
+    await waitFor(() => {
+      expect(client.getQueryData(['transcript', SESSION_ID])).toBeDefined();
+    });
+    // The cache holds the answer a beat before its observers are told, and the
+    // telling is a scheduled task — so one more task, inside `act`, is what
+    // puts the rendering after it rather than racing it.
+    await act(async () => {
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+    return user;
+  }
+
+  it('says pictures travel as captions when a move on the story carried one', async () => {
+    // The first turn has none and the second has one: *any* move is enough,
+    // which is the mutation of reading only the first or the last turn.
+    turns = [
+      turnWith('turn-1', {}),
+      turnWith('turn-2', {
+        attachments: [{ id: '0', kind: 'image', digest: `sha256:${'f'.repeat(64)}` }],
+      }),
+    ];
+    await renderSettled();
+
+    expect(screen.getByText(NOTE)).toBeTruthy();
+    // Beside the link it qualifies, not somewhere else in the panel.
+    expect(screen.getByText('Export this session').parentElement?.textContent).toMatch(NOTE);
+  });
+
+  it('says nothing about pictures on a story that has none', async () => {
+    // Both spellings of *no pictures*: no field, and an empty list. The
+    // mutation is testing for the field's presence rather than its length,
+    // which an empty list — a shape a writer is free to produce — would fool.
+    turns = [turnWith('turn-1', {}), turnWith('turn-2', { attachments: [] })];
+    await renderSettled();
+
+    expect(screen.getByText('Export this session')).toBeTruthy();
+    expect(screen.queryByText(NOTE)).toBeNull();
   });
 });

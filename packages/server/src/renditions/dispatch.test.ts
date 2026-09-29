@@ -4,69 +4,88 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
 
+import { openIndex, type OpenedIndex } from '../index-db/open.js';
+import { FakeProvider } from '../providers/fake.js';
+import { createSession } from '../sessions/store.js';
 import { openState, type OpenedState } from '../state/open.js';
 import { Layout } from '../storage/layout.js';
-import { enqueueRendition, readRenditionJob } from './jobs.js';
-import { readRendition } from './store.js';
-import { dispatchRenditions, drainRenditions, type RenditionWorkerContext } from './worker.js';
+import { eventually } from '../test-server.js';
+import { jobForRendition, reconcileRenditionJobs } from './jobs.js';
+import { readRendition, writeRendition } from './store.js';
+import { dispatchRenditions, recoverRenditions, type RenditionWorkerContext } from './worker.js';
 
 /**
- * ***A job held by another session is never run for this one*** —
- * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * ***A rendition's record always has a job behind it, and an open page hears
+ * it is coming*** (2026-09-27) — `dispatchRenditions`.
  *
- * A rendition id is `${turnId}.${n}` and a job is unique by rendition id, so
- * while an imported copy shared the original's turn ids, an Illustrate on the
- * copy found the original's job and **ran it**: a paid render, the original's
- * picture overwritten, and — for a backdrop — a turn appended to the original's
- * session, which could be another account's. Import re-mints ids now; a copy
- * made before that, or a session folder copied by hand, can still collide, and
- * this is the guard for them.
+ * The runner and the Illustrate route wrote a `pending` record and then claimed
+ * its job, so a process that died between the two left a record no job row
+ * named, and recovery, which reads job rows, never found it. P9 recorded the
+ * window. The dispatch now claims first, and writes the record itself.
+ *
+ * `writeRendition` is wrapped, so a test can look at the job rows at the moment
+ * a record is written, and can make one write fail.
  */
+vi.mock('./store.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./store.js')>();
+  return { ...actual, writeRendition: vi.fn(actual.writeRendition) };
+});
 
-const ORIGINAL = '01900000-0000-7000-8000-00000000000a';
-const COPY = '01900000-0000-7000-8000-00000000000b';
-const TURN = '01900000-0000-7000-8000-000000000001';
-const RENDITION = `${TURN}.0`;
+const ACCOUNT = 'ned';
 
 let dataDir: string;
+let index: OpenedIndex;
 let state: OpenedState;
+/** A real session: the worker writes into a session only while it is there. */
+let sessionId: string;
 let context: RenditionWorkerContext;
-let rendered = 0;
+let frames: Rendition['state'][];
 
 beforeEach(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), 'se-rendition-dispatch-'));
+  // The real write, unless a test says otherwise. `mockReset` would leave an
+  // empty function, and a record that is never written is a different test.
+  const actual = await vi.importActual<typeof import('./store.js')>('./store.js');
+  vi.mocked(writeRendition).mockReset().mockImplementation(actual.writeRendition);
+  dataDir = await mkdtemp(join(tmpdir(), 'se-dispatch-'));
+  index = await openIndex({ path: ':memory:' });
+  sessionId = (
+    await createSession({ layout: new Layout(dataDir), index: index.db }, ACCOUNT, 'Harbour')
+  ).id;
   state = await openState({ path: ':memory:' });
-  rendered = 0;
+  frames = [];
   context = {
     db: state.db,
     layout: new Layout(dataDir),
-    providers: () => {
-      rendered += 1;
-      throw new Error('a render was attempted');
-    },
+    providers: () => new FakeProvider({ script: [] }),
+    // No connection makes pictures, so every job ends quickly, as `no-binding`.
     connectionFor: () => Promise.resolve(null),
+    changed: (_sessionId, rendition) => {
+      frames.push(rendition.state);
+    },
     inFlight: new Set(),
   };
 });
 
 afterEach(async () => {
+  await Promise.all([...(context.inFlight ?? [])]);
   state.close();
+  index.close();
   await rm(dataDir, { recursive: true, force: true });
 });
 
-function pending(sessionId: string): Rendition {
+function pending(id: string): Rendition {
   return {
     schema: RENDITION_SCHEMA,
-    id: RENDITION,
-    sessionId,
-    turnId: TURN,
-    createdAt: '2026-09-16T10:00:00.000Z',
+    id,
+    sessionId: sessionId,
+    turnId: 't-1',
+    createdAt: '2026-09-27T10:00:00.000Z',
     kind: 'image',
-    purpose: 'background',
+    purpose: 'illustration',
     scope: null,
     state: 'pending',
     prompt: {
@@ -80,8 +99,8 @@ function pending(sessionId: string): Rendition {
     },
     asset: null,
     provenance: {
-      at: '2026-09-16T10:00:02.000Z',
-      binding: null,
+      at: null,
+      binding: { connectionId: 'c-1', modelId: 'sdxl' },
       answeredAs: null,
       seed: 7,
       workflow: {},
@@ -92,26 +111,76 @@ function pending(sessionId: string): Rendition {
   };
 }
 
-describe('dispatching a rendition whose id another session already holds', () => {
-  it('fails this session’s record and leaves the other session’s job alone', async () => {
-    const held = enqueueRendition(state.db, {
-      sessionId: ORIGINAL,
-      account: 'ned',
-      renditionId: RENDITION,
-      turnId: TURN,
-      purpose: 'background',
+describe('a rendition dispatched', () => {
+  it('has its job row before its record is on disk', async () => {
+    const rowAtWrite: boolean[] = [];
+    vi.mocked(writeRendition).mockImplementation(async (layout, account, sessionId, record) => {
+      rowAtWrite.push(jobForRendition(state.db, sessionId, record.id) !== null);
+      const actual = await vi.importActual<typeof import('./store.js')>('./store.js');
+      await actual.writeRendition(layout, account, sessionId, record);
     });
 
-    const result = dispatchRenditions(context, 'mara', COPY, [pending(COPY)], TURN);
-    await drainRenditions(context);
+    await dispatchRenditions(context, ACCOUNT, sessionId, [pending('t-1.0')], 't-1');
+
+    // The first write is the dispatch's; the worker's later ones do not count.
+    expect(rowAtWrite[0]).toBe(true);
+  });
+
+  it('starts its job when the record landed and the write still threw', async () => {
+    // The atomic writer stats after its rename, so a write can land and throw.
+    vi.mocked(writeRendition).mockImplementationOnce(async (layout, account, session, record) => {
+      const actual = await vi.importActual<typeof import('./store.js')>('./store.js');
+      await actual.writeRendition(layout, account, session, record);
+      throw new Error('the stat after the rename failed');
+    });
+
+    const result = await dispatchRenditions(context, ACCOUNT, sessionId, [pending('t-1.0')], 't-1');
+    await eventually(() => Promise.resolve(frames.length >= 2));
+
+    // Run, rather than abandoned under a record that says it is coming.
+    expect(result.dispatched).toBe(1);
+    expect(jobForRendition(state.db, sessionId, 't-1.0')?.status).toBe('done');
+  });
+
+  it('is found by the next start if the process stops between the record and the run', async () => {
+    // Stopped once the record is on disk and before its job runs: what a
+    // process killed there leaves, and what recovery, reading job rows, has to
+    // find. Before the job was claimed first, no row named this record.
+    context.changed = () => {
+      throw new Error('killed here');
+    };
+    await expect(
+      dispatchRenditions(context, ACCOUNT, sessionId, [pending('t-1.0')], 't-1'),
+    ).rejects.toThrow('killed here');
+    expect(await readRendition(context.layout, ACCOUNT, sessionId, 't-1.0')).toMatchObject({
+      state: 'pending',
+    });
+
+    const recovered = await recoverRenditions(context);
+
+    expect(recovered).toEqual({ interrupted: 1, marked: 1 });
+    expect(await readRendition(context.layout, ACCOUNT, sessionId, 't-1.0')).toMatchObject({
+      state: 'failed',
+      error: 'interrupted',
+    });
+  });
+
+  it('gives its claim up when the record cannot be written, and starts nothing', async () => {
+    vi.mocked(writeRendition).mockRejectedValueOnce(new Error('ENOSPC'));
+
+    const result = await dispatchRenditions(context, ACCOUNT, sessionId, [pending('t-1.0')], 't-1');
 
     expect(result.dispatched).toBe(0);
-    expect(rendered).toBe(0);
-    expect(await readRendition(context.layout, 'mara', COPY, RENDITION)).toMatchObject({
-      state: 'failed',
-      error: 'terminal',
-    });
-    // Untouched: still waiting for its own session's worker, not marked by ours.
-    expect(readRenditionJob(state.db, held.id)?.status).toBe(held.status);
+    expect(frames).toEqual([]);
+    // Abandoned, so a later retry is not answered *already in hand*.
+    expect(jobForRendition(state.db, sessionId, 't-1.0')?.status).toBe('abandoned');
+    expect(reconcileRenditionJobs(state.db).interrupted).toEqual([]);
+  });
+
+  it('tells an open page it is pending before anything says it finished', async () => {
+    await dispatchRenditions(context, ACCOUNT, sessionId, [pending('t-1.0')], 't-1');
+    await eventually(() => Promise.resolve(frames.length >= 2));
+
+    expect(frames).toEqual(['pending', 'failed']);
   });
 });

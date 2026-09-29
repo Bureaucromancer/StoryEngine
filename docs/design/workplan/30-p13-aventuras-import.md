@@ -1,7 +1,9 @@
 # 30 — P13 implementation plan
 
 **Status: P13.0 done — `34b3174` (the failing tests), `75c56ca` (the fix),
-2026-09-28; the rest of Part 1 is design only.** Written 2026-09-26 on
+2026-09-28, and the fix set aside for main's own at the merge of 2026-09-29
+([§0.4](#04-what-the-survey-found-in-our-own-tree)); the rest of Part 1 is
+design only.** Written 2026-09-26 on
 `claude/epic-hypatia-p1h6my`, from a survey of Aventuras at `c43da108`
 (2026-09-25). Part 1 is planned to the stage; **Part 2 is headed and not
 scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives.
@@ -87,7 +89,9 @@ scheduled; 18 §6 records the reading.
 ### 0.4 What the survey found in our own tree
 
 ~~Three findings~~ *Four*, each against code that has shipped, and together
-[P13.0](#p130--the-findings-against-shipped-code-done) — **fixed at `75c56ca`**.
+[P13.0](#p130--the-findings-against-shipped-code-done) — **fixed at `75c56ca`**,
+and the first of them fixed *again*, differently, by main the day before; the
+merge kept main's (below).
 The first was reproduced on 2026-09-28 and turned out to be larger than this
 section first said, by a different mechanism; the text it replaced is kept
 struck, because a finding that was wrong about its own mechanism is worth being
@@ -140,24 +144,27 @@ against the defect and would have passed against the wrong fix. The defect
 showed through **search, delete and rebuild**, and that is where `34b3174`
 asserts it.
 
-**The fix re-mints the turn ids** (`sessions/remint.ts`), by the person's
+~~**The fix re-mints the turn ids** (`sessions/remint.ts`), by the person's
 decision over the alternative — keying the index and the rendition jobs by
-`(session, turn)`, which kept P11.10's decision and amended the id rule instead.
-Re-minting keeps the rule every consumer above already assumes, so none of them
-changed. It is **a rewrite by value, not by path**: any dot-separated segment of
-any string or key that is one of the document's uuid-shaped turn ids, or its
-session id, is replaced — so rendition ids, block ids, effect payloads, channel
-values and fields this build does not know move with the tree — while a
-non-uuid id is rewritten only in the tree's own fields, because rewriting every
-`"1"` in a document would be corruption. The ids a turn had travel as
-`foreign.id`. Alongside it: `store.writeNewSession`, one path for writing and
-indexing a new session; `appendTurnOnly` refusing a turn that names another
-session; an index rebuild that files a turn only under the folder it lives in
-(`INDEX_SCHEMA_VERSION` 10, so existing installs rebuild once); and a rendition
-dispatch that never runs a job held by another session. The backup importer's
-docstring promised to skip a session already here and the code never did; by
-decision it is the docstring that was corrected — every archived session
-arrives as a new session, which re-minting made safe.
+`(session, turn)` — as a rewrite by value, with `writeNewSession`, an append
+guard, a rebuild that filed turns by folder (`INDEX_SCHEMA_VERSION` 10) and a
+rendition-dispatch guard beside it; the backup docstring's promised skip
+corrected rather than implemented.~~
+
+***Superseded at the merge, 2026-09-29, by main's fix*** — `546386f` and the
+commits around it, 2026-09-27, found from P12's side a day earlier and answered
+a third way: **keep the turn ids and refuse the import** when the install
+already holds its turns (`409 already-here`), which is also the skip the backup
+docstring promised, now implemented. The same commits restamp each turn's
+`sessionId`, index the session row, key rendition jobs by session, rework the
+index (`INDEX_SCHEMA_VERSION` 11, per-session stamps) and write imported
+renditions — so everything the re-mint fixed, main fixed too, except that a
+session can no longer be imported beside itself. The person chose main's
+answer when the branches met; `remint.ts`, the v10 rebuild rule and the
+dispatch guard were dropped at the merge, and [P11.10](28-p11-implementation.md)'s
+record is main's with one line pointing here. What this section still adds is
+the account of the mechanism from the import side — the Illustrate on a copy
+that re-rendered the original's picture, and why the turn routes hid all of it.
 
 **Vault lorebooks are not stored as `Entry[]`.** `lorebook_vault.entries` holds
 `VaultLorebookEntry[]` — `{ name, type, description, keywords, aliases,
@@ -179,11 +186,11 @@ validation does not walk the array, the index keys entries by position, and the
 editor resolves an id to its first match — so the second twin could not be
 opened, and deleting or dragging either deleted both. The scenario-as-lorebook
 path had the same defect twice over: twin npcs, and an npc literally named
-`setting`, which derived the setting entry's own id. `claimId`
-(`import/identity.ts`) keeps the first claimant's id — a book with no repeats
-converts to the same bytes and re-imports `unchanged` — and re-derives a repeat
-under a namespace of its own, with `import.aventuras.repeatedEntryNames` in the
-review.
+`setting`, which derived the setting entry's own id. ~~`claimId`~~ — fixed on
+this branch with `claimId`, and on main the same day with `distinctIds`
+(`import/identity.ts`), which the merge kept: the first claimant keeps its id,
+so a book with no repeats converts to the same bytes and re-imports
+`unchanged`, and a repeat is re-derived until it is free.
 
 **`VERDICT_LABELS` lacked `charx` and `storyengine-backup`**, so a person
 pointing the panel at either folder was told its raw kind. Both now have a
@@ -229,10 +236,10 @@ which a rebuild or a correction recovers without anything having been lost.
   `session` row on rebuild.
 - **`foreign.source` means two things.** `turn.ts:962-970` describes the source
   application; the importer writes the source *session's* id.
-- **Copies made before `75c56ca` keep their old turn ids on disk.** The rebuild
-  now files their turns where they live only if they say they live there, so
-  such a copy is readable and unsearchable; the repair is export, import, delete.
-  No release carried session import, so this is development data.
+- **Copies made before main's fix keep the original's turn ids on disk.** Main's
+  index rework decides what a rebuild makes of them; the repair is to delete the
+  copy, since main now refuses the import that made it. No release carried
+  session import, so this is development data.
 
 ---
 
@@ -461,7 +468,8 @@ here. It is not forced by the gate: critical row 2 holds for any backup under
 
 ### ~~P13.0 — The findings against shipped code~~ Done
 
-*Done — `34b3174` (the tests, red), `75c56ca` (the fix), 2026-09-28.*
+*Done — `34b3174` (the tests, red), `75c56ca` (the fix), 2026-09-28; the
+session half superseded by main's fix at the merge of 2026-09-29 (§0.4).*
 [§0.4](#04-what-the-survey-found-in-our-own-tree)'s findings. ~~The
 `importSession` index re-point, as a failing test that re-reads the **original**
 session after importing its own export, then the fix — the turns take the new
@@ -608,15 +616,14 @@ is scheduled.* [0.3](#03-how-this-sits-with-25-e4) is the argument;
 What the one reader lacks for a second caller. An optional
 `origin.originalFilename`, which becomes the idempotence key
 (`aventura.db/stories/<id>`), and a lookup for a prior session carrying it;
-renditions written, not counted (`importSession` counts them today — and until
-it writes them, a copy's `nextOrdinal` restarts at 0, so a rewritten selection
-naming `T.0` can attach to a later, different Illustrate on `T`); ~~parents
-validated to precede children, which the reader's own comment assumes and
-nothing checks~~ *parents before children is done — `remint` orders them, at
-[P13.0](#p130--the-findings-against-shipped-code-done)*; `cast` and `lore` ids that
-must exist. The producer places rendition assets by the `turnIds` map
-`importSession` now returns, since the ids it wrote are not the ids the stored
-records carry.
+~~renditions written, not counted~~ *renditions written — done on main,
+2026-09-27*; parents validated to precede children, which the reader's own
+comment assumes and nothing checks (*briefly done by `remint` at P13.0, and set
+aside with it at the merge*); `cast` and `lore` ids that must exist. **And one
+consequence of main's `already-here` for a producer**: an Aventuras story
+imported twice is refused the second time only if its turn ids are the same —
+so the producer should derive turn ids stably from the Aventuras entry ids,
+which makes a re-import of the same story a refusal rather than a copy.
 
 ### P13.11 — The tree, and the pairing
 

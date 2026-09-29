@@ -3,8 +3,11 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { RENDITION_SCHEMA, uuidv7, type Rendition } from '@storyengine/shared';
+
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
-import { spokenEnvelope } from './test-envelope.js';
+import { appendTurnToSession, createSession } from './store.js';
+import type { Turn } from './types.js';
 
 /**
  * ***The round trip, which is what row 10 actually asks for*** —
@@ -19,14 +22,17 @@ import { spokenEnvelope } from './test-envelope.js';
  * a serialiser that exported a walk would drop every swipe — *"lossy against our
  * own data before any import touched it"*.
  *
- * ***A second install is one this file cannot have, so it uses a second
- * account.*** That is honest about what it does and does not prove: the bytes
- * make the round trip through a reader that shares no state with the writer,
- * and what it cannot show is a *different build* reading them. The live half is
+ * ***A second install is a second test server***, with its own data directory
+ * and its own index (corrected 2026-09-27). These tests used to import into the
+ * install that exported, which is the one case the format's kept turn ids
+ * cannot survive: the copy took the original's index rows. What this cannot
+ * show is a *different build* reading the bytes. The live half is
  * [manual testing](../../../../docs/design/workplan/05-manual-testing.md)'s.
  */
 
 let server: TestServer;
+/** Every other install a test made, so each is disposed with it. */
+const others: TestServer[] = [];
 
 beforeEach(async () => {
   server = await makeTestServer();
@@ -35,7 +41,39 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await server.dispose();
+  for (const other of others.splice(0)) await other.dispose();
 });
+
+async function anotherInstall(): Promise<TestServer> {
+  const other = await makeTestServer();
+  await setUpAdmin(other, 'ned');
+  others.push(other);
+  return other;
+}
+
+/** A session holding one turn that says something, so search has words to find. */
+async function aSessionSaying(said: string): Promise<{ sessionId: string; turnId: string }> {
+  const session = await createSession(server.services.sessions, 'ned', 'Rain City');
+  const turn: Turn = {
+    id: uuidv7(),
+    sessionId: session.id,
+    parentTurnId: null,
+    createdAt: new Date(Date.UTC(2026, 8, 27, 12)).toISOString(),
+    status: 'complete',
+    input: { actorId: null, kind: 'say', text: 'And then?', raw: '' },
+    output: { text: said },
+    effects: [],
+    tape: [],
+  };
+  await appendTurnToSession(server.services.sessions, 'ned', session.id, turn);
+  return { sessionId: session.id, turnId: turn.id };
+}
+
+async function exported(from: TestServer, sessionId: string): Promise<Record<string, unknown>> {
+  const response = await from.request({ method: 'GET', url: `/api/sessions/${sessionId}/export` });
+  expect(response.status).toBe(200);
+  return response.body as Record<string, unknown>;
+}
 
 /** A session with a fork in it, made through the routes a person would use. */
 async function branched(): Promise<{ sessionId: string; turns: string[] }> {
@@ -68,47 +106,37 @@ async function branched(): Promise<{ sessionId: string; turns: string[] }> {
 describe('a session that travels', () => {
   it('comes back with every turn, under a new id, marked foreign', async () => {
     const { sessionId, turns } = await branched();
+    const there = await anotherInstall();
 
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    expect(exported.status).toBe(200);
-
-    const imported = await server.request({
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: exported.body,
+      payload: await exported(server, sessionId),
     });
     expect(imported.status).toBe(201);
     expect(imported.body.turns).toBe(turns.length);
 
     /**
-     * ***A new session id, and new turn ids — the old ones kept in `foreign`.***
-     * ~~The same turn ids~~ was [P11.10]'s decision, on the ground that a
-     * collision needed two installs importing each other's sessions. It needed
-     * one: this test *is* the collision — an export imported back onto the
-     * install that wrote it — and every structure keyed by a turn id alone (the
-     * index, the rendition jobs, the notification dedupe) then held two
-     * sessions' turns under one key.
-     * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md)
-     * re-mints them, and the ids the source used travel as `foreign.id`, which
-     * is the identity [18 §3] asked the format to carry.
+     * ***A new session id, and the same turn ids.*** The session's id is an
+     * address on this install and two sessions sharing one is an immediate
+     * confusion; the turns' ids are the tree's own structure, and re-minting
+     * them means rewriting every parent link, every head and every effect
+     * reference — a graph rewrite over the one structure this project spends
+     * the most care on.
      */
     const landed = imported.body.sessionId as string;
     expect(landed).not.toBe(sessionId);
 
-    const read = await server.request({ method: 'GET', url: `/api/sessions/${landed}/turns` });
+    const read = await there.request({ method: 'GET', url: `/api/sessions/${landed}/turns` });
     const back = read.body.turns as {
       id: string;
       sessionId: string;
-      foreign?: { source: string; id: string };
+      foreign?: { source: string };
     }[];
-    expect(back.map((turn) => turn.foreign?.id)).toEqual(turns);
-    expect(back.filter((turn) => turns.includes(turn.id))).toEqual([]);
+    expect(back.map((turn) => turn.id)).toEqual(turns);
     for (const turn of back) {
       expect(turn.foreign?.source).toBe(sessionId);
-      // The turn says which session it is in — the field the index trusts.
+      // The session it is in now; where it came from is `foreign.source`.
       expect(turn.sessionId).toBe(landed);
     }
   });
@@ -121,20 +149,18 @@ describe('a session that travels', () => {
    */
   it('reconstructs the tree from the parent links rather than a walk', async () => {
     const { sessionId } = await branched();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
+    const document = await exported(server, sessionId);
     // The export is every turn in creation order, which is the property the
     // format's own docstring calls the one that costs data if it is wrong.
-    expect((exported.body as { turns: unknown[] }).turns.length).toBeGreaterThan(1);
+    expect((document as { turns: unknown[] }).turns.length).toBeGreaterThan(1);
 
-    const imported = await server.request({
+    const there = await anotherInstall();
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: exported.body,
+      payload: document,
     });
-    const read = await server.request({
+    const read = await there.request({
       method: 'GET',
       url: `/api/sessions/${imported.body.sessionId as string}`,
     });
@@ -145,16 +171,13 @@ describe('a session that travels', () => {
   /** It says where it came from — [03 §8]'s `origin`, finally with a writer. */
   it('records where it came from', async () => {
     const { sessionId } = await branched();
-    const exported = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    const imported = await server.request({
+    const there = await anotherInstall();
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: exported.body,
+      payload: await exported(server, sessionId),
     });
-    const again = await server.request({
+    const again = await there.request({
       method: 'GET',
       url: `/api/sessions/${imported.body.sessionId as string}/export`,
     });
@@ -191,152 +214,236 @@ describe('a session that travels', () => {
    */
   it('keeps the first install it came from when it travels again', async () => {
     const { sessionId } = await branched();
-    const first = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
-    });
-    const once = await server.request({
+    const second = await anotherInstall();
+    const once = await second.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: first.body,
+      payload: await exported(server, sessionId),
     });
-    const again = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${once.body.sessionId as string}/export`,
-    });
-    const twice = await server.request({
+    const third = await anotherInstall();
+    const twice = await third.request({
       method: 'POST',
       url: '/api/sessions/import',
-      payload: again.body,
+      payload: await exported(second, once.body.sessionId as string),
     });
 
-    const read = await server.request({
+    const read = await third.request({
       method: 'GET',
       url: `/api/sessions/${twice.body.sessionId as string}/turns`,
     });
-    const back = read.body.turns as {
-      sessionId: string;
-      foreign?: { source: string; id: string };
-    }[];
-    for (const turn of back) {
+    for (const turn of read.body.turns as { foreign?: { source: string } }[]) {
       expect(turn.foreign?.source).toBe(sessionId);
-      // …and the *first* session's turn ids, not the ids the middle copy was
-      // given — a turn that already carried `foreign` keeps it, and the new
-      // session id is written all the same.
-      expect(turn.sessionId).toBe(twice.body.sessionId);
     }
-    const original = await server.request({
-      method: 'GET',
-      url: `/api/sessions/${sessionId}/turns`,
-    });
-    expect(back.map((turn) => turn.foreign?.id)).toEqual(
-      (original.body.turns as { id: string }[]).map((turn) => turn.id),
-    );
   });
 });
 
 /**
- * ***An import onto the install it came from*** —
- * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * ***What an import leaves in the index and beside the turns*** (2026-09-27).
  *
- * The collision [P11.10]'s kept turn ids made certain, asserted where it shows:
- * **search, delete, and another account**. The turn routes cannot show it —
- * `readTurns` walks the segments, and `readTurnById` checks the id on the line
- * it read and falls back to the walk — so a test that only re-read a session
- * after importing its copy passed against the defect and would have passed
- * against the wrong fix.
+ * The import wrote `session.json` and the turns and stopped. The turns kept
+ * the session id they were exported under, the session had no index row, and
+ * the pictures' records were counted and never written. Search found nothing
+ * of an imported story; a copy imported where its original still was took the
+ * original's rows.
  */
-describe('a session imported onto the install it came from', () => {
-  async function importDocument(document: unknown): Promise<string> {
-    const imported = await server.request({
+describe('an imported session is a session here', () => {
+  it('can be searched, under the session it landed in', async () => {
+    const { sessionId } = await aSessionSaying('The cathedral was three streets east.');
+    const there = await anotherInstall();
+
+    const imported = await there.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: await exported(server, sessionId),
+    });
+    expect(imported.status).toBe(201);
+
+    const found = await there.request({ method: 'GET', url: '/api/search?q=cathedral' });
+    expect(found.status).toBe(200);
+    expect(found.body.turns.map((hit: { sessionId: string }) => hit.sessionId)).toEqual([
+      imported.body.sessionId,
+    ]);
+  });
+
+  /**
+   * ***The same install, and the refusal is the fix.*** The turn ids are kept,
+   * so a second session holding them would take the first one's rows; before
+   * this the copy was made, and the original's search hits went to the copy.
+   */
+  it('refuses a session whose turns are already here, and the original keeps its rows', async () => {
+    const { sessionId } = await aSessionSaying('The cathedral was three streets east.');
+
+    const again = await server.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: await exported(server, sessionId),
+    });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe('already-here');
+
+    const found = await server.request({ method: 'GET', url: '/api/search?q=cathedral' });
+    expect(found.body.turns.map((hit: { sessionId: string }) => hit.sessionId)).toEqual([
+      sessionId,
+    ]);
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect((listed.body.sessions as unknown[]).length).toBe(1);
+  });
+
+  /**
+   * ***The recipes come across; the pixels cannot.*** An export carries the
+   * records and not the pictures (`SessionExport.renditions`), so a ready one
+   * lands as one whose pixels were cleared — the recipe and a retry — and a
+   * pending one as interrupted, which offers the retry a pending one never
+   * will. A record of a turn that did not come, and one that is not a record,
+   * are left out.
+   */
+  it('writes the pictures’ records under the new session', async () => {
+    const { sessionId, turnId } = await aSessionSaying('The cathedral was three streets east.');
+    const document = await exported(server, sessionId);
+    document['renditions'] = [
+      aRendition({ id: `${turnId}.0`, sessionId, turnId }),
+      aRendition({ id: `${turnId}.1`, sessionId, turnId, state: 'pending', asset: null }),
+      aRendition({ id: 'elsewhere.0', sessionId, turnId: 'elsewhere' }),
+      { ...aRendition({ id: `${turnId}.2`, sessionId, turnId }), digest: undefined },
+    ];
+
+    const there = await anotherInstall();
+    const imported = await there.request({
       method: 'POST',
       url: '/api/sessions/import',
       payload: document,
     });
     expect(imported.status).toBe(201);
-    return imported.body.sessionId as string;
-  }
+    expect(imported.body.renditions).toBe(2);
 
-  async function exportOf(sessionId: string): Promise<unknown> {
-    const exported = await server.request({
+    const landed = imported.body.sessionId as string;
+    const listed = await there.request({
       method: 'GET',
-      url: `/api/sessions/${sessionId}/export`,
+      url: `/api/sessions/${landed}/renditions`,
     });
-    expect(exported.status).toBe(200);
-    return exported.body;
-  }
-
-  /** The sessions a search for `word` lands in, each hit read back through its own session. */
-  async function foundIn(word: string): Promise<string[]> {
-    const found = await server.request({ method: 'GET', url: `/api/search?q=${word}` });
-    expect(found.status).toBe(200);
-    const hits = found.body.turns as { sessionId: string; turnId: string }[];
-    for (const hit of hits) {
-      const turn = await server.request({
-        method: 'GET',
-        url: `/api/sessions/${hit.sessionId}/turns/${hit.turnId}`,
-      });
-      expect(turn.status, `${hit.sessionId}/${hit.turnId}`).toBe(200);
-      expect((turn.body.turn as { output: { text: string } }).output.text).toContain(word);
-    }
-    return [...new Set(hits.map((hit) => hit.sessionId))].sort();
-  }
-
-  it('is searchable once it lands', async () => {
-    // The half that fails even across installs: the importer wrote
-    // `session.json` and never the session's index row, and search joins it.
-    const landed = await importDocument(spokenEnvelope('obelisk').document);
-    expect(await foundIn('obelisk')).toEqual([landed]);
+    expect(listed.status).toBe(200);
+    const records = (listed.body.renditions as Rendition[]).toSorted((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+    expect(records.map((record) => [record.id, record.sessionId])).toEqual([
+      [`${turnId}.0`, landed],
+      [`${turnId}.1`, landed],
+    ]);
+    expect(records[0]).toMatchObject({ state: 'ready', asset: null });
+    expect(records[1]).toMatchObject({ state: 'failed', error: 'interrupted', asset: null });
+    // The recipe, which is the part that must never be lost.
+    expect(records[0]?.prompt.text).toBe('a lantern');
+    // Marked foreign once, as its turn is.
+    expect(records[0]?.foreign).toEqual({ source: sessionId, id: `${turnId}.0` });
   });
+});
 
-  it('is searchable in both, the original and the copy', async () => {
-    const original = await importDocument(spokenEnvelope('obelisk').document);
-    const copy = await importDocument(await exportOf(original));
+/**
+ * ***A field this build does not know survives the round trip*** — the one
+ * test [25 E15] said 1.0 owed, and [04 §2]'s rule that a newer file must
+ * survive a round trip through an older reader.
+ *
+ * Nested inside `input` on purpose: `input` is where a newer build puts things
+ * about the player's move — pictures were the first — and an importer that
+ * rebuilt it field by field would drop the next one in silence. The assertion
+ * is on the re-export, because an older install passing a session on is the
+ * case where a loss would travel.
+ */
+describe('what a newer build wrote', () => {
+  it('carries an unknown field inside a move through import and export unchanged', async () => {
+    const { sessionId } = await branched();
+    const document = await exported(server, sessionId);
+    const future = { kind: 'hologram', notes: ['from a build that does not exist yet'] };
+    /**
+     * *Every turn is given a move.* The fixture's turns are channel writes,
+     * which carry none, and a move is where the field has to be: `input` is
+     * the part of the record [25 E15] widens, and the part a newer build's
+     * next widening will land in.
+     */
+    const move = { actorId: null, kind: 'do', text: 'Knock.', raw: 'Knock.' };
+    const turns = (document['turns'] as { input?: Record<string, unknown> }[]).map((turn) => ({
+      ...turn,
+      input: { ...(turn.input ?? move), future },
+    }));
 
-    expect(await foundIn('obelisk')).toEqual([original, copy].sort());
-  });
-
-  it('can lose either without the other dropping out of search', async () => {
-    const original = await importDocument(spokenEnvelope('obelisk').document);
-    const first = await importDocument(await exportOf(original));
-    const second = await importDocument(await exportOf(original));
-
-    // Deleting a session clears its index rows by session id — and a copy
-    // whose rows were filed under the original's id took the original's rows
-    // with it, or left its own behind.
-    await server.request({ method: 'DELETE', url: `/api/sessions/${first}` });
-    expect(await foundIn('obelisk')).toEqual([original, second].sort());
-
-    await server.request({ method: 'DELETE', url: `/api/sessions/${original}` });
-    expect(await foundIn('obelisk')).toEqual([second]);
-  });
-
-  it('does not change what another account can find', async () => {
-    // One file, two accounts: the shape a household shares a story in. The
-    // second import must not take the first account's turns out of its search.
-    const { document } = spokenEnvelope('obelisk');
-    const neds = await importDocument(document);
-
-    await server.services.accounts.create({
-      handle: 'mara',
-      password: 'another long password',
-      role: 'user',
-    });
-    await server.request({ method: 'POST', url: '/api/auth/logout' });
-    await server.request({
+    const there = await anotherInstall();
+    const landed = await there.request({
       method: 'POST',
-      url: '/api/auth/login',
-      payload: { handle: 'mara', password: 'another long password' },
+      url: '/api/sessions/import',
+      payload: { ...document, turns },
     });
-    const maras = await importDocument(document);
-    expect(await foundIn('obelisk')).toEqual([maras]);
+    expect(landed.status).toBe(201);
 
-    await server.request({ method: 'POST', url: '/api/auth/logout' });
-    await server.request({
-      method: 'POST',
-      url: '/api/auth/login',
-      payload: { handle: 'ned', password: 'correct horse battery' },
+    const again = await exported(there, landed.body.sessionId as string);
+    const carried = again['turns'] as { input?: Record<string, unknown> }[];
+    expect(carried).toHaveLength(turns.length);
+    for (const turn of carried) expect(turn.input?.['future']).toEqual(future);
+  });
+});
+
+function aRendition(over: Partial<Rendition> = {}): Rendition {
+  return {
+    schema: RENDITION_SCHEMA,
+    id: 'r-1',
+    sessionId: 's-1',
+    turnId: 't-1',
+    createdAt: '2026-09-16T10:00:00.000Z',
+    kind: 'image',
+    purpose: 'illustration',
+    scope: null,
+    state: 'ready',
+    prompt: {
+      fragments: [{ id: 'moment', text: 'a lantern', rank: 100, required: true }],
+      separator: ', ',
+      budget: { maxChars: null, usefulChars: null },
+      text: 'a lantern',
+      kept: ['moment'],
+      dropped: [],
+      overCap: false,
+    },
+    asset: { path: 'r-1.png', mime: 'image/png', bytes: 11, digest: 'sha256:aa' },
+    provenance: {
+      at: '2026-09-16T10:00:02.000Z',
+      binding: { connectionId: 'c-1', modelId: 'sdxl' },
+      answeredAs: null,
+      seed: 7,
+      workflow: { steps: 20 },
+    },
+    error: null,
+    digest: 'd-1',
+    ordering: 0,
+    ...over,
+  };
+}
+
+/**
+ * ***A picture is served from its own session's `assets/` and nowhere else***
+ * (2026-09-27). The asset route joined the record's `path` on, and the only
+ * other check asks whether a path stays inside the data directory, so a record
+ * saying `../session.json` was served that file, and one reaching further up
+ * would have served another account's. The importer checks the records it
+ * writes; this is the door that does not depend on it.
+ */
+describe('a picture’s path', () => {
+  it('cannot leave its session’s assets', async () => {
+    const { writeRendition } = await import('../renditions/store.js');
+    const { sessionId, turnId } = await aSessionSaying('The cathedral was three streets east.');
+    await writeRendition(
+      server.services.sessions.layout,
+      'ned',
+      sessionId,
+      aRendition({
+        id: `${turnId}.0`,
+        sessionId,
+        turnId,
+        asset: { path: '../session.json', mime: 'application/json', bytes: 1, digest: 'sha256:aa' },
+      }),
+    );
+
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(`${turnId}.0`)}/asset`,
     });
-    expect(await foundIn('obelisk')).toEqual([neds]);
+    expect(served.status).toBe(404);
   });
 });

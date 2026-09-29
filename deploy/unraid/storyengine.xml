@@ -71,7 +71,20 @@
     registry toggle. Confirmed by the first install, 2026-09-07: the container
     list shows no icon, and the operator agreed that is the right absence.
   -->
-  <ExtraParams></ExtraParams>
+  <!--
+    **The restart policy, which unraid does not set on its own.** Its Autostart
+    starts containers when the array starts and restarts nothing that exits, so
+    without this flag Restart now and a restore stopped the container and left
+    it stopped until somebody pressed Start. `unless-stopped`, not `on-failure`:
+    a stop from the Docker tab still stays stopped. The stop timeout is the same
+    thirty seconds compose.yaml and the tarball's unit give the server's own
+    bounded shutdown; Docker's default is ten, then SIGKILL.
+
+    Corrected 2026-09-27, and not yet walked on a real box (05-manual-testing.md
+    R11). A container made from an older copy of this template keeps its own
+    Extra Parameters: add these by hand in the Advanced view.
+  -->
+  <ExtraParams>--restart=unless-stopped --stop-timeout=30</ExtraParams>
   <PostArgs></PostArgs>
   <DonateText></DonateText>
   <DonateLink></DonateLink>
@@ -114,7 +127,7 @@
     Target="SE_SUPERVISED"
     Default="1"
     Mode=""
-    Description="Whether something will start this container again if it stops. unraid does, so 1 is correct here — it is what lets the settings page offer Restart now instead of explaining that the server does not restart itself (09 §6.4). Nothing inside a container can detect this for itself, which is why it is a variable rather than a guess. Set it to 0 if you have turned autostart off."
+    Description="Whether something will start this container again if it stops. The --restart=unless-stopped under Extra Parameters does, so 1 is correct here — it is what lets the settings page offer Restart now instead of explaining that the server does not restart itself (09 §6.4). unraid's Autostart is not the same thing: it starts containers when the array starts, and restarts nothing that exits. Nothing inside a container can detect this for itself, which is why it is a variable rather than a guess. Set it to 0 if you remove the --restart parameter."
     Type="Variable"
     Display="advanced"
     Required="false"

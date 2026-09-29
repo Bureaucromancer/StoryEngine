@@ -1404,6 +1404,16 @@ side. Nothing is published for a move, so a stream somebody has open sees no
 frame it would have to interpret; what it sees next is the turn that lands on
 the node the head moved to.
 
+*Corrected 2026-09-27.* The refusal sat at the route, outside the session's lock,
+and head moves and undo were the only writes that made it. A channel write (a
+dial, a hook committed or forced), *Remember this*, an arriving backdrop, a hand
+edit being reconciled and a delete all went ahead while a turn was in flight.
+The turn's commit then set the head to its own turn, so each of them landed on a
+sibling nobody would see again: the setting silently reverted, and a deleted
+session's folder was written back. Every one of them now asks under the lock
+(`SessionContext.busy`) and answers `409 busy`. A backdrop that lands during a
+turn is held and shown on top of it once it commits.
+
 **§1.6's column is decided, and the decision is that it cannot be populated.**
 `turn.branch_id` is dropped, not filled. Under [07 §3] a turn is not *on* a
 branch — there is no `Branch` entity owning turns, a turn is on every path that
@@ -1753,6 +1763,12 @@ actually landed and the gate could name real state instead of hypothetical.*
    all survive; only derived things were lost.
    **Covered at P6.3**, WAL files included — deleting the main file alone
    leaves a log SQLite recovers from, and the step would assert nothing.
+   *Added 2026-09-27:* for a head parked on a leaf, which is where the test
+   parked it. The start-up walk over unlinked turns advanced any head with one
+   child, so a head moved back along a line (*Continue from here*, or an undo)
+   went back to the tip at every restart. The walk now counts only turns
+   appended after the session's last write, unless the operational store is
+   new, and `p6-gate.test.ts` holds a head parked mid-line across a restart.
 
 9. ~~**`sessions.snapshotEveryNTurns` reads `applied`**~~ **Done at P6.0d**: the
    row says `applied`, `reconstructAlong` reads it per reconstruction through a

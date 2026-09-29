@@ -153,6 +153,43 @@ describe('with a client root configured', () => {
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: 'not-found', message: 'No such route.' });
+
+    // ***And spelled in escapes*** (2026-09-27). The static handler checks the
+    // path it is handed, still encoded, and then serves the decoded one, so
+    // `/%61pi/nonsense` answered `200` with the file past the guard above.
+    const escaped = await app.request({ method: 'GET', url: '/%61pi/nonsense' });
+    expect(escaped.status).toBe(404);
+    expect(escaped.body).toEqual({ error: 'not-found', message: 'No such route.' });
+  });
+
+  /**
+   * ***A save cannot take the page away that it was made from*** (2026-09-27).
+   * An empty client root is a server that serves no page, so the next start
+   * would leave nobody a settings form to set it back with. The boot's own
+   * check for a root with no build is asked of a save too.
+   */
+  it('refuses a save that would stop serving the app, or serve a root with no build', async () => {
+    const app = await serving();
+    await setUpAdmin(app, 'ned', 'correct horse battery');
+    const config = structuredClone(app.services.config);
+
+    config.server.clientRoot = '';
+    const emptied = await app.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config },
+    });
+    expect(emptied.status).toBe(400);
+    expect(emptied.body.issues.join(' ')).toMatch(/\/server\/clientRoot cannot be emptied/);
+
+    config.server.clientRoot = join(dataDir, 'not-built');
+    const unbuilt = await app.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config },
+    });
+    expect(unbuilt.status).toBe(400);
+    expect(app.services.config.server.clientRoot).toBe(clientRoot);
   });
 
   /**

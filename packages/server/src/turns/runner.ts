@@ -31,9 +31,12 @@ import type {
   StepFailureReason,
   StepOutcome,
   Turn,
+  TurnAttachment,
   TurnCost,
 } from '../sessions/types.js';
 import type { CastMember } from './cast.js';
+import { digestsOf, presentAttachments, readAttachment } from '../sessions/attachments.js';
+import { scanText } from '../assembly/pictures.js';
 import type { Occurrence } from '../notifications/router.js';
 import { finaliseTurn, type CommitContext, type Logger } from '../state/commit.js';
 import {
@@ -50,9 +53,16 @@ import {
 } from '../state/events.js';
 import { checkpoint, type Job, setJobStatus } from '../state/jobs.js';
 import type { TurnStream } from '../stream/bus.js';
-import { CallFailed, Cancelled, performCall, resolveStepRole, RoleUnresolved } from './calls.js';
+import {
+  CallFailed,
+  Cancelled,
+  performCall,
+  resolveStepRole,
+  RoleUnresolved,
+  WindowTooSmall,
+} from './calls.js';
 import { acceptEffect } from './effects.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
 import { readSuggesting, suggest, type SuggestReport } from './suggest.js';
@@ -66,22 +76,16 @@ import {
 import { toneOf } from '../renditions/assemble.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
-import {
-  readRenditions,
-  renditionIdFor,
-  reusableBackdrop,
-  writeRendition,
-} from '../renditions/store.js';
+import { readRenditions, renditionIdFor, reusableBackdrop } from '../renditions/store.js';
 import { selectedBackdrop } from '../renditions/backdrop.js';
-import { summarise, SUMMARISE_PROMPT, SUMMARISE_STEP, type SummariseReport } from './summarise.js';
-import { DEFAULT_SUMMARY_POLICY, summariserKey } from '../sessions/summary-chain.js';
+import { summarise, summaryPlanFor, type SummariseReport } from './summarise.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
 import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
-import { retrieve } from '../retrieval/retrieve.js';
+import { storyDepth } from '../sessions/depth.js';
+import { loreReached, retrieve, settleTiming } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
-import { collectCandidates } from '../assembly/collect.js';
 import { planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
 import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
@@ -103,7 +107,13 @@ import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
  */
 
 export interface TurnPayload {
-  input?: { actorId: string | null; kind: string; text: string; raw: string };
+  input?: {
+    actorId: string | null;
+    kind: string;
+    text: string;
+    raw: string;
+    attachments?: TurnAttachment[];
+  };
   /**
    * This is the session's **setup** turn — [06 §7.3], [P7.4].
    *
@@ -179,13 +189,18 @@ export interface RunnerOptions {
    * **Optional, so every existing test double stays a double.** Absent means the
    * step never asked for anything — which is every turn of every session before
    * this phase, and every test that is not about pictures.
+   *
+   * ***It writes the records*** (2026-09-27), after claiming each one's job, so
+   * that no `pending` record is ever on disk without a job row recovery can
+   * find (`dispatchRenditions`). It resolves once they are written and started,
+   * never once a picture is made.
    */
   dispatch?: (
     account: string,
     sessionId: string,
     records: readonly Rendition[],
     turnId: string,
-  ) => void;
+  ) => Promise<void>;
   /**
    * Says a turn ended, so somebody can be told — [09 §3.5], [P10.1].
    *
@@ -230,6 +245,18 @@ export interface RunnerOptions {
    * the routes, so the extractor and the button write through one queue.
    */
   library?: LibraryContext;
+  /**
+   * ***Told that a turn committed*** (2026-09-27), after its pictures are
+   * recorded and before anybody is told.
+   *
+   * For what was held back while the turn was in flight: an engine write that
+   * would have been a sibling of this turn, which the commit would abandon, and
+   * which can land on top of it now. The one such write is a backdrop that
+   * finished during the turn (`DeferredBackdrops`). Optional, like `dispatch`
+   * and `notify`, and **it cannot fail the turn**: it runs after the commit, and
+   * a throw is logged.
+   */
+  committed?: (job: Job, turn: Turn) => Promise<void>;
 }
 
 interface Live {
@@ -431,6 +458,7 @@ export class TurnRunner {
     try {
       checkpoint(this.#options.commit, job.id, { turn: draft });
       await finaliseTurn(this.#options.commit, job.id, draft);
+      await this.#committed(job, draft, log);
       /**
        * **This path notifies too, and it is the one that most needs to.** A
        * turn that could not even be set up leaves a record saying so and no
@@ -655,8 +683,39 @@ export class TurnRunner {
       { sessions: commit.sessions, accounts: this.#options.accounts },
       { account: job.account, sessionId: job.sessionId, parentTurnId: job.parentTurnId },
     );
-    const { history, windowed, usable, bindings, defaults, mode, preset, cast } = inputs;
+    const { history, mode, preset, cast } = inputs;
     let running: Record<string, ChannelState> = inputs.channels;
+    /**
+     * ***Which of this move's pictures are in the store*** — [25 E15], asked
+     * once per turn because assembly cannot ask the disk. Only the move's own:
+     * R1 sends nothing older, so the history's pictures go as their words
+     * whether or not their bytes are here.
+     */
+    const picturesPresent = await presentAttachments(
+      commit.sessions.layout,
+      job.account,
+      job.sessionId,
+      digestsOf(payload.input === undefined ? [] : [{ input: payload.input }]),
+    );
+    /**
+     * ***A file that is there and cannot be read is missing too*** — the
+     * storage layer's rule is that only absence is a value, and it throws for
+     * anything else; this is the one reader that turns that into *go with the
+     * words*, because a picture must never be what stops a turn
+     * (`planWithPictures`). Said in the log with the digest and the error's code,
+     * never the path.
+     */
+    const loadPicture = async (digest: string): ReturnType<typeof readAttachment> => {
+      try {
+        return await readAttachment(commit.sessions.layout, job.account, job.sessionId, digest);
+      } catch (error) {
+        log?.warn(
+          { event: 'picture.unreadable', digest, code: (error as NodeJS.ErrnoException).code },
+          'A picture on this move could not be read; it goes as its words',
+        );
+        return null;
+      }
+    };
 
     /**
      * **Revoking disables; it never deletes** ([09 §4.5]).
@@ -717,11 +776,14 @@ export class TurnRunner {
           actors: cast.actors,
           persona: cast.persona?.actor.id ?? null,
           channels: running,
-          depth: history.length,
+          // Story turns: a rotation that counted a HUD edit as a turn skipped
+          // whoever's turn it was (`depth.ts`, 2026-09-27).
+          depth: storyDepth(history),
           draw: rng.at('se.participants', 'speaker'),
           ...(payload.input === undefined
             ? {}
-            : { input: { actorId: payload.input.actorId, text: payload.input.text } }),
+            : // Captions count: naming somebody under a picture addresses them.
+              { input: { actorId: payload.input.actorId, text: scanText(payload.input) } }),
           ...(spoken === undefined ? {} : { lastProse: spoken }),
         })
       : undefined;
@@ -876,49 +938,23 @@ export class TurnRunner {
      * is why it was extracted rather than restated: a second answer to *which
      * model is this* would let a session derive its chain under one model and
      * read it under another.
+     *
+     * *All three are `summaryPlanFor`'s now* (2026-09-27), because the preview
+     * asks them too, to read the chain this turn would carry; and *above the
+     * window* is counted in story turns, the way the window is.
      */
-    const wantsSummary =
-      payload.setup !== true &&
-      preset.blocks.some(
-        (block) => block.enabled && block.kind === 'slot' && block.source.of === 'summary',
-      ) &&
-      history.length > mode.definition.assembly.historyWindow;
-
-    const summariserRole = wantsSummary
-      ? resolveStepRole(
-          {
-            bindings,
-            defaults,
-            usable,
-            ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
-            ...(inputs.session?.stepRoles === undefined
-              ? {}
-              : { stepRoles: inputs.session.stepRoles }),
-            cast,
-          },
-          SUMMARISE_STEP,
-          SUMMARISE_STEP.role ?? 'prose',
-          undefined,
-        )
-      : null;
+    const summaryPlan = payload.setup === true ? null : summaryPlanFor(inputs);
 
     const withSummary: TurnPlan =
-      summariserRole?.ok === true
+      summaryPlan !== null
         ? {
             steps: [
               summarise({
                 layout: commit.sessions.layout,
                 handle: job.account,
                 sessionId: job.sessionId,
-                policy: {
-                  ...DEFAULT_SUMMARY_POLICY,
-                  window: mode.definition.assembly.historyWindow,
-                },
-                key: summariserKey(
-                  { connectionId: summariserRole.connection.id, modelId: summariserRole.modelId },
-                  SUMMARISE_PROMPT,
-                  preset.params,
-                ),
+                policy: summaryPlan.policy,
+                key: summaryPlan.key,
                 report: (report) => {
                   summaries.report = report;
                 },
@@ -1126,23 +1162,7 @@ export class TurnRunner {
     const renderRoles =
       wantsIllustration || wantsBackdrop
         ? {
-            image: resolveStepRole(
-              {
-                bindings,
-                defaults,
-                usable,
-                ...(inputs.session?.roles === undefined
-                  ? {}
-                  : { sessionRoles: inputs.session.roles }),
-                ...(inputs.session?.stepRoles === undefined
-                  ? {}
-                  : { stepRoles: inputs.session.stepRoles }),
-                cast,
-              },
-              RENDER_STEP,
-              'image',
-              undefined,
-            ),
+            image: resolveStepRole(roleLayersOf(inputs), RENDER_STEP, 'image', undefined),
             /**
              * *Resolved even when only a backdrop is wanted*, because the step
              * is one step: the background branch makes no `fast` call, and a
@@ -1150,18 +1170,7 @@ export class TurnRunner {
              * would fail the moment somebody turned illustration on mid-session.
              */
             moment: resolveStepRole(
-              {
-                bindings,
-                defaults,
-                usable,
-                ...(inputs.session?.roles === undefined
-                  ? {}
-                  : { sessionRoles: inputs.session.roles }),
-                ...(inputs.session?.stepRoles === undefined
-                  ? {}
-                  : { stepRoles: inputs.session.stepRoles }),
-                cast,
-              },
+              roleLayersOf(inputs),
               RENDER_STEP,
               RENDER_STEP.role ?? 'fast',
               undefined,
@@ -1233,9 +1242,16 @@ export class TurnRunner {
           }
         : withMemory;
 
+    /**
+     * **Story turns, once for the loop** (`depth.ts`, 2026-09-27). The path's
+     * length counted channel writes, undos and backdrop choices, so memory
+     * extraction *every eight turns* ran at whatever story turn the bookkeeping
+     * had shifted the modulus to, and could skip a whole stretch.
+     */
+    const turnsOnPath = storyDepth(history);
     for (const { definition, run } of withRender.steps) {
       const decision = evaluateCondition(definition.when, {
-        turnsOnPath: history.length,
+        turnsOnPath,
         stages: new Set<string>(),
         armed: new Set<string>(),
       });
@@ -1311,7 +1327,10 @@ export class TurnRunner {
                *
                * The effects it proposes are collected into `loreEffects` and
                * committed with the step's own, because only a step may propose
-               * one and this is inside a step's `call`.
+               * one and this is inside a step's `call`. ***Proposed after the
+               * call is assembled*** (2026-09-27), by `settleTiming` over what
+               * the assembler included: an entry the shelf, the outlets or the
+               * chat-wide budget cut was otherwise counted as having fired.
                *
                * ***Not at all when the step brought its own candidates***, which
                * is [P7.5] and is a correctness fix rather than a saving.
@@ -1343,23 +1362,26 @@ export class TurnRunner {
                     rng,
                     ...(payload.input === undefined ? {} : { input: payload.input }),
                   });
-              if (lore !== null) loreEffects.push(...lore.effects);
 
+              /**
+               * **`collectFor`, the collector's input as the gather knows it**
+               * (2026-09-27): the pack, the window, the cast, the carriers, the
+               * goal ([06 §7.3.3]'s *always injected*) and the dials
+               * ([06 §7.3.1]) come from there for all three callers that
+               * assemble, so the preview and impersonation cannot be handed a
+               * different prompt by omission. What is this turn's alone is here.
+               */
               const fromPreset = brought
                 ? { candidates: [], notFilled: [] }
-                : collectCandidates({
-                    preset,
+                : collectFor(inputs, {
                     callKind: definition.callKind,
                     // What the player did, for a preset's per-kind block —
                     // [13 §8.3], [P7.9]. Absent on a call with no submission
                     // behind it, which is what keeps a `say` block off a judge.
                     ...(payload.input === undefined ? {} : { inputKind: payload.input.kind }),
-                    history: windowed,
-                    persona: cast.persona,
-                    actors: cast.actors,
+                    // The running map, which moves as the steps apply effects.
                     channels: running,
                     lore: lore?.blocks ?? [],
-                    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
                     ...(payload.input === undefined ? {} : { input: payload.input }),
                     ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
                     // [06 §5.1]'s second producer, filled by the selector that ran
@@ -1375,54 +1397,32 @@ export class TurnRunner {
                     // line between *waiting on the engine* and *not yet long
                     // enough to have one*.
                     ...(summaries.report === null ? {} : { summary: summaries.report.links }),
-                    // [06 §7.3.3]'s *always injected*, resolved by the gather so
-                    // a preview and a turn cannot disagree about which goal.
-                    ...(inputs.goals.current === null
-                      ? {}
-                      : {
-                          goal: {
-                            id: inputs.goals.current.id,
-                            statement: inputs.goals.current.statement,
-                          },
-                        }),
-                    // [06 §7.3.1]'s two dials, resolved by the gather for the
-                    // reason the goal is: the authored rung runs through
-                    // `mode.config` and the level is looked up in the pack, and
-                    // neither is in the collector's hand.
-                    dials: inputs.dials,
                     ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
                   });
 
               const outcome = await performCall(
                 {
                   definition,
-                  bindings,
-                  defaults,
-                  usable,
                   /**
-                   * **[19 §5.1]'s third and fourth layers, passed at last** —
-                   * [P7 §1.9], [P7.3]. `resolveRole` has implemented both since
-                   * P2B and nothing outside a test had ever handed them over, so
-                   * the documented layering described a function rather than
-                   * what runs. This is the line that makes the two the same.
+                   * **[19 §5.1]'s layers, the session's own among them** —
+                   * [P7 §1.9], [P7.3]. `resolveRole` implemented the session and
+                   * step overrides from P2B and nothing outside a test handed
+                   * them over until P7.3; the preview and impersonation went on
+                   * not handing them over until `roleLayersOf` (2026-09-27),
+                   * which every caller now takes them from. The cast rides with
+                   * them, so a call naming an actor resolves with that actor's
+                   * hint — the cards, not the hints: a step passes an id and
+                   * cannot pass a preference its actor does not hold.
                    */
-                  ...(inputs.session?.roles === undefined
-                    ? {}
-                    : { sessionRoles: inputs.session.roles }),
-                  ...(inputs.session?.stepRoles === undefined
-                    ? {}
-                    : { stepRoles: inputs.session.stepRoles }),
-                  // So a call naming an actor can be resolved with that actor's
-                  // hint — [19 §5.1]'s last layer, [P7 §1.9]. The cards, not the
-                  // hints: a step passes an id and cannot pass a preference its
-                  // actor does not hold.
-                  cast,
+                  ...roleLayersOf(inputs),
                   providers: this.#options.providers,
                   config,
                   preset: { params: preset.params, budget: preset.budget },
                   signal,
                   notFilled: fromPreset.notFilled,
                   ...(lore === null ? {} : { refused: lore.refused }),
+                  picturesPresent,
+                  loadPicture,
                   onCallAssembled: (provisional) => {
                     contributedBlocks = provisional.blocks.filter((block) => block.included).length;
                     const call: ModelCall = {
@@ -1490,6 +1490,9 @@ export class TurnRunner {
               );
 
               finalise(outcome.call);
+              if (lore !== null) {
+                loreEffects.push(...settleTiming(lore, loreReached(outcome.call.blocks), running));
+              }
               log?.info(
                 {
                   event: 'call.finished',
@@ -1506,6 +1509,7 @@ export class TurnRunner {
                 text: outcome.text,
                 ...(outcome.object === undefined ? {} : { object: outcome.object }),
                 usage: outcome.usage,
+                outcome: outcome.call.outcome,
               };
             },
           },
@@ -1821,10 +1825,15 @@ export class TurnRunner {
      * it is not — a mode that redeclares the channel without `confirm` — must
      * not silently leave `running` stale for the clock write underneath it.
      *
+     * ***The judge's own call***, which its report names (2026-09-27).
+     * ~~`calls.at(-1)`~~ was the turn's last call, and the suggester, the memory
+     * extractor and an illustration all run after the judge: with any of them
+     * on, the completion was credited to a call that never judged it.
+     *
      * *The fallback is `step` rather than `engine`, and that is the gate rather
      * than tidiness.* `confirm` is checked for `model` and `step` only, so an
      * `engine` stamp here would have been a **bypass**: a judged completion
-     * applying itself unasked on the one path where `calls` came back empty.
+     * applying itself unasked on a path where the report names no call.
      * `step` is also the truer claim — with no call to point at, what is known
      * is that the judge step reported it.
      *
@@ -1834,7 +1843,7 @@ export class TurnRunner {
      * [06 §7.3.4] is explicit that none of it happens without asking.
      */
     if (!aborted && goals.report?.met === true) {
-      const judged = calls.at(-1);
+      const judged = goals.report.callId;
       const effect = acceptEffect(
         job.turnId,
         {
@@ -1843,9 +1852,9 @@ export class TurnRunner {
           op: { type: 'set', path: '/' },
           after: 'achieved',
           proposedBy:
-            judged === undefined
+            judged === null
               ? { kind: 'step', stepId: GOAL_JUDGE_STEP.id }
-              : { kind: 'model', callId: judged.id },
+              : { kind: 'model', callId: judged },
         },
         running,
       );
@@ -1879,10 +1888,9 @@ export class TurnRunner {
 
     draft.status = aborted ? 'failed' : 'complete';
     draft.cost = costOf(calls);
-    write();
 
-    // The lock is taken here and nowhere before it.
-    await finaliseTurn(commit, job.id, draft);
+    // From here the turn is finished, and a failure is the commit's.
+    if (!(await this.#commitFinished(job, draft, write, log))) return;
 
     /**
      * ***Renditions, after the commit and awaited no further than the insert***
@@ -1894,11 +1902,16 @@ export class TurnRunner {
      * would let a fast provider land an asset on a turn the store has not
      * appended.
      *
-     * *Records first, then jobs.* The record is what a placeholder renders from
-     * and what the retry re-runs, so a job whose record did not land would be a
-     * spinner with nothing behind it. Written here rather than by the worker for
-     * the same reason: the recipe is known now and the worker may not start for
-     * seconds.
+     * ~~*Records first, then jobs.* The record is what a placeholder renders
+     * from and what the retry re-runs, so a job whose record did not land would
+     * be a spinner with nothing behind it.~~ *Corrected 2026-09-27: jobs first,
+     * then records.* A record written first and a process that died before its
+     * job was claimed was the spinner with nothing behind it, because recovery
+     * reads job rows and no row named that record. A job claimed first and a
+     * record that never landed is a row recovery abandons, with nothing on
+     * screen. `dispatchRenditions` does both, in that order; the recipe is
+     * still built here, because it is known now and the worker may not start
+     * for seconds.
      *
      * **Nothing below this line can fail the turn**, which is the whole of
      * §10.2 and the reason it is after the append rather than inside it.
@@ -1906,6 +1919,10 @@ export class TurnRunner {
     if (renditions.report !== null && this.#options.dispatch !== undefined) {
       await this.#recordRenditions(job, draft, renditions.report);
     }
+
+    // What waited for this turn to land, now that it has — after the pictures
+    // are recorded, because what waited may need to know which it asked for.
+    await this.#committed(job, draft, log);
 
     /**
      * ***And the person is told, last of all*** — [09 §3.5], [P10.1].
@@ -1916,6 +1933,71 @@ export class TurnRunner {
      * against `finaliseTurn`, one layer out.
      */
     await this.#announce(job, aborted ? (stoppedBy ?? 'internal') : null, remedyFound);
+  }
+
+  /**
+   * Commits a turn that finished, and never replaces it with another.
+   *
+   * ***Its own `try`, because `#run`'s is for a turn that never started***
+   * (2026-09-27). The last checkpoint and `finaliseTurn` sat inside that one,
+   * so a disk that refused the append (a full volume, or a scanner holding the
+   * segment open on Windows) was handled as *could not be set up*. The
+   * stand-in overwrote the saved draft and was committed in the turn's place:
+   * the prose, its calls and its effects were gone, and the record said
+   * `se.setup` had failed. When the append had landed and the head had not,
+   * the retry advanced the head with the stand-in's empty effects, so the
+   * session's channels no longer matched its own segment.
+   *
+   * ***The draft is the turn***, which is the step-1 invariant in
+   * `state/commit.ts`, so a failure is answered with the same draft: once more
+   * here, where a condition that has passed has passed, and after that by
+   * startup reconciliation, which resumes at the step the job reached. Every
+   * step is idempotent by turn id, so neither can append the turn twice. A
+   * job left for startup keeps its session busy until then, and that is the
+   * honest state: the turn exists and is not yet in the story.
+   */
+  async #commitFinished(
+    job: Job,
+    draft: Turn,
+    write: () => void,
+    log: Logger | undefined,
+  ): Promise<boolean> {
+    const commit = this.#options.commit;
+    try {
+      write();
+      // The lock is taken here and nowhere before it.
+      await finaliseTurn(commit, job.id, draft);
+      return true;
+    } catch (error) {
+      log?.error(
+        { event: 'job.commitFailed', ...failureShape(error) },
+        'A finished turn could not be committed; trying once more',
+      );
+    }
+    try {
+      await finaliseTurn(commit, job.id, draft);
+      return true;
+    } catch (error) {
+      log?.error(
+        { event: 'job.lost', ...failureShape(error) },
+        'A finished turn could not be committed; startup will finish it from its draft',
+      );
+      return false;
+    }
+  }
+
+  /** `RunnerOptions.committed`, which nothing it does may turn into a failed turn. */
+  async #committed(job: Job, turn: Turn, log: Logger | undefined): Promise<void> {
+    const committed = this.#options.committed;
+    if (committed === undefined) return;
+    try {
+      await committed(job, turn);
+    } catch (error) {
+      log?.warn(
+        { event: 'job.afterCommit', ...failureShape(error) },
+        'Something held for this turn could not be applied after it',
+      );
+    }
   }
 
   /**
@@ -1986,7 +2068,8 @@ export class TurnRunner {
   }
 
   /**
-   * Writes a turn's rendition records and queues their jobs.
+   * Builds a turn's rendition records and hands them to the dispatch, which
+   * claims their jobs and writes them, in that order.
    *
    * Every failure here is swallowed: a full disk or a store that would not write
    * costs a picture, and [06 §10.2] is explicit that it must never cost the turn
@@ -2032,14 +2115,8 @@ export class TurnRunner {
           ordering: request.ordering,
         };
         records.push(record);
-        await writeRendition(
-          this.#options.commit.sessions.layout,
-          job.account,
-          job.sessionId,
-          record,
-        );
       }
-      dispatch(job.account, job.sessionId, records, draft.id);
+      await dispatch(job.account, job.sessionId, records, draft.id);
     } catch {
       // Swallowed on purpose — see above.
     }
@@ -2091,7 +2168,27 @@ function costOf(calls: readonly ModelCall[]): TurnCost {
       : null,
     wallMs: calls.reduce((sum, call) => sum + call.wallMs, 0),
     model: calls.at(-1)?.resolved.modelId ?? null,
+    money: moneyOf(calls),
   };
+}
+
+/**
+ * The turn's money, by the token totals' rule — every call priced, or no total.
+ *
+ * ***One currency or none.*** Two calls priced in different units — dollars on
+ * one connection and a provider's credits on another — have no sum this build
+ * can honestly write, and converting between them would be an estimate with an
+ * exchange rate in it. Each call keeps its own figure either way.
+ */
+function moneyOf(calls: readonly ModelCall[]): { amount: number; currency: string } | null {
+  const currency = calls[0]?.cost?.currency;
+  if (currency === undefined) return null;
+  let amount = 0;
+  for (const call of calls) {
+    if (call.cost?.currency !== currency) return null;
+    amount += call.cost.amount;
+  }
+  return { amount, currency };
 }
 
 /**
@@ -2116,6 +2213,7 @@ function classifyStep(error: unknown): StepFailureReason {
   if (error instanceof Cancelled) return 'cancelled';
   if (error instanceof AdvisoryLeakError) return 'advisory-leak';
   if (error instanceof RoleUnresolved) return error.reason;
+  if (error instanceof WindowTooSmall) return 'window-too-small';
   if (error instanceof CallFailed) return error.class;
   return 'internal';
 }
@@ -2245,8 +2343,16 @@ function castTerms(
     // Only the ones in flight: a pool of thirty introductions would otherwise
     // put thirty names into every turn's scan for arrivals that are not
     // happening, which is a highlight claiming somebody is here who is not.
+    /**
+     * ***`pending`, which is what the state at this node says*** (2026-09-27).
+     * ~~`readHookState({}, …)`~~ read an empty channel map, which answers null
+     * for every hook, so a firing left provisional by an earlier turn never
+     * put its subject's names in the scan: the narrator wrote them in, the
+     * scan could not find them, and the recovery path recorded the arrival
+     * that happened as declined.
+     */
     const inFlight =
-      introducing?.actorId === subject.id || readHookState({}, entry.hook.id) === 'provisional';
+      introducing?.actorId === subject.id || pending.some((one) => one.hookId === entry.hook.id);
     if (!inFlight || out.has(subject.id)) continue;
     /**
      * ***The card's aliases, not just the `Ref`'s name*** — [06 §6.1] requires

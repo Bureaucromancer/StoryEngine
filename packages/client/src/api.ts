@@ -215,6 +215,15 @@ export class ApiError extends Error {
    * leaves somebody guessing which field on a form they did not design.
    */
   readonly issues?: string[];
+  /**
+   * What a person could do about a provider failure — a `FailureRemedy`, from
+   * a route that says (2026-09-27).
+   *
+   * **A string rather than the union**, because a newer server may send a
+   * remedy this build has never heard of, and `remedySentence` already answers
+   * that with nothing rather than a guess. Lifted here for `issues`' reason.
+   */
+  readonly remedy?: string;
 
   constructor(
     status: number,
@@ -223,6 +232,7 @@ export class ApiError extends Error {
     current?: unknown,
     contentHash?: string,
     issues?: string[],
+    remedy?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -231,7 +241,23 @@ export class ApiError extends Error {
     if (current !== undefined) this.current = current;
     if (contentHash !== undefined) this.contentHash = contentHash;
     if (issues !== undefined) this.issues = issues;
+    if (remedy !== undefined) this.remedy = remedy;
   }
+}
+
+/**
+ * ***The class a refusal carries, or `null`*** (2026-09-27).
+ *
+ * The one spelling of the read every refusal sentence starts from. Two others
+ * were in use and both were wrong: a cast to `{ body: { error } }` — the shape
+ * a *server* test reads off an injected response, which `ApiError` has never
+ * had, so three components' sentences had never rendered — and matching the
+ * English of `message`, which four settings panels did, so rewording a server
+ * sentence would quietly change which one of theirs a person saw. The class is
+ * the contract ([21 §1.4]); the prose is the server's own fallback.
+ */
+export function errorCode(failure: unknown): string | null {
+  return failure instanceof ApiError ? failure.code : null;
 }
 
 export const CSRF_COOKIE = 'se_csrf';
@@ -300,7 +326,8 @@ async function request<T>(
       payload['issues'].every((one) => typeof one === 'string')
         ? payload['issues']
         : undefined;
-    throw new ApiError(response.status, code, message, current, contentHash, issues);
+    const remedy = typeof payload?.['remedy'] === 'string' ? payload['remedy'] : undefined;
+    throw new ApiError(response.status, code, message, current, contentHash, issues, remedy);
   }
 
   return payload as T;
@@ -603,6 +630,13 @@ export const api = {
   ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
 
   /**
+   * Which of your roles field assist asks for — a stopgap until [25 C15]
+   * decides role fallback for everyone. One value, written whole.
+   */
+  writeMyTaskRoles: (tasks: TaskRoles): Promise<{ tasks: TaskRoles }> =>
+    request('PUT', '/api/me/task-roles', tasks),
+
+  /**
    * ***Bytes beside an object*** — [10 §11.2b], [P11].
    *
    * **Multipart rather than a JSON body with base64 in it**, which is the same
@@ -622,7 +656,7 @@ export const api = {
   ): Promise<{ asset: { ref: string; digest: string; bytes: number; mime: string } }> => {
     const form = new FormData();
     form.append('file', blob, filename);
-    return requestForm(`/api/library/${kind}/${id}/assets`, form);
+    return requestForm(`${objectUrl(kind, id)}/assets`, form);
   },
 
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
@@ -668,11 +702,16 @@ export const api = {
   indexRows: (kind: LibraryKind, id: string): Promise<{ rows: IndexRow[] }> =>
     request('GET', `${objectUrl(kind, id)}/rows`),
 
+  /**
+   * `copyOf` names the object this is a copy of, so the create brings its
+   * pictures — an actor's card, any other kind's files (2026-09-27).
+   */
   createObject: (
     kind: LibraryKind,
     object: Record<string, unknown>,
+    copyOf?: string,
   ): Promise<{ id: string; slug: string; contentHash: string }> =>
-    request('POST', `/api/library/${kind}`, { object }),
+    request('POST', `/api/library/${kind}`, copyOf === undefined ? { object } : { object, copyOf }),
 
   /** The hash rides in the body — the second spelling docs/api.md allows. */
   /**
@@ -774,11 +813,11 @@ export const api = {
   importJobs: (): Promise<{ jobs: ImportJob[] }> => request('GET', '/api/import/jobs'),
 
   importJob: (id: string): Promise<{ report: ImportReport }> =>
-    request('GET', `/api/import/jobs/${id}`),
+    request('GET', `/api/import/jobs/${encodeURIComponent(id)}`),
 
   /** What the imports said about one object, for its own page ([P5 §1.8]). */
   objectImportNotes: (objectId: string): Promise<{ notes: ObjectImportNotes[] }> =>
-    request('GET', `/api/import/objects/${objectId}/notes`),
+    request('GET', `/api/import/objects/${encodeURIComponent(objectId)}/notes`),
 
   /**
    * What a folder is, without importing from it — the check behind the path box.
@@ -972,10 +1011,13 @@ export interface SessionSummary {
    * fact about the route.
    *
    * *Only the field a client has a use for*, on the terms this interface sets
-   * for `treatment`, `lore` and `goals`. The Setup's cast, openings, goals and
+   * for `treatment`, `lore` and `goals`. ~~The Setup's cast, openings, goals and
    * hooks are all on the wire too and all of them are a copy of an object the
-   * library can be asked for; what cannot be got any other way is **which
-   * object it was a copy of**.
+   * library can be asked for;~~ what cannot be got any other way is **which
+   * object it was a copy of**. *Corrected 2026-09-27: the copy is no longer on
+   * the wire.* A reply carries the Setup as its id and name, since its goals and
+   * hooks are the spoilers the play surface exists not to show
+   * (`presentSession` on the server).
    */
   setup?: { id: string };
 }
@@ -1153,10 +1195,18 @@ export function createSession(input: NewSession): Promise<{
      * because an empty cast is being asserted — and the two are the same value
      * here, since a session created in a browser has never had actors and the
      * surface that gives it one is [P7.2]'s.
+     *
+     * ***A cast given whole is sent whole*** (2026-09-27). `cast` was declared
+     * on the input for the assistant panel, which passes the shipped card as
+     * its one actor, and never read here — so every assistant session was made
+     * with nobody in it, and the card that says what the assistant is never
+     * reached a prompt.
      */
-    ...(input.persona === undefined || input.persona === ''
-      ? {}
-      : { cast: { persona: input.persona, actors: [] } }),
+    ...(input.cast !== undefined
+      ? { cast: input.cast }
+      : input.persona === undefined || input.persona === ''
+        ? {}
+        : { cast: { persona: input.persona, actors: [] } }),
     ...(input.mode === undefined || input.mode === '' ? {} : { mode: input.mode }),
     /**
      * **Omitted when empty**, like every other field here: a mode with no
@@ -1561,7 +1611,9 @@ export type HookRefusal =
   | 'cast-gone'
   | 'subject-gone'
   | 'subject-met'
-  | 'subject-unavailable';
+  | 'subject-unavailable'
+  /** Not a hook the engine can read (2026-09-27). */
+  | 'malformed';
 
 /**
  * One row of the cast panel — [10 §13.2], [P7.2].
@@ -1778,6 +1830,37 @@ export function readRenditions(
  * what changes when a retry produces different ones. `route-callers.test.ts`
  * strips the query string, so this helper is what credits the route.
  */
+/**
+ * A picture on a move — [25 E15], R1. What the upload answers with: the content
+ * address the move will name, and what the server's store read from the bytes.
+ */
+export interface UploadedPicture {
+  digest: string;
+  mime: string;
+  bytes: number;
+}
+
+/**
+ * Uploads a picture for a move — the bytes first, then the move names them by
+ * digest in its ordinary JSON body ([10 §11.2b]'s two steps).
+ */
+export function uploadPicture(sessionId: string, blob: Blob): Promise<UploadedPicture> {
+  const form = new FormData();
+  form.append('file', blob, 'picture');
+  return requestForm<{ attachment: UploadedPicture }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/attachments`,
+    form,
+  ).then((answer) => answer.attachment);
+}
+
+/**
+ * Where a picture on a move is served. Content-addressed, so the digest in the
+ * path is also the cache key — a picture never changes under its address.
+ */
+export function pictureUrl(sessionId: string, digest: string): string {
+  return `/api/sessions/${encodeURIComponent(sessionId)}/attachments/${encodeURIComponent(digest)}`;
+}
+
 export function renditionAssetUrl(sessionId: string, renditionId: string, digest: string): string {
   return (
     `/api/sessions/${encodeURIComponent(sessionId)}` +
@@ -1877,6 +1960,18 @@ export interface SubmitTurn {
   /** Its own field, never folded into the action — [06 §5.1]. */
   guidance?: string;
   /**
+   * Pictures on the move, by digest — [25 E15]. The server reads their type
+   * and size from its own store; a caption is the player's words about one.
+   */
+  attachments?: readonly { digest: string; caption?: string }[];
+  /**
+   * A redo's pictures: **the turn whose pictures this move carries**, copied by
+   * the server exactly as that turn recorded them — every id, kind and caption,
+   * and a picture whose bytes never reached this server. Never with
+   * `attachments`, which is for pictures just uploaded.
+   */
+  attachmentsOf?: string;
+  /**
    * Attach this turn to a node other than the head — [P6.0c].
    *
    * **Absent and `null` are different requests.** Absent means *the head*, and
@@ -1914,6 +2009,12 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
     input: {
       text: submission.text,
       ...(submission.kind === undefined ? {} : { kind: submission.kind }),
+      ...(submission.attachments === undefined || submission.attachments.length === 0
+        ? {}
+        : { attachments: submission.attachments }),
+      ...(submission.attachmentsOf === undefined
+        ? {}
+        : { attachmentsOf: submission.attachmentsOf }),
     },
     ...(submission.guidance === undefined || submission.guidance.length === 0
       ? {}
@@ -1974,6 +2075,14 @@ export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: s
 export interface PendingInput {
   text: string;
   guidance: string;
+  /**
+   * The kind the selector chose, so a pack whose input slots are per-kind
+   * previews the block the turn will send. Absent is the server's default, as
+   * it is for a submission.
+   */
+  kind?: string;
+  /** The move's pictures, so the preview assembles the blocks the turn will. */
+  attachments?: readonly { digest: string; caption?: string }[];
 }
 
 /**
@@ -1989,8 +2098,17 @@ export function previewTurn(
   sessionId: string,
   pending: PendingInput,
 ): Promise<{ preview: TurnPreview }> {
+  const pictures = pending.attachments ?? [];
   return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/preview`, {
-    ...(pending.text === '' ? {} : { input: { text: pending.text } }),
+    ...(pending.text === '' && pictures.length === 0
+      ? {}
+      : {
+          input: {
+            text: pending.text,
+            ...(pending.kind === undefined ? {} : { kind: pending.kind }),
+            ...(pictures.length === 0 ? {} : { attachments: pictures }),
+          },
+        }),
     ...(pending.guidance === '' ? {} : { guidance: pending.guidance }),
   });
 }
@@ -2051,6 +2169,8 @@ export interface AdminConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
+  /** Which of `models` can see pictures ([25 E15]). */
+  imageModels?: string[];
   baseUrl?: string;
   /**
    * What this endpoint can do, where the install disagrees with the defaults.
@@ -2095,6 +2215,11 @@ export interface ConnectionInput {
   apiKey?: string;
   baseUrl?: string;
   models: string[];
+  /**
+   * Which of `models` can see pictures ([25 E15]). Omitted keeps what is
+   * stored, on the key's terms; the server narrows it to `models` either way.
+   */
+  imageModels?: string[];
   /** Omitted keeps what is stored, on the same terms as the key. */
   capabilities?: ConnectionCapabilities;
 }
@@ -2141,12 +2266,24 @@ export interface UsableConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
+  /** Which of `models` can see pictures ([25 E15]). Absent means none. */
+  imageModels?: string[];
+}
+
+/**
+ * Which role the calls outside a session ask for — today only field assist,
+ * `prose` unless its owner chose otherwise. Server: `providers/task-roles.ts`.
+ */
+export interface TaskRoles {
+  assist: 'prose' | 'fast' | 'reasoning';
 }
 
 /** Everything the role-binding editor needs, from the one request that answers it. */
 export interface MyRoles extends BindingsState {
   roles: RoleRow[];
   connections: UsableConnection[];
+  /** Absent from a server older than the choice, which means `prose`. */
+  tasks?: TaskRoles;
   /**
    * Personal connections on disk that were ignored for want of
    * `privateConnections` — [09 §4.5] wants the user *told* rather than left
@@ -2203,18 +2340,21 @@ export const adminApi = {
    * behaviour the check exists to stop, which is silently reverting whatever
    * somebody changed in the file since the page loaded.
    */
+  // The id is encoded here and in the two below, as the personal twins' always
+  // was (2026-09-27): it is whatever a hand-written file says, and `lab/gpu`
+  // reached another route, or `house#2` a cut-short address, without it.
   updateConnection: (
     id: string,
     input: ConnectionInput & { contentHash: string },
   ): Promise<{ connection: AdminConnection }> =>
-    request('PUT', `/api/admin/connections/${id}`, input),
+    request('PUT', `/api/admin/connections/${encodeURIComponent(id)}`, input),
 
   deleteConnection: (id: string): Promise<undefined> =>
-    request('DELETE', `/api/admin/connections/${id}`),
+    request('DELETE', `/api/admin/connections/${encodeURIComponent(id)}`),
 
   /** How many bindings point at a connection. Counts, never contents ([09 §4.5]). */
   connectionBindings: (id: string): Promise<{ bindings: number }> =>
-    request('GET', `/api/admin/connections/${id}/bindings`),
+    request('GET', `/api/admin/connections/${encodeURIComponent(id)}/bindings`),
 
   /**
    * Asks an endpoint what it offers — an assist, never the path ([P2B §2.6]).

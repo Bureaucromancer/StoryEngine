@@ -6,16 +6,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { uuidv7 } from '@storyengine/shared';
+import { uuidv7, type Preset } from '@storyengine/shared';
 
 import { Accounts } from '../auth/accounts.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 
-import { appendTurnToSession, createSession, type SessionContext } from '../sessions/store.js';
+import {
+  appendTurnToSession,
+  createSession,
+  readSession,
+  writeChannel,
+  type SessionContext,
+} from '../sessions/store.js';
 import type { ChannelEffect, Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
 import { installBuiltIns } from '../mode-loader.js';
-import { DEFAULT_MODE_ID } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, defaultMode } from '../mode-registry.js';
 import { gatherAssemblyInputs } from './gather.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook } from '@storyengine/shared';
@@ -96,6 +102,8 @@ async function aSessionOf(
       parentTurnId: parent,
       createdAt: new Date(Date.UTC(2026, 7, 16, hour)).toISOString(),
       status: 'complete',
+      // A turn of the story: the window counts those (`sessions/depth.ts`).
+      output: { text: `Hour ${String(hour)} passed in the rain.` },
       effects: [clockEffect(id, hour)],
       tape: [],
     };
@@ -126,6 +134,30 @@ describe('the history the collector is given', () => {
     expect(inputs.windowed).toHaveLength(20);
     // The window is the *newest* twenty, not the oldest.
     expect(inputs.windowed.at(-1)?.id).toBe(head);
+    expect(inputs.windowed[0]?.id).toBe(inputs.history[5]?.id);
+  });
+
+  /**
+   * ***Twenty turns of the story, however many edits sit among them***
+   * (2026-09-27). The window was the path's last twenty, and a channel write
+   * or a backdrop choice is on the path with nothing said in it: each one
+   * pushed a turn somebody read out of the prompt.
+   */
+  it('holds the last turns of the story, not the last turns of the path', async () => {
+    const { sessionId } = await aSessionOf(25);
+    for (let edit = 0; edit < 5; edit += 1) {
+      await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'sparse');
+    }
+    const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: head },
+    );
+
+    expect(inputs.history).toHaveLength(30);
+    expect(inputs.windowed).toHaveLength(20);
+    expect(inputs.windowed.every((turn) => turn.output !== undefined)).toBe(true);
     expect(inputs.windowed[0]?.id).toBe(inputs.history[5]?.id);
   });
 });
@@ -274,6 +306,59 @@ describe('what the gather resolves without a job', () => {
     );
 
     expect(inputs.usable).toEqual([]);
+  });
+});
+
+/**
+ * ***A session copied before a block shipped is assembled with it***
+ * (2026-09-27) — `presetOf`, through the gather every turn and every preview
+ * calls. The file on disk is exactly what a session begun on the first alpha
+ * holds: Scene's pack without the summary slot and without pacing levels. Read
+ * as the file said, its story above the window never reached a prompt and its
+ * hooks came with no pacing prose.
+ */
+describe('the pack a session is assembled from', () => {
+  function sceneWithout(blockIds: string[]): Preset {
+    const pack = structuredClone(defaultMode().definition.assembly.defaultPreset);
+    pack.blocks = pack.blocks.filter((block) => !blockIds.includes(block.id));
+    delete pack.pacingLevels;
+    return pack;
+  }
+
+  it('gains what the mode shipped after the session copied its pack', async () => {
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Begun on alpha.1',
+      preset: sceneWithout(['se.summary']),
+    });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: session.id, parentTurnId: null },
+    );
+
+    const shipped = defaultMode().definition.assembly.defaultPreset;
+    expect(inputs.preset.blocks.map((block) => block.id)).toEqual(
+      shipped.blocks.map((block) => block.id),
+    );
+    expect(inputs.preset.pacingLevels).toEqual(shipped.pacingLevels);
+    // Read, never written: the file keeps what it was until somebody edits it.
+    const stored = await readSession(sessions, ACCOUNT, session.id);
+    expect(stored?.preset?.blocks.map((block) => block.id)).not.toContain('se.summary');
+  });
+
+  it('reads a library preset exactly as the session copied it', async () => {
+    const library = { ...sceneWithout(['se.summary']), id: uuidv7(), name: 'Harbour' };
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'On a library pack',
+      preset: library,
+    });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: session.id, parentTurnId: null },
+    );
+
+    expect(inputs.preset).toEqual(library);
   });
 });
 

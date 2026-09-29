@@ -1,13 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { Candidate, StepDefinition } from '@storyengine/sdk';
+import { remedyFor, type ErrorClass, type FailureRemedy } from '@storyengine/shared';
+
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Layout } from '../storage/layout.js';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import { resolveConnections } from '../providers/connections.js';
-import { resolveRole } from '../providers/roles.js';
 import type { ProviderFactory } from '../providers/factory.js';
+import { readTaskRoles } from '../providers/task-roles.js';
+import {
+  CallFailed,
+  Cancelled,
+  performCall,
+  RoleUnresolved,
+  WindowTooSmall,
+} from '../turns/calls.js';
+import { fromModelCall, recordUsage } from '../usage/log.js';
 
 /**
  * ***The field assist contract's server half*** —
@@ -40,7 +51,8 @@ import type { ProviderFactory } from '../providers/factory.js';
  *
  * ***No session, and therefore no preset, no lore and no cast.*** A library
  * object is authored outside any story, so there is no assembly to run: this
- * resolves the account's `prose` role, renders one instruction, and calls.
+ * resolves the role the account chose for assist (`prose` unless it chose
+ * otherwise, `providers/task-roles.ts`), renders one instruction, and calls.
  * *That is a deliberate floor rather than a first draft.* The alternative — an
  * assist that reached for whichever session happened to be open — would make
  * the quality of a library edit depend on a piece of state the author is not
@@ -48,10 +60,26 @@ import type { ProviderFactory } from '../providers/factory.js';
  *
  * ***`prose` rather than `fast`, and [P7.5] is why.*** `resolveRole` has no
  * cross-role fallback: a role nobody bound resolves `unbound` and the call
- * fails. Nothing in this build binds anything but `prose` — no install default,
- * no wizard, no route that would suggest it — so asking for the role this
- * *should* use would mean an assist button that fails on every stock install.
- * The finding is bigger than this file and is recorded at P7.5.
+ * fails. ~~Nothing in this build binds anything but `prose` — no install default,
+ * no wizard, no route that would suggest it —~~ *Corrected 2026-09-27, with
+ * [25 C15](../../../../docs/design/25-open-questions.md): the first-run offer
+ * does bind `fast` and the others, but only on an install whose admin accepted
+ * it.* So asking for the role this *should* use would still mean an assist
+ * button that fails on every install that declined it. The finding is bigger
+ * than this file and is recorded at P7.5.
+ *
+ * ***`prose` by default, and the account's choice since 2026-09-27.*** Until C15
+ * is decided the person chooses which of their roles this asks for
+ * (`providers/task-roles.ts`, set on the same settings pane as the bindings), so
+ * somebody who has bound `fast` to a cheap model can point assist at it without
+ * waiting on a decision about every role at once. The default is the role that
+ * resolves on every install.
+ *
+ * ***What it spent is recorded, and nothing else is.*** The route writes no
+ * object, no provenance and no history ([10 §11.4]: *"They produce no turn
+ * record"*), but the call cost money whether or not the person keeps the
+ * answer, so its figures go to the account's usage log (`usage/log.ts`) — an
+ * assist somebody rejected is the one the provenance would never have seen.
  */
 
 export interface AssistContext {
@@ -59,6 +87,12 @@ export interface AssistContext {
   accounts: Accounts;
   providers: ProviderFactory;
   config: Config;
+  /**
+   * What the last update check learned about this server's internet, read when
+   * an assist fails — the runner's `connectivity` and impersonation's `online`,
+   * for the remedy's one question about the network.
+   */
+  online?: () => boolean | null;
 }
 
 export interface AssistRequest {
@@ -80,7 +114,50 @@ export interface AssistRequest {
 
 export type AssistResult =
   | { ok: true; text: string; model: string; seed: string }
-  | { ok: false; reason: 'not-bound' | 'no-answer' };
+  | { ok: false; reason: 'not-bound' | 'no-answer' | 'window-too-small' | 'cancelled' }
+  /**
+   * The endpoint failed, as a class and a remedy — the same answer a failed
+   * turn and a failed draft give (2026-09-27). The endpoint's own words are
+   * for the log line and go no further.
+   */
+  | {
+      ok: false;
+      reason: 'provider-failed';
+      class: ErrorClass;
+      remedy: FailureRemedy;
+      detail?: string;
+    };
+
+/**
+ * ***A call like every other call*** (2026-09-27).
+ *
+ * The assist asked the provider directly — `provider.generate` with no
+ * `performCall` around it — so it was the one call in the build with no idle
+ * bound, no retry for a busy endpoint, and no classification: a wrong key or a
+ * model server that was down reached the route as an exception and the person
+ * as a bare 500, and a person who closed the editor left the call running,
+ * because the route handed it no signal. Going through `performCall` gives it
+ * [21 §4]'s bound, the ladder and the classes, and the route passes the signal
+ * that ends when the person leaves.
+ *
+ * *A step definition for a call that is not a step*, because that is what
+ * `performCall` takes and every field of it is true here: its role is
+ * `prose`, which the call replaces with the account's choice (below), it
+ * contributes the text a person will
+ * read, and it writes no channel — so its purpose derives to `prose` like a
+ * narration's.
+ */
+const ASSIST_STEP: StepDefinition = {
+  id: 'se.assist.field',
+  stage: 'generate',
+  reads: [],
+  writes: [],
+  contributes: 'messages',
+  callKind: 'assist',
+  when: { when: 'cadence', everyNTurns: 1 },
+  failure: 'abort',
+  role: 'prose',
+};
 
 /**
  * The instruction, assembled from the four things a field assist knows.
@@ -144,26 +221,83 @@ export async function assistField(
   const { usable } = await resolveConnections(context.layout, request.account, {
     privateConnections: held?.capabilities.privateConnections ?? false,
   });
-  const resolution = resolveRole({
-    role: 'prose',
-    bindings: await readBindings(context.layout, request.account),
-    defaults: await readSystemBindings(context.layout),
-    usable,
-  });
-  if (!resolution.ok) return { ok: false, reason: 'not-bound' };
-
-  const provider = context.providers(resolution.connection);
   const text = instruction(request);
-  const result = await provider.generate({
-    modelId: resolution.modelId,
-    // `fromBlocks` is not optional and this is the honest value for it: the
-    // message did not come from a preset's blocks, it came from this file.
-    messages: [{ role: 'user', content: text, fromBlocks: ['se.assist.field'] }],
-    params: { temperature: 0.9, maxTokens: 600 },
-    ...(request.signal === undefined ? {} : { signal: request.signal }),
-  });
+  /**
+   * One candidate, required, and the only one: the message did not come from a
+   * preset's blocks, it came from this file, and a budget that dropped it would
+   * be asking the model nothing.
+   */
+  const ask: Candidate = {
+    id: 'se.assist.field',
+    source: { kind: 'step', stepId: ASSIST_STEP.id },
+    reason: `a draft of the ${request.label} field, asked for by its author`,
+    role: 'user',
+    text,
+    required: true,
+  };
+  /**
+   * ***The role is the account's to choose*** — `task-roles.json`, a stopgap
+   * for [25 C15]. The step says `prose` because that is what it asked for
+   * before anyone could say otherwise; the call asks for whichever role the
+   * person picked in settings.
+   */
+  const { assist: role } = await readTaskRoles(context.layout, request.account);
 
-  const answer = result.text.trim();
+  let answer: string;
+  let model: string;
+  try {
+    const outcome = await performCall(
+      {
+        definition: { ...ASSIST_STEP, role },
+        bindings: await readBindings(context.layout, request.account),
+        defaults: await readSystemBindings(context.layout),
+        usable,
+        providers: context.providers,
+        config: context.config,
+        notFilled: [],
+        signal: request.signal ?? new AbortController().signal,
+        // Nothing is recorded as a turn or a job: an assist writes neither, so
+        // there is no checkpoint for either seam to be about. What it spent is
+        // recorded below, in the usage log.
+        onCallAssembled: () => undefined,
+        onProgress: () => undefined,
+      },
+      { params: { temperature: 0.9, maxTokens: 600 } },
+      [ask],
+    );
+    /**
+     * **Before the empty-answer check, not after it.** A reply with nothing in
+     * it still cost what the provider says it cost, and `no-answer` is the case
+     * a person is most likely to press the button again over.
+     */
+    await recordUsage(
+      context.layout,
+      request.account,
+      fromModelCall(outcome.call, `assist:${request.path}`, { subject: request.subject }),
+    );
+    answer = outcome.text.trim();
+    model = outcome.call.resolved.modelId;
+  } catch (error) {
+    if (error instanceof RoleUnresolved) return { ok: false, reason: 'not-bound' };
+    if (error instanceof WindowTooSmall) return { ok: false, reason: 'window-too-small' };
+    if (error instanceof Cancelled) return { ok: false, reason: 'cancelled' };
+    if (error instanceof CallFailed) {
+      return {
+        ok: false,
+        reason: 'provider-failed',
+        class: error.class,
+        remedy: remedyFor({
+          reason: error.class,
+          endpoint: error.endpoint,
+          stalled: error.stalled,
+          online: context.online?.() ?? null,
+        }),
+        ...(error.detail === undefined ? {} : { detail: error.detail }),
+      };
+    }
+    throw error;
+  }
+
   if (answer === '') return { ok: false, reason: 'no-answer' };
   /**
    * ***The seed is the prompt, not a number***, and [10 §11.2] is why: the
@@ -173,5 +307,5 @@ export async function assistField(
    * reproducibility that a text endpoint cannot answer anyway; the prompt
    * answers the question that was actually asked.
    */
-  return { ok: true, text: answer, model: resolution.modelId, seed: text };
+  return { ok: true, text: answer, model, seed: text };
 }

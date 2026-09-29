@@ -15,6 +15,7 @@ import {
   type HookVerdict,
 } from '../sessions/hooks.js';
 import { channelKey } from '../sessions/channels.js';
+import { storyDepth } from '../sessions/depth.js';
 import type { PooledHook } from '../sessions/types.js';
 
 /**
@@ -270,10 +271,19 @@ export function hookSelector(context: HookSelectorContext): {
         return {};
       }
 
+      /**
+       * ***Counted in story turns*** (`depth.ts`, 2026-09-27). The path's length
+       * counted the dial change that asked for more hooks as a turn of the
+       * story, so turning the dial up moved the cadence it was turning up, and
+       * every HUD edit or backdrop choice after a firing spent a turn of its
+       * cooldown. The firing is found where it sits and measured by the story
+       * turns before it, which is the scale `depth` is on.
+       */
+      const firedIndex = lastFiredAt(path);
       const decision = gate({
         pacing: context.pacing,
-        depth: path.length,
-        firedAt: lastFiredAt(path),
+        depth: storyDepth(path),
+        firedAt: firedIndex === null ? null : storyDepth(path.slice(0, firedIndex)),
         eligible: eligible.length,
         committed: committed.length > 0,
       });
@@ -361,15 +371,21 @@ function lapsed(verdicts: readonly HookVerdict[], path: readonly Turn[]): string
        * The commitment lands as an effect on the turn at `made`, and that turn
        * is not one of them: `PUT /channels/:key` appends a turn carrying the
        * effect and nothing else — no model call, no selector. So the first turn
-       * the selector is asked on is `made + 1`, and by the turn now being judged
-       * it has been asked `path.length - made` times **counting this one**.
+       * the selector can be asked on comes after `made`, and by the turn now
+       * being judged it has been asked once for every story turn since, **and
+       * once for this one**.
+       *
+       * ~~`path.length - made`~~ (2026-09-27): that counted every turn after the
+       * commitment, and a HUD edit, a second commitment or a backdrop choice is
+       * a turn nobody asked the selector on. Two of them spent two of the three
+       * chances, so a commitment could lapse having been weighed once.
        *
        * Patience is three of those. The lapse is therefore what happens when a
        * fourth would be due — which is [06 §6.1]'s *"the selector has already
        * rejected three times"*, and is why the deadline is a lapse rather than a
        * firing: at that point the worst available moment is the one left.
        */
-      const chances = path.length - made;
+      const chances = storyDepth(path.slice(made + 1)) + 1;
       return chances > HOOK_PATIENCE;
     })
     .map((verdict) => verdict.hook.id);
@@ -378,13 +394,13 @@ function lapsed(verdicts: readonly HookVerdict[], path: readonly Turn[]): string
 /** Where on the path a hook's commitment was made, or null if not on it. */
 function committedAt(path: readonly Turn[], hookId: string): number | null {
   let at: number | null = null;
-  path.forEach((turn, depth) => {
+  path.forEach((turn, index) => {
     for (const effect of turn.effects) {
       if (!effect.applied || effect.channelId !== SE_HOOK || effect.scopeKey !== hookId) continue;
       // The *most recent* write wins, whatever it was: a commitment re-made
       // after a lapse restarts its patience, which is the only reading under
       // which committing something twice means anything.
-      at = effect.after === 'committed' ? depth : null;
+      at = effect.after === 'committed' ? index : null;
     }
   });
   return at;
@@ -406,7 +422,11 @@ function without(
 }
 
 /**
- * How deep on the path the most recent firing sits, or null.
+ * Where on the path the most recent firing sits, as an index, or null.
+ *
+ * *An index and not a depth*: the gate measures in story turns, and converts
+ * this at its one call site rather than here, so the question *which turn* and
+ * the question *how far into the story* stay two questions.
  *
  * **Derived rather than stored**, which is what makes the cooldown branch: a
  * rewind past the firing walks a path that does not contain it, and the
@@ -421,10 +441,10 @@ function without(
  */
 export function lastFiredAt(path: readonly Turn[]): number | null {
   let at: number | null = null;
-  path.forEach((turn, depth) => {
+  path.forEach((turn, index) => {
     for (const effect of turn.effects) {
       if (!effect.applied || effect.channelId !== SE_HOOK) continue;
-      if (effect.after === 'fired' || effect.after === 'provisional') at = depth;
+      if (effect.after === 'fired' || effect.after === 'provisional') at = index;
     }
   });
   return at;

@@ -58,8 +58,16 @@ async function populate(): Promise<void> {
   await writeFile(join(tree, 'build-info.json'), '{"version":"1.0.0"}');
 
   await writeFile(join(extras, 'storyengine.service'), '[Unit]\n');
+  /**
+   * ***The packing filesystem's modes, deliberately wrong both ways.*** The
+   * installer carries no executable bit — what a Windows checkout, a
+   * `core.fileMode=false` clone or a source zip gives — and an ordinary file
+   * carries one. The archive has to come out the same regardless, because the
+   * mode is declared by name in `pack-tarball.mjs` rather than read off disk.
+   */
   await writeFile(join(extras, 'install.sh'), '#!/bin/sh\n');
-  await chmod(join(extras, 'install.sh'), 0o755);
+  await chmod(join(extras, 'install.sh'), 0o644);
+  await chmod(join(tree, 'dist', 'main.js'), 0o755);
 }
 
 /** Member names and modes, read back out of the archive. */

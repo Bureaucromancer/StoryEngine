@@ -7,7 +7,7 @@ import { channelKey, SE_LORE_TIMING, SE_CLOCK } from '../sessions/channels.js';
 import type { StepDefinition, StepInput, StepResult } from '@storyengine/sdk';
 import type { Turn } from '@storyengine/shared';
 
-import { callPurposeFor, evaluateCondition, filterReads } from './steps.js';
+import { callPurposeFor, evaluateCondition, filterReads, transcriptOf } from './steps.js';
 
 /**
  * When a step runs, and what it is handed — [06 §6], [22 §3.1].
@@ -448,3 +448,35 @@ function historyTurn(): Turn {
     ],
   };
 }
+
+/**
+ * ***The transcript is the story's turns*** (2026-09-27). A channel write, an
+ * undo or a backdrop choice is on the path with nothing said in it, and it took
+ * a place in the summary chain's stretches beside the window, which counts the
+ * same list (`gather.ts`).
+ */
+describe('the transcript a step reads', () => {
+  function turnOf(id: string, over: Partial<Turn> = {}): Turn {
+    return {
+      id,
+      sessionId: 's',
+      parentTurnId: null,
+      createdAt: '2026-09-27T00:00:00.000Z',
+      status: 'complete',
+      effects: [],
+      tape: [],
+      ...over,
+    };
+  }
+
+  it('holds the turns of the story and not what the path holds between them', () => {
+    const path = [
+      turnOf('said', { input: { actorId: null, kind: 'do', text: 'Go.', raw: 'Go.' } }),
+      turnOf('an edit'),
+      turnOf('told', { output: { text: 'Rain.' } }),
+      turnOf('set up', { steps: [] }),
+    ];
+
+    expect(transcriptOf(path).map((turn) => turn.turnId)).toEqual(['said', 'told', 'set up']);
+  });
+});

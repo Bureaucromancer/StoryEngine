@@ -14,7 +14,7 @@ import {
   type Treatment,
 } from '@storyengine/shared';
 
-import { claimId, stableId } from '../identity.js';
+import { distinctIds, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 import { isRecord, isVaultScenario, note, strings, text } from './shapes.js';
@@ -229,17 +229,8 @@ function asLorebook(
    * applies and a character who comes up when named — and it is what a person
    * would have typed. It is still the argument for Treatment being the default.
    */
-  // One `taken` for the whole book, the setting first: an npc called *setting*
-  // derived the setting's own id, and two npcs of one name derived each other's.
-  const taken = new Set<string>();
   const setting = newLoreEntry(name);
-  setting.id = claimId(
-    taken,
-    stableId('aventuras-entry', name, 'setting'),
-    'aventuras-entry-repeat',
-    name,
-    'setting',
-  ).id;
+  setting.id = stableId('aventuras-entry', name, 'setting');
   setting.content = settingSeed;
   setting.description = text(scenario['description']);
   setting.constant = true;
@@ -250,13 +241,7 @@ function asLorebook(
     setting,
     ...npcs.map((npc) => {
       const entry = newLoreEntry(npc.name);
-      entry.id = claimId(
-        taken,
-        stableId('aventuras-entry', name, npc.name),
-        'aventuras-entry-repeat',
-        name,
-        npc.name,
-      ).id;
+      entry.id = stableId('aventuras-entry', name, npc.name);
       entry.content = entryBody(npc);
       entry.keys = [npc.name];
       entry.selective = false;
@@ -265,6 +250,8 @@ function asLorebook(
     }),
   ];
 
+  // An NPC called *setting*, or two of one name, would share an id otherwise.
+  distinctIds(lorebook.entries, 'aventuras-entry', name);
   notes.push(note('import.aventuras.scenarioAsLorebook', { entries: lorebook.entries.length }));
   if (openings.length > 0) {
     // A Lorebook has no `openings`, so this is a real loss and gets the level

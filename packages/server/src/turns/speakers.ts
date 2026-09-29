@@ -44,7 +44,9 @@ export interface SpeakerInputs {
   /** The prose the scene last produced, which is what `natural` reads. */
   lastProse?: string | undefined;
   /**
-   * How many turns are on the path to this node — `list`'s rotation.
+   * How many story turns are on the path to this node — `list`'s rotation.
+   * Story turns because a HUD edit is on the path too, and a rotation that
+   * counted it skipped whoever's turn it was (`sessions/depth.ts`).
    *
    * **A length, not an ordinal, and [07 §3] is why the difference matters.**
    * That section refuses `(branch, index)` addressing because *"a turn's

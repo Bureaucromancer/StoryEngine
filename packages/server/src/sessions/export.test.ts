@@ -47,16 +47,10 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true });
 });
 
-/**
- * A turn, with only what the caller says. Everything else stays absent — except
- * the session it names, which `appendTurnOnly` checks against the session it is
- * appended to ([P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md)):
- * a turn naming another session is filed under it by the index.
- */
-function turn(
-  over: Partial<Turn> & { id: string; parentTurnId: string | null; sessionId: string },
-): Turn {
+/** A turn, with only what the caller says. Everything else stays absent. */
+function turn(over: Partial<Turn> & { id: string; parentTurnId: string | null }): Turn {
   return {
+    sessionId: 'unset',
     createdAt: new Date().toISOString(),
     status: 'complete',
     ...over,
@@ -73,28 +67,13 @@ describe('a session, exported whole', () => {
   it('carries every sibling, not the path', async () => {
     const session = await createSession(sessions, 'ned', { name: 'Rain City' });
     const root = uuidv7();
-    await appendTurnOnly(
-      sessions,
-      'ned',
-      session.id,
-      turn({ sessionId: session.id, id: root, parentTurnId: null }),
-    );
+    await appendTurnOnly(sessions, 'ned', session.id, turn({ id: root, parentTurnId: null }));
 
     // Two children of one parent: the head's line, and the one that was left.
     const taken = uuidv7();
     const left = uuidv7();
-    await appendTurnOnly(
-      sessions,
-      'ned',
-      session.id,
-      turn({ sessionId: session.id, id: taken, parentTurnId: root }),
-    );
-    await appendTurnOnly(
-      sessions,
-      'ned',
-      session.id,
-      turn({ sessionId: session.id, id: left, parentTurnId: root }),
-    );
+    await appendTurnOnly(sessions, 'ned', session.id, turn({ id: taken, parentTurnId: root }));
+    await appendTurnOnly(sessions, 'ned', session.id, turn({ id: left, parentTurnId: root }));
 
     const exported = await exportSession({ sessions, build: null }, 'ned', session.id);
 
@@ -118,7 +97,7 @@ describe('a session, exported whole', () => {
       sessions,
       'ned',
       session.id,
-      turn({ sessionId: session.id, id: bare, parentTurnId: null, effects: [], tape: [] }),
+      turn({ id: bare, parentTurnId: null, effects: [], tape: [] }),
     );
 
     const exported = await exportSession({ sessions, build: null }, 'ned', session.id);
@@ -145,7 +124,6 @@ describe('a session, exported whole', () => {
       'ned',
       session.id,
       turn({
-        sessionId: session.id,
         id: imported,
         parentTurnId: null,
         foreign: { source: 'some-app-nobody-here-has-heard-of', id: 'msg-42' },
@@ -175,7 +153,7 @@ describe('a session, exported whole', () => {
         sessions,
         'ned',
         session.id,
-        turn({ sessionId: session.id, id: uuidv7(), parentTurnId: parent }),
+        turn({ id: uuidv7(), parentTurnId: parent }),
       );
     }
 

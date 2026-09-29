@@ -139,6 +139,44 @@ describe('the default preset is a real portable object', () => {
     expect(user[0]?.kind === 'slot' && user[0].source.of).toBe('input');
   });
 
+  /**
+   * ***The narrator's instruction is a narration's*** (2026-09-27). It applied
+   * to every kind of call, and an impersonation asks for exactly what it
+   * forbids — the player's own words.
+   */
+  it('keeps the narrator instruction to narration', () => {
+    const instruction = SCENE_PRESET.blocks.find((block) => block.id === 'se.instruction');
+    expect(instruction?.appliesTo).toEqual(['narrate']);
+  });
+
+  /**
+   * ***Whose block is whose*** (2026-09-27). Bare, the persona's and the actor
+   * blocks reached the model as bodies with nothing to say who they were
+   * about. Each now names its subject, and keeps the one placeholder the
+   * content goes in.
+   */
+  it('names who each persona and actor block is about', () => {
+    const named = SCENE_PRESET.blocks.filter(
+      (block) =>
+        block.kind === 'slot' && (block.source.of === 'persona' || block.source.of === 'actor'),
+    );
+
+    expect(named.map((block) => block.id)).toEqual([
+      'se.persona',
+      'se.actor.summary',
+      'se.actor.appearance',
+      'se.actor.voice',
+      'se.actor.traits',
+      'se.actor.background',
+    ]);
+    for (const block of named) {
+      if (block.kind !== 'slot') continue;
+      const who = block.source.of === 'persona' ? '{{ user }}' : '{{ char }}';
+      expect(block.wrapper, block.id).toContain(who);
+      expect(block.wrapper, block.id).toContain('{{content}}');
+    }
+  });
+
   it('is deterministic, so a golden snapshot over it means something', () => {
     // `newPreset()` would mint a fresh uuid and stamp `now()` per process.
     expect(SCENE_PRESET.id).toBe('0199c000-0000-7000-8000-00000000e5e7');

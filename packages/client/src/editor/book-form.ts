@@ -103,24 +103,38 @@ export function withEntry(book: Draft, id: string, patch: Partial<LoreEntry>): D
  */
 export function withNewEntry(book: Draft, name: string): { book: Draft; id: string } {
   const entry = newLoreEntry(name);
-  return { book: { ...book, entries: [...entriesOf(book), entry] }, id: entry.id };
+  return { book: withAddedEntry(book, entry), id: entry.id };
 }
 
 /**
- * The book without that entry — **the first with that id, and only it**.
+ * ***The book with an entry the caller already made, at the end*** (2026-09-27).
  *
- * `withEntry`'s defence, extended to the two writes that lacked it
- * ([P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md)).
- * Ids are not unique in practice, and this used to remove every entry with the
- * id: deleting one of two twins deleted both, on save, and the second had never
- * been on screen — the selection resolves an id to its first match, so the form
- * the person confirmed the removal from was showing the first. Removing the
- * first removes exactly what they were looking at.
+ * `withNewEntry` mints the entry and appends it in one call, which is right
+ * everywhere the book is at hand. It is wrong inside a state updater, and that
+ * is where the editor now writes from: React runs an updater twice under
+ * StrictMode, so an entry minted inside one is a *different* entry the second
+ * time — and the id the page goes on to select is the one that was thrown
+ * away. So the page mints outside, with `newLoreEntry`, and appends here, which
+ * is a function of its arguments and nothing else.
+ */
+export function withAddedEntry(book: Draft, entry: LoreEntry): Draft {
+  return { ...book, entries: [...entriesOf(book), entry] };
+}
+
+/**
+ * The book without that entry — ***the first with the id, not every one***
+ * (2026-09-27).
+ *
+ * The rule `withEntry` states for an edit, which a removal had not been given:
+ * two entries can share an id (an importer derives it from the name and the
+ * text, so two that agree on both collide), and *Remove this entry* took both —
+ * one entry on screen, two gone from the file. The first is the one the editor
+ * shows under that id, so it is the one the person was looking at.
  */
 export function withoutEntry(book: Draft, id: string): Draft {
   const entries = entriesOf(book);
   const at = entries.findIndex((entry) => entry.id === id);
-  if (at < 0) return book;
+  if (at === -1) return book;
   return { ...book, entries: [...entries.slice(0, at), ...entries.slice(at + 1)] };
 }
 
@@ -168,21 +182,19 @@ export function bookChanges(base: Draft, draft: Draft): boolean {
  * change test stays false and a drag that landed where it started does not
  * light up Save. That covers dropping a row on itself without a guard of its
  * own: the entry is taken out before the target is looked for, so its own id is
- * never found. A separate check read as a guard and could not fail, which a
+ * never found — ~~ever~~ *unless it has a twin* (2026-09-27), whose id is the
+ * same and is found, and landing before the twin is a real move. A separate check read as a guard and could not fail, which a
  * mutation pass is how you find out.
  */
 export function moveEntryBefore(book: Draft, id: string, beforeId: string | null): Draft {
   const entries = entriesOf(book);
-  const from = entries.findIndex((entry) => entry.id === id);
-  const moving = entries[from];
+  const moving = entries.find((entry) => entry.id === id);
   if (moving === undefined) return book;
 
-  /**
-   * ***Only the first entry with the id comes out*** — [P13 §0.5]. Filtering by
-   * id took every twin out and put one back, so dragging one of two entries
-   * sharing an id silently deleted the other on save.
-   */
-  const rest = [...entries.slice(0, from), ...entries.slice(from + 1)];
+  // The entry being moved and no other — by identity, as `moveHook` does. By id
+  // it took every entry sharing the id out and put one back, so nudging one of
+  // two twins deleted the other (2026-09-27).
+  const rest = entries.filter((entry) => entry !== moving);
   const at = beforeId === null ? rest.length : rest.findIndex((entry) => entry.id === beforeId);
   /**
    * A target that does not resolve leaves the book alone rather than appending.
@@ -191,48 +203,56 @@ export function moveEntryBefore(book: Draft, id: string, beforeId: string | null
    * end of a two-hundred-entry book.
    */
   if (at < 0) return book;
+  if (entries[at] === moving) return book;
 
-  const moved = [...rest.slice(0, at), moving, ...rest.slice(at)];
-  // Judged on the whole order: with twins, the entry at the landing index is no
-  // longer enough to say the book did not change.
-  if (moved.every((entry, index) => entry === entries[index])) return book;
-  return { ...book, entries: moved };
+  return { ...book, entries: [...rest.slice(0, at), moving, ...rest.slice(at)] };
 }
 
 /**
- * Whether I moved anything, judged on the entries this draft and its pristine
- * copy both hold.
+ * Whether I moved anything, judged on the items my list and its pristine copy
+ * both hold.
  *
- * Restricted to the shared ids on purpose: an entry I added or deleted changes
+ * Restricted to the shared ids on purpose: an item I added or deleted changes
  * the sequence without being a *reorder*, and treating that as one would make
  * every ordinary edit claim a position the merge then has to honour.
+ *
+ * *Over any list of things with ids* (2026-09-27), because the preset's blocks
+ * reorder too and their 412 merge threw a reorder away without a word — the
+ * question is the same one, so the lorebook's answer is shared rather than
+ * copied.
  */
-function reorderedByMe(pristine: Draft, draft: Draft): boolean {
-  const mine = entriesOf(draft).map((entry) => entry.id);
-  const before = entriesOf(pristine).map((entry) => entry.id);
-  const held = new Set(mine);
+export function reorderedIn(
+  pristine: readonly { id: string }[],
+  mine: readonly { id: string }[],
+): boolean {
+  const ids = mine.map((one) => one.id);
+  const before = pristine.map((one) => one.id);
+  const held = new Set(ids);
   const was = new Set(before);
   return (
     JSON.stringify(before.filter((id) => held.has(id))) !==
-    JSON.stringify(mine.filter((id) => was.has(id)))
+    JSON.stringify(ids.filter((id) => was.has(id)))
   );
 }
 
 /**
- * The merged entries in the order my draft has them, with anything only they
- * have kept at the end.
+ * The merged items in the order my list has them, with anything only they have
+ * kept at the end.
  *
  * The mirror of the loss the ordinary case takes: their concurrent insertion
  * loses its position instead of my reordering losing all of them. It is the
  * cheaper loss in this direction for the same reason it was in the other — one
- * entry's position against an author's whole arrangement.
+ * item's position against an author's whole arrangement.
  */
-function inMyOrder(merged: LoreEntry[], draft: Draft): LoreEntry[] {
-  const rank = new Map(entriesOf(draft).map((entry, at) => [entry.id, at] as const));
+export function inOrderOf<T extends { id: string }>(
+  merged: T[],
+  mine: readonly { id: string }[],
+): T[] {
+  const rank = new Map(mine.map((one, at) => [one.id, at] as const));
   const known = merged
-    .filter((entry) => rank.has(entry.id))
+    .filter((one) => rank.has(one.id))
     .sort((left, right) => (rank.get(left.id) ?? 0) - (rank.get(right.id) ?? 0));
-  return [...known, ...merged.filter((entry) => !rank.has(entry.id))];
+  return [...known, ...merged.filter((one) => !rank.has(one.id))];
 }
 
 /**
@@ -307,7 +327,9 @@ export function reapplyBookEdits(pristine: Draft, draft: Draft, fresh: Draft): D
 
   const book: Draft = {
     ...withMyBookFields(pristine, draft, fresh),
-    entries: reorderedByMe(pristine, draft) ? inMyOrder(merged, draft) : merged,
+    entries: reorderedIn(entriesOf(pristine), entriesOf(draft))
+      ? inOrderOf(merged, entriesOf(draft))
+      : merged,
     folders: mergedFolders(pristine, draft, fresh),
   };
 
@@ -366,7 +388,7 @@ function keepsHooksKey(pristine: Draft, draft: Draft, fresh: Draft): boolean {
  * concurrent insertion is not shuffled to the end of somebody else's list and an
  * item rescued from their delete loses its position, which is the cheaper of the
  * two losses. *A caller that also has to keep **my** ordering does that on the
- * result* — `reapplyBookEdits` does, through `inMyOrder`, because the entry list
+ * result* — `reapplyBookEdits` does, through `inOrderOf`, because the entry list
  * can reorder and a hook list's order is for the person reading it.
  *
  * **One walk rather than two**, which is this repository's own threshold

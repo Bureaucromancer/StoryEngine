@@ -67,18 +67,22 @@ import type { DatabaseSync } from 'node:sqlite';
  * to save the object for an unrelated reason. The index is derived and
  * disposable by design, so one rescan is the whole cost.
  *
- * **10 is the same kind of bump, for the turn rows** —
- * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md). A rebuild
- * used to file each turn under the session named *inside* it, so a copy made by
- * the P11.10 importer — the original's turns, ids and `sessionId` and all, in a
- * second folder — overwrote the original's rows with locations in the wrong
- * file, in whatever order `readdir` returned the two. The rule is now the
- * folder's: a turn is indexed where it lives only if it says it lives there
- * (`rebuild.ts`). No table changed; the bump is what makes an install that
- * already holds such a copy rebuild once under the new rule rather than keep
- * the rows the old one wrote.
+ * **10 adds `session_stamp`** (2026-09-27), which the start-up consistency
+ * check reads ([03 §5.1]). A new table, and 6's argument applies to it: an
+ * index left at 9 would have no such table, and the check's first query would
+ * fail every start. It also means 9's paragraph above is now half true — a file
+ * that changed while the server was stopped *is* re-read at the next start —
+ * and still true of what it was about: a change in what is derived from files
+ * that have not changed needs a bump, because nothing re-reads an unchanged
+ * file.
+ *
+ * **11 is 9's shape again** (2026-09-27): no table changed, and what a turn's
+ * search text holds did. A move's pictures were indexed as the stand-ins a model
+ * reads (*[Picture, not described]*) and are now indexed as their captions
+ * only ([25 E15]), because search is read by a person. Turns written before
+ * pictures index exactly as they did; the bump is for the ones written since.
  */
-export const INDEX_SCHEMA_VERSION = 10;
+export const INDEX_SCHEMA_VERSION = 11;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -223,6 +227,31 @@ create table session (
 
 create index session_by_owner on session(owner, updated_at);
 
+-- ── What the last look at a session saw ──────────────────────────────────────
+--
+-- [03 §5.1]'s start-up consistency check compares *mtime/size against recorded
+-- values*, and an object row has always carried both. A session had nothing to
+-- compare: its rows are derived from \`session.json\` and every segment, and none
+-- of them recorded what those files looked like. This is that record — one
+-- digest over the files' sizes and times, and the account whose folder held
+-- them — written by the rebuild and by the check, and **deliberately not by the
+-- writes the server makes while it runs**. So it says *what the files were when
+-- the rows were last derived whole*, and any change since, the server's own
+-- included, is a session the next start derives again. A crash between a write
+-- and its index update is one such change, and the case the check exists for.
+-- The cost is a derivation in proportion to what was played since the last
+-- start; keeping the stamp current instead would have put a stat beside every
+-- index write the store makes, to save work only at start-up.
+--
+-- Bookkeeping about the files rather than a fact derived from them, so the
+-- rebuild-equals-incremental gate does not compare it: a running server's
+-- writes leave it behind by design.
+create table session_stamp (
+  session_id  text primary key,
+  owner       text not null,
+  stamp       text not null
+) strict;
+
 -- ── Turn text ────────────────────────────────────────────────────────────────
 --
 -- [19 §7.1](../../../../docs/design/19-tech-stack.md) makes three requirements that are
@@ -337,6 +366,7 @@ function dropAll(db: DatabaseSync): void {
     'drop table if exists turn_fts',
     'drop table if exists turn',
     'drop table if exists session',
+    'drop table if exists session_stamp',
     'drop table if exists file_error',
     'drop table if exists object_link',
   ]) {
@@ -345,7 +375,10 @@ function dropAll(db: DatabaseSync): void {
 }
 
 export interface MigrationResult {
-  /** The version found on disk before anything was done. 0 for a fresh file. */
+  /**
+   * The version found on disk before anything was done. 0 for a fresh file, and
+   * for one whose rebuild never finished ({@link PENDING_VERSION}).
+   */
   from: number;
   to: number;
   /**
@@ -366,7 +399,44 @@ export function migrate(db: DatabaseSync): MigrationResult {
 
   dropAll(db);
   db.exec(SCHEMA);
-  writeVersion(db, INDEX_SCHEMA_VERSION);
+  /**
+   * ***Created, and not yet derived*** (2026-09-27).
+   *
+   * This wrote the current version here, before a single row existed, and the
+   * rebuild that fills the tables runs later and elsewhere. So a first start
+   * that died partway through its scan — killed by the stop timeout during a
+   * long first scan, or one unreadable file throwing out of it — came back
+   * with a version that said *current* over a fraction of the library. Nothing
+   * rebuilds a current index, so it stayed that way: objects missing from
+   * lists, search and retrieval, until somebody deleted the file by hand.
+   *
+   * The version now says what the file holds. {@link PENDING_VERSION} until a
+   * rebuild has run to the end ({@link markRebuilt}), and a file opened at
+   * that version is dropped and rebuilt again, which is exactly the retry the
+   * interrupted scan needed.
+   */
+  writeVersion(db, PENDING_VERSION);
 
   return { from, to: INDEX_SCHEMA_VERSION, rebuildRequired: true };
+}
+
+/**
+ * The version a file holds while its tables exist and their contents have not
+ * been derived: a fresh file's own `user_version`, so that a file nobody ever
+ * finished and a file nobody ever made are the same case.
+ */
+export const PENDING_VERSION = 0;
+
+/**
+ * Marks the contents as not derived, before anything is emptied — `rebuild`'s
+ * first act, so a rebuild asked for by `index.rebuildOnStart` and killed
+ * halfway is retried too, rather than leaving the half it got through.
+ */
+export function markRebuildPending(db: DatabaseSync): void {
+  writeVersion(db, PENDING_VERSION);
+}
+
+/** Marks the contents as derived from the disk — `rebuild`'s last act. */
+export function markRebuilt(db: DatabaseSync): void {
+  writeVersion(db, INDEX_SCHEMA_VERSION);
 }

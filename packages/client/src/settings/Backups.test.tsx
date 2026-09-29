@@ -50,6 +50,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
+const { ApiError } = await import('../api.js');
 const { Backups } = await import('./Backups.js');
 
 const ONE = {
@@ -168,12 +169,28 @@ describe('Backups', () => {
     });
   });
 
+  /**
+   * ~~Rejected with `new Error('no space left on device')`~~ — which the client
+   * can never receive: `request()` throws an `ApiError`, and a full disk was
+   * the server's bare 500 until the take route learned to say `no-space`. The
+   * test was green over a branch that could not run (2026-09-27). It is the
+   * route's own refusal now, in other words than the route uses today — the
+   * class is what is read, so a reworded sentence must not move this one.
+   */
   it('reports a failed backup without claiming it happened', async () => {
-    takeMine.mockRejectedValue(new Error('no space left on device'));
+    takeMine.mockRejectedValue(new ApiError(507, 'no-space', 'The disk is full.'));
     renderPanel();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Back up now' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(screen.getByText(/not enough room on the disk/)).toBeTruthy();
+    expect(screen.getByText('There was not enough room on the disk for that backup.')).toBeTruthy();
+  });
+
+  it('does not blame the disk for a failure that did not say so', async () => {
+    takeMine.mockRejectedValue(new ApiError(500, 'internal', 'The request failed.'));
+    renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Back up now' }));
+    expect(await screen.findByText('That backup could not be taken.')).toBeTruthy();
   });
 });

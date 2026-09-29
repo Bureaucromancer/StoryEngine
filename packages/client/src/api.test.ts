@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  adminApi,
   api,
   ApiError,
   cookieValue,
@@ -74,6 +75,24 @@ describe('the 412 parse', () => {
     // caller would then present as if it meant something.
     const failure = await api.readObject('actors', 'a1').catch((error: unknown) => error);
     expect((failure as ApiError).contentHash).toBeUndefined();
+  });
+
+  /**
+   * ***The remedy a provider failure comes with*** (2026-09-27). A draft the
+   * endpoint refused answers with the remedy a failed turn gets, and the play
+   * surface words it; lifted here so no caller reads the body for it.
+   */
+  it('carries `remedy`, and leaves it unset when the route sent none', async () => {
+    answer(
+      502,
+      JSON.stringify({ error: 'provider-failed', message: 'no', remedy: 'endpoint-refused' }),
+    );
+    const refused = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((refused as ApiError).remedy).toBe('endpoint-refused');
+
+    answer(500, JSON.stringify({ error: 'internal', message: 'no' }));
+    const plain = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((plain as ApiError).remedy).toBeUndefined();
   });
 
   it('survives a body that is not JSON at all', async () => {
@@ -239,6 +258,83 @@ describe('the session write bodies', () => {
     // Both, always: the route replaces rather than merges, so a caller that
     // sent one field would silently clear the other.
     expect(seen[0]?.body).toEqual({ treatment: null, lore: ['book-rain'] });
+  });
+
+  /**
+   * ***A cast given whole goes on the wire whole*** (2026-09-27). The assistant
+   * panel passes the shipped card as its session's one actor, and the field
+   * was declared on the input and read by nothing — every assistant session was
+   * made with nobody in it.
+   */
+  it('sends a cast given whole, actors and all', async () => {
+    const seen = capture();
+
+    await createSession({
+      mode: 'storyengine.assistant',
+      cast: { persona: null, actors: ['the-card'] },
+    });
+
+    expect(seen[0]?.body).toEqual({
+      mode: 'storyengine.assistant',
+      cast: { persona: null, actors: ['the-card'] },
+    });
+  });
+});
+
+/**
+ * ***An id is escaped wherever it is a path segment*** (2026-09-27). The admin
+ * connection calls put it in raw, where their personal twins encoded it; an id
+ * is whatever a hand-written file says, and `lab/gpu` reached a different
+ * route. The three import and asset calls beside them had the same omission.
+ */
+describe('ids in addresses', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function urls(): string[] {
+    const seen: string[] = [];
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', (url: string) => {
+      seen.push(url);
+      return Promise.resolve(
+        new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      );
+    });
+    return seen;
+  }
+
+  it('escapes a system connection id in every call that names one', async () => {
+    const seen = urls();
+
+    await adminApi.updateConnection('lab/gpu', {
+      label: 'GPU',
+      provider: 'openai-compatible',
+      models: [],
+      contentHash: 'sha256:x',
+    });
+    await adminApi.deleteConnection('../escape');
+    await adminApi.connectionBindings('house#2');
+
+    expect(seen).toEqual([
+      '/api/admin/connections/lab%2Fgpu',
+      '/api/admin/connections/..%2Fescape',
+      '/api/admin/connections/house%232/bindings',
+    ]);
+  });
+
+  it('escapes the ids in the import and picture calls', async () => {
+    const seen = urls();
+
+    await api.importJob('a/b');
+    await api.objectImportNotes('c#d');
+    await api.uploadAsset('lorebooks', 'e?f', new Blob(['x']), 'x.png');
+
+    expect(seen).toEqual([
+      '/api/import/jobs/a%2Fb',
+      '/api/import/objects/c%23d/notes',
+      '/api/library/lorebooks/e%3Ff/assets',
+    ]);
   });
 });
 

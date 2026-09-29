@@ -48,6 +48,13 @@ const UNMEASURABLE: Record<UnmeasurableReason, string> = labels('workbench.unmea
    * different remedy: this one resolves itself by taking a turn.
    */
   'not-this-turn': 'This turn will not narrate, so there is no prompt to assemble.',
+  /**
+   * *A window that holds nothing beside the reply* (2026-09-27): the turn is
+   * refused rather than sent with every block dropped, and the panel says so
+   * with the remedy, which is a setting.
+   */
+  'window-too-small':
+    'The model’s context window is no larger than the room kept for its reply, so nothing would fit. Raise the context window in the connection, or lower the reply length.',
 });
 
 export function PreviewSubject({

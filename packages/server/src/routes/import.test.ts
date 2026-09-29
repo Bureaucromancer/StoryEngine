@@ -53,7 +53,7 @@ afterEach(async () => {
 
 const PRESET = {
   prompts: [{ identifier: 'main', name: 'Main', role: 'system', content: 'You are {{char}}.' }],
-  prompt_order: [{ character_id: 100000, order: [{ identifier: 'main', enabled: true }] }],
+  prompt_order: [{ character_id: 100001, order: [{ identifier: 'main', enabled: true }] }],
   temperature: 0.9,
   proxy_password: 'this must never reach disk',
 };

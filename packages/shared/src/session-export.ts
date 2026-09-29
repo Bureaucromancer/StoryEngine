@@ -76,17 +76,6 @@ export interface SessionExport {
    * is the parent links and nothing else — [07 §3] — so a reader reconstructs
    * it rather than being handed a walk, and **no sibling can be lost by the
    * serialiser choosing a path**.
-   *
-   * ***The ids inside a document are references local to it***, not addresses
-   * a reader keeps — [P13.0](../../../docs/design/workplan/30-p13-aventuras-import.md).
-   * An importer re-mints every turn id and rewrites every reference to one,
-   * because the install reading it may already hold turns with those ids (it
-   * wrote them, if the file is its own export). The identity that travels is
-   * `foreign.id`. *No field changed and the schema is still `/1`*: this is how
-   * the format is read, and a producer may use any unique strings as turn ids
-   * — though only uuid-shaped ones are found by value outside the tree's own
-   * fields, so a producer that wants a turn id honoured in an effect or a
-   * channel value should mint uuids.
    */
   turns: Turn[];
   /**

@@ -349,7 +349,7 @@ function SimpleEditor(props: {
         label="Name"
         value={nameOf(draft)}
         onChange={(name) => {
-          editor.patch({ ...draft, name });
+          editor.patch((current) => ({ ...current, name }));
         }}
         required={isRequiredField(props.kind.kind, 'name')}
         error={missing.includes('name') ? props.kind.nameRefusal : null}
@@ -364,8 +364,12 @@ function SimpleEditor(props: {
         // for and prints it as JSON, and once by the list below that does.
         handled={props.kind.hooks === undefined ? ['name'] : ['name', 'hooks']}
         {...(props.kind.readOnly === undefined ? {} : { readOnly: props.kind.readOnly })}
+        // An updater, and so is every write on this page: an assist's result
+        // lands tens of seconds after its click, and a whole form built from
+        // this render would revert whatever was typed meanwhile. `patch` in
+        // `object-editor.ts` has the argument.
         onChange={(key, next) => {
-          editor.patch({ ...draft, [key]: next });
+          editor.patch((current) => ({ ...current, [key]: next }));
         }}
       />
 
@@ -379,8 +383,8 @@ function SimpleEditor(props: {
       {props.kind.hooks === undefined ? null : (
         <HookList
           hooks={hooksOf(draft)}
-          onChange={(next) => {
-            editor.patch(withHooks(draft, next));
+          onChange={(update) => {
+            editor.patch((current) => withHooks(current, update(hooksOf(current))));
           }}
           {...(props.kind.hookNote === undefined ? {} : { note: props.kind.hookNote })}
         />

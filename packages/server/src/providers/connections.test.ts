@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -17,6 +17,7 @@ import {
   presentForAdmin,
   readSystemConnectionEntries,
   resolveConnections,
+  seesImages,
   writeConnection,
 } from './connections.js';
 import { bindingsFile, readBindings, readSystemBindings } from './bindings.js';
@@ -896,5 +897,128 @@ describe('an edit that mentions no capabilities', () => {
 
     const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
     expect(usable[0]?.capabilities).toEqual({ maxContextTokens: 8192 });
+  });
+});
+
+/**
+ * ***Which models see pictures survives an edit on the same terms, and is
+ * narrowed to the models being written*** — [25 E15], R1.
+ *
+ * `imageModels` sits beside `models` rather than inside `capabilities`, and the
+ * reason is this describe block: the form writes `models` fresh on every save
+ * and keeps what it does not send, so a list inside `capabilities` would go on
+ * naming models the connection no longer has. Two rules, then, and each has a
+ * failure that looks like nothing at all until a picture is attached:
+ *
+ * - **absent means keep**, the capabilities' rule and the key's. A form that
+ *   predates the field sends none, and a write that took the input alone
+ *   would quietly turn every vision model on the connection into one that
+ *   does not see the moment somebody renamed it;
+ * - **the list is always a subset of `models`**. A model removed from the
+ *   connection cannot stay marked as one that sees: nothing resolves to it, and
+ *   a list that kept it would be a claim about nothing — until a model of the
+ *   same name came back with different eyes.
+ */
+describe('an edit that mentions no image models', () => {
+  const SEEING = { ...HOUSE, imageModels: ['gpt-hi'] };
+
+  it('keeps the list on disk, the same way it keeps the capabilities', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, SEEING);
+
+    await writeConnection(layout, layout.systemConnectionsRoot, {
+      id: HOUSE.id,
+      label: 'Renamed',
+      provider: 'openai-compatible',
+      models: ['gpt-hi', 'gpt-lo'],
+    });
+
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    expect(usable[0]?.label).toBe('Renamed');
+    expect(usable[0]?.imageModels).toEqual(['gpt-hi']);
+    // Per model, which is the field's whole reason: the other model on the same
+    // connection still does not see. A connection-wide reading of the list
+    // would send pixels to it the moment the narrator was rebound.
+    expect(seesImages(usable[0]!, 'gpt-hi')).toBe(true);
+    expect(seesImages(usable[0]!, 'gpt-lo')).toBe(false);
+  });
+
+  /**
+   * ***Kept, and narrowed to what is being written.*** The one model that saw
+   * is taken off the connection by an edit that mentions no image models; what
+   * is left is the empty list, and the model that remains does not see. The
+   * mutation is a kept list that is not filtered — `input.imageModels ??
+   * existing?.imageModels` alone — which leaves `gpt-hi` marked on a connection
+   * that no longer offers it.
+   */
+  it('narrows the kept list to the models being written', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, SEEING);
+
+    await writeConnection(layout, layout.systemConnectionsRoot, {
+      id: HOUSE.id,
+      label: 'The house key',
+      provider: 'openai-compatible',
+      models: ['gpt-lo'],
+    });
+
+    // Read off disk as well as through the resolver, because the resolver
+    // narrows on the way in (below) and would hide a writer that did not.
+    const [file] = await listEntryNames(layout.systemConnectionsRoot);
+    const onDisk = JSON.parse(
+      await readFile(join(layout.systemConnectionsRoot, String(file)), 'utf8'),
+    ) as { imageModels?: string[] };
+    expect(onDisk.imageModels).toEqual([]);
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    expect(usable[0]?.imageModels).toEqual([]);
+    expect(seesImages(usable[0]!, 'gpt-lo')).toBe(false);
+  });
+
+  /**
+   * ***A list the caller does send is narrowed too***, and replaces what is
+   * stored rather than merging with it — the empty list is how a form says
+   * *none of these see*, and it has to be able to say it.
+   */
+  it('drops a model the connection does not offer, and takes an empty list as none', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, SEEING);
+
+    await writeConnection(layout, layout.systemConnectionsRoot, {
+      id: HOUSE.id,
+      label: 'The house key',
+      provider: 'openai-compatible',
+      models: ['gpt-hi', 'gpt-lo'],
+      imageModels: ['gpt-lo', 'gpt-vision-preview'],
+    });
+    let { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    expect(usable[0]?.imageModels).toEqual(['gpt-lo']);
+
+    await writeConnection(layout, layout.systemConnectionsRoot, {
+      id: HOUSE.id,
+      label: 'The house key',
+      provider: 'openai-compatible',
+      models: ['gpt-hi', 'gpt-lo'],
+      imageModels: [],
+    });
+    ({ usable } = await resolveConnections(layout, 'ned', ALLOWED));
+    expect(usable[0]?.imageModels).toEqual([]);
+  });
+
+  /**
+   * ***A hand-written file is read on the same terms***, because nothing
+   * stops a person typing a model the connection does not offer, or a number:
+   * the reader keeps the strings that name one of `models` and nothing else.
+   * And the list reaches both shapes that leave the server — it is what a
+   * person choosing a binding wants to know, and safe to show for `models`'
+   * own reason.
+   */
+  it('reads a hand-written list as a subset of the models, and shows it', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, {
+      ...HOUSE,
+      imageModels: ['gpt-lo', 'retired-model', 7],
+    });
+
+    const { usable } = await resolveConnections(layout, 'ned', ALLOWED);
+    const connection = usable[0]!;
+    expect(connection.imageModels).toEqual(['gpt-lo']);
+    expect(presentConnection(connection).imageModels).toEqual(['gpt-lo']);
+    expect(presentForAdmin(connection, 'sha256:whatever').imageModels).toEqual(['gpt-lo']);
   });
 });

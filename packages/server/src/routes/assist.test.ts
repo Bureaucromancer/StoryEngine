@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { DEFAULT_CONFIG } from '../config.js';
+import { assistField } from '../library/assist.js';
 import { FakeProvider } from '../providers/fake.js';
 import { Layout } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -171,6 +173,120 @@ describe('writing one field', () => {
   });
 
   /**
+   * ***What it spent is recorded, whether or not anyone keeps the answer*** —
+   * [10 §11.4]'s *"They cost money, and must be recorded even though nothing
+   * displays it at 1.0."* The figures are the provider's, copied; the model is
+   * the one that answered.
+   */
+  it('records what the call spent in the account’s usage log', async () => {
+    await bindProse();
+    provider.setScript([
+      { text: 'A wet quay.', usage: { promptTokens: 12, completionTokens: 34 } },
+    ]);
+    await server.request({ method: 'POST', url: '/api/library/assist', payload: BODY });
+
+    const lines = (await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      schema: 'storyengine.usage/1',
+      purpose: 'assist:profile.appearance',
+      role: 'prose',
+      resolved: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+      usage: { promptTokens: 12, completionTokens: 34 },
+      cost: null,
+      subject: 'actor',
+    });
+  });
+
+  /**
+   * ***A provider that reports nothing is recorded as having reported
+   * nothing*** — the capability gate's answer copied, never a zero standing in
+   * for an unknown. And an empty answer still cost what it cost.
+   */
+  it('records a null usage when the provider sends none, even for an empty answer', async () => {
+    await bindProse();
+    provider.setScript([{ text: '   ', reportsNoUsage: true }]);
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+    expect(response.body.error).toBe('no-answer');
+
+    const text = await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8');
+    const [line] = text.split('\n').filter((one) => one !== '');
+    expect(JSON.parse(line ?? '{}')).toMatchObject({ usage: null });
+  });
+
+  /**
+   * ***The role is the account's to choose, until [25 C15] chooses for
+   * everyone*** — `providers/task-roles.ts`. [10 §11.4] says assist wants
+   * `fast`; asking for it unconditionally would fail every install that never
+   * bound it, so the default stays `prose` and the person who has bound a quick
+   * model can point assist at it.
+   */
+  it('asks for the role the account chose for writing help', async () => {
+    await bindProse();
+    const root = new Layout(server.dataDir).userConnectionsRoot('ned');
+    await writeFile(
+      join(root, 'fake.json'),
+      JSON.stringify({
+        id: CONNECTION_ID,
+        label: 'The double',
+        provider: 'openai-compatible',
+        models: ['fake-hi', 'fake-lo'],
+        capabilities: { maxContextTokens: 32_000 },
+      }),
+    );
+    await writeFile(
+      join(server.dataDir, 'users', 'ned', 'bindings.json'),
+      JSON.stringify({
+        prose: { connectionId: CONNECTION_ID, modelId: 'fake-hi' },
+        fast: { connectionId: CONNECTION_ID, modelId: 'fake-lo' },
+      }),
+    );
+
+    const before = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(before.body.tasks).toEqual({ assist: 'prose' });
+
+    const chosen = await server.request({
+      method: 'PUT',
+      url: '/api/me/task-roles',
+      payload: { assist: 'fast' },
+    });
+    expect(chosen.status).toBe(200);
+    expect(chosen.body.tasks).toEqual({ assist: 'fast' });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+    expect(response.status).toBe(200);
+    expect(response.body.model).toBe('fake-lo');
+    expect(provider.requests.at(-1)?.modelId).toBe('fake-lo');
+
+    const lines = (await readFile(join(server.dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '');
+    expect(JSON.parse(lines.at(-1) ?? '{}')).toMatchObject({ role: 'fast' });
+  });
+
+  it('refuses a role that is not one assist can use', async () => {
+    const refused = await server.request({
+      method: 'PUT',
+      url: '/api/me/task-roles',
+      payload: { assist: 'image' },
+    });
+    expect(refused.status).toBe(400);
+    const roles = await server.request({ method: 'GET', url: '/api/me/roles' });
+    expect(roles.body.tasks).toEqual({ assist: 'prose' });
+  });
+
+  /**
    * ***Nothing is written.*** The library is untouched by an assist, which is
    * §11.1's *"nothing may require a model call to proceed"* read from the
    * server's side: the answer goes to a form and the form decides.
@@ -181,5 +297,102 @@ describe('writing one field', () => {
     await server.request({ method: 'POST', url: '/api/library/assist', payload: BODY });
     const after = await server.request({ method: 'GET', url: '/api/library' });
     expect(after.body).toEqual(before.body);
+  });
+});
+
+/**
+ * ***A call like every other call*** (2026-09-27).
+ *
+ * The assist asked the provider directly, so it was the one call in the build
+ * with no idle bound, no retry for a busy endpoint and no classification: a
+ * wrong key or a model server that was down reached the route as an exception
+ * and the person as a bare 500, and a closed editor left the call running. It
+ * goes through `performCall` now, and these are the four things that buys.
+ */
+describe('an assist the endpoint does not answer', () => {
+  it('is a class and a remedy when the endpoint refuses', async () => {
+    await bindProse();
+    provider.setScript([
+      {
+        error: {
+          class: 'terminal',
+          message: 'The provider call failed.',
+          detail: 'Incorrect API key provided',
+        },
+      },
+    ]);
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({
+      error: 'provider-failed',
+      class: 'terminal',
+      remedy: 'endpoint-refused',
+    });
+  });
+
+  it('asks a busy endpoint again, as a turn would', async () => {
+    await bindProse();
+    provider.setScript([
+      { error: { class: 'retryable', message: 'Too many requests.' } },
+      { text: 'A wet quay, second time asked.' },
+    ]);
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.text).toBe('A wet quay, second time asked.');
+    expect(provider.requests).toHaveLength(2);
+  });
+
+  it('gives up on an endpoint that goes quiet, and says it was a stall', async () => {
+    await server.dispose();
+    provider = new FakeProvider({ script: [{ stallMs: 5_000 }] });
+    server = await makeTestServer({
+      providers: () => provider,
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+    });
+    await setUpAdmin(server, 'ned');
+    await bindProse();
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/assist',
+      payload: BODY,
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toMatchObject({ error: 'provider-failed', remedy: 'endpoint-stalled' });
+  });
+
+  /**
+   * *Ended by the signal it is handed*, which the route takes from the person
+   * leaving (`disconnectSignal`). A request that cannot be disconnected
+   * through `inject` is asked here with the signal already gone.
+   */
+  it('asks nothing once the person has gone', async () => {
+    await bindProse();
+
+    const result = await assistField(
+      {
+        layout: server.services.library.layout,
+        accounts: server.services.accounts,
+        providers: () => provider,
+        config: server.services.config,
+      },
+      { account: 'ned', ...BODY, signal: AbortSignal.abort() },
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'cancelled' });
+    expect(provider.requests).toHaveLength(0);
   });
 });

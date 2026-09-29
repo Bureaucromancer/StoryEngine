@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { collectCandidates, type CollectContext, type Collected } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
 import type { Mode } from '@storyengine/sdk';
@@ -15,8 +16,12 @@ import type { ChannelState, PooledHook, SessionFile, Turn } from '../sessions/ty
 import type { DifficultyLevel, Goal, Preset } from '@storyengine/shared';
 import { readRegistry } from '../tags/store.js';
 import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
-import { readConcluded, readCurrentGoal } from '../sessions/goals.js';
+import { readableGoals, readConcluded, readCurrentGoal } from '../sessions/goals.js';
+import { readPool } from '../sessions/pool-shape.js';
+import { storyTurns } from '../sessions/depth.js';
+import { presetOf } from '../sessions/preset-of.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
+import type { PlanContext } from './calls.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -50,7 +55,11 @@ export interface AssemblyInputs {
   turnsById: Map<string, Turn>;
   /** The path from the head, oldest first. */
   history: Turn[];
-  /** `history`, cut to the mode's `historyWindow`. **What the collector is given.** */
+  /**
+   * The story turns of `history`, cut to the mode's `historyWindow`. **What
+   * the collector is given.** Story turns, so a turn nothing narrated takes no
+   * place in the window (`sessions/depth.ts`).
+   */
   windowed: Turn[];
   channels: Record<string, ChannelState>;
   usable: Connection[];
@@ -233,7 +242,13 @@ export async function gatherAssemblyInputs(
   const declaredMode = session?.mode?.id ?? DEFAULT_MODE_ID;
   const mode = modeById(declaredMode) ?? defaultMode();
 
-  const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
+  /**
+   * The session's own copy, or the mode's pack for a session that has none —
+   * and a copy of the mode's own pack with whatever the mode has shipped since
+   * it was taken (2026-09-27, `presetOf`), so a block added after a session
+   * began is a block that session's turns are assembled from.
+   */
+  const preset = presetOf(session?.preset, mode);
   // One library handle for both resolvers. They read the same store as the same
   // account, and building it twice would be two chances to disagree about the
   // history depth.
@@ -258,9 +273,19 @@ export async function gatherAssemblyInputs(
    * the treatment it names, selected it — see `LoreRoute`.
    */
   const lore = resolveLore(library, request.account, session);
-  const pool = Array.isArray(session?.hooks) ? session.hooks : [];
-  const chain = Array.isArray(session?.goals) ? session.goals : [];
-  const windowed = history.slice(-mode.definition.assembly.historyWindow);
+  // The hooks the engine can read; one the schema refuses is the panel's to
+  // show and never the selector's to weigh (`pool-shape.ts`, 2026-09-27).
+  const pool = readPool(session?.hooks).usable;
+  const chain = readableGoals(session?.goals);
+  /**
+   * ***The last turns of the story, not of the path*** (2026-09-27). A channel
+   * write, an undo or a backdrop choice is on the path and says nothing, and
+   * each one in the last twenty took the place of a turn somebody read: a
+   * session with a few HUD edits sent the model fifteen turns of a twenty-turn
+   * window. The summary chain covers the rest of the same list
+   * (`transcriptOf`), so the two meet without a gap or an overlap.
+   */
+  const windowed = storyTurns(history).slice(-mode.definition.assembly.historyWindow);
 
   return {
     session,
@@ -285,4 +310,67 @@ export async function gatherAssemblyInputs(
     },
     dials: resolveDials(preset, channels, session?.mode?.config),
   };
+}
+
+/**
+ * ***Which model a call resolves to, asked the same way by every caller*** —
+ * [19 §5.1]'s layers as this gather holds them (2026-09-27).
+ *
+ * The runner handed `planCall` the session's own overrides and the cast, and
+ * the preview and impersonation did not. So a session whose narrator was
+ * pointed at a hosted 128k model was metered against the account default's
+ * 8k window, under the account default's name, and its impersonations went to
+ * the account default's endpoint: a different provider, and a different key,
+ * from the one the person chose for this session. The layers come from here
+ * now, so a caller cannot hold some of them.
+ */
+export function roleLayersOf(
+  inputs: AssemblyInputs,
+): Pick<PlanContext, 'bindings' | 'defaults' | 'usable' | 'sessionRoles' | 'stepRoles' | 'cast'> {
+  return {
+    bindings: inputs.bindings,
+    defaults: inputs.defaults,
+    usable: inputs.usable,
+    ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
+    ...(inputs.session?.stepRoles === undefined ? {} : { stepRoles: inputs.session.stepRoles }),
+    // So a call naming an actor can be resolved with that actor's hint.
+    cast: inputs.cast,
+  };
+}
+
+/** What the collector takes from the gather rather than from the call. */
+type FromGather =
+  'preset' | 'history' | 'persona' | 'actors' | 'channels' | 'carriers' | 'goal' | 'dials';
+
+/**
+ * ***The collector's input, the half this gather knows filled here once***
+ * (2026-09-27).
+ *
+ * Three callers assemble — the runner, the preview and impersonation — and
+ * each wrote its own `collectCandidates` call, so a producer wired into one
+ * shipped without the others: the goal and the dials reached the preview a
+ * stage after the turn ([P7.8] says so where it fixed them), and nothing but
+ * reading all three could tell. The pack, the window, the cast, the channels,
+ * the lore's carriers, the goal and the dials come from the gather; the caller
+ * passes only what it alone knows — the call kind, the lore it retrieved, and
+ * what this turn brought. The runner passes its running channel map, which
+ * moves as its steps apply effects.
+ */
+export function collectFor(
+  inputs: AssemblyInputs,
+  call: Omit<CollectContext, FromGather> & Partial<Pick<CollectContext, 'channels'>>,
+): Collected {
+  return collectCandidates({
+    preset: inputs.preset,
+    history: inputs.windowed,
+    persona: inputs.cast.persona,
+    actors: inputs.cast.actors,
+    channels: inputs.channels,
+    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
+    ...(inputs.goals.current === null
+      ? {}
+      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
+    dials: inputs.dials,
+    ...call,
+  });
 }

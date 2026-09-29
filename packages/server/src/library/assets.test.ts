@@ -1,15 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { cp, mkdtemp, readdir, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newLorebook, newLoreEntry, type Lorebook } from '@storyengine/shared';
+import {
+  ACTOR_SCHEMA,
+  newActor,
+  newLorebook,
+  newLoreEntry,
+  uuidv7,
+  type Lorebook,
+} from '@storyengine/shared';
+
+import { create, readCardPixels } from '../library.js';
 
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
-import { mediaRowsIn } from './assets.js';
+import { mediaRowsIn, SWEEP_GRACE_MS } from './assets.js';
 
 /**
  * ***[10 §11.2b](../../../../docs/design/10-ui-surfaces.md)'s image slots, and
@@ -131,6 +142,20 @@ async function assetFiles(): Promise<string[]> {
   }
 }
 
+/**
+ * Makes a file older than the sweep's grace, so the only thing that can keep
+ * it is the rule a test is about. Without this every upload in a test is
+ * minutes old, and kept for that reason alone.
+ */
+async function age(path: string): Promise<void> {
+  const past = new Date(Date.now() - 2 * SWEEP_GRACE_MS);
+  await utimes(path, past, past);
+}
+
+async function ageAsset(ref: string): Promise<void> {
+  await age(join(await assetsDir(), basename(ref)));
+}
+
 describe('bytes beside a folder-backed object', () => {
   it('stores an upload and serves it back through the media route', async () => {
     const asset = await store(PNG, 'quay.png');
@@ -212,8 +237,11 @@ describe('bytes beside a folder-backed object', () => {
 
   it('collects the bytes no manifest row names, on the next save', async () => {
     const kept = await store(PNG, 'quay.png');
-    await store(JPEG, 'orphan.jpg');
+    const orphan = await store(JPEG, 'orphan.jpg');
     expect(await assetFiles()).toHaveLength(2);
+    // Past the grace an upload gets to be named in (below), which is what an
+    // upload somebody abandoned yesterday is.
+    await ageAsset(orphan.ref);
 
     const { object, contentHash } = await readBook();
     await save({ ...object, media: [{ id: 'm1', role: 'map', tags: [], ...kept }] }, contentHash);
@@ -222,6 +250,136 @@ describe('bytes beside a folder-backed object', () => {
     const left = await assetFiles();
     expect(left).toHaveLength(1);
     expect(`assets/${String(left[0])}`).toBe(kept.ref);
+  });
+
+  it('keeps an upload that no save has named yet', async () => {
+    /**
+     * ***Stored first and named by the save after*** (2026-09-27), so a sweep
+     * cannot tell an upload nobody saved from one whose save has not arrived.
+     * It deleted both: a picture uploaded while another save of the book was
+     * in flight, or in a second tab, was gone before its own save named it.
+     */
+    const { object, contentHash } = await readBook();
+    const late = await store(JPEG, 'late.jpg');
+
+    await save({ ...object, name: 'Rain City, wet' }, contentHash);
+
+    expect(await assetFiles()).toEqual([basename(late.ref)]);
+  });
+
+  it('keeps the bytes a version still names, so restoring it brings the picture back', async () => {
+    /**
+     * ***History keeps JSON and never pixels*** ([03 §11.2]), and the sweep read
+     * the current body alone. So removing a map and saving deleted the map,
+     * and restoring the version before brought back a row naming bytes that
+     * were gone for good (2026-09-27).
+     */
+    const asset = await store(PNG, 'quay.png');
+    const first = await readBook();
+    const withMap = await save(
+      { ...first.object, media: [{ id: 'm1', role: 'map', tags: [], ...asset }] },
+      first.contentHash,
+    );
+    await ageAsset(asset.ref);
+
+    const { object } = await readBook();
+    const withoutMap = await save({ ...object, media: [] }, withMap);
+    expect(await assetFiles()).toEqual([basename(asset.ref)]);
+
+    const listed = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${bookId}/history`,
+    });
+    const versions = (listed.body as { versions: { id: string }[] }).versions;
+    let had: string | undefined;
+    for (const version of versions) {
+      const one = await server.request({
+        method: 'GET',
+        url: `/api/library/lorebooks/${bookId}/history/${version.id}`,
+      });
+      if ((one.body as { object: Lorebook }).object.media.some((row) => row.id === 'm1')) {
+        had = version.id;
+      }
+    }
+    expect(had, 'a version holds the map').toBeDefined();
+
+    const restored = await server.request({
+      method: 'POST',
+      url: `/api/library/lorebooks/${bookId}/history/${had ?? ''}/restore`,
+      payload: { contentHash: withoutMap },
+    });
+    expect(restored.status).toBe(200);
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${bookId}/media/m1`,
+    });
+    expect(served.status).toBe(200);
+    expect(Number(served.headers['content-length'])).toBe(PNG.length);
+  });
+
+  it('collects bytes whose only version has lost its payload', async () => {
+    // A version whose payload file is gone cannot be restored (`restoreVersion`
+    // answers not-found), so it has nothing to keep bytes for.
+    const asset = await store(PNG, 'quay.png');
+    const first = await readBook();
+    const withMap = await save(
+      { ...first.object, media: [{ id: 'm1', role: 'map', tags: [], ...asset }] },
+      first.contentHash,
+    );
+    await ageAsset(asset.ref);
+    const { object } = await readBook();
+    const withoutMap = await save({ ...object, media: [] }, withMap);
+    expect(await assetFiles()).toHaveLength(1);
+
+    const payloads = join(
+      server.services.layout.objectRoot(
+        { kind: 'user', handle: 'ned' },
+        'storyengine.lorebook/1',
+        'rain-city',
+      ),
+      'history',
+      'v',
+    );
+    for (const name of await readdir(payloads)) await rm(join(payloads, name));
+
+    const again = await readBook();
+    await save({ ...again.object, name: 'Rain City, dry' }, withoutMap);
+    expect(await assetFiles()).toEqual([]);
+  });
+
+  it('answers a ref that names the folder itself as a missing picture', async () => {
+    await store(PNG, 'quay.png');
+    const { object, contentHash } = await readBook();
+    const row = { id: 'm1', role: 'map' as const, tags: [], ref: 'assets/.' };
+    await save(
+      {
+        ...object,
+        media: [{ ...row, digest: `sha256:${'0'.repeat(64)}`, bytes: 1, mime: 'image/png' }],
+      },
+      contentHash,
+    );
+
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${bookId}/media/m1`,
+    });
+    expect(served.status).toBe(404);
+  });
+
+  it('leaves alone a file this build did not write', async () => {
+    // A link `assets -> .` passes every containment check and makes the
+    // sweep's listing the object folder, where `lorebook.json` is a name no
+    // row carries. Only names the store writes are ever collected.
+    const orphan = await store(PNG, 'quay.png');
+    const notes = join(await assetsDir(), 'notes.txt');
+    await writeFile(notes, 'the tide tables, by hand');
+    await ageAsset(orphan.ref);
+    await age(notes);
+
+    const { object, contentHash } = await readBook();
+    await save({ ...object, name: 'Rain City, wet' }, contentHash);
+
+    expect(await assetFiles()).toEqual(['notes.txt']);
   });
 
   it('keeps a picture an entry names when the book itself has none', async () => {
@@ -273,6 +431,175 @@ describe('bytes beside a folder-backed object', () => {
     // ships these, and a release would overwrite whatever was put beside them.
     expect(refused.status).toBe(403);
     expect((refused.body as { error: string }).error).toBe('read-only');
+  });
+});
+
+/**
+ * ***An `assets` folder, or an object folder, that leads somewhere else***
+ * (2026-09-27). Every path here is spelled inside the object, and nothing
+ * checked where it landed: [03 §5.3]'s guard, `resolveAssetPath`, had no
+ * callers. A read served what the link led to, a store wrote there, and a
+ * sweep deleted there, which with `assets` pointing at the data root would
+ * have been `accounts.json`'s neighbours.
+ */
+/**
+ * ***A copy brings its pictures*** (2026-09-27).
+ *
+ * *Save my version as a copy* and *Copy to my library* write an object's JSON
+ * under a new id, and a picture is bytes beside the object that JSON only
+ * names — so every picture on a copy was broken from the moment it was made.
+ * `copyOf` names the source, and the create puts the source's file for each
+ * row the copy names beside the copy.
+ */
+describe('a copy made with copyOf', () => {
+  it('brings the pictures it names, on the book and on its entries', async () => {
+    const asset = await store(PNG, 'quay.png');
+    const { object, contentHash } = await readBook();
+    const quay = {
+      ...newLoreEntry('Quay'),
+      media: [{ id: 'e1', role: 'gallery' as const, tags: [], ...asset }],
+    };
+    await save(
+      { ...object, media: [{ id: 'm1', role: 'map', tags: [], ...asset }], entries: [quay] },
+      contentHash,
+    );
+    const source = (await readBook()).object;
+    const copyId = uuidv7();
+
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: { object: { ...source, id: copyId, name: 'Rain City, a copy' }, copyOf: bookId },
+    });
+    expect(made.status).toBe(201);
+
+    for (const mediaId of ['m1', 'e1']) {
+      const served = await server.request({
+        method: 'GET',
+        url: `/api/library/lorebooks/${copyId}/media/${mediaId}`,
+      });
+      expect(served.status, mediaId).toBe(200);
+    }
+  });
+
+  /**
+   * An actor's pictures are its card: the portrait is the image and its
+   * expressions ride inside it, so a copy written without it was a blank
+   * square with none of them. A 2×2 source against the 1×1 a bare create
+   * makes is what tells the two apart.
+   */
+  it('writes an actor copy into the source’s card', async () => {
+    const card = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const vera = newActor('Vera');
+    await create(server.services.library, 'ned', vera, ACTOR_SCHEMA, { cardPixels: card });
+    const copyId = uuidv7();
+
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: { object: { ...vera, id: copyId, name: 'Vera, a copy' }, copyOf: vera.id },
+    });
+    expect(made.status).toBe(201);
+
+    const { bytes } = await readCardPixels(server.services.library, 'ned', copyId);
+    // IHDR width, the four bytes after the signature, length and chunk type.
+    expect(Buffer.from(bytes).readUInt32BE(16)).toBe(2);
+  });
+
+  it('refuses a copy of something this account cannot read, and writes nothing', async () => {
+    const { object } = await readBook();
+    const copyId = uuidv7();
+
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: { object: { ...object, id: copyId, name: 'Stray' }, copyOf: uuidv7() },
+    });
+    expect(made.status).toBe(404);
+
+    const after = await server.request({ method: 'GET', url: `/api/library/lorebooks/${copyId}` });
+    expect(after.status).toBe(404);
+  });
+});
+
+describe('an assets folder that is a link', () => {
+  let outside: string;
+
+  beforeEach(async () => {
+    outside = await mkdtemp(join(tmpdir(), 'se-assets-outside-'));
+  });
+
+  afterEach(async () => {
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  const nameOf = (bytes: Buffer, extension: string): string =>
+    `${createHash('sha256').update(bytes).digest('hex')}.${extension}`;
+
+  it('is not read, written or swept through', async () => {
+    const pictured = nameOf(PNG, 'png');
+    const stranger = `${'b'.repeat(64)}.png`;
+    await writeFile(join(outside, pictured), PNG);
+    await writeFile(join(outside, stranger), 'somebody else’s');
+    await age(join(outside, stranger));
+
+    const dir = await assetsDir();
+    await rm(dir, { recursive: true, force: true });
+    await symlink(outside, dir, 'junction');
+
+    // A save naming a file that is only there through the link. Its sweep
+    // runs through the link too.
+    const { object, contentHash } = await readBook();
+    const row = {
+      id: 'm1',
+      role: 'map' as const,
+      tags: [],
+      ref: `assets/${pictured}`,
+      digest: `sha256:${pictured.slice(0, 64)}`,
+      bytes: PNG.length,
+      mime: 'image/png',
+    };
+    await save({ ...object, media: [row] }, contentHash);
+    expect((await readdir(outside)).sort()).toEqual([pictured, stranger].sort());
+
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${bookId}/media/m1`,
+    });
+    expect(served.status).toBe(422);
+
+    const stored = await server.request({
+      method: 'POST',
+      url: `/api/library/lorebooks/${bookId}/assets`,
+      ...upload(JPEG, 'quay.jpg'),
+    });
+    expect(stored.status).toBe(422);
+    expect((await readdir(outside)).sort()).toEqual([pictured, stranger].sort());
+  });
+
+  it('is not written through when the whole object folder leads outside', async () => {
+    // Rooting the check at the object folder cannot see this one, since the
+    // folder and its assets move together. The data root's check can.
+    const folder = server.services.layout.objectRoot(
+      { kind: 'user', handle: 'ned' },
+      'storyengine.lorebook/1',
+      'rain-city',
+    );
+    const moved = join(outside, 'rain-city');
+    await cp(folder, moved, { recursive: true });
+    await rm(folder, { recursive: true, force: true });
+    await symlink(moved, folder, 'junction');
+
+    const stored = await server.request({
+      method: 'POST',
+      url: `/api/library/lorebooks/${bookId}/assets`,
+      ...upload(PNG, 'quay.png'),
+    });
+    expect(stored.status).toBe(422);
+    expect(await readdir(moved)).not.toContain('assets');
   });
 });
 

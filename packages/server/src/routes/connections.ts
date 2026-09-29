@@ -85,6 +85,10 @@ const CONNECTION_FIELDS = {
   apiKey: Type.Optional(Type.String({ maxLength: 512 })),
   baseUrl: Type.Optional(Type.String({ maxLength: 2048 })),
   models: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 200 }),
+  /** Which of `models` see pictures ([25 E15]). Absent keeps what is stored. */
+  imageModels: Type.Optional(
+    Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 200 }),
+  ),
   capabilities: Type.Optional(Type.Object({}, { additionalProperties: true })),
 };
 
@@ -496,6 +500,7 @@ function bodyToInput(body: unknown): {
   apiKey?: string | undefined;
   baseUrl?: string | undefined;
   models: string[];
+  imageModels?: string[] | undefined;
   capabilities?: Record<string, unknown> | undefined;
 } {
   const record = body as {
@@ -504,6 +509,7 @@ function bodyToInput(body: unknown): {
     apiKey?: string;
     baseUrl?: string;
     models: string[];
+    imageModels?: string[];
     capabilities?: Record<string, unknown>;
   };
   return {
@@ -512,6 +518,7 @@ function bodyToInput(body: unknown): {
     ...(record.apiKey === undefined ? {} : { apiKey: record.apiKey }),
     ...(record.baseUrl === undefined ? {} : { baseUrl: record.baseUrl }),
     models: record.models,
+    ...(record.imageModels === undefined ? {} : { imageModels: record.imageModels }),
     ...(record.capabilities === undefined ? {} : { capabilities: record.capabilities }),
   };
 }

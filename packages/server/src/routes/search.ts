@@ -120,26 +120,22 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
     let turns;
     let entries;
     try {
-      objects = search(services.index.db, q, limit);
-      turns = searchTurns(services.index.db, owners, q, limit);
       /**
-       * The third kind of hit — [P3 §14.5]'s *one query, three kinds*.
+       * **All three scoped in their own SQL**, for the limit: SQL applies it
+       * before this route sees a row, so a filter applied afterwards returns
+       * fewer than it should. `objects` was the one filtered here, on the
+       * argument that giving `search` owners would put the containment rule in
+       * two places; the two queries beside it had already put it in their own
+       * SQL, and on a server with two accounts one person's matches could fill
+       * the limit and leave the other's search empty (2026-09-27).
        *
-       * **Scoped in its own SQL, where `objects` is scoped below.** The comment
-       * on that filter argues against giving `search` owners, and it still
-       * holds for `search`: that query has no owner in it at all, so scoping it
-       * would *add* a second site for the containment rule. This one already
-       * joins `object` — it needs the book's id, name and slug, and the
-       * tombstone filter — so the owner is in its `from` clause either way, and
-       * declining to use it would mean reaching the fact and then re-deriving
-       * it. `searchTurns` makes the same call for the same reason.
-       *
-       * The other half is the limit. SQL applies it before this route sees a
-       * row, so a filter applied afterwards returns fewer than it should — and
-       * an entry hit is worse than an object hit to get wrong in that
+       * The third kind of hit is [P3 §14.5]'s *one query, three kinds*, and an
+       * entry hit is the worst of the three to get wrong in the other
        * direction, because what an unscoped one would carry is the prose
        * itself, in the snippet.
        */
+      objects = search(services.index.db, owners, q, limit);
+      turns = searchTurns(services.index.db, owners, q, limit);
       entries = searchLoreEntries(services.index.db, owners, q, limit);
     } catch (error) {
       /**
@@ -171,18 +167,13 @@ export function registerSearchRoutes(app: FastifyInstance, services: AppServices
     }
 
     return reply.send({
-      objects: objects
-        // Scoped after the query rather than inside it: `search` is the library's
-        // and takes no owners, and giving it some for this one caller would put
-        // the containment rule in two places ([09 §4.3]).
-        .filter((row) => owners.includes(row.owner))
-        .map((row) => ({
-          id: row.id,
-          schema: row.schemaId,
-          name: row.name,
-          slug: row.slug,
-          source: row.owner === 'system' ? 'system' : 'user',
-        })),
+      objects: objects.map((row) => ({
+        id: row.id,
+        schema: row.schemaId,
+        name: row.name,
+        slug: row.slug,
+        source: row.owner === 'system' ? 'system' : 'user',
+      })),
       turns: await labelTurnHits(services, account.handle, turns),
       /**
        * The owner key is mapped the way `objects` maps it above, because it is

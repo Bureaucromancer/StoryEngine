@@ -90,6 +90,78 @@ export interface RenderedMessage {
   content: string;
   /** Which blocks produced this message, in order. Non-empty always. */
   fromBlocks: string[];
+  /**
+   * ***The message in order, when a picture's pixels go in it*** — [25 E15],
+   * R1.
+   *
+   * Absent on every other message — one with no picture, and one whose picture
+   * went as its words — which is almost all of them and every one written before
+   * 2026-09-27. When present, **its text parts
+   * joined are exactly `content`**, so `content` stays what the frozen contract
+   * says it is — the whole text rendering — and a reader that knows nothing of
+   * pictures reads the same message it always did. An image part names its
+   * bytes **by digest**, never by value: the call record is a line in a JSONL
+   * file, and the pixels are loaded for the wire and never persisted.
+   */
+  parts?: MessagePart[];
+}
+
+/** One piece of a {@link RenderedMessage} that carries a picture. */
+export type MessagePart =
+  | { kind: 'text'; text: string }
+  | {
+      kind: 'image';
+      /** The block the picture belongs to, so the record maps it back. */
+      blockId: string;
+      /** `sha256:<hex>` of the bytes in the session's attachment store. */
+      digest: string;
+      mime: string;
+    };
+
+/**
+ * One picture on a player's move — [25 E15](../../../docs/design/25-open-questions.md), R1.
+ *
+ * ***An annotation on the move, never a replacement for its words.*** The
+ * player's text stays in `input.text` untouched, and the picture rides beside
+ * it with a text rendering of its own — the caption, or a placeholder when
+ * there is none — which is what any model that cannot see it is given instead.
+ * Nothing about a turn that carries one records that the session is
+ * "multimodal": whether the pixels are sent is decided per call, from the model
+ * that call resolved to, so a session that used a picture once continues on a
+ * text-only model exactly as it would have.
+ */
+export interface TurnAttachment {
+  /**
+   * Stable within the turn — the assembled block's id is keyed by it, so the
+   * workbench can pair two siblings' pictures. **An ordinal of the list the
+   * move was composed with**, and a redo copies the record's list as it stands
+   * (`input.attachmentsOf` on submit), so a redone move keeps its ids.
+   */
+  id: string;
+  /**
+   * What it is. **An open string**, so a later kind needs no migration; a reader
+   * that does not know one gives any model its text rendering and never its
+   * bytes.
+   */
+  kind: string;
+  /**
+   * `sha256:<hex>` of the bytes in `sessions/<id>/attachments/`, read by the
+   * server from its own store rather than taken from a client. Optional so a
+   * record can say a picture was there when the bytes never arrived — an
+   * importer without them.
+   */
+  digest?: string;
+  mime?: string;
+  bytes?: number;
+  /**
+   * Its size in pixels, read from the stored file's header — what a model's
+   * per-picture cost is a function of. Absent when the bytes never arrived, or
+   * were recorded before 2026-09-27.
+   */
+  width?: number;
+  height?: number;
+  /** What the player wrote about the picture, in their own words. */
+  caption?: string;
 }
 
 /** Provider-reported token usage. Never estimated — see `ModelCall.usage`. */
@@ -197,7 +269,21 @@ export type BlockSource =
    * the identity ([P3.0]); `range` is an index into the *window* and stays as
    * display information — where in this prompt the turn sat.
    */
-  | { kind: 'history'; turnId: string; range: [number, number]; part: 'input' | 'output' }
+  | {
+      kind: 'history';
+      turnId: string;
+      range: [number, number];
+      /**
+       * `attachment` since 2026-09-27 ([25 E15]): one picture on the turn's
+       * input, emitted inside the `history` expansion rather than as a source of
+       * its own — a new top-level arm would become a slot any preset could
+       * position ([21 §1.1]'s derivation), and a picture belongs where its turn
+       * is.
+       */
+      part: 'input' | 'output' | 'attachment';
+      /** Which picture, when `part` is `attachment`. */
+      attachmentId?: string;
+    }
   /**
    * One writing sample, from whichever kind carried it — [04 §3.1].
    *
@@ -263,8 +349,11 @@ export type BlockSource =
    * block exists because the author asked for it, and there was no attempt.
    */
   | { kind: 'attempt'; turnId: string | null }
-  /** What the player just did — the turn that is happening, not history. */
-  | { kind: 'input' }
+  /**
+   * What the player just did — the turn that is happening, not history. With
+   * `part: 'attachment'`, one picture on it ([25 E15]); absent is the words.
+   */
+  | { kind: 'input'; part?: 'attachment'; attachmentId?: string }
   /**
    * One link of the summary chain — [07 §5.1], [P8.1].
    *
@@ -395,6 +484,56 @@ export interface AssembledBlock {
    * not advisory.
    */
   advisory?: true;
+  /**
+   * ***The picture this block stands for, and whether its pixels went*** —
+   * [25 E15], R1. Absent on every block that is not a picture.
+   *
+   * `sent: false` is the ordinary case and carries its reason, because a block
+   * that was included and sent only its text rendering *did* emit something —
+   * so this is a disclosure on the block rather than a not-filled slot.
+   */
+  image?: BlockImage;
+}
+
+/**
+ * Why a picture went as words rather than pixels — the per-call send rule of
+ * [25 E15]:
+ *
+ * - `model-text-only` — the model this call resolved to is not one its
+ *   connection lists as seeing images;
+ * - `outside-window` — a picture from an earlier turn (R1 sends the current
+ *   turn's only);
+ * - `missing-bytes` — the bytes are not in this session's store, which is the
+ *   ordinary state after an import from an export;
+ * - `not-user-role` — the block sits in a system or assistant message, which
+ *   cannot carry a picture;
+ * - `unknown-kind` — an attachment kind this build does not send;
+ * - `budget` — the budget dropped the block, so neither the pixels nor the
+ *   words went, whatever else would have held it back. The collector's
+ *   pictures on the move being made are required and never meet this; a
+ *   picture in history, or a step's own picture candidate, can.
+ *
+ * ***When several apply, the one recorded is the one choosing another model
+ * cannot fix***: kind, then window, then role, then bytes, and the model last
+ * (`budget` is decided after the rest, by the budgeter).
+ */
+export type ImageWithheld =
+  | 'model-text-only'
+  | 'outside-window'
+  | 'missing-bytes'
+  | 'not-user-role'
+  | 'unknown-kind'
+  | 'budget';
+
+export interface BlockImage {
+  attachmentId: string;
+  /** Null when the record never had the bytes' digest. */
+  digest: string | null;
+  /** The bytes' type, as the store read it. Null when the bytes never arrived. */
+  mime: string | null;
+  sent: boolean;
+  /** Present exactly when `sent` is false. */
+  withheld?: ImageWithheld;
 }
 
 /**
@@ -529,7 +668,20 @@ export interface ModelCall {
  * own words go to the log; a class is what crosses to a reader.
  */
 export type StepFailureReason =
-  ErrorClass | 'cancelled' | 'advisory-leak' | 'unbound' | 'dangling' | 'internal';
+  | ErrorClass
+  | 'cancelled'
+  | 'advisory-leak'
+  | 'unbound'
+  | 'dangling'
+  | 'internal'
+  /**
+   * ***The context window is no larger than the room kept for the reply***
+   * (2026-09-27). Assembly spends the window less that reserve, and at zero or
+   * below it dropped every block that was not required and sent the call
+   * anyway: the model was asked to continue a story with none of it in front
+   * of it, and nothing said why. Refused before anything is sent.
+   */
+  | 'window-too-small';
 
 /**
  * ***What a person could do about it*** — [09 §6.5](../../../docs/design/09-server-multiuser-deployment.md),
@@ -582,6 +734,12 @@ export type FailureRemedy =
   | 'endpoint-stalled'
   /** No connection is bound to the role this step asked for, or it points at nothing. */
   | 'not-bound'
+  /**
+   * A setting leaves the call no room: the model's context window is no larger
+   * than what is kept for the reply. The connection's window or the reply
+   * length is the thing to change, not the network.
+   */
+  | 'window-too-small'
   /** Nothing about the network. This build did something it should not have. */
   | 'engine';
 
@@ -691,7 +849,8 @@ export type SpanTarget = ActorSpanTarget;
  * stage three. It was written beside the filter that produces it and moved the
  * moment the selector's line landed on a turn: a class the client renders is
  * `shared`'s the same way `StepSkipReason` and `NotFilledReason` are, and a
- * second copy of a nine-arm union is the thing that drifts.
+ * second copy of a nine-arm union (ten since 2026-09-27) is the thing that
+ * drifts.
  */
 export type HookRefusal =
   | 'fired'
@@ -702,7 +861,17 @@ export type HookRefusal =
   | 'cast-gone'
   | 'subject-gone'
   | 'subject-met'
-  | 'subject-unavailable';
+  | 'subject-unavailable'
+  /**
+   * ***Not a hook the engine can read*** (2026-09-27): the pool holds something
+   * the `PlotHook` schema refuses — no `involves`, an `introduces` without an
+   * actor, a `blockedBy` that is not a list. The tenth arm, and the second that
+   * is an authoring error, with the same remedy as `subject-gone`: fix the hook.
+   * Only the panel ever sees it. The engine never reads such an entry, so no
+   * selection, commitment or force can carry one past the filter; before this
+   * class existed, one of them made the whole session unreadable.
+   */
+  | 'malformed';
 
 /**
  * What the plot-hook selector did this turn — [06 §6.1], [P7 §1.5], [P7.5].
@@ -836,6 +1005,24 @@ export interface TurnCost {
   wallMs: number;
   /** The model that answered last, or null when nothing was called. */
   model: string | null;
+  /**
+   * ***What the turn cost in money, when every call's provider said*** — added
+   * 2026-09-27, because until then this record had tokens and no money at all,
+   * and [09 §4.5]'s *"turns already record cost"* was true only of tokens.
+   *
+   * **The sum of `ModelCall.cost`, under the same all-or-nothing rule as the
+   * token totals**: a figure only when every call reported one and all of them
+   * in one currency, and null otherwise — *not priced*, which is a different
+   * claim from *free*. Null is the ordinary value today: no adapter in this
+   * build prices a call, and [25 E16](../../../docs/design/25-open-questions.md)
+   * is where the approach to changing that is recorded. The field lands first
+   * so a turn priced later needs no migration to say so.
+   *
+   * **Optional**, so every turn written before it reads as absent rather than
+   * as a claim; after the [P11.10] freeze an optional field is the only kind
+   * this record can grow.
+   */
+  money?: { amount: number; currency: string } | null;
 }
 
 /**
@@ -946,7 +1133,18 @@ export interface Turn {
   parentTurnId: string | null;
   createdAt: string;
   status: 'complete' | 'failed' | 'suspended';
-  input?: { actorId: string | null; kind: string; text: string; raw: string };
+  input?: {
+    actorId: string | null;
+    kind: string;
+    text: string;
+    raw: string;
+    /**
+     * Pictures on this move — [25 E15], R1. **Optional, and absent on every turn
+     * without one**, which is what keeps it an addition under the [P11.10]
+     * freeze rather than a change to the record this project has the most of.
+     */
+    attachments?: TurnAttachment[];
+  };
   output?: { text: string; reasoning?: string };
   /**
    * ***Where this turn came from, when it came from somewhere else*** —

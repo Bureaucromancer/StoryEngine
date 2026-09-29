@@ -5,6 +5,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
+  ACTOR_SCHEMA,
   exportFormat,
   isKnownSchema,
   LIBRARY_DIRECTORIES,
@@ -19,7 +20,8 @@ import { usedBy } from '../index-db/links.js';
 import { exportPackage } from '../packaging/export.js';
 import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
-import { storeAsset, sweep } from '../library/assets.js';
+import { disconnectSignal } from './disconnect.js';
+import { copyAssets, storeAsset, sweep } from '../library/assets.js';
 import { sniff } from '../auth/avatars.js';
 import { readOnePart } from './import.js';
 import type { IndexedObject } from '../index-db/query.js';
@@ -31,6 +33,7 @@ import {
   LibraryError,
   list,
   read,
+  type ObjectAddress,
   readableOwners,
   readCardPixels,
   readMedia,
@@ -104,14 +107,34 @@ const VersionPatch = Type.Object({
  *
  * A **query parameter on the read route**, not a second path segment. The
  * canonical address of an object is its id and stays so — this narrows a read,
- * the way a filter does, and nothing else in the API accepts it. It is
- * `(source, slug)` rather than the stored path because the path is native and
- * platform-divergent (F23); the slug is the same string everywhere.
+ * the way a filter does. It is `(source, slug)` rather than the stored path
+ * because the path is native and platform-divergent (F23); the slug is the same
+ * string everywhere.
+ *
+ * ~~*…and nothing else in the API accepts it.*~~ **The download and the export
+ * accept it too** (2026-09-27), because they are reads of the same object in
+ * other clothes. Without it, the detail page of a shadowed copy showed that
+ * copy and offered buttons that handed over the winner, a different file,
+ * under the loser's name. Still reads only: every write and every reference
+ * between objects stays id-only ({@link ObjectAddress}).
  */
 const ObjectQuery = Type.Object({
   slug: Type.Optional(Type.String()),
   source: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('system')])),
 });
+
+/**
+ * The copy a query names, or `undefined` for the winner.
+ *
+ * One function for the three routes that accept the address, so they cannot
+ * disagree about what a partial one means: a slug with no source is the
+ * account's own library, as it has been on the read route since F19.
+ */
+function addressOf(query: Static<typeof ObjectQuery>): ObjectAddress | undefined {
+  return query.slug === undefined
+    ? undefined
+    : { slug: query.slug, source: query.source ?? 'user' };
+}
 
 /**
  * The **envelope** a write arrives in — not the object inside it.
@@ -156,6 +179,19 @@ const WriteBody = Type.Object(
      * history line as free text, beside `reason`, and nothing branches on it.
      */
     importedFrom: Type.Optional(Type.String({ maxLength: 200 })),
+    /**
+     * ***Which object this create is a copy of*** (2026-09-27) — create only,
+     * and only in the envelope.
+     *
+     * A copy is JSON under a new id, and its pictures are not JSON: bytes
+     * beside the object, or inside an actor's card. So *Save my version as a
+     * copy* and *Copy to my library* made objects whose every picture was
+     * broken, and an actor whose portrait was a blank square. Naming the source
+     * lets the create bring them: an actor is written into the source's card,
+     * which carries its portrait and its expressions, and any other kind gets
+     * the source's file for each picture the copy names.
+     */
+    copyOf: Type.Optional(Type.String({ minLength: 1 })),
   },
   { additionalProperties: true },
 );
@@ -271,7 +307,32 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       }
 
       try {
-        const stored = await create(services.library, account.handle, object, schemaId);
+        const copyOf = copyOfFrom(request.body);
+        // Read before anything is written, so a copy of something this account
+        // cannot see, or of another kind, is refused rather than half made.
+        if (copyOf !== null) read(services.library, account.handle, copyOf, schemaId);
+        const stored = await create(
+          services.library,
+          account.handle,
+          object,
+          schemaId,
+          copyOf !== null && schemaId === ACTOR_SCHEMA
+            ? {
+                cardPixels: (
+                  await readCardPixels(services.library, account.handle, copyOf, schemaId)
+                ).bytes,
+              }
+            : undefined,
+        );
+        if (copyOf !== null && schemaId !== ACTOR_SCHEMA) {
+          await copyAssets(
+            services.library,
+            account.handle,
+            copyOf,
+            (object as { id: string }).id,
+            schemaId,
+          );
+        }
         // 201 with the object as stored, so the client has the content hash it
         // will need for the first edit without a second round trip.
         return await reply
@@ -300,19 +361,15 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       const schemaId = schemaFor(request.params as { kind: string }, reply);
       if (!schemaId) return;
 
-      const query = request.query as { slug?: string; source?: 'user' | 'system' };
-
       try {
         const row = read(
           services.library,
           account.handle,
           (request.params as { id: string }).id,
           schemaId,
-          // Only when the caller asks for a specific copy. Everything else —
-          // every write, every reference — stays id-only and winner-resolving.
-          query.slug === undefined
-            ? undefined
-            : { slug: query.slug, source: query.source ?? 'user' },
+          // Everything else — every write, every reference — stays id-only and
+          // winner-resolving.
+          addressOf(request.query as Static<typeof ObjectQuery>),
         );
         const registry = await services.tags.read(account.handle);
         return await reply.header('etag', row.contentHash).send(present(row, registry));
@@ -382,10 +439,13 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    *
    * It carries no `x-storyengine-missing`: a package resolves references and can
    * come up short, and an object is just itself.
+   *
+   * **`?source=&slug=` reaches one copy of a duplicated id**, as it does on the
+   * read above: the bytes a person downloads from a copy's page are that copy's.
    */
   app.get(
     '/library/:kind/:id/download',
-    { schema: { params: ObjectParams } },
+    { schema: { params: ObjectParams, querystring: ObjectQuery } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
@@ -399,6 +459,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           account.handle,
           (request.params as { id: string }).id,
           schemaId,
+          addressOf(request.query as Static<typeof ObjectQuery>),
         );
         return await reply
           .header('content-type', 'application/json; charset=utf-8')
@@ -440,7 +501,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    */
   app.get(
     '/library/:kind/:id/export/:format',
-    { schema: { params: ExportParams } },
+    { schema: { params: ExportParams, querystring: ObjectQuery } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
@@ -464,7 +525,20 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       }
 
       try {
-        const row = read(services.library, account.handle, id, schemaId);
+        /**
+         * The copy asked for, when one is ({@link ObjectQuery}) — but only the
+         * object being written out. What it names below is resolved as every
+         * reference is, by id to the winner: a copy's cast is the same `Ref`s
+         * the winner's is, and nothing about one copy of a duplicated
+         * treatment makes its actors a different actor.
+         */
+        const row = read(
+          services.library,
+          account.handle,
+          id,
+          schemaId,
+          addressOf(request.query as Static<typeof ObjectQuery>),
+        );
         /**
          * **Resolved by id against the same library, and a miss is `null`.**
          *
@@ -522,7 +596,9 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * unsaved fields included, and the size of that is the cost of the sentence
    * being true.
    *
-   * ***It writes nothing.*** No provenance, no object, no history entry — the
+   * ***It writes nothing but a usage line*** (`usage/log.ts`: what the call
+   * cost, which a person cannot recover later). No provenance, no object, no
+   * history entry — the
    * answer goes back to a form, and whether it is kept is the person's next
    * decision. That is §11.1's *"nothing may require a model call to proceed,
    * ever"* on the server's side of the line: a route that recorded the
@@ -534,12 +610,19 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
     if (!account) return;
 
     const body = request.body as Static<typeof AssistBody>;
+    /**
+     * ***Ended by the person leaving*** (2026-09-27): an editor closed on a
+     * pending assist left the call running, because nothing handed it a
+     * signal. `disconnectSignal`, for the reason the illustrate route gives.
+     */
+    const signal = disconnectSignal(reply);
     const result = await assistField(
       {
         layout: services.library.layout,
         accounts: services.accounts,
         providers: services.providers,
         config: services.config,
+        online: () => services.updates.online,
       },
       {
         account: account.handle,
@@ -549,16 +632,43 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
         draft: body.draft,
         ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
         ...(body.current === undefined ? {} : { current: body.current }),
+        signal,
       },
     );
+
+    if (!result.ok && result.reason === 'cancelled') {
+      // Nobody is left to answer when the person left; anything else that
+      // stopped it is the server stopping, and whoever is waiting is told.
+      if (signal.aborted) return;
+      return reply.code(503).send({ error: 'cancelled' });
+    }
+
+    if (!result.ok && result.reason === 'provider-failed') {
+      /**
+       * ***The class and the remedy, and never the prompt*** — a failed
+       * draft's shape (2026-09-27). The endpoint's own words go to the log
+       * line an operator filters on; the person gets what they could do.
+       */
+      request.log.error(
+        {
+          event: 'assist.failed',
+          class: result.class,
+          ...(result.detail === undefined ? {} : { detail: result.detail }),
+        },
+        'A field assist could not be written',
+      );
+      return reply
+        .code(502)
+        .send({ error: 'provider-failed', class: result.class, remedy: result.remedy });
+    }
 
     if (!result.ok) {
       /**
        * **A class, never a sentence** — [21 §1.4]. `not-bound` is a
        * configuration fault with a remedy the client already knows how to
-       * word ([P11.6]'s `REMEDY_SENTENCES`), and `no-answer` is an endpoint
-       * that replied with nothing, which is not the same thing and must not
-       * be reported as one.
+       * word ([P11.6]'s `REMEDY_SENTENCES`), `window-too-small` is another
+       * (2026-09-27), and `no-answer` is an endpoint that replied with
+       * nothing, which is not the same thing and must not be reported as one.
        */
       return reply.code(422).send({ error: result.reason });
     }
@@ -1100,6 +1210,12 @@ function schemaFor(params: { kind: string }, reply: FastifyReply): PortableSchem
  * malformed request deserves a 400 that says so. (Full body schemas are the
  * P2.0 validation item; this is only the guard.)
  */
+/** The `copyOf` of an envelope, or null — never read off a bare object. */
+function copyOfFrom(body: unknown): string | null {
+  const held = body as { object?: unknown; copyOf?: unknown };
+  return held.object !== undefined && typeof held.copyOf === 'string' ? held.copyOf : null;
+}
+
 function objectFromBody(body: unknown): unknown {
   if (typeof body !== 'object' || body === null) return null;
   const inner: unknown = (body as { object?: unknown }).object;

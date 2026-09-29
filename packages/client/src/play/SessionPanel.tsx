@@ -10,6 +10,7 @@ import {
   useSession,
   useSetSessionArchived,
   useSetSessionPreset,
+  useTranscript,
 } from '../queries.js';
 import { disclosure, link } from '../ui/classes.js';
 import { Alert } from '../ui/Alert.js';
@@ -60,6 +61,17 @@ export function SessionPanel(props: {
   block?: string;
 }): JSX.Element | null {
   const session = useSession(props.sessionId);
+  /**
+   * ***Whether the story has pictures on its moves*** — [25 E15]: *"an export
+   * containing attachments should say so"*. The transcript Play already holds,
+   * read from the same cache entry, so asking costs nothing. *The path shown,
+   * not every branch*: a picture only on a branch nobody is looking at goes
+   * unmentioned. The note is a courtesy — the export carries every branch and
+   * every caption either way.
+   */
+  const transcript = useTranscript(props.sessionId);
+  const hasPictures =
+    transcript.data?.turns.some((turn) => (turn.input?.attachments?.length ?? 0) > 0) ?? false;
   // The same key the library page holds, so opening this issues no request.
   const presets = useLibrary('presets');
   const setPreset = useSetSessionPreset(props.sessionId);
@@ -127,10 +139,16 @@ export function SessionPanel(props: {
 
         {props.block === undefined || pack === undefined ? null : (
           <BlockEditor
+            // One editor per block. The page stays mounted when only `?block=`
+            // changes, so without the key the draft typed for one block stood in
+            // the next one's field — labelled as the next block, with *Save*
+            // live — and saving it wrote the first block's prose over the
+            // second's, in the session's only copy of its pack.
+            key={props.block}
             pack={pack}
             blockId={props.block}
-            onSave={(next) => {
-              setPreset.mutate({ preset: next });
+            onSave={(next, saved) => {
+              setPreset.mutate({ preset: next }, { onSuccess: saved });
             }}
           />
         )}
@@ -154,21 +172,22 @@ export function SessionPanel(props: {
 
         {pack === undefined ? null : (
           <>
-            <NumberField
+            <ParamField
               label="Temperature"
-              value={typeof params['temperature'] === 'number' ? String(params['temperature']) : ''}
-              onChange={(next) => {
-                setParam('temperature', next.trim() === '' ? undefined : Number(next));
+              value={typeof params['temperature'] === 'number' ? params['temperature'] : undefined}
+              whole={false}
+              onCommit={(next) => {
+                setParam('temperature', next);
               }}
               hint="Blank leaves it to the provider."
             />
-            <NumberField
+            <ParamField
               label="Maximum reply length"
-              value={typeof params['maxTokens'] === 'number' ? String(params['maxTokens']) : ''}
-              onChange={(next) => {
-                setParam('maxTokens', next.trim() === '' ? undefined : Number(next));
+              value={typeof params['maxTokens'] === 'number' ? params['maxTokens'] : undefined}
+              whole
+              onCommit={(next) => {
+                setParam('maxTokens', next);
               }}
-              min={1}
               hint="In tokens. Blank leaves it to the provider."
             />
           </>
@@ -207,6 +226,15 @@ export function SessionPanel(props: {
           <a href={`/api/sessions/${props.sessionId}/export`} className={link.inline} download>
             Export this session
           </a>
+          {/* *Said where the choice is made*: an export carries the record of
+              every picture and its caption, and not the picture — the file
+              is the story's text. A backup is what carries the pixels. */}
+          {hasPictures ? (
+            <Fine>
+              The pictures on this story’s moves travel as their captions. A backup carries the
+              pictures themselves.
+            </Fine>
+          ) : null}
           <Button
             type="button"
             onClick={() => {
@@ -315,10 +343,73 @@ export function SessionPanel(props: {
  * prose of its own to edit — the workbench's link is already withheld for one,
  * and this says so for anybody who reaches the address another way.
  */
+/**
+ * ***A sampler setting, written when the person is done with it*** (2026-09-27).
+ *
+ * These wrote the whole pack on every keystroke, from a value the session query
+ * fed back: `0.75` went out as `0`, then as `0.` — which is not a number — and
+ * `512` as `5` and `51`, and a refetch arriving between two keystrokes reset
+ * the box under the typing, so what landed could be neither what was typed nor
+ * anything asked for. The walk sheet's own test typed one character on purpose
+ * because two did not work.
+ *
+ * So the text is this control's while it is being typed, and one write goes out
+ * on leaving the box or on Enter: blank clears the setting, a number that fits
+ * is sent, and one that does not is said beside the box rather than sent. The
+ * text is re-seeded when the setting changes from elsewhere — another tab, a
+ * pack switch — for `NumberRow`'s reason in the lorebook editor.
+ */
+function ParamField(props: {
+  label: string;
+  value: number | undefined;
+  /** A whole number of one or more, as `maxTokens` must be; otherwise any number. */
+  whole: boolean;
+  onCommit: (value: number | undefined) => void;
+  hint: string;
+}): JSX.Element {
+  const shown = props.value === undefined ? '' : String(props.value);
+  const [held, setHeld] = useState({ text: shown, from: shown });
+  const [problem, setProblem] = useState<string | null>(null);
+  if (shown !== held.from) setHeld({ text: shown, from: shown });
+
+  function commit(): void {
+    const text = held.text.trim();
+    if (text === '') {
+      setProblem(null);
+      if (props.value !== undefined) props.onCommit(undefined);
+      return;
+    }
+    const parsed = Number(text);
+    const fits =
+      Number.isFinite(parsed) && (!props.whole || (Number.isInteger(parsed) && parsed >= 1));
+    if (!fits) {
+      setProblem(props.whole ? 'A whole number of tokens, 1 or more.' : 'A number, or blank.');
+      return;
+    }
+    setProblem(null);
+    if (parsed !== props.value) props.onCommit(parsed);
+  }
+
+  return (
+    <NumberField
+      label={props.label}
+      value={held.text}
+      onChange={(text) => {
+        setHeld((was) => ({ ...was, text }));
+      }}
+      onCommit={commit}
+      error={problem}
+      hint={props.hint}
+      {...(props.whole ? { min: 1 } : {})}
+    />
+  );
+}
+
 function BlockEditor(props: {
   pack: Record<string, unknown>;
   blockId: string;
-  onSave: (next: Record<string, unknown>) => void;
+  /** The pack with this block changed, and what to do once it is written. */
+  onSave: (next: Record<string, unknown>, saved: () => void) => void;
 }): JSX.Element {
   const blocks = Array.isArray(props.pack['blocks'])
     ? (props.pack['blocks'] as Record<string, unknown>[])
@@ -355,13 +446,20 @@ function BlockEditor(props: {
           variant="primary"
           disabled={value === template}
           onClick={() => {
-            props.onSave({
-              ...props.pack,
-              blocks: blocks.map((one) =>
-                one['id'] === props.blockId ? { ...one, template: value } : one,
-              ),
-            });
-            setDraft(null);
+            // The draft is let go once the pack holding it is written, not when
+            // the write is asked for: a save that fails is shown above, and the
+            // text somebody wrote has to still be here to try again with.
+            props.onSave(
+              {
+                ...props.pack,
+                blocks: blocks.map((one) =>
+                  one['id'] === props.blockId ? { ...one, template: value } : one,
+                ),
+              },
+              () => {
+                setDraft(null);
+              },
+            );
           }}
         >
           Save this block

@@ -35,9 +35,13 @@ import type { Layout } from '../storage/layout.js';
  * is us, and a document we produced should be one we would accept back.
  */
 
-/** Bounds, not meaning. The same distinction `prefs.ts` draws for its own. */
-const MAX_TAGS = 500;
-const MAX_NAME_LENGTH = 64;
+/**
+ * Bounds, not meaning. The same distinction `prefs.ts` draws for its own.
+ * Exported for the backup merge, which has to stop short of them rather than
+ * be refused at them, after the library it brought has been written.
+ */
+export const MAX_TAGS = 500;
+export const MAX_TAG_NAME_LENGTH = 64;
 
 export class TagsError extends Error {
   readonly code: 'invalid' | 'conflict' | 'not-found';
@@ -158,10 +162,10 @@ function validated(tags: readonly TagEntry[]): TagEntry[] {
   for (const tag of tags) {
     const name = normaliseTagName(tag.name);
     if (name === '') throw new TagsError('invalid', 'A tag needs a name.');
-    if (name.length > MAX_NAME_LENGTH) {
+    if (name.length > MAX_TAG_NAME_LENGTH) {
       throw new TagsError(
         'invalid',
-        `A tag name is at most ${String(MAX_NAME_LENGTH)} characters.`,
+        `A tag name is at most ${String(MAX_TAG_NAME_LENGTH)} characters.`,
       );
     }
     if (tag.id === '') throw new TagsError('invalid', 'A tag needs an id.');

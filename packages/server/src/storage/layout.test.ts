@@ -184,6 +184,7 @@ describe('the layout never produces a path outside the data root', () => {
       layout.usersRoot,
       layout.userRoot('ned'),
       layout.userConnectionsRoot('ned'),
+      layout.usageLogFile('ned'),
       layout.sessionsRoot('ned'),
       layout.sessionRoot('ned', '01234567-89ab-7cde-8f01-23456789abcd'),
       layout.trashRoot('ned'),

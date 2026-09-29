@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { type Goal, type PlotHook, type Preset, type Setup, uuidv7 } from '@storyengine/shared';
@@ -13,10 +14,16 @@ import {
 } from '../index-db/sessions.js';
 
 import { writeJsonAtomic } from '../storage/atomic.js';
-import { ensureDirectory, listDirectoryNames, moveTree, readFileBytes } from '../storage/files.js';
+import {
+  ensureDirectory,
+  listDirectoryNames,
+  moveTree,
+  readFileBytes,
+  statFile,
+} from '../storage/files.js';
 import { KeyedQueue } from '../storage/keyed-queue.js';
 import type { Layout } from '../storage/layout.js';
-import { resolveWithin } from '../storage/paths.js';
+import { PathEscapeError, resolveWithin } from '../storage/paths.js';
 import type { Binding, ModelRole } from '../providers/types.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { acceptEffect } from '../turns/effects.js';
@@ -27,9 +34,11 @@ import {
   quarantineEffects,
   splitChannelKey,
 } from './channels.js';
+import { pooledId } from './pool-shape.js';
 import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
+  listSegments,
   readAllTurns,
   readTurnAt,
   type SegmentLimits,
@@ -104,10 +113,131 @@ export interface SessionContext {
    * written for. Absent in a store-only test, where the default stands.
    */
   snapshotEvery?: () => number;
+  /**
+   * ***Whether a turn is in flight on this session*** (2026-09-27), asked
+   * under the session's lock by every write that moves the head without a
+   * model call.
+   *
+   * A turn's job was reserved against the head as it was, and its commit sets
+   * the head to the new turn whatever happened meanwhile. A dial change, a
+   * *Remember this* or an arriving backdrop written while it ran became a
+   * sibling of that turn, on a line nobody would ever see again: the setting
+   * silently reverted when the turn landed. Head moves and undo already
+   * refused, at the route and outside the lock; the rest did not ask at all.
+   *
+   * **Optional, and absent means never busy**, which is every store-only
+   * test. `app.ts` answers it from the operational store's `activeJob`.
+   */
+  busy?: (sessionId: string) => boolean;
 }
 
 function scopeOf(context: SessionContext, handle: string): string {
   return (context.scope ?? ((each: string) => `user:${each}`))(handle);
+}
+
+/**
+ * Indexes a session file the caller wrote whole — the importer, which builds
+ * one from a document rather than through `createSession`.
+ *
+ * Every write in this module indexes what it wrote as it writes it; the
+ * importer wrote `session.json` and indexed nothing, so an imported session
+ * had no row until something else saved it.
+ */
+export function indexWrittenSession(
+  context: SessionContext,
+  handle: string,
+  session: SessionFile,
+): void {
+  indexSession(context.index, scopeOf(context, handle), session);
+}
+
+/**
+ * ***One session's rows, derived again from its folder*** (2026-09-27): the
+ * session row and its links, and every turn with its search text.
+ *
+ * **The rebuild's derivation, lifted out so a restore can use it too.** A
+ * delete removes a session's rows — a trashed session does not appear in a
+ * list or match a search ([03 §10.2]) — and `deleteSession` said *restoring
+ * re-indexes it*. Nothing did. The restore route left it to the watcher,
+ * which only knows library objects, so a restored session was listed (the
+ * list reads the disk) and never found by search, and counted in no *used
+ * by*, for as long as the install lived. One derivation for both callers, so
+ * the rebuild-equals-incremental gate still holds a single answer.
+ *
+ * Clears first, so it can be asked of a session that already has rows. `null`
+ * when the folder holds no readable session.
+ */
+export async function reindexSession(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+): Promise<{ turns: number } | null> {
+  const session = await readSession(context, handle, sessionId);
+  if (session === null) return null;
+
+  // Every read before the first write, so a folder that cannot be read leaves
+  // the rows it had rather than none.
+  const turns = await readAllTurns(turnsRoot(context.layout, handle, sessionId));
+
+  removeSessionRows(context.index, sessionId);
+  indexSession(context.index, scopeOf(context, handle), session);
+  // The session id is the folder's, never the one a turn carries: an imported
+  // or restored turn may have been written under another.
+  for (const { turn, location } of turns) indexTurn(context.index, sessionId, turn, location);
+  return { turns: turns.length };
+}
+
+/**
+ * ***What a session's files look like, without reading them*** (2026-09-27) —
+ * the value [03 §5.1]'s start-up check compares against the one it recorded.
+ *
+ * The files a session's rows are derived from, and only those: `session.json`
+ * and every segment, each by name, size and modification time. Snapshots,
+ * summaries, renditions and pictures are not indexed, so a change to them is
+ * not a reason to derive the rows again. A digest, because a long campaign has
+ * dozens of segments and the record is one short string per session.
+ *
+ * `null` when the folder holds no `session.json`, or has a name the layout
+ * refuses — a folder that is no session, which is what `readSession` answers
+ * for both. A folder that cannot be read at all throws, as a read of it would.
+ *
+ * *What mtime and size cannot see*, which is the check the design chose and the
+ * one `make` and `rsync` make: a file rewritten to the same length within the
+ * same tick of the filesystem's clock, or one whose time was set back by hand.
+ * Taken at the start, before anything is read, so a write that lands during a
+ * derivation leaves a stamp older than the rows and is derived again, rather
+ * than one newer than them and never looked at.
+ */
+export async function sessionStamp(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+): Promise<string | null> {
+  let file: string;
+  let turns: string;
+  try {
+    file = sessionFilePath(context.layout, handle, sessionId);
+    turns = turnsRoot(context.layout, handle, sessionId);
+  } catch (error) {
+    if (error instanceof PathEscapeError) return null;
+    throw error;
+  }
+
+  const session = await statFile(file);
+  if (session === null) return null;
+
+  const parts = [`session.json ${String(session.mtimeMs)} ${String(session.size)}`];
+  for (const segment of await listSegments(turns)) {
+    const facts = await statFile(resolveWithin(turns, `${segment}.jsonl`));
+    // Gone between the listing and the stat: the stamp says so, and differs
+    // from one where it was there.
+    parts.push(
+      facts === null
+        ? `${segment} gone`
+        : `${segment} ${String(facts.mtimeMs)} ${String(facts.size)}`,
+    );
+  }
+  return `sha256:${createHash('sha256').update(parts.join('\n')).digest('hex')}`;
 }
 
 export function sessionRoot(layout: Layout, handle: string, sessionId: string): string {
@@ -218,32 +348,13 @@ export async function createSession(
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
   };
 
-  await writeNewSession(context, handle, session);
-  return session;
-}
-
-/**
- * ***Writes a session that did not exist, and indexes it*** — the one path for
- * both ways a session begins.
- *
- * Factored out of `createSession` at
- * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md) because
- * `importSession` had copied its three write steps and not the fourth: it
- * wrote `session.json` and never the session's index row, and search joins that
- * row — so every imported session was unsearchable, from any install, until it
- * played a turn. Two copies of *write a new session* is the shape that drifts,
- * and it had.
- */
-export async function writeNewSession(
-  context: SessionContext,
-  handle: string,
-  session: SessionFile,
-): Promise<void> {
   const root = sessionRoot(context.layout, handle, session.id);
   await ensureDirectory(root);
   await context.layout.assertReal(root);
   await writeJsonAtomic(sessionFilePath(context.layout, handle, session.id), session);
   indexSession(context.index, scopeOf(context, handle), session);
+
+  return session;
 }
 
 export async function readSession(
@@ -251,7 +362,25 @@ export async function readSession(
   handle: string,
   sessionId: string,
 ): Promise<SessionFile | null> {
-  const path = sessionFilePath(context.layout, handle, sessionId);
+  /**
+   * ***An id no folder can have names no session*** (2026-09-27).
+   *
+   * The layout refuses a name it will not resolve — `con`, a trailing dot, a
+   * colon — and every rule is applied on every platform, so a folder copied in
+   * under a `date -Iseconds` name refuses on Linux too. The refusal threw from
+   * here, and here is where every loop over sessions starts: the session list
+   * answered 500 for the whole account, a rebuild stopped, and the start-up
+   * pass over sessions took the server down with it. A URL naming such an id
+   * was a logged 500 rather than the 404 it is. The link check below still
+   * throws, because a link out of the data directory is the refusal working.
+   */
+  let path: string;
+  try {
+    path = sessionFilePath(context.layout, handle, sessionId);
+  } catch (error) {
+    if (error instanceof PathEscapeError) return null;
+    throw error;
+  }
   await context.layout.assertReal(path);
 
   const bytes = await readFileBytes(path);
@@ -285,7 +414,15 @@ export async function listSessionFiles(
 ): Promise<SessionFile[]> {
   const found: SessionFile[] = [];
   for (const id of await listSessions(context, handle)) {
-    const session = await readSession(context, handle, id);
+    // What the comment above promises, for a folder that throws as well as one
+    // that parses to nothing: a `session.json` linked out of the data
+    // directory, or one the server's user cannot read (2026-09-27).
+    let session: SessionFile | null;
+    try {
+      session = await readSession(context, handle, id);
+    } catch {
+      continue;
+    }
     if (session === null) continue;
     if (session.archivedAt !== undefined && options.includeArchived !== true) continue;
     found.push(session);
@@ -465,14 +602,22 @@ export async function setName(
  * objects that the library owns, and removing them because their origin was
  * deleted would be a far worse surprise than leaving them (§10.3).
  */
+export type DeleteSessionOutcome = { kind: 'deleted' } | { kind: 'no-session' } | { kind: 'busy' };
+
 export async function deleteSession(
   context: SessionContext,
   handle: string,
   sessionId: string,
-): Promise<boolean> {
+): Promise<DeleteSessionOutcome> {
   return withSessionLock(sessionId, async () => {
+    /**
+     * ***Not while a turn is in flight*** (2026-09-27). Its commit appends to
+     * `turns/` and would create `sessions/<id>/` again beside the trashed one,
+     * and a restore then found its place taken, for good.
+     */
+    if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
-    if (session === null) return false;
+    if (session === null) return { kind: 'no-session' };
 
     const root = sessionRoot(context.layout, handle, sessionId);
     await context.layout.assertReal(root);
@@ -483,7 +628,7 @@ export async function deleteSession(
     // trashed object ([03 §10.2]) — it does not appear in a list and does not
     // match a search. Restoring re-indexes it.
     removeSessionRows(context.index, sessionId);
-    return true;
+    return { kind: 'deleted' };
   });
 }
 
@@ -541,22 +686,10 @@ export async function appendTurnOnly(
   sessionId: string,
   turn: Turn,
 ): Promise<TurnLocation> {
-  /**
-   * ***A turn says which session it is in, and the index believes it*** —
-   * `indexTurn` files the row under `turn.sessionId`. [P11.10]'s importer
-   * appended turns into a new session still naming the one they came from,
-   * which filed the copy's turns under the original
-   * ([P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md)).
-   * Refused here, where it is one comparison, rather than tolerated in the
-   * index, where it is a wrong row nobody sees until a search misses.
-   */
-  if (turn.sessionId !== sessionId) {
-    throw new Error(`turn ${turn.id} names session ${turn.sessionId}, not ${sessionId}`);
-  }
   const root = turnsRoot(context.layout, handle, sessionId);
   await context.layout.assertReal(root);
   const location = await appendTurn(root, turn, context.limits);
-  indexTurn(context.index, turn, location);
+  indexTurn(context.index, sessionId, turn, location);
   return location;
 }
 
@@ -749,7 +882,8 @@ export type MoveHeadOutcome =
       abandoned: { turns: number; escapedEffects: number };
     }
   | { kind: 'no-session' }
-  | { kind: 'no-turn' };
+  | { kind: 'no-turn' }
+  | { kind: 'busy' };
 
 /**
  * Points the head at any node, and re-derives the channel state there — [P6.1].
@@ -776,6 +910,9 @@ export async function moveHead(
   options: { resume?: boolean } = {},
 ): Promise<MoveHeadOutcome> {
   return withSessionLock(sessionId, async () => {
+    // Asked here as well as at the route, because here is where it holds: the
+    // route's answer could change before this lock was taken.
+    if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
     if (session === null) return { kind: 'no-session' };
 
@@ -924,7 +1061,9 @@ export type UndoOutcome =
    * `branchFrom` is the node to branch from instead — the refusal's whole
    * point is that it can offer one.
    */
-  | { kind: 'not-at-tip'; keys: string[]; branchFrom: string | null };
+  | { kind: 'not-at-tip'; keys: string[]; branchFrom: string | null }
+  /** A turn is in flight, and an undo now would invert against a moving tip. */
+  | { kind: 'busy' };
 
 /**
  * Undoes a turn's effects by applying their `before` — [§1.4],
@@ -963,6 +1102,7 @@ export async function undoTurn(
   turnId: string,
 ): Promise<UndoOutcome> {
   return withSessionLock(sessionId, async () => {
+    if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
     if (session === null) return { kind: 'no-session' };
 
@@ -1039,7 +1179,9 @@ export async function undoTurn(
  * fail silently would be worse than none.
  */
 export type ChannelWriteOutcome =
-  { kind: 'no-session' } | { kind: 'written'; session: SessionFile; effect: ChannelEffect };
+  | { kind: 'no-session' }
+  | { kind: 'busy' }
+  | { kind: 'written'; session: SessionFile; effect: ChannelEffect };
 
 /**
  * A person writes a value to one channel — [06 §4.2]'s recovery, [P7.1].
@@ -1069,47 +1211,108 @@ export async function writeChannel(
   key: string,
   value: unknown,
 ): Promise<ChannelWriteOutcome> {
-  return withSessionLock(sessionId, async () => {
-    const session = await readSession(context, handle, sessionId);
-    if (session === null) return { kind: 'no-session' };
+  const { channelId, scopeKey } = splitChannelKey(key);
+  const outcome = await appendEngineTurn(context, handle, sessionId, (session, running) =>
+    engineTurn(session, (id) =>
+      acceptEffect(
+        id,
+        {
+          channelId,
+          scopeKey,
+          op: { type: 'set', path: '/' },
+          after: value,
+          proposedBy: { kind: 'user' },
+        },
+        running,
+      ),
+    ),
+  );
+  if (outcome.kind !== 'written') return { kind: outcome.kind === 'busy' ? 'busy' : 'no-session' };
+  const [effect] = outcome.turn.effects;
+  if (effect === undefined) return { kind: 'no-session' };
+  return { kind: 'written', session: outcome.session, effect };
+}
 
-    const turns = await readTurns(context, handle, sessionId);
-    const running = await reconstructAlong(
-      context,
-      handle,
-      sessionId,
-      walkPath(turns, session.headTurnId),
-    );
+/** What a write that makes no model call came to. */
+export type EngineTurnOutcome =
+  | { kind: 'written'; session: SessionFile; turn: Turn }
+  | { kind: 'no-session' }
+  /** A turn is in flight, and this would be a sibling its commit abandons. */
+  | { kind: 'busy' }
+  /** The builder had nothing to write. */
+  | { kind: 'nothing' };
 
-    const id = uuidv7();
-    const { channelId, scopeKey } = splitChannelKey(key);
-    const effect = acceptEffect(
-      id,
-      {
-        channelId,
-        scopeKey,
-        op: { type: 'set', path: '/' },
-        after: value,
-        proposedBy: { kind: 'user' },
-      },
-      running,
-    );
+/**
+ * ***A turn with no model call, read and written under one lock*** —
+ * (2026-09-27).
+ *
+ * `writeChannel`, the *Remember this* capture and an arriving backdrop each
+ * wrote one of these, and two of them read the head, rebuilt its state and
+ * built the turn *outside* the session's lock, then appended under it. A turn
+ * committing between the read and the append left the new turn parented on a
+ * head that was no longer the head. Now the read, the build and the append are
+ * one critical section, and a session with a turn in flight answers `busy`
+ * instead: the job's commit would make whatever this wrote a sibling nobody
+ * sees (see `SessionContext.busy`).
+ *
+ * `build` gets the session and the channel state at its head, and returns the
+ * turn to append, or null for nothing to write.
+ */
+export async function appendEngineTurn(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  build: (session: SessionFile, running: Record<string, ChannelState>) => Turn | null,
+): Promise<EngineTurnOutcome> {
+  return withSessionLock(sessionId, () =>
+    appendEngineTurnLocked(context, handle, sessionId, build),
+  );
+}
 
-    const turn: Turn = {
-      id,
-      sessionId,
-      parentTurnId: session.headTurnId,
-      createdAt: new Date().toISOString(),
-      status: 'complete',
-      effects: [effect],
-      tape: [],
-    };
+/** The body of {@link appendEngineTurn}, for a caller already holding the lock. */
+export async function appendEngineTurnLocked(
+  context: SessionContext,
+  handle: string,
+  sessionId: string,
+  build: (session: SessionFile, running: Record<string, ChannelState>) => Turn | null,
+): Promise<EngineTurnOutcome> {
+  if (context.busy?.(sessionId) === true) return { kind: 'busy' };
+  const session = await readSession(context, handle, sessionId);
+  if (session === null) return { kind: 'no-session' };
 
-    await appendTurnOnly(context, handle, sessionId, turn);
-    const next = await advanceHead(context, handle, sessionId, turn);
-    if (next === null) return { kind: 'no-session' };
-    return { kind: 'written', session: next, effect };
-  });
+  const turns = await readTurns(context, handle, sessionId);
+  const running = await reconstructAlong(
+    context,
+    handle,
+    sessionId,
+    walkPath(turns, session.headTurnId),
+  );
+  const turn = build(session, running);
+  if (turn === null) return { kind: 'nothing' };
+
+  const { session: next } = await appendTurnLocked(context, handle, sessionId, turn);
+  return { kind: 'written', session: next, turn };
+}
+
+/**
+ * The shape every one of these turns has: a child of the head, complete, no
+ * tape, and the effects `effectsFor` builds against the turn's own id.
+ */
+export function engineTurn(
+  session: SessionFile,
+  effectsFor: (turnId: string) => ChannelEffect | ChannelEffect[],
+): Turn {
+  const id = uuidv7();
+  const effects = effectsFor(id);
+  return {
+    id,
+    sessionId: session.id,
+    parentTurnId: session.headTurnId,
+    createdAt: new Date().toISOString(),
+    status: 'complete',
+    effects: Array.isArray(effects) ? effects : [effects],
+    tape: [],
+  };
 }
 
 /**
@@ -1172,6 +1375,12 @@ export async function reconcileHandEdits(
   sessionId: string,
 ): Promise<ChannelEffect[]> {
   return withSessionLock(sessionId, async () => {
+    /**
+     * ***Not while a turn is in flight*** (2026-09-27). Its commit sets the
+     * head to its own turn, so a divergence turn written now would be a
+     * sibling it abandons. The next read after the commit reconciles instead.
+     */
+    if (context.busy?.(sessionId) === true) return [];
     const session = await readSession(context, handle, sessionId);
     if (session === null) return [];
 
@@ -1503,7 +1712,14 @@ export async function readTurnById(
   sessionId: string,
   turnId: string,
 ): Promise<Turn | null> {
-  const root = turnsRoot(context.layout, handle, sessionId);
+  // A session no folder can have holds no turn (see `readSession`).
+  let root: string;
+  try {
+    root = turnsRoot(context.layout, handle, sessionId);
+  } catch (error) {
+    if (error instanceof PathEscapeError) return null;
+    throw error;
+  }
 
   const located = findTurnLocation(context.index, turnId);
   if (
@@ -1608,9 +1824,17 @@ export async function setSessionHooks(
     const session = await readSession(context, handle, sessionId);
     if (session === null) return null;
 
-    const pool = session.hooks ?? [];
+    /**
+     * ***By the id the entry carries, whatever else it lacks*** (2026-09-27).
+     * An entry the schema refuses may have no `hook` at all, and reading
+     * `entry.hook.id` off one threw before the remove it was asked for; a
+     * malformed hook with an id is exactly what a person removes.
+     */
+    const pool = Array.isArray(session.hooks) ? session.hooks : [];
     const without =
-      change.remove === undefined ? pool : pool.filter((entry) => entry.hook.id !== change.remove);
+      change.remove === undefined
+        ? pool
+        : pool.filter((entry) => pooledId(entry) !== change.remove);
     /**
      * **A structured clone, the way creation copies one**, so an author editing
      * the object they submitted cannot reach into a running session — and
@@ -1622,7 +1846,7 @@ export async function setSessionHooks(
       change.add === undefined
         ? without
         : [
-            ...without.filter((entry) => entry.hook.id !== change.add?.id),
+            ...without.filter((entry) => pooledId(entry) !== change.add?.id),
             { hook: structuredClone(change.add), source: { kind: 'session' as const } },
           ];
 

@@ -308,3 +308,71 @@ describe('the tarball tier', () => {
     expect(script).toMatch(/DATA="\$\{DATA:-\/var\/lib\/storyengine\}"/);
   });
 });
+
+/**
+ * ***What brings the server back, in each of the three wrappers*** — [09 §6.4],
+ * corrected 2026-09-27.
+ *
+ * *Restart now* and a restore both end the process and count on something to
+ * start it again, and the settings page offers them only where
+ * `SE_SUPERVISED` (or systemd) says something will. So a wrapper that declares
+ * supervision and has no policy that restarts a *clean* exit is the trap §6.4
+ * refuses, and it shipped twice: the unit restarted only on failure while the
+ * restart exited 0, and the unraid template declared supervision with no
+ * restart policy at all. Each wrapper is held to its own half here, because
+ * none of it runs anywhere this repository can reach.
+ */
+describe('what restarts the server, in each wrapper', () => {
+  const unit = read('deploy/tarball/storyengine.service');
+  const compose = read('compose.yaml');
+  const template = read('deploy/unraid/storyengine.xml');
+
+  /** `RESTART_EXIT_CODE`, read out of the source so the two cannot drift. */
+  const code = /export const RESTART_EXIT_CODE = (\d+);/.exec(
+    read('packages/server/src/restart.ts'),
+  )?.[1];
+
+  it('restarts the unit on the status a requested restart exits with', () => {
+    expect(code, 'RESTART_EXIT_CODE was not found in restart.ts').toBeDefined();
+    expect(code).not.toBe('0');
+    expect(unit).toMatch(new RegExp(`^RestartForceExitStatus=${code ?? ''}$`, 'm'));
+    expect(unit).toMatch(new RegExp(`^SuccessExitStatus=${code ?? ''}$`, 'm'));
+  });
+
+  /**
+   * *Every wrapper that says supervised has a policy that brings a requested
+   * restart back.* The unraid template is the one that shipped with none.
+   * `unless-stopped` there, as in compose, rather than `on-failure`: the
+   * restart's own status would satisfy either, but `unless-stopped` also
+   * covers an exit this build does not know it makes, and a stop from the
+   * Docker tab stays a stop under both.
+   */
+  it('declares supervision only beside a restart policy', () => {
+    expect(unit).toMatch(/^Environment=SE_SUPERVISED=1$/m);
+    expect(unit).toMatch(/^Restart=on-failure$/m);
+
+    expect(compose).toMatch(/SE_SUPERVISED: '1'/);
+    expect(compose).toMatch(/^ {4}restart: unless-stopped$/m);
+
+    expect(template).toMatch(/Target="SE_SUPERVISED"\s+Default="1"/);
+    expect(template).toMatch(/<ExtraParams>[^<]*--restart=unless-stopped[^<]*<\/ExtraParams>/);
+  });
+
+  /**
+   * ***One stop timeout in three places.*** The server bounds its own
+   * shutdown (`CLOSE_BACKSTOP_MS`, then `RENDITION_DRAIN_MS` and
+   * `RENDITION_ABORT_SETTLE_MS`, about twenty seconds at worst), and Docker's
+   * own default of ten seconds is shorter than that. So each wrapper gives it
+   * the same thirty, and a change to one is a change to all three.
+   */
+  it('gives shutdown the same time in all three', () => {
+    const seconds = {
+      unit: /^TimeoutStopSec=(\d+)$/m.exec(unit)?.[1],
+      compose: /^ {4}stop_grace_period: (\d+)s$/m.exec(compose)?.[1],
+      template: /<ExtraParams>[^<]*--stop-timeout=(\d+)[^<]*<\/ExtraParams>/.exec(template)?.[1],
+    };
+    expect(seconds.unit, 'no TimeoutStopSec in the unit').toBeDefined();
+    expect(seconds).toEqual({ unit: seconds.unit, compose: seconds.unit, template: seconds.unit });
+    expect(Number(seconds.unit)).toBeGreaterThanOrEqual(30);
+  });
+});

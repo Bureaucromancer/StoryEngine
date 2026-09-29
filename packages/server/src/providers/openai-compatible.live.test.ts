@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { crc32, deflateSync } from 'node:zlib';
+
 import { describe, expect, it } from 'vitest';
 
 import { createCaptureRecorder } from './capture.js';
@@ -36,6 +38,8 @@ import { createCaptureStore } from '../storage/captures.js';
 
 const baseUrl = process.env['STORYENGINE_LIVE_BASE_URL'] ?? '';
 const modelId = process.env['STORYENGINE_LIVE_MODEL'] ?? '';
+/** A model on the same endpoint that sees pictures — optional, and its own switch. */
+const visionModelId = process.env['STORYENGINE_LIVE_VISION_MODEL'] ?? '';
 const apiKey = process.env['STORYENGINE_LIVE_API_KEY'] ?? '';
 const configured = baseUrl.length > 0 && modelId.length > 0;
 
@@ -55,7 +59,7 @@ function liveProvider(capabilities?: Connection['capabilities']): OpenAICompatib
     label: 'Live endpoint (.env)',
     provider: 'openai-compatible',
     scope: 'user',
-    models: [modelId],
+    models: [modelId, ...(visionModelId === '' ? [] : [visionModelId])],
     baseUrl,
     ...(apiKey.length > 0 ? { apiKey } : {}),
     ...(capabilities === undefined ? {} : { capabilities }),
@@ -172,3 +176,84 @@ describe.skipIf(!configured)('structured output against a live endpoint', () => 
     expect(result.object === undefined || typeof result.object === 'object').toBe(true);
   });
 });
+
+/**
+ * ***A picture against a real endpoint*** — [25 E15], R1.
+ *
+ * **The half a stub cannot answer**: whether an endpoint that says it sees
+ * pictures takes the `image_url` data URL the adapter writes. The wire test in
+ * `openai-compatible.test.ts` proves the bytes leave in that shape; this is the
+ * endpoint's side of it. The SDK has dropped a field in silence before
+ * ([polish §8](../../../../docs/design/workplan/06-polish.md)), and a local
+ * runtime can accept the request and ignore the picture — which is why the one
+ * soft check below is a colour, not a description.
+ *
+ * *Its own switch*, `STORYENGINE_LIVE_VISION_MODEL`: a model on the same
+ * endpoint that sees pictures (Ollama's `llava`, LM Studio's `qwen2-vl`, a
+ * hosted vision model). Unset, it skips, as the rest of this file does without
+ * its two variables. The picture is made here — a flat red square — so the run
+ * needs no fixture and sends nothing anybody took.
+ */
+describe.skipIf(!configured || visionModelId === '')('a picture against a live endpoint', () => {
+  const DIGEST = `sha256:${'0'.repeat(64)}`;
+
+  it('takes a picture beside the words and answers', async () => {
+    const asking: RenderedMessage[] = [
+      {
+        role: 'user',
+        content: 'What colour fills this picture? Answer with one word.',
+        fromBlocks: ['live-b4', 'live-b5'],
+        parts: [
+          { kind: 'text', text: 'What colour fills this picture? Answer with one word.' },
+          { kind: 'image', blockId: 'live-b5', digest: DIGEST, mime: 'image/png' },
+        ],
+      },
+    ];
+    const result = await liveProvider().generate({
+      modelId: visionModelId,
+      messages: asking,
+      params,
+      images: new Map([[DIGEST, { bytes: solidPng(32, [220, 20, 20]), mime: 'image/png' }]]),
+    });
+
+    expect(result.text.length).toBeGreaterThan(0);
+    expect(FINISH_REASONS).toContain(result.finishReason);
+    // Soft, and the only content check in this file: a model that answers
+    // without having seen the picture has nothing to say *red* from. Reported
+    // rather than failed — a model's words are nobody's contract.
+    if (!/red/i.test(result.text)) {
+      console.warn(`The vision model answered without naming the colour: ${result.text}`);
+    }
+  });
+});
+
+/**
+ * A flat square PNG, built from its three chunks — the smallest honest picture,
+ * and one that exists only for the length of the run.
+ */
+function solidPng(size: number, [red, green, blue]: readonly [number, number, number]): Uint8Array {
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(data.length, 0);
+    head.write(type, 4, 'ascii');
+    const tail = Buffer.alloc(4);
+    tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
+    return Buffer.concat([head, data, tail]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header[8] = 8; // bit depth
+  header[9] = 2; // truecolour
+  const row = Buffer.concat([
+    Buffer.from([0]),
+    Buffer.from(Array(size).fill([red, green, blue]).flat()),
+  ]);
+  const pixels = Buffer.concat(Array.from({ length: size }, () => row));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(pixels)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}

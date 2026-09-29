@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { renderTemplate } from '../assembly/template.js';
-import { convertMacros, KNOWN_MACROS } from './macros.js';
+import { convertMacros, KNOWN_MACROS, MACRO_NOTE_LIMIT, macroNoteBudget } from './macros.js';
 
 /**
  * **The closed mapping table [04 §8.4.2] promised and did not contain.**
@@ -89,6 +89,106 @@ describe('converting SillyTavern macros', () => {
     const original = 'Use {{ }} sparingly, and {%- raw -%} is not a macro.';
 
     expect(convertMacros(original).template).toBe(original);
+  });
+});
+
+/**
+ * ***A template made to be slow is converted in time*** (2026-09-27).
+ *
+ * The pattern was quadratic: `{{a::` and a quarter of a megabyte of spaces
+ * took 26 seconds of synchronous work on the thread every account shares, and
+ * a file at the upload limit would have taken weeks. Two seconds is a bound
+ * three orders of magnitude above what the pattern now takes, so a slow
+ * machine is not what makes this fail.
+ */
+describe('a template somebody made to be slow', () => {
+  const QUARTER_MEGABYTE = 256 * 1024;
+
+  for (const [label, crafted] of [
+    ['an argument that never closes', `{{a::${' '.repeat(QUARTER_MEGABYTE)}`],
+    ['one opening after another', '{{a::'.repeat(QUARTER_MEGABYTE / 5)],
+  ] as const) {
+    it(`converts a quarter of a megabyte of ${label} inside two seconds`, () => {
+      const started = performance.now();
+      const { template } = convertMacros(crafted);
+      expect(performance.now() - started).toBeLessThan(2000);
+      // Nothing in it is a macro, so nothing changes.
+      expect(template).toBe(crafted);
+    });
+  }
+
+  it('takes a refused macro whole when its argument holds a macro', () => {
+    // Ordinary SillyTavern text. The obvious linear pattern stopped at the
+    // inner `{{`, never saw `random`, and left `{{random::` for the model.
+    const { template, seen } = convertMacros(
+      'She {{random::{{char}} smiles::{{user}} frowns}} and waits.',
+    );
+
+    expect(template).toBe('She  and waits.');
+    expect(seen.get('random')?.kind).toBe('refused');
+  });
+});
+
+describe('a name every object has', () => {
+  it('is not a macro the table knows', () => {
+    // A plain index into the table found `Object` for `constructor` and
+    // `Object.prototype` for `__proto__`, and the text became `undefined`.
+    const { template, seen } = convertMacros('{{constructor}} and {{__proto__}}');
+
+    expect(template).toBe('{{constructor}} and {{__proto__}}');
+    expect(seen.get('constructor')).toEqual({ kind: 'unknown' });
+    expect(seen.get('__proto__')).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('the macros a review names', () => {
+  it('are bounded by the budget the conversion is given, and the rest counted', () => {
+    const budget = macroNoteBudget();
+    const many = Array.from({ length: 10_000 }, (_, at) => `{{made_up_${String(at)}}}`).join(' ');
+
+    const { template, seen } = convertMacros(many, budget);
+
+    expect(seen.size).toBe(MACRO_NOTE_LIMIT);
+    expect(budget).toEqual({ left: 0, unlisted: 10_000 - MACRO_NOTE_LIMIT });
+    // Converted exactly as before: only the telling stops.
+    expect(template).toBe(many);
+  });
+
+  it('never spends the budget on a macro that maps', () => {
+    const budget = macroNoteBudget();
+    convertMacros('{{char}} {{user}} {{bot}}', budget);
+
+    expect(budget).toEqual({ left: MACRO_NOTE_LIMIT, unlisted: 0 });
+  });
+});
+
+/**
+ * ***Read the way SillyTavern binds them*** (2026-09-27) — two corrections the
+ * table owed its source.
+ */
+describe('what SillyTavern means by a name', () => {
+  it('takes {{persona}} for the persona’s description, which a slot supplies', () => {
+    // SillyTavern binds it to the description; the table put the name there.
+    const { template, seen } = convertMacros('Who you are: {{persona}}');
+
+    expect(template).toBe('Who you are: ');
+    expect(seen.get('persona')).toEqual({ kind: 'refused', because: 'body-comes-from-a-slot' });
+  });
+
+  it('reads the legacy angle forms when a SillyTavern converter asks', () => {
+    const { template, seen } = convertMacros('<BOT> greets <user> for <GROUP>.', undefined, {
+      angles: true,
+    });
+
+    expect(renderTemplate(template, CONTEXT)).toEqual({
+      ok: true,
+      text: 'Vera Solano greets The Inspector for .',
+    });
+    expect(seen.get('group')).toEqual({ kind: 'refused', because: 'no-equivalent' });
+  });
+
+  it('leaves angle brackets alone for everyone else, where they may be markup', () => {
+    expect(convertMacros('<char>Vera</char>').template).toBe('<char>Vera</char>');
   });
 });
 

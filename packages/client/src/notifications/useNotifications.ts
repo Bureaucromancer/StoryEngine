@@ -5,6 +5,7 @@ import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-q
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../api.js';
+import { markSessionEnded } from '../auth/session-ended.js';
 import { usePrefs } from '../queries.js';
 import { showBrowserNotification } from './browser.js';
 import { playChime, primeAudio } from './chime.js';
@@ -80,7 +81,18 @@ export interface NotificationsState {
  * hook where you need it"* design and is why this returns state rather than
  * being called by each consumer.
  */
-export function useNotifications(enabled: boolean): NotificationsState {
+export function useNotifications(
+  /**
+   * ***Who is signed in, not only whether anyone is*** (2026-09-27). The stream
+   * is opened with the cookie of the moment, so it is that account's stream
+   * for as long as it stays open — and a switch made in another tab left this
+   * one delivering the account that had gone, into the account that had come.
+   * Keyed by the handle, a change closes it and opens the new account's; null
+   * is nobody, and no stream at all.
+   */
+  account: string | null,
+): NotificationsState {
+  const enabled = account !== null;
   const client = useQueryClient();
   const query = useNotificationList(enabled);
   const prefsQuery = usePrefs();
@@ -203,15 +215,18 @@ export function useNotifications(enabled: boolean): NotificationsState {
       onReconnecting: () => {
         setConnected(false);
       },
-      onFatal: () => {
+      onFatal: (error) => {
         setConnected(false);
+        // Refused as signed out: the one fatal close that is about the
+        // sign-in rather than the stream — see `auth/session-ended.ts`.
+        if (error === 'unauthenticated') markSessionEnded(client);
       },
     });
 
     return () => {
       handle.close();
     };
-  }, [client, deliver, enabled]);
+  }, [client, deliver, enabled, account]);
 
   const markRead = useCallback(
     (ids: string[] = []) => {

@@ -4,8 +4,10 @@
 import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { LIBRARY_DIRECTORIES, type PortableSchemaId } from '@storyengine/shared';
+import { LIBRARY_DIRECTORIES, uuidv7, type PortableSchemaId } from '@storyengine/shared';
 
+import type { Logger } from '../state/commit.js';
+import { watchWallClock, type WallClockWatch } from '../wall-clock.js';
 import type { Layout } from './layout.js';
 import { moveTree } from './files.js';
 
@@ -181,6 +183,21 @@ export function trashEntryPath(layout: Layout, handle: string, id: string): stri
   return join(layout.trashRoot(handle), kind, entry);
 }
 
+/** What a restore did. */
+export type RestoreOutcome =
+  | {
+      ok: true;
+      path: string;
+      /**
+       * What came back, so the caller can index it (2026-09-27): the folder's
+       * name is the session's id or the object's slug once the suffix is off.
+       */
+      restored:
+        | { kind: 'session'; sessionId: string }
+        | { kind: 'object'; schemaId: PortableSchemaId; slug: string };
+    }
+  | { ok: false; reason: 'not-found' | 'occupied' };
+
 /**
  * Puts one entry back where it came from.
  *
@@ -198,7 +215,7 @@ export async function restoreFromTrash(
   layout: Layout,
   handle: string,
   id: string,
-): Promise<{ ok: true; path: string } | { ok: false; reason: 'not-found' | 'occupied' }> {
+): Promise<RestoreOutcome> {
   const [kind, entry] = splitTrashId(id);
   const from = trashEntryPath(layout, handle, id);
   if (!(await exists(from))) return { ok: false, reason: 'not-found' };
@@ -209,10 +226,61 @@ export async function restoreFromTrash(
       ? layout.sessionRoot(handle, name)
       : join(layout.userRoot(handle), 'library', kind, name);
 
-  if (await exists(to)) return { ok: false, reason: 'occupied' };
+  if (await exists(to)) {
+    /**
+     * ***A session's place taken by what was written after it left*** —
+     * (2026-09-27). A live session always has its `session.json`, so a folder
+     * at the address without one is not a session anybody made: it is what a
+     * writer still running when the session was deleted put back, a turn or a
+     * picture with no session around it. It used to refuse the restore for as
+     * long as it stood, which was for good. It goes to the trash as an entry
+     * of its own, and the session comes back.
+     */
+    const stray =
+      kind === 'sessions' && !(await exists(join(to, 'session.json')))
+        ? layout.sessionTrashDestination(handle, name, uuidv7())
+        : null;
+    if (stray === null) return { ok: false, reason: 'occupied' };
+    await moveTree(to, stray);
+  }
 
-  await moveTree(from, to);
-  return { ok: true, path: to };
+  try {
+    await moveTree(from, to);
+  } catch (error) {
+    /**
+     * ***Two restores of one entry at once*** (2026-09-27): two tabs, or a
+     * double press. Both find the entry, both find its place free, and the
+     * second rename finds nothing left to move. That is the answer the first
+     * look would have given a moment later, so it is given now, and a rename
+     * that failed for any other reason is still the failure it was.
+     */
+    if (!(await exists(from))) return { ok: false, reason: 'not-found' };
+    if (await exists(to)) return { ok: false, reason: 'occupied' };
+    throw error;
+  }
+  if (kind === 'sessions') {
+    return { ok: true, path: to, restored: { kind: 'session', sessionId: name } };
+  }
+  const schemaId = (Object.entries(LIBRARY_DIRECTORIES) as [PortableSchemaId, string][]).find(
+    ([, directory]) => directory === kind,
+  )?.[0];
+  // `splitTrashId` admitted only the library's directories and `sessions`.
+  if (schemaId === undefined) throw new Error(`No kind keeps its objects in ${kind}.`);
+  return { ok: true, path: to, restored: { kind: 'object', schemaId, slug: name } };
+}
+
+/**
+ * ***An address that is not one, told apart from everything else that can go
+ * wrong in a restore*** (2026-09-27). The route caught every throw as this one
+ * and answered *That is not an address in the trash*, so a rename refused by a
+ * scanner holding the folder on Windows, or a full disk, told the person their
+ * trash entry did not exist and wrote nothing to the log.
+ */
+export class TrashAddressError extends Error {
+  constructor() {
+    super('That is not an address in the trash.');
+    this.name = 'TrashAddressError';
+  }
 }
 
 /** `kind/entry`, refusing anything that is not exactly that. */
@@ -221,7 +289,7 @@ function splitTrashId(id: string): [string, string] {
   const kind = parts[0] ?? '';
   const entry = parts[1] ?? '';
   if (parts.length !== 2 || !trashKinds().includes(kind) || entry === '' || entry.includes('..')) {
-    throw new Error('That is not an address in the trash.');
+    throw new TrashAddressError();
   }
   return [kind, entry];
 }
@@ -243,6 +311,19 @@ async function exists(path: string): Promise<boolean> {
  * down has no timer coming for it. The second reason does not apply — the trash
  * has no watcher to fall back on, which is exactly why nothing has ever swept.
  *
+ * ***~~Once at startup~~ — there was no pass at startup until 2026-09-27.***
+ * The only timer was the daily interval, so a server that never stayed up for
+ * a day never swept: a laptop shut down at night, a NAS whose nightly backup
+ * stops its containers, a host updated daily. The trash kept everything, and
+ * the trash page went on listing entries as past their window. The first pass
+ * now comes a minute after the start ({@link TRASH_SWEEP_START_DELAY_MS}).
+ *
+ * ***And a pass is skipped when the wall clock has jumped*** (2026-09-27). The
+ * window is measured against `Date.now()`, so a clock that leapt forward past
+ * it would empty the trash of everything still somebody's to restore;
+ * `wall-clock.ts` says how a jump is told from time passing, and why only one
+ * pass is skipped.
+ *
  * **Daily rather than hourly**, because the window is measured in days: a sweep
  * sixteen times finer than the thing it is measuring buys nothing and costs a
  * `readdir` per account per hour on an install that may have a hundred.
@@ -259,18 +340,31 @@ async function exists(path: string): Promise<boolean> {
 export interface TrashSweep {
   /** Runs one pass now over every account, and answers what it took. */
   runOnce(): Promise<string[]>;
+  /** Where the timed passes say what they did, once a logger exists. */
+  setLogger(log: Logger): void;
   stop(): void;
 }
 
 export const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * How long after a start the first pass waits. Off the boot path, for
+ * `START_BACKUP_DELAY_MS`'s reasons: a start already reads every session and
+ * checks the index, and a server in a restart loop must not become a loop of
+ * deletions. A minute rather than the backup's thirty seconds, so the two do
+ * not land together.
+ */
+export const TRASH_SWEEP_START_DELAY_MS = 60_000;
+
 export function startTrashSweep(
   layout: Layout,
   handles: () => Promise<string[]>,
   retentionDays: () => number,
-  intervalMs: number = TRASH_SWEEP_INTERVAL_MS,
+  options: { intervalMs?: number; startDelayMs?: number; clock?: WallClockWatch } = {},
 ): TrashSweep {
   let stopped = false;
+  let log: Logger | null = null;
+  const clock = options.clock ?? watchWallClock();
 
   const runOnce = async (): Promise<string[]> => {
     const days = retentionDays();
@@ -283,15 +377,42 @@ export function startTrashSweep(
     return taken;
   };
 
-  const timer = setInterval(() => {
-    void runOnce().catch(() => undefined);
-  }, intervalMs);
+  /** A timed pass: the clock is asked first, and what happened is said. */
+  const pass = async (): Promise<void> => {
+    if (clock.jumped()) {
+      log?.warn(
+        { event: 'trash.clockJumped' },
+        'The clock moved unlike time passing, so this trash sweep was skipped',
+      );
+      return;
+    }
+    const taken = await runOnce();
+    if (taken.length > 0) {
+      log?.info({ event: 'trash.swept', count: taken.length }, 'Removed expired trash');
+    }
+  };
+  const run = (): void => {
+    void pass().catch((error: unknown) => {
+      log?.error(
+        { event: 'trash.sweepFailed', message: error instanceof Error ? error.message : '' },
+        'A trash sweep failed',
+      );
+    });
+  };
+
+  const first = setTimeout(run, options.startDelayMs ?? TRASH_SWEEP_START_DELAY_MS);
+  first.unref();
+  const timer = setInterval(run, options.intervalMs ?? TRASH_SWEEP_INTERVAL_MS);
   timer.unref();
 
   return {
     runOnce,
+    setLogger: (next) => {
+      log = next;
+    },
     stop: () => {
       stopped = true;
+      clearTimeout(first);
       clearInterval(timer);
     },
   };

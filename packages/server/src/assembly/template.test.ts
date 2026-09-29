@@ -97,3 +97,29 @@ describe('rendering a block template', () => {
     expect(renderTemplate(template, CONTEXT)).toEqual(renderTemplate(template, CONTEXT));
   });
 });
+
+/**
+ * ***A template cannot take the server with it*** (2026-09-27).
+ *
+ * liquidjs defaults its limits to infinity, and a preset is somebody else's
+ * file: `{% for i in (1..1000000000) %}` in one text block built a
+ * billion-element array on the event loop, and V8 aborted the process for
+ * every account. What the budget refuses has to be shown with something the
+ * engine without one would finish quickly, or the test measures the time
+ * limit instead: a string that doubles itself twenty-one times is two million
+ * characters, built in milliseconds, and well past the budget.
+ */
+describe('a template past its limits', () => {
+  it('is refused rather than run when it would build too much', () => {
+    const doubling =
+      '{% assign s = "x" %}{% for i in (1..21) %}{% assign s = s | append: s %}{% endfor %}{{ s | size }}';
+    expect(renderTemplate(doubling, CONTEXT).ok).toBe(false);
+  });
+
+  it('cannot read a file from the working directory', () => {
+    // It resolved `include` against the process's own directory, which holds
+    // this repository's `package.json` when the suite runs.
+    const result = renderTemplate('{% include "package.json" %}', CONTEXT);
+    expect(result.ok).toBe(false);
+  });
+});

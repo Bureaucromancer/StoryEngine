@@ -11,7 +11,8 @@ import { uuidv7 } from '@storyengine/shared';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { listDirectoryNames } from '../storage/files.js';
 import { Layout } from '../storage/layout.js';
-import { listSegments, readAllTurns, walkPath } from './segments.js';
+import { findTurnLocation } from '../index-db/sessions.js';
+import { listSegments, readAllTurns, readTurnAt, walkPath } from './segments.js';
 import {
   appendTurnToSession,
   createSession,
@@ -267,6 +268,36 @@ describe('reading is a tree walk', () => {
     const byId = await readTurns(context, 'ned', sessionId);
     expect([...byId.keys()].sort()).toEqual(turns.map((turn) => turn.id).sort());
   });
+
+  /**
+   * ***The torn line is the only loss*** (2026-09-27). The next append used to
+   * land straight after the fragment, and when that append was the commit's
+   * retry of the very turn that tore, the two made one line that parsed as
+   * neither. The head was set to that turn, and the path walk from a head it
+   * could not read came back empty: the whole story gone from a session whose
+   * turns were all on disk but one.
+   */
+  it('closes off a torn line before the next append, so a retried turn is read back', async () => {
+    const { sessionId, turns } = await aSessionOf(1);
+    const file = join(dataDir, 'users', 'ned', 'sessions', sessionId, 'turns', '000001.jsonl');
+    const second = turnAfter(sessionId, turns[0]!.id, 2);
+    const whole = JSON.stringify(second);
+    // The append of the second turn was cut short: a full disk, or the power.
+    await writeFile(file, `${await readFile(file, 'utf8')}${whole.slice(0, whole.length / 2)}`);
+
+    // …and the commit appends it again when it resumes.
+    const { location, session } = await appendTurnToSession(context, 'ned', sessionId, second);
+
+    const byId = await readTurns(context, 'ned', sessionId);
+    expect(walkPath(byId, session.headTurnId).map((turn) => turn.id)).toEqual([
+      turns[0]!.id,
+      second.id,
+    ]);
+    // Where the index says it is, which counts the fragment as the line it is.
+    const turnsRoot = join(dataDir, 'users', 'ned', 'sessions', sessionId, 'turns');
+    expect(findTurnLocation(index.db, second.id)).toMatchObject(location);
+    expect((await readTurnAt(turnsRoot, location))?.id).toBe(second.id);
+  });
 });
 
 describe('the head snapshot', () => {
@@ -389,7 +420,7 @@ describe('deleting a session is a move, and archiving is neither', () => {
     // more to lose. [03 §10.3] settles it: a session is a folder too.
     const { sessionId, turns } = await aSessionOf(2);
 
-    expect(await deleteSession(context, 'ned', sessionId)).toBe(true);
+    expect(await deleteSession(context, 'ned', sessionId)).toEqual({ kind: 'deleted' });
 
     expect(await readSession(context, 'ned', sessionId)).toBeNull();
     expect(await listSessions(context, 'ned')).toEqual([]);
@@ -416,7 +447,7 @@ describe('deleting a session is a move, and archiving is neither', () => {
   });
 
   it('reports a session that was not there rather than throwing', async () => {
-    expect(await deleteSession(context, 'ned', uuidv7())).toBe(false);
+    expect(await deleteSession(context, 'ned', uuidv7())).toEqual({ kind: 'no-session' });
   });
 
   it('hides an archived session from the default list, intact', async () => {

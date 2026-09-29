@@ -86,6 +86,69 @@ export function stampImported<T extends { provenance: Provenance }>(
 }
 
 /**
+ * ***The id a file's object already has here, or null*** — the lookup
+ * `identify` starts with, and nothing else (2026-09-27).
+ *
+ * For an object another is about to name: a card's embedded book scopes itself
+ * to the card's actor, and the actor links back to the book, both by id. Both
+ * ids used to be minted fresh by the converter, and `identify` re-pointed each
+ * object to its prior id only as it was stored, so a re-import wrote a book
+ * scoped to an actor that did not exist and an actor linking to a book that
+ * was never stored, and neither could ever compare `unchanged`.
+ */
+export function priorImportId(
+  context: LibraryContext,
+  handle: string,
+  schemaId: PortableSchemaId,
+  filename: string,
+): string | null {
+  const owner = userOwner(handle);
+  return (
+    findPriorImport(
+      context.db,
+      owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
+      schemaId,
+      filename,
+    )?.id ?? null
+  );
+}
+
+/**
+ * ***A treatment made from a scenario is identified by its whole text***
+ * (2026-09-27).
+ *
+ * A treatment the sweep synthesises from a card's scenario has no file of its
+ * own, so its `originalFilename` is the scenario's identity — and that was the
+ * first 120 characters of it. Two scenarios sharing an opening (a series of
+ * cards with one preamble) were one identity: the second, found as a prior
+ * import of the first, *replaced* it by default, in the same sweep or the next
+ * upload, and one of the two premises was gone. [P4 §1.10] promises one
+ * treatment per distinct scenario text, and a prefix is not a text.
+ *
+ * The stamp is a digest of the whole scenario now. A treatment written before
+ * this carries the old stamp, and is still this scenario's when — and only
+ * when — its framing is this whole text: then the old stamp is kept, so the
+ * next import finds it rather than making a second. A treatment whose first
+ * 120 characters merely match is someone else's, and is left alone.
+ */
+export function scenarioStamp(
+  context: LibraryContext,
+  handle: string,
+  schemaId: PortableSchemaId,
+  framing: string,
+): string {
+  const digest = `scenario:${contentHashOf(new TextEncoder().encode(framing))}`;
+  const owner = userOwner(handle);
+  const scope = owner.kind === 'system' ? 'system' : `user:${owner.handle}`;
+  if (findPriorImport(context.db, scope, schemaId, digest) !== null) return digest;
+
+  const legacy = `scenario:${framing.slice(0, 120)}`;
+  const earlier = findPriorImport(context.db, scope, schemaId, legacy);
+  const same = (earlier?.body as { framing?: unknown } | undefined)?.framing === framing;
+  return earlier !== null && same ? legacy : digest;
+}
+
+/**
  * Whether this object has been imported from this file before, and if so
  * whether anything about it changed.
  *
@@ -176,38 +239,47 @@ export function stableId(namespace: string, ...parts: readonly string[]): string
 }
 
 /**
- * ***A derived id that nothing in `taken` already has*** —
- * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * ***A second entry with the same derived id gets an id of its own***
+ * (2026-09-27).
  *
- * A derived id is only as unique as what it is derived from, and an Aventuras
- * entry's name is not unique within its book: two entries called *The Harbour*
- * got one id, and the editor — which resolves an id to its first match — could
- * then never open the second, and deleted both when either was removed.
+ * [04 §5.2] makes an entry id unique within its book, and every converter
+ * derives one from what the entry says. So a book that says the same thing
+ * twice collided: an Aventuras location and faction both called *Ravenholm*
+ * (its ids come from the name alone), an NPC called *setting* beside the
+ * scenario's own setting entry, or two blank *Untitled entry* rows in a
+ * half-written SillyTavern world (`stableId('entry', name, content)`). The
+ * editor, the timing channels and every link key on the id, so selecting the
+ * second opened the first, and the two shared their cooldowns.
  *
- * *The first claimant keeps the id it always had*, so a book with no repeats
- * converts to exactly the bytes it did before and re-imports as `unchanged`
- * ([P4 §1.3]). A later claimant is derived again under `repeat`, with its
- * occurrence number, until the id is free. **A namespace of its own rather than
- * a suffix**, because `stableId` joins its parts with a space: `('The Harbour',
- * '2')` and `('The Harbour 2')` hash the same string, and a suffix in the same
- * namespace would take the id of an entry really called *The Harbour 2*.
- *
- * Returns whether the preferred id was already taken, so the caller can say so
- * in the review.
+ * A repeat gets an ordinal, and an id that was unique stays exactly what it
+ * was, so nothing already imported moves. The ordinal skips every id the book
+ * already holds, because `stableId` joins its parts with a space: the second
+ * *Ravenholm*'s `('Ravenholm', '2')` hashes the same text as an entry named
+ * *Ravenholm 2*. Still a function of the input alone, so the same file
+ * converts to the same bytes ([P4 §1.3]).
  */
-export function claimId(
-  taken: Set<string>,
-  preferred: string,
-  repeat: string,
-  ...parts: readonly string[]
-): { id: string; repeated: boolean } {
-  let id = preferred;
-  const repeated = taken.has(id);
-  for (let occurrence = 2; taken.has(id); occurrence += 1) {
-    id = stableId(repeat, ...parts, String(occurrence));
+export function distinctIds(
+  entries: readonly { id: string; name: string }[],
+  namespace: string,
+  book: string,
+): void {
+  const taken = new Set(entries.map((entry) => entry.id));
+  const kept = new Set<string>();
+  for (const entry of entries) {
+    if (!kept.has(entry.id)) {
+      kept.add(entry.id);
+      continue;
+    }
+    let ordinal = 2;
+    let id = stableId(namespace, book, entry.name, String(ordinal));
+    while (taken.has(id)) {
+      ordinal += 1;
+      id = stableId(namespace, book, entry.name, String(ordinal));
+    }
+    taken.add(id);
+    kept.add(id);
+    entry.id = id;
   }
-  taken.add(id);
-  return { id, repeated };
 }
 
 /**

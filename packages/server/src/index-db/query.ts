@@ -299,20 +299,36 @@ export function rowsForId(db: DatabaseSync, id: string): IdRow[] {
 }
 
 /**
- * Full-text search across the indexed objects.
+ * Full-text search across the indexed objects, among the owners a caller may
+ * see.
  *
- * FTS5 ([19 §7](../../../../docs/design/19-tech-stack.md)). Turn text joins this at P2 —
- * the table exists, nothing writes to it yet.
+ * FTS5 ([19 §7](../../../../docs/design/19-tech-stack.md)).
+ *
+ * ***Scoped in the SQL*** (2026-09-27), which is what `searchLoreEntries` and
+ * `searchTurns` do and why: the limit is applied by the database, so an owner
+ * filter applied afterwards returns fewer than it should. The route filtered
+ * afterwards, so on a household server with two accounts one person's matches
+ * could fill the whole limit and the other's search came back empty — the same
+ * query answering differently depending on what somebody else had written.
+ * [P5] recorded it as *a defect `search` has*; it had it until now.
  */
-export function search(db: DatabaseSync, term: string, limit = 50): IndexedObject[] {
+export function search(
+  db: DatabaseSync,
+  owners: readonly string[],
+  term: string,
+  limit = 50,
+): IndexedObject[] {
+  if (owners.length === 0 || term.trim() === '') return [];
+  const placeholders = owners.map(() => '?').join(', ');
   const rows = db
     .prepare(
       `select object.* from object_fts
          join object on object.path = object_fts.path
         where object_fts match ? and object.tombstoned_at is null
+          and object.owner in (${placeholders})
         order by rank limit ?`,
     )
-    .all(term, limit);
+    .all(term, ...owners, limit);
 
   return asRows(rows).map(hydrate);
 }
@@ -359,13 +375,12 @@ export interface LoreEntryHit {
  * them — so returning marked text would hand it a second, incompatible
  * mechanism for the job it already does.
  *
- * **Scoped in SQL, where `search` scopes in the route.** `searchTurns` sets
- * this precedent and the reason to follow it rather than `search` is the
- * `limit`: SQL applies it before the route ever sees a row, so an owner filter
- * applied afterwards silently returns fewer than it should — on a household
- * server with two users, one person's matches can eat the whole limit before
- * the other's are considered. That is a defect `search` has and this need not
- * inherit.
+ * **Scoped in SQL**, which `searchTurns` did first, for the `limit`: SQL
+ * applies it before the route ever sees a row, so an owner filter applied
+ * afterwards silently returns fewer than it should — on a household server
+ * with two users, one person's matches can eat the whole limit before the
+ * other's are considered. `search` had that defect when this was written, and
+ * has since stopped having it.
  */
 export function searchLoreEntries(
   db: DatabaseSync,
@@ -513,7 +528,38 @@ export function snapshot(db: DatabaseSync): string[] {
     ...orphans.map((row) => ['orphan-fts', row.path, row.name, row.body].join(' | ')),
     ...loreLines(db),
     ...errorLines(db),
+    ...linkLines(db),
   ];
+}
+
+/**
+ * ***What points at what, held to one answer too*** (2026-09-27).
+ *
+ * `ingestFile` said writing links in the ingest's transaction was *what makes
+ * the rebuild-equals-incremental gate cover this table for free*. The gate
+ * compared this function's lines, and this function never read the table, so
+ * two producers could leave different links behind — a rebuild that kept edges
+ * from files deleted while the server was down, a watcher that let the last
+ * copy of a duplicated folder decide — and agree anyway.
+ */
+function linkLines(db: DatabaseSync): string[] {
+  const rows = asRows<{
+    from_kind: string;
+    from_id: string;
+    from_name: string;
+    owner: string;
+    to_id: string;
+  }>(
+    db
+      .prepare(
+        `select from_kind, from_id, from_name, owner, to_id
+           from object_link order by from_kind, from_id, to_id`,
+      )
+      .all(),
+  );
+  return rows.map((row) =>
+    ['link', row.from_kind, row.from_id, row.from_name, row.owner, row.to_id].join(' | '),
+  );
 }
 
 /**

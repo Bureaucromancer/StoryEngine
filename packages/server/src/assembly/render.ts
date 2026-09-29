@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { MessagePart } from '@storyengine/shared';
+
 import type { ProviderCapabilities, RenderedMessage } from '../providers/types.js';
 import type { AssembledBlock } from './types.js';
 
@@ -48,6 +50,7 @@ export function render(
 ): RenderedMessage[] {
   const included = blocks.filter((block) => block.included);
   const messages: RenderedMessage[] = [];
+  const separator = options.separator ?? '\n\n';
 
   for (const block of included) {
     const previous = messages.at(-1);
@@ -55,18 +58,59 @@ export function render(
       options.capabilities.mergeSameRole !== 'never' && previous?.role === block.role;
 
     if (mergeable) {
-      previous.content = `${previous.content}${options.separator ?? '\n\n'}${block.text}`;
+      previous.content = `${previous.content}${separator}${block.text}`;
       // **The requirement merging must not break.** The workbench maps every
       // sent byte back to the block that produced it, and a merge that
       // concatenated six blocks into one string without recording which six
       // would destroy that mapping quietly — noticeable only when somebody is
       // already debugging.
       previous.fromBlocks.push(block.id);
+      appendParts(previous, `${separator}${block.text}`, block);
       continue;
     }
 
-    messages.push({ role: block.role, content: block.text, fromBlocks: [block.id] });
+    const message: RenderedMessage = {
+      role: block.role,
+      content: block.text,
+      fromBlocks: [block.id],
+    };
+    appendParts(message, block.text, block);
+    messages.push(message);
   }
 
   return messages;
+}
+
+/**
+ * Keeps a message's ordered parts, once it has a picture in it — [25 E15].
+ *
+ * ***The text parts joined are always `content`***, which is the property that
+ * keeps `content` the frozen contract's whole text rendering: a message only
+ * grows `parts` at its first sent picture, and it is seeded then with the text
+ * it already had, so nothing that went before is lost from the ordering. After
+ * that every block's text is appended as it is to `content` — separator and
+ * all — and a sent picture follows the words that introduce it.
+ */
+function appendParts(message: RenderedMessage, text: string, block: AssembledBlock): void {
+  const sent =
+    block.image?.sent === true && block.image.digest !== null && block.image.mime !== null;
+  if (message.parts === undefined && !sent) return;
+
+  // Seeded with everything but this block's text, which is appended below.
+  const parts: MessagePart[] = message.parts ?? [
+    { kind: 'text', text: message.content.slice(0, message.content.length - text.length) },
+  ];
+  const last = parts.at(-1);
+  if (last?.kind === 'text') last.text = `${last.text}${text}`;
+  else parts.push({ kind: 'text', text });
+
+  if (sent && block.image?.digest != null && block.image.mime != null) {
+    parts.push({
+      kind: 'image',
+      blockId: block.id,
+      digest: block.image.digest,
+      mime: block.image.mime,
+    });
+  }
+  message.parts = parts.filter((part) => part.kind !== 'text' || part.text !== '');
 }

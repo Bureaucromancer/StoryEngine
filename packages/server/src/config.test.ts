@@ -14,13 +14,16 @@ import {
   ConfigSchema,
   DEFAULT_CONFIG,
   LIVE_APPLIERS,
+  TIMER_MAX_MS,
   applierOf,
+  configBounds,
   configChoices,
   configKeys,
   environmentDocument,
   loadConfig,
   pendingRestart,
   tierOf,
+  validateConfigDocument,
 } from './config.js';
 
 let dir: string;
@@ -256,6 +259,48 @@ describe('the tier table is the source', () => {
     for (const [key, tier] of documented) {
       expect(tierOf(key), key).toBe(tier);
     }
+  });
+
+  /**
+   * ***A row that calls an applied key unread is a row nobody corrected***
+   * (2026-09-27). `limits.maxUploadMb` read *there is no upload route yet … so
+   * it is `unread` today* for seven phases after the upload route shipped and
+   * the applier said `applied`. Struck-through text is the record of what was
+   * believed, and is left out.
+   */
+  it('has no row in the table calling an applied key unread', async () => {
+    const doc = await readFile(
+      fileURLToPath(new URL('../../../docs/design/21-internal-contracts.md', import.meta.url)),
+      'utf8',
+    );
+
+    const stale: string[] = [];
+    for (const line of doc.split('\n')) {
+      const row = /^\|\s*`([a-z][\w.]*)`\s*\|\s*`live`\s*\|/i.exec(line);
+      if (!row) continue;
+      const key = row[1] ?? '';
+      const standing = line.replace(/~~[^~]*~~/g, '');
+      if (applierOf(key) === 'applied' && standing.includes('`unread`')) stale.push(key);
+    }
+
+    expect(stale).toEqual([]);
+  });
+
+  /**
+   * ***Every millisecond key stops where a timer can hold it*** (2026-09-27).
+   * Node does not refuse a longer delay: it warns and uses one millisecond, so
+   * the schema is the only place a value meant as *effectively never* can be
+   * stopped from meaning *constantly*.
+   */
+  it('bounds every millisecond key at the longest delay a timer holds', () => {
+    const bounds = configBounds();
+    const timed = configKeys().filter((key) => key.endsWith('Ms'));
+
+    expect(timed.length).toBeGreaterThanOrEqual(3);
+    for (const key of timed) expect(bounds[key]?.maximum, key).toBe(TIMER_MAX_MS);
+    expect(() =>
+      validateConfigDocument({ limits: { providerTimeoutMs: TIMER_MAX_MS + 1 } }),
+    ).toThrow(/providerTimeoutMs/);
   });
 
   it('keeps the bind address on restart', () => {

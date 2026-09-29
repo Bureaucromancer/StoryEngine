@@ -65,6 +65,17 @@ export interface GoalJudgeReport {
   /** The goal the call was asked about, and whether it said yes. */
   goalId: string;
   met: boolean;
+  /**
+   * ***The call that answered, or null when nothing was asked*** (2026-09-27).
+   *
+   * The runner credited a completion to the turn's last call, and the judge is
+   * not the last step that calls: the suggester, the memory extractor and an
+   * illustration run after it. With any of them on, the record named *their*
+   * call as the reasoning for the completion, which is the misattribution the
+   * `{ kind: 'model', callId }` stamp exists to prevent. Only the judge knows
+   * which call it judged in, so it says.
+   */
+  callId: string | null;
 }
 
 export interface GoalJudgeContext {
@@ -102,7 +113,7 @@ export function goalJudge(context: GoalJudgeContext): {
       // Nothing was narrated, so nothing can have met anything. Saves a call on
       // a turn that failed upstream, and answers the same way it would have.
       if (prose.trim() === '') {
-        context.report({ goalId: context.goal.id, met: false });
+        context.report({ goalId: context.goal.id, met: false, callId: null });
         return {};
       }
 
@@ -126,6 +137,7 @@ export function goalJudge(context: GoalJudgeContext): {
       context.report({
         goalId: context.goal.id,
         met: answered(result.object ?? result.text),
+        callId: result.callId,
       });
       return {};
     },

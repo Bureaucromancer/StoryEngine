@@ -8,6 +8,7 @@ import {
   entriesGoverned,
   entryGate,
   LOREBOOK_SCHEMA,
+  newLoreEntry,
   resolvedFolderId,
   type Lorebook,
   type LoreEntry,
@@ -38,9 +39,9 @@ import {
   entryOf,
   moveEntryBefore,
   reapplyBookEdits,
+  withAddedEntry,
   withEntry,
   withFolderGate,
-  withNewEntry,
   withoutEntry,
   type Draft,
 } from './book-form.js';
@@ -338,7 +339,29 @@ function Editor(props: EditorProps): JSX.Element {
   const book = draft as unknown as Lorebook;
   const selected = search.entry === undefined ? undefined : entryOf(draft, search.entry);
 
-  function edit(next: Draft): void {
+  /**
+   * ***Every write here is an updater over the book as it is now*** (2026-09-27).
+   *
+   * Each control used to build the whole next book from `draft` — the book as
+   * this render had it — and that is right only for a write that lands in the
+   * same event as its click. Three do not: an assist resolves ten to sixty
+   * seconds later, a picture after its upload, and an entry import after its
+   * file is read. Meanwhile somebody selects another entry (a `?entry=` change,
+   * so nothing remounts) and types a paragraph into it. The late write then
+   * restored the book as it was at the click, plus its own change — and the
+   * paragraph, and the entry list's *unsaved* mark with it, were gone without
+   * a word ([10 §11.5]: *"every field stays directly typeable while an assist is
+   * running"*).
+   *
+   * So a write is a function of the current book, and what a control captures
+   * at render is only *where* it writes: an entry's id, a folder's, a key. An
+   * assist started on Harbour lands on Harbour after the person has moved to
+   * Lighthouse, and on nothing at all if Harbour has since been removed — which
+   * is what `withEntry` does with an id it cannot find.
+   *
+   * A value is still accepted, and one caller passes one: see `EntryTravel`.
+   */
+  function edit(next: Draft | ((current: Draft) => Draft)): void {
     editor.patch(next);
   }
 
@@ -387,7 +410,7 @@ function Editor(props: EditorProps): JSX.Element {
         path="name"
         value={nameOf(draft)}
         onChange={(name) => {
-          edit({ ...draft, name });
+          edit((current) => ({ ...current, name }));
         }}
         required={isRequiredField('lorebooks', 'name')}
         error={missing.includes('name') ? 'A lorebook needs a name.' : null}
@@ -397,7 +420,7 @@ function Editor(props: EditorProps): JSX.Element {
       <BookRetrieval
         book={book}
         onSet={(patch) => {
-          edit({ ...draft, ...patch });
+          edit((current) => ({ ...current, ...patch }));
         }}
       />
 
@@ -418,13 +441,17 @@ function Editor(props: EditorProps): JSX.Element {
           kind="lorebooks"
           objectId={props.initial.id}
           media={book.media}
+          unsaved={editor.unsaved}
           crop={false}
           coverId={book.primaryMediaId}
           onCover={(primaryMediaId) => {
-            edit({ ...draft, primaryMediaId });
+            edit((current) => ({ ...current, primaryMediaId }));
           }}
-          onChange={(media) => {
-            edit({ ...draft, media });
+          onChange={(update) => {
+            edit((current) => ({
+              ...current,
+              media: update((current as unknown as Lorebook).media),
+            }));
           }}
         />
       </section>
@@ -435,7 +462,7 @@ function Editor(props: EditorProps): JSX.Element {
         locale={locale}
         onChoose={setFolder}
         onGate={(id, enabled) => {
-          edit(withFolderGate(draft, id, enabled));
+          edit((current) => withFolderGate(current, id, enabled));
         }}
       />
 
@@ -445,16 +472,17 @@ function Editor(props: EditorProps): JSX.Element {
           <Button
             type="button"
             onClick={() => {
-              const made = withNewEntry(draft, '');
+              // Minted here, outside the updater: React runs an updater twice
+              // under StrictMode, and an entry minted inside one would be a
+              // different entry the second time — so the id selected below
+              // would name the one that was thrown away.
+              const made = newLoreEntry('');
               // Filed where the list is standing, which is the only way an
               // entry created here ever reaches a folder: `folderId` is not
               // a field this stage writes, so create is where the choice
               // has to be made or there is none.
-              const filed =
-                folder?.id == null
-                  ? made.book
-                  : withEntry(made.book, made.id, { folderId: folder.id });
-              edit(filed);
+              const filed = folder?.id == null ? made : { ...made, folderId: folder.id };
+              edit((current) => withAddedEntry(current, filed));
               select(made.id);
             }}
           >
@@ -478,6 +506,10 @@ function Editor(props: EditorProps): JSX.Element {
           onChoose={setChosen}
           visibleIds={visible.map((entry) => entry.id)}
           onMerged={(merged, from) => {
+            // The one whole-book write left, and `EntryTravel` says why it
+            // cannot be an updater: the merge mints ids and its report
+            // describes the book it merged into. It merges into the book as it
+            // was when the file had been read, not when the dialog closed.
             edit(merged);
             editor.noteImport(from);
           }}
@@ -498,7 +530,7 @@ function Editor(props: EditorProps): JSX.Element {
           }}
           onSelect={select}
           onMove={(id, beforeId) => {
-            edit(moveEntryBefore(draft, id, beforeId));
+            edit((current) => moveEntryBefore(current, id, beforeId));
           }}
         />
       </section>
@@ -521,21 +553,34 @@ function Editor(props: EditorProps): JSX.Element {
           <EntryFields
             entry={selected}
             onPatch={(patch) => {
-              edit(withEntry(draft, selected.id, patch));
+              edit((current) => withEntry(current, selected.id, patch));
             }}
             /**
              * ***The entry's own strip*** — [10 §11.2b]. **The bytes are stored
              * beside the book**, not beside the entry, because an entry is not
              * a file: `objectId` is the book's either way, and what differs is
              * which `media` array the row lands in.
+             *
+             * ***Keyed by the entry*** (2026-09-27). The page does not remount
+             * when `?entry=` changes, so one strip used to serve every entry in
+             * turn — and its *Adding…* and its error followed the person to
+             * whichever entry they opened next, about a picture that was going
+             * somewhere else. The upload itself was never at risk of that: it
+             * lands through the entry id captured when it started.
              */
             strip={
               <MediaStrip
+                key={selected.id}
                 kind="lorebooks"
                 objectId={props.initial.id}
                 media={selected.media}
-                onChange={(media) => {
-                  edit(withEntry(draft, selected.id, { media }));
+                unsaved={editor.unsaved}
+                onChange={(update) => {
+                  edit((current) =>
+                    withEntry(current, selected.id, {
+                      media: update(entryOf(current, selected.id)?.media ?? []),
+                    }),
+                  );
                 }}
               />
             }
@@ -548,7 +593,7 @@ function Editor(props: EditorProps): JSX.Element {
                 <Button
                   type="button"
                   onClick={() => {
-                    edit(withoutEntry(draft, selected.id));
+                    edit((current) => withoutEntry(current, selected.id));
                     setConfirmingDelete(false);
                     select(undefined);
                   }}
@@ -628,8 +673,8 @@ function Editor(props: EditorProps): JSX.Element {
         <div className="mt-4">
           <HookList
             hooks={hooksOf(draft)}
-            onChange={(next) => {
-              edit(withOptionalHooks(draft, next));
+            onChange={(update) => {
+              edit((current) => withOptionalHooks(current, update(hooksOf(current))));
             }}
             note="Hooks that are inseparable from this lore — the war over the island belongs with the kingdom that will declare it. One written here is eligible only while this book is active in a session, and it travels to anyone you give the book to. A treatment is the usual home for a hook; put one here when the lore is the reason it exists."
           />

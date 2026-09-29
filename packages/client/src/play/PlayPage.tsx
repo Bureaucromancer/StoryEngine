@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { control, page, reveal } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -18,6 +18,7 @@ import {
   type CastRow,
   submitTurn,
   undoTurn,
+  uploadPicture,
   type ModeSurface,
   type RenditionRecord,
   type TurnRecord,
@@ -47,6 +48,14 @@ import { CastPanel } from './CastPanel.js';
 import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
+import {
+  attachProblem,
+  ComposerPictures,
+  MAX_PICTURES,
+  MovePictures,
+  type ComposerPicture,
+} from './Pictures.js';
+import { preparePicture } from './preparePicture.js';
 import { ModeRegion } from './ModeRegion.js';
 import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
@@ -141,6 +150,89 @@ export function PlayPage({
    */
   const [kind, setKind] = useState<string | undefined>(undefined);
   const [guidance, setGuidance] = useState('');
+  /**
+   * ***Pictures on the move being composed*** — [25 E15], R1. Uploaded as they
+   * are attached, so what the move names is a digest the server already holds;
+   * cleared when the move is sent, as the words are.
+   */
+  const [pictures, setPictures] = useState<ComposerPicture[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const [pictureProblem, setPictureProblem] = useState<string | null>(null);
+  const pictureRefs = useMemo(
+    () =>
+      pictures.map((picture) => ({
+        digest: picture.digest,
+        ...(picture.caption.trim() === '' ? {} : { caption: picture.caption.trim() }),
+      })),
+    [pictures],
+  );
+
+  /**
+   * Prepares and uploads each chosen picture — redrawn in the browser first, so
+   * nothing a phone recorded about where a photo was taken ever leaves it
+   * (`preparePicture`, which refuses rather than sending an original).
+   */
+  /** Whether the page is still here — read by an attach whose upload outlived it. */
+  const pageOpen = useRef(true);
+  const attachPictures = async (files: readonly File[]): Promise<void> => {
+    setPictureProblem(null);
+    setAttaching(true);
+    try {
+      // Counted here rather than read from `pictures`, which is the value this
+      // render closed over and does not grow while the loop runs — and the same
+      // for what is already held, so two files in one pick that come out as the
+      // same bytes (a photo and its copy) are one picture, not two with one key.
+      let room = MAX_PICTURES - pictures.length;
+      const seen = new Set(pictures.map((one) => one.digest));
+      for (const file of files) {
+        if (room <= 0) break;
+        const prepared = await preparePicture(file);
+        const uploaded = await uploadPicture(sessionId, prepared);
+        // A page left while the upload was out has already let go of its
+        // previews, and a preview made now would be one nothing ever releases.
+        if (!pageOpen.current) return;
+        // The same picture attached twice is one picture: its address is its bytes.
+        if (seen.has(uploaded.digest)) continue;
+        seen.add(uploaded.digest);
+        room -= 1;
+        const preview = URL.createObjectURL(prepared);
+        setPictures((held) => [...held, { digest: uploaded.digest, preview, caption: '' }]);
+      }
+    } catch (error) {
+      setPictureProblem(attachProblem(error));
+    } finally {
+      setAttaching(false);
+    }
+  };
+
+  /**
+   * ***Clears the pictures a move carried, and only those*** — a picture whose
+   * attach finished while the move was on its way was not in it, and stays for
+   * the next one rather than vanishing unsent.
+   */
+  const clearSent = (sent: ReadonlySet<string>): void => {
+    setPictures((held) => {
+      for (const one of held) if (sent.has(one.digest)) URL.revokeObjectURL(one.preview);
+      return held.filter((one) => !sent.has(one.digest));
+    });
+    setPictureProblem(null);
+  };
+
+  /**
+   * ***The previews go with the page*** — each is a blob URL, which the browser
+   * keeps for as long as the document lives unless it is told. Read through a
+   * ref, because a cleanup keyed on `pictures` would revoke previews still on
+   * screen every time one was added.
+   */
+  const heldPictures = useRef(pictures);
+  heldPictures.current = pictures;
+  useEffect(() => {
+    pageOpen.current = true;
+    return () => {
+      pageOpen.current = false;
+      for (const one of heldPictures.current) URL.revokeObjectURL(one.preview);
+    };
+  }, []);
 
   // Shared with the workbench through `queries.ts`, so both mounts read one
   // cache entry and the invalidate below refreshes both ([P3.1]).
@@ -210,7 +302,7 @@ export function PlayPage({
   const composer = useRef<HTMLTextAreaElement | null>(null);
 
   const send = useMutation({
-    mutationFn: () =>
+    mutationFn: (sending: readonly { digest: string; caption?: string }[]) =>
       submitTurn({
         sessionId,
         // A key the client owns, so a retry of *this* submission is recognised
@@ -226,10 +318,12 @@ export function PlayPage({
         // default rather than the client guessing `do` for a mode without one.
         ...(kind === undefined ? {} : { kind }),
         guidance,
+        ...(sending.length === 0 ? {} : { attachments: sending }),
       }),
-    onSuccess: (accepted) => {
+    onSuccess: (accepted, sending) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
       setDraft('');
+      clearSent(new Set(sending.map((one) => one.digest)));
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([06 §5.1]).
       setGuidance('');
@@ -261,9 +355,11 @@ export function PlayPage({
    * come to disagree.
    */
   const submit = (): void => {
-    if (send.isPending || running) return;
-    if (draft.trim().length === 0) return;
-    send.mutate();
+    if (send.isPending || running || attaching) return;
+    // A move may be only a picture — its words are the picture's caption, and
+    // the record keeps the move either way ([25 E15]).
+    if (draft.trim().length === 0 && pictures.length === 0) return;
+    send.mutate(pictureRefs);
   };
 
   /**
@@ -323,6 +419,19 @@ export function PlayPage({
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
         text: turn.input?.text ?? '',
+        /**
+         * **The move's kind comes with it** — a redone `think` is a thought
+         * again, not a `do` that puts the player's private thought in the
+         * scene, which is the failure the kind exists to prevent.
+         */
+        ...(turn.input?.kind === undefined ? {} : { kind: turn.input.kind }),
+        /**
+         * **And its pictures**, for the reason its words do: this is *that turn
+         * again*. Named by the turn rather than re-sent, so the server copies
+         * them as recorded — a picture whose bytes never reached this server
+         * (an imported turn) included, and goes as its caption.
+         */
+        ...((turn.input?.attachments?.length ?? 0) === 0 ? {} : { attachmentsOf: turn.id }),
         parentTurnId: turn.parentTurnId,
         ...(rewrite ? { rewriteOf: turn.id } : {}),
         ...(guidance === undefined ? {} : { guidance, redoOf: turn.id }),
@@ -471,7 +580,10 @@ export function PlayPage({
    * flight: the input is disabled, the head is moving, and the entry was
    * dropped at submit.
    */
-  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS);
+  const pictureKey = pictureRefs
+    .map((picture) => `${picture.digest}\u0000${picture.caption ?? ''}`)
+    .join('\u0001');
+  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS, pictureKey);
   const refresh = useRefreshPreview(sessionId);
   const refreshPreview = refresh.mutate;
   const preview = usePreview(sessionId);
@@ -490,8 +602,17 @@ export function PlayPage({
      * at-rest reading is asked for then.
      */
     if (settled.text !== draft || settled.guidance !== guidance) return;
-    refreshPreview(settled);
-  }, [settled, draft, guidance, running, refreshPreview]);
+    if (settled.pictures !== pictureKey) return;
+    // The move's pictures and its kind too, so the meter and the panel measure
+    // the blocks the turn will send — a pack whose input slots are per-kind
+    // previews nothing of the move without the kind.
+    refreshPreview({
+      text: settled.text,
+      guidance: settled.guidance,
+      ...(kind === undefined ? {} : { kind }),
+      ...(pictureRefs.length === 0 ? {} : { attachments: pictureRefs }),
+    });
+  }, [settled, draft, guidance, running, refreshPreview, pictureRefs, pictureKey, kind]);
 
   /**
    * The stream's closing frame is what says the record is durable in all three
@@ -852,8 +973,8 @@ export function PlayPage({
             /* **The label is the reason it is greyed**, which is what
                [10 §11.1a] asks of any control that disables: a button reading
                *Sending…* has already said why it cannot be pressed again. */
-            <Button type="submit" variant="primary" disabled={send.isPending}>
-              {send.isPending ? SENDING : 'Send'}
+            <Button type="submit" variant="primary" disabled={send.isPending || attaching}>
+              {send.isPending ? SENDING : attaching ? PREPARING : 'Send'}
             </Button>
           )}
         </div>
@@ -869,6 +990,29 @@ export function PlayPage({
           that this is *"a draft, not a commitment"*, and a control sitting where
           Send sits invites the press that skips the reading.
         */}
+        <ComposerPictures
+          pictures={pictures}
+          previewBlocks={
+            preview.data?.preview.state === 'assembled' ? preview.data.preview.blocks : undefined
+          }
+          busy={attaching}
+          problem={pictureProblem}
+          disabled={running || send.isPending}
+          onAttach={(files) => {
+            void attachPictures(files);
+          }}
+          onCaption={(digest, caption) => {
+            setPictures((held) =>
+              held.map((one) => (one.digest === digest ? { ...one, caption } : one)),
+            );
+          }}
+          onRemove={(digest) => {
+            setPictures((held) => {
+              for (const one of held) if (one.digest === digest) URL.revokeObjectURL(one.preview);
+              return held.filter((one) => one.digest !== digest);
+            });
+          }}
+        />
         <Impersonate
           sessionId={sessionId}
           disabled={running}
@@ -1185,8 +1329,11 @@ function TurnView({
 
   return (
     <li className="group/turn flex flex-col gap-1">
-      {turn.input === undefined ? null : (
+      {turn.input === undefined || turn.input.text === '' ? null : (
         <p className="text-story text-ink-subtle">{turn.input.text}</p>
+      )}
+      {turn.input?.attachments === undefined ? null : (
+        <MovePictures sessionId={sessionId} pictures={turn.input.attachments} />
       )}
       {/* **What the engine understood, drawn over the prose** — [10 §13.1],
           [P7.7]. An overlay and never a rewrite: with no spans this renders the
@@ -1551,6 +1698,8 @@ function recordedRemedy(turn: TurnRecord): string | null {
  * the reason every other user-visible sentence here is one ([P11.8]).
  */
 const SENDING = 'Sending…';
+/** Send's label while a picture is being prepared — the reason it is greyed. */
+const PREPARING = 'Preparing picture…';
 const AWAITING = 'Waiting for the first words…';
 const STOPPING = 'Stopping…';
 
@@ -1673,5 +1822,16 @@ function impersonateLine(error: unknown): string {
   if (code === 'role-unbound' || code === 'role-dangling') {
     return 'No connection is set up for the model this needs. Bind one in Settings.';
   }
+  if (code === 'window-too-small') return remedySentence('window-too-small') ?? '';
+  /**
+   * ***The endpoint's failure, in the words a failed turn gets*** (2026-09-27).
+   * This was a bare 500 until the route learned to answer it, so every one of
+   * a wrong key, a model server that was down and a stall read *try again in a
+   * moment*, which is right for one of the three.
+   */
+  if (code === 'provider-failed' && error instanceof ApiError) {
+    return remedySentence(error.remedy ?? null) ?? 'The model endpoint could not write that draft.';
+  }
+  if (code === 'cancelled') return 'The server stopped before the draft was written. Try again.';
   return 'That draft could not be written. Try again in a moment.';
 }

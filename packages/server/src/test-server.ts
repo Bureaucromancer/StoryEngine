@@ -12,6 +12,7 @@ import type { BuildInfo } from './build-info.js';
 import { type Config, DEFAULT_CONFIG, loadConfig } from './config.js';
 import type { WatchEvent } from './index-db/watcher.js';
 import type { ProviderFactory } from './providers/factory.js';
+import { MACHINE, type StartableSeams } from './startable.js';
 import { Layout } from './storage/layout.js';
 
 /**
@@ -129,6 +130,17 @@ export interface TestServerOptions {
   logStream?: NodeJS.WritableStream;
   /** Substitute the outbound fetch — the model-fetch action ([P2B §2.6]). */
   fetch?: typeof globalThis.fetch;
+  /** The environment layer a boot would have put under the file (`SE_*`). */
+  environment?: Record<string, unknown>;
+  /**
+   * The machine a settings write is checked against (`startable.ts`).
+   *
+   * **The trial listen is a no-op unless a test supplies one**, because a real
+   * one binds a real port: suites that move `server.port` to 9999 would take it
+   * for a moment on the machine running them, and two such files at once would
+   * refuse each other. The address checks stay real; they bind nothing.
+   */
+  startable?: Partial<StartableSeams>;
 }
 
 /**
@@ -181,6 +193,8 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
     },
     configPath: layout.configFile,
     configDocument: loaded?.document ?? {},
+    environment: options.environment ?? {},
+    startable: { ...MACHINE, trialListen: () => Promise.resolve(), ...options.startable },
     watch: options.watch ?? false,
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     ...(options.providers === undefined ? {} : { providers: options.providers }),
@@ -590,4 +604,28 @@ export async function eventually(
     `The condition never held within ${String(timeoutMs)}ms` +
       (seen === null ? '.' : `. What was true instead: ${seen}`),
   );
+}
+
+/**
+ * Waits until everything a turn set off has finished — the turn's own body,
+ * and the pictures it dispatched.
+ *
+ * ***The head moving is not the end of a turn.*** The commit moves the head at
+ * its third step, and the runner then records the turn's renditions,
+ * dispatches them, and tells the person — in that order, deliberately: *"the
+ * person is told, last of all"* ([09 §3.5], in `runner.ts`). A test that
+ * returned when the head moved and then asserted on a notification, or on the
+ * image provider's call log, was racing that tail. On the Windows runner,
+ * where every atomic write is slower, it lost: `producers.test.ts` found no
+ * completion notification, and the P9 selection gate counted one picture
+ * where two had been paid for.
+ *
+ * **And a negative assertion needs it more than a positive one.** *No picture
+ * was requested* checked the moment the head moved cannot fail, because the
+ * request it is watching for comes later — which is what made three of P9's
+ * gate rows pass whatever the code did.
+ */
+export async function settled(server: TestServer): Promise<void> {
+  await server.services.runner.settle();
+  await server.services.drainRenditions();
 }

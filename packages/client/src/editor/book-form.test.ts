@@ -144,6 +144,18 @@ describe('creating and removing an entry', () => {
     expect((after['entries'] as LoreEntry[]).map((each) => each.name)).toEqual(['Harbour']);
     expect(bytes(after, keep.id)).toBe(bytes(book([keep]), keep.id));
   });
+  /**
+   * *Twins* (2026-09-27): two entries sharing an id is a state importers can
+   * produce, and *Remove this entry* took both — one entry on screen, two gone
+   * from the file.
+   */
+  it('removes the first of two entries sharing an id, never both', () => {
+    const first = entry('Harbour', { id: 'twin' });
+    const second = entry('Harbour, again', { id: 'twin' });
+    const after = withoutEntry(book([first, second]), 'twin');
+
+    expect((after['entries'] as LoreEntry[]).map((each) => each.name)).toEqual(['Harbour, again']);
+  });
 });
 
 describe('the folder gate', () => {
@@ -419,6 +431,29 @@ describe('moving an entry', () => {
     expect(moveEntryBefore(book, 'c', null)).toBe(book);
   });
 
+  /**
+   * *Twins* (2026-09-27): the move took every entry with the id out and put one
+   * back, so nudging one of two twins deleted the other.
+   */
+  it('moves one of two twins and keeps the other', () => {
+    const twins: Draft = {
+      entries: [
+        { ...newLoreEntry('Harbour'), id: 'a' },
+        { ...newLoreEntry('Bridge'), id: 'b' },
+        { ...newLoreEntry('Cathedral'), id: 'c' },
+        { ...newLoreEntry('Harbour, again'), id: 'a' },
+      ],
+      folders: [],
+    };
+
+    expect(names(moveEntryBefore(twins, 'a', 'c'))).toEqual([
+      'Bridge',
+      'Harbour',
+      'Cathedral',
+      'Harbour, again',
+    ]);
+  });
+
   it('refuses to move against a target that is not there', () => {
     // Appending would turn a caller's bug into a silent move to the end of a
     // two-hundred-entry book.
@@ -436,7 +471,7 @@ describe('moving an entry', () => {
  * are not unique in practice. Removing and moving did not, and both run on save
  * — removing one twin removed every entry with its id, and dragging one filtered
  * both out and put back one. The twins here differ in content, which is what an
- * Aventuras book imported before `claimId` holds: two entries named alike, and
+ * Aventuras book imported before `distinctIds` holds: two entries named alike, and
  * saying different things.
  */
 describe('twins, removed and moved', () => {

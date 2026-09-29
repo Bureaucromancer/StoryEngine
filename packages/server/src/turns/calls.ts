@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { type GenerationParams, uuidv7 } from '@storyengine/shared';
+import {
+  type BlockImage,
+  type GenerationParams,
+  type ImageWithheld,
+  uuidv7,
+} from '@storyengine/shared';
 
 import { assemble, type RefusedBlock } from '../assembly/assemble.js';
 import { render } from '../assembly/render.js';
@@ -13,7 +18,7 @@ import type {
   NotFilledSlot,
 } from '../assembly/types.js';
 import type { Config } from '../config.js';
-import type { Connection } from '../providers/connections.js';
+import { seesImages, type Connection } from '../providers/connections.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { resolveRole, type RoleBindings, type RoleResolution } from '../providers/roles.js';
 import type { Binding } from '../providers/types.js';
@@ -53,6 +58,34 @@ export class RoleUnresolved extends Error {
     );
     this.name = 'RoleUnresolved';
     this.reason = reason;
+  }
+}
+
+/**
+ * ***A context window that holds nothing beside the reply*** (2026-09-27).
+ *
+ * Assembly spends the window less the room kept for the reply, and a window
+ * no larger than that reserve left it nothing: every block that was not
+ * required was dropped and the call went out anyway, so the model was asked to
+ * go on with a story none of which was in front of it. A context window typed
+ * as 1000 rather than 100000, an imported preset whose budget says 1, a reply
+ * length raised past the window — each produced a turn that read as the model
+ * having forgotten everything, and nothing said why. Refused before anything
+ * is sent, with both numbers, because one of them is the setting to change.
+ */
+export class WindowTooSmall extends Error {
+  readonly window: number;
+  readonly reserved: number;
+
+  constructor(window: number, reserved: number) {
+    super(
+      `The model's context window is ${String(window)} tokens and ${String(reserved)} are kept ` +
+        'for the reply, so nothing of the story would fit. Raise the context window in the ' +
+        'connection, or lower the reply length.',
+    );
+    this.name = 'WindowTooSmall';
+    this.window = window;
+    this.reserved = reserved;
   }
 }
 
@@ -158,6 +191,18 @@ export interface CallContext {
    * happened outside this function and only the caller knows what it decided.
    */
   refused?: readonly RefusedBlock[];
+  /**
+   * ***Which pictures' bytes are in the session's store*** — [25 E15]'s *are
+   * the bytes here*, asked before assembly because assembly is synchronous. A
+   * picture whose digest is not in this set goes as its words. Absent means no
+   * picture is present, which is every caller that predates pictures.
+   */
+  picturesPresent?: ReadonlySet<string>;
+  /**
+   * Reads a picture's bytes for the wire. **Never persisted**: the record names
+   * a picture by digest, and this is the one place the bytes are fetched.
+   */
+  loadPicture?: (digest: string) => Promise<{ bytes: Uint8Array; mime: string } | null>;
   /** The call as assembled and rendered, before dispatch — see {@link ProvisionalCall}. */
   onCallAssembled(provisional: ProvisionalCall): void;
   /** A durable, coalesced checkpoint. The runner decides how often. */
@@ -284,8 +329,9 @@ export interface CallPlan {
 /**
  * Resolve, budget, assemble and render — the half a preview stops after.
  *
- * Both of its throws are load-bearing and stay throws: `RoleUnresolved` is how
- * the preview learns there is no denominator to measure against, and
+ * Its throws are load-bearing and stay throws: `RoleUnresolved` is how the
+ * preview learns there is no denominator to measure against, `WindowTooSmall`
+ * is how it learns the denominator is zero (2026-09-27), and
  * `AdvisoryLeakError` is [06 §5.2]'s structural guarantee, which a preview
  * must not be able to route around. [P3 §1.7]'s *assemble-without-dispatch as
  * a parameterised function* is this function.
@@ -385,6 +431,9 @@ export function planCall(
     context.config,
     context.preset?.budget,
   );
+  if (policy.limit.tokens <= policy.reserved) {
+    throw new WindowTooSmall(policy.limit.tokens, policy.reserved);
+  }
 
   // **The purpose comes from the definition, not from the request.** A step
   // that could name its own would be one honest declaration away from walking
@@ -407,13 +456,37 @@ export function planCall(
    * is estimated, budgeted and recorded like everything else — and so
    * `RenderedMessage.fromBlocks` stays non-empty, which it must.
    */
-  const asked = request.candidates ?? candidates;
-  const assembled = assemble({
+  /**
+   * ***Pixels or words, decided here, for this call*** — [25 E15]'s send rule,
+   * and the reason no session can be locked into models that see.
+   *
+   * This is the one place that holds the model the call resolved to — after the
+   * session and step overrides *and* the actor hint — and nothing it decides is
+   * stored anywhere but this call's own record. So a session that showed a
+   * picture yesterday on a model that sees is today, on one that does not,
+   * exactly what it would have been: the same candidates, the words instead of
+   * the pixels, and a block that says why.
+   */
+  const pictures = new Map<string, BlockImage>();
+  const asked = (request.candidates ?? candidates).map((candidate) => {
+    if (candidate.image === undefined) return candidate;
+    const withheld = withheldBecause(candidate, resolution, context.picturesPresent);
+    pictures.set(candidate.id, {
+      attachmentId: candidate.image.attachmentId,
+      digest: candidate.image.digest,
+      mime: candidate.image.mime,
+      sent: withheld === null,
+      ...(withheld === null ? {} : { withheld }),
+    });
+    return withheld === null ? { ...candidate, text: candidate.image.sentText } : candidate;
+  });
+  const packed = assemble({
     candidates: needsPrompting(request.schema, provider.capabilities.supportsStructuredOutput)
       ? [...asked, schemaInstruction(request.schema)]
       : asked,
     policy,
     purpose,
+    pictures,
     // A step that supplied its own candidates never ran the preset's producers,
     // so their refusals are not this call's to report — the same rule, and the
     // same line of reasoning, as `notFilled` immediately below.
@@ -421,6 +494,22 @@ export function planCall(
       ? { refused: context.refused }
       : {}),
   });
+  /**
+   * ***A picture the budget dropped went neither way*** — decided before the
+   * budget ran, so said again after it, whatever it said before. The
+   * collector's pictures on the move being made are required and cannot be
+   * dropped; a step's own candidate can be, and so can a picture in history.
+   * Left as it was, the record said *Picture sent* over a block that never left,
+   * or *as words* over one whose words did not go either.
+   */
+  const assembled = {
+    ...packed,
+    blocks: packed.blocks.map((block) =>
+      block.image !== undefined && !block.included
+        ? { ...block, image: { ...block.image, sent: false, withheld: 'budget' as const } }
+        : block,
+    ),
+  };
   // A step that supplied its own candidates never consulted the preset, so
   // the not-filled list honestly empties rather than describing a collection
   // this call did not use ([P3.0] §7.5).
@@ -446,12 +535,94 @@ export function planCall(
   };
 }
 
+/**
+ * The send rule, one picture at a time — [25 E15]. Null means *send the
+ * pixels*; anything else is the reason the block records for not sending them.
+ *
+ * ***When several reasons apply, the record names the one that choosing
+ * another model cannot fix*** — so the model comes last. A kind this build does
+ * not send, a picture from an earlier turn, a slot whose message cannot carry a
+ * picture and bytes that are not here would each still hold the picture back on
+ * a model that sees; *this model is not marked as seeing pictures* is the one
+ * reason a person answers in settings, and it is only true as the whole answer
+ * when nothing else is in the way.
+ */
+function withheldBecause(
+  candidate: Candidate,
+  resolution: Extract<RoleResolution, { ok: true }>,
+  present: ReadonlySet<string> | undefined,
+): ImageWithheld | null {
+  const image = candidate.image;
+  if (image === undefined) return 'unknown-kind';
+  if (image.kind !== 'image') return 'unknown-kind';
+  if (!image.current) return 'outside-window';
+  if (candidate.role !== 'user') return 'not-user-role';
+  if (image.digest === null || image.mime === null || present?.has(image.digest) !== true) {
+    return 'missing-bytes';
+  }
+  if (!seesImages(resolution.connection, resolution.modelId)) return 'model-text-only';
+  return null;
+}
+
+/** Every picture a rendered call would send, by digest. */
+function picturesIn(messages: readonly RenderedMessage[]): Set<string> {
+  const digests = new Set<string>();
+  for (const message of messages) {
+    for (const part of message.parts ?? []) {
+      if (part.kind === 'image') digests.add(part.digest);
+    }
+  }
+  return digests;
+}
+
+/**
+ * The plan, and the bytes its pictures need.
+ *
+ * ***Re-planned rather than failed when a picture has gone missing*** between
+ * the presence check and the read — a sweep, a hand edit. The plan is asked
+ * again without that picture, so the record says `missing-bytes` and the call
+ * goes with its words, which is the answer the check would have given a moment
+ * earlier. A call that failed instead would be the one way a picture could stop
+ * a story.
+ *
+ * *A loader says a picture is missing by answering null* — and the runner's
+ * answers null for a file it can see and cannot read, too, having said so in
+ * the log: an unreadable picture is as absent from the wire as a deleted one.
+ */
+async function planWithPictures(
+  context: CallContext,
+  request: StepCallRequest,
+  candidates: readonly Candidate[],
+): Promise<{ plan: CallPlan; images: Map<string, { bytes: Uint8Array; mime: string }> }> {
+  let present = context.picturesPresent;
+  for (;;) {
+    const plan = planCall(
+      present === undefined ? context : { ...context, picturesPresent: present },
+      request,
+      candidates,
+    );
+    const wanted = picturesIn(plan.call.messages);
+    const images = new Map<string, { bytes: Uint8Array; mime: string }>();
+    const missing = new Set<string>();
+    for (const digest of wanted) {
+      const loaded = (await context.loadPicture?.(digest)) ?? null;
+      if (loaded === null) missing.add(digest);
+      else images.set(digest, loaded);
+    }
+    if (missing.size === 0) return { plan, images };
+    present = new Set([...(present ?? [])].filter((digest) => !missing.has(digest)));
+  }
+}
+
 export async function performCall(
   context: CallContext,
   request: StepCallRequest,
   candidates: readonly Candidate[],
 ): Promise<CallOutcome> {
-  const { call: planned, connection } = planCall(context, request, candidates);
+  const {
+    plan: { call: planned, connection },
+    images,
+  } = await planWithPictures(context, request, candidates);
   const provider = context.providers(connection);
   const { params, messages } = planned;
 
@@ -486,6 +657,7 @@ export async function performCall(
           messages,
           params,
           ...(request.schema === undefined ? {} : { schema: request.schema }),
+          ...(images.size === 0 ? {} : { images }),
           signal: bound.signal,
         },
         request.stream === true,
@@ -612,8 +784,9 @@ export async function performCall(
       // person wins, and only silence that nobody asked to end is a stall. The
       // adapter's classifier matches `/abort/i` and would otherwise have called
       // this `transient` and retried the hang twice.
-      const stalled = bound.stalled();
-      if (stalled) {
+      // Or the transport's own limit, reported by the adapter as a stall.
+      const stalled = bound.stalled() || (error instanceof ProviderError && error.stalled);
+      if (bound.stalled()) {
         error = new Stalled(context.config.limits.providerTimeoutMs);
       }
 

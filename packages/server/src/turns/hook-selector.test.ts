@@ -57,9 +57,17 @@ function turn(over: Partial<Turn> = {}): Turn {
   };
 }
 
+/**
+ * A turn of the story — it has prose, which is what `storyDepth` counts. A bare
+ * `turn()` is a bookkeeping turn: a channel write, an undo, a backdrop choice.
+ */
+function told(over: Partial<Turn> = {}): Turn {
+  return turn({ output: { text: 'Rain on the roof.' }, ...over });
+}
+
 /** A turn whose one effect records a firing, which is what `lastFiredAt` reads. */
 function fired(hookId: string, state: 'fired' | 'provisional' = 'fired', applied = true): Turn {
-  return turn({
+  return told({
     effects: [
       {
         id: 'e1',
@@ -549,6 +557,10 @@ describe('a commitment', () => {
 describe('a commitment that runs out of patience', () => {
   const COMMITTED = { [channelKey(SE_HOOK, 'hook-war')]: { value: 'committed' } };
 
+  /**
+   * The commitment at `depth`, as the channel write it is, and a turn of the
+   * story everywhere else — the turns the selector was asked on.
+   */
   function commitAt(depth: number, length: number): Turn[] {
     return Array.from({ length }, (_unused, at) =>
       at === depth
@@ -571,7 +583,7 @@ describe('a commitment that runs out of patience', () => {
               },
             ],
           })
-        : turn(),
+        : told(),
     );
   }
 
@@ -619,6 +631,34 @@ describe('a commitment that runs out of patience', () => {
 
     expect(long.report.lapses).toEqual(['hook-war']);
     expect(short.report.lapses).toBeUndefined();
+  });
+
+  /**
+   * ***A chance is a turn the selector was asked on*** (2026-09-27). The count
+   * was the path's length since the commitment, so the HUD edits and backdrop
+   * choices between two turns each spent one of three chances nobody was given:
+   * two of them, and a commitment lapsed having been weighed once.
+   */
+  it('spends no patience on turns nobody asked the selector on', async () => {
+    const edits = [turn(), turn()];
+
+    const waiting = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: [...commitAt(0, 3), ...edits],
+      answer: { object: { hookId: null } },
+    });
+    expect(waiting.report.lapses).toBeUndefined();
+
+    // Three story turns since, however the edits fall between them: the fourth
+    // chance is the one that is not given.
+    const spent = await select({
+      pool: pooled(hook()),
+      channels: COMMITTED,
+      history: [...commitAt(0, 2), turn(), told(), turn(), told()],
+      answer: { object: { hookId: null } },
+    });
+    expect(spent.report.lapses).toEqual(['hook-war']);
   });
 
   /**
@@ -774,6 +814,7 @@ describe('the five answers are five answers', () => {
         createdAt: '2026-09-13T00:00:00.000Z',
         status: 'complete',
         tape: [],
+        output: { text: 'Rain on the roof.' },
         effects:
           index === 0
             ? [
@@ -830,6 +871,78 @@ describe('the five answers are five answers', () => {
     // no two the same. A merged pair is what makes a correctly-quiet session
     // indistinguishable from a broken one.
     expect(new Set(verdicts).size).toBe(5);
+  });
+});
+
+/**
+ * ***The dial's clock runs on the story's turns*** (2026-09-27) —
+ * `sessions/depth.ts`.
+ *
+ * Cadence and cooldown were read off the path's length, and a path holds turns
+ * nobody narrated: the channel write a dial change is, a HUD edit, a backdrop
+ * choice. So turning the dial moved the cadence it was turning, and every edit
+ * after a firing spent a turn of its cooldown. A bare `turn()` below is one of
+ * those; `told()` is a turn of the story.
+ */
+describe('the gate counts the turns of the story', () => {
+  const WAR = channelKey(SE_HOOK, 'hook-war');
+  /** A second hook, so the pool is not empty while the first one cools. */
+  const POOL = pooled(hook(), hook({ id: 'hook-peace' }));
+  const NONE = { object: { hookId: null } };
+
+  it('spends none of a cooldown on a turn nobody narrated', async () => {
+    // `aggressive` cools for four turns. Two told and one edit is three.
+    const cooling = await line({
+      pool: POOL,
+      channels: { [WAR]: { value: 'fired' } },
+      history: [fired('hook-war'), told(), told(), turn()],
+      answer: NONE,
+    });
+    expect(cooling.verdict).toBe('cooling');
+
+    const cooled = await line({
+      pool: POOL,
+      channels: { [WAR]: { value: 'fired' } },
+      history: [fired('hook-war'), told(), told(), turn(), told()],
+      answer: NONE,
+    });
+    expect(cooled.verdict).toBe('judged-none');
+  });
+
+  /**
+   * *Measured from the story turns before the firing, not from its index*, so
+   * edits before it cannot stretch a cooldown either: a gate that counted the
+   * depth in one unit and the firing in the other would still be cooling here.
+   */
+  it('measures a firing by the story before it, whatever came between', async () => {
+    const run = await line({
+      pool: POOL,
+      channels: { [WAR]: { value: 'fired' } },
+      history: [turn(), turn(), fired('hook-war'), told(), told(), told()],
+      answer: NONE,
+    });
+    expect(run.verdict).toBe('judged-none');
+  });
+
+  it('keeps its cadence through the dial change that set it', async () => {
+    // `normal` asks every third turn: after three of the story, not after two
+    // and the write that chose `normal`.
+    const held = await line({
+      pool: pooled(hook()),
+      history: [told(), told(), turn()],
+      pacing: 'normal',
+      answer: NONE,
+    });
+    expect(held.verdict).toBe('held');
+
+    const asked = await select({
+      pool: pooled(hook()),
+      history: [told(), told(), turn(), told()],
+      pacing: 'normal',
+      answer: NONE,
+    });
+    expect(asked.report.selection.verdict).toBe('judged-none');
+    expect(asked.host.asked).toHaveLength(1);
   });
 });
 

@@ -108,6 +108,14 @@ export default defineConfig({
         'node packages/server/dist/main.js',
       url: `http://127.0.0.1:${String(PORT)}/api/auth/state`,
       reuseExistingServer: false,
+      /**
+       * ***Not supervised, whatever the machine running this is.*** The GitHub
+       * runner is a systemd service, so its `INVOCATION_ID` reaches every
+       * process it starts, and this server would believe something restarts it
+       * and offer *Restart now* to a browser that nothing would bring back.
+       * Empty is unset — [21 §4]'s rule, which `supervisionOf` follows.
+       */
+      env: { INVOCATION_ID: '', SE_SUPERVISED: '' },
       cwd: '..',
       stdout: 'pipe',
       stderr: 'pipe',

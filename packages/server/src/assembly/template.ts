@@ -73,14 +73,35 @@ export type RenderResult = { ok: true; text: string } | RenderFailure;
  * `ownPropertyOnly` keeps a template off prototype chains: the context is a
  * plain object built here, but the value of that guarantee is that it does not
  * depend on staying one.
+ *
+ * ***And it has limits*** (2026-09-27). liquidjs defaults all three to
+ * infinity, and a preset is somebody else's file: the SillyTavern importer
+ * passes `{% … %}` through untouched. So `{% for i in (1..1000000000) %}` in one
+ * text block built a billion-element array on the event loop, once per
+ * assembly and once per preview. V8 aborted, which no `catch` can stop, and
+ * every account on the install lost the server.
+ *
+ * - `memoryLimit` is charged before a range, `append`, `join` or `split`
+ *   allocates, so that range is a thrown error and a {@link RenderFailure}.
+ *   A million is several orders past anything a block legitimately builds,
+ *   since the namespace holds two names.
+ * - `renderLimit` is a wall-clock backstop per render for loops that stay under
+ *   the memory budget. Only a pathological template reaches it, so an
+ *   ordinary render stays reproducible.
+ * - `templates`, empty and without a prototype, means `include`, `render` and
+ *   `layout` find nothing. They resolved against the process's working
+ *   directory, which is no business of a preset's.
+ *
+ * `cache: true` went with them: it caches templates read from files, and there
+ * are none.
  */
 const engine = new Liquid({
   strictVariables: false,
   strictFilters: false,
   ownPropertyOnly: true,
-  // Rendering is synchronous by construction — there is nothing to await, and a
-  // template that could await would be a template that could do I/O.
-  cache: true,
+  memoryLimit: 1_000_000,
+  renderLimit: 500,
+  templates: Object.create(null) as Record<string, string>,
 });
 
 /**

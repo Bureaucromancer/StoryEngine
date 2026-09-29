@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -334,5 +334,104 @@ describe('when the move fails', () => {
 
     expect(await accounts.find('mara')).not.toBeNull();
     expect(await fileExists(layout.userRoot('mara'))).toBe(true);
+  });
+});
+
+/**
+ * ***One change at a time*** (2026-09-27).
+ *
+ * Every verb read the whole file, changed its copy and wrote the copy back,
+ * with awaits in between, so two changes at once were decided on the same
+ * read and the second write dropped the first — each answered as if it had
+ * landed. The cases are the ones that cost something: a disable undone, a
+ * removed account written back, an account never made, two first admins.
+ *
+ * Each asks for its changes together with `Promise.all`, which is what two
+ * requests arriving at once look like to the store.
+ */
+describe('changes that arrive together', () => {
+  it('keeps both of two changes to two accounts', async () => {
+    await alsoUser('bob');
+    await alsoUser('carol');
+
+    await Promise.all([
+      accounts.update('bob', { enabled: false }),
+      accounts.update('carol', { capabilities: { privateConnections: false } }),
+    ]);
+
+    expect((await accounts.find('bob'))?.enabled).toBe(false);
+    expect((await accounts.find('carol'))?.capabilities.privateConnections).toBe(false);
+  });
+
+  it('keeps a removal and a change to someone else made together', async () => {
+    // Neither verb has a hash to spend first, so both read before either
+    // writes: without one queue, one of them always loses.
+    await alsoUser('bob');
+    await alsoUser('carol');
+
+    await Promise.all([
+      accounts.remove('bob'),
+      accounts.update('carol', { displayName: 'Carol R.' }),
+    ]);
+
+    expect(await accounts.find('bob')).toBeNull();
+    expect((await accounts.find('carol'))?.displayName).toBe('Carol R.');
+  });
+
+  it('does not write back an account removed while its password was being set', async () => {
+    // The password verb spends its scrypt first; the removal lands inside
+    // that window, and the password write must look for the account after it.
+    await alsoUser('bob');
+
+    const [changed, removed] = await Promise.allSettled([
+      accounts.changePassword('bob', 'a new password'),
+      accounts.remove('bob'),
+    ]);
+
+    expect(removed.status).toBe('fulfilled');
+    expect(changed.status).toBe('rejected');
+    expect(await accounts.find('bob')).toBeNull();
+    expect((await storedFile()).accounts.map((entry) => entry['handle'])).toEqual(['ned']);
+  });
+
+  it('makes both of two accounts asked for at once', async () => {
+    await Promise.all([alsoUser('bob'), alsoUser('carol')]);
+
+    expect((await accounts.list()).map((account) => account.handle).sort()).toEqual([
+      'bob',
+      'carol',
+      'ned',
+    ]);
+  });
+
+  it('makes one first admin of two setups at once', async () => {
+    await mkdir(join(dataDir, 'fresh'));
+    const fresh = new Accounts(new Layout(join(dataDir, 'fresh')));
+
+    const outcomes = await Promise.allSettled([
+      fresh.createFirstAdmin({ handle: 'first', password: 'a password' }),
+      fresh.createFirstAdmin({ handle: 'second', password: 'a password' }),
+    ]);
+
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    const refused = outcomes.find((outcome) => outcome.status === 'rejected');
+    expect(refused?.reason).toMatchObject({ code: 'exists' });
+    expect(await fresh.count()).toBe(1);
+  });
+});
+
+/**
+ * ***A handle the rules refuse is the caller's mistake*** (2026-09-27): an
+ * `AccountError` with the rule in it, which the routes answer as 400, rather
+ * than the path guard's own error, which they answered as 500.
+ */
+describe('a handle that cannot be a folder', () => {
+  it('is refused as invalid, saying what a handle is, and nothing is written', async () => {
+    for (const handle of ['Sam', '-sam', 'sam-', 'aux', 'con', '']) {
+      const refused = accounts.create({ handle, password: 'a password', role: 'user' });
+      await expect(refused, JSON.stringify(handle)).rejects.toBeInstanceOf(AccountError);
+      await expect(refused).rejects.toMatchObject({ code: 'invalid' });
+    }
+    expect(await accounts.count()).toBe(1);
   });
 });

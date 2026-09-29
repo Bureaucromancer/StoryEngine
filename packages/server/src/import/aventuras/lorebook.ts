@@ -9,7 +9,7 @@ import {
   type Lorebook,
 } from '@storyengine/shared';
 
-import { claimId, stableId } from '../identity.js';
+import { distinctIds, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 import { isAventurasLorebook, isRecord, note, strings, text } from './shapes.js';
@@ -72,26 +72,24 @@ export function convertAventurasLorebook(
   const notes: ImportNote[] = [];
   const lorebook = newLorebook(fallbackName);
 
+  // A row that is not a record is one this reader cannot read, and it costs
+  // that row alone: named by its place, the way Marinara's reader names an
+  // unreadable row by its id, rather than a throw that stops the sweep.
+  const rows: Record<string, unknown>[] = [];
+  for (const [index, row] of input.entries()) {
+    if (isRecord(row)) rows.push(row);
+    else notes.push(note('import.row.unreadable', { table: fallbackName, row: index + 1 }, 'warn'));
+  }
+
   let carriedState = 0;
-  let repeated = 0;
-  const taken = new Set<string>();
-  lorebook.entries = input.map((row) => {
+  lorebook.entries = rows.map((row) => {
     const entry = convertEntry(row, fallbackName);
-    /**
-     * *Unique here, because nothing downstream checks* — validation does not
-     * walk the array, and the index keys entries by position. See `claimId`.
-     */
-    const claimed = claimId(taken, entry.id, 'aventuras-entry-repeat', fallbackName, entry.name);
-    entry.id = claimed.id;
-    if (claimed.repeated) repeated += 1;
     if (SESSION_STATE.some((key) => row[key] !== undefined && row[key] !== null)) carriedState += 1;
     return entry;
   });
+  distinctIds(lorebook.entries, 'aventuras-entry', fallbackName);
 
   notes.push(note('import.aventuras.lorebookEntries', { count: lorebook.entries.length }));
-  if (repeated > 0) {
-    notes.push(note('import.aventuras.repeatedEntryNames', { count: repeated }, 'warn'));
-  }
   if (carriedState > 0) {
     notes.push(note('import.aventuras.entryStateRecorded', { count: carriedState }, 'warn'));
   }

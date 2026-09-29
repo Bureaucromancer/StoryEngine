@@ -5,13 +5,23 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { newActor, newLoreEntry, newLorebook } from '@storyengine/shared';
+import {
+  newActor,
+  newLoreEntry,
+  newLorebook,
+  type EmbeddedMedia,
+  type PortableSchemaId,
+} from '@storyengine/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { backupContextOf, findBackup, takeBackup } from '../../backup/archive.js';
-import { create, read } from '../../library.js';
+import { create, read, readMedia, remove, update } from '../../library.js';
+import { storeAsset } from '../../library/assets.js';
+import { makePng, pixelBytes } from '../../storage/card/test-png.js';
+import { readFileBytes } from '../../storage/files.js';
+import { writeTarGz } from '../../storage/tar-archive.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../../test-server.js';
-import { BackupFileSource } from '../backup-source.js';
+import { BackupFileSource, importedBy } from '../backup-source.js';
 import type { ConflictPolicy } from '../identity.js';
 import { sweep } from '../sweep.js';
 
@@ -226,6 +236,118 @@ describe('a backup as an import source', () => {
   });
 });
 
+/**
+ * ***What comes back with an object*** (2026-09-27).
+ *
+ * An actor's card is its portrait and carries its expressions as chunks; a
+ * lorebook keeps its pictures in `assets/` beside its file. The import passed
+ * no card and skipped `assets/`, so a deleted actor came back on the blank
+ * 1×1 card with every expression answering *the bytes are missing*, and a
+ * book's gallery named files that were not there. The review said `created`.
+ */
+describe('what comes back with an object', () => {
+  /** Six bytes of GIF header: an image a browser would take, and not a card. */
+  const GIF = Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+
+  function row(
+    id: string,
+    role: EmbeddedMedia['role'],
+    ref: string,
+    digest: string,
+  ): EmbeddedMedia {
+    return { id, role, mime: 'image/gif', digest, bytes: GIF.byteLength, ref, tags: [] };
+  }
+
+  /** Bytes as numbers, so a `Buffer` and a `Uint8Array` of the same bytes compare equal. */
+  const plain = (bytes: Uint8Array | Uint8Array[]): number[] | number[][] =>
+    Array.isArray(bytes) ? bytes.map((each) => [...each]) : [...bytes];
+
+  async function removeObject(id: string, kind?: PortableSchemaId): Promise<void> {
+    const { contentHash } = read(server.services.library, 'ned', id, kind);
+    await remove(server.services.library, 'ned', id, contentHash, kind);
+  }
+
+  async function anActorWithAnExpression(): Promise<{ id: string; portrait: Uint8Array }> {
+    const portrait = makePng(6, 3);
+    const actor = {
+      ...newActor('Vera Solano'),
+      media: [row('m-neutral', 'expression', 'blob-neutral', 'sha256:deadbeef')],
+    };
+    await create(server.services.library, 'ned', actor, undefined, {
+      cardPixels: portrait,
+      media: new Map([['blob-neutral', GIF]]),
+    });
+    return { id: actor.id, portrait };
+  }
+
+  it('brings a deleted actor back on its own card, with its expressions', async () => {
+    const { id, portrait } = await anActorWithAnExpression();
+    const files = await archiveOf();
+    await removeObject(id);
+
+    await importInto(files, 'skip');
+
+    const back = read(server.services.library, 'ned', id);
+    expect(plain(pixelBytes((await readFileBytes(back.path))!))).toEqual(
+      plain(pixelBytes(portrait)),
+    );
+    const media = await readMedia(server.services.library, 'ned', id, 'm-neutral');
+    expect(plain(media.bytes)).toEqual(plain(GIF));
+  });
+
+  it('brings a deleted lorebook back with the pictures in its folder', async () => {
+    const id = await addLorebook('Rain City', 'It rains.');
+    const stored = await storeAsset(server.services.library, 'ned', id, GIF, 'image/gif');
+    const current = read(server.services.library, 'ned', id);
+    await update(
+      server.services.library,
+      'ned',
+      id,
+      {
+        ...(current.body as Record<string, unknown>),
+        media: [row('m-map', 'gallery', stored.ref, stored.digest)],
+      },
+      current.contentHash,
+    );
+    const files = await archiveOf();
+    await removeObject(id);
+
+    await importInto(files, 'skip');
+
+    const media = await readMedia(server.services.library, 'ned', id, 'm-map');
+    expect(plain(media.bytes)).toEqual(plain(GIF));
+  });
+
+  /**
+   * ***A replace keeps the portrait that is here and gains the archive's
+   * pictures.*** An actor's history keeps its JSON and not its pixels, so a
+   * replace that swapped the portrait would destroy one with nothing to
+   * restore it from. Adding the archive's blobs destroys nothing, and without
+   * them the rows the replace writes name pictures this card never held.
+   */
+  it('on a replace, keeps the portrait here and gains the pictures the archive names', async () => {
+    const { id } = await anActorWithAnExpression();
+    const files = await archiveOf();
+    await removeObject(id);
+    const here = makePng(5, 9);
+    await create(
+      server.services.library,
+      'ned',
+      { ...newActor('Vera, made again'), id },
+      undefined,
+      { cardPixels: here },
+    );
+
+    await importInto(files, 'replace');
+
+    const back = read(server.services.library, 'ned', id);
+    expect((back.body as { name: string }).name).toBe('Vera Solano');
+    expect(plain(pixelBytes((await readFileBytes(back.path))!))).toEqual(plain(pixelBytes(here)));
+    const media = await readMedia(server.services.library, 'ned', id, 'm-neutral');
+    expect(plain(media.bytes)).toEqual(plain(GIF));
+  });
+});
+
 describe('the source itself', () => {
   it('refuses something that is not an archive', async () => {
     const { writeFileBytes } = await import('../../storage/files.js');
@@ -264,6 +386,52 @@ describe('the source itself', () => {
         maxTotalBytes: 1024,
       }),
     ).toEqual({ ok: false, refusal: 'too-large' });
+  });
+
+  /**
+   * ***Only what the import reads is held and counted*** (2026-09-27). The
+   * bounds used to apply to every member, so another account's work, the
+   * operational store, and each object's history all counted against an
+   * import that reads none of them: an account of about eighty edited objects
+   * passed 4,096 files, and was refused as unreadable.
+   */
+  it('holds and counts only what an import of one account reads', async () => {
+    const path = join(scratch, 'install.tar.gz');
+    const bytes = (size: number): Uint8Array => new Uint8Array(size);
+    await writeTarGz(
+      path,
+      [
+        { name: 'backup.json', bytes: new TextEncoder().encode('{}') },
+        { name: 'users/ned/library/lorebooks/rain/lorebook.json', bytes: bytes(512) },
+        { name: 'users/ned/library/lorebooks/rain/history/v1.json', bytes: bytes(4096) },
+        { name: 'users/mara/library/lorebooks/big/lorebook.json', bytes: bytes(4096) },
+        { name: 'state/state.sqlite', bytes: bytes(4096) },
+      ],
+      0,
+    );
+    const limits = { maxEntries: 4096, maxEntryBytes: 1024, maxTotalBytes: 2048 };
+
+    expect(await BackupFileSource.open(path, limits)).toEqual({ ok: false, refusal: 'too-large' });
+
+    const opened = await BackupFileSource.open(path, limits, importedBy('ned'));
+    if (!opened.ok) throw new Error(opened.refusal);
+    const held: string[] = [];
+    for await (const name of opened.source.list()) held.push(name);
+    expect(held.sort()).toEqual(['backup.json', 'users/ned/library/lorebooks/rain/lorebook.json']);
+  });
+
+  it('still refuses an archive with an escaping member it would not have read', async () => {
+    const path = join(scratch, 'escaping-elsewhere.tar.gz');
+    await writeTarGz(
+      path,
+      [{ name: 'users/mara/../../etc/passwd', bytes: new TextEncoder().encode('no') }],
+      0,
+    );
+
+    expect(await BackupFileSource.open(path, undefined, importedBy('ned'))).toEqual({
+      ok: false,
+      refusal: 'unsafe-path',
+    });
   });
 
   /** A directory exists when something is under it — what the probes ask. */

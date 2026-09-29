@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { TurnAttachment } from '@storyengine/shared';
+
 import type { TurnRecord } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 
@@ -42,7 +44,17 @@ export interface Passage {
    * setup turn, a continuation, an undo's divergence marker — has no input, and
    * a reading view that printed a heading for it would invent a speaker.
    */
-  said: { kind: string; text: string; who: string | null } | null;
+  said: {
+    kind: string;
+    text: string;
+    who: string | null;
+    /**
+     * The pictures on the move — [25 E15]. A move that was only a picture is a
+     * move, so a blank `text` with pictures is kept rather than read as *no
+     * input*; the HTML shows them, and the two text copies say them in words.
+     */
+    pictures: readonly TurnAttachment[];
+  } | null;
   /** The story's own words, absent on a turn that never produced any. */
   prose: string | null;
   /**
@@ -75,12 +87,13 @@ export function passages(
     return {
       turnId: turn.id,
       said:
-        input === undefined || input.text.trim() === ''
+        input === undefined || (input.text.trim() === '' && (input.attachments?.length ?? 0) === 0)
           ? null
           : {
               kind: input.kind,
               text: input.text,
               who: input.actorId === null ? null : nameOf(input.actorId),
+              pictures: input.attachments ?? [],
             },
       prose: text.trim() === '' ? null : text,
       unfinished: turn.status === 'failed',
@@ -124,6 +137,28 @@ export function attribution(said: NonNullable<Passage['said']>): string {
   return said.who === null ? verb : `${said.who} ${verb}`;
 }
 
+/**
+ * A picture, in a copy that cannot hold one — the caption in the player's own
+ * words, or a plain mark that a picture was there. A client's words, so they go
+ * through the catalogue as every other sentence here does.
+ */
+const PICTURE_WORDS: Record<string, string> = labels('reading.picture', {
+  captioned: 'Picture: {caption}',
+  bare: 'A picture',
+});
+
+export function pictureLine(picture: Pick<TurnAttachment, 'caption'>): string {
+  const caption = picture.caption?.trim() ?? '';
+  return caption === ''
+    ? `(${PICTURE_WORDS['bare'] ?? ''})`
+    : `(${(PICTURE_WORDS['captioned'] ?? '').replace('{caption}', () => caption)})`;
+}
+
+/** A move's words with its pictures said after them, for the text copies. */
+function saidText(said: NonNullable<Passage['said']>): string {
+  return [said.text, ...said.pictures.map(pictureLine)].filter((line) => line !== '').join('\n');
+}
+
 export interface RenderOptions {
   /** The session's name, for the document's own heading. */
   title: string;
@@ -142,7 +177,7 @@ export function toMarkdown(read: readonly Passage[], options: RenderOptions): st
   const parts: string[] = [`# ${options.title}`];
   for (const passage of read) {
     if (passage.said !== null) {
-      parts.push(`> **${attribution(passage.said)}**\n>\n${quote(passage.said.text)}`);
+      parts.push(`> **${attribution(passage.said)}**\n>\n${quote(saidText(passage.said))}`);
     }
     if (passage.prose !== null) parts.push(passage.prose);
     if (passage.unfinished) parts.push('*This turn did not finish.*');
@@ -169,7 +204,8 @@ function quote(text: string): string {
 export function toPlainText(read: readonly Passage[], options: RenderOptions): string {
   const parts: string[] = [options.title, '='.repeat(options.title.length)];
   for (const passage of read) {
-    if (passage.said !== null) parts.push(`${attribution(passage.said)}:\n${passage.said.text}`);
+    if (passage.said !== null)
+      parts.push(`${attribution(passage.said)}:\n${saidText(passage.said)}`);
     if (passage.prose !== null) parts.push(passage.prose);
     if (passage.unfinished) parts.push('(This turn did not finish.)');
   }

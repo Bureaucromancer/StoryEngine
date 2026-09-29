@@ -3,7 +3,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import type { JSX, ReactNode } from 'react';
+import { useEffect, useRef, type JSX, type ReactNode } from 'react';
 
 import { BuildFooter } from './about/BuildFooter.js';
 import type { BuildInfo } from './api.js';
@@ -30,6 +30,33 @@ export function App(): JSX.Element {
 function Gate(): JSX.Element {
   const auth = useAuthState();
 
+  /**
+   * ***What was cached belongs to the account that was signed in*** (2026-09-27).
+   *
+   * Signing out resets the cache, and that was the only door that did. A session
+   * that ended any other way — it expired, an admin disabled the account, the
+   * person signed out in another tab — came back to the sign-in form with the
+   * last account's sessions, library and settings still cached, and whoever
+   * signed in next on a shared browser was shown them until each query happened
+   * to refetch. A switch made in another tab, one account straight to another,
+   * did the same without passing through a sign-in form at all.
+   *
+   * So the cache follows the account: whenever the signed-in handle changes
+   * from one account to anything else, everything but the auth state is reset.
+   * `resetQueries` rather than `removeQueries`, for the reason `useLogout`
+   * gives — a removed entry does not tell the components still watching it —
+   * and the auth state is left alone so this gate does not fall back to
+   * *Loading…* while it asks.
+   */
+  const handle = auth.data?.account?.handle ?? null;
+  const signedIn = useRef<string | null>(null);
+  useEffect(() => {
+    if (signedIn.current !== null && signedIn.current !== handle) {
+      void queryClient.resetQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
+    }
+    signedIn.current = handle;
+  }, [handle]);
+
   if (auth.isPending) {
     return (
       <Frame build={undefined}>
@@ -40,7 +67,17 @@ function Gate(): JSX.Element {
     );
   }
 
-  if (auth.isError) {
+  /**
+   * ***Only a first load that failed*** (2026-09-27). `isError` is also true
+   * when a *background* refetch fails and the last good answer is still held —
+   * which is what happens when somebody refocuses the tab while the server
+   * restarts. Tearing the signed-in app down for that replaced every page,
+   * every unsaved draft with it, with *could not be reached* about a server
+   * that was back a second later. A refetch that fails keeps its data, and the
+   * app keeps running on it; this screen is for a first load with nothing to
+   * run on ([09 §6.4]'s restart is exactly this case).
+   */
+  if (auth.isLoadingError) {
     return (
       <Frame build={undefined}>
         <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-4 p-8 text-center">

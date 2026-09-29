@@ -9,6 +9,7 @@ import type { BackupSettings } from '@storyengine/shared';
 import { requireAccount, type AppServices } from '../app.js';
 import { announceRestartPending } from '../notifications/notices.js';
 import {
+  BackupSpaceError,
   backupContextOf,
   findBackup,
   listBackups,
@@ -19,7 +20,7 @@ import {
   type BackupRecord,
 } from '../backup/archive.js';
 import { DEFAULT_BACKUP_CONFLICT, importBackup } from '../backup/import.js';
-import { BackupFileSource } from '../import/backup-source.js';
+import { BACKUP_IMPORT_LIMITS, BackupFileSource, importedBy } from '../import/backup-source.js';
 import { recordImport } from '../import/jobs.js';
 import { openFileRead } from '../storage/files.js';
 import { prepareRestore, type RestoreRefusal } from '../backup/restore.js';
@@ -86,6 +87,9 @@ function restartMessage(refusal: RestartRefusal): string {
  * how a data directory fills up while nobody is looking. A person pressing a
  * button is not that: they are asking for their own work, the queue serialises
  * them, and refusing would be refusing somebody a copy of what they wrote.
+ * *(Corrected 2026-09-27: the only queue was the schedule's, per scope, and
+ * this route never reached it. `takeBackup` now writes one archive at a time
+ * on a data directory, whoever asked, and a press waits its turn.)*
  */
 
 /**
@@ -223,17 +227,22 @@ async function runImport(
   },
   reply: FastifyReply,
 ): Promise<FastifyReply> {
+  /**
+   * ***Refused before anything is written*** (2026-09-27). This check used to
+   * come after the import, so a person asking to bring settings across from
+   * their own backup got a 403 for it, over a library, tags and sessions that
+   * had already been written.
+   */
+  if (body.options?.config === true && owner.kind !== 'install') {
+    return reply.code(403).send({
+      error: 'not-install-scope',
+      message: 'Only an administrator importing an install backup may bring settings across.',
+    });
+  }
+
   const found = await findBackup(backupContextOf(services), owner, body.id);
   if (found === null) {
     return reply.code(404).send({ error: 'not-found', message: 'There is no such backup.' });
-  }
-
-  const opened = await BackupFileSource.open(found.path);
-  if (!opened.ok) {
-    return reply.code(422).send({
-      error: opened.refusal,
-      message: 'That archive could not be read.',
-    });
   }
 
   /**
@@ -243,6 +252,27 @@ async function runImport(
    * asking a question with one answer.
    */
   const fromHandle = body.handle ?? intoHandle;
+
+  /**
+   * ***Only what the import reads is held, and only that is counted*** — see
+   * `BACKUP_IMPORT_LIMITS`. The whole archive used to be read into memory and
+   * held to an upload's limits, so an ordinary account was refused as
+   * unreadable.
+   */
+  const opened = await BackupFileSource.open(
+    found.path,
+    BACKUP_IMPORT_LIMITS,
+    importedBy(fromHandle, { config: body.options?.config === true }),
+  );
+  if (!opened.ok) {
+    return reply.code(422).send({
+      error: opened.refusal,
+      message:
+        opened.refusal === 'too-large'
+          ? 'That archive holds more than an import reads in one go.'
+          : 'That archive could not be read.',
+    });
+  }
 
   const outcome = await importBackup(
     {
@@ -278,21 +308,26 @@ async function runImport(
    * `server.clientRoot` are refused by name.*** Both are filesystem paths on
    * the machine the archive came from: one would point a running server at a
    * directory that may be somebody else's, the other would make it serve a 404
-   * where the built client used to be. Everything else in a config is a fact
-   * about how an install behaves and travels.
+   * where the built client used to be. ~~Everything else in a config is a fact
+   * about how an install behaves and travels.~~ *Corrected 2026-09-27:* so are
+   * where it listens and what stands in front of it, which `NOT_IMPORTABLE`
+   * says why; and *by name* is true now, in the note below.
    */
   if (body.options?.config === true) {
-    if (owner.kind !== 'install') {
-      return reply.code(403).send({
-        error: 'not-install-scope',
-        message: 'Only an administrator importing an install backup may bring settings across.',
-      });
-    }
     const document = await readArchivedConfig(opened.source);
     if (document === null) {
       notes.push({ key: 'import.backup.configMissing', params: {}, level: 'warn' });
     } else {
-      const applied = await applyConfigDocument(app, services, document, NOT_IMPORTABLE);
+      const applied = await applyConfigDocument(app, services, document, {
+        drop: NOT_IMPORTABLE,
+      });
+      if (applied.ok && applied.withheld.length > 0) {
+        notes.push({
+          key: 'import.backup.configWithheld',
+          params: { keys: applied.withheld.join(', ') },
+          level: 'info',
+        });
+      }
       if (!applied.ok) {
         notes.push({
           key: 'import.backup.configRefused',
@@ -320,7 +355,7 @@ async function runImport(
 
   const jobId = recordImport(services.state.db, {
     account: intoHandle,
-    root: found.path.split('/').pop() ?? body.id,
+    root: found.name,
     source: 'storyengine-backup',
     items: outcome.result.report.items,
     at: Date.now(),
@@ -365,12 +400,32 @@ function register(
      * archive at all. `takeBackup` skips it and names it in the manifest's
      * `omitted` instead, so the file exists and says what it could not carry.
      */
-    const backup = await takeBackup(backupContextOf(services), {
-      owner,
-      contents,
-      reason: 'manual',
-    });
-    return reply.code(201).send({ backup });
+    try {
+      const backup = await takeBackup(backupContextOf(services), {
+        owner,
+        contents,
+        reason: 'manual',
+      });
+      return await reply.code(201).send({ backup });
+    } catch (error) {
+      /**
+       * ***No room is a state of the disk, not a server fault*** — `507`, and a
+       * code the surface can say something useful about. It used to be the
+       * error handler's bare 500, so the panel's *not enough room on the disk*
+       * sentence could never be reached. `ENOSPC` is the same answer arrived at
+       * late: something else filled the disk while the archive was written.
+       */
+      if (error instanceof BackupSpaceError || (error as NodeJS.ErrnoException).code === 'ENOSPC') {
+        return await reply.code(507).send({
+          error: 'no-space',
+          message:
+            error instanceof BackupSpaceError
+              ? error.message
+              : 'There is not enough free space on the disk for this backup.',
+        });
+      }
+      throw error;
+    }
   });
 
   app.get(prefix, async (request, reply) => {
@@ -407,10 +462,7 @@ function register(
       return reply
         .header('content-type', 'application/gzip')
         .header('content-length', String(found.record.bytes))
-        .header(
-          'content-disposition',
-          `attachment; filename="${found.path.split('/').pop() ?? ''}"`,
-        )
+        .header('content-disposition', `attachment; filename="${found.name}"`)
         .send(openFileRead(found.path));
     },
   );
@@ -586,45 +638,68 @@ export function registerAdminBackupRoutes(app: FastifyInstance, services: AppSer
       });
     }
 
-    const found = await findBackup(backupContextOf(services), { kind: 'install' }, body.id);
-    if (found === null) {
-      return reply.code(404).send({ error: 'not-found', message: 'There is no such backup.' });
+    /**
+     * ***Everything that would make the drain refuse is checked before the
+     * marker exists***, and the reservation is taken before the first `await`
+     * (see `AppServices.restoring`). A second request used to get as far as
+     * overwriting the first one's marker, find the drain begun, and delete the
+     * marker on its way out, so the server restarted without restoring.
+     */
+    if (services.exit === null) {
+      return reply.code(409).send({ error: 'unavailable', message: restartMessage('unavailable') });
     }
-
-    const prepared = await prepareRestore(services.layout, {
-      path: found.path,
-      requestedBy: request.account?.handle ?? '',
-      ...(body.acceptRedacted === undefined ? {} : { acceptRedacted: body.acceptRedacted }),
-    });
-    if (!prepared.ok) {
+    if (services.draining || services.restoring) {
       return reply
-        .code(prepared.refusal === 'no-space' ? 507 : 409)
-        .send({ error: prepared.refusal, message: restoreMessage(prepared.refusal) });
+        .code(409)
+        .send({ error: 'already-restarting', message: restartMessage('already-restarting') });
     }
+    services.restoring = true;
+    try {
+      const found = await findBackup(backupContextOf(services), { kind: 'install' }, body.id);
+      if (found === null) {
+        return await reply
+          .code(404)
+          .send({ error: 'not-found', message: 'There is no such backup.' });
+      }
 
-    const begun = beginRestart(services);
-    if (!begun.ok) {
-      /**
-       * ***The marker is removed again, and this is the only place it is ever
-       * deleted.*** The drain did not start, so the process is staying up — and
-       * a marker left behind by a refused restart would fire on the next
-       * ordinary restart instead, which is a restore nobody asked for at a
-       * moment nobody chose.
-       */
-      await unlinkFile(services.layout.restorePendingFile).catch(() => undefined);
-      return reply.code(409).send({ error: begun.why, message: restartMessage(begun.why) });
+      const prepared = await prepareRestore(services.layout, {
+        path: found.path,
+        requestedBy: request.account?.handle ?? '',
+        ...(body.acceptRedacted === undefined ? {} : { acceptRedacted: body.acceptRedacted }),
+      });
+      if (!prepared.ok) {
+        return await reply
+          .code(prepared.refusal === 'no-space' ? 507 : 409)
+          .send({ error: prepared.refusal, message: restoreMessage(prepared.refusal) });
+      }
+
+      const begun = beginRestart(services, 'restore');
+      if (!begun.ok) {
+        /**
+         * ***The marker is removed again, and this is the only place it is
+         * ever deleted.*** The drain did not start, so the process is staying
+         * up — and a marker left behind by a refused restart would fire on the
+         * next ordinary restart instead, which is a restore nobody asked for at
+         * a moment nobody chose. The reservation makes it this request's own.
+         */
+        await unlinkFile(services.layout.restorePendingFile).catch(() => undefined);
+        return await reply.code(409).send({ error: begun.why, message: restartMessage(begun.why) });
+      }
+
+      request.log.warn(
+        {
+          event: 'restore.requested',
+          account: request.account?.handle,
+          archive: prepared.plan.archive,
+          files: prepared.plan.manifest.files,
+        },
+        'Restore requested from the admin surface; draining and restoring on the next start',
+      );
+      return await reply.code(202).send({ draining: true, plan: prepared.plan });
+    } finally {
+      // Accepted or not, `draining` now says whatever needs saying.
+      services.restoring = false;
     }
-
-    request.log.warn(
-      {
-        event: 'restore.requested',
-        account: request.account?.handle,
-        archive: prepared.plan.archive,
-        files: prepared.plan.manifest.files,
-      },
-      'Restore requested from the admin surface; draining and restoring on the next start',
-    );
-    return reply.code(202).send({ draining: true, plan: prepared.plan });
   });
 
   /**

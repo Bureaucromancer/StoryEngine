@@ -169,7 +169,12 @@ Three details that decide whether it feels right:
   authorship away rather than assisting it.
 - **It is a `generate` step like any other**, so it is recorded in the turn
   record and rewrite/reroll apply ([19 §14.5](19-tech-stack.md)) — an
-  impersonation you dislike is re-rollable without ceremony.
+  impersonation you dislike is re-rollable without ceremony. *Built otherwise,
+  and recorded 2026-09-27:* the first detail wins where the two conflict, so an
+  impersonation commits no turn and has no turn record to be in
+  ([P11.4](workplan/28-p11-implementation.md) argues it; `turns/impersonate.ts`
+  carries the argument). What it spent goes to the account's usage log instead
+  ([10 §11.4](10-ui-surfaces.md)), and re-rolling is pressing the button again.
 - **The persona's card is the subject, not the audience.** The call is
   `voice: "embodied"` on the persona, which is exactly what the axis above
   already describes.
@@ -460,6 +465,13 @@ structural position over a list the engine owns, it survives editing and
 branching, and it appears in the turn record as an ordinary ordered block. The
 cost is real and worth paying — refusing it would mean importing the existing
 corpus of presets into something that runs but behaves differently.
+
+*Amended 2026-09-27.* **Paid for, and until now not delivered.** The
+OpenAI-compatible adapter joined every system message into the leading system
+prompt, so a system block spliced into the history reached the model at the top
+of it. The adapter now sends a later system block where it sits, as user text
+(SillyTavern's *semi-strict* shape), which is the position the turn record has
+always shown.
 
 Templates (Liquid, following Aventuras) render *within* a block. Aventuras'
 `PackTemplate` dual-hash trick — `contentHash` plus `baselineHash`, where the
@@ -798,6 +810,24 @@ Three rules keep it honest.
   ten, fire at twelve, rewind to eleven, and the commitment correctly survives
   with one turn already spent — which only holds if the count is derived from the
   path rather than stored.
+
+  *(2026-09-27)* **The turns every count here reads are turns of the story** — a
+  turn somebody took, which has an input, an output, or the steps a job ran. The
+  path also holds turns nothing narrated: a channel write (a HUD edit, this
+  dial, a commitment), an undo, a divergence, a *Remember this*, a backdrop
+  choice, each a change to the record that has to branch like one. Until this
+  date every count read the path's length and so counted those too: a hook
+  authored `notBefore: { turn: 12 }` came in at the ninth turn of a session with
+  a few HUD edits, turning the dial moved the cadence it was turning, and two
+  edits after a commitment spent two of its three chances. The counts are still
+  derived from the path (`sessions/depth.ts`), which keeps the rewind argument
+  above true, and skip what nobody narrated. The same reading now holds for a
+  step's `everyNTurns` (§6), `list`'s speaker rotation and a lore entry's
+  `delay`. ~~*Not yet for the history window*, which still takes the last N
+  turns of the path: it has to move with the summary chain's boundary, or the
+  two overlap or leave a gap between them.~~ The window followed, with the
+  chain: it takes the last N story turns, and the summary chain covers the rest
+  of the same list, so they meet without a gap or an overlap.
 
 **Force-fire** is the authoring affordance above, and it stays what it sounds
 like: the hook is delivered on the next turn with no judgement call at all. *The

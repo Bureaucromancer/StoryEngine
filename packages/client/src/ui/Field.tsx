@@ -33,6 +33,12 @@ export interface FieldProps {
   hint?: string;
   placeholder?: string;
   /**
+   * The most characters the control holds — the server's own limit, said where
+   * the typing happens, so a field that goes past it is stopped at the key
+   * rather than refused whole at the save.
+   */
+  maxLength?: number;
+  /**
    * Marked with a glyph and announced as required — [10 §11.1a].
    *
    * **The glyph is `aria-hidden` and the announcement is `aria-required`**,
@@ -146,6 +152,10 @@ export function Field(props: FieldProps): JSX.Element {
           className={CONTROL_CLASS}
           value={props.value}
           rows={props.rows ?? 4}
+          // Read-only on the same terms as the `<input>` below (2026-09-27):
+          // this branch ignored the note, which was latent while no read-only
+          // field was ever multiline — and every generic text field is now.
+          readOnly={props.readOnlyNote !== undefined}
           onChange={(event) => {
             edited(event.target.value);
           }}
@@ -153,6 +163,7 @@ export function Field(props: FieldProps): JSX.Element {
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           placeholder={props.placeholder}
+          maxLength={props.maxLength}
         />
       ) : (
         <input
@@ -167,6 +178,7 @@ export function Field(props: FieldProps): JSX.Element {
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           placeholder={props.placeholder}
+          maxLength={props.maxLength}
         />
       )}
       <Notes errorId={errorId} hintId={hintId} error={props.error} hint={note} />
@@ -192,6 +204,15 @@ export interface NumberFieldProps extends Omit<FieldProps, 'multiline' | 'rows'>
   max?: number;
   /** Rendered read-only, with the reason. See {@link Field}'s `readOnlyNote`. */
   readOnlyNote?: string;
+  /**
+   * ***Done with it*** (2026-09-27) — on leaving the box, and on Enter.
+   *
+   * For a control whose every value is a write: a number is typed a character
+   * at a time, and `0.75` passes through `0` and `0.` on the way, so a control
+   * that wrote on each change sent every one of them. A caller that commits here
+   * and only holds text in `onChange` writes the number the person meant, once.
+   */
+  onCommit?: () => void;
 }
 
 export function NumberField(props: NumberFieldProps): JSX.Element {
@@ -216,6 +237,10 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
         readOnly={locked}
         onChange={(event) => {
           props.onChange(event.target.value);
+        }}
+        onBlur={props.onCommit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') props.onCommit?.();
         }}
         aria-required={props.required === true ? true : undefined}
         aria-invalid={invalid || undefined}

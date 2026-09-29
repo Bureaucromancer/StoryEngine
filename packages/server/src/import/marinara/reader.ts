@@ -4,6 +4,7 @@
 import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
 
 import { marinaraPreflight } from '../detect.js';
+import { ownEntry } from '../parse.js';
 import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
 import type {
   FileSource,
@@ -91,7 +92,9 @@ export class MarinaraReader implements SourceReader {
         // file they came out of — otherwise `characters.json` would appear as
         // one row beside the four characters it yielded.
         if (converted.has(table)) continue;
-        yield observed(path, MARINARA_DISPOSITIONS[table] ?? 'unrecognised');
+        // Own entries: `tables/constructor.json` found `Object`, which travelled
+        // into the report and its counts as a disposition (2026-09-27).
+        yield observed(path, ownEntry(MARINARA_DISPOSITIONS, table) ?? 'unrecognised');
         continue;
       }
 
@@ -153,6 +156,9 @@ export class MarinaraReader implements SourceReader {
 
     const sections = await this.#rows('prompt_sections');
     const choices = await this.#rows('choice_blocks');
+    // A disabled group switches its sections off, so the groups travel with
+    // them (2026-09-27); they were never opened.
+    const groups = await this.#rows('prompt_groups');
 
     for (const preset of presets) {
       const id = str(preset['id']);
@@ -163,6 +169,7 @@ export class MarinaraReader implements SourceReader {
           preset,
           sections: sections.filter((row) => str(row['presetId']) === id),
           choiceBlocks: choices.filter((row) => str(row['presetId']) === id),
+          groups: groups.filter((row) => str(row['presetId']) === id),
         },
       });
     }
@@ -179,15 +186,21 @@ export class MarinaraReader implements SourceReader {
    */
   async *#actors(table: string, format: string): AsyncIterable<SourceItem> {
     const rows = await this.#rows(table);
-    const images = await this.#rows(table === 'characters' ? 'character_images' : 'persona_images');
 
     for (const row of rows) {
       const id = str(row['id']);
       const source = `${TABLES}${table}.json#${id}`;
 
+      /**
+       * ***A persona is its own row*** (2026-09-27). A character keeps its
+       * card as JSON in a `data` column; a persona has no such column — its
+       * name, description and the rest are columns of the row itself — so
+       * reading `data` for both handed the converter nothing for every persona,
+       * and none ever imported. The row is the persona.
+       */
       let card: unknown;
       try {
-        const raw = row['data'];
+        const raw = table === 'personas' && row['data'] === undefined ? row : row['data'];
         card = typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch {
         yield observed(source, 'unrecognised', [
@@ -197,14 +210,12 @@ export class MarinaraReader implements SourceReader {
       }
 
       const avatar = str(row['avatarPath']) || `avatars/${id}.png`;
-      const held = images.filter((image) => str(image['characterId']) === id).length;
 
       yield candidate({
         source,
         format,
         payload: card,
         assets: (await this.#files.exists(avatar)) ? [avatar] : [],
-        ...(held > 0 ? {} : {}),
       });
     }
   }
@@ -219,12 +230,18 @@ function tableNameOf(path: string): string {
 /**
  * The seventeen asset directories beside `storage/`.
  *
- * The four that feed a converted object travel with it; the rest — game assets,
- * fonts, notification sounds, the video directories — are counted and skipped.
+ * `avatars/` travels with the actor it is the portrait of. ~~The four that feed
+ * a converted object travel with it~~ (corrected 2026-09-27): `sprites/`,
+ * `lorebooks/images/` and `prompts/images/` were reported `converted` and never
+ * attached to anything, so a review promised pictures that did not arrive. They
+ * are `recorded`, waiting on the image tables (see the registry). The rest —
+ * game assets, fonts, notification sounds, the video directories — are counted
+ * and skipped.
  */
 function assetDisposition(path: string): ImportDisposition {
-  const carried = ['avatars/', 'sprites/', 'lorebooks/images/', 'prompts/images/'];
-  return carried.some((prefix) => path.startsWith(prefix)) ? 'converted' : 'skipped';
+  if (path.startsWith('avatars/')) return 'converted';
+  const waiting = ['sprites/', 'lorebooks/images/', 'prompts/images/'];
+  return waiting.some((prefix) => path.startsWith(prefix)) ? 'recorded' : 'skipped';
 }
 
 function parseRows(bytes: Uint8Array): Record<string, unknown>[] {

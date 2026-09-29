@@ -8,6 +8,7 @@ import {
   formatCount,
   formatDuration,
   formatEpochMs,
+  formatMoney,
   formatTimestamp,
   timestampsOf,
 } from './format.js';
@@ -99,6 +100,19 @@ describe('an unparsable timestamp', () => {
  * formatter and not the machine.
  */
 describe('counts and durations', () => {
+  /**
+   * ***A fraction of a cent is not zero.*** One model call is routinely priced
+   * below a cent, and the currency's own two digits would print it as free.
+   */
+  it('keeps the fractions of a cent a model call is priced in', () => {
+    expect(formatMoney(0.0021, 'USD', 'en-US')).toBe('$0.0021');
+    expect(formatMoney(1.5, 'USD', 'en-US')).toBe('$1.50');
+  });
+
+  it('names a currency that is not an ISO code rather than refusing it', () => {
+    expect(formatMoney(3.25, 'credits', 'en-US')).toBe('3.25 credits');
+  });
+
   it('groups a count the way the locale reads it', () => {
     expect(formatCount(128_000, 'en-US')).toBe('128,000');
     expect(formatCount(61, 'en-US')).toBe('61');

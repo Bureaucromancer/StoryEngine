@@ -47,8 +47,43 @@ describe('turns become passages', () => {
       kind: 'say',
       text: 'Where is the lighthouse?',
       who: 'Vera',
+      pictures: [],
     });
     expect(read[0]?.prose).toBe('The keeper points north.');
+  });
+
+  /**
+   * ***A move that was only a picture is a move*** — [25 E15]. Blank words used
+   * to mean *no input*, and a picture with no words would have vanished from
+   * the reading view; and the two text copies, which cannot hold a picture, say
+   * it in words rather than dropping it.
+   */
+  it('keeps a move that was only a picture, and says it in the text copies', () => {
+    const read = passages(
+      [
+        turn({
+          id: 't1',
+          input: {
+            actorId: null,
+            kind: 'do',
+            text: '',
+            raw: '',
+            attachments: [
+              { id: '0', kind: 'image', caption: 'the harbour at dusk' },
+              { id: '1', kind: 'image' },
+            ],
+          },
+          output: { text: 'Gulls, and the smell of tar.' },
+        }),
+      ],
+      nameOf,
+    );
+
+    expect(read[0]?.said?.pictures).toHaveLength(2);
+    const markdown = toMarkdown(read, { title: 'The harbour' });
+    expect(markdown).toContain('(Picture: the harbour at dusk)');
+    expect(markdown).toContain('(A picture)');
+    expect(toPlainText(read, { title: 'The harbour' })).toContain('(Picture: the harbour at dusk)');
   });
 
   /**

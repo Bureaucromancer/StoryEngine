@@ -185,20 +185,32 @@ export async function readRendition(
   if (bytes === null) return null;
 
   try {
-    // Read as unknown rather than as a `Partial<Rendition>`, for `readSummary`'s
-    // reason: the file is whatever is on disk, and a declared type would make
-    // the checks below look redundant to the compiler while doing the only work
-    // that matters.
-    const held = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
-    if (held['schema'] !== RENDITION_SCHEMA || held['id'] !== id) return null;
-    if (typeof held['turnId'] !== 'string') return null;
-    if (typeof held['digest'] !== 'string') return null;
-    if (!isRecipe(held['prompt'])) return null;
-    if (!isProvenance(held['provenance'])) return null;
-    return held as unknown as Rendition;
+    const held = renditionFrom(JSON.parse(new TextDecoder().decode(bytes)));
+    return held?.id === id ? held : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * A rendition record, or null when this is not one: `readRendition`'s checks,
+ * for a record that did not come from this install's disk. The session
+ * importer writes what passes, so a record it accepts is one this module
+ * would read back.
+ */
+export function renditionFrom(value: unknown): Rendition | null {
+  // Read as unknown rather than as a `Partial<Rendition>`, for `readSummary`'s
+  // reason: the file is whatever is on disk, and a declared type would make
+  // the checks below look redundant to the compiler while doing the only work
+  // that matters.
+  if (typeof value !== 'object' || value === null) return null;
+  const held = value as Record<string, unknown>;
+  if (held['schema'] !== RENDITION_SCHEMA || typeof held['id'] !== 'string') return null;
+  if (typeof held['turnId'] !== 'string') return null;
+  if (typeof held['digest'] !== 'string') return null;
+  if (!isRecipe(held['prompt'])) return null;
+  if (!isProvenance(held['provenance'])) return null;
+  return held as unknown as Rendition;
 }
 
 /**

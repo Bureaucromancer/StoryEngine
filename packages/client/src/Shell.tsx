@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 
 import { BuildFooter } from './about/BuildFooter.js';
+import { useSessionEnded } from './auth/session-ended.js';
 import { NotificationBell } from './notifications/NotificationBell.js';
 import { NotificationToast } from './notifications/NotificationToast.js';
 import { useNotifications } from './notifications/useNotifications.js';
@@ -67,7 +69,7 @@ export function Shell(): JSX.Element {
    * mechanism `RestartBanner` uses for a non-admin: a signed-out browser never
    * opens the stream, rather than opening one that answers 401 and retries.
    */
-  const notifications = useNotifications(account !== null);
+  const notifications = useNotifications(account?.handle ?? null);
 
   /**
    * The workbench's open state — a preference from this stage on ([P3.1a]),
@@ -205,6 +207,7 @@ export function Shell(): JSX.Element {
           outstanding is often not the person who is looking at the form. And
           outside the scroll container, for the same reason — a banner that
           scrolls away with the page is a banner on some pages. */}
+      <SessionEndedBanner />
       <RestartBanner isAdmin={account?.role === 'admin'} />
       {/* The scroll container, and deliberately bare: no width, no padding, no
           wrapper. Each page owns its column through the `page` recipes in
@@ -344,6 +347,45 @@ function SurfaceLink(props: { to: '/play' | '/library' | '/search'; label: strin
  * The query is disabled for a non-admin, so their browser never asks — the same
  * absent-rather-than-disabled mechanism the settings page uses.
  */
+/**
+ * ***The sign-in has ended; the page has not*** (2026-09-27) — see
+ * `auth/session-ended.ts`.
+ *
+ * Above the outlet with the restart notice, and for its reason: the person who
+ * needs to know is on whatever page they are on. *The button asks, it does not
+ * sign out*: it has the auth state read again, and the server's answer — no
+ * account — is what takes the page to the sign-in form. The sentence before it
+ * is the point of not doing that on the 401 itself: whatever is unsaved on this
+ * page is still here, and this is the moment to copy it.
+ */
+function SessionEndedBanner(): JSX.Element | null {
+  const ended = useSessionEnded();
+  const client = useQueryClient();
+  if (!ended) return null;
+
+  return (
+    <div
+      role="alert"
+      className="border-b border-danger-line bg-danger-surface px-6 py-2 text-sm print:hidden"
+    >
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
+        <p className="text-danger-ink">
+          Your sign-in has ended. Copy anything unsaved on this page, then sign in again.
+        </p>
+        <Button
+          type="button"
+          size="compact"
+          onClick={() => {
+            void client.invalidateQueries({ queryKey: ['auth', 'state'] });
+          }}
+        >
+          Sign in again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
   const notices = useNotices(isAdmin);
   const restart = useRestart();

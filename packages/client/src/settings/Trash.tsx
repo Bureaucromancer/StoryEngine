@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
-import { readTrash, restoreFromTrash, type TrashEntry } from '../api.js';
+import { errorCode, readTrash, restoreFromTrash, type TrashEntry } from '../api.js';
 import { formatTimestamp } from '../format.js';
 import { Button } from '../ui/Button.js';
 import { Fine, Note, SectionTitle } from '../ui/Text.js';
@@ -112,9 +112,12 @@ function whenLine(entry: TrashEntry): string {
   return `Deleted ${deleted}; removed after ${formatTimestamp(new Date(entry.expiresAt).toISOString())}.`;
 }
 
+/**
+ * Why something could not be put back — by the class the route sends
+ * (`occupied`), not by the English it sends with it (2026-09-27).
+ */
 function restoreLine(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
-  return message.includes('already there')
+  return errorCode(error) === 'occupied'
     ? 'Something with that name is already there. Rename it first, then put this one back.'
     : 'That could not be put back.';
 }

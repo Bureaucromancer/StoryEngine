@@ -21,12 +21,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const readMyRoles = vi.fn();
 const writeMyBindings = vi.fn();
+const writeMyTaskRoles = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
   api: {
     readMyRoles: (...a: unknown[]) => readMyRoles(...a) as unknown,
     writeMyBindings: (...a: unknown[]) => writeMyBindings(...a) as unknown,
+    writeMyTaskRoles: (...a: unknown[]) => writeMyTaskRoles(...a) as unknown,
   },
 }));
 
@@ -67,6 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   readMyRoles.mockResolvedValue(state());
   writeMyBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:written' });
+  writeMyTaskRoles.mockResolvedValue({ tasks: { assist: 'fast' } });
 });
 
 function renderPane() {
@@ -205,5 +208,37 @@ describe('MyRoles', () => {
     renderPane();
 
     expect(await screen.findByText(/not letting you use/)).toBeTruthy();
+  });
+});
+
+/**
+ * ***Which of your models writes a field when you ask for help*** — the
+ * stopgap for [25 C15] that lets a person point field assist at their quick
+ * model. It picks a **row of the table**, so the model it reports is that row's
+ * and nothing is worked out here.
+ */
+describe('choosing what writing help uses', () => {
+  it('defaults to the story’s model, and says which model that is', async () => {
+    renderPane();
+
+    const control = await screen.findByRole('combobox', {
+      name: 'Writing help uses the model for',
+    });
+    expect((control as HTMLSelectElement).value).toBe('prose');
+    expect(screen.getByText('Right now that is gpt-hi.')).toBeTruthy();
+  });
+
+  it('writes the role chosen, and nothing else', async () => {
+    renderPane();
+
+    const control = await screen.findByRole('combobox', {
+      name: 'Writing help uses the model for',
+    });
+    await userEvent.selectOptions(control, 'Quick background jobs');
+
+    await waitFor(() => {
+      expect(writeMyTaskRoles).toHaveBeenCalledWith({ assist: 'fast' });
+    });
+    expect(writeMyBindings).not.toHaveBeenCalled();
   });
 });

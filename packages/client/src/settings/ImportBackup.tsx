@@ -6,6 +6,7 @@ import { useState, type JSX } from 'react';
 
 import {
   backupApi,
+  errorCode,
   type BackupImportOptions,
   type BackupImportResult,
   type BackupManifest,
@@ -105,15 +106,35 @@ function resultLine(result: BackupImportResult): string {
   return `${String(objects)} library objects and ${String(sessions)} sessions were read.`;
 }
 
+/**
+ * Why an import did not run.
+ *
+ * ***By class*** (2026-09-27). This searched the server's English, and two
+ * refusals the route sends with their own reason fell through to *could not
+ * be run*: an archive that does not hold the account asked for
+ * (`unreadable-root`), and one past what an import reads at once
+ * (`too-large`), which was reported as unreadable when it is only big. The
+ * sweep's refusals of the tree inside (`live-install`, `unknown-format`,
+ * `ambiguous-root`) read as the archive not being readable, which is what the
+ * route says of them too.
+ */
 function failureLine(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
-  if (message.includes('no account with that handle')) {
-    return 'This install has no account with that handle, and an import does not create one.';
+  switch (errorCode(error)) {
+    case 'no-such-account':
+      return 'This install has no account with that handle, and an import does not create one.';
+    case 'unreadable-root':
+      return 'That archive does not hold the account you asked for.';
+    case 'too-large':
+      return 'That archive holds more than an import reads in one go.';
+    case 'unreadable':
+    case 'unsafe-path':
+    case 'live-install':
+    case 'unknown-format':
+    case 'ambiguous-root':
+      return 'That archive could not be read.';
+    default:
+      return 'That import could not be run.';
   }
-  if (message.includes('could not be read')) {
-    return 'That archive could not be read.';
-  }
-  return 'That import could not be run.';
 }
 
 export function ImportBackup(props: {
