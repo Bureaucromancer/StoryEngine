@@ -625,6 +625,39 @@ describe('an archive, and a large upload', () => {
     expect(preview).not.toHaveBeenCalled();
   });
 
+  it('shows every row of an archive’s review, so a second upload reads unchanged row by row', async () => {
+    // [P13.7]: the answer's one-row summary named the first converted row, and
+    // for a re-upload of the same backup a `recorded` row for the zip — the
+    // review a sweep of the folder gives was nowhere on screen.
+    vi.spyOn(api, 'importFile').mockResolvedValue({
+      item: { source: 'aventura-backup.zip', disposition: 'recorded', notes: [] },
+      notes: [],
+      report: {
+        jobId: 'unsaved',
+        source: 'aventuras',
+        items: [
+          { source: 'aventura.db/lorebook_vault/book-1', disposition: 'unchanged', notes: [] },
+          { source: 'aventura.db/character_vault/char-1', disposition: 'unchanged', notes: [] },
+        ],
+        counts: { unchanged: 2 },
+      },
+    });
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    expect(await screen.findByText('aventura.db/lorebook_vault/book-1')).toBeTruthy();
+    expect(screen.getByText('aventura.db/character_vault/char-1')).toBeTruthy();
+    // The summary row is not the review: the file's name stays a label above
+    // it, and is not a row of what happened.
+    const rows = [...document.querySelectorAll('section[aria-label="What happened"] code')];
+    expect(rows.map((row) => row.textContent)).toEqual([
+      'aventura.db/lorebook_vault/book-1',
+      'aventura.db/character_vault/char-1',
+    ]);
+  });
+
   it('shows how far the upload has got, and then that it is being read', async () => {
     let report: ((progress: { sent: number; total: number }) => void) | undefined;
     const commit = vi

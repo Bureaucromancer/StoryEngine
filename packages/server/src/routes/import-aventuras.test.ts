@@ -391,6 +391,107 @@ describe('pointing the server at an Aventuras folder', () => {
   });
 });
 
+describe('pointing the server at the folder above Aventuras’ own', () => {
+  /**
+   * [P13.7]'s near miss, at the door: a sweep of `~/.config` — here a folder
+   * holding `com.karelian.aventura` beside another application's settings —
+   * sweeps what it was given, which is not Aventuras, and says where Aventuras
+   * is, absolutely, for a retry. It does not sweep the suggestion: the loose
+   * walk may pass the database by as a file it does not know, but no copy of
+   * it is taken, no row of it is read, and nothing of it reaches the library.
+   */
+  it('suggests com.karelian.aventura beneath it, and does not sweep it as Aventuras', async () => {
+    await grantFileAccess();
+    const config = join(container, '.config');
+    await writeAventurasBackupFolder(join(config, 'com.karelian.aventura'));
+
+    const inspected = await server.request({
+      method: 'POST',
+      url: '/api/import/inspect',
+      payload: { root: config },
+    });
+    expect(inspected.status).toBe(200);
+    expect(inspected.body.verdict).toBe('loose-files');
+    const offer = {
+      situation: 'aventuras-config-folder',
+      suggest: 'com.karelian.aventura',
+      root: join(config, 'com.karelian.aventura'),
+      leadsTo: 'aventuras',
+      confidence: 'verified',
+      note: {
+        key: 'import.root.aventurasBelow',
+        params: { path: 'com.karelian.aventura' },
+        level: 'warn',
+      },
+    };
+    expect(inspected.body.suggestions).toEqual([offer]);
+
+    const swept = await server.request({
+      method: 'POST',
+      url: '/api/import/sweep',
+      payload: { root: config },
+    });
+    expect(swept.status, JSON.stringify(swept.body)).toBe(200);
+    expect(swept.body.report.source).toBe('loose-files');
+    expect(swept.body.suggestions).toEqual([offer]);
+    const sources = (swept.body.report.items as { source: string }[]).map((item) => item.source);
+    expect(sources.some((source) => source.startsWith('aventura.db/'))).toBe(false);
+    expect((await ownObjects(server)).objects).toEqual([]);
+    expect(await scratch()).toEqual([]);
+
+    // And the offer is a root the sweep takes as Aventuras.
+    const followed = await server.request({
+      method: 'POST',
+      url: '/api/import/inspect',
+      payload: { root: offer.root },
+    });
+    expect(followed.body.verdict).toBe('aventuras');
+  });
+});
+
+describe('looking at a bare database before importing it', () => {
+  /**
+   * [P13.7]'s preview arm. The client never sends an archive or a database
+   * here (`library/import-sniff.ts`); an older client, or anybody on the API,
+   * does, and is told what the import door will do with it — *a folder in a
+   * file* — rather than `unrecognised`, which was this door's answer to the
+   * same bytes the import door has taken since P13.8.
+   */
+  it('says a SQLite file is a folder in a file, by its bytes, and writes nothing', async () => {
+    const root = join(container, 'aventura-backup');
+    await writeAventurasBackupFolder(root);
+    const boundary = '----storyengineAventurasPreview';
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/file/preview',
+      payload: Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="library.sqlite"\r\n` +
+            'Content-Type: application/octet-stream\r\n\r\n',
+        ),
+        await readFile(join(root, 'aventura.db')),
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]),
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.preview).toEqual({
+      source: 'library.sqlite',
+      disposition: 'converted',
+      notes: [
+        { key: 'import.file.importsAsFolder', params: { file: 'library.sqlite' }, level: 'info' },
+      ],
+      advisories: [],
+      object: { kind: 'sweep' },
+      reimport: 'unknown',
+    });
+    expect((await ownObjects(server)).objects).toEqual([]);
+    expect(await scratch()).toEqual([]);
+  });
+});
+
 describe('uploading an Aventuras folder from the browser', () => {
   const MANIFEST = [
     { path: 'aventura.db', bytes: 400_000 },

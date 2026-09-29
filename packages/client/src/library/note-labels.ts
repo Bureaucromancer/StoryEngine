@@ -246,6 +246,16 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This is inside a Marinara storage folder. Point two folders up, at the data folder itself.',
   'import.root.marinaraTooOld':
     'This is a Marinara data folder from before version 1.5.7, which kept everything in one database file. This build reads only the newer file storage.',
+  /**
+   * ***Aventuras' config directory, beneath the folder picked*** — [P13.7].
+   * The path is said in full because it is the one part nobody remembers: a
+   * reverse-DNS folder name, sometimes under a hidden folder, which a person
+   * with a file picker would otherwise have to go and find.
+   */
+  'import.root.aventurasBelow':
+    'Aventuras keeps its library in {path}, beneath this folder — point at that instead.',
+  'import.root.aventurasAbove':
+    'This is one folder out of an Aventuras folder. Point at the folder above it, which holds the database with the whole library in it.',
 
   /**
    * **Aventuras' three single-file vault exports** — [P4 §1.5]'s *"honest

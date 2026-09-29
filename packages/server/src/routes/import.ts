@@ -9,6 +9,7 @@ import type {
   ImportItemReport,
   ImportNote,
   ImportPreview,
+  ImportReport,
   NearMissOffer,
 } from '@storyengine/shared';
 
@@ -38,7 +39,7 @@ import { convertOne, sweep, type SweepOutcome, type SweepRequest } from '../impo
 import { ZipFileSource } from '../import/zip-source.js';
 import { LandedDatabaseSource, LandedZipSource } from '../import/landed-source.js';
 import type { FileSource } from '../import/source.js';
-import { SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
+import { looksLikeSqlite, SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
 import { LandingSpaceError } from '../storage/upload-landing.js';
 import { looksLikeZip } from '../storage/zip.js';
 import { DEFAULT_ZIP_FILE_LIMITS } from '../storage/zip-file.js';
@@ -75,6 +76,23 @@ import {
 interface UploadResult {
   item: ImportItemReport;
   notes: ImportNote[];
+  /**
+   * ***The whole review, when the file was a root*** —
+   * [P13.7](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * Absent for a single file, whose one row is the review.
+   *
+   * `item` and `notes` answer an archive as though it were one file, which
+   * was a fair summary of a zip of cards and is not one of an Aventuras
+   * backup: a library of rows answered with its first converted row, and the
+   * second upload of the same backup with one `recorded` row named for the
+   * zip — so *everything was unchanged*, the answer a re-import exists to
+   * give, could not be read through this door at all, where the sweep and the
+   * folder upload both give it row by row. The report is carried beside the
+   * summary rather than instead of it so a client that reads only `item` goes
+   * on working; its `jobId` is `unsaved`, as the folder upload's is, since
+   * neither upload door records a job.
+   */
+  report?: ImportReport;
 }
 
 const MEGABYTE = 1024 * 1024;
@@ -959,6 +977,45 @@ async function previewUpload(
     );
   }
 
+  /**
+   * ***A SQLite database is a root too*** —
+   * [P13.7](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * Since P13.8 `/import/file` sweeps any SQLite upload, whatever it was
+   * called, as an Aventuras root of one file, and this door went on answering
+   * `unrecognised` for the same bytes — so an older client, or anybody calling
+   * the API directly, was told *not a file this reads* about a file the commit
+   * then imported. The answer is the zip arm's, word for word, because it is
+   * the same fact: a folder in a file, whose contents are the sweep's business.
+   *
+   * **Not opened, where the zip above is.** Opening a zip is a parse of its
+   * central directory in memory, cheap and pure; asking anything of a database
+   * means a copy on disk and a worker (`storage/sqlite-snapshot.ts`), which is
+   * a sweep's worth of machinery for a look that writes nothing. So a SQLite
+   * file that is not Aventuras' — no `_sqlx_migrations`, a column missing — is
+   * called a folder here and refused at the word by the column gate, with an
+   * `import.file.refused` note. That is the order a directory already takes:
+   * `inspect` calls a folder `aventuras` by the name of its database, and the
+   * sweep may still refuse it ([P13 §1.1](../../../../docs/design/workplan/30-p13-aventuras-import.md), as built).
+   *
+   * ***And the client never sends one here*** (`library/import-sniff.ts`). This
+   * door still buffers under `limits.maxUploadMb` rather than landing under
+   * `maxImportUploadMb`, deliberately — it is a look, and a look that took a
+   * gigabyte to scratch would be a second import door with none of the first's
+   * accounting. An Aventuras install is often past the ordinary limit, so a
+   * client that asked here would be refused a `413` for a file the import door
+   * takes, after sending it once to learn what its first sixteen bytes said.
+   * The client reads those bytes itself and answers exactly this; the arm is
+   * for everybody else, and for a database small enough to fit.
+   */
+  if (looksLikeSqlite(bytes)) {
+    return blank(
+      'converted',
+      [{ key: 'import.file.importsAsFolder', params: { file: filename }, level: 'info' }],
+      { kind: 'sweep' },
+    );
+  }
+
   let parsed: unknown = null;
   try {
     parsed = JSON.parse(new TextDecoder().decode(bytes));
@@ -1074,7 +1131,7 @@ async function importOneFile(
         },
       ]);
     }
-    return reportAsUpload(filename, outcome.report.items);
+    return reportAsUpload(filename, outcome.report);
   }
 
   // Everything else is one item from the upload reader, written by the sweep's
@@ -1205,7 +1262,7 @@ async function importLanded(
         level: 'warn',
       });
     }
-    return reportAsUpload(filename, outcome.report.items);
+    return reportAsUpload(filename, outcome.report);
   } finally {
     await archive?.close();
   }
@@ -1252,10 +1309,11 @@ function landedZipLimits(services: AppServices): typeof DEFAULT_ZIP_FILE_LIMITS 
  * every row names something inside it — so there is nothing to prefer, and the
  * thing a person wants to see is what landed. Every note travels regardless.
  */
-function reportAsUpload(filename: string, items: readonly ImportItemReport[]): UploadResult {
-  const converted = items.find((row) => row.disposition === 'converted');
+function reportAsUpload(filename: string, report: ImportReport): UploadResult {
+  const converted = report.items.find((row) => row.disposition === 'converted');
   return {
     item: converted ?? { source: filename, disposition: 'recorded', notes: [] },
-    notes: items.flatMap((row) => row.notes),
+    notes: report.items.flatMap((row) => row.notes),
+    report,
   };
 }

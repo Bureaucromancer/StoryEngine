@@ -97,7 +97,7 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   aventuras:
     'An Aventuras library. Its characters, lorebooks and scenarios are imported; everything else in it is listed and left behind for now.',
   'loose-files':
-    'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
+    'Not a SillyTavern, Marinara or Aventuras folder. Anything importable in it will be taken one file at a time.',
 });
 
 export const IMPORT_OPEN_KEY = 'ui.import-open';
@@ -420,9 +420,13 @@ export function ImportPanel(): JSX.Element {
         outcome.destination ?? undefined,
         setProgress,
       );
+      // An archive or a database is a root, and since [P13.7] its answer
+      // carries the root's whole review — every row, so a second upload of the
+      // same backup reads *unchanged* row by row, as a sweep of its folder does.
+      // One file's review is its one row.
       setOutcome({
         kind: 'report',
-        report: {
+        report: result.report ?? {
           jobId: 'file',
           source: outcome.file.name,
           items: [result.item],
@@ -647,7 +651,7 @@ export function ImportPanel(): JSX.Element {
                 setChecked(null);
               }}
               onBlur={(event) => void check(event.target.value.trim())}
-              placeholder="The full path to a SillyTavern or Marinara data folder"
+              placeholder="The full path to a SillyTavern, Marinara or Aventuras data folder"
               className={control}
               disabled={pending}
             />
@@ -664,6 +668,17 @@ export function ImportPanel(): JSX.Element {
               usually data/default-user inside the SillyTavern directory.
             </Note>
             <Note>A Marinara data folder is the one holding storage/tables/.</Note>
+            {/*
+              Aventuras is the exception to the comment above: Tauri fixes its
+              config directory by bundle id on every desktop platform
+              (01 §2), so naming the folder is reading it off their source
+              rather than guessing. The server's near-miss table says the same
+              when a person picks the folder above it.
+            */}
+            <Note>
+              An Aventuras folder is the one holding aventura.db — com.karelian.aventura inside
+              ~/.config on Linux, ~/Library/Application Support on a Mac, or %APPDATA% on Windows.
+            </Note>
 
             <Button
               type="button"

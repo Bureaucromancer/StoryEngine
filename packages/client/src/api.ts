@@ -511,6 +511,11 @@ export interface ImportJob {
 export interface ImportFileResult {
   item: ImportItem;
   notes: ImportItem['notes'];
+  /**
+   * The whole review, when the file was a root — an archive or a database
+   * ([P13.7]). Absent for a single file, whose one row is the review.
+   */
+  report?: ImportReport;
 }
 
 export interface Credentials {

@@ -497,6 +497,16 @@ file, `aventura.db`, from where it landed; one that is not Aventuras' is
 refused by the reader's column gate, `unrecognised` with an
 `import.file.refused` note.
 
+**A root's answer carries its whole review** —
+[P13.7](design/workplan/30-p13-aventuras-import.md). A zip, a database or a
+Marinara envelope is swept as a root, and its answer is `{ item, notes, report }`:
+`item` and `notes` summarise it as one file (the first converted row, and every
+note), and `report` is the sweep's `{ jobId, source, items, counts }` row by row,
+exactly as `/import/sweep` and `/import/directory` answer — so a second upload
+of the same backup reads `unchanged` row by row, as a second sweep of its folder
+does. `jobId` is `unsaved`: neither upload door records a job. A single file's
+answer has no `report`; its one row is the review.
+
 CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
 that says there is none.
@@ -535,7 +545,13 @@ limits**: this door still buffers every file under `limits.maxUploadMb`, and
 lands nothing. An archive or a database is only ever answered *this is a folder
 in a file*, which the client knows from the file's first bytes without sending
 it — so the client does not send one here at all, and a large backup is not
-uploaded twice to be told what its name already said.
+uploaded twice to be told what its name already said. **Since
+[P13.7](design/workplan/30-p13-aventuras-import.md) a SQLite file is answered
+the same way as a zip** — `import.file.importsAsFolder` and `{ kind: 'sweep' }`,
+by its first sixteen bytes and whatever it was called — where it had been
+`unrecognised` for bytes `/import/file` imports. The database is not opened to
+answer: whether it is an Aventuras database this build can read is the column
+gate's question at the commit, which can still refuse it.
 
 `preview` is `{ source, disposition, notes, advisories, object, reimport }`.
 `disposition` and `reimport` are **predictions**, not records — the file could
@@ -707,7 +723,7 @@ an endpoint that enumerated children would hand back exactly the map that clause
 refuses.
 
 `suggestions` is an array of near misses — the folder is recognisably part of a
-real SillyTavern or Marinara install, but is not the one to point at:
+real SillyTavern, Marinara or Aventuras install, but is not the one to point at:
 
 ```json
 {
@@ -728,6 +744,21 @@ that is recognised but whose right sibling cannot honestly be named, which is a
 real answer rather than a failure to have one: a SillyTavern data folder holding
 several people's libraries has no handle to guess, and a Marinara install from
 before 1.5.7 has no newer folder to point at.
+
+**Aventuras is found where the platforms put it** —
+[P13.7](design/workplan/30-p13-aventuras-import.md). Its config directory is
+`com.karelian.aventura` under `~/.config`, `~/Library/Application Support` or
+`%APPDATA%` ([01 §2](design/01-source-survey.md)), so a folder that is one of
+those, a home folder above one, `~/Library` or `AppData` is answered with the
+path down to it: `leadsTo: "aventuras"`, `verified`, and the note
+`import.root.aventurasBelow` with that `path`. Six fixed places, each asked one
+question — is `aventura.db` there — and never a search; a folder with the
+bundle id's name and no database in it is not suggested, and neither is one
+reached through a link that leaves the folder named, since a sweep would not
+follow that link either. A folder *inside* an Aventuras root — the `stories/`
+an older backup carries — is pointed back up with `import.root.aventurasAbove`.
+The sweep of the folder that was named still sweeps that folder; it never
+sweeps the suggestion.
 
 **A suggestion is advice, not a gate.** Acting on one sends a fresh absolute path
 back through this route or the sweep, which re-validate from scratch — the
