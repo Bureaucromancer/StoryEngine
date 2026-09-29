@@ -46,6 +46,7 @@ import { userOwner } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
 import type { BlobStore } from '../storage/card/envelope.js';
 import { classifyRoot } from './detect.js';
+import { MARINARA_CHATS_FORMAT } from './marinara/chat.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
 import { BackupReader } from './storyengine/reader.js';
@@ -277,11 +278,15 @@ export async function convertOne(
 /**
  * A candidate for the session pass rather than the library writer — a chat file
  * or a group's file, however the reader found it: by position in a tree
- * (`sillytavern/reader.ts`), or by its lines in a loose folder (`upload.ts`).
+ * (`sillytavern/reader.ts`), or by its lines in a loose folder (`upload.ts`);
+ * or, since [P13.10], a Marinara store's chat tables (`marinara/reader.ts`),
+ * which name their speakers by the character rows this sweep writes first.
  */
 function isChat(candidate: ImportCandidate): boolean {
   return (
-    candidate.format === SILLYTAVERN_CHAT_FORMAT || candidate.format === SILLYTAVERN_GROUP_FORMAT
+    candidate.format === SILLYTAVERN_CHAT_FORMAT ||
+    candidate.format === SILLYTAVERN_GROUP_FORMAT ||
+    candidate.format === MARINARA_CHATS_FORMAT
   );
 }
 

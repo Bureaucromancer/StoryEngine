@@ -175,9 +175,18 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // tractable where ST's is not — and a Marinara *branch* is a copied chat with
   // a back-pointer, not a tree edge, so a family of them imports as duplicated
   // prefixes unless it is reassembled whole ([18 §2.2]).
-  chats: 'recorded',
-  messages: 'recorded',
-  message_swipes: 'recorded',
+  //
+  // ***`chats`, `messages` and `message_swipes` are converted since [P13.10]***
+  // (2026-09-29): the reader hands the three to the session pass as one
+  // candidate (`marinara/reader.ts`, `#chats`), each `roleplay` chat's family
+  // becomes one session with its prefix once (`marinara/families.ts`), and the
+  // review has a row per chat — `storage/tables/chats.json#<id>` — where it had
+  // a `recorded` row per message shard. `conversation` and `game` chats are
+  // still rows, `recorded` with a note ([P13 §2.6]), and a message whose chat
+  // is not in the store is counted in a note rather than dropped unsaid.
+  chats: 'converted',
+  messages: 'converted',
+  message_swipes: 'converted',
   chat_folders: 'recorded',
   chat_presets: 'recorded',
   conversation_notes: 'recorded',
@@ -185,6 +194,10 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // Party- and mode-shaped: P7 ([P7 §1.10]).
   character_groups: 'recorded',
   persona_groups: 'recorded',
+  // Tracker state, per message and swipe. [P13 §2.6] maps it onto tracker
+  // effects on the imported turns — but that needs [P13.5a]'s channels to
+  // write, so it stays `recorded` past [P13.10], and a chat that ran agents
+  // says so in its own row (`import.chat.agentsNotCarried`).
   game_state_snapshots: 'recorded',
   game_engine_state: 'recorded',
   game_checkpoints: 'recorded',
@@ -195,6 +208,9 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // Agent- and extension-shaped: waiting on the extension host P7 makes real.
   agent_configs: 'recorded',
   agent_runs: 'recorded',
+  // Holds the narrative director's secret plot ([P13 §2.6]: `overarchingArc`
+  // → `se.plot.secret`), which waits on [P13.5b]'s channel as the trackers wait
+  // on [P13.5a]'s.
   agent_memory: 'recorded',
   capability_documents: 'recorded',
   // Rule-shaped, deferred with the rule vocabulary to 2.0 ([25 C7]).

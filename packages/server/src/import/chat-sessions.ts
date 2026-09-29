@@ -24,8 +24,15 @@ import {
   type ChatLibrary,
   type ChatLibraryKind,
 } from './chat/resolve.js';
-import type { ChatFamily, ChatSettings, ForeignRef } from './chat/types.js';
+import type { ChatFamily, ChatMessage, ChatSettings, ForeignRef } from './chat/types.js';
 import { priorImportRef } from './identity.js';
+import {
+  marinaraGroupSettings,
+  MARINARA_CHATS_FORMAT,
+  parseMarinaraChats,
+  type MarinaraTables,
+} from './marinara/chat.js';
+import { MARINARA_CHAT_SOURCE, marinaraFamilies } from './marinara/families.js';
 import {
   parseSillyTavernChat,
   SILLYTAVERN_GROUP_FORMAT,
@@ -162,13 +169,46 @@ export async function importChatFile(
         family,
         hints: hintsOf([meta]),
         // *The header's say about how the chat is played* ([P13 §2.6]) — for
-        // one file, its author's note and nothing else.
-        settings: meta.note === undefined ? {} : { note: meta.note },
+        // one file, its author's note, and for a Marinara export its group's
+        // settings as the profile path reads them.
+        settings: {
+          ...(meta.note === undefined ? {} : { note: meta.note }),
+          ...exportedGroupSettings(meta, chat.messages),
+        },
         notes: [...notes, ...groupless],
       },
       library,
     )),
   };
+}
+
+/**
+ * ***A Marinara export's group settings*** — [P13 §0.4]: the per-chat export is
+ * SillyTavern JSONL with the chat's metadata under
+ * `chat_metadata.marinara_metadata`, which the parser carries unread so that
+ * [P13.10] maps it once (`sillytavern/chat.ts`). This is that once: the same
+ * {@link marinaraGroupSettings} the profile path uses.
+ *
+ * *The members are whoever spoke*, in the order they first did, because the
+ * export writes no `characterIds`; so a group whose members never all spoke is
+ * read by those who did, and a group in which only one member ever spoke reads
+ * as the single chat it then looked like. A mute on a member who never spoke
+ * is lost with them — the profile path, which has the chat row, has neither
+ * gap.
+ */
+function exportedGroupSettings(
+  meta: SillyTavernChatMeta,
+  messages: readonly ChatMessage[],
+): ChatSettings {
+  if (meta.source !== 'marinara' || meta.marinara === undefined) return {};
+  const members: ForeignRef[] = [];
+  for (const message of messages) {
+    const speaker = message.role === 'character' ? message.speaker : undefined;
+    if (speaker !== undefined && !members.some((member) => member.key === speaker.key)) {
+      members.push(speaker);
+    }
+  }
+  return members.length > 1 ? marinaraGroupSettings(meta.marinara, members) : {};
 }
 
 /** A chat file read, or the row that says why it was not. */
@@ -426,9 +466,21 @@ export interface ChatPass {
  */
 export async function importChats(
   pass: ChatPass,
-  candidates: readonly ImportCandidate[],
+  everything: readonly ImportCandidate[],
 ): Promise<ImportItemReport[]> {
+  /**
+   * *A Marinara store's chats are one candidate of their own* ([P13.10]), read
+   * by their own pass below and answered after SillyTavern's. One sweep holds
+   * one source, so in practice the two lists never both have something in them.
+   */
+  const candidates = everything.filter((candidate) => candidate.format !== MARINARA_CHATS_FORMAT);
   const reports: ImportItemReport[] = [];
+  for (const candidate of everything) {
+    if (candidate.format === MARINARA_CHATS_FORMAT) {
+      reports.push(...(await importMarinaraChats(pass, candidate)));
+    }
+  }
+  if (candidates.length === 0) return reports;
   const door = pass.door;
   const library = door === undefined ? null : libraryLookup(door.library, door.handle);
 
@@ -780,5 +832,174 @@ function groupRow(
     ...(objectId === undefined ? {} : { objectId }),
     ...(alsoProduced.length === 0 ? {} : { alsoProduced }),
     notes,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Marinara — [P13.10]
+// ---------------------------------------------------------------------------
+
+/**
+ * ***A Marinara store's chats, as sessions*** —
+ * [P13.10](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * The same three steps as SillyTavern's pass over a different first one: the
+ * store reader has already read the tables, so there is nothing to read twice
+ * and nothing to hold back; `marinara/chat.ts` joins them into chats,
+ * `marinara/families.ts` groups the roleplay chats by `branchParentChatId`, and
+ * each family is resolved, built and loaded by {@link loadFamily} — the one
+ * path every door shares ([P13 §2.1]).
+ *
+ * ***A row per chat***, `storage/tables/chats.json#<id>`, which is what the
+ * review had instead a row per message shard before this stage:
+ * - a **roleplay** chat's family is one session; the root's row carries what
+ *   building it said, and each branch's row says whose branch it is and points
+ *   at the same session, as SillyTavern's do;
+ * - a **conversation** or **game** chat is `recorded`, with a note that says why
+ *   ([P13 §2.6]);
+ * - **messages whose chat is not in the store** are one `skipped` row for the
+ *   table, counted — they have no chat to be lines of.
+ *
+ * ***Not asked about, unlike SillyTavern's.*** A browser folder upload offers
+ * chats as a choice because SillyTavern's are most of a tree's bytes and live
+ * apart from the library; Marinara's live in the store that is sent either way
+ * (`directory-upload.ts`: *"Zero for a Marinara root, where no choice is
+ * offered"*). So `take` — which is false for any upload whose person did not
+ * tick a box that was never shown — is not read here. A sweep with no session
+ * store still records each chat, as SillyTavern's pass does.
+ */
+async function importMarinaraChats(
+  pass: ChatPass,
+  candidate: ImportCandidate,
+): Promise<ImportItemReport[]> {
+  const read = parseMarinaraChats(tablesOf(candidate.payload));
+  const reports: ImportItemReport[] = [];
+
+  for (const other of read.other) {
+    reports.push({
+      source: `${MARINARA_CHAT_SOURCE}${other.id}`,
+      disposition: 'recorded',
+      notes: [
+        {
+          key: 'import.chat.modeNotImported',
+          params: { chat: other.name, mode: other.mode },
+          level: 'info',
+        },
+      ],
+    });
+  }
+  if (read.orphans.messages + read.orphans.swipes > 0) {
+    reports.push({
+      source: 'storage/tables/messages',
+      disposition: 'skipped',
+      notes: [
+        {
+          key: 'import.chat.orphanedMessages',
+          params: { messages: read.orphans.messages, swipes: read.orphans.swipes },
+          level: 'warn',
+        },
+      ],
+    });
+  }
+
+  const door = pass.door;
+  if (door === undefined) {
+    for (const chat of read.chats) {
+      reports.push({
+        source: `${MARINARA_CHAT_SOURCE}${chat.chat.id}`,
+        disposition: 'recorded',
+        notes: [{ key: 'import.chat.notImportedHere', params: {}, level: 'info' }],
+      });
+    }
+    return reports;
+  }
+
+  const library = libraryLookup(door.library, door.handle);
+  for (const plan of marinaraFamilies(read.chats)) {
+    const [root, ...rest] = plan.chats;
+    if (root === undefined) continue;
+
+    /**
+     * *The roster is every member of every chat in the family*, root's order
+     * first: a branch keeps its parent's `characterIds` unless somebody added a
+     * member since, and a member added in a branch is still in the session
+     * that branch is part of.
+     */
+    const roster: ForeignRef[] = [];
+    for (const { chat } of plan.chats) {
+      for (const member of chat.members) {
+        if (!roster.some((held) => held.key === member.key)) roster.push(member);
+      }
+    }
+    const family: ChatFamily = {
+      source: 'marinara',
+      key: plan.key,
+      name: root.chat.title,
+      chats: plan.chats.map(({ chat, parentId }) =>
+        parentId === undefined ? chat.chat : { ...chat.chat, parentId },
+      ),
+      ...(roster.length === 0 ? {} : { roster }),
+    };
+    const persona = plan.chats.find(({ chat }) => chat.persona !== undefined)?.chat.persona;
+
+    const outcome = await loadFamily(
+      door,
+      {
+        family,
+        hints: persona === undefined ? {} : { persona },
+        // The root's, as SillyTavern's pass takes the root's: the session opens
+        // on the root chat's head ([P13 §2.5]), so it opens as that chat played.
+        // *Read against the family's roster*, though, not the root's members: a
+        // solo root whose branch became a group is a group session, and it
+        // plays as Marinara plays a group whose metadata never said otherwise —
+        // merged, in order, no names — rather than with no group settings at all.
+        settings: roster.length > 1 ? marinaraGroupSettings(root.chat.metadata, roster) : {},
+        notes: [...plan.chats.flatMap(({ chat }) => chat.notes), ...plan.notes],
+      },
+      library,
+    );
+
+    reports.push({ source: `${MARINARA_CHAT_SOURCE}${root.chat.chat.id}`, ...outcome });
+    for (const branch of rest) {
+      reports.push({
+        source: `${MARINARA_CHAT_SOURCE}${branch.chat.chat.id}`,
+        disposition: outcome.disposition,
+        ...(outcome.objectId === undefined ? {} : { objectId: outcome.objectId }),
+        notes: [
+          {
+            key: 'import.chat.inFamily',
+            params: { chat: branch.chat.chat.name, family: family.name },
+            level: 'info',
+          },
+        ],
+      });
+    }
+  }
+  return reports;
+}
+
+/**
+ * The reader's payload, as the parser's tables. Opaque to the engine by
+ * contract (`ImportCandidate.payload`), so read defensively: a table that is
+ * not a list is an empty one.
+ */
+function tablesOf(payload: unknown): MarinaraTables {
+  const record =
+    typeof payload === 'object' && payload !== null ? (payload as Record<string, unknown>) : {};
+  const rows = (name: string): Record<string, unknown>[] => {
+    const value = record[name];
+    return Array.isArray(value)
+      ? value.filter(
+          (row): row is Record<string, unknown> =>
+            typeof row === 'object' && row !== null && !Array.isArray(row),
+        )
+      : [];
+  };
+  return {
+    chats: rows('chats'),
+    messages: rows('messages'),
+    swipes: rows('swipes'),
+    characters: rows('characters'),
+    personas: rows('personas'),
   };
 }

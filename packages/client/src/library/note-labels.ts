@@ -410,6 +410,40 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '“{name}” was muted in the group, but is not in this library, so they could not be muted here.',
 
   /**
+   * **A Marinara store's chats** —
+   * [P13.10](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * Read from its tables rather than a file, so these are the things a table
+   * row keeps that a session does not: another kind of chat, rows with no chat,
+   * and the per-message and per-chat state [P13 §2.6] lists as a note. The
+   * agents' state is the one that is a stage away rather than a choice — it
+   * arrives with the tracker and director channels — and the label says so.
+   */
+  'import.chat.modeNotImported':
+    '“{chat}” is a Marinara {mode} chat. Only roleplay chats become sessions, so it is recorded here and not imported.',
+  'import.chat.orphanedMessages':
+    '{messages} messages and {swipes} swipes in the Marinara store belong to no chat it holds, so they were not imported.',
+  'import.chat.roleUnknown':
+    '{count} messages in “{chat}” have a role Marinara does not write, so they were left out.',
+  'import.chat.hiddenPerCharacter':
+    '{count} messages in “{chat}” were hidden from some characters and not others. A message here is hidden from everyone or no one, so these are shown to all of them.',
+  'import.chat.hiddenFromUserShown':
+    '{count} messages in “{chat}” were sent to the model but hidden from the chat. Here every message the model is sent is shown, so these are visible.',
+  'import.chat.rewriteOriginalsNotCarried':
+    '{count} messages in “{chat}” were rewritten by Marinara’s prose guardian. The rewritten text came in; the originals were not kept.',
+  'import.chat.summaryNotCarried':
+    '“{chat}” had a rolling summary in Marinara. The summary itself was not imported.',
+  'import.chat.summaryHiddenRestored':
+    '{count} messages in “{chat}” had been hidden by Marinara’s rolling summary. The summary did not come across, so they are visible to the model again.',
+  'import.chat.conversationStartHidden':
+    '{count} messages in “{chat}” came before its latest conversation start, so Marinara no longer sent them to the model. They are hidden here for the same reason.',
+  'import.chat.conversationStartPerCharacter':
+    '{count} messages in “{chat}” started a new conversation for some characters and not others. A conversation start here is for everyone or no one, so these were not treated as starts.',
+  'import.chat.branchLinkMissing':
+    '“{chat}” was a branch in Marinara, but the export removed its link to the chat it came from. It is a session of its own, repeating the start it shares with that chat.',
+  'import.chat.agentsNotCarried':
+    '“{chat}” ran Marinara agents. Their switches, tracker values and secret plot are not imported yet; they arrive with trackers and the narrative director.',
+
+  /**
    * **The other direction, and it is new at this stage.**
    *
    * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by
