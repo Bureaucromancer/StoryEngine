@@ -1709,6 +1709,149 @@ describe('a channel slot', () => {
 });
 
 /**
+ * ***What the story has established*** — [P13 §1.9.2], [P13.5a]'s `{ of:
+ * 'state' }`.
+ *
+ * Over Scene's real trackers, installed as a session gets them, because the
+ * claims are about declarations the engine never names: **every tracker that
+ * is on, scoped values included, as one block**, each under its heading and a
+ * character's under their name; **off says nothing**, whatever the value; and
+ * the record names the keys it carried.
+ */
+describe('the state slot', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  const slot = block({ kind: 'slot', id: 'se.state', source: { of: 'state' } });
+  const vera = actorWith('Vera', 'A fence.');
+  const on = (id: string) => ({ [`${id}.on`]: { version: 1, value: true } });
+
+  it('renders every tracker that is on, a character’s under their name, in one block', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([slot]),
+        actors: [{ actor: vera, contentHash: 'h' }],
+        channels: {
+          ...on('se.track.world'),
+          ...on('se.track.character'),
+          ...on('se.track.inventory'),
+          ...on('se.track.quests'),
+          'se.track.world': {
+            version: 1,
+            value: {
+              date: '',
+              time: 'dusk',
+              location: 'the docks',
+              weather: '',
+              temperature: '',
+              fields: [{ name: 'Tide', value: 'turning' }],
+              recent: ['the ledger burned'],
+            },
+          },
+          [`se.track.character#${vera.id}`]: {
+            version: 1,
+            value: {
+              mood: 'wary',
+              appearance: '',
+              outfit: '',
+              thoughts: '',
+              fields: { holding: 'a lantern' },
+              stats: [{ name: 'Nerve', value: 3, max: 5 }],
+            },
+          },
+          'se.track.inventory': {
+            version: 1,
+            value: {
+              currencies: [{ name: 'crowns', qty: 12 }],
+              equipped: [],
+              inventory: [{ name: 'iron key' }, { name: 'rope', qty: 2 }],
+            },
+          },
+          'se.track.quests': {
+            version: 1,
+            value: [
+              {
+                name: 'The vault',
+                stage: 'find the door',
+                objectives: [
+                  { text: 'Get the key', completed: true },
+                  { text: 'Open it', completed: false },
+                ],
+                completed: false,
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.text).toBe(
+      [
+        'The world:',
+        'Time: dusk',
+        'Location: the docks',
+        'Tide: turning',
+        'Recently: the ledger burned',
+        '',
+        'Character — Vera:',
+        'Mood: wary',
+        'holding: a lantern',
+        'Nerve: 3/5',
+        '',
+        'Quests:',
+        'The vault — find the door',
+        '- [x] Get the key',
+        '- [ ] Open it',
+        '',
+        'Inventory:',
+        'Money: crowns ×12',
+        'Carrying: iron key, rope ×2',
+      ].join('\n'),
+    );
+    expect(candidates[0]?.source).toEqual({
+      kind: 'state',
+      keys: [
+        'se.track.world',
+        `se.track.character#${vera.id}`,
+        'se.track.quests',
+        'se.track.inventory',
+      ],
+    });
+  });
+
+  it('says nothing for a tracker that is off, whatever it holds', () => {
+    const { candidates, notFilled } = collectCandidates(
+      context({
+        preset: preset([slot]),
+        channels: {
+          'se.track.custom': { version: 1, value: [{ name: 'Suspicion', value: 'high' }] },
+        },
+      }),
+    );
+    expect(candidates).toHaveLength(0);
+    expect(notFilled).toEqual([{ blockId: 'se.state', source: 'state', reason: 'empty-source' }]);
+  });
+
+  it('leaves out a character the cast no longer has', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([slot]),
+        channels: {
+          ...on('se.track.character'),
+          'se.track.character#gone': {
+            version: 1,
+            value: { mood: 'x', appearance: '', outfit: '', thoughts: '', fields: {}, stats: [] },
+          },
+        },
+      }),
+    );
+    expect(candidates).toHaveLength(0);
+  });
+});
+
+/**
  * ***The two dials' fragments*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
  *
  * This is where [P7.8]'s *ends at* is checkable in the only form a stage can

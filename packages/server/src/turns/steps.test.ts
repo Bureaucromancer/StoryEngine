@@ -282,6 +282,8 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     history: true,
     transcript: true,
     output: true,
+    // A boolean flag, which clones trivially — [P13.5a]'s on-demand run.
+    onDemand: true,
   };
 
   const EVERY_RESULT_MEMBER: Record<keyof Required<StepResult>, true> = {
@@ -331,6 +333,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
         channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
         history: [historyTurn()],
         output: { text: 'The rain did not let up.' },
+        onDemand: true,
       },
     );
 

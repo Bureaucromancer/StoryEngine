@@ -156,6 +156,8 @@ export function filterReads(
     history: readonly Turn[];
     output?: { text: string };
     cast?: readonly CastEntry[];
+    /** A person's run between turns ([P13.5a]) — see `StepInput.onDemand`. */
+    onDemand?: true;
   },
 ): StepInput {
   /**
@@ -241,6 +243,9 @@ export function filterReads(
     ...(definition.reads.includes('output') && everything.output !== undefined
       ? { output: everything.output }
       : {}),
+    // Unfiltered, like `speakers`: not a read of anything, but the engine
+    // saying why the step is running at all.
+    ...(everything.onDemand === true ? { onDemand: true as const } : {}),
   };
 }
 

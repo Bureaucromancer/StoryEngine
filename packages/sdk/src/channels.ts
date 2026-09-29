@@ -166,6 +166,41 @@ export type WidgetSpec =
    */
   | { kind: 'toggle'; label: string };
 
+/**
+ * ***Part of what the story has established*** —
+ * [P13 §1.9.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * declared at [P13.5a].
+ *
+ * A channel carrying this is rendered by a preset's `{ of: 'state' }` slot:
+ * every such channel, every scoped key of it, through its own {@link
+ * ChannelDefinition.render}, as **one** block headed *what the story has
+ * established*. That is Marinara's committed tracker context
+ * (`committed-tracker-context.ts:299`) as a declaration: a mode says which of
+ * its channels are facts the prose has settled, and the pack says where they
+ * go.
+ *
+ * **A declaration and not a list in the engine**, which is the only way it
+ * could be: the trackers are Scene's channels, the collector is engine code,
+ * and engine code does not name a mode's content. The existing `{ of:
+ * 'channel' }` slot reads one unscoped key, so six of them would still leave
+ * each present character's state out — scoped values are the point.
+ */
+export interface EstablishedState {
+  /** The heading the value goes under — authored content, like a widget's label. */
+  label: string;
+  /**
+   * ***The switch this channel waits on***: the id of a boolean channel whose
+   * value must be `true` for this one to be rendered anywhere — the state
+   * block, and the other channel digests the engine builds.
+   *
+   * *A switched-off tracker says nothing*, including what it said while it was
+   * on: its values stay on the tree, so switching it back on resumes rather
+   * than restarts, and until then the prompt is the one a session that never
+   * had it would send. Absent means always rendered.
+   */
+  enabledBy?: string;
+}
+
 export interface ChannelDefinition {
   id: string;
   /**
@@ -327,6 +362,11 @@ export interface ChannelDefinition {
    * at all.*
    */
   surface?: WidgetSpec;
+  /**
+   * Whether the value is established state, and under what heading — see
+   * {@link EstablishedState}. Absent for every channel that is not.
+   */
+  state?: EstablishedState;
   /**
    * Where the value starts. See {@link InitPolicy}.
    *

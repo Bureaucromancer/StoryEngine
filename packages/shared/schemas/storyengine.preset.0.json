@@ -355,6 +355,18 @@
                   {
                     "type": "object",
                     "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "state",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
                       "of",
                       "part"
                     ],

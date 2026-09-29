@@ -15,6 +15,7 @@ import type {
 
 import { SCENE_PRESET } from './preset.js';
 import { STAGE_STEP, stage } from './staging.js';
+import { TRACK_STEP, TRACKING_CHANNELS, track } from './tracking.js';
 
 /**
  * Scene — the P2 mode, and it is **allowed to be embarrassingly small**.
@@ -549,7 +550,12 @@ export const SCENE: ModeDefinition = {
    * `generate` precedes `post`; the runner runs a stage's steps in declaration
    * order, and the stager reads what the narrator wrote.
    */
-  steps: [NARRATE, STAGE_STEP],
+  /**
+   * ***Three since [P13.5a]***: the trackers after the stager, both `post`
+   * and both reading what the narrator wrote. After, because staging is the
+   * cheaper question and neither reads the other.
+   */
+  steps: [NARRATE, STAGE_STEP, TRACK_STEP],
   /**
    * ~~**A declaration the engine does not yet consult**~~ — **consulted since
    * [P7.0]**: `registerMode` installs a mode's declared channels, so this array
@@ -565,6 +571,20 @@ export const SCENE: ModeDefinition = {
     STAGING_CHANNEL,
     EXPRESSION_CHANNEL,
     LOCATION_CHANNEL,
+    /**
+     * ***The six trackers, their switches, the locks, the hidden fields and
+     * the cadence*** — [P13 §1.9.2], [P13.5a]; `tracking.ts` argues each.
+     *
+     * *`se.location` stays beside `se.track.world`'s `location`*, and the two
+     * are not the same fact told twice by accident: `se.location` is the
+     * **place** the stager names for the backdrop to diff ([06 §10.1a] — a
+     * place, never a moment), written every staged turn whether or not any
+     * tracker is on; the world tracker's is part of what the story has
+     * established, written only when a person switched it on. Folding one into
+     * the other would make the backdrop depend on a tracker, or a tracker on
+     * staging. Recorded rather than resolved.
+     */
+    ...TRACKING_CHANNELS,
   ],
   /**
    * One kind, matching what the wire already defaults to — so nothing that
@@ -657,5 +677,5 @@ export const SCENE: ModeDefinition = {
 
 export const SCENE_MODE: Mode = {
   definition: SCENE,
-  run: { [NARRATE.id]: narrate, [STAGE_STEP.id]: stage },
+  run: { [NARRATE.id]: narrate, [STAGE_STEP.id]: stage, [TRACK_STEP.id]: track },
 };

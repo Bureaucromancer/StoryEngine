@@ -54,6 +54,7 @@ import { registerMyConnectionRoutes } from './routes/connections.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { registerChatRoutes } from './routes/chat.js';
+import { registerOnDemandRoutes } from './routes/on-demand.js';
 import { registerGestureRoutes } from './routes/gestures.js';
 import { listSessions, type SessionContext, sessionFilePath } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
@@ -1570,6 +1571,8 @@ export async function buildApp(
       registerGestureRoutes(api, services);
       // A chat's settings — voice, dispatch, who replies, the note ([P13.5]).
       registerChatRoutes(api, services);
+      // A mode's on-demand step between turns — Update trackers ([P13.5a]).
+      registerOnDemandRoutes(api, services);
 
       /**
        * **The admin half, encapsulated** — [P2A §2.4](../../../docs/design/workplan/09-p2a-configuration-surface.md).

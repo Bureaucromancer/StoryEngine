@@ -159,6 +159,25 @@ export const LORE_TIMING_CHANNEL: ChannelDefinition = {
 const registered = new Map<string, ChannelDefinition>();
 
 /**
+ * ***Whether a channel's switch is on*** — `EstablishedState.enabledBy`,
+ * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P13.5a].
+ *
+ * **`true` and nothing else**: a switch nobody has touched reads its declared
+ * `init`, and every tracker's is `false` — [00 §4]'s *"RPG systems are opt-in
+ * channels"*. A channel with no switch is always on, which is every channel
+ * that is not a tracker.
+ */
+export function stateEnabled(
+  definition: ChannelDefinition,
+  channels: Readonly<Record<string, ChannelState>>,
+): boolean {
+  const toggle = definition.state?.enabledBy;
+  if (toggle === undefined) return true;
+  return (channels[toggle]?.value ?? initialValue(toggle)) === true;
+}
+
+/**
  * Adds a channel to this build's registry.
  *
  * **Last registration wins**, for the reason `registerMode` gives: an install
@@ -813,6 +832,10 @@ export function renderedChannels(
 
   for (const definition of registeredChannels()) {
     if (definition.render === undefined) continue;
+    // A tracker switched off says nothing here either ([P13.5a]) — this digest
+    // feeds an illustration's prompt, and a character's thoughts from before
+    // the switch went off are not the picture's to draw.
+    if (!stateEnabled(definition, channels)) continue;
 
     // Every key the channel owns, for `channelSurfaces`' reason: a per-actor
     // channel has one value per actor, and a prompt built from the unscoped key

@@ -18,7 +18,15 @@ import {
 
 import { estimateTokens } from './assemble.js';
 import { readPresence } from '../sessions/cast.js';
-import { channelDefinition, initialValue } from '../sessions/channels.js';
+import {
+  channelDefinition,
+  initialValue,
+  keyBelongsTo,
+  registeredChannels,
+  splitChannelKey,
+  stateEnabled,
+  type ChannelDefinition,
+} from '../sessions/channels.js';
 import type { ChatSettings } from '../sessions/chat-settings.js';
 import type { CardPromptPart } from '../sessions/types.js';
 import { levelFragments } from '../sessions/dials.js';
@@ -997,6 +1005,13 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
         return 'not-applicable';
       }
       return 'empty-source';
+    /**
+     * ***`state` is `empty-source` from the first line*** ([P13.5a]), for the
+     * dials' reason: the producer arrived with the arm. An empty state block is
+     * a session with no tracker switched on, or trackers with nothing in them
+     * yet — both of them *waiting on the story*, never on the engine.
+     */
+    case 'state':
     case 'persona':
     case 'history':
     case 'guidance':
@@ -1713,6 +1728,16 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
      * slot that silently produced nothing** — an author could name a channel,
      * get no text and no error, and have nothing to read about why.
      */
+    /**
+     * ***What the story has established, once*** — [P13 §1.9.2], [P13.5a].
+     * See {@link establishedState}; the heading sentence is the pack's
+     * `wrapper`, because the words a prompt says are a pack's to choose.
+     */
+    case 'state': {
+      const state = establishedState(context);
+      return emit(block, state.text, { kind: 'state', keys: state.keys }, undefined, names);
+    }
+
     case 'channel':
       return emit(
         block,
@@ -2016,13 +2041,74 @@ function emit(
  */
 function channelText(channelId: string, context: CollectContext): string {
   const definition = channelDefinition(channelId);
-  if (definition?.render === undefined || definition.budget === null) return '';
-
+  if (definition === null) return '';
   const state = context.channels[channelId];
-  const rendered = renderChannelValue(
-    definition.render,
-    state === undefined ? initialValue(channelId) : state.value,
+  return renderWithin(definition, state === undefined ? initialValue(channelId) : state.value);
+}
+
+/**
+ * ***Every tracker that is on, every key of it, as one text*** —
+ * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P13.5a].
+ *
+ * **Declared rather than listed**: the channels are whichever carry
+ * `EstablishedState`, so the engine renders Scene's trackers without naming
+ * one — the rule that keeps a mode's content out of engine code, and the reason
+ * the SDK grew a field rather than this function growing a table.
+ *
+ * - *Switched off is silent* — {@link stateEnabled}.
+ * - *Each key under its own heading*: the channel's label for an unscoped key,
+ *   and the label with the person's name for a scoped one. A key whose actor
+ *   has left the cast is skipped, because a heading naming an id is a prompt
+ *   talking about somebody the story no longer has.
+ * - *Each within its own `budget`*, cut the way a channel slot is — so one
+ *   long quest log cannot crowd out the rest of the block by itself.
+ * - *Blank lines inside a value dropped*, because a template's `{% if %}`
+ *   arms leave them and a prompt is not the place for Liquid's whitespace.
+ *
+ * Declaration order, then key order — stable, so two calls over one state
+ * send the same bytes. `keys` is what the record says the block carried.
+ */
+function establishedState(context: CollectContext): { text: string; keys: string[] } {
+  const names = new Map<string, string>(
+    [...(context.persona === null ? [] : [context.persona]), ...context.actors].map(({ actor }) => [
+      actor.id,
+      actor.name,
+    ]),
   );
+  const parts: string[] = [];
+  const keys: string[] = [];
+  for (const definition of registeredChannels()) {
+    const declared = definition.state;
+    if (declared === undefined || !stateEnabled(definition, context.channels)) continue;
+
+    const owned = Object.keys(context.channels).filter((key) => keyBelongsTo(key, definition.id));
+    for (const key of owned.length === 0 ? [definition.id] : owned.sort()) {
+      const { scopeKey } = splitChannelKey(key);
+      const who = scopeKey === null ? null : (names.get(scopeKey) ?? null);
+      if (scopeKey !== null && who === null) continue;
+      const text = renderWithin(
+        definition,
+        context.channels[key]?.value ?? initialValue(definition.id),
+      )
+        .split('\n')
+        .filter((line) => line.trim() !== '')
+        .join('\n');
+      if (text === '') continue;
+      parts.push(`${who === null ? declared.label : `${declared.label} — ${who}`}:\n${text}`);
+      keys.push(key);
+    }
+  }
+  return { text: parts.join('\n\n'), keys };
+}
+
+/**
+ * A channel's value as prompt text, capped at its `budget` — the one renderer
+ * a `channel` slot and the state block share.
+ */
+function renderWithin(definition: ChannelDefinition, value: unknown): string {
+  if (definition.render === undefined || definition.budget === null) return '';
+  const rendered = renderChannelValue(definition.render, value);
   if (!rendered.ok) return '';
 
   const text = rendered.text.trim();

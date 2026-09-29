@@ -86,6 +86,29 @@ export interface StepDefinition {
   failure: 'abort' | 'warn' | 'ignore';
   /** The role its call asks for, or null when it makes none. */
   role: ModelRole | null;
+  /**
+   * ***A person may run this step between turns*** —
+   * [P13 §1.9.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * *Update trackers*, declared at [P13.5a].
+   *
+   * **A declaration rather than a route that runs whatever it is named**, for
+   * the reason `confirm` is one on a channel: the alternative is engine code
+   * naming a mode's step, or a door through which a client could run the
+   * narrator outside a turn and have its prose land nowhere. Only a `post` step
+   * that contributes nothing but effects can mean anything run on its own —
+   * the engine refuses the declaration on anything else rather than guessing
+   * what a detached narrator call would be for.
+   *
+   * *What running it writes is an engine turn*, the shape a person's channel
+   * edit already writes: the step's call and its effects on a child of the
+   * head, with no `steps` record, so it is not a story turn and moves no
+   * cadence. The step is told it was asked for through
+   * {@link StepInput.onDemand}, which is how one declared `when` can mean *on
+   * a cadence, and also whenever somebody presses the button*.
+   *
+   * Absent is `false`, which is every step written before this.
+   */
+  onDemand?: boolean;
 }
 
 /**
@@ -257,6 +280,20 @@ export interface CastEntry {
     accessories?: string;
     distinguishing?: string;
   };
+  /**
+   * ***This entry is the player's own character*** — added at [P13.5a].
+   *
+   * `castEntries` has put the persona first in this list since [P7.12]
+   * (*"the persona is an actor too"*), and nothing could tell it from the
+   * others: position is a convention a step would be trusting, and a session
+   * with no persona puts somebody else first. The trackers are the first step
+   * that has to know, because *the persona* and *each present character* are
+   * two trackers with two shapes ([P13 §1.9.2]), and a character tracker that
+   * tracked the player too would be the same person described twice.
+   *
+   * Absent means an ordinary member of the cast.
+   */
+  persona?: true;
 }
 
 export interface StepInput {
@@ -432,6 +469,17 @@ export interface StepInput {
   transcript?: readonly TranscriptTurn[];
   /** Present only when `reads` includes `output`. */
   output?: { text: string };
+  /**
+   * ***A person asked for this run*** — {@link StepDefinition.onDemand},
+   * [P13.5a].
+   *
+   * Present only on a run nobody's turn made: the step's declared `when`, and
+   * any cadence or manual switch it reads for itself, answer *should I run
+   * this turn*, and a person pressing *Update trackers* has already answered
+   * it. `output` is then the last story turn's, and `transcript` the path up to
+   * it — what the step saw when that turn committed.
+   */
+  onDemand?: true;
 }
 
 /**

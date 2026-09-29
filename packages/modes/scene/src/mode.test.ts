@@ -20,6 +20,7 @@ import {
   STAGING_CHANNEL,
 } from './mode.js';
 import { STAGE_STEP } from './staging.js';
+import { TRACK_STEP, TRACKING_CHANNELS } from './tracking.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
@@ -76,7 +77,7 @@ describe('the manifest is data', () => {
   it('keeps what it runs separate from what it declares', () => {
     // [22 §3]'s split: `definition` crosses any boundary unchanged, `run` is
     // what becomes a dispatch table.
-    expect(Object.keys(SCENE_MODE.run)).toEqual([NARRATE.id, STAGE_STEP.id]);
+    expect(Object.keys(SCENE_MODE.run)).toEqual([NARRATE.id, STAGE_STEP.id, TRACK_STEP.id]);
     expect(SCENE_MODE.definition).toBe(SCENE);
   });
 });
@@ -142,8 +143,11 @@ describe('the default preset is a real portable object', () => {
    */
   it('positions the player action, and after it only the card’s post-history instructions', () => {
     const user = SCENE_PRESET.blocks.filter((block) => block.role === 'user');
-    expect(user.map((block) => block.id)).toEqual(['se.input', 'se.card.post-history']);
-    expect(user[0]?.kind === 'slot' && user[0].source.of).toBe('input');
+    // The established state is a user block too since [P13.5a], and it sits in
+    // the history — before the move, not after it — so the claim holds.
+    expect(user.map((block) => block.id)).toEqual(['se.state', 'se.input', 'se.card.post-history']);
+    expect(user[0]?.placement).toEqual({ at: 'in-history', fromEnd: 0 });
+    expect(user[1]?.kind === 'slot' && user[1].source.of).toBe('input');
     const ids = SCENE_PRESET.blocks.map((block) => block.id);
     expect(ids.at(-1)).toBe('se.card.post-history');
   });
@@ -300,7 +304,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(NARRATE.writes).toEqual([]);
   });
 
-  it('declares its six channels, and owns every one of them', () => {
+  it('declares its channels, and owns every one of them', () => {
     // **Was "registering the mode is what enables it", asserted through the
     // engine's channel lookup** — which this package can no longer reach, and
     // should not: that a registered mode's declared channels become resolvable
@@ -319,6 +323,9 @@ describe('what Scene declares, and what the engine does with it', () => {
       STAGING_CHANNEL,
       EXPRESSION_CHANNEL,
       LOCATION_CHANNEL,
+      // The trackers, their switches, locks, hidden fields and cadence —
+      // [P13.5a]; `tracking.test.ts` holds them to their own claims.
+      ...TRACKING_CHANNELS,
     ]);
     expect(CLOCK_CHANNEL.id).toBe('se.clock');
     // [06 §7.2]'s background channel, declared at [P7.9]. The id is a literal
@@ -505,10 +512,15 @@ describe('what Scene declares, and what the engine does with it', () => {
    * cannot take a turn.
    */
   it('implements every step it declares', () => {
-    expect(SCENE.steps.map((step) => step.id)).toEqual(['se.narrate', 'se.scene.stage']);
+    expect(SCENE.steps.map((step) => step.id)).toEqual([
+      'se.narrate',
+      'se.scene.stage',
+      'se.scene.track',
+    ]);
     for (const step of SCENE.steps) expect(typeof SCENE_MODE.run[step.id]).toBe('function');
-    // `generate` before `post`: the stager reads what the narrator wrote.
-    expect(SCENE.steps.map((step) => step.stage)).toEqual(['generate', 'post']);
+    // `generate` before `post`: the stager and the trackers read what the
+    // narrator wrote.
+    expect(SCENE.steps.map((step) => step.stage)).toEqual(['generate', 'post', 'post']);
   });
 
   /**

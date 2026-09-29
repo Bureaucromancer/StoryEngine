@@ -1668,6 +1668,59 @@ moves a character to the docks and hands the player a key proposes all three;
 a locked location stays put; a swipe of that turn has its own tracker state;
 the next prompt shows the established state once.
 
+*As built, 2026-09-29 — the server half.* The four claims are
+`routes/trackers.test.ts`, through the routes a tracker panel will call; the
+step's own claims are `modes/scene/src/tracking.test.ts`, the state block's
+`assembly/collect.test.ts`'s *the state slot*. What the stage decided that
+§1.9.2 left open, each argued where the code carries it:
+
+- **The switches are user-only channels, not a `session.trackers` field** —
+  `se.track.<tracker>.on`, one boolean each, all `false` (`tracking.ts`). A
+  field on the session record would be the engine knowing Scene's trackers;
+  a channel is the staging toggle's precedent (a mode cannot keep its step out
+  of a plan, so the step reads its gate), branch-correct and undoable through
+  the existing channel route, and where an import of §2.6's `activeAgentIds`
+  and `manualTrackers` can put them. **Cadence and manual mode are one more,
+  `se.track.cadence` `{ everyNTurns, manual }`**, counted in story turns over
+  `transcript` as `evaluateCondition` counts; **hidden fields are
+  `se.track.hidden`**, the locks' twin, read by the panel only — hidden from
+  the reader, not the narrator, as Marinara's are.
+- **The contract grew four fields rather than the engine naming anything.**
+  `ChannelDefinition.state` (`EstablishedState { label, enabledBy }`) is what
+  the `{ of: 'state' }` slot renders, so the collector walks declarations and
+  names no tracker; a switched-off tracker is silent there and in
+  `renderedChannels` (the illustration digest). `StepDefinition.onDemand` and
+  `StepInput.onDemand` make *Update trackers* a generic route —
+  `POST /sessions/:id/steps/:stepId/run` (`routes/on-demand.ts`,
+  `turns/on-demand.ts`) — that runs only a declared on-demand `post` step
+  writing effects. `CastEntry.persona` says which entry is the player's, so the
+  character tracker leaves them to the persona tracker.
+- **Lock paths are a channel key and a JSON Pointer**, a list row addressed by
+  its `name` (an objective by its `text`), never its index — Marinara migrated
+  its index keys to name keys for the reason (`trackerPath`, `writeBack`). A
+  locked row the model dropped comes back; one the story never had stays out.
+- **The state block sits at `in-history` depth 0, not 1.** Marinara inserts
+  before the newest history message, which in its prompt is the player's move;
+  this build's history ends where the input begins, so the same place is depth
+  0 — after the last reply, before the move — and `user`, so it reads as one
+  message with the move. Depth 1 would put *as of the last message* before
+  the last message.
+- **The on-demand turn** is a child of the head carrying `request.calls` and
+  `cost`, **no `steps`**, so it is no story turn and moves no cadence. The call
+  runs outside the session lock (a submission waits on it); `busy` is refused
+  up front, and the append under the lock is refused as `moved` if the head
+  moved meanwhile. A call that wrote no turn goes to the usage log.
+- **A malformed answer fails the step `warn`** rather than proposing nothing:
+  a tracker that silently did not update reads as *nothing changed*. An
+  unchanged tracker proposes no effect.
+- *`se.location` stays beside the world tracker's `location`*, recorded in
+  `mode.ts`: the stager's place drives the backdrop whether or not a tracker is
+  on, and folding them would couple the two.
+
+*Not in this half:* the `meter` and `record` widget arms and the tracker panel
+(the client half). `POST …/steps/:p/run` is owed in `route-callers.test.ts`
+until the panel names it.
+
 #### P13.5b — The director and the secret plot
 
 - `push` on submission, `se.scene.direct` armed by it, guidance through the

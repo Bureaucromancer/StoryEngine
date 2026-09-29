@@ -322,6 +322,9 @@ async function runNextTurn(): Promise<Turn> {
  * named here once so that eight assertions about other features do not each
  * have to explain it.
  *
+ * *The third is [P13.5a]'s trackers*, and the note applies to it word for word:
+ * every tracker is off by default, so the step reads six booleans and returns.
+ *
  * `se.scene.stage` is Scene's stager, and on every session in this file it does
  * nothing: staging defaults off, so the step reads one boolean and returns. It
  * is in the record anyway because **`planFor` zips every step a mode declares
@@ -334,7 +337,7 @@ async function runNextTurn(): Promise<Turn> {
  * shape of the gap rather than a thing to fix under a stage. Recorded at
  * [25 C17].
  */
-const SCENE_STEPS = ['se.narrate', 'se.scene.stage'];
+const SCENE_STEPS = ['se.narrate', 'se.scene.stage', 'se.scene.track'];
 
 describe('a turn goes all the way through', () => {
   it('commits, with the record of what actually ran', async () => {
@@ -346,6 +349,9 @@ describe('a turn goes all the way through', () => {
       { stepId: 'se.narrate', state: 'ok' },
       // `ok` and contributing nothing, which is the whole of `SCENE_STEPS`'s note.
       { stepId: 'se.scene.stage', state: 'ok', contributed: { blocks: 0, effects: 0 } },
+      // The trackers, [P13.5a]: all six off by default, so the same one-read
+      // `ok` for the same reason.
+      { stepId: 'se.scene.track', state: 'ok', contributed: { blocks: 0, effects: 0 } },
     ]);
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([03 §8]).

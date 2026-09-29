@@ -311,6 +311,12 @@ export type BlockSource =
       sampleId: string;
     }
   | { kind: 'channel'; channelId: string }
+  /**
+   * The established-state block ([P13.5a]): `keys` are the channel keys whose
+   * values it rendered, scoped ones included, so the workbench can say which
+   * trackers — and whose — a prompt carried.
+   */
+  | { kind: 'state'; keys: string[] }
   | { kind: 'treatment'; part: 'framing' | 'tone' }
   | { kind: 'goal'; goalId: string }
   /**

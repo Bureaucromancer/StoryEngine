@@ -3096,7 +3096,7 @@ function settled(voice: { ref: Ref }, text: string, said: string): OutputMessage
  * turn recorded `{promptTokens: 0, completionTokens: 0, model: ''}`, which reads
  * as *counted, and it was nothing* rather than *nobody counted*.
  */
-function costOf(calls: readonly ModelCall[]): TurnCost {
+export function costOf(calls: readonly ModelCall[]): TurnCost {
   const counted = calls.length > 0 && calls.every((call) => call.usage !== null);
 
   return {
@@ -3335,6 +3335,8 @@ export function castEntries(cast: {
     actorId: member.actor.id,
     name: member.actor.name,
     kind: 'actors',
+    // Said rather than left to position ([P13.5a]) — see `CastEntry.persona`.
+    ...(member === cast.persona ? { persona: true as const } : {}),
     media: member.actor.media.map((one) => ({
       id: one.id,
       role: one.role,

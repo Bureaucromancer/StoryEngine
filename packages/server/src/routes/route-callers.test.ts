@@ -290,6 +290,10 @@ const OWED = new Map<string, string>([
    * the surface.
    */
   [
+    'POST /api/sessions/:p/steps/:p/run',
+    "P13.5a's server half built Update trackers as a route; the control is the tracker panel's, which is the same stage's client half (P13 §1.9.2's surface paragraph).",
+  ],
+  [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",
   ],

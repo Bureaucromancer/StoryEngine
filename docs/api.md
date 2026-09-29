@@ -2223,6 +2223,36 @@ Refusals, each a class the client words:
   and never the prompt.
 - `503 cancelled` — the server stopped the call before it answered.
 
+### `POST /api/sessions/:sessionId/steps/:stepId/run`
+
+No body. Runs one of the session's mode's **on-demand steps** between turns —
+Scene's is `se.scene.track`, *Update trackers*
+([P13 §1.9.2](design/workplan/30-p13-scene-and-session-import.md), P13.5a). →
+`200 { session, turn, health, hud, surfaces }` when it changed something, or
+`200 { turn: null, callId }` when it had nothing to change (no tracker on, or a
+call that found the scene as it was).
+
+**What it writes is an engine turn**, the shape a channel write takes: a child
+of the head, no tape, no `steps`, carrying the step's call in `request` and its
+effects. So it is on the current branch only, undone by the ordinary undo, and
+not a story turn: it moves no cadence and is no transcript row. The step sees
+the last story turn's move and reply, and the channels at the head, so edits
+made since then are what it starts from.
+
+Refusals:
+
+- `404 no-such-step` — the session's mode declares no on-demand step by that id.
+  Only a `post` step that writes effects can be one.
+- `409 busy`, carrying the active `job` — a turn is in flight.
+- `409 moved` — the head moved while the call ran; nothing was written. The
+  call's spend is in the usage log.
+- `422 role-unbound` · `422 role-dangling` · `422 window-too-small`.
+- `502 provider-failed` — with `class` and `remedy`, as impersonation's; the log
+  line is `on-demand.failed`.
+- `502 step-failed` — the endpoint answered and the step could not use the
+  answer (a shape it did not ask for). The log line is `on-demand.step-failed`.
+- `503 cancelled` — the server stopped the call. The client leaving cancels it.
+
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 
 `202`, or `409 finished` if the turn is already over. Cancelling **commits a

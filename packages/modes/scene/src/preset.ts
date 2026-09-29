@@ -528,6 +528,50 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
+     * ***What the story has established, once*** — [P13 §1.9.2], added at
+     * [P13.5a]: every tracker a person switched on, each present character's
+     * included, as one block.
+     *
+     * **Before the history's last message, as Marinara counts it** —
+     * `findTrackerContextInsertIndex` puts its committed tracker context
+     * before the newest history message, which in Marinara is the player's
+     * move being answered — with its wording's intent, *"established state as
+     * of the last message. Do not re-describe — advance from here"*
+     * (`committed-tracker-context.ts:299`), in this pack's own words. *This
+     * build's history run ends where the input begins*, so the same place is
+     * `in-history` depth **0**: after the last reply, straight before the
+     * move. Depth 1 would have put it before the last reply, which the block
+     * then contradicts by saying *as of the last message*.
+     *
+     * `user`, as Marinara sends it: a system message this deep in the history
+     * reads to several chat templates as a second system prompt — and next to
+     * the move it is one user message, context then action. Priority 45,
+     * under the attempt and over the actor detail sections — a squeezed prompt
+     * loses a character's backstory before it loses where everyone is standing.
+     * *Empty until a tracker is on*, and `omitWhenEmpty` keeps the pack's
+     * prompt byte-identical to what it was for every session that has none.
+     */
+    {
+      id: 'se.state',
+      label: 'established state',
+      role: 'user',
+      enabled: true,
+      placement: {
+        at: 'in-history',
+        fromEnd: 0,
+      },
+      priority: 45,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      wrapper:
+        '[What the story has established as of the last message. Carry on from here; do not describe it again.]\n\n{{content}}',
+      source: {
+        of: 'state',
+      },
+    },
+    /**
      * ***The card's depth prompt, at its own depth*** — [P13 §1.5]'s table: a
      * card's `extensions.depth_prompt`, *"at its declared depth and role
      * (default 4, `system`)"*.

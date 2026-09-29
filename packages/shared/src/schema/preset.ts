@@ -222,6 +222,22 @@ export const SlotSource = Type.Union(
     }),
     Type.Object({ of: Type.Literal('channel'), channelId: Type.String() }),
     /**
+     * ***What the story has established*** —
+     * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * added at [P13.5a].
+     *
+     * Every channel that declares itself established state (the SDK's
+     * `EstablishedState`) and is switched on, **scoped values included**, as
+     * one block: Marinara's committed tracker context, which says *as of the
+     * last message* and is placed before it. **Not six `channel` slots**,
+     * because that arm reads one unscoped key and a character tracker is one
+     * value per character — the reason a new arm exists at all.
+     *
+     * Added rather than substituted, so an older build's collector skips the
+     * arm it has not heard of rather than refusing the file.
+     */
+    Type.Object({ of: Type.Literal('state') }),
+    /**
      * The treatment slot. Named for the kind it reads, completing the
      * Setting→Treatment rename ([04 §6]) that the docs took and the code did
      * not — [04 §8.2], the §8.4.1 marker table and [21 §1.1] have all spelled
