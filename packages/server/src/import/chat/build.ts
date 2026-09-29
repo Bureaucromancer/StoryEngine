@@ -675,10 +675,14 @@ function roundTime(round: Round): number | null {
   const { opening } = round;
   // Swipes on a narrator's line are ignored everywhere else, so here too.
   const swipes = opening.role === 'character' ? (opening.swipes ?? []) : [];
-  const times = [opening.at, ...swipes.map((swipe) => swipe.at)]
-    .map(readableTime)
-    .filter((time): time is number => time !== null);
-  return times.length === 0 ? null : Math.min(...times);
+  // One pass, not `Math.min(...times)`: a round with an absurd number of
+  // swipes would exceed the spread's argument limit and throw.
+  let earliest: number | null = null;
+  for (const at of [opening.at, ...swipes.map((swipe) => swipe.at)]) {
+    const time = readableTime(at);
+    if (time !== null && (earliest === null || time < earliest)) earliest = time;
+  }
+  return earliest;
 }
 
 /**
@@ -804,7 +808,10 @@ interface Muted {
  * into the cast, so it would be a phantom member, muted. Such a member is said
  * instead: their lines keep their name ([P13 §2.5]) and the note says the mute
  * did not come across. *In the cast too*, for the same reason, and the roster
- * puts every resolved member there unless the cast ceiling was reached.
+ * puts every resolved member there unless the cast ceiling was reached — a
+ * member left out by the ceiling is *in* the library, so `mutedUnresolved`
+ * would be false of them; `castCapped` has already said who is missing and
+ * why, and a member who is not in the session needs no mute.
  */
 function mutedMembers(
   family: ChatFamily,
@@ -819,8 +826,8 @@ function mutedMembers(
     if (seen.has(key)) continue;
     seen.add(key);
     const resolved = resolution.speakers.get(key) ?? null;
-    if (resolved !== null && cast.includes(resolved.id)) {
-      muted.push({ key, actorId: resolved.id });
+    if (resolved !== null) {
+      if (cast.includes(resolved.id)) muted.push({ key, actorId: resolved.id });
       continue;
     }
     const name = family.roster?.find((member) => member.key === key)?.name ?? key;

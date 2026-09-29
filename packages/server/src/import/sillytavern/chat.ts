@@ -228,10 +228,18 @@ const NOTE_ROLES: Readonly<Record<number, string>> = { 1: 'user', 2: 'assistant'
  * - `unreadable` — nothing in it parses as a line: an empty file, a text file,
  *   a JSON file that is not one object per line;
  * - `missing-field` (`messages`) — a header and nothing a person wrote.
+ *
+ * ***`legacyMetadata`*** is a group chat's `chat_metadata` as its group file
+ * kept it, before SillyTavern moved it into the chat ([P13.9],
+ * `families.ts`'s `legacyMetadataOf`). It is read only when the file's own
+ * header carries none — the condition SillyTavern's migration tests
+ * (`alreadyHasMetadata`, `groups.js:78`) before writing it in — so a chat
+ * migrated since is read from itself.
  */
 export function parseSillyTavernChat(
   source: Uint8Array | string,
   path: string,
+  legacyMetadata?: Readonly<Record<string, unknown>>,
 ): ParseOutcome<SillyTavernChat> {
   const name = chatNameOf(path);
   const entries = linesOf(typeof source === 'string' ? source : UTF8.decode(source));
@@ -239,7 +247,8 @@ export function parseSillyTavernChat(
   const first = entries.find((entry) => entry.value !== null);
   if (first?.value == null) return refused('unreadable');
   const header = isHeader(first.value) ? first : null;
-  const metadata = recordOf(header?.value?.['chat_metadata']);
+  const stated = header?.value?.['chat_metadata'];
+  const metadata = recordOf(stated === undefined ? legacyMetadata : stated);
 
   const folder = SINGLE.exec(path)?.[1] ?? null;
   const group = GROUP.test(path) || (header === null && folder === null);

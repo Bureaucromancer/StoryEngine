@@ -197,12 +197,16 @@ function group(): Record<string, Uint8Array | string> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function run(tree: Record<string, Uint8Array | string>): Promise<ImportItemReport[]> {
+async function run(
+  tree: Record<string, Uint8Array | string>,
+  notCarried?: ReadonlySet<string>,
+): Promise<ImportItemReport[]> {
   const outcome = await sweep({
     library: server.services.library,
     sessions: server.services.sessions,
     handle: 'ned',
     files: new MemoryFileSource(tree),
+    ...(notCarried === undefined ? {} : { notCarried, uploadLimitMb: 1 }),
   });
   if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
   return outcome.report.items;
@@ -361,6 +365,33 @@ describe('a character’s chats, as one family', () => {
     const { session } = await exported(root.objectId);
     expect((session.branchRefs ?? []).map((ref) => ref.name)).toEqual(['a', 'b']);
   });
+
+  it('holds a branch back while its parent is in the source and not carried', async () => {
+    const { [ROOT]: root = '', [BRANCH]: branch = '' } = family();
+    const tree = { ...sillyTavernFixture(), [ROOT]: root, [BRANCH]: branch };
+    const partial = await run(tree, new Set([ROOT]));
+
+    expect(row(partial, ROOT).disposition).toBe('skipped');
+    const held = row(partial, BRANCH);
+    expect(held.disposition).toBe('skipped');
+    expect(held.objectId).toBeUndefined();
+    expect(held.notes).toEqual([
+      { key: 'import.chat.parentNotHere', params: { parent: 'Vera - 2026-02-01' }, level: 'warn' },
+    ]);
+
+    // The whole folder later is the one family, with the ids a first import
+    // of the whole folder would have given — not a second copy of the branch.
+    const whole = await run(tree);
+    expect(row(whole, ROOT).disposition).toBe('converted');
+    expect(row(whole, BRANCH).objectId).toBe(row(whole, ROOT).objectId);
+    const later = await exported(row(whole, ROOT).objectId);
+
+    await server.dispose();
+    server = await makeTestServer();
+    await setUpAdmin(server);
+    const direct = await exported(row(await run(tree), ROOT).objectId);
+    expect(later.turns.map((turn) => turn.id)).toEqual(direct.turns.map((turn) => turn.id));
+  });
 });
 
 describe('a group of three', () => {
@@ -461,5 +492,119 @@ describe('a group of three', () => {
     ]);
     expect(turns.flatMap((turn) => turn.effects)).toEqual([]);
     expect(session.channels).toEqual({});
+  });
+});
+
+describe('a group, again and in older shapes', () => {
+  it('does not claim to apply its settings to sessions already here', async () => {
+    const tree = { ...sillyTavernFixture(), ...group() };
+    await run(tree);
+    const second = await run(tree);
+
+    const file = row(second, GROUP_FILE);
+    expect(file.disposition).toBe('unchanged');
+    expect(file.notes).toEqual([
+      {
+        key: 'import.chat.groupNotApplied',
+        params: { group: 'Night Crossing', sessions: 1 },
+        level: 'info',
+      },
+    ]);
+  });
+
+  it('reads a group file from before chat_id: its one chat, and members by name', async () => {
+    const items = await run({
+      ...sillyTavernFixture(),
+      'groups/old.json': JSON.stringify({
+        id: 'old',
+        name: 'Old Crew',
+        members: ['Maris Okonkwo', 'Vera Solano', 'Nobody Here'],
+      }),
+      'group chats/old.jsonl': jsonl([
+        header(),
+        member('Vera Solano.png', 'Vera Solano', 0, 'You again.'),
+        player(1, 'Two tickets.'),
+        member('Maris Okonkwo.png', 'Maris Okonkwo', 2, 'Cash only.', 111),
+      ]),
+    });
+
+    const chat = row(items, 'group chats/old.jsonl');
+    expect(chat.disposition).toBe('converted');
+    expect(chat.notes.map((note) => note.key)).not.toContain('import.chat.groupMissing');
+    expect(chat.notes).toContainEqual({
+      key: 'import.chat.speakerUnresolved',
+      params: { name: 'Nobody Here' },
+      level: 'warn',
+    });
+    expect(row(items, 'groups/old.json').disposition).toBe('converted');
+
+    const { session } = await exported(chat.objectId);
+    expect(session.name).toBe('Old Crew');
+    // By name, in the group's order — Maris first, though Vera spoke first.
+    expect(session.cast?.actors).toEqual([
+      row(items, 'characters/Maris Okonkwo.png').objectId,
+      row(items, 'characters/Vera Solano.png').objectId,
+    ]);
+  });
+
+  it('finds a headerless group branch’s parent in the group file that kept it', async () => {
+    const lines = [
+      member('Vera Solano.png', 'Vera Solano', 0, 'You again.'),
+      player(1, 'Two tickets.'),
+      member('Maris Okonkwo.png', 'Maris Okonkwo', 2, 'Cash only.', 111),
+    ];
+    const items = await run({
+      ...sillyTavernFixture(),
+      'groups/g.json': JSON.stringify({
+        id: 'g',
+        name: 'Crossing',
+        members: ['Maris Okonkwo.png', 'Vera Solano.png'],
+        chats: ['A', 'B'],
+        chat_id: 'A',
+        chat_metadata: {},
+        past_metadata: { B: { main_chat: 'A' } },
+      }),
+      'group chats/A.jsonl': jsonl(lines),
+      'group chats/B.jsonl': jsonl([...lines, player(3, 'A friend.')]),
+    });
+
+    const root = row(items, 'group chats/A.jsonl');
+    expect(root.disposition).toBe('converted');
+    expect(row(items, 'group chats/B.jsonl').objectId).toBe(root.objectId);
+    expect(row(items, 'groups/g.json').notes).toEqual([
+      expect.objectContaining({
+        key: 'import.chat.groupRead',
+        params: expect.objectContaining({ sessions: 1 }),
+      }),
+    ]);
+    expect(root.notes.map((note) => note.key)).toContain('import.chat.groupLegacyMetadata');
+    const { session } = await exported(root.objectId);
+    expect(session.branchRefs).toHaveLength(2);
+  });
+
+  it('says a muted member two actors are named is ambiguous, not missing', async () => {
+    const twin = (description: string): Uint8Array =>
+      withChunks(makePng(), [
+        base64TextChunk('chara', { ...LUND, data: { ...LUND.data, description } }),
+      ]);
+    const items = await run({
+      ...sillyTavernFixture(),
+      'characters/Lund Harrow.png': twin('The harbourmaster.'),
+      'characters/Lund Harrow (2).png': twin('His brother.'),
+      'groups/old.json': JSON.stringify({
+        id: 'old',
+        name: 'Old Crew',
+        members: ['Vera Solano', 'Lund Harrow'],
+        disabled_members: ['Lund Harrow'],
+      }),
+      'group chats/old.jsonl': jsonl([
+        header(),
+        member('Vera Solano.png', 'Vera Solano', 0, 'You again.'),
+      ]),
+    });
+
+    const keys = row(items, 'group chats/old.jsonl').notes.map((note) => note.key);
+    expect(keys).toContain('import.chat.nameAmbiguous');
+    expect(keys).not.toContain('import.chat.mutedUnresolved');
   });
 });

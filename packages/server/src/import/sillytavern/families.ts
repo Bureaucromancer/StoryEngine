@@ -5,6 +5,7 @@ import type { ImportNote } from '@storyengine/shared';
 
 import type { ChatSettings } from '../chat/types.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
+import { SPEAKER_BY_NAME } from './chat.js';
 
 /**
  * ***SillyTavern's families and groups*** —
@@ -71,8 +72,12 @@ export interface ChatHeading {
  *   not say — recorded in a note and nothing else ([P13 §2.6]).
  * - **`chats`**: `chats`, the group's chat file names, plus `chat_id` (the one
  *   open) if the list somehow lacks it.
+ * - **`legacyMetadata`**: each chat's `chat_metadata` as a group file written
+ *   before SillyTavern moved it into the chats kept it, keyed by chat name —
+ *   empty for a file that has been migrated, which is nearly every one
+ *   ({@link parseSillyTavernGroup}).
  * - **`notes`**: what did not map — an activation strategy this build has no
- *   arm for.
+ *   arm for — and which older shape the file was read in.
  */
 export interface SillyTavernGroup {
   path: string;
@@ -83,6 +88,7 @@ export interface SillyTavernGroup {
   speakers: NonNullable<ChatSettings['speakers']>;
   generationMode: 'swap' | 'append' | 'append-disabled' | null;
   chats: string[];
+  legacyMetadata: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   notes: ImportNote[];
 }
 
@@ -136,10 +142,32 @@ export function parseSillyTavernGroup(
   const file = (path.split('/').at(-1) ?? path).replace(/\.json$/i, '');
   const id = file === '' ? str(row['id']) : file;
   const name = str(row['name']) || id;
-  const members = unique(strings(row['members']));
-  const muted = unique(strings(row['disabled_members'])).filter((key) => members.includes(key));
-
   const notes: ImportNote[] = [];
+
+  /**
+   * ***A group file from before `chat_id`*** — one SillyTavern has never saved
+   * since. Such a group had one chat, named by the group's id, and its
+   * `members` were character *names*, not card files; `getGroups` converts
+   * both in memory when it loads the list (`group-chats.js:777-784`), and the
+   * file keeps the old shape on disk until the group is next saved. Read as
+   * written it would be a group with no chats and a roster of cards nobody
+   * has, so it is read as `getGroups` reads it: the one chat, and each member
+   * as a {@link SPEAKER_BY_NAME} key, which the resolver matches by name —
+   * `getGroups`' own `characters.find(y => y.name == x)`. A name that matches
+   * nothing is what SillyTavern drops (`.filter(x => x)`); here it resolves to
+   * nobody and the resolver's usual note says so. `disabled_members` is read
+   * the same way, so a mute still names a member.
+   */
+  const legacy = row['chat_id'] === undefined || row['chat_id'] === null;
+  const asMember = (entry: string): string => (legacy ? `${SPEAKER_BY_NAME}${entry}` : entry);
+  const members = unique(strings(row['members']).map(asMember));
+  const muted = unique(strings(row['disabled_members']).map(asMember)).filter((key) =>
+    members.includes(key),
+  );
+  if (legacy) {
+    notes.push({ key: 'import.chat.groupLegacyFormat', params: { group: name }, level: 'info' });
+  }
+
   const speakers: NonNullable<ChatSettings['speakers']> = {};
   const strategy = row['activation_strategy'];
   if (strategy !== undefined && strategy !== null) {
@@ -165,9 +193,36 @@ export function parseSillyTavernGroup(
   }
 
   const mode = row['generation_mode'];
-  const chats = strings(row['chats']);
-  const open = str(row['chat_id']);
+  const open = legacy ? id : str(row['chat_id']);
+  const chats = legacy ? [id] : strings(row['chats']);
   if (open !== '' && !chats.includes(open)) chats.push(open);
+
+  /**
+   * ***Chat metadata kept in the group file*** — where SillyTavern put a group
+   * chat's `chat_metadata` (its `main_chat`, author's note, persona lock and
+   * lorebook) until it moved each into its chat's header: `chat_metadata` for
+   * the open chat and `past_metadata[chatId]` for the rest, which its one-time
+   * migration folds into exactly this map (`migrateGroupChatsMetadataFormat`,
+   * `groups.js:58-61`) before writing each into a headerless chat. A tree
+   * copied from an install that never ran the migration still has them here,
+   * and a pass that read only the chats would lose every group branch's
+   * parent — so they are kept, for the session pass to read a headerless chat
+   * by ({@link legacyMetadataOf}), and the note says the file was that old.
+   */
+  const legacyMetadata: Record<string, Readonly<Record<string, unknown>>> = {};
+  if (Object.hasOwn(row, 'chat_metadata') || Object.hasOwn(row, 'past_metadata')) {
+    const past = row['past_metadata'];
+    if (isRecord(past)) {
+      for (const [chat, metadata] of Object.entries(past)) {
+        if (isRecord(metadata)) legacyMetadata[chat] = metadata;
+      }
+    }
+    if (open !== '') {
+      const current = row['chat_metadata'];
+      legacyMetadata[open] = isRecord(current) ? current : {};
+    }
+    notes.push({ key: 'import.chat.groupLegacyMetadata', params: { group: name }, level: 'info' });
+  }
 
   return parsed({
     path,
@@ -178,8 +233,29 @@ export function parseSillyTavernGroup(
     speakers,
     generationMode: typeof mode === 'number' ? (GENERATION_MODES[mode] ?? null) : null,
     chats: unique(chats),
+    legacyMetadata,
     notes,
   });
+}
+
+/**
+ * ***The metadata a group file kept for one of its chats***, if any — for a
+ * chat under `group chats/` whose file has no header of its own, which is how
+ * the migration left the chats it had not reached. The first group by path
+ * that holds an entry answers, the same tie-break {@link familiesOf} gives a
+ * chat two groups list.
+ */
+export function legacyMetadataOf(
+  groups: readonly SillyTavernGroup[],
+  path: string,
+): Readonly<Record<string, unknown>> | undefined {
+  if (folderOf(path) !== GROUP_CHATS) return undefined;
+  const name = (path.split('/').at(-1) ?? path).replace(/\.jsonl$/i, '');
+  for (const group of [...groups].sort((a, b) => (a.path < b.path ? -1 : 1))) {
+    const found = group.legacyMetadata[name];
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
 /**
@@ -194,13 +270,30 @@ export function parseSillyTavernGroup(
  *   would have had, so the builder's `parentMissing` says which.
  * - **`group`**: the group whose `chats` list holds this family, when its file
  *   came too.
- * - **`notes`**: what grouping had to decide — a cycle broken.
+ * - **`notes`**: what grouping had to decide — a cycle broken, a chat that
+ *   named itself.
  */
 export interface FamilyPlan {
   key: string;
   chats: { path: string; parentId?: string }[];
   group: SillyTavernGroup | null;
   notes: ImportNote[];
+}
+
+/**
+ * ***A chat held back*** because the family it belongs to hangs from a chat
+ * that is in the source and was not read — see {@link familiesOf}. `parent` is
+ * the name of that chat, for the row that says so.
+ */
+export interface HeldBack {
+  path: string;
+  parent: string;
+}
+
+/** {@link familiesOf}'s answer: the families to build, and the chats that wait. */
+export interface Families {
+  plans: FamilyPlan[];
+  heldBack: HeldBack[];
 }
 
 /**
@@ -230,11 +323,26 @@ export interface FamilyPlan {
  * ***A parent that is not here*** makes the chat a root of its own family
  * ([P13 §2.5]), keeping the pointer so the builder's `parentMissing` fires.
  *
- * ***A cycle*** — `a` names `b`, `b` names `a`, or a chat names itself — is
- * nothing SillyTavern writes, and is what a hand-renamed folder produces. It is
+ * ***A parent that is here and was not read is not missing.*** `unread` is the
+ * source's chats that were named and never parsed — over a browser upload's
+ * limit, or refused. Building a branch of one as its own root would give its
+ * turns ids hashed under its own path ([P13 §2.4]); when the parent arrives
+ * later the same lines come in again under the parent's key, a second copy
+ * rather than `unchanged`. So such a chat, and every chat below it, is
+ * {@link HeldBack held back} — not imported now, rather than imported as
+ * something it is not — and its row says what to do instead. A *derived*
+ * parent (the older checkpoint rule) is not held for: it is a guess that only
+ * counts when it names a chat that is present.
+ *
+ * ***A chat that names itself*** has no parent: it is a root, with a note of its
+ * own, since calling it a loop would name two chats where there is one.
+ *
+ * ***A cycle*** — `a` names `b`, `b` names `a`, or a longer loop — is nothing
+ * SillyTavern writes, and is what a hand-renamed folder produces. It is
  * broken at the member first in creation order, which becomes the root: the
  * rule that gives the same answer whichever order the files were listed in, and
- * the member most likely to be the original. Said with a note.
+ * the member most likely to be the original. Said with a note naming the chat
+ * it named, which is in the loop whatever its length.
  *
  * ***Order***, which ids depend on: the root first, then every other chat by
  * creation — its earliest message's time, then its depth below the root, then
@@ -251,7 +359,8 @@ export interface FamilyPlan {
 export function familiesOf(
   headings: readonly ChatHeading[],
   groups: readonly SillyTavernGroup[],
-): FamilyPlan[] {
+  unread: ReadonlySet<string> = new Set(),
+): Families {
   const byPath = new Map(headings.map((heading) => [heading.path, heading]));
   const inFolder = new Map<string, Map<string, string>>();
   for (const heading of headings) {
@@ -266,15 +375,28 @@ export function familiesOf(
   const lookup = (heading: ChatHeading, name: string): string | undefined =>
     inFolder.get(folderOf(heading.path))?.get(name);
 
-  /** The parent each chat names: present (`parent`) or missing (`missing`). */
+  /**
+   * The parent each chat names: present (`parent`), missing (`missing`), or in
+   * the source and unread (`waiting`, by the name it was named by).
+   */
   const parent = new Map<string, string>();
   const missing = new Map<string, string>();
+  const waiting = new Map<string, string>();
+  const selfNotes = new Map<string, ImportNote>();
   for (const heading of headings) {
     const stated = heading.mainChat?.trim() ?? '';
     if (stated !== '') {
       const found = lookup(heading, stated);
-      if (found === undefined) missing.set(heading.path, siblingPath(heading.path, stated));
-      else parent.set(heading.path, found);
+      const would = siblingPath(heading.path, stated);
+      if (found === heading.path) {
+        selfNotes.set(heading.path, {
+          key: 'import.chat.familySelfParent',
+          params: { chat: heading.name },
+          level: 'warn',
+        });
+      } else if (found !== undefined) parent.set(heading.path, found);
+      else if (unread.has(would)) waiting.set(heading.path, stated);
+      else missing.set(heading.path, would);
       continue;
     }
     if (heading.group) continue;
@@ -298,7 +420,6 @@ export function familiesOf(
   // -------------------------------------------------------------------------
 
   const cycleNotes = new Map<string, ImportNote[]>();
-  const cut = new Set<string>();
   for (const start of [...parent.keys()].sort(order)) {
     const seen: string[] = [];
     let at: string | undefined = start;
@@ -312,7 +433,6 @@ export function familiesOf(
     if (first === undefined) continue;
     const was = parent.get(first);
     parent.delete(first);
-    cut.add(first);
     const note: ImportNote = {
       key: 'import.chat.familyCycle',
       params: {
@@ -334,10 +454,17 @@ export function familiesOf(
     return at;
   };
   const members = new Map<string, string[]>();
+  const heldBack: HeldBack[] = [];
   for (const heading of headings) {
     const root = rootOf(heading.path);
+    const held = waiting.get(root);
+    if (held !== undefined) {
+      heldBack.push({ path: heading.path, parent: held });
+      continue;
+    }
     members.set(root, [...(members.get(root) ?? []), heading.path]);
   }
+  heldBack.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
   const groupOf = new Map<string, SillyTavernGroup>();
   for (const group of [...groups].sort((a, b) => (a.path < b.path ? -1 : 1))) {
@@ -385,10 +512,13 @@ export function familiesOf(
       key: root,
       chats,
       group,
-      notes: paths.flatMap((path) => (cut.has(path) ? (cycleNotes.get(path) ?? []) : [])),
+      notes: paths.flatMap((path) => {
+        const self = selfNotes.get(path);
+        return [...(self === undefined ? [] : [self]), ...(cycleNotes.get(path) ?? [])];
+      }),
     });
   }
-  return plans;
+  return { plans, heldBack };
 }
 
 /** The folder SillyTavern writes every group chat into (`endpoints/chats.js:803`). */
@@ -432,6 +562,10 @@ function str(value: unknown): string {
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.map(str).filter((entry) => entry !== '') : [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function unique(values: readonly string[]): string[] {

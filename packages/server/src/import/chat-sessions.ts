@@ -29,12 +29,13 @@ import { priorImportRef } from './identity.js';
 import {
   parseSillyTavernChat,
   SILLYTAVERN_GROUP_FORMAT,
+  SPEAKER_BY_NAME,
   type SillyTavernChat,
   type SillyTavernChatMeta,
 } from './sillytavern/chat.js';
 import {
   familiesOf,
-  GROUP_CHATS,
+  legacyMetadataOf,
   parseSillyTavernGroup,
   siblingPath,
   type ChatHeading,
@@ -173,7 +174,11 @@ export async function importChatFile(
 /** A chat file read, or the row that says why it was not. */
 type ChatRead = { ok: true; value: SillyTavernChat } | { ok: false; report: ImportItemReport };
 
-function readChat(path: string, bytes: Uint8Array | null): ChatRead {
+function readChat(
+  path: string,
+  bytes: Uint8Array | null,
+  legacyMetadata?: Readonly<Record<string, unknown>>,
+): ChatRead {
   if (bytes === null) {
     return {
       ok: false,
@@ -184,7 +189,7 @@ function readChat(path: string, bytes: Uint8Array | null): ChatRead {
       },
     };
   }
-  const parsed = parseSillyTavernChat(bytes, path);
+  const parsed = parseSillyTavernChat(bytes, path, legacyMetadata);
   if (!parsed.ok) {
     return {
       ok: false,
@@ -253,14 +258,16 @@ async function loadFamily(
   /**
    * ***One statement about each unresolved speaker, and a true one.*** The
    * builder says of every speaker it was handed no actor for that they are
-   * *not in this library*; for a name two actors share, the resolver has
-   * already said the opposite — there are two — and why neither was chosen.
-   * Both would leave the person believing neither.
+   * *not in this library* — and of every muted member it could not mute, the
+   * same; for a name two actors share, the resolver has already said the
+   * opposite — there are two — and why neither was chosen. Both would leave
+   * the person believing neither.
    */
   const building = built.notes.filter(
     (note) =>
       !(
-        note.key === 'import.chat.speakerUnresolved' &&
+        (note.key === 'import.chat.speakerUnresolved' ||
+          note.key === 'import.chat.mutedUnresolved') &&
         resolved.ambiguous.has(String(note.params['name']))
       ),
   );
@@ -381,9 +388,10 @@ export interface ChatPass {
  * set aside, after the library loop has written the cards they name.
  *
  * **In three steps, and never more than one family's chats in memory.**
- * 1. *Headings*: each chat file is read and parsed once for what grouping needs
- *    — its name, its `main_chat`, when it began ({@link ChatHeading}) — and let
- *    go; each group file is read whole, since it is a few hundred bytes.
+ * 1. *Headings*: each group file is read whole, since it is a few hundred
+ *    bytes; then each chat file is read and parsed once for what grouping
+ *    needs — its name, its `main_chat`, when it began ({@link ChatHeading}) —
+ *    and let go.
  * 2. *Families* (`sillytavern/families.ts`, [P13.9]): the headings grouped by
  *    `main_chat` within their folder, and each group chat's family matched to
  *    its group.
@@ -401,7 +409,7 @@ export interface ChatPass {
  * rest say whose branch they are. A group's file gets a row pointing at the
  * sessions it set up.
  *
- * Four answers that are not a session, each a row with a reason:
+ * Five answers that are not a session, each a row with a reason:
  * - **not chosen** (`skipped`) — a browser upload whose person left chats out,
  *   so the file was named and never sent;
  * - **over the limit** (`skipped`) — a browser upload whose person chose chats,
@@ -411,7 +419,10 @@ export interface ChatPass {
  *   objects only, which in this build is a test harness or a backup, whose
  *   sessions travel their own way;
  * - **a group with none of its chats here** (`recorded`) — read, and with
- *   nothing to apply its roster and settings to.
+ *   nothing to apply its roster and settings to;
+ * - **a branch whose parent was not read** (`skipped`) — the parent is in the
+ *   source but over the limit or refused, and the branch waits for it rather
+ *   than coming in under ids it would not have beside it ([P13 §2.4]).
  */
 export async function importChats(
   pass: ChatPass,
@@ -423,6 +434,19 @@ export async function importChats(
 
   const headings: ChatHeading[] = [];
   const groups: SillyTavernGroup[] = [];
+  /**
+   * *Chats in the source that were not read* — not carried, not handed over,
+   * or refused. A branch of one waits for it rather than coming in as a root
+   * of its own ({@link familiesOf}'s `unread`).
+   */
+  const unread = new Set<string>();
+  /**
+   * *Chats are read after every group file*, because a group file old enough to
+   * hold its chats' metadata is where a headerless group chat's `main_chat`
+   * is ({@link legacyMetadataOf}), and a chat grouped without it would be a
+   * family of one.
+   */
+  const chats: string[] = [];
 
   for (const candidate of candidates) {
     const source = candidate.source;
@@ -443,6 +467,7 @@ export async function importChats(
       continue;
     }
     if (pass.notCarried?.has(source) === true) {
+      unread.add(source);
       reports.push({
         source,
         disposition: 'skipped',
@@ -452,40 +477,54 @@ export async function importChats(
       });
       continue;
     }
-    const bytes = await pass.files.read(source);
-    if (candidate.format === SILLYTAVERN_GROUP_FORMAT) {
-      const group = bytes === null ? null : parseSillyTavernGroup(bytes, source);
-      if (group?.ok === true) {
-        groups.push(group.value);
-        continue;
-      }
-      reports.push({
-        source,
-        disposition: 'unrecognised',
-        notes: [
-          group === null
-            ? { key: 'import.file.unreadable', params: { file: source }, level: 'warn' }
-            : {
-                key: 'import.file.refused',
-                params: { file: source, refusal: group.refusal },
-                level: 'warn',
-              },
-        ],
-      });
+    if (candidate.format !== SILLYTAVERN_GROUP_FORMAT) {
+      chats.push(source);
       continue;
     }
-    const read = readChat(source, bytes);
+    const bytes = await pass.files.read(source);
+    const group = bytes === null ? null : parseSillyTavernGroup(bytes, source);
+    if (group?.ok === true) {
+      groups.push(group.value);
+      continue;
+    }
+    reports.push({
+      source,
+      disposition: 'unrecognised',
+      notes: [
+        group === null
+          ? { key: 'import.file.unreadable', params: { file: source }, level: 'warn' }
+          : {
+              key: 'import.file.refused',
+              params: { file: source, refusal: group.refusal },
+              level: 'warn',
+            },
+      ],
+    });
+  }
+
+  if (door === undefined || library === null) return reports;
+
+  const readAgain = async (path: string): Promise<ChatRead> =>
+    readChat(path, await pass.files.read(path), legacyMetadataOf(groups, path));
+  for (const source of chats) {
+    const read = await readAgain(source);
     if (!read.ok) {
+      unread.add(source);
       reports.push(read.report);
       continue;
     }
     headings.push(headingOf(source, read.value));
   }
 
-  if (door === undefined || library === null) return reports;
-
   const sessionsOf = new Map<SillyTavernGroup, ImportItemReport[]>();
-  const plans = familiesOf(headings, groups);
+  const { plans, heldBack } = familiesOf(headings, groups, unread);
+  for (const held of heldBack) {
+    reports.push({
+      source: held.path,
+      disposition: 'skipped',
+      notes: [{ key: 'import.chat.parentNotHere', params: { parent: held.parent }, level: 'warn' }],
+    });
+  }
   /**
    * *Two families of one group are named apart.* A group's family is named
    * after the group ([P13 §2.5]), which is what the person called it; a group
@@ -494,14 +533,22 @@ export async function importChats(
    * for two things in Play's list. Such a family is named by its chat too.
    */
   const perGroup = new Map<SillyTavernGroup, number>();
+  /**
+   * *Which group each group chat went to*, by name — for a group whose chats
+   * all came in under another group that lists them too, whose row would
+   * otherwise say it came without them.
+   */
+  const claimedBy = new Map<string, SillyTavernGroup>();
   for (const plan of plans) {
-    if (plan.group !== null) perGroup.set(plan.group, (perGroup.get(plan.group) ?? 0) + 1);
+    if (plan.group === null) continue;
+    perGroup.set(plan.group, (perGroup.get(plan.group) ?? 0) + 1);
+    for (const chat of plan.chats) claimedBy.set(chatNameOf(chat.path), plan.group);
   }
 
   for (const plan of plans) {
     const read: { path: string; parentId?: string; chat: SillyTavernChat }[] = [];
     for (const member of plan.chats) {
-      const again = readChat(member.path, await pass.files.read(member.path));
+      const again = await readAgain(member.path);
       if (!again.ok) {
         // Changed or gone between the two reads: that file's row says so, and
         // the family is built from the rest of it.
@@ -514,7 +561,6 @@ export async function importChats(
     if (root === undefined) continue;
 
     const group = plan.group;
-    const inGroupChats = folderIsGroupChats(plan.key);
     const rootName = root.chat.chat.name;
     const name =
       group === null
@@ -533,7 +579,9 @@ export async function importChats(
     };
 
     const notes: ImportNote[] = [...read.flatMap(({ chat }) => chat.notes), ...plan.notes];
-    if (group === null && inGroupChats) {
+    // Keyed on the chat, as the one-file door keys it: a group chat found
+    // anywhere but `group chats/` is still a group chat whose file is missing.
+    if (group === null && root.chat.meta.group) {
       notes.push({ key: 'import.chat.groupMissing', params: { chat: rootName }, level: 'info' });
     }
     if (group !== null) {
@@ -579,16 +627,28 @@ export async function importChats(
     }
   }
 
-  for (const group of groups) reports.push(groupRow(group, sessionsOf.get(group) ?? []));
+  for (const group of groups) {
+    const other = group.chats
+      .map((chat) => claimedBy.get(chat))
+      .find((by) => by !== undefined && by !== group);
+    reports.push(groupRow(group, sessionsOf.get(group) ?? [], other));
+  }
   return reports;
 }
 
-/** What grouping needs of a chat, so the chat itself can be let go. */
+/**
+ * What grouping needs of a chat, so the chat itself can be let go. The
+ * earliest time is found in one pass rather than by spreading every time into
+ * `Math.min`, whose argument count a chat of a few hundred thousand lines
+ * would exceed — a `RangeError` that would cost the whole sweep, not the chat.
+ */
 function headingOf(path: string, read: SillyTavernChat): ChatHeading {
-  const times = read.chat.messages
-    .map((message) => readableTime(message.at))
-    .filter((time): time is number => time !== null);
-  const earliest = times.length > 0 ? Math.min(...times) : readableTime(read.chat.createdAt);
+  let earliest: number | null = null;
+  for (const message of read.chat.messages) {
+    const time = readableTime(message.at);
+    if (time !== null && (earliest === null || time < earliest)) earliest = time;
+  }
+  earliest ??= readableTime(read.chat.createdAt);
   return {
     path,
     name: read.chat.name,
@@ -598,8 +658,9 @@ function headingOf(path: string, read: SillyTavernChat): ChatHeading {
   };
 }
 
-function folderIsGroupChats(path: string): boolean {
-  return path.startsWith(`${GROUP_CHATS}/`);
+/** `group chats/1700.jsonl` → `1700`: the name a group's `chats` list uses. */
+function chatNameOf(path: string): string {
+  return (path.split('/').at(-1) ?? path).replace(/\.jsonl$/i, '');
 }
 
 /**
@@ -624,7 +685,12 @@ function rosterOf(
   }
   return group.members.map((key) => ({
     key,
-    name: named.get(key) ?? key.replace(/\.[^.]+$/, ''),
+    // A member from an older group file is keyed by name, and that is the name.
+    name:
+      named.get(key) ??
+      (key.startsWith(SPEAKER_BY_NAME)
+        ? key.slice(SPEAKER_BY_NAME.length)
+        : key.replace(/\.[^.]+$/, '')),
   }));
 }
 
@@ -649,21 +715,43 @@ function settingsOf(meta: SillyTavernChatMeta, group: SillyTavernGroup | null): 
  * and settings went into, or, with none of its chats here, nothing to apply
  * them to. Its disposition follows theirs: `converted` when any became a new
  * session, `unchanged` when every one was already here, `recorded` otherwise.
+ *
+ * ***It says applied only of what was.*** Members and settings go into a
+ * session when the session is written, and a family already here — every turn
+ * held, or grown since — is not written again ({@link loadFamily}); what the
+ * group says now reaches those sessions only through [P13.10a]'s sync. So
+ * `groupRead` counts the sessions made, and the rest are counted apart.
+ *
+ * `claimedBy` is another group whose file lists this one's chats too, and
+ * took them ({@link familiesOf} gives a chat to the first group by path): with
+ * no sessions of its own, that — not a missing chat — is why.
  */
 function groupRow(
   group: SillyTavernGroup,
   sessions: readonly ImportItemReport[],
+  claimedBy: SillyTavernGroup | undefined,
 ): ImportItemReport {
   if (sessions.length === 0) {
     return {
       source: group.path,
       disposition: 'recorded',
-      notes: [{ key: 'import.chat.groupNoChats', params: { group: group.name }, level: 'info' }],
+      notes: [
+        claimedBy === undefined
+          ? { key: 'import.chat.groupNoChats', params: { group: group.name }, level: 'info' }
+          : {
+              key: 'import.chat.groupChatsClaimed',
+              params: { group: group.name, other: claimedBy.name },
+              level: 'warn',
+            },
+      ],
     };
   }
   const made = sessions.flatMap((row) =>
     row.disposition === 'converted' && row.objectId !== undefined ? [row.objectId] : [],
   );
+  const here = sessions.filter(
+    (row) => row.disposition === 'unchanged' || row.disposition === 'recorded',
+  ).length;
   const disposition: ImportItemReport['disposition'] =
     made.length > 0
       ? 'converted'
@@ -671,17 +759,26 @@ function groupRow(
         ? 'unchanged'
         : 'recorded';
   const [objectId, ...alsoProduced] = made;
+  const notes: ImportNote[] = [];
+  if (made.length > 0) {
+    notes.push({
+      key: 'import.chat.groupRead',
+      params: { group: group.name, members: group.members.length, sessions: made.length },
+      level: 'info',
+    });
+  }
+  if (here > 0) {
+    notes.push({
+      key: 'import.chat.groupNotApplied',
+      params: { group: group.name, sessions: here },
+      level: 'info',
+    });
+  }
   return {
     source: group.path,
     disposition,
     ...(objectId === undefined ? {} : { objectId }),
     ...(alsoProduced.length === 0 ? {} : { alsoProduced }),
-    notes: [
-      {
-        key: 'import.chat.groupRead',
-        params: { group: group.name, members: group.members.length, sessions: sessions.length },
-        level: 'info',
-      },
-    ],
+    notes,
   };
 }

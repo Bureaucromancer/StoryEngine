@@ -374,16 +374,32 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * The group notes say what a `groups/` file did — or, missing, did not do —
    * for the chats beside it. `familyCycle` and `mutedUnresolved` warn: one is a
    * guess about which chat came first, the other a character who was muted and
-   * is not now, since the session has nobody to mute.
+   * is not now, since the session has nobody to mute. `parentNotHere` warns
+   * because a chat was left out that a whole-folder import would bring, and
+   * `groupChatsClaimed` because two groups claiming one chat means one of them
+   * was not applied. `groupRead` counts only the sessions the group's settings
+   * went into; `groupNotApplied` counts those already here, which sync updates.
    */
   'import.chat.inFamily':
     '“{chat}” is a branch of “{family}”, and came in as a branch of that session.',
   'import.chat.familyCycle':
-    '“{chat}” and “{parent}” each say they were branched from the other. “{chat}” was taken as the original.',
+    '“{chat}” is in a loop of chats that each name another in the loop as the chat they were branched from (it names “{parent}”). “{chat}” was taken as the original.',
+  'import.chat.familySelfParent':
+    '“{chat}” names itself as the chat it was branched from, so it was taken as an original.',
+  'import.chat.parentNotHere':
+    'This chat is a branch of “{parent}”, which is in the source but was not brought in, so it was held back rather than imported as a session of its own. Import the folder whole, or sweep it from the server, to bring the family in together.',
   'import.chat.groupRead':
     'The group “{group}”: its {members} members, reply order and muted members were applied to {sessions} sessions made from its chats.',
+  'import.chat.groupNotApplied':
+    'The group “{group}”’s current members and settings were not applied to {sessions} sessions already here from an earlier import; bringing those up to date is left to sync.',
   'import.chat.groupNoChats':
     'The group “{group}” came without any of its chats, so there was nothing to apply its members and settings to.',
+  'import.chat.groupChatsClaimed':
+    'The group “{group}” lists chats that the group “{other}” lists too. They came in as “{other}”’s sessions, so nothing was applied from this group.',
+  'import.chat.groupLegacyFormat':
+    'The group “{group}” was saved by an older SillyTavern, with its members by name and one chat. It was read as SillyTavern reads it, matching each member by name.',
+  'import.chat.groupLegacyMetadata':
+    'The group “{group}” was saved by an older SillyTavern that kept its chats’ settings (branches, author’s notes, persona and lorebook) in the group file. A chat without its own copy had them read from there.',
   'import.chat.groupMissing':
     '“{chat}” is a group chat whose group file did not come with it. Its cast is whoever speaks in it, and it replies the way Scene does by default.',
   'import.chat.groupStrategyUnknown':
