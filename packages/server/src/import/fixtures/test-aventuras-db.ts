@@ -43,7 +43,10 @@ import { makePng } from '../../storage/card/test-png.js';
  * not things a story holds. *Since P13.3*, the characters a reader has to read
  * around — a corrupt portrait, a truncated one, bare base64, a mislabelled
  * WebP, a link, unreadable JSON columns, a row with no id — are
- * {@link AWKWARD_CHARACTERS}, added only when a test asks for them.
+ * {@link AWKWARD_CHARACTERS}, added only when a test asks for them; *since
+ * P13.4*, the lorebooks — a twin of a book's name, entries that will not
+ * parse or are not a list, entries missing their fields, a row with no id —
+ * are {@link AWKWARD_LOREBOOKS}, on the same terms.
  *
  * Composable on purpose: {@link buildAventurasDatabase} works on any open
  * connection, so a later stage can add its own rows before or after, and the
@@ -283,6 +286,8 @@ export interface AventurasDbOptions {
   failedNext?: boolean;
   /** More `character_vault` rows after {@link VAULT_CHARACTERS} — {@link AWKWARD_CHARACTERS}, usually. */
   extraCharacters?: readonly FixtureRow[];
+  /** More `lorebook_vault` rows after {@link VAULT_LOREBOOKS} — {@link AWKWARD_LOREBOOKS}, usually. */
+  extraLorebooks?: readonly FixtureRow[];
 }
 
 /**
@@ -604,6 +609,126 @@ export const VAULT_LOREBOOKS: readonly FixtureRow[] = [
   {
     id: LOREBOOK_IDS.empty,
     name: 'Unwritten',
+    description: null,
+    entries: [],
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_filename: null,
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+];
+
+/**
+ * ***The rows P13.4 has to read around*** — each an ordinary book but for one
+ * thing, added only when a test asks ({@link AventurasDbOptions.extraLorebooks}),
+ * so the two books above stay the whole vault for every stage that does not.
+ *
+ * - a second *Ash Harbour*: a different row with the same name, which
+ *   derives the same entry ids and must still be a book of its own;
+ * - an `entries` column that will not parse, beside a `metadata` that will not
+ *   either;
+ * - an `entries` column that parses to something that is not a list;
+ * - entries missing their fields, one of them not a record at all, and one
+ *   carrying a field the pin's `VaultLorebookEntry` does not have;
+ * - and a row with no id, which a `TEXT PRIMARY KEY` in SQLite allows.
+ */
+export const AWKWARD_LOREBOOKS: readonly FixtureRow[] = [
+  {
+    id: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4e61',
+    name: 'Ash Harbour',
+    description: 'A copy somebody kept, and then changed.',
+    entries: [
+      {
+        name: 'The Gate',
+        type: 'location',
+        description: 'Rebuilt after the fire.',
+        keywords: ['gate'],
+        aliases: [],
+        injectionMode: 'never',
+        priority: 0,
+      },
+    ],
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_filename: null,
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4e62',
+    name: 'Torn Pages',
+    description: 'Somebody’s tool wrote half a list.',
+    entries: '[{"name": "The Gate", ',
+    tags: ['damaged'],
+    favorite: 0,
+    source: 'manual',
+    original_filename: null,
+    original_story_id: null,
+    metadata: '{oops',
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4e63',
+    name: 'Not A List',
+    description: null,
+    entries: { name: 'The Gate', injectionMode: 'always' },
+    tags: [],
+    favorite: 0,
+    source: null,
+    original_filename: null,
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4e64',
+    name: 'Half Written',
+    description: 'Entries as a careless tool left them.',
+    entries: [
+      {},
+      { name: 'Only a Name' },
+      null,
+      {
+        name: 'Wrong Types',
+        type: 7,
+        description: ['not', 'prose'],
+        keywords: 'gate',
+        aliases: 'the gate',
+        injectionMode: 3,
+        priority: 'high',
+      },
+      {
+        name: 'From Later',
+        type: 'concept',
+        description: 'A newer Aventuras wrote this.',
+        keywords: ['later'],
+        aliases: [],
+        injectionMode: 'keyword',
+        priority: 1,
+        pinned: true,
+      },
+    ],
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_filename: null,
+    original_story_id: null,
+    metadata: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
+    id: null,
+    name: 'No Id',
     description: null,
     entries: [],
     tags: [],
@@ -982,6 +1107,7 @@ export function buildAventurasDatabase(db: DatabaseSync, options: AventurasDbOpt
   }
   for (const row of options.extraCharacters ?? []) insert(db, 'character_vault', row);
   for (const row of VAULT_LOREBOOKS) insert(db, 'lorebook_vault', row);
+  for (const row of options.extraLorebooks ?? []) insert(db, 'lorebook_vault', row);
   for (const row of VAULT_SCENARIOS) insert(db, 'scenario_vault', row);
   for (const row of VAULT_TAGS) insert(db, 'vault_tags', row);
   for (const row of PRESET_PACKS) insert(db, 'preset_packs', row);

@@ -128,7 +128,8 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
   // scenarios at P13.5, tags at P13.6.
   /** P13.3: one actor per row, portrait carried (§1.6). */
   character_vault: 'converted',
-  lorebook_vault: 'recorded',
+  /** P13.4: one lorebook per row, its flat vault entries mapped as Aventuras' export maps them (§0.4). */
+  lorebook_vault: 'converted',
   scenario_vault: 'recorded',
   vault_tags: 'recorded',
   // Packs are their own stage (§1.10). P13.9 converts the three that carry

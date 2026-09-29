@@ -10,6 +10,7 @@ import type { SourceItem } from '../source.js';
 import { VISUAL_KEYS, type VisualKey } from './character.js';
 import { AVENTURAS_REQUIRED, quoted } from './schema.js';
 import { isRecord } from './shapes.js';
+import { integer, jsonColumn, listColumn, stringOr, vaultRows } from './vault-row.js';
 
 /**
  * ***A `character_vault` row, as the object Aventuras' own mapper makes of
@@ -133,47 +134,22 @@ export interface CharacterReadOptions {
  * that the table has no row of its own (the reader's `tableRows`).
  *
  * A generator over two open statements: the ids, sorted, and the row by id.
- * Both close when the sweep stops asking, however it stops.
+ * Both close when the sweep stops asking, however it stops. The walk itself is
+ * `vault-row.ts`'s since P13.4, shared with the lorebooks.
  */
 export function* vaultCharacterItems(
   db: DatabaseSync,
   options: CharacterReadOptions,
 ): Generator<SourceItem> {
-  const ids = db.prepare(
-    `select id from ${quoted(CHARACTER_TABLE)} order by name collate nocase, id`,
-  );
-  ids.setReadBigInts(true);
   const byId = db.prepare(`${selectCharacter()} where id = ?`);
   byId.setReadBigInts(true);
   const limit = textLimit(options.maxPortraitBytes);
-
-  let position = 0;
-  for (const { id } of ids.iterate()) {
-    position += 1;
-    if (typeof id !== 'string' || id.length === 0) {
-      // SQLite lets a `TEXT PRIMARY KEY` be null, and Aventuras' own table
-      // does not forbid it. A row with no id has no identity to re-import by
-      // (§1.5), so it is named by its place and not converted.
-      yield {
-        outcome: 'observed',
-        report: {
-          source: `${options.database}/${CHARACTER_TABLE}#${String(position)}`,
-          disposition: 'unrecognised',
-          notes: [
-            {
-              key: 'import.row.unreadable',
-              params: { row: String(position), table: CHARACTER_TABLE },
-              level: 'warn',
-            },
-          ],
-        },
-      };
-      continue;
-    }
-    const row = byId.get(limit, id);
-    if (row === undefined) continue;
-    yield characterItem(row, id, options);
-  }
+  yield* vaultRows(
+    db,
+    { database: options.database, table: CHARACTER_TABLE },
+    (id) => byId.get(limit, id),
+    (row, id, source) => characterItem(row, id, source, options),
+  );
 }
 
 /**
@@ -196,9 +172,9 @@ function selectCharacter(): string {
 function characterItem(
   row: Record<string, SQLOutputValue>,
   id: string,
+  source: string,
   options: CharacterReadOptions,
 ): SourceItem {
-  const source = `${options.database}/${CHARACTER_TABLE}/${id}`;
   const notes: ImportNote[] = [];
   const payload = mapVaultCharacter(row, id, notes);
 
@@ -232,15 +208,9 @@ export function mapVaultCharacter(
   id: string,
   notes: ImportNote[],
 ): MappedVaultCharacter {
-  const list = (column: string): unknown[] => {
-    const parsed = jsonColumn(row[column], column, notes);
-    if (parsed === undefined) return [];
-    if (Array.isArray(parsed)) return parsed as unknown[];
-    // It parsed, and it is not a list: the mapper would hand it on, and
-    // `isVaultCharacter` would refuse the character over it.
-    notes.push(columnUnreadable(column));
-    return [];
-  };
+  // A list column that parsed to something else would be handed on by the
+  // mapper, and `isVaultCharacter` would refuse the character over it.
+  const list = (column: string): unknown[] => listColumn(row[column], column, notes);
 
   return {
     id,
@@ -258,51 +228,6 @@ export function mapVaultCharacter(
     createdAt: integer(row['created_at']),
     updatedAt: integer(row['updated_at']),
   };
-}
-
-/**
- * A JSON column, parsed — or `undefined` for one that holds nothing, which is
- * what the mapper's `row.x ? JSON.parse(row.x) : default` treats as absent
- * (`null` and the empty string both). One that holds something that will not
- * parse is noted and read as absent too.
- */
-function jsonColumn(
-  value: SQLOutputValue | undefined,
-  column: string,
-  notes: ImportNote[],
-): unknown {
-  if (value === null || value === undefined || value === '') return undefined;
-  if (typeof value !== 'string') {
-    notes.push(columnUnreadable(column));
-    return undefined;
-  }
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    notes.push(columnUnreadable(column));
-    return undefined;
-  }
-}
-
-function columnUnreadable(column: string): ImportNote {
-  return { key: 'import.aventuras.columnUnreadable', params: { column }, level: 'warn' };
-}
-
-function stringOr<T extends string | null>(
-  value: SQLOutputValue | undefined,
-  fallback: T,
-): string | T {
-  return typeof value === 'string' ? value : fallback;
-}
-
-/** An integer column, or `null` for anything that is not one a JavaScript number can hold. */
-function integer(value: SQLOutputValue | undefined): number | null {
-  if (typeof value === 'bigint') {
-    return value >= BigInt(Number.MIN_SAFE_INTEGER) && value <= BigInt(Number.MAX_SAFE_INTEGER)
-      ? Number(value)
-      : null;
-  }
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 /**

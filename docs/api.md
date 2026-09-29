@@ -583,7 +583,17 @@ of their own. **Since P13.3 its characters convert**: `character_vault` has no
 row of its own, and instead each of its rows is one — an actor, with the source
 `aventura.db/character_vault/<id>` that a re-import is recognised by, and its
 portrait carried (a PNG as the card's image, a JPEG or WebP as the card's
-`portrait-source` media on a blank card). Every other table is `recorded`,
+`portrait-source` media on a blank card). **Since P13.4 its lorebooks convert
+the same way**: each `lorebook_vault` row is a lorebook with the source
+`aventura.db/lorebook_vault/<id>`, taking the book's own name, description and
+tags, its vault entries mapped as Aventuras' own export maps them (keywords to
+keys, aliases to secondary keys, `always` to constant, `never` to disabled,
+priority inverted into order), and `favorite`, `source`, `originalFilename`,
+`originalStoryId` and the row's `metadata` kept in the book's `metadata`. A book
+with no entries imports as an empty book; one whose `entries` will not parse
+is refused with an `import.aventuras.columnUnreadable` note and nothing is
+written, so a book imported from that row earlier is left as it was. Lorebooks
+are written before characters. Every other table is `recorded`,
 `skipped` or, for `settings`, `credential` — counted and never read, since it
 holds provider keys. A database missing a column this build reads, or with no
 `_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that

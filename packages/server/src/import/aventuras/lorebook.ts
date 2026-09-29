@@ -68,9 +68,32 @@ export function convertAventurasLorebook(
   fallbackName: string,
 ): ParseOutcome<ConvertedAventurasLorebook> {
   if (!isAventurasLorebook(input)) return refused('wrong-shape');
+  return parsed(convertAventurasEntries(input, fallbackName));
+}
 
+/**
+ * ***The conversion without the recognition*** — split out at
+ * [P13.4](../../../../../docs/design/workplan/30-p13-aventuras-import.md) for
+ * `vault-lorebook.ts`, which has a `lorebook_vault` row in hand rather than a
+ * file.
+ *
+ * {@link isAventurasLorebook} is the question *is this file an Aventuras
+ * lorebook?*, and it answers from the first element, so an empty array is not
+ * one — nothing to import and nothing to identify it by. That is right for a
+ * file and wrong for a row: a vault book with no entries yet *exists*, a person
+ * made it and named it, and a row that is already known to be a lorebook does
+ * not need its first entry to vouch for it. So the row's reader asks nothing
+ * of the array but that it is one, and an empty book imports as an empty book.
+ *
+ * `bookName` names the book and namespaces its entries' derived ids, so it
+ * must be the same on every import of the same book.
+ */
+export function convertAventurasEntries(
+  input: readonly unknown[],
+  bookName: string,
+): ConvertedAventurasLorebook {
   const notes: ImportNote[] = [];
-  const lorebook = newLorebook(fallbackName);
+  const lorebook = newLorebook(bookName);
 
   // A row that is not a record is one this reader cannot read, and it costs
   // that row alone: named by its place, the way Marinara's reader names an
@@ -78,23 +101,23 @@ export function convertAventurasLorebook(
   const rows: Record<string, unknown>[] = [];
   for (const [index, row] of input.entries()) {
     if (isRecord(row)) rows.push(row);
-    else notes.push(note('import.row.unreadable', { table: fallbackName, row: index + 1 }, 'warn'));
+    else notes.push(note('import.row.unreadable', { table: bookName, row: index + 1 }, 'warn'));
   }
 
   let carriedState = 0;
   lorebook.entries = rows.map((row) => {
-    const entry = convertEntry(row, fallbackName);
+    const entry = convertEntry(row, bookName);
     if (SESSION_STATE.some((key) => row[key] !== undefined && row[key] !== null)) carriedState += 1;
     return entry;
   });
-  distinctIds(lorebook.entries, 'aventuras-entry', fallbackName);
+  distinctIds(lorebook.entries, 'aventuras-entry', bookName);
 
   notes.push(note('import.aventuras.lorebookEntries', { count: lorebook.entries.length }));
   if (carriedState > 0) {
     notes.push(note('import.aventuras.entryStateRecorded', { count: carriedState }, 'warn'));
   }
 
-  return parsed({ lorebook, notes });
+  return { lorebook, notes };
 }
 
 function convertEntry(row: Readonly<Record<string, unknown>>, book: string): LoreEntry {

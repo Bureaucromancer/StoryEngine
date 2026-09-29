@@ -39,6 +39,7 @@ import {
   DEFAULT_MAX_PORTRAIT_BYTES,
   vaultCharacterItems,
 } from './vault-character.js';
+import { LOREBOOK_TABLE, vaultLorebookItems } from './vault-lorebook.js';
 
 /**
  * ***A whole Aventuras install, read as a review*** —
@@ -57,6 +58,13 @@ import {
  * mapper), its portrait decoded and handed to the Writer beside it (§1.6), and
  * the table's own row gone from the review — a converted table is reported by
  * the objects it became ({@link CONVERTED_TABLES}).
+ *
+ * ***P13.4: the lorebooks.*** `lorebook_vault` the same way
+ * (`vault-lorebook.ts`), with the one step the plan first missed: a vault
+ * book's entries are Aventuras' flat vault shape and not the `Entry[]` its
+ * file export makes of them, so the export's own conversion is ported too
+ * ([§0.4]). Emitted before the characters, in §1.7's order, so that P13.5's
+ * links from a character or a scenario to a book find the book already stored.
  *
  * ***The database is never read where it lies*** (§1.2). `survey()` takes a
  * private copy through `storage/sqlite-snapshot.ts` and opens that, read-only:
@@ -136,16 +144,17 @@ export const AVENTURAS_READS = [...AVENTURAS_DATABASE_FILES, AVENTURAS_METADATA]
 
 /**
  * ***The tables whose rows this reader turns into candidates***, in the order
- * it emits them — P13.3's characters so far. §1.7 fixes the order the rest
- * join in (tags, lorebooks, characters, scenarios), because a scenario's link
- * to a lorebook resolves only once the lorebook is stored.
+ * it emits them — P13.4's lorebooks, then P13.3's characters. §1.7 fixes the
+ * order the rest join in (tags, lorebooks, characters, scenarios), because a
+ * scenario's or a character's link to a lorebook resolves only once the
+ * lorebook is stored.
  *
  * `registries.test.ts` holds this to the registry's `converted` rows in both
  * directions: a table said to be converted is converted here, and a table
  * converted here is not also listed as `recorded`. Such a table has no row of
  * its own in the review ({@link tableRows}); its rows are the count.
  */
-export const CONVERTED_TABLES = [CHARACTER_TABLE] as const;
+export const CONVERTED_TABLES = [LOREBOOK_TABLE, CHARACTER_TABLE] as const;
 
 /**
  * The files SQLite keeps beside a database, which are the database rather than
@@ -303,6 +312,10 @@ export class AventurasReader implements SourceReader {
     // The vault, as candidates — after every table's row and before the
     // stories, so a review reads the database, then what it held, then what
     // Part 2 would bring. A database older than a table has none of its rows.
+    // Lorebooks first, in the order {@link CONVERTED_TABLES} names.
+    if (held.tables.has(LOREBOOK_TABLE)) {
+      yield* vaultLorebookItems(held.db, { database: AVENTURAS_DATABASE });
+    }
     if (held.tables.has(CHARACTER_TABLE)) {
       yield* vaultCharacterItems(held.db, {
         database: AVENTURAS_DATABASE,

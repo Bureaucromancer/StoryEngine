@@ -282,7 +282,11 @@ describe('the reader, with its rows as candidates', () => {
     items.flatMap((item) => (item.outcome === 'candidate' ? [item.candidate] : []));
 
   it('offers one candidate per row, keyed by the row, with the portrait beside it and not in it', async () => {
-    const candidates = candidatesIn(await itemsOf({}));
+    // The characters alone: the vault's lorebooks are candidates too since
+    // P13.4, and come first (`vault-lorebook.test.ts`).
+    const candidates = candidatesIn(await itemsOf({})).filter(
+      (one) => one.format === 'aventuras.character',
+    );
 
     // By name, so a review of a vault reads as a list.
     expect(candidates.map((one) => one.source)).toEqual([INES, MARA, DOCKMASTER].map(sourceOf));

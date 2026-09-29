@@ -94,7 +94,7 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   'storyengine-backup':
     'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
   aventuras:
-    'An Aventuras library. Its characters are imported; everything else in it is listed and left behind for now.',
+    'An Aventuras library. Its characters and lorebooks are imported; everything else in it is listed and left behind for now.',
   'loose-files':
     'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
 });

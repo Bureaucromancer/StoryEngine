@@ -25,9 +25,10 @@ import {
 } from '@storyengine/shared';
 
 import { convertCharacter } from './aventuras/character.js';
-import { convertAventurasLorebook } from './aventuras/lorebook.js';
+import { convertAventurasLorebook, type ConvertedAventurasLorebook } from './aventuras/lorebook.js';
 import { AventurasReader } from './aventuras/reader.js';
 import { convertScenario } from './aventuras/scenario.js';
+import { convertVaultLorebook, VAULT_LOREBOOK_FORMAT } from './aventuras/vault-lorebook.js';
 import {
   DEFAULT_BACKUP_CONFLICT,
   identify,
@@ -53,6 +54,7 @@ import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
 import { BackupReader } from './storyengine/reader.js';
 import { CharxReader } from './charx/reader.js';
 import { MarinaraReader } from './marinara/reader.js';
+import type { ParseOutcome } from './parse.js';
 import { nameOf, PRESET_CONVERTERS, type PresetConverter } from './preset-converters.js';
 import { convertCard } from './sillytavern/card.js';
 import { convertLorebook } from './sillytavern/lorebook.js';
@@ -399,6 +401,11 @@ class Writer {
         return this.#aventurasCharacter(candidate);
       case 'aventuras.lorebook':
         return this.#aventurasLorebook(candidate);
+      // A `lorebook_vault` row rather than a file (P13.4): a second format and
+      // not the file's, because a row carries the book's own name, description
+      // and tags, and its entries in the vault's flat shape.
+      case VAULT_LOREBOOK_FORMAT:
+        return this.#aventurasVaultLorebook(candidate);
 
       /**
        * ***One of ours, which needs no conversion and therefore needs a
@@ -1165,7 +1172,26 @@ class Writer {
   }
 
   async #aventurasLorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
-    const converted = convertAventurasLorebook(candidate.payload, nameOf(candidate.source));
+    return this.#storeAventurasLorebook(
+      candidate,
+      convertAventurasLorebook(candidate.payload, nameOf(candidate.source)),
+    );
+  }
+
+  /**
+   * ***A `lorebook_vault` row*** — [P13.4](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * Converted from the row's own name rather than the source's stem, which for
+   * a row is a uuid: the name is what the book is called and what its entry
+   * ids are derived from (`vault-lorebook.ts`).
+   */
+  async #aventurasVaultLorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
+    return this.#storeAventurasLorebook(candidate, convertVaultLorebook(candidate.payload));
+  }
+
+  async #storeAventurasLorebook(
+    candidate: ImportCandidate,
+    converted: ParseOutcome<ConvertedAventurasLorebook>,
+  ): Promise<ImportItemReport> {
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
     const { lorebook, notes } = converted.value;

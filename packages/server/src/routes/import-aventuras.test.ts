@@ -12,6 +12,7 @@ import {
   FIXTURE_API_KEY,
   STORIES,
   VAULT_CHARACTERS,
+  VAULT_LOREBOOKS,
   writeAventurasBackupFolder,
 } from '../import/fixtures/test-aventuras-db.js';
 import { AventurasReader } from '../import/aventuras/reader.js';
@@ -90,8 +91,11 @@ function ledger(): string {
   ]);
 }
 
+/** One object per vault row the fixture holds: its characters (P13.3) and its lorebooks (P13.4). */
+const VAULT_OBJECTS = VAULT_CHARACTERS.length + VAULT_LOREBOOKS.length;
+
 describe('pointing the server at an Aventuras folder', () => {
-  it('answers with the review, records it, and writes the characters and nothing else', async () => {
+  it('answers with the review, records it, and writes the vault’s books and characters and nothing else', async () => {
     await grantFileAccess();
     const root = join(container, 'aventura-backup');
     await writeAventurasBackupFolder(root);
@@ -114,8 +118,11 @@ describe('pointing the server at an Aventuras folder', () => {
     for (const character of VAULT_CHARACTERS) {
       expect(sources).toContain(`aventura.db/character_vault/${String(character['id'])}`);
     }
+    for (const book of VAULT_LOREBOOKS) {
+      expect(sources).toContain(`aventura.db/lorebook_vault/${String(book['id'])}`);
+    }
     for (const story of STORIES) expect(sources).toContain(`aventura.db/stories/${story.id}`);
-    expect(report.counts.converted).toBe(VAULT_CHARACTERS.length);
+    expect(report.counts.converted).toBe(VAULT_OBJECTS);
     expect(report.counts.credential).toBe(1);
 
     // Addressable, as every sweep's review is, and holding the same rows.
@@ -130,8 +137,9 @@ describe('pointing the server at an Aventuras folder', () => {
     expect(JSON.stringify(response.body)).not.toContain(FIXTURE_API_KEY);
     expect(ledger()).not.toContain(FIXTURE_API_KEY);
 
-    expect((await ownObjects(server)).objects).toHaveLength(VAULT_CHARACTERS.length);
+    expect((await ownObjects(server)).objects).toHaveLength(VAULT_OBJECTS);
     expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_CHARACTERS.length);
+    expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(VAULT_LOREBOOKS.length);
     expect(await scratch()).toEqual([]);
   });
 
@@ -167,7 +175,7 @@ describe('pointing the server at an Aventuras folder', () => {
     }
 
     expect(response.status, JSON.stringify(response.body)).toBe(200);
-    expect(response.body.report.counts.converted).toBe(VAULT_CHARACTERS.length);
+    expect(response.body.report.counts.converted).toBe(VAULT_OBJECTS);
     expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_CHARACTERS.length);
   });
 

@@ -314,9 +314,13 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * ***A vault row, read around a field*** — [P13.3]. A database row is
    * somebody's character with one unreadable field, not an unreadable file,
    * so both of these say what was left behind and let the rest import.
+   * *Since P13.4* a lorebook's too — with one difference the sentence has to
+   * say: an `entries` column that will not read is the book, not a field of it,
+   * so that row is refused and nothing is written, rather than a book imported
+   * empty that a re-sweep would put in place of a good one.
    */
   'import.aventuras.columnUnreadable':
-    'The {column} column could not be read as Aventuras writes it, so it was taken as empty.',
+    'The {column} column could not be read as Aventuras writes it, so it was left out. If it held a lorebook’s entries, the book was not imported, and any copy already here was left as it was.',
   'import.aventuras.portraitTooLarge':
     'The portrait is larger than the {limit} MB a card can carry, so {actor} was imported without it.',
 
