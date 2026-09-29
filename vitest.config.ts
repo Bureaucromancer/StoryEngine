@@ -20,7 +20,24 @@ const GATE = 'packages/server/src/index-db/rebuild-property.test.ts';
  * somebody had to remember. It was removed at P4.2, which is the mechanism
  * working.
  */
-const FIXTURE_PAIR = 'packages/server/src/import/fixture-pair.test.ts';
+const FIXTURE_PAIR = [
+  'packages/server/src/import/fixture-pair.test.ts',
+  /**
+   * ***A list since [P13.12]***, which gave the gate its chat half. A chat
+   * importer, a card importer and the Scene pack meet the way a card and a
+   * preset do, and can disagree the same silent way — a speaker resolved to
+   * a card whose prompts the pack never reaches, a history that loses its
+   * names — so each source's tree of cards and chats is swept, previewed and
+   * played here, by name, rather than only in the anonymous suite.
+   */
+  'packages/server/src/import/fixture-pair-chats.test.ts',
+  /**
+   * And the 10,000-message import, the same stage's other half: a bound on how
+   * long a person's longest chat takes to come in, which is a claim about the
+   * import as a whole and is filed with the gate that makes the others.
+   */
+  'packages/server/src/import/chat-size.test.ts',
+];
 
 /**
  * The documentation checks, which are about the **corpus** rather than about any
@@ -166,7 +183,7 @@ export default defineConfig({
           // `*.live.test.ts` is excluded for the same mechanical reason and one
           // more: those files make real provider calls and belong only to the
           // project below that carries their timeout.
-          exclude: ['**/node_modules/**', GATE, FIXTURE_PAIR, '**/*.live.test.ts'],
+          exclude: ['**/node_modules/**', GATE, ...FIXTURE_PAIR, '**/*.live.test.ts'],
           environment: 'node',
         },
       },
@@ -194,7 +211,7 @@ export default defineConfig({
           name: 'fixture-pair',
           ...TIMEOUTS,
           root: '.',
-          include: [FIXTURE_PAIR],
+          include: FIXTURE_PAIR,
           environment: 'node',
         },
       },

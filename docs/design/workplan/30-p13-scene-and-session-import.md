@@ -1963,6 +1963,91 @@ played with no `se.summary` call in the turn's record. The warm is
 - One 10,000-message size test, because nobody has measured `importSession`
   turn by turn.
 
+*As built, 2026-09-29.* `FIXTURE_PAIR` in `vitest.config.ts` is a list, spread
+into the `fixture-pair` project's `include` and the `packages` project's
+`exclude` as `DOCS` is, and `vitest list` shows each of its three files claimed
+by that project alone. The two new files are `import/fixture-pair-chats.test.ts`
+(one test per source) and `import/chat-size.test.ts`.
+
+- **Each source's tree is swept whole**, cards and chats together, through
+  `sweep` with the session pass. SillyTavern is the shared corpus plus a branch
+  of its own chat and a two-member `natural` group. Marinara is the shared
+  corpus as it stands, since it already holds a roleplay with a branch and a
+  three-member `manual` group with a mute. Each session is opened through the
+  route, previewed, and played on the stub provider. The assertions are the
+  old gate's (no `empty-source` for a slot the pair should feed, no
+  `unknown-slot` at all), plus four that only a chat has:
+  - the embodied instruction names the speaker, and the speaker's card leads,
+    with every other present member's card after it;
+  - the persona fills, and the speaker's three card-prompt sections fill in the
+    card's own name, with post-history last and no other member's (`voiced`);
+  - every attributed history line is compared with the turn it came from,
+    `Name: ` prefixed exactly when `namesInHistory` says;
+  - the played turn is `complete`, its messages are attributed by id and name,
+    and each `se.narrate` call in its record was led by that message's
+    speaker's card.
+- **The corpus cards were given prompts in the test, not in the shared
+  trees.** Neither tree's cards carries `system_prompt`,
+  `post_history_instructions` or a depth prompt, because they were written at
+  P4, before P13.3 gave those fields a destination. Over them, the test could
+  not tell *unreachable* from *nothing to place*. Other tests count and compare
+  those cards, so the fields are added where the pair test builds its tree.
+- **"Fed" is named by block, not by source kind.** The old gate's *no `actor`
+  row* is right for an imported preset, which places only the fields its cards
+  have. The Scene pack places every field an actor could have, and a V2 card has
+  no appearance, voice or background. So `FED` lists the blocks a card and a
+  chat do carry: persona, summary, traits, the three card prompts, history and
+  input.
+- **The `manual` group is previewed as `manual` works.** A draft previews as
+  `not-this-turn`, which is asserted: Marinara's manual order answers a
+  player's line with nobody. The round is played by force-talk (Maris, then
+  Vera), which is how a manual group gets replies. The assembled preview is
+  *let them talk*: no input, one unmuted member at random, and `se.input`
+  dropped from `FED` for that reason alone. Names are off in that session as
+  imported, and correctly so: the opening round and Maris's reply come in
+  hidden, which leaves Vera alone in the window. They come on once the played
+  round puts Maris there, and that is what the preview asserts.
+- **The size test's measurement** is in its module docstring. On a 4-core
+  container, `importChatFile` is linear at about a millisecond a turn: 5.2–5.8 s
+  for 10,000 messages (5,001 turns) and 10.3–11.5 s for 20,000. Parse and
+  build together take about 0.1 s of that. The rest is `importSession`'s
+  per-turn `appendTurnOnly`, a segment append and an index row each, not
+  batched, which is where a faster import would start. Opening the session
+  afterwards costs about 0.2 ms a turn (1 s at 5,001 turns). No model is
+  bound, so the P13.11 warm makes no call inside the timed span.
+- **The size test bounds growth, not speed.** The first bound was 30 s,
+  called "about five times the measurement", but the measurement above was
+  taken with the file running mostly alone. CI's `pnpm test` runs
+  `fixture-pair` beside the whole `packages` project, on Linux and Windows.
+  Re-measured on the same container, the 10,000-message import took 7.5 s
+  alone and 15.3 s in that shape, so the margin on Linux was about 2×. Windows
+  writes small files several times slower, and the import does about fifteen
+  small-file operations a turn. That puts the Windows leg near or past 30 s,
+  failing on runner speed rather than on the quadratic walk the test is for:
+  F28's failure mode, short of F28's own rule of about ten times the loaded
+  worst case. The test now imports a 1,000-message chat and then the
+  10,000-message one in the same install and asserts the ratio is under 25:
+  linear is about 10, quadratic about 100, and the ratio does not move with
+  the runner (measured alone: 5.6 s over 0.6 s, a ratio of 9.2). The small
+  one runs first, so its warm-up only lowers the ratio.
+  An absolute bound stays at 150 s, ten times the loaded figure, as a hang
+  detector only, and the test's timeout is above it, so a slow import fails on
+  the bound with both timings in the message rather than on vitest's timeout.
+- **Found, not fixed** (none of these is this stage's code):
+  1. **An imported chat session sends no scenario.** The sweep turns a card's
+     `scenario` into a Treatment, but the chat door links no treatment to the
+     session it builds, so `se.treatment` is `empty-source` on every imported
+     chat. SillyTavern sends the card's scenario on every turn of that chat.
+     Neither §2.6 nor [18](../18-session-import.md) says which should happen.
+     The pair test leaves `se.treatment` out of `FED` rather than assert the
+     gap.
+  2. **Example dialogue reaches the model with `<START>` verbatim.** Nothing in
+     the server reads it. SillyTavern treats it as the separator between
+     example chats and replaces it. `{{user}}` in the same text is kept on
+     purpose (`import/sillytavern/card.ts`, *"the player's placeholder is
+     kept, and said"*), but it reaches the model as braces too, because a
+     sample body is never rendered.
+
 ### What is deliberately not in this phase
 
 - **Immersive HTML and the card-evolution auditor** (§1.9.4, §1.9.5).
