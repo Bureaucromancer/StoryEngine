@@ -148,24 +148,33 @@ describe('a chat file', () => {
     expect(await screen.findByText('That file is not a chat this build can read.')).toBeTruthy();
   });
 
-  it('says a chat that grew since its import was not loaded, and why', async () => {
-    // [P13 §2.7]'s sync is P13.10a's: until then a grown chat is neither
-    // already here nor a second copy, and it says so in its own words.
-    const grown = {
-      key: 'import.chat.grownSince',
-      params: { chat: 'Vera', count: 1 },
-      level: 'warn',
+  it('opens the session a chat that grew was brought up to date in — [P13.10a]', async () => {
+    // [P13 §2.7]: loading a chat again extends the session it made, and the
+    // row names that session, so the control opens it as it would a new one.
+    const extended = {
+      key: 'import.chat.extended',
+      params: { name: 'Vera', count: 2 },
+      level: 'info',
     };
     importChatFile.mockResolvedValue({
-      item: { source: 'Vera.jsonl', disposition: 'recorded', notes: [grown] },
-      notes: [grown],
+      item: {
+        source: 'Vera.jsonl',
+        disposition: 'converted',
+        objectId: 'session-1',
+        notes: [extended],
+      },
+      notes: [extended],
     });
     const input = renderPicker();
 
     await choose(input, LINES, 'Vera.jsonl');
 
-    expect(await screen.findByText(/has changed since/)).toBeTruthy();
-    expect(navigate).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/play/$sessionId',
+        params: { sessionId: 'session-1' },
+      });
+    });
   });
 
   it('opens no session for a row the chat pass did not write', async () => {
@@ -232,10 +241,14 @@ describe('a chat file', () => {
     expect(screen.queryByText('That file is not a chat this build can read.')).toBeNull();
   });
 
-  it('offers .jsonl in the picker, and says once how a re-import behaves until sync', () => {
+  it('offers .jsonl in the picker, and says once what loading a chat again does and does not do', () => {
     const input = renderPicker();
 
     expect(input.accept).toContain('.jsonl');
-    expect(screen.getByText(/comes later/)).toBeTruthy();
+    const hint = screen.getByText(/Loading a chat again updates its session/);
+    expect(hint.textContent).toMatch(/nothing in it is deleted or rewritten/);
+    expect(hint.textContent).toMatch(/your place is kept/);
+    expect(hint.textContent).toMatch(/Nothing is written back to the source/);
+    expect(screen.queryByText(/comes later/)).toBeNull();
   });
 });

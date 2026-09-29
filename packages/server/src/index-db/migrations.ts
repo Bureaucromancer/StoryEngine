@@ -75,8 +75,15 @@ import type { DatabaseSync } from 'node:sqlite';
  * and still true of what it was about: a change in what is derived from files
  * that have not changed needs a bump, because nothing re-reads an unchanged
  * file.
+ *
+ * **11 adds `session.origin_filename`** (2026-09-29, [P13.10a]) — the
+ * `origin.originalFilename` an imported chat's session carries, which is what
+ * a later import of the same chat finds the session by ([P13 §2.7]). A new
+ * column over files that have not changed, so 9's argument exactly: without
+ * the bump every session imported before the upgrade would have the column
+ * empty, and its chat would come in a second time instead of extending it.
  */
-export const INDEX_SCHEMA_VERSION = 10;
+export const INDEX_SCHEMA_VERSION = 11;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -216,10 +223,15 @@ create table session (
   -- gone ([03 §10.3](../../../../docs/design/03-data-model.md)) — and a search that could not
   -- find them would make archiving a way to lose things.
   archived      integer not null default 0,
-  updated_at    text not null
+  updated_at    text not null,
+  -- The source an imported session came from, as \`origin.originalFilename\`
+  -- says: a chat family's root path ([P13 §2.7]). Null for a session made
+  -- here, and for one whose origin names no file.
+  origin_filename text
 ) strict;
 
 create index session_by_owner on session(owner, updated_at);
+create index session_by_origin on session(owner, origin_filename);
 
 -- ── What the last look at a session saw ──────────────────────────────────────
 --

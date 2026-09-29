@@ -133,11 +133,10 @@ describe('sweeping a tree of cards and chats', () => {
     expect(await listSessions(server.services.sessions, 'ned')).toHaveLength(1);
   });
 
-  it('says a chat grown since its import was left as it was, and writes nothing', async () => {
-    // [P13 §2.7]: a chat that grew *extends* the session it came from, and
-    // that is P13.10a's. Until then the new turns are not written — and the
-    // row must not call the chat `unchanged` while its new messages are left
-    // out, which is what the refusal alone would have said.
+  it('extends the session a grown chat was imported into, and makes no second one', async () => {
+    // [P13 §2.7], [P13.10a]: a chat that grew *extends* the session it came
+    // from. Until P13.10a this row was `recorded` and the new turns were left
+    // out; now they are appended to the same session, which the row names.
     const tree = sillyTavernFixture();
     const first = await run(tree);
     const more = [
@@ -166,16 +165,19 @@ describe('sweeping a tree of cards and chats', () => {
     const second = await run({ ...tree, [CHAT]: grown });
 
     const chat = row(second, CHAT);
-    expect(chat.disposition).toBe('recorded');
+    expect(chat.disposition).toBe('converted');
+    expect(chat.objectId).toBe(row(first, CHAT).objectId);
     // One round — the player's line and its reply — is one turn ([P13 §2.2]).
-    expect(chat.notes.find((note) => note.key === 'import.chat.grownSince')).toEqual({
-      key: 'import.chat.grownSince',
-      params: { chat: '2026-01-01', count: 1 },
-      level: 'warn',
+    expect(chat.notes[0]).toEqual({
+      key: 'import.chat.extended',
+      params: { name: '2026-01-01', count: 1 },
+      level: 'info',
     });
     expect(await listSessions(server.services.sessions, 'ned')).toHaveLength(1);
-    const { turns } = await exported(row(first, CHAT).objectId);
-    expect(turns).toHaveLength(4);
+    const { session, turns } = await exported(row(first, CHAT).objectId);
+    expect(turns).toHaveLength(5);
+    // Nobody played on here, so the session follows the source to its end.
+    expect(turns.find((turn) => turn.id === session.headTurnId)?.output?.text).toBe('Not today.');
   });
 
   it('survives a chat that will not read, and says which', async () => {

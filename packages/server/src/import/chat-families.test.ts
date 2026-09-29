@@ -496,7 +496,7 @@ describe('a group of three', () => {
 });
 
 describe('a group, again and in older shapes', () => {
-  it('does not claim to apply its settings to sessions already here', async () => {
+  it('says it was compared with the sessions already here, and not that it made them', async () => {
     const tree = { ...sillyTavernFixture(), ...group() };
     await run(tree);
     const second = await run(tree);
@@ -505,7 +505,7 @@ describe('a group, again and in older shapes', () => {
     expect(file.disposition).toBe('unchanged');
     expect(file.notes).toEqual([
       {
-        key: 'import.chat.groupNotApplied',
+        key: 'import.chat.groupSynced',
         params: { group: 'Night Crossing', sessions: 1 },
         level: 'info',
       },

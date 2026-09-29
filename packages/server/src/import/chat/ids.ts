@@ -30,18 +30,19 @@ import { digest } from '../../sessions/digest.js';
  *   parent before its children (see {@link placeTime}).
  * - **Deterministic**, so importing an unchanged chat again finds every turn
  *   already present, and a chat grown by whole new rounds finds all but those.
- *   ***A chat that grew inside its last round is different, and not
- *   append-only.*** A reply to what was a trailing player's line, a further
- *   reply or narrator line with no new `gen_id` (single chats, Marinara), a
- *   greeting followed by an empty send — each changes the last round's
- *   content, so its key, so the old round is not found; under [P13 §2.7] as
- *   written it is appended as a new sibling beside its earlier self, where
- *   §2.7's *"every message the chat already had is a turn already present"*
- *   says it should not be. That is [P13 §2.2] (a round is one turn) and §2.7
- *   disagreeing, and it is P13.10a's to settle — by listing it among what sync
- *   does not do, or by treating a present sibling whose messages are a strict
- *   prefix of the new node's, under the same input, as superseded. It is not
- *   settled here by choosing a side silently.
+ *   ***A chat that grew inside its last round is a new sibling, by decision***
+ *   ([P13.10a], 2026-09-29). A reply to what was a trailing player's line, a
+ *   further reply or narrator line with no new `gen_id` (single chats,
+ *   Marinara), a greeting followed by an empty send — each changes the last
+ *   round's content, so its key, so the old round is not found, and the round
+ *   as it now stands is appended beside it. [P13 §2.7] offered two ways out;
+ *   keying a round on its opening instead would have let replies extend a
+ *   turn in place, which is a turn rewritten — the one thing sync promises
+ *   never to do — and would have given one id to two contents, the property
+ *   every other rule here rests on. So *identical content, identical id*
+ *   stands, the sibling is named for what it is (`import.chat.roundGrew`,
+ *   counted by `importSession`'s extend arm), and the head moves onto it when
+ *   the person had not played on — which is all following the source means.
  *
  * ***The parent is named by its key, not its id.*** An id carries a time, and a
  * time is decided by first occurrence (below); the key is content all the way

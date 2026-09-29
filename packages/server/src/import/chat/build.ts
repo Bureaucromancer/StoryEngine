@@ -513,18 +513,14 @@ export function buildSession(
     updatedAt: context.now,
     headTurnId: head === null ? null : id(head.key),
     /**
-     * ***Where [P13 §2.7]'s sync will look for this session again*** — the
+     * ***Where [P13 §2.7]'s sync looks for this session again*** — the
      * family's root, as the library's re-import rule keys an object on
      * `originalFilename` (`import/identity.ts`).
      *
-     * **`importSession` overwrites this today**, with an `origin` of its own
-     * whose `originalFilename` is null: it was written for exports from another
-     * install, which have no source file to name. Written here anyway, so the
-     * document says what it is, and so the stage that teaches `importSession`
-     * to keep it — [P13.10a], with the `extend` arm that reads it — changes one
-     * reader rather than every converter. Until then, nothing finds a session
-     * by this, and a second import of the same family is refused
-     * `already-here` rather than extended.
+     * **`importSession` keeps it** since [P13.10a], and the index carries it
+     * (`sessionByOrigin`), so a second import of the same family finds the
+     * session and extends it. The rest of this `origin` is the reader's own —
+     * it stamps `source` and the dates for every import alike.
      */
     origin: {
       source: 'import',

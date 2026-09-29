@@ -1414,6 +1414,142 @@ the code carries its argument:
 *Ends at:* every row of §1.6's table has a route test, and a new session opens
 on its greeting with the alternates as siblings.
 
+*As built, 2026-09-29.* The *Ends at* is `routes/gestures.test.ts`, one
+`describe` per row of §1.6 and one for §1.7, played on Scene itself;
+`turns/runner-gestures.test.ts` proves what the runner does with a swipe, a
+continue and an edit it is handed. What the stage decided that §1.6 and §1.7
+left open, each where the code carries its argument:
+
+- **The gestures are read in one place**, `routes/gestures.ts` (`gestureOf`),
+  and the submission route keeps its one flow for all of them. Fields that
+  cannot mean anything together are one 422, `conflicting-gesture`, with a
+  sentence naming the clash: an edit beside anything that steers a call; an
+  `input` or `speakers` beside a swipe or a continue; `fromMessage` without
+  `redoOf`/`rewriteOf`, or with the two naming different turns.
+- **A swipe and a continue carry the named turn's input**, pictures and
+  force-talk included, and go **beside it**: `parentTurnId` is filled in with
+  its parent, and a body naming another is `not-a-sibling`. The carried
+  speaker reaches the selector as the forced list (`TurnPayload.carry`) and
+  **not** `Turn.input.speakers`, which keeps the carried move's own — a later
+  rewrite of the whole round must not read *"only Lund was asked for"* on a
+  turn where nobody asked for anybody. A guided swipe's attempt is the one
+  message it redoes, not the round.
+- **The runner's round is seeded with what is carried**: the regenerated
+  speaker's index is *k*, its prompt shows `0..k-1` as the round so far, the
+  draft holds them from the first checkpoint, the bus's live cell is given
+  their text as one unindexed piece, and the step's messages are put back
+  behind them — the carried ones were never the step's to return, so no mode
+  has to know about them. A partial round counts from *k*, so a swipe whose
+  speaker fails is an ordinary failed turn that still shows what it carried.
+  *A rewrite swipe from k > 0 replays call k's draws* (2026-09-29, at this
+  stage's review): a speaking call's lore draws are tagged with the message it
+  writes (`Draw.message`, `Rng.speaking`), and `swipeReplay` drops calls
+  `0..k-1`'s and re-keys the rest from 0 — keyed from 0 across the turn, call
+  *k* had been handed call 0's rolls, marked `replayed`. A tape recorded
+  before the tag has its `lore.*` draws dropped, so call *k* rolls fresh.
+- **Continue**: the one speaking call writes **into** the last message rather
+  than after it. The old text and the continuation are joined by a space
+  unless the old text already ends in a space — ST's `continue_postfix`
+  default and its *"coping mechanism for OAI spacing"*, which checks
+  `!cyclePrompt.endsWith(' ')` (`script.js:4918`). ~~Unless it already ends in
+  whitespace~~ — corrected 2026-09-29, at this stage's review: ST checks for a
+  space and nothing else, and the code now does too. *One deliberate
+  difference*: an empty old text gets no joiner, where ST's would still get
+  the space. Cleanup runs on the continuation alone, and `original` is the
+  old text plus what the model said. The round's last entry is `required` and
+  the nudge, ST's sentence verbatim (`CONTINUE_NUDGE`), is a fifth
+  engine-placed `BlockSource` arm, `continue`. **The continued message and
+  then the nudge end the call**: the splice runs with the continued message
+  still in the chat, so a depth counts over it as ST's does, and then it is
+  moved out to the end, past every run the splice put after it — ST takes the
+  last non-injected message out after injection (`openai.js:908`), so a
+  depth-0 note, depth prompt or depth-0 lore sits *before* the continued
+  message. ~~Pushed after the splice, so a depth-0 note or depth prompt sits
+  before it~~ — corrected 2026-09-29, at this stage's review: that put a
+  depth-0 run between the continued message and the nudge. *That is §1.6's
+  "the call ends on the nudge", and slightly not ST*: ST's post-history
+  instructions follow the chat history its continue collection is part of,
+  so a card's post-history instructions are after the nudge there and before
+  the continued message here. The continued message is carried whole,
+  reasoning included, and **marked `carried` until the first streamed piece
+  takes it over**, so a call that fails before its first piece leaves it
+  exactly as it was and says this turn wrote none of it (~~carried as its
+  speaker and text, unmarked~~ — corrected at the same review).
+- **A hide follows a message onto its carried copy** (2026-09-29, at this
+  stage's review, which found a swipe and a continue showing the model lines
+  the person had hidden on the named turn, and bringing them back visible on
+  the sibling). The named turn's `session.hidden` entry travels as
+  `TurnPayload.hidden`, kept to what the sibling carries — `true` stays
+  `true`, a list keeps its indices below *k* (swipe) or below the last
+  (continue), the numbering being the same on both turns. While the turn runs
+  those carried messages are left out of the round the call shows and lore
+  scans (`CollectContext.roundHidden`), and `true` leaves the carried move out
+  of the call too; at the commit the entry is written as
+  `hidden[newTurnId]` in the same session write that moves the head
+  (`advanceHead`, `CommitExtras`). A hidden message is not continued:
+  `hidden-message` (422) says to unhide it first. *A turn recovered at
+  startup from its draft is committed without the entry* — the draft is a
+  `Turn`, which does not carry it — so its carried copies come back visible.
+- **Narrated text is not swiped or continued** — deliberately not built. A
+  narrator's reply is one merged call that speaks for nobody, so *"by the same
+  speaker"* has no speaker; a narrated turn is one message, whose swipe is the
+  existing redo; and a `narrator`-voice session's step makes that merged call
+  whoever is selected. `narrated-message` and `narrated-session` (422) say to
+  redo the whole turn.
+- **An edit goes through the job**, not a direct append: idempotency, the
+  one-turn-at-a-time refusal, the head and parent checks and `turn.finished`
+  are all a submission's. The runner commits `payload.authored` before the
+  gather — no plan, no call, no `request`, and **no clock**: an edit is a
+  person correcting the words, not time passing, so its effects are empty and
+  the sibling's state is its parent's. Its lines are checked on force-talk's
+  three grounds (the persona's lines are the input) and signed with the cast's
+  names at the node; `null` is a narrator's line. Sent at the head it is a
+  line added by hand. **`editOf` names the turn it edits** (added 2026-09-29,
+  at this stage's review): the edit is that turn's sibling and carries what it
+  does not rewrite — the input whole, pictures, force-talk and raw text
+  included, unless `authored.input` is sent, when only its text, actor and
+  kind are laid over the carried one; the messages, unless
+  `authored.messages` is sent; each line left as it was kept whole, reasoning
+  and `original` included (`editedFrom`); and the hide entry on the lines it
+  left alone. Without it an edit was a turn re-authored from nothing, and an
+  edit of a reply lost the move's pictures and force-talk even when the client
+  re-sent its text — which an edit sent with `parentTurnId` alone still is.
+- **Delete of a first turn** needed one change: `PUT /head` accepts
+  `turnId: null`, the root (`moveHead`). Without it the greeting was the one
+  message nobody could delete. `resume` from the root goes forward only when
+  there is exactly one root.
+- **Hide is one route**, `PUT /sessions/:id/turns/:turnId/hidden`, with
+  `true`, a list of indices or `false`/`[]` — **set, not toggled**, so a
+  retry lands where the first did. Under the session lock and *not* refused
+  while a turn runs: a hide moves no node, and the running turn assembled
+  before it. An index past the turn's messages is `no-such-message`. Owed a
+  caller at [P13.5] in `route-callers.test.ts`.
+- **The opening turn is a mode's declaration**, `ModeDefinition.openingTurn`
+  (an optional SDK field; Scene declares it). The engine may not name a mode,
+  and `voice: 'embodied'` is not the same claim — the assistant is embodied
+  too. *Single-character* means one cast member besides the persona: the
+  primary is written first, then each alternate as a root beside it, so the
+  strip offers them in ST's swipe order. In a group, a member with nothing
+  written says nothing. The creation body's `openings` (actor id → opening
+  id) chooses per member, and **in a single-character chat picks which sibling
+  the head starts on**, every opening still written; a choice naming nobody is
+  `unknown-opening` before the session exists. Written directly under the
+  lock, before any setup turn is reserved — a greeting has no call to watch.
+  Rendered once, at write time (`sessions/opening.ts`, `renderOpening`), with
+  ST's forms of `{{user}}` and `{{char}}`; with no persona the player is
+  *the player*, as the assembler calls them. `lastSelectedChild` has no entry
+  for a root, so the head is the whole of which greeting is selected.
+
+*Left for [P13.5]:* ~~an empty send under `manual`, with nobody forced, commits
+a turn with no input and no reply~~ — corrected 2026-09-29, at this stage's
+review: under `manual` an empty send with nobody forced gets **one eligible
+member, chosen at random** — ST's `shuffle(enabledMembers).slice(0, 1)`, kept
+on purpose in `turns/speakers.ts` over Marinara's *do nothing*. A turn with no
+input and no reply happens only when nobody in the cast is eligible (every
+member muted or absent), and the composer should not offer that send, or
+should say it will get no reply. Provider prefill for continue stays later
+work, as §1.6 says.
+
 #### P13.5 — The chat surface
 
 - The transcript, composer, cast panel, settings and creation form (§1.8).
@@ -1530,6 +1666,118 @@ per-chat JSONL export comes in through P13.7.
 *Ends at:* a fixture chat imported, grown by three messages, an edit and a new
 branch, and re-imported. The session gains exactly those turns, one new
 sibling and one ref. A session played on here in between keeps its head.
+
+*As built, 2026-09-29.* The *Ends at* is `import/chat-sync.test.ts`'s first
+two cases; the rest of §2.7 is one case each there, and the two doors are in
+`routes/import.test.ts`.
+
+- **§2.7's open case: the sibling.** A round that grew in its source (a reply
+  to a trailing player's line, a further reply without a new `gen_id`) is a
+  new turn beside the round as it was imported, counted and named
+  (`import.chat.roundGrew`: *the round as it now stands*), and the head moves
+  onto it when nobody played on. Keying a round on its opening was declined:
+  letting later replies extend it in place is a turn rewritten, which §2.7
+  promises never happens, and it gives one id to two contents, which §2.4's
+  every other property rests on. `build.test.ts` pins the builder half on
+  purpose; `ids.ts` carries the argument.
+- **Found by `(account, originalFilename)`.** `importSession` keeps the
+  document's `origin.originalFilename`, and the index carries it
+  (`session.origin_filename`, index schema 11, `sessionByOrigin`). A session
+  imported before this stage has none, and is found by the turns it holds
+  instead, then stamped. `extend` is an option the chat doors pass. It is
+  never inferred, so an export loaded back where it came from is still
+  `already-here`, §2.7's original case.
+- **"Played on" is defined, and recorded beside the session.** A session has
+  been played on if a turn in it has no `foreign` (only the import writes
+  one), if its head is not where the last import left it, or if a turn is in
+  flight. The last import's head, refs, turn ids, cast, hidden flags and
+  settings are kept in `import-sync.json` in the session's folder. It is not in
+  `session.json`: it records one install's relationship with a source on the
+  same disk, and an export has no use for it. Every merge is three-way against
+  it. The source's value is taken only where the source changed it and the
+  session did not. So an unhide in ST arrives, a hide made here stays, a
+  reply order changed here survives a note changed there, and a cast member
+  removed here is not put back. Without the file, the session is read for it:
+  the root chat's ref gives the imported head (no gesture re-points a ref), the
+  held imported turns give the turn ids, the session's cast gives the cast, and
+  flags and settings read as the session's own, so the source's latest wins.
+- **Only the chat doors write the record as the source's word.** A backup or
+  export of an imported chat's session also carries `originalFilename`, so a
+  restored session stays syncable, but its document is the session as played.
+  Its record has no imported head and no flags or settings, so it always reads
+  as played on and every value it has reads as chosen here and is kept. What
+  that costs is an unhide in the source of a line hidden before the backup,
+  which does not arrive.
+- **Refs.** A ref the source had is moved to where its chat now ends, whether
+  or not the person played on. It is the source's name for that chat, and it
+  is where the new messages wait for somebody who did. A new chat's ref is
+  added. A ref deleted here stays deleted. Refs made here are not the
+  source's, and are not touched. When played on, `lastSelectedChild` takes the
+  source's choices only at forks the person never chose at, and a fork on
+  their own path is pinned to it.
+- **Mutes are effects on the grafts, per path.** A new turn hanging off a turn
+  already here gets an effect for each member whose presence the source now
+  gives differs from the last presence effect a turn *from the source* carries
+  on that path (the opening turn's, or an earlier graft's), measured against
+  the state at its parent. Per path because a group's mutes are group-wide and
+  its chats are branches: a branch that grows at a later sync than the one that
+  first carried a change still gets it. Only the source's own turns count, so a
+  mute made here is not undone by a change the source has not made. Nothing is
+  rewritten, the head cache is derived again through `reconstructAlong` when
+  the head moves, and `reconcileHandEdits` finds nothing, which is asserted. A
+  change that has not reached the source's current path — nothing new came, or
+  only a swipe or a branch the head never walks — waits for the next graft on
+  it (`import.chat.mutesWaiting`, a warning), rather than minting a turn the
+  source never had.
+- **`appended: 0` is `unchanged` only when nothing at all was written.** A sync
+  that appended nothing but carried an unhide or a setting across is
+  `converted`, with each change as a note. `unchanged` writes neither the
+  session file nor its clock. The `grownSince` row is gone. A grown chat is
+  `converted` with `import.chat.extended`, naming the session it extended, and
+  a group's file says `groupSynced`, not `groupNotApplied`.
+- **Deletions are notes.** Imported turns the source no longer has, deleted or
+  edited there, are counted (`import.chat.notInSource`) and kept. A grown
+  round's old self is named as grown in the sync that brought its successor,
+  and is never counted as not in the source after. A turn deleted here is not
+  appended again, nor anything below it: the record lists every turn the source
+  put here, which survives an index rebuild where the tombstone's index row
+  does not (a session synced from no record falls back to that row).
+- **A sync row reports the sync.** The builder's counts of the whole family
+  (`import.chat.swipes`, `import.chat.hiddenKept`) are left off a `converted`
+  sync row, since they describe what arrived at every earlier import too; its
+  warnings about what is still unresolved stay.
+- **The surface.** Play's session panel offers *Update from source* on a
+  session with a source (`SessionPanel.tsx`). `POST
+  /api/import/sessions/:id/update` re-sweeps the root the ledger last recorded
+  for the session (`recordedRootFor`), with `onConflict: skip`, because the
+  person asked for a conversation and not for their edited cards to be
+  replaced. The root is never sent back. With no recorded root it answers
+  `409`, and the panel offers the picker for the same file under the same
+  name, since the name is the chat's identity (§2.4), or, for a chat that came
+  in a browser-uploaded folder, says to import the folder again. The hint in
+  *Load a session or a chat* now says what an update does and does not do,
+  replacing P13.8's interim *"comes later"*.
+- **Where this departs from §2.7's text.** The text above is unedited; these
+  are the disagreements, for whoever owns §2.7 to settle or point at:
+  1. *"`lastSelectedChild` … left alone"* when played on: it is not. It takes
+     the source's choices at forks nobody chose at here, and forks on the
+     person's own path are pinned to it, because otherwise *forward* at a fork
+     the sync just created would stop short of where they are.
+  2. *"A hide made here stays"*: not for a session imported before this stage.
+     With no record its flags and settings read as its own, so a hide made here
+     on a turn the source shows is undone. Accepted, once, on its first sync.
+  3. *"`appended: 0` becomes `unchanged`"*: only when nothing was written.
+  4. *"The source's new head gets its own ref"*: the source's existing ref is
+     moved to where its chat now ends instead; a new ref is minted only for a
+     chat new to the family.
+  5. *"With a test for each"*: the open case was decided by argument, above.
+     Only the sibling behaviour has tests (`build.test.ts`,
+     `chat-sync.test.ts`). §2.7's open-case paragraph still reads as open and
+     wants a one-line pointer here, left for after P13.4's edit to the file
+     lands.
+- **Not done.** A backup restored under another account handle names the same
+  source with ids hashed for the old handle, so a sync there appends the whole
+  family beside itself. A group's renamed title does not rename the session.
 
 #### P13.11 — The first turn after a long import
 

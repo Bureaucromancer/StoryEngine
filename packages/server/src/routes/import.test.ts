@@ -946,6 +946,120 @@ describe('a chat, through the doors', () => {
     ]);
   });
 
+  /** Two more lines, as SillyTavern appends them: the chat has grown. */
+  const grown = (path: string): string =>
+    text(path) +
+    [
+      {
+        name: 'The Inspector',
+        is_user: true,
+        is_system: false,
+        send_date: '2026-01-01T10:02:00.000Z',
+        mes: 'Then sign for this.',
+        extra: {},
+      },
+      {
+        name: 'Vera Solano',
+        is_user: false,
+        is_system: false,
+        send_date: '2026-01-01T10:02:30.000Z',
+        mes: 'Not today.',
+        gen_started: '2026-01-01T10:02:26.000Z',
+        extra: {},
+      },
+    ]
+      .map((line) => `${JSON.stringify(line)}\n`)
+      .join('');
+
+  it('uploaded again after it grew, extends the session it made — [P13.10a]', async () => {
+    const first = await upload('Vera - 2026-01-01.jsonl', text(CHAT));
+    const sessionId = String(first.body.item.objectId);
+
+    // *Update from source* on a session from one file: nothing on the server
+    // to re-read, so the menu offers the file picker.
+    const update = await server.request({
+      method: 'POST',
+      url: `/api/import/sessions/${sessionId}/update`,
+    });
+    expect(update.status).toBe(409);
+    expect(update.body.error).toBe('no-recorded-source');
+
+    const again = await upload('Vera - 2026-01-01.jsonl', grown(CHAT));
+    expect(again.body.item.disposition).toBe('converted');
+    expect(again.body.item.objectId).toBe(sessionId);
+    expect(again.body.item.notes[0]).toEqual({
+      key: 'import.chat.extended',
+      params: { name: 'Vera - 2026-01-01', count: 1 },
+      level: 'info',
+    });
+  });
+
+  it('updated from source, re-sweeps the folder it came from — [P13.10a]', async () => {
+    await grantFileAccess();
+    const root = await tempRoot('se-sync-');
+    const writeTree = async (tree: Record<string, string | Uint8Array>): Promise<void> => {
+      for (const [path, body] of Object.entries(tree)) {
+        await mkdir(join(root, path, '..'), { recursive: true });
+        await writeFile(join(root, path), body);
+      }
+    };
+    try {
+      await writeTree(sillyTavernFixture());
+      const swept = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+      const made = (swept.body.report.items as { source: string; objectId?: string }[]).find(
+        (item) => item.source === CHAT,
+      );
+      const sessionId = String(made?.objectId);
+
+      await writeFile(join(root, CHAT), grown(CHAT));
+      const update = await server.request({
+        method: 'POST',
+        url: `/api/import/sessions/${sessionId}/update`,
+      });
+
+      expect(update.status, JSON.stringify(update.body)).toBe(200);
+      expect(update.body.item.source).toBe(CHAT);
+      expect(update.body.item.disposition).toBe('converted');
+      expect(update.body.item.objectId).toBe(sessionId);
+      expect(update.body.item.notes[0].key).toBe('import.chat.extended');
+      // The path is the server's to know, and is not sent back.
+      expect(JSON.stringify(update.body)).not.toContain(root);
+
+      const unchanged = await server.request({
+        method: 'POST',
+        url: `/api/import/sessions/${sessionId}/update`,
+      });
+      expect(unchanged.body.item.disposition).toBe('unchanged');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to update a session that was not made from a chat', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Made here' },
+    });
+    const sessionId = String(created.body.session?.id ?? created.body.id);
+
+    const update = await server.request({
+      method: 'POST',
+      url: `/api/import/sessions/${sessionId}/update`,
+    });
+    expect(update.status).toBe(422);
+    expect(update.body.error).toBe('no-source');
+    const missing = await server.request({
+      method: 'POST',
+      url: '/api/import/sessions/nobody/update',
+    });
+    expect(missing.status).toBe(404);
+  });
+
   /** The fixture tree as a browser manifest, sized by its real bytes. */
   function manifest(): { path: string; bytes: number }[] {
     return Object.entries(sillyTavernFixture()).map(([path, body]) => ({

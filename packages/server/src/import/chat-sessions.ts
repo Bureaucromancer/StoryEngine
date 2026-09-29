@@ -13,7 +13,7 @@ import { objectsNamed } from '../index-db/query.js';
 import { turnsNotHeld } from '../index-db/sessions.js';
 import type { LibraryContext } from '../library.js';
 import { CHAT_IMPORT_MODE_ID } from '../mode-registry.js';
-import { importSession } from '../sessions/import.js';
+import { importSession, type SessionSync } from '../sessions/import.js';
 import type { SessionContext } from '../sessions/store.js';
 import { userOwner } from '../storage/layout.js';
 import { buildSession } from './chat/build.js';
@@ -72,10 +72,10 @@ import type { FileSource, ImportCandidate } from './source.js';
  *
  * ***One report per file seen***, in the review's own vocabulary, so a sweep of
  * cards and chats reads as one list: `converted` with the new session's id and
- * everything the four steps noted; `unchanged` when a session here already
- * holds every turn of the family; `recorded` when one holds its beginning and
- * the source has grown since; `unrecognised` with the reason when the file will
- * not read.
+ * everything the four steps noted; `converted` too, naming the session it
+ * extended, when the family was imported before and has grown or changed in
+ * its source since ([P13 §2.7], [P13.10a], {@link syncRow}); `unchanged` when
+ * it has not; `unrecognised` with the reason when the file will not read.
  * One chat that will not load is one row, and the sweep goes on around it —
  * the poisoned-file rule ([21 §4.1.1]) applied to conversations.
  *
@@ -314,7 +314,14 @@ async function loadFamily(
   const notes: ImportNote[] = [...input.notes, ...resolved.notes, ...building];
 
   try {
-    const result = await importSession({ sessions: door.sessions }, door.handle, built.document);
+    const result = await importSession({ sessions: door.sessions }, door.handle, built.document, {
+      // A chat is a source that goes on changing, so a second import of it
+      // extends the session the first one made ([P13 §2.7], [P13.10a]).
+      extend: true,
+    });
+    if (result.ok && result.extended === true) {
+      return syncRow(family.name, result.sessionId, result.appended, result.sync, notes);
+    }
     if (result.ok) {
       return {
         disposition: 'converted',
@@ -330,26 +337,13 @@ async function loadFamily(
       };
     }
     /**
-     * ***Already here, and whether that is all of it.*** A session on this
-     * account holds this family's turns — the same files imported before, or
-     * the same chats grown since, whose opening turns are the same content and
-     * so the same ids ([P13 §2.4]). The refusal cannot tell the two apart, and
-     * they are not the same answer:
-     *
-     * - **Every turn held** is `unchanged` — what the review calls a file
-     *   identical to what is here, and [P13 §2.7] keeps for `appended: 0`.
-     * - **Some turns not held** is a chat that grew, or was edited, in its
-     *   source since — or a branch made since, which is the same thing seen
-     *   from the family. [P13 §2.7] makes that *extend* the session it came
-     *   from, and the extending is [P13.10a]'s; until then those turns are not
-     *   written anywhere. Calling that `unchanged` would say the source had
-     *   nothing new while its new messages were left out — letting the
-     *   refusal speak for the surface, which [18 §7.4] says it must not — so
-     *   it is `recorded`, with a note that counts what was left out and why.
-     *
-     * *Nothing is written in either case*, so the one session is still the one
-     * session; a second copy of the old turns is what `already-here` exists to
-     * refuse.
+     * ***Already here, and not this chat's to extend.*** With `extend` asked
+     * for, `importSession` refuses only when the turns are held by a session
+     * it would not extend — another source's, or one it could not read. Until
+     * [P13.10a] this was every re-import, and a chat grown since was
+     * `recorded` with its new turns left out; now a grown chat extends its
+     * session and never reaches here. What does is a copy of turns that are
+     * already somewhere: `unchanged` when every one is, the refusal otherwise.
      */
     if (result.reason === 'already-here') {
       const missing = turnsNotHeld(
@@ -362,17 +356,6 @@ async function loadFamily(
           notes: [{ key: 'import.chat.alreadyHere', params: {}, level: 'info' }],
         };
       }
-      return {
-        disposition: 'recorded',
-        notes: [
-          ...notes,
-          {
-            key: 'import.chat.grownSince',
-            params: { chat: family.name, count: missing },
-            level: 'warn',
-          },
-        ],
-      };
     }
     return {
       disposition: 'unrecognised',
@@ -401,6 +384,74 @@ async function loadFamily(
     };
   }
 }
+
+/**
+ * ***A re-import, as the review's row*** — [P13 §2.7], [P13.10a].
+ *
+ * `appended: 0` with nothing else carried across is `unchanged`: the same
+ * chat, as it was. Anything written — a turn, a ref, an unhidden line, a
+ * setting — is `converted`, naming the session it went into, because the
+ * session changed and the row is where a person finds out how.
+ *
+ * ***What sync declined to do is said as plainly as what it did*** — §2.7's
+ * *"says so"*: a session somebody played on keeps its head, and the row says
+ * where the source's new messages are; lines the source no longer has are
+ * still here; a round that grew is a sibling beside the round as it was; a
+ * mute with nothing to carry it waits.
+ */
+function syncRow(
+  name: string,
+  sessionId: string,
+  appended: number,
+  sync: SessionSync,
+  notes: readonly ImportNote[],
+): Omit<ImportItemReport, 'source'> {
+  const said: ImportNote[] = [];
+  const add = (key: string, params: ImportNote['params'], level: ImportNote['level']): void => {
+    said.push({ key, params, level });
+  };
+  if (sync.refsAdded > 0) add('import.chat.syncBranches', { count: sync.refsAdded }, 'info');
+  if (sync.roundsGrown > 0) add('import.chat.roundGrew', { count: sync.roundsGrown }, 'info');
+  if (sync.playedOn && appended > 0) add('import.chat.syncPlayedOn', { chat: name }, 'info');
+  if (sync.notInSource > 0) add('import.chat.notInSource', { count: sync.notInSource }, 'info');
+  if (sync.hiddenChanged > 0) add('import.chat.syncHidden', { count: sync.hiddenChanged }, 'info');
+  if (sync.settingsChanged > 0) {
+    add('import.chat.syncSettings', { count: sync.settingsChanged }, 'info');
+  }
+  if (sync.mutesChanged > 0) add('import.chat.syncMutes', { count: sync.mutesChanged }, 'info');
+  if (sync.mutesWaiting > 0) add('import.chat.mutesWaiting', { count: sync.mutesWaiting }, 'warn');
+  if (sync.castAdded > 0) add('import.chat.syncCast', { count: sync.castAdded }, 'info');
+
+  if (sync.unchanged) {
+    return {
+      disposition: 'unchanged',
+      objectId: sessionId,
+      notes: [{ key: 'import.chat.alreadyHere', params: {}, level: 'info' }, ...said],
+    };
+  }
+  return {
+    disposition: 'converted',
+    objectId: sessionId,
+    notes: [
+      { key: 'import.chat.extended', params: { name, count: appended }, level: 'info' },
+      ...said,
+      ...notes.filter((one) => one.level === 'warn' || !FAMILY_COUNTS.has(one.key)),
+    ],
+  };
+}
+
+/**
+ * ***The builder's counts of the whole family***, which a sync row leaves out.
+ * The builder describes the family as built, every time; on a first import
+ * that is what arrived, and on a sync it is not — a swipe that came three
+ * syncs ago would be counted again at every one. The rest of what the
+ * building said still holds of the session as it now stands (a speaker still
+ * unresolved, a cast still capped), so it stays.
+ */
+const FAMILY_COUNTS: ReadonlySet<string> = new Set([
+  'import.chat.swipes',
+  'import.chat.hiddenKept',
+]);
 
 /** What the sweep's session pass is given, beyond the door. */
 export interface ChatPass {
@@ -766,13 +817,16 @@ function settingsOf(meta: SillyTavernChatMeta, group: SillyTavernGroup | null): 
  * ***A group's own row*** — what became of the file: the sessions its roster
  * and settings went into, or, with none of its chats here, nothing to apply
  * them to. Its disposition follows theirs: `converted` when any became a new
- * session, `unchanged` when every one was already here, `recorded` otherwise.
+ * session or was extended, `unchanged` when every one was already here as it
+ * is, `recorded` otherwise.
  *
  * ***It says applied only of what was.*** Members and settings go into a
- * session when the session is written, and a family already here — every turn
- * held, or grown since — is not written again ({@link loadFamily}); what the
- * group says now reaches those sessions only through [P13.10a]'s sync. So
- * `groupRead` counts the sessions made, and the rest are counted apart.
+ * new session when it is written, and into a session already here through
+ * [P13.10a]'s sync, which takes what the source changed since the last import
+ * and keeps what was changed here ({@link syncRow}). So `groupRead` counts the
+ * sessions made, and `groupSynced` the sessions already here that the group
+ * was compared with — each of whose own rows says what, if anything, came
+ * across.
  *
  * `claimedBy` is another group whose file lists this one's chats too, and
  * took them ({@link familiesOf} gives a chat to the first group by path): with
@@ -798,19 +852,32 @@ function groupRow(
       ],
     };
   }
+  const says = (row: ImportItemReport, key: string): boolean =>
+    row.notes.some((note) => note.key === key);
   const made = sessions.flatMap((row) =>
-    row.disposition === 'converted' && row.objectId !== undefined ? [row.objectId] : [],
+    row.disposition === 'converted' &&
+    row.objectId !== undefined &&
+    says(row, 'import.chat.imported')
+      ? [row.objectId]
+      : [],
   );
-  const here = sessions.filter(
-    (row) => row.disposition === 'unchanged' || row.disposition === 'recorded',
+  const extended = sessions.flatMap((row) =>
+    row.disposition === 'converted' &&
+    row.objectId !== undefined &&
+    says(row, 'import.chat.extended')
+      ? [row.objectId]
+      : [],
+  );
+  const synced = sessions.filter(
+    (row) => row.disposition === 'unchanged' || says(row, 'import.chat.extended'),
   ).length;
   const disposition: ImportItemReport['disposition'] =
-    made.length > 0
+    made.length + extended.length > 0
       ? 'converted'
       : sessions.every((row) => row.disposition === 'unchanged')
         ? 'unchanged'
         : 'recorded';
-  const [objectId, ...alsoProduced] = made;
+  const [objectId, ...alsoProduced] = [...made, ...extended];
   const notes: ImportNote[] = [];
   if (made.length > 0) {
     notes.push({
@@ -819,10 +886,10 @@ function groupRow(
       level: 'info',
     });
   }
-  if (here > 0) {
+  if (synced > 0) {
     notes.push({
-      key: 'import.chat.groupNotApplied',
-      params: { group: group.name, sessions: here },
+      key: 'import.chat.groupSynced',
+      params: { group: group.name, sessions: synced },
       level: 'info',
     });
   }

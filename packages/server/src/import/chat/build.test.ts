@@ -632,10 +632,14 @@ describe('identity is content and parent (§2.4)', () => {
     expect(sessionOf(later).branchRefs?.[0]).toEqual(sessionOf(alone).branchRefs?.[0]);
   });
 
-  it('finds a chat’s earlier rounds again when it grew, and not a round that grew', () => {
+  it('finds a chat’s earlier rounds again when it grew, and makes a round that grew a sibling', () => {
     // [P13 §2.2] makes a round one turn, so a reply to a trailing player's line
-    // changes that turn's content — and its key. `ids.ts` says what that means
-    // for [P13 §2.7]; this pins the fact P13.10a starts from.
+    // changes that turn's content — and its key. [P13 §2.7]'s open case,
+    // decided at P13.10a (`ids.ts`): the grown round is a *sibling* of the
+    // round as it was imported, never the same turn extended in place — a
+    // turn rewritten is what sync promises never to do. The extend arm names
+    // it and moves the head onto it (`chat-sync.test.ts`); this pins the
+    // builder half, on purpose.
     const before = build(family(chat('c', [said(VERA, 'Evening.', 1000), user('Well?', 2000)])));
     const after = build(
       family(

@@ -32,11 +32,13 @@ import {
   importNotesFor,
   listImports,
   readImport,
+  recordedRootFor,
   recordImport,
   recordRefusal,
 } from '../import/jobs.js';
 import { convertOne, sweep } from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
+import { readSession } from '../sessions/store.js';
 import { looksLikeZip } from '../storage/zip.js';
 import {
   openLocalSource,
@@ -439,6 +441,111 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       suggestions: await adviseOn(services, body.root, opened.source),
     });
   });
+
+  /**
+   * ***Update from source*** —
+   * [P13 §2.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [P13.10a]: Play's session menu, on a session made from a chat.
+   *
+   * *"Re-sweeps the server path recorded in the ledger when the import came
+   * from one"* — and a sweep of it is the whole mechanism: the chat pass finds
+   * the session by its source and extends it (`importSession`'s `extend`
+   * arm), and every other chat in the folder is brought up to date by the same
+   * pass, as §2.7 says a re-run sweep does. **`onConflict: skip`**, because the
+   * person asked to update a conversation, and replacing a card they edited
+   * here with the source's would be an answer to a question they did not ask;
+   * the review says which objects differ, and a sweep from the import panel is
+   * still there to take them.
+   *
+   * ***Nothing recorded is a `409` that says so***, and the client offers the
+   * file picker instead — *a browser cannot reopen a path* — for a chat that
+   * came in as one file. The recorded root is never sent back: it is this
+   * install's knowledge of somebody's disk ([21 §4.1.1]), and the client has
+   * no use for it.
+   *
+   * Answers the sweep's report, with its job id, and the row that names this
+   * session — `converted` when it grew, `unchanged` when it did not.
+   */
+  app.post(
+    '/import/sessions/:sessionId/update',
+    { schema: { params: Type.Object({ sessionId: Type.String() }) } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const session = await readSession(services.sessions, account.handle, sessionId);
+      if (session === null) {
+        return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+      }
+      const originalFilename = session.origin?.originalFilename ?? null;
+      if (typeof originalFilename !== 'string' || originalFilename === '') {
+        return reply.code(422).send({
+          error: 'no-source',
+          message: 'This session was not made from a chat, so it has no source to update from.',
+        });
+      }
+
+      const root = recordedRootFor(services.state.db, account.handle, sessionId);
+      if (root === null) {
+        return reply.code(409).send({
+          error: 'no-recorded-source',
+          message: 'This session did not come from a folder on the server. Choose the file again.',
+        });
+      }
+      if (account.capabilities.fileAccess === 'none') {
+        return reply.code(403).send({
+          error: 'no-file-access',
+          message: 'This account may not point the server at a directory.',
+        });
+      }
+
+      const opened = await openLocalSource(root, services.layout.dataRoot);
+      if (!opened.ok) {
+        recordRefusal(services.state.db, {
+          account: account.handle,
+          root,
+          refusal: opened.refusal,
+          at: Date.now(),
+        });
+        return reply
+          .code(422)
+          .send({ error: opened.refusal, message: refusalMessage(opened.refusal) });
+      }
+      const outcome = await sweep({
+        library: services.library,
+        sessions: services.sessions,
+        handle: account.handle,
+        files: opened.source,
+        onConflict: 'skip',
+      });
+      if (!outcome.ok) {
+        recordRefusal(services.state.db, {
+          account: account.handle,
+          root,
+          refusal: outcome.refusal,
+          at: Date.now(),
+        });
+        return reply
+          .code(422)
+          .send({ error: outcome.refusal, message: sweepRefusalMessage(outcome.refusal) });
+      }
+      const jobId = recordImport(services.state.db, {
+        account: account.handle,
+        root,
+        source: outcome.report.source,
+        items: outcome.report.items,
+        at: Date.now(),
+      });
+      // The family's root chat's row, which carries what the sync said; a
+      // branch's row names the same session and says only whose branch it is.
+      const item =
+        outcome.report.items.find(
+          (one) => one.objectId === sessionId && one.source === originalFilename,
+        ) ?? outcome.report.items.find((one) => one.objectId === sessionId);
+      return reply.code(200).send({ report: { ...outcome.report, jobId }, item: item ?? null });
+    },
+  );
 
   /**
    * What a folder is, without importing anything from it.

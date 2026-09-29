@@ -338,18 +338,14 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * ambiguous ones warn, since each is a character, a persona or a book the
    * model will not be given. `alreadyHere` is only information: it is said
    * only when a session holds every turn the chat has, so nothing was lost by
-   * not writing it twice. A chat that has grown since is `grownSince`
-   * instead, and warns, because what it gained was left out — updating a
-   * session from its source is [P13.10a]'s. The three that are not a session
+   * not writing it twice. The three that are not a session
    * at all — not chosen, over the upload limit, not taken by this kind of
    * import — say why in the terms of the choice that decided it.
    */
   'import.chat.imported':
     'Imported as the session “{name}”, {turns} turns long. It is in Play, with your other sessions.',
   'import.chat.alreadyHere':
-    'Already here: a session on this account holds this chat, so it was not imported a second time.',
-  'import.chat.grownSince':
-    '“{chat}” has grown since it was imported: {count} of its turns are not in the session made from it. They were not added, because updating a session from its source comes later; nothing already here was changed.',
+    'Already here, and unchanged since: a session on this account was made from this chat, and it holds everything the chat has.',
   'import.chat.sessionRefused': '“{chat}” could not be loaded as a session ({reason}).',
   'import.chat.nameAmbiguous':
     '{count} things in this library are called “{name}”, so the chat was linked to none of them rather than to a guess.',
@@ -365,6 +361,40 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This import brings in library objects only, so the chat was read and not turned into a session.',
 
   /**
+   * **Sync: a chat imported before, brought up to date** —
+   * [P13.10a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [P13 §2.7].
+   *
+   * `extended` is the row's first sentence, as `imported` is a first import's:
+   * where the chat went, and how much came. The rest are each one thing sync
+   * did or declined to do, and §2.7 asks for the second kind to be said as
+   * plainly as the first — the head kept for somebody who played on, lines the
+   * source deleted still here, a round that grew beside its earlier self.
+   * `mutesWaiting` warns, because a character the source muted is speaking
+   * here until the next message arrives to carry the mute.
+   */
+  'import.chat.extended':
+    'The session “{name}” was brought up to date from its source: {count} new turns. Nothing already in it was changed or removed.',
+  'import.chat.syncBranches':
+    '{count} new branches in the source came in as branches of the session, each named for its chat.',
+  'import.chat.roundGrew':
+    '{count} replies were added in the source to a round that was already here. Each round as it now stands is beside the round as it was imported, as another version of it.',
+  'import.chat.syncPlayedOn':
+    'You have played on in “{chat}” since it was imported, so your place in it was kept. The new messages are on the source’s branches; open a branch named for its chat to read them.',
+  'import.chat.notInSource':
+    '{count} turns imported before are no longer in the source (deleted or edited there). They are still in the session; nothing is deleted by an update.',
+  'import.chat.syncHidden':
+    '{count} turns were hidden or shown again, as they now are in the source. Anything hidden or shown here was left as you set it.',
+  'import.chat.syncSettings':
+    '{count} of the chat’s settings (reply order, voice, author’s note) were changed in the source and taken from it. Settings you changed here were kept.',
+  'import.chat.syncMutes':
+    '{count} characters were muted or unmuted, as they now are in the source, from the new messages on.',
+  'import.chat.mutesWaiting':
+    '{count} characters were muted or unmuted in the source, but no new message came with the change to carry it, so it will arrive with the next update that brings one.',
+  'import.chat.syncCast':
+    '{count} characters spoke for the first time in the new messages and were added to the session’s cast.',
+
+  /**
    * **Families and groups** —
    * [P13.9](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
    *
@@ -377,8 +407,9 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * is not now, since the session has nobody to mute. `parentNotHere` warns
    * because a chat was left out that a whole-folder import would bring, and
    * `groupChatsClaimed` because two groups claiming one chat means one of them
-   * was not applied. `groupRead` counts only the sessions the group's settings
-   * went into; `groupNotApplied` counts those already here, which sync updates.
+   * was not applied. `groupRead` counts the sessions made from the group's
+   * chats; `groupSynced` those already here, which sync compared the group
+   * with ([P13.10a]).
    */
   'import.chat.inFamily':
     '“{chat}” is a branch of “{family}”, and came in as a branch of that session.',
@@ -390,8 +421,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This chat is a branch of “{parent}”, which is in the source but was not brought in, so it was held back rather than imported as a session of its own. Import the folder whole, or sweep it from the server, to bring the family in together.',
   'import.chat.groupRead':
     'The group “{group}”: its {members} members, reply order and muted members were applied to {sessions} sessions made from its chats.',
-  'import.chat.groupNotApplied':
-    'The group “{group}”’s current members and settings were not applied to {sessions} sessions already here from an earlier import; bringing those up to date is left to sync.',
+  'import.chat.groupSynced':
+    'The group “{group}” was compared with {sessions} sessions already here from an earlier import. What it changed in the source since came across where nothing here had changed it; each chat’s row says what.',
   'import.chat.groupNoChats':
     'The group “{group}” came without any of its chats, so there was nothing to apply its members and settings to.',
   'import.chat.groupChatsClaimed':

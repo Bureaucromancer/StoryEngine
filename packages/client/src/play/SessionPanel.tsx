@@ -2,8 +2,19 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useState, type JSX } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRef, useState, type JSX } from 'react';
 
+import {
+  ApiError,
+  cookieValue,
+  CSRF_COOKIE,
+  CSRF_HEADER,
+  errorCode,
+  importChatFile,
+  type ImportItem,
+} from '../api.js';
+import { sentence } from '../library/note-labels.js';
 import {
   useDeleteSession,
   useLibrary,
@@ -289,6 +300,14 @@ export function SessionPanel(props: {
         {setArchived.isError ? <Alert tone="error">{setArchived.error.message}</Alert> : null}
         {remove.isError ? <Alert tone="error">{remove.error.message}</Alert> : null}
 
+        {/* ***Update from source*** — [P13 §2.7], [P13.10a]. Only on a session
+            made from a chat, which is the only kind with a source to update
+            from: the import stamped where it came from, and that is also what
+            the server finds it by. */}
+        {sourceOf(current) === null ? null : (
+          <UpdateFromSource sessionId={props.sessionId} source={sourceOf(current) ?? ''} />
+        )}
+
         {/* ***Memories*** — [08 §7], [P8.4]. **A section of this panel rather
             than an eighth panel in the column**, which is the one thing [P8 §0.3]
             asks of this stage beyond the feature: the debt recorded in this
@@ -307,6 +326,223 @@ export function SessionPanel(props: {
         <RenditionSection sessionId={props.sessionId} renditions={session.data?.renditions} />
       </div>
     </details>
+  );
+}
+
+/**
+ * ***Where a session came from, if a chat*** — `origin.originalFilename`, which
+ * the import stamps with the chat family's root path ([P13 §2.7]): `chats/<folder>/<file>.jsonl`
+ * from a folder, the bare file name from one upload, `…/chats.json#<id>` from a
+ * Marinara store. Read off the session as the server sends it, since the
+ * summary type does not name `origin`.
+ */
+function sourceOf(session: unknown): string | null {
+  const origin = (session as { origin?: { originalFilename?: unknown } } | undefined)?.origin;
+  const named = origin?.originalFilename;
+  return typeof named === 'string' && named !== '' ? named : null;
+}
+
+/**
+ * The file a person would pick to update from — a chat that came in as one
+ * file, named as it was then. `null` for a chat that came with its folder or a
+ * store, whose name here is a path inside a tree a browser cannot open again.
+ */
+function pickableName(source: string): string | null {
+  return source.includes('/') || source.includes('#') ? null : source;
+}
+
+/**
+ * `POST /api/import/sessions/:id/update` — the sweep of the recorded folder
+ * ([P13.10a]). **Here rather than in `api.ts`**: this panel is its one caller,
+ * and the request is the plain JSON one `api.ts`'s own helper makes, CSRF
+ * header included.
+ */
+async function updateFromSource(sessionId: string): Promise<{ item: ImportItem | null }> {
+  const headers: Record<string, string> = {};
+  const token = cookieValue(document.cookie, CSRF_COOKIE);
+  if (token !== null) headers[CSRF_HEADER] = token;
+  const response = await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}/update`, {
+    method: 'POST',
+    headers,
+  });
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!response.ok) {
+    const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
+    const message =
+      typeof payload?.['message'] === 'string'
+        ? payload['message']
+        : `The server answered with status ${String(response.status)}.`;
+    throw new ApiError(response.status, code, message);
+  }
+  return { item: (payload?.['item'] ?? null) as ImportItem | null };
+}
+
+type Updating =
+  | { kind: 'idle' }
+  | { kind: 'busy' }
+  | { kind: 'pick' }
+  | { kind: 'folder' }
+  | { kind: 'done'; item: ImportItem }
+  | { kind: 'failed'; message: string; notes: ImportItem['notes'] };
+
+/**
+ * ***Update from source*** — [P13 §2.7], [P13.10a]: the session menu's way to
+ * bring a chat imported from SillyTavern or Marinara up to date.
+ *
+ * **Two doors, as §2.7 names them.** A chat that came from a folder the server
+ * swept is swept again, server-side, from the path the ledger recorded. One
+ * that came as a file cannot be re-read — *a browser cannot reopen a path* —
+ * so the server says so and the panel offers the file picker, for the same
+ * file under the same name: the name is the chat's identity ([P13 §2.4]), and a
+ * file picked under another would arrive as another chat. A chat that came in a
+ * folder through the browser has neither, and is told to import the folder
+ * again, which updates every chat in it.
+ *
+ * ***What an update does and does not do is said before it is asked for***,
+ * which is what §2.7 requires of the surface — and each row the update answers
+ * with says what it did this time.
+ */
+function UpdateFromSource(props: { sessionId: string; source: string }): JSX.Element {
+  const [state, setState] = useState<Updating>({ kind: 'idle' });
+  const picker = useRef<HTMLInputElement | null>(null);
+  const client = useQueryClient();
+  const pickable = pickableName(props.source);
+
+  const settle = (item: ImportItem | null): void => {
+    // Anything keyed on this session may have moved: its head, its tree, its refs.
+    void client.invalidateQueries({
+      predicate: (query) => query.queryKey.includes(props.sessionId),
+    });
+    void client.invalidateQueries({ queryKey: ['sessions'] });
+    if (item === null) {
+      setState({
+        kind: 'failed',
+        message: 'The source was read, but this chat was not in it.',
+        notes: [],
+      });
+    } else if (item.disposition === 'converted' || item.disposition === 'unchanged') {
+      setState({ kind: 'done', item });
+    } else {
+      setState({
+        kind: 'failed',
+        message: 'The chat could not be read from its source:',
+        notes: item.notes.filter((note) => note.level === 'warn'),
+      });
+    }
+  };
+
+  return (
+    <section
+      aria-label="Update from source"
+      className="flex flex-col gap-2 border-t border-line pt-3"
+    >
+      <input
+        ref={picker}
+        type="file"
+        accept=".jsonl"
+        aria-hidden="true"
+        tabIndex={-1}
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file === undefined) return;
+          if (file.name !== pickable) {
+            setState({
+              kind: 'failed',
+              message: `That is not “${pickable ?? ''}”. An update reads the same chat again, under the same name; a file with another name would arrive as another chat.`,
+              notes: [],
+            });
+            return;
+          }
+          setState({ kind: 'busy' });
+          void importChatFile(file).then(
+            (result) => {
+              settle(result.item);
+            },
+            (failure: unknown) => {
+              setState({
+                kind: 'failed',
+                message: failure instanceof Error ? failure.message : 'The update failed.',
+                notes: [],
+              });
+            },
+          );
+        }}
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          disabled={state.kind === 'busy'}
+          onClick={() => {
+            setState({ kind: 'busy' });
+            void updateFromSource(props.sessionId).then(
+              (result) => {
+                settle(result.item);
+              },
+              (failure: unknown) => {
+                if (errorCode(failure) === 'no-recorded-source') {
+                  setState({ kind: pickable === null ? 'folder' : 'pick' });
+                  return;
+                }
+                setState({
+                  kind: 'failed',
+                  message: failure instanceof Error ? failure.message : 'The update failed.',
+                  notes: [],
+                });
+              },
+            );
+          }}
+        >
+          {state.kind === 'busy' ? 'Updating…' : 'Update from source'}
+        </Button>
+        {state.kind === 'pick' ? (
+          <Button
+            type="button"
+            size="compact"
+            onClick={() => {
+              picker.current?.click();
+            }}
+          >
+            {`Choose ${pickable ?? ''}`}
+          </Button>
+        ) : null}
+      </div>
+      {state.kind === 'pick' ? (
+        <Note>
+          {`This chat came in as one file, which the server cannot read again. Choose “${pickable ?? ''}” once more, as it is now.`}
+        </Note>
+      ) : state.kind === 'folder' ? (
+        <Note>
+          This chat came in with its folder. Import that folder again from the library’s import
+          panel: it brings every chat in it up to date, this one included.
+        </Note>
+      ) : state.kind === 'done' ? (
+        <div role="status" className="flex flex-col gap-1 text-sm text-ink">
+          {state.item.disposition === 'unchanged' ? (
+            <p>Nothing new: the session already holds everything its source has.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {state.item.notes.map((note, index) => (
+                <li key={`${note.key}:${String(index)}`}>{sentence(note)}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : state.kind === 'failed' ? (
+        <div role="alert" className="flex flex-col gap-1 text-sm">
+          <p className="text-danger-ink">{state.message}</p>
+          {state.notes.map((note, index) => (
+            <p key={`${note.key}:${String(index)}`} className="text-ink-muted">
+              {sentence(note)}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      <Fine>
+        {`Reads the chat from ${props.source} again and adds what is new there: new messages, edits and branches, each beside what is already here. Nothing in this session is deleted or rewritten — a message deleted in the source stays here — and if you have played on here, your place is kept and the new messages wait on the source’s branches. Nothing is written back to the source.`}
+      </Fine>
+    </section>
   );
 }
 

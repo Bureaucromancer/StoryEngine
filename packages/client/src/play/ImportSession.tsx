@@ -50,17 +50,16 @@ import { Fine } from '../ui/Text.js';
  * only picks which of two doors to knock on, and a `.jsonl` sent to the
  * export's door would be refused as not JSON.
  *
- * ***The hint says once what an import is — for now, and not yet what
- * [P13.8] asked.*** The stage asks the surface to say what an update from
- * source does and does not do ([P13 §2.7]), and that cannot be said truthfully
- * before there is an update to describe: sync is [P13.10a]'s. So **the §2.7
- * sentence has not shipped**, and this is an interim one that is true of this
- * build — a new session; updating it from its source comes later; the same
- * file loaded again changes nothing; a chat already imported with its folder
- * was keyed by its place in the folder, not by this bare file name, so it
- * arrives a second time. The departure is recorded in the stage's report and
- * proposed as a note under P13.8 in the phase document, which is where it is
- * settled — along with whether the §2.7 sentence moves to P13.10a with sync.
+ * ***The hint says once what an import and an update are*** — [P13.8]'s
+ * *"the surface says once what an update from source does and does not do"*,
+ * [P13 §2.7]. It shipped at P13.8 as an interim sentence (*updating comes
+ * later*), because there was no update to describe; [P13.10a] made sync, and
+ * this is the §2.7 sentence: loading a chat again brings its session up to
+ * date — new messages, edits and branches added beside what is here, nothing
+ * deleted or rewritten, the person's place kept if they played on, nothing
+ * written back — and a chat imported with its folder is updated through its
+ * folder, because it was keyed by its place there and not by a bare file name.
+ * Play's session menu says the same beside *Update from source*.
  *
  * ***What the chat import could not do is said here, before the session
  * opens*** — a character not in the library, a persona or lorebook not found,
@@ -72,7 +71,7 @@ import { Fine } from '../ui/Text.js';
 const WORDS = labels('sessions.import', {
   open: 'Load a session or a chat',
   reading: 'Reading…',
-  hint: 'A `.json` a StoryEngine install exported, or a `.jsonl` chat from SillyTavern or Marinara. Either arrives as a new session, with every branch. Updating an imported chat from its source comes later; loading the same file again changes nothing, and a chat already imported with its folder arrives as a second session.',
+  hint: 'A `.json` a StoryEngine install exported, or a `.jsonl` chat from SillyTavern or Marinara. Either arrives as a new session, with every branch. Loading a chat again updates its session: new messages, edits and branches are added beside what is there, nothing in it is deleted or rewritten, and if you played on, your place is kept. Nothing is written back to the source. A chat imported with its folder is updated by importing the folder again.',
   unreadable: 'That file is not a session export this build can read.',
   wrongSchema: 'That is a StoryEngine file of another kind.',
   noTurns: 'That export has no turns in it.',
@@ -80,9 +79,7 @@ const WORDS = labels('sessions.import', {
     'That session is already here. A copy of it would share its turns, so it is not loaded twice.',
   chatUnreadable: 'That file is not a chat this build can read.',
   chatAlreadyHere:
-    'That chat is already here as a session. It was imported before, and a second copy would share its turns, so it is not loaded twice.',
-  chatGrown:
-    'That chat was imported before and has changed since. The session made from it keeps the chat as it was then; updating it from the source comes later, so nothing was loaded and no second copy was made.',
+    'That chat is already here as a session, and nothing in it has changed since it was imported, so there was nothing to add.',
   chatNotLoaded: 'That chat could not be loaded as a session:',
   importedWithNotes: 'The chat is a session now. The import could not do all of it:',
   openImported: 'Open the session',
@@ -109,9 +106,10 @@ function isChat(file: File): boolean {
  * ***Read by the chat pass's own notes, not by the disposition alone.*** The
  * library's import answers `converted` with an `objectId` for anything it
  * wrote, and an id that is not a session's opens a page for nothing. So a
- * session is a row that says `import.chat.imported`; *already here* is one
- * that says `import.chat.alreadyHere`, and *grown since* one that says
- * `import.chat.grownSince`. Anything else made no session, and its warnings
+ * session is a row that says `import.chat.imported`, or — a chat loaded again
+ * after it grew — `import.chat.extended`, which names the session it brought up
+ * to date ([P13.10a]); *already here* is one that says
+ * `import.chat.alreadyHere`. Anything else made no session, and its warnings
  * are the only account of why.
  */
 function sessionOf(result: ImportFileResult): { sessionId: string; notes: Note[] } {
@@ -121,23 +119,20 @@ function sessionOf(result: ImportFileResult): { sessionId: string; notes: Note[]
   if (
     item.disposition === 'converted' &&
     item.objectId !== undefined &&
-    said('import.chat.imported')
+    (said('import.chat.imported') || said('import.chat.extended'))
   ) {
     return { sessionId: item.objectId, notes: warnings };
   }
   if (item.disposition === 'unchanged' && said('import.chat.alreadyHere')) {
     throw new ChatRefused('chat-already-here', []);
   }
-  if (item.disposition === 'recorded' && said('import.chat.grownSince')) {
-    throw new ChatRefused('chat-grown', []);
-  }
   throw new ChatRefused('chat', warnings);
 }
 
 class ChatRefused extends Error {
-  readonly code: 'chat' | 'chat-already-here' | 'chat-grown';
+  readonly code: 'chat' | 'chat-already-here';
   readonly notes: Note[];
-  constructor(code: 'chat' | 'chat-already-here' | 'chat-grown', notes: Note[]) {
+  constructor(code: 'chat' | 'chat-already-here', notes: Note[]) {
     super(code);
     this.name = 'ChatRefused';
     this.code = code;
@@ -258,9 +253,7 @@ export function ImportSession(): JSX.Element {
                               : WORDS.chatUnreadable
                             : code === 'chat-already-here'
                               ? WORDS.chatAlreadyHere
-                              : code === 'chat-grown'
-                                ? WORDS.chatGrown
-                                : WORDS.failed,
+                              : WORDS.failed,
                 notes,
               });
             },
