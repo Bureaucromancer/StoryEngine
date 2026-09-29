@@ -175,6 +175,7 @@ interface OutputMessage {
   text: string;
   reasoning?: string;
   carried?: true;        // copied from the sibling this turn redoes, not generated (§1.6)
+  original?: string;     // the text as the model returned it, when cleanup or the editor changed it
 }
 ```
 
@@ -247,24 +248,41 @@ randomness is drawn on the turn's tape, so a replayed turn picks the same
 speakers.
 
 - **`natural`**, the default. The activation text is the input, or when there is
-  none the last message. Then:
-  1. every eligible member whose name appears in it speaks, in order of mention;
-  2. every other member speaks if a talkativeness roll succeeds, in shuffled order;
-  3. if still nobody, one random member with talkativeness above zero speaks.
+  none the last message (`group-chats.js:990-1000`). Then
+  (`activateNaturalOrder`, `:1242-1316`):
+  1. every eligible member one of whose name's words is a word of the activation
+     text speaks, in the order the words appear;
+  2. every member, in shuffled order, speaks if a talkativeness roll succeeds
+     (`talkativeness >= roll`), so a mentioned member can be picked twice and
+     is de-duplicated;
+  3. if still nobody, one random member with talkativeness above zero speaks
+     (anyone, if nobody has any).
 
-  The last speaker is excluded unless `allowSelfResponses`. **Talkativeness**
+  **On a turn with no input only**, the last message's speaker is excluded
+  unless `allowSelfResponses`: ST bans them only when the round was not
+  started by the player (`:1245`). ST matches words with ASCII `\w`, so a name
+  like *Zoë* never matches; ours matches Unicode letters and digits, a
+  deliberate difference. **Talkativeness**
   lives at `actor.modeData['storyengine.scene'].talkativeness`, default 0.5. It
   is participation, not prompt, so it belongs in `modeData`: the card schema's
   *"prompt assembly is owned by the preset"* exclusion (`actor.ts:158`) is about
   the other kind. ST's `talkativeness` imports there (§3, P13.9).
 - **`list`**: everyone eligible, once each, in cast order. This is ST's LIST and
   Marinara's `sequential`.
-- **`pooled`**: one member who has not spoken since the last input, else anyone
-  but the last speaker.
-- **`manual`**: nobody replies to an input. Replies are asked for (§1.6).
+- **`pooled`**: one member. After an input, anyone at random. On a turn with
+  no input, one who has not spoken since the last input, else anyone but the
+  last speaker (`activatePooledOrder`, `:1197-1231`: its scan back stops at
+  once when the round has user input).
+- **`manual`**: nobody replies to an input. Replies are asked for by force-talk
+  (§1.6). A turn with **no** input (*let them talk*, auto-mode) gets one random
+  eligible member, which is ST's (`:1029-1031`); Marinara's manual does nothing
+  there, and a *let them talk* that silently does nothing is the failure §1.3a
+  refuses for `smart` too.
 - **Force talk** overrides every policy. A submission may name
   `speakers: [actorId]`: ST's member *speak* button and `/trigger`, and
-  Marinara's `forCharacterId`.
+  Marinara's `forCharacterId`. It reaches **muted** members too, as ST's does
+  (`force_chid` bypasses `disabled_members`, `:1005`), but never the dead or
+  departed, and never the persona.
 
 **Eligible is: in the cast, not muted, not dead or departed.** `se.presence` has
 been the eligibility test since P7.3, and nothing writes it, so today nobody is
@@ -405,8 +423,12 @@ each speaker:
    - a leading `Speaker:` is stripped;
    - the text is cut at the first line opened by another member's name.
 
-   The raw reply stays in the call record, which is where an unmodified model
-   response already lives.
+   ~~The raw reply stays in the call record, which is where an unmodified model
+   response already lives.~~ *Corrected 2026-09-29: it does not.* `ModelCall`
+   records the prompt, parameters, usage and outcome and never the reply
+   (`shared/src/turn.ts`, `ModelCall`); the reply lives only in the output. So a
+   message whose text cleanup changed keeps what the model returned in
+   `OutputMessage.original` (§1.1), written only when the two differ.
 4. **It is appended as one `OutputMessage`, streamed with its index.** Progress
    events gain `message: n`.
 
@@ -584,7 +606,8 @@ sources and stays client-side here.
 *Moved into the phase 2026-09-29, by instruction; the first draft listed them
 as not in Part A.* Read at the pin for this section:
 `services/agents/agent-{pipeline,executor}.ts`, `routes/generate.routes.ts`'s
-phases (`:4281-8150`), `services/generation/committed-tracker-context.ts`,
+agent work (`:3785-9786`: arming and cadence to `:4278`, the phases from
+`:4575`, results applied `:8054-9610`, the text-rewrite editors `:9630-9786`), `services/generation/committed-tracker-context.ts`,
 `db/schema/{game-state,agents}.ts`, and the catalogue in
 `services/professor-mari/official-agent-knowledge.ts`. **The agents' own
 manifests and default prompts are not in Marinara's repository.** They ship as
@@ -624,17 +647,19 @@ They are named so nobody builds them twice:
 
 #### 1.9.2 Trackers: model-proposed channels, one batched call
 
-**Six trackers, as Scene channels**, each off until switched on, with value
-shapes taken from the code that applies Marinara's results
-(`generate.routes.ts:8243-8930`):
+**Six trackers, as Scene channels**, each off until switched on. The value
+shapes are Marinara's stored ones, read from the code that applies its results
+(`generate.routes.ts:8243-8930`) and the types and helpers it calls
+(`shared/src/types/game-state.ts:54-164`, `utils/quest-state.ts`,
+`generate-route-utils.ts:205-330`), with field names made ours where noted:
 
 | Channel | Scope | Value | Marinara |
 |---|---|---|---|
-| `se.track.world` | session | `{ date, time, location, weather, temperature, fields: [{name, value}], recent: string[] }` | world-state |
-| `se.track.character` | **actor** | `{ mood, appearance, outfit, thoughts, fields: [{name, value}], stats: [{name, value, max?}] }` | character-tracker |
-| `se.track.persona` | session | `{ status, stats: [{name, value, max?}] }` | persona-stats |
-| `se.track.quests` | session | `[{ name, description?, objectives: [{text, done}], notes? }]` | quest |
-| `se.track.inventory` | session | `{ currencies: [{name, qty}], equipped: [{name}], carried: [{name, qty}] }` | inventory-tracker (and persona-stats' inventory) |
+| `se.track.world` | session | `{ date, time, location, weather, temperature, fields: [{name, value}], recent: string[] }` | world-state (`worldCustomFields`, `recentEvents`) |
+| `se.track.character` | **actor** | `{ mood, appearance, outfit, thoughts, fields: Record<string, string>, stats: [{name, value, max, color?}] }` | character-tracker (`PresentCharacter`, `game-state.ts:54`) |
+| `se.track.persona` | session | `{ status, stats: [{name, value, max, color?}] }` | persona-stats |
+| `se.track.quests` | session | `[{ name, stage?, objectives: [{text, completed}], completed }]` | quest (stored `QuestProgress`, `game-state.ts:158`) |
+| `se.track.inventory` | session | `{ currencies: [{name, qty?}], equipped: [{name, qty?}], inventory: [{name, qty?}] }` | inventory-tracker; persona-stats' own `InventoryItem`s fold into `inventory` |
 | `se.track.custom` | session | `[{ name, value }]` whose names a person defines | custom-tracker |
 
 - **`update: 'model-proposed'`, and that is the line between this and
@@ -644,9 +669,18 @@ shapes taken from the code that applies Marinara's results
   inventory arithmetic, quest counters: Campaign's own TypeScript"*. These are
   the other thing: **what the story has established, as a model reading it
   reports**, with no arithmetic and no rules. A sword in `se.track.inventory` is
-  there because the prose said the player picked it up. Nothing is pulled
-  forward from 5.0, and 5.0 can still build the engine-computed library beside
-  these without either knowing the other exists.
+  there because the prose said the player picked it up. No engine-computed
+  mechanics come forward from 5.0. ~~5.0 can still build the engine-computed
+  library beside these without either knowing the other exists.~~
+  *Corrected 2026-09-29:* it cannot, and must not. 06 §4 treats inventory,
+  quests, clock and weather as **one** set of channels a mode enables, and
+  [00 §2.7](../00-stance.md) rejects exactly the split Marinara has between
+  roleplay trackers and Game HUD widgets. So these are the subjects' channels,
+  and **5.0 inherits them**: Campaign's library changes the update policy of
+  the ones it makes mechanical (`engine-computed`, *model proposes, engine
+  decides*, 06 §4) and adds the ones with no narrative counterpart (HP pools,
+  combat). That is a channel migration 5.0 owns, recorded here so it is
+  planned rather than discovered.
   [00 §4](../00-stance.md)'s *"RPG systems are opt-in channels"* holds: all six
   are off by default.
 - **One post step, one call, every enabled tracker.** `se.scene.track` (post,
@@ -689,16 +723,20 @@ shapes taken from the code that applies Marinara's results
   effect.
 - **The surface.** A tracker panel: world, each present character, the
   persona, quests with checkable objectives, inventory, custom fields, with lock
-  and hide per field. It needs two widget arms the build has deferred until a
-  channel needed them: **`meter`** (a stat bar, [10 §8.0](../10-ui-surfaces.md)'s
-  *"a `meter` arrives with the first numeric channel"*: this is it) and
-  **`record`** (a structured value edited field by field). Both are
-  `WidgetSpec` arms, so the rule that there is never an `html` field holds.
+  and hide per field. It needs two widget arms: **`meter`**, a stat bar, which
+  the build deferred until a channel needed it
+  ([10 §8.0](../10-ui-surfaces.md)'s *"a `meter` arrives with the first numeric
+  channel"*: this is it), and **`record`**, a structured value edited field by
+  field, which is new here. Both are `WidgetSpec` arms, so
+  [10 §8.1](../10-ui-surfaces.md)'s *"what must not happen is the vocabulary
+  quietly acquiring an `html: string` field"* holds.
 
 #### 1.9.3 The narrative director: a push, and a secret plot
 
-**Push story.** Marinara's director runs only when the player arms it for one
-turn, *natural* or *random* (`generate.routes.ts:3785-3827`). Here that is a
+**Push story.** Marinara's director *push* runs only when the player arms it
+for one turn, *natural* or *random* (`generate.routes.ts:942-945, 3819-3826`;
+the client clears the flag after one use). Its other run, secret-plot upkeep,
+is on a cadence and is the next paragraph. Here that is a
 submission flag, `push: 'natural' | 'random'`, which arms an engine-owned `pre`
 step, `se.scene.direct`. It makes one small call over its own candidates (the
 recent messages, the secret plot if there is one) and writes a short direction.
@@ -706,7 +744,9 @@ recent messages, the secret plot if there is one) and writes a short direction.
 [06 §5.1](../06-modes-and-turn-pipeline.md) already put it: *"one slot, several
 producers… or a step such as a Narrative Director push"*. It goes through an
 engine-only report cell, as the hook selector's guidance does
-(`hook-selector.ts:117`), because a mode's step cannot write advisory text.
+(`hook-selector.ts:117`, the cell at `runner.ts:515`), because the guidance
+slot is the engine's: a step's own candidates are appended after the preset's,
+so a step can add advisory words but cannot fill the slot the pack positioned.
 If the call fails, the pack's own fixed push text for that flavour stands in:
 Marinara's individual group mode uses exactly such a fixed directive
 (`generate.routes.ts:5754`). This is also **the first producer for
@@ -716,10 +756,12 @@ having none. The flag on the submission is the producer.
 **Secret plot.** [06 §7.3](../06-modes-and-turn-pipeline.md): *"Hidden GM state
 (… the Narrative Director's Secret Plot) is a channel with `visibility:
 "hidden"` and a reveal affordance."* So: `se.plot.secret`, a hidden session
-channel, `{ arc, protagonistArc, characterArc?, completed }` (Marinara's
-`overarchingArc`, `director-secret-plot-runtime.ts`). A cadence step keeps it
-(default every 8 story turns, Marinara's default), writing a fresh arc when
-there is none or the last one completed. It reaches the narrator through a
+channel, `{ description, protagonistArc, characterArc?, completed }`
+(Marinara's `overarchingArc`, `director-secret-plot-runtime.ts`). A cadence
+step keeps it, writing a fresh arc when there is none or the last one
+completed, and a second pass immediately when a pass completes one. The
+default is every **4 story turns**: Marinara's default is 8 *messages*, user and
+assistant counted together, which is about four rounds. It reaches the narrator through a
 channel slot placed with the system blocks. The reveal affordance is a panel
 toggle that shows it to the player; off by default, since a plot the player can
 read is not secret.
@@ -742,9 +784,10 @@ which rewrites the message and keeps the original in the message's extras.
   and style instructions. Its answer is Marinara's shape,
   `{ editNeeded, editedText, changes }`. When an edit is needed it replaces the
   message's text **before the turn is written**, so the turn's authored bytes
-  are the edited ones. The unedited text stays where every raw model response
-  already lives, the generate call's record, and the step outcome carries the
-  `changes`. The transcript marks an edited message and offers the original.
+  are the edited ones. The unedited text is the message's `original` (§1.1),
+  written only when the editor changed something; ~~it stays in the generate
+  call's record~~ (*corrected: the call record holds no reply text*). The step
+  outcome carries the `changes`. The transcript marks an edited message and offers the original.
   Under `per-actor` dispatch it edits each message on its own. *Hold for
   rewrite* (Marinara's default) is ours too: a round being edited streams to
   the transcript only once the edit is in.
@@ -752,16 +795,19 @@ which rewrites the message and keeps the original in the message's extras.
   [24 §2c.2](../24-roadmap.md) decided this for continuity in so many words:
   *"Emits notices, never effects… a checker confident enough to rewrite the
   story would be worse than the problem."* So continuity rides the same call and
-  its findings appear as a checklist on the message, which is Marinara's own
-  continuity UI (`ContinuityIssueChecklist.tsx`). Applying a finding is the edit
+  its findings appear as a checklist on the message they are about. That
+  placement is ours: Marinara lists them in a chat-wide HUD menu
+  (`ContinuityIssueChecklist.tsx`, rendered from `RoleplayHUDActionsMenu.tsx`)
+  after its editor has already applied them. Applying a finding is the edit
   gesture (§1.6), a sibling authored with the fix. A session setting
   `continuity: 'apply'` lets the editor apply its own findings, which is
   Marinara's behaviour, opt-in and labelled.
 - **Immersive HTML is not built, and this one is a refusal.** It asks a model
-  to emit markup that the client renders. [10 §8.0](../10-ui-surfaces.md)'s
-  *"what must never happen is an `html: string` field"* and
-  [06 §10.4a](../06-modes-and-turn-pipeline.md)'s *"annotate, never rewrite…
-  no markup injected"* both rule it out, and the reason under both is that
+  to emit markup that the client renders. [10 §8.1](../10-ui-surfaces.md) (the
+  widget vocabulary must never acquire *"an `html: string` field"*) and
+  [10 §13.1](../10-ui-surfaces.md), which 06 §10.4a applies (*"annotate, never
+  rewrite"*: the message text stays plain prose with no markup injected), both
+  rule it out, and the reason under both is that
   rendering model-authored HTML from this server's origin is a script-injection
   surface. Recorded so it is not re-proposed as a missing feature.
 
@@ -770,21 +816,28 @@ which rewrites the message and keeps the original in the message's extras.
 - **Echo chamber** (side reactions from other characters, shown beside the
   chat): built as a panel fed by a cadence step, since it never touches the
   story. Off by default.
-- **Beholder** (per-character body slots): folded into `se.track.character`'s
-  custom fields rather than a seventh channel, which is what Marinara's own
-  character tracker does for anything it has no field for.
+- **Beholder** (per-character body slots: worn, holding, wounds): folded into
+  `se.track.character`'s `fields` rather than a seventh channel. That is our
+  choice, not Marinara's, which keeps it as its own agent with typed state
+  (`beholder-state.ts`); a field map per character carries the same facts
+  without a second per-actor tracker to keep in step with the first.
 - **Card-evolution auditor** (proposes edits to a character card): not built.
-  A card is a library object with its own history and review flow
-  ([03 §11](../03-data-model.md)); an agent proposing library edits from inside
-  a session is the spoiler path [08 §6](../08-cross-session-memory.md) exists to
-  close, and the memory extractor is this build's reviewed version of the idea.
+  A card is a library object with its own version history
+  ([03 §11](../03-data-model.md)), and a session copies from it when it is
+  made (03 §11.4). An agent editing the card from inside a session would carry
+  that session's events into every later session made from it: the same
+  spoiler bleed [08 §6](../08-cross-session-memory.md) designs against for
+  memory, by a route 08 §6 does not cover. The memory extractor, reviewed and
+  scoped, is this build's version of the idea.
 - **Combat, Spotify, haptics**: combat is Campaign's (5.0);
   the others are [triage](02-triage.md)'s *"DISCARD from core"*.
 
 #### 1.9.6 Agent configuration is session configuration
 
-Marinara keeps `enableAgents`, `activeAgentIds` and per-agent connections in the
-chat's metadata. Here: each tracker, the director, the secret plot, the editor
+Marinara keeps `enableAgents` and `activeAgentIds` (and `manualTrackers`, the
+secret-plot switch and the prose-guardian settings) in the chat's metadata;
+its per-agent connections are global, on `agent_configs.connection_id`, not
+per chat. Here: each tracker, the director, the secret plot, the editor
 and the echo chamber are switches in the session's settings, grouped under
 *Agents* because that is what a Marinara user will look for; their models are
 the session's `stepRoles` at each step's id, which already exists
@@ -945,7 +998,7 @@ A resolved speaker becomes `speaker: { id, name }`. An unresolved one keeps
 | Marinara | Here |
 |---|---|
 | `game_state_snapshots` row for a message's swipe | effects on the turn holding that message, one per enabled tracker channel, `proposedBy: engine`; the snapshot keying *is* the tree's |
-| `activeAgentIds`, `manualTrackers`, `narrativeDirectorSecretPlotEnabled`, prose-guardian settings | the session's agent switches (§1.9.6) |
+| `activeAgentIds`, `manualTrackers`, `narrativeDirectorSecretPlotEnabled`, prose-guardian settings | the session's agent switches (§1.9.6). Agent *models* are global in Marinara, not per chat, so they are not imported; a note names them |
 | `agent_memory` `overarchingArc` | `se.plot.secret` on the root chat's head turn |
 | field locks, hidden tracker fields | `se.track.locks` and the channels' hidden fields |
 | `extra.proseGuardianOriginalText` | nothing to carry: the imported text is the edited one, and the original is noted |
@@ -1130,7 +1183,7 @@ the prompt and not in the transcript until revealed.
 #### P13.5c — The editor and the echo chamber
 
 - `se.scene.edit`: style edits applied before commit, per message, with the
-  original in the call record and the transcript's *show original*.
+  unedited text in `OutputMessage.original` and the transcript's *show original*.
 - Continuity findings as a checklist, applied through the edit gesture;
   `continuity: 'apply'` opt-in.
 - The echo chamber panel and its cadence step.
