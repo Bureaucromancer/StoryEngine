@@ -3310,6 +3310,45 @@ describe('a chat, assembled', () => {
       expect(ids(rows).at(-1)).toBe('se.card.post-history.vera');
     });
 
+    /**
+     * ***A continue ends on the message it continues, then the nudge*** —
+     * [P13.4], corrected at its review (2026-09-29). ST takes the continued
+     * message out of the chat *after* depth injection (`openai.js:908`), so a
+     * depth-0 run sits before it, and depth 1 is still counted over the chat
+     * including it. Pushed after the splice alone, the note sat between the
+     * continued message and the nudge.
+     */
+    it('puts a depth-0 note before a continued message, which the nudge follows', () => {
+      const rows = speaking({
+        speaker: vera.actor.id,
+        history: [turn('t1', 'One.', undefined, 'First.')],
+        round: [line(lund, 'Lund first.'), line(vera, 'Vera once.')],
+        continuing: true,
+        chat: { ...CHAT, note: { text: 'Keep it tense.', depth: 0 } },
+      });
+      const chat = ids(rows).filter(
+        (id) =>
+          id.startsWith('se.history.') ||
+          id === 'se.input' ||
+          id.startsWith('se.round.') ||
+          id === 'se.note' ||
+          id === 'se.card.depth.vera' ||
+          id === 'se.continue',
+      );
+
+      expect(chat).toEqual([
+        'se.history.t1.input',
+        'se.history.t1.output',
+        'se.input',
+        'se.round.0',
+        'se.card.depth.vera',
+        'se.note',
+        'se.round.1',
+        'se.continue',
+      ]);
+      expect(ids(rows).slice(-2)).toEqual(['se.round.1', 'se.continue']);
+    });
+
     it('is absent when this call was not due one', () => {
       expect(ids(speaking())).not.toContain('se.note');
     });

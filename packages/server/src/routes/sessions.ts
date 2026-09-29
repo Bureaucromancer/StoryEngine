@@ -12,6 +12,8 @@ import {
   SETUP_SCHEMA,
   uuidv7,
   type Setup,
+  type Actor,
+  type OutputMessage,
   type Turn,
   type TurnAttachment,
 } from '@storyengine/shared';
@@ -92,6 +94,7 @@ import {
   sweepAttachments,
 } from '../sessions/attachments.js';
 import { readOnePart } from './import.js';
+import { authoredMessages, editedFrom, gestureOf, type Gesture } from './gestures.js';
 import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
 import { keptSpeakers } from '../turns/smart-speakers.js';
@@ -107,7 +110,11 @@ import { PathEscapeError } from '../storage/paths.js';
 // and something else from another.
 import { respondToLibraryError } from './library.js';
 import { disconnectSignal } from './disconnect.js';
-import type { Tape } from '../rng/rng.js';
+import { swipeReplay, type Tape } from '../rng/rng.js';
+import type { TurnPayload } from '../turns/runner.js';
+import { resolveCast } from '../turns/cast.js';
+import { readRegistry } from '../tags/store.js';
+import { openingChoiceRefusal, openingTurns, writeOpening } from '../sessions/opening.js';
 
 /**
  * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [19 §8].
@@ -366,6 +373,23 @@ const CreateBody = Type.Object(
      * See {@link HookInput}.
      */
     hooks: Type.Optional(Type.Array(HookInput, { maxItems: 256 })),
+    /**
+     * ***Which written opening each member starts on*** — actor id to opening
+     * id, [P13 §1.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * [P13.4]. Read only by a mode that declares `openingTurn`.
+     *
+     * Absent for a member is their primary. In a group this is how an
+     * alternate is chosen at all — §1.7: *"siblings across N members would be a
+     * product"* — and in a single-character session it picks which sibling
+     * the head starts on, every opening still written beside it. A member not
+     * in the cast, or an opening that member does not have, is a 422 before
+     * anything is created.
+     */
+    openings: Type.Optional(
+      Type.Record(Type.String({ maxLength: 200 }), Type.String({ maxLength: 200 }), {
+        maxProperties: 32,
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -727,15 +751,25 @@ const SubmitBody = Type.Object(
      * got a 200 and silently lost it — a picture sent to an older server would
      * have vanished from the turn with nothing said. A closed object answers 400
      * instead, which is the refusal a person can act on.
+     *
+     * ***Optional since [P13.4]*** — [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+     * *let them talk*: ST's empty send and Marinara's new reply. A turn with no
+     * input is the cast answering the last message, the speakers chosen by the
+     * policy with that message as the activation text, as [P13.1] computes
+     * (`turns/speakers.ts`, `activationText`). A swipe and a continue carry
+     * the input of the turn they name and refuse one beside them; an edit
+     * carries its own inside `authored`.
      */
-    input: Type.Object(
-      {
-        text: Type.String({ maxLength: 100_000 }),
-        actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-        kind: Type.Optional(Type.String({ maxLength: 40 })),
-        attachments: AttachmentsField,
-      },
-      { additionalProperties: false },
+    input: Type.Optional(
+      Type.Object(
+        {
+          text: Type.String({ maxLength: 100_000 }),
+          actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+          kind: Type.Optional(Type.String({ maxLength: 40 })),
+          attachments: AttachmentsField,
+        },
+        { additionalProperties: false },
+      ),
     ),
     guidance: Type.Optional(Type.String({ maxLength: 4000 })),
     /**
@@ -770,6 +804,73 @@ const SubmitBody = Type.Object(
         uniqueItems: true,
       }),
     ),
+    /**
+     * ***Swipe*** — regenerate message *k* of the turn `redoOf` or `rewriteOf`
+     * names, [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * [P13.4]. The new turn is a sibling that carries messages `0..k-1`
+     * (`carried: true`) and the same input, and regenerates message *k* by
+     * whoever said it: the round starts at *k*, with the carried messages as
+     * the round so far. `redoOf` makes it a reroll, `rewriteOf` a rewrite, as
+     * for the whole turn. What each refusal means is `routes/gestures.ts`'.
+     */
+    fromMessage: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
+    /**
+     * ***Continue*** — a sibling of this turn whose last message is the old
+     * text and a continuation, [P13 §1.6], [P13.4]. One call, by the last
+     * message's speaker, shown that message as the last assistant entry and
+     * ending on SillyTavern's continue nudge (`openai.js:110`).
+     */
+    continueOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    /**
+     * ***The turn an edit rewrites*** — added 2026-09-29, at the [P13.4]
+     * review. Sent with `authored`, the edit is that turn's sibling and carries
+     * what `authored` does not rewrite: the input whole (pictures, force-talk,
+     * raw text) unless `authored.input` is sent, when only its text, actor and
+     * kind are laid over the carried one; the messages unless
+     * `authored.messages` is sent; and each line left as it was kept whole,
+     * hidden if it was. See `routes/gestures.ts`.
+     */
+    editOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    /**
+     * ***Edit*** — a turn written by hand, [P13 §1.6], [P13.4]: no call and
+     * no `request`. Sent with `editOf`, it is that turn's sibling and carries
+     * what it does not rewrite (above); ~~sent with `parentTurnId` set to the
+     * edited turn's parent, it is a sibling~~ — that still makes one, but
+     * re-authored from nothing: the input's pictures, force-talk and raw text
+     * are lost, which is why `editOf` was added. Sent at the head, it is a
+     * line added by hand. A speaker is an actor id the cast holds at that node,
+     * or `null` for the narrator, and never the persona — whose lines are the
+     * input. **At least one of the two**, since an edit of nothing is not one.
+     */
+    authored: Type.Optional(
+      Type.Object(
+        {
+          input: Type.Optional(
+            Type.Object(
+              {
+                text: Type.String({ maxLength: 100_000 }),
+                actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+                kind: Type.Optional(Type.String({ maxLength: 40 })),
+              },
+              { additionalProperties: false },
+            ),
+          ),
+          messages: Type.Optional(
+            Type.Array(
+              Type.Object(
+                {
+                  speaker: Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
+                  text: Type.String({ maxLength: 100_000 }),
+                },
+                { additionalProperties: false },
+              ),
+              { minItems: 1, maxItems: 64 },
+            ),
+          ),
+        },
+        { additionalProperties: false, minProperties: 1 },
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -783,7 +884,11 @@ const SubmitBody = Type.Object(
  */
 const HeadBody = Type.Object(
   {
-    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+    /**
+     * `null` is the root, since [P13.4]: [P13 §1.6]'s *Delete* of a first
+     * turn — the greeting — moves the head to its parent, which is nobody.
+     */
+    turnId: Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
     resume: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
@@ -846,6 +951,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
+      openings?: Record<string, string>;
     };
 
     /**
@@ -998,8 +1104,43 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       preset = structuredClone(row.body) as typeof mode.definition.assembly.defaultPreset;
     }
 
+    /**
+     * ***The members a greeting can come from, read before the session exists***
+     * — [P13 §1.7], [P13.4] — so a choice naming nobody is refused with
+     * nothing left behind. The cast in cast order, the persona out of it:
+     * the player does not greet themselves. Only for a mode that declares
+     * `openingTurn`, and only when somebody is cast.
+     */
+    let greeting: { members: Actor[]; persona: string | null } | null = null;
+    if (mode.definition.openingTurn === true && cast !== undefined && cast.actors.length > 0) {
+      const resolved = resolveCast(
+        services.library,
+        account.handle,
+        cast,
+        await readRegistry(services.sessions.layout, account.handle),
+        {},
+      );
+      greeting = {
+        members: resolved.actors
+          .map((member) => member.actor)
+          .filter((actor) => actor.id !== cast.persona),
+        persona: resolved.persona?.actor.name ?? null,
+      };
+      const refused = openingChoiceRefusal(greeting.members, body.openings ?? {});
+      if (refused !== null) {
+        return reply.code(422).send({
+          error: 'unknown-opening',
+          message:
+            refused.kind === 'not-in-cast'
+              ? 'An opening was chosen for somebody who is not in the cast.'
+              : 'That character has no such opening.',
+          actorId: refused.actorId,
+        });
+      }
+    }
+
     try {
-      const session = await createSession(services.sessions, account.handle, {
+      let session = await createSession(services.sessions, account.handle, {
         // Trimmed here so `{"name": "   "}` cannot produce a session whose
         // list entry is an invisible link. It is not the only guard —
         // `session.json` is hand-editable by design ([03 §1]), so the client's
@@ -1132,6 +1273,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           : await sessionsInTreatment(services, account.handle, session.id, treatment);
       const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
 
+      /**
+       * ***The opening turn*** — [P13 §1.7], [P13.4]. Written before the
+       * setup turn is reserved, so a mode that has both generates its world
+       * from the greeting's node rather than beside it; and written directly,
+       * under the session's lock, because it makes no call — there is nothing
+       * to stream and no job to watch, and the reply already carries the
+       * session with its head on the greeting.
+       */
+      if (greeting !== null) {
+        const opening = openingTurns(session, greeting.members, greeting.persona, body.openings);
+        if (opening !== null) {
+          session =
+            (await writeOpening(services.sessions, account.handle, session.id, opening)) ?? session;
+        }
+      }
+
       const parts = setupPlanFor(mode).steps.length;
       if (parts === 0) {
         return await reply.code(201).send({ session: presentSession(session), ...warn });
@@ -1143,7 +1300,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // The session is new, so there is exactly one turn this key can name and
         // a retried create cannot start a second generation.
         idempotencyKey: `setup:${session.id}`,
-        headTurnId: null,
+        headTurnId: session.headTurnId,
       });
       if (reserved.kind !== 'created') {
         // Nothing else can have reserved a turn on a session created one line
@@ -2951,7 +3108,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
 
       const { sessionId } = request.params as { sessionId: string };
-      const body = request.body as { turnId: string; resume?: boolean };
+      const body = request.body as { turnId: string | null; resume?: boolean };
 
       // No account filter, matching `submitTurn`'s own busy check: a session
       // belongs to the directory it is in, so the job on it is this account's.
@@ -3152,7 +3309,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         parentTurnId?: string | null;
         rewriteOf?: string;
         redoOf?: string;
-        input: {
+        input?: {
           text: string;
           actorId?: string | null;
           kind?: string;
@@ -3160,7 +3317,36 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         };
         guidance?: string;
         speakers?: string[];
+        fromMessage?: number;
+        continueOf?: string;
+        editOf?: string;
+        authored?: {
+          input?: { text: string; actorId?: string | null; kind?: string };
+          messages?: { speaker: string | null; text: string }[];
+        };
       };
+
+      /**
+       * ***Which gesture this is, read against the record*** — [P13 §1.6],
+       * [P13.4]: a swipe, a continue or an edit, or none of them. First,
+       * because each can refuse the body outright, and because what it
+       * resolves to — the node, the carried move, who speaks — is what every
+       * check below is made against (`routes/gestures.ts`).
+       */
+      const resolved = await gestureOf(services, account.handle, sessionId, body);
+      if ('refused' in resolved) {
+        return reply.code(resolved.refused.status).send(resolved.refused.body);
+      }
+      const gesture = resolved.gesture;
+      // Where the turn goes: the gesture's node when it names one, else the
+      // body's — spread rather than read, for `SubmitRequest.parentTurnId`'s
+      // reason: *absent* and *null* are different requests.
+      const placing: { parentTurnId?: string | null } =
+        gesture.parentTurnId !== undefined
+          ? { parentTurnId: gesture.parentTurnId }
+          : 'parentTurnId' in body
+            ? { parentTurnId: body.parentTurnId ?? null }
+            : {};
 
       /**
        * The tape a rewrite replays, read from the record — [P6.2].
@@ -3201,7 +3387,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
         }
-        replay = rewritten.tape;
+        /*
+         * A rewrite swipe from *k* replays call *k*'s draws, not call 0's —
+         * `swipeReplay` (2026-09-29, the [P13.4] review).
+         */
+        replay =
+          body.fromMessage === undefined
+            ? rewritten.tape
+            : swipeReplay(rewritten.tape, body.fromMessage);
         kept = keptSpeakers(rewritten);
         forced = forcedOn(rewritten);
       }
@@ -3265,7 +3458,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * was a new outcome arm through the job layer for a check that is about
        * the **request** rather than about scheduling.
        */
-      const kind = body.input.kind;
+      // The move the person typed — a submission's or an edit's. A carried
+      // move was checked when its own turn was submitted.
+      const kind = (body.input ?? body.authored?.input)?.kind;
       if (kind !== undefined) {
         const submitting = await readSession(services.sessions, account.handle, sessionId);
         const accepted = modeById(submitting?.mode?.id ?? DEFAULT_MODE_ID)?.definition.inputs;
@@ -3303,10 +3498,20 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * library read on the submit path would buy a nicer refusal for a request
        * only a stale client can make.
        */
-      if (body.speakers !== undefined) {
+      /*
+       * ***The same door for every speaker a gesture names*** ([P13.4]): the
+       * carried speaker of a swipe or a continue, and every member an edit
+       * wrote a line for, are refused on the same three grounds as a forced
+       * one — the persona's lines are the input, and somebody outside the cast
+       * or written out of the story at that node has no line to be given.
+       * An edit's lines are then signed with the names the cast holds there.
+       */
+      const checking = body.speakers ?? gesture.speaking;
+      let authored: OutputMessage[] | undefined;
+      if (checking !== undefined && checking.length > 0) {
         const forcing = await readSession(services.sessions, account.handle, sessionId);
         if (forcing !== null) {
-          const node = 'parentTurnId' in body ? (body.parentTurnId ?? null) : body.headTurnId;
+          const node = 'parentTurnId' in placing ? (placing.parentTurnId ?? null) : body.headTurnId;
           const channels = snapshotIsAt(forcing, node)
             ? forcing.channels
             : await reconstructAlong(
@@ -3315,14 +3520,45 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
                 sessionId,
                 walkPath(await readTurns(services.sessions, account.handle, sessionId), node),
               );
-          const refused = firstForceRefusal(body.speakers, forcing, channels);
+          const refused = firstForceRefusal(checking, forcing, channels);
           if (refused !== null) {
             return reply.code(422).send({
               ...FORCE_REFUSALS[refused.reason],
               speaker: refused.speaker,
             });
           }
+          if (gesture.authored !== undefined) {
+            const signed = await authoredMessages(
+              services,
+              account.handle,
+              forcing,
+              channels,
+              gesture.authored.messages,
+            );
+            if ('refused' in signed) {
+              return reply.code(signed.refused.status).send(signed.refused.body);
+            }
+            authored = signed.messages;
+          }
         }
+      }
+      if (gesture.authored !== undefined && authored === undefined) {
+        // Nobody to check: every line is the narrator's, or there are none.
+        authored = gesture.authored.messages.map((message) => ({
+          speaker: null,
+          text: message.text,
+        }));
+      }
+      /*
+       * ***An edit that named its turn keeps what it left alone*** — each
+       * unchanged line whole, and the hide entry on those lines (`editedFrom`,
+       * 2026-09-29 at the [P13.4] review).
+       */
+      let hidden = gesture.hidden;
+      if (gesture.authored?.from !== undefined && authored !== undefined) {
+        const kept = editedFrom(authored, gesture.authored.from);
+        authored = kept.messages;
+        hidden = kept.hidden;
       }
 
       /**
@@ -3332,7 +3568,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * nothing; refused before a job exists, while the request is still one.
        */
       let attachments: TurnAttachment[] | undefined;
-      if (body.input.attachments !== undefined && body.input.attachments.length > 0) {
+      if (body.input?.attachments !== undefined && body.input.attachments.length > 0) {
         const read = await attachmentsFor(
           services.sessions.layout,
           account.handle,
@@ -3358,8 +3594,19 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         headTurnId: body.headTurnId,
         // Spread rather than passed, because *absent* and *null* are different
         // requests here — see `SubmitRequest.parentTurnId`.
-        ...('parentTurnId' in body ? { parentTurnId: body.parentTurnId } : {}),
+        ...placing,
       });
+      const fromRecord = {
+        replay,
+        kept,
+        forced,
+        // A guided swipe's attempt is the one message it redoes ([P13.4]).
+        attempt: gesture.attempt ?? attempt,
+        attachments,
+        gesture,
+        ...(authored === undefined ? {} : { authored }),
+        ...(hidden === undefined ? {} : { hidden }),
+      };
 
       switch (outcome.kind) {
         case 'no-session':
@@ -3411,19 +3658,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * that already happened.
            */
           if (outcome.job.status === 'queued') {
-            services.runner.start(
-              outcome.job,
-              payloadOf(body, { replay, kept, forced, attempt, attachments }),
-            );
+            services.runner.start(outcome.job, payloadOf(body, fromRecord));
           }
           return reply.send(accepted(outcome.job, sessionId));
         }
 
         case 'created':
-          services.runner.start(
-            outcome.job,
-            payloadOf(body, { replay, kept, forced, attempt, attachments }),
-          );
+          services.runner.start(outcome.job, payloadOf(body, fromRecord));
           // 202: the work is accepted, not done. The stream is where it happens.
           return reply.code(202).send(accepted(outcome.job, sessionId));
       }
@@ -3550,7 +3791,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
 function payloadOf(
   body: {
-    input: { text: string; actorId?: string | null; kind?: string };
+    input?: { text: string; actorId?: string | null; kind?: string };
     guidance?: string;
     speakers?: readonly string[];
   },
@@ -3569,40 +3810,62 @@ function payloadOf(
     attempt?: { turnId: string; text: string } | undefined;
     /** The move's pictures, as the store described them — never the client's claim. */
     attachments?: TurnAttachment[] | undefined;
+    /** What a swipe, a continue or an edit resolved to — `routes/gestures.ts`, [P13.4]. */
+    gesture?: Gesture;
+    /** An edit's lines, signed with the cast's names. */
+    authored?: OutputMessage[];
+    /** The new turn's hide entry — `TurnPayload.hidden`. */
+    hidden?: true | readonly number[];
   },
-): {
-  input: {
-    actorId: string | null;
-    kind: string;
-    text: string;
-    raw: string;
-    attachments?: TurnAttachment[];
-  };
-  guidance?: string;
-  attempt?: { turnId: string; text: string };
-  replay?: Tape;
-  keptSpeakers?: readonly string[];
-  speakers?: readonly string[];
-} {
+): TurnPayload {
+  const hidden = fromRecord.hidden === undefined ? {} : { hidden: fromRecord.hidden };
+  const gesture = fromRecord.gesture ?? {};
+  /**
+   * ***An edit is its input and its lines, and nothing else*** ([P13.4]): the
+   * clash check has already refused every field that would steer a call, and
+   * the runner makes none.
+   */
+  if (gesture.authored !== undefined) {
+    return {
+      ...(gesture.input === undefined ? {} : { input: gesture.input }),
+      // The edited turn's force-talk, carried with its move (`editOf`).
+      ...(gesture.recorded === undefined ? {} : { speakers: gesture.recorded }),
+      authored: { messages: fromRecord.authored ?? [] },
+      ...hidden,
+    };
+  }
   // The body's is checked by the handler before a job existed, and the
   // record's was checked when its own turn was submitted; both are checked
   // again by the selector when the turn runs — see `TurnPayload.speakers`.
-  const speakers = body.speakers ?? fromRecord.forced;
+  // A carried move keeps the force-talk it recorded ([P13.4]).
+  const speakers = body.speakers ?? fromRecord.forced ?? gesture.recorded;
+  /**
+   * ***The move***: the gesture's, when it carries one — already a record's
+   * input, pictures and all — else the body's, else none: a turn with no
+   * input is *let them talk* ([P13.4]).
+   */
+  const input: TurnPayload['input'] =
+    gesture.input ??
+    (body.input === undefined
+      ? undefined
+      : {
+          actorId: body.input.actorId ?? null,
+          kind: body.input.kind ?? 'do',
+          text: body.input.text,
+          // What the player typed, before anything normalised it. Kept because a
+          // rewrite replays the original rather than the interpretation.
+          raw: body.input.text,
+          ...(fromRecord.attachments === undefined ? {} : { attachments: fromRecord.attachments }),
+        });
   return {
-    input: {
-      actorId: body.input.actorId ?? null,
-      kind: body.input.kind ?? 'do',
-      text: body.input.text,
-      // What the player typed, before anything normalised it. Kept because a
-      // rewrite replays the original rather than the interpretation.
-      raw: body.input.text,
-      ...(fromRecord.attachments === undefined ? {} : { attachments: fromRecord.attachments }),
-    },
+    ...(input === undefined ? {} : { input }),
     ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
     ...(fromRecord.attempt === undefined ? {} : { attempt: fromRecord.attempt }),
     ...(fromRecord.replay === undefined ? {} : { replay: fromRecord.replay }),
     ...(fromRecord.kept === undefined ? {} : { keptSpeakers: fromRecord.kept }),
     ...(speakers === undefined ? {} : { speakers }),
+    ...(gesture.carry === undefined ? {} : { carry: gesture.carry }),
+    ...hidden,
   };
 }
 

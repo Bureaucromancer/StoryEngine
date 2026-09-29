@@ -218,6 +218,65 @@ export interface TurnPayload {
    * a model on a turn somebody asked to have rewritten.
    */
   keptSpeakers?: readonly string[];
+  /**
+   * ***What this turn carries from the sibling it redoes*** —
+   * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * *Swipe* and *Continue*, added at [P13.4]. Read by the route from the
+   * server's own record, for `replay`'s reason.
+   *
+   * - **A swipe** (`fromMessage: k`) carries messages `0..k-1`, each marked
+   *   `carried`, and `speaker` is message *k*'s: the round starts at *k* with
+   *   the carried messages as the round so far — seeded into the runner's round
+   *   cell, so the regenerated speaker's prompt shows them after the input
+   *   exactly as a live round would have, and the turn's output is them and
+   *   then the fresh reply.
+   * - **A continue** (`continues: true`) carries every message, the last one
+   *   unmarked, because it is the one the call extends: the one speaking call
+   *   is shown it as the round's last entry and ends on the continue nudge
+   *   (`CollectContext.continuing`), and its reply is appended to it.
+   *
+   * ***`speaker` replaces the selection, and is not force-talk.*** Who
+   * regenerates message *k* is whoever said it — a fact about the record, not
+   * a request a person made — so it goes to the selector as the forced list
+   * and never onto `Turn.input.speakers`, which keeps the carried input's own
+   * force-talk as it was. A rewrite of the whole round later must not find
+   * *"only Lund was asked for"* on a turn where nobody asked for anybody.
+   */
+  carry?: {
+    messages: readonly OutputMessage[];
+    speaker: string;
+    continues?: true;
+  };
+  /**
+   * ***A turn written by hand*** — [P13 §1.6]'s *Edit*, [P13.4]: its input is
+   * `input` above and its output these messages, already attributed by the
+   * route. **No step runs and no call is made**, so the turn has no `request`,
+   * no tape, no effects and no cost — the record saying a person wrote it, as
+   * `engineTurn` says a person set a channel. Absent `messages` is an edit of
+   * the input alone.
+   */
+  authored?: { messages?: readonly OutputMessage[] };
+  /**
+   * ***The hide entry the new turn is committed with*** — the one the turn a
+   * swipe, a continue or an edit names had, kept to the messages the sibling
+   * carries (`routes/gestures.ts`, `carriedHidden`), added 2026-09-29 at the
+   * [P13.4] review. Without it a sibling brought back into the prompt every
+   * message the person had hidden on the original.
+   *
+   * **Two readings, one entry.** While the turn runs, a carried message whose
+   * index it names is left out of what the round shows the model and of what
+   * lore scans (`CollectContext.roundHidden`) — and `true`, a turn hidden
+   * whole, leaves the carried move out of the call too. At the commit it is
+   * written as `session.hidden[turnId]`, in the same session write that moves
+   * the head (`advanceHead`), so no reader sees the sibling unhidden first.
+   *
+   * *A turn recovered at startup from its draft is committed without it* —
+   * the draft is a `Turn`, and the entry is not on one — so its carried
+   * copies come back visible and can be hidden again. That is a crash between
+   * the reservation and the commit of a swipe on a turn with hidden lines,
+   * and a record field for it would outweigh it.
+   */
+  hidden?: true | readonly number[];
 }
 
 export interface RunnerOptions {
@@ -517,7 +576,9 @@ export class TurnRunner {
 
     try {
       checkpoint(this.#options.commit, job.id, { turn: draft });
-      await finaliseTurn(this.#options.commit, job.id, draft);
+      await finaliseTurn(this.#options.commit, job.id, draft, undefined, {
+        ...(payload.hidden === undefined ? {} : { hidden: payload.hidden }),
+      });
       await this.#committed(job, draft, log);
       /**
        * **This path notifies too, and it is the one that most needs to.** A
@@ -669,7 +730,42 @@ export class TurnRunner {
      *   and keep the round — from any other failure that happens to arrive
      *   while a round is in progress. Reset at each step.
      */
-    const round: Round = { messages: [], speaking: false, failed: null };
+    /*
+     * ***Seeded with what a swipe or a continue carries*** ([P13.4],
+     * `TurnPayload.carry`): the regenerated speaker's call is shown the carried
+     * messages as the round so far, and a continue's call the message it
+     * extends as the round's last. Copies, because the round is mutated as it
+     * streams and the payload is the route's.
+     */
+    const round: Round = {
+      messages: (payload.carry?.messages ?? []).map((message) => ({ ...message })),
+      speaking: false,
+      failed: null,
+    };
+    /** The message a continue extends, until its call claims it — see `speakingAs`. */
+    const continuing: { pending: Continuing | null } = {
+      pending: payload.carry?.continues === true ? continuingFrom(round.messages) : null,
+    };
+    /**
+     * ***The carried messages the call does not see*** — `TurnPayload.hidden`,
+     * read against the carry: `true` is every carried message but a
+     * continue's own (which the route refuses to continue while hidden), and
+     * a list is those indices, all below the first message this turn writes.
+     * With `shownInput`, what a hide on the named turn keeps out of this one's
+     * calls (2026-09-29, the [P13.4] review).
+     */
+    const carriedCount = payload.carry?.messages.length ?? 0;
+    const roundHidden: readonly number[] =
+      payload.carry === undefined || payload.hidden === undefined
+        ? []
+        : payload.hidden === true
+          ? Array.from({ length: carriedCount }, (_, index) => index).filter(
+              (index) => !(payload.carry?.continues === true && index === carriedCount - 1),
+            )
+          : payload.hidden;
+    /** The move as the calls see it: none, when the carried turn was hidden whole. */
+    const shownInput =
+      payload.carry !== undefined && payload.hidden === true ? undefined : payload.input;
     /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
@@ -779,6 +875,44 @@ export class TurnRunner {
     setJobStatus(commit, job.id, 'running');
     log?.info({ event: 'job.running' }, 'Turn started');
     write([turnStarted(job.turnId)]);
+
+    /**
+     * ***A turn written by hand commits here, and nothing below runs*** —
+     * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+     * *Edit*, [P13.4].
+     *
+     * **Through the job rather than a direct append**, because everything a
+     * submission needs from the job layer an edit needs too: the idempotency
+     * key (a retried save must not write two siblings), the one-turn-at-a-time
+     * refusal, the stale-head check and the parent check, and the
+     * `turn.finished` a watching client already waits for. What it skips is
+     * everything that makes a turn a model's: no gather, no plan, no call, and
+     * no clock — **an edit is not time passing in the story**, it is a person
+     * correcting what was written. Its `effects` stay empty, so the sibling's
+     * state is the parent's, which is the honest reading of *"the same move,
+     * worded differently"*: whatever the original's effects did is on the
+     * original, and the edit claims none of it.
+     */
+    if (payload.authored !== undefined) {
+      const messages = payload.authored.messages ?? [];
+      if (messages.length > 0) draft.output = outputFromMessages(messages);
+      draft.status = 'complete';
+      if (!(await this.#commitFinished(job, draft, write, log, payload.hidden))) return;
+      await this.#committed(job, draft, log);
+      return;
+    }
+
+    /**
+     * ***What a swipe or a continue carries is on screen from the start***
+     * ([P13.4]). The draft holds it already (`initialDraft`); the bus's live
+     * cell is given it as one unindexed piece, so a reader appending every
+     * delta to one text — the cell itself, and every client older than P13.2 —
+     * builds the carried round and then what streams after it, and a
+     * per-message reader, which skips unindexed pieces, reads the carried
+     * messages off the draft.
+     */
+    const carriedText = draft.output?.text ?? '';
+    if (carriedText.length > 0) bus.delta(job.sessionId, job.id, carriedText);
 
     /**
      * Unlocked, and every read happens before any step runs — now through the
@@ -902,7 +1036,8 @@ export class TurnRunner {
       history,
       hidden: chat.hidden,
       input: payload.input,
-      forced: payload.speakers,
+      // The carried speaker, for a swipe or a continue — see `TurnPayload.carry`.
+      forced: payload.carry === undefined ? payload.speakers : [payload.carry.speaker],
       talkativeness,
       draw: (purpose) => rng.at('se.participants', purpose),
     });
@@ -958,7 +1093,13 @@ export class TurnRunner {
     const speakingAs = (
       stepId: string,
       request: { speaker?: string; actorId?: string },
-    ): { ref: Ref; index: number; others: string[]; cleans: boolean } | null => {
+    ): {
+      ref: Ref;
+      index: number;
+      others: string[];
+      cleans: boolean;
+      continuing?: Continuing;
+    } | null => {
       const speaker = request.speaker;
       if (speaker === undefined) return null;
       if (request.actorId !== undefined && request.actorId !== speaker) {
@@ -978,9 +1119,18 @@ export class TurnRunner {
         );
       }
       round.speaking = true;
+      /**
+       * ***A continue's one call writes into the message it continues*** —
+       * [P13.4], `TurnPayload.carry`. Its index is that message's, and it is
+       * claimed once: a second speaking call on the same turn (a step that
+       * fans out regardless) is an ordinary next message.
+       */
+      const extending = continuing.pending;
+      continuing.pending = null;
       return {
         ref: { id: member.actor.id, name: member.actor.name },
-        index: round.messages.length,
+        index: extending === null ? round.messages.length : extending.index,
+        ...(extending === null ? {} : { continuing: extending }),
         others: [
           ...(cast.persona === null ? [] : [cast.persona.actor.name]),
           ...cast.actors.filter((one) => one !== member).map((one) => one.actor.name),
@@ -1633,24 +1783,39 @@ export class TurnRunner {
                  * to be **cheap**, and the accumulated prompt is the whole scene.*
                  */
                 const brought = request.candidates !== undefined;
+                /*
+                 * Tagged with the message this call writes (`Rng.speaking`,
+                 * `Draw.message`), so a rewrite swipe from *k* can line its
+                 * replay up with call *k*'s draws (2026-09-29, the [P13.4]
+                 * review).
+                 */
                 const lore = brought
                   ? null
-                  : retrieve({
-                      lore: inputs.lore,
-                      preset,
-                      history,
-                      channels: running,
-                      persona: cast.persona,
-                      actors: cast.actors,
-                      callKind: definition.callKind,
-                      rng,
-                      ...(payload.input === undefined ? {} : { input: payload.input }),
-                      // What the round has said, scanned as the prompt shows
-                      // it — the same round `collectFor` is handed below
-                      // ([P13.2] review, 2026-09-29; ST re-scans each member's
-                      // generation over the chat holding the last reply).
-                      ...(voice === null ? {} : { round: round.messages.map((m) => m.text) }),
-                    });
+                  : rng.speaking(voice?.index, () =>
+                      retrieve({
+                        lore: inputs.lore,
+                        preset,
+                        history,
+                        channels: running,
+                        persona: cast.persona,
+                        actors: cast.actors,
+                        callKind: definition.callKind,
+                        rng,
+                        ...(shownInput === undefined ? {} : { input: shownInput }),
+                        // What the round has said, scanned as the prompt shows
+                        // it — the same round `collectFor` is handed below
+                        // ([P13.2] review, 2026-09-29; ST re-scans each member's
+                        // generation over the chat holding the last reply), a
+                        // hidden carried message left out as it is there.
+                        ...(voice === null
+                          ? {}
+                          : {
+                              round: round.messages
+                                .filter((_, index) => !roundHidden.includes(index))
+                                .map((m) => m.text),
+                            }),
+                      }),
+                    );
 
                 /**
                  * **`collectFor`, the collector's input as the gather knows it**
@@ -1667,11 +1832,11 @@ export class TurnRunner {
                       // What the player did, for a preset's per-kind block —
                       // [13 §8.3], [P7.9]. Absent on a call with no submission
                       // behind it, which is what keeps a `say` block off a judge.
-                      ...(payload.input === undefined ? {} : { inputKind: payload.input.kind }),
+                      ...(shownInput === undefined ? {} : { inputKind: shownInput.kind }),
                       // The running map, which moves as the steps apply effects.
                       channels: running,
                       lore: lore?.blocks ?? [],
-                      ...(payload.input === undefined ? {} : { input: payload.input }),
+                      ...(shownInput === undefined ? {} : { input: shownInput }),
                       ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
                       // [06 §5.1]'s second producer, filled by the selector that ran
                       // before this loop reached any step that assembles.
@@ -1695,7 +1860,13 @@ export class TurnRunner {
                        */
                       ...(voice === null
                         ? {}
-                        : { speaker: voice.ref.id, round: [...round.messages] }),
+                        : {
+                            speaker: voice.ref.id,
+                            round: [...round.messages],
+                            ...(roundHidden.length === 0 ? {} : { roundHidden }),
+                          }),
+                      // A continue's call ends on the nudge ([P13.4]).
+                      ...(voice?.continuing === undefined ? {} : { continuing: true as const }),
                       /**
                        * ***The voice this call writes the turn in*** — [P13.3],
                        * the pack's third match key (`CollectContext.voice`). Only
@@ -1814,6 +1985,23 @@ export class TurnRunner {
                        */
                       if (voice !== null) {
                         let open = round.messages[voice.index];
+                        /**
+                         * ***A continue's first piece takes the carried message
+                         * over*** ([P13.4]): from here it is this turn's own
+                         * message — the old text, the joiner, and what streams
+                         * — no longer marked `carried`, because this turn wrote
+                         * part of it. The joiner goes out under the message's
+                         * index, so both kinds of reader build the same text.
+                         */
+                        const extending = voice.continuing;
+                        if (extending !== undefined && open === extending.message) {
+                          open = { speaker: voice.ref, text: extending.message.text };
+                          round.messages[voice.index] = open;
+                          if (extending.joiner !== '') {
+                            open.text += extending.joiner;
+                            bus.delta(job.sessionId, job.id, extending.joiner, voice.index);
+                          }
+                        }
                         if (open === undefined) {
                           // After somebody who said something: a reply cleaned
                           // to nothing is out of `output.text`, and so is the
@@ -1886,10 +2074,21 @@ export class TurnRunner {
                  * a client reattaching mid-round would otherwise be shown the
                  * line cleanup just took out.
                  */
+                /*
+                 * A continue settles the continuation alone and prefixes the
+                 * old text afterwards ([P13.4]): cleanup is about what the model
+                 * just wrote, and the old text was settled when it was written.
+                 */
                 const said =
                   voice === null
                     ? null
-                    : settled(voice, cleaned(voice, outcome.text), outcome.text);
+                    : voice.continuing === undefined
+                      ? settled(voice, cleaned(voice, outcome.text), outcome.text)
+                      : settled(
+                          voice,
+                          continuedText(voice.continuing, cleaned(voice, outcome.text)),
+                          continuedText(voice.continuing, outcome.text),
+                        );
                 if (voice !== null && said !== null) {
                   round.messages[voice.index] = said;
                   settledHere = true;
@@ -1922,7 +2121,23 @@ export class TurnRunner {
                 if (voice !== null) {
                   const cut = round.messages[voice.index];
                   let rebased = false;
-                  if (cut !== undefined && !settledHere) {
+                  const extending = voice.continuing;
+                  if (extending !== undefined) {
+                    // A continue cut short: only what streamed is cleaned, and a
+                    // call that failed before its first piece left the carried
+                    // message exactly as it was ([P13.4]).
+                    if (cut !== undefined && cut !== extending.message && !settledHere) {
+                      const base = extending.message.text + extending.joiner;
+                      const piece = cut.text.slice(base.length);
+                      const kept = settled(
+                        voice,
+                        continuedText(extending, cleaned(voice, piece)),
+                        continuedText(extending, piece),
+                      );
+                      round.messages[voice.index] = kept;
+                      rebased = kept.original !== undefined;
+                    }
+                  } else if (cut !== undefined && !settledHere) {
                     const kept = settled(voice, cleaned(voice, cut.text), cut.text);
                     round.messages[voice.index] = kept;
                     rebased = kept.original !== undefined;
@@ -1987,7 +2202,35 @@ export class TurnRunner {
           contributedEffects += 1;
           written.push(effectApplied(effect.channelId, effect.applied, effect.rejectedReason));
         }
-        if (result.message) draft.output = result.message;
+        /**
+         * ***What a swipe or a continue carried goes first*** — [P13.4],
+         * `TurnPayload.carry`. The step answers for the messages it spoke; the
+         * carried ones were never its to return, so they are put back in front
+         * of its answer here rather than trusted to a mode that would have to
+         * know about them. A continue's extended message is the step's answer,
+         * so it is not carried twice.
+         */
+        const carriedAhead =
+          payload.carry === undefined
+            ? []
+            : payload.carry.continues === true
+              ? payload.carry.messages.slice(0, -1)
+              : payload.carry.messages;
+        if (result.message) {
+          draft.output =
+            carriedAhead.length === 0
+              ? result.message
+              : outputFromMessages([
+                  ...carriedAhead,
+                  {
+                    speaker: null,
+                    text: result.message.text,
+                    ...(result.message.reasoning === undefined
+                      ? {}
+                      : { reasoning: result.message.reasoning }),
+                  },
+                ]);
+        }
         /**
          * **Several speakers, and the text derived from them** —
          * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
@@ -2005,7 +2248,7 @@ export class TurnRunner {
          * `message` does.
          */
         if (result.messages !== undefined && result.messages.length > 0) {
-          draft.output = outputFromMessages(result.messages);
+          draft.output = outputFromMessages([...carriedAhead, ...result.messages]);
         }
 
         steps.push({
@@ -2439,7 +2682,7 @@ export class TurnRunner {
     draft.cost = costOf(calls);
 
     // From here the turn is finished, and a failure is the commit's.
-    if (!(await this.#commitFinished(job, draft, write, log))) return;
+    if (!(await this.#commitFinished(job, draft, write, log, payload.hidden))) return;
 
     /**
      * ***Renditions, after the commit and awaited no further than the insert***
@@ -2510,12 +2753,15 @@ export class TurnRunner {
     draft: Turn,
     write: () => void,
     log: Logger | undefined,
+    hidden?: true | readonly number[],
   ): Promise<boolean> {
     const commit = this.#options.commit;
+    // `TurnPayload.hidden`, written with the head move.
+    const extras = hidden === undefined ? {} : { hidden };
     try {
       write();
       // The lock is taken here and nowhere before it.
-      await finaliseTurn(commit, job.id, draft);
+      await finaliseTurn(commit, job.id, draft, undefined, extras);
       return true;
     } catch (error) {
       log?.error(
@@ -2524,7 +2770,7 @@ export class TurnRunner {
       );
     }
     try {
-      await finaliseTurn(commit, job.id, draft);
+      await finaliseTurn(commit, job.id, draft, undefined, extras);
       return true;
     } catch (error) {
       log?.error(
@@ -2704,6 +2950,12 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
               ? payload.input
               : { ...payload.input, speakers: [...payload.speakers] },
         }),
+    // What a swipe or a continue carries is the turn's output from its first
+    // checkpoint, so a crash before any reply still leaves the round it
+    // started from on the record ([P13.4]).
+    ...(payload.carry === undefined || payload.carry.messages.length === 0
+      ? {}
+      : { output: outputFromMessages(payload.carry.messages) }),
     effects: [],
     tape: [],
     steps: [],
@@ -2718,6 +2970,53 @@ interface Round {
   messages: OutputMessage[];
   speaking: boolean;
   failed: { error: unknown; index: number; speaker: Ref } | null;
+}
+
+/**
+ * ***The message a continue extends*** — [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P13.4].
+ *
+ * - `message` is the round's entry **by identity**, so the first streamed
+ *   piece can tell it is still the carried text and replace it with this
+ *   turn's own message, rather than appending to the payload's copy.
+ * - `joiner` is what goes between the old text and the continuation:
+ *   SillyTavern's `continue_postfix`, whose default is a space, added only
+ *   when the old text does not already end in a literal space
+ *   (`!cyclePrompt.endsWith(' ')`, `script.js:4918`, the *"coping mechanism
+ *   for OAI spacing"*). ~~When it does not already end in whitespace~~ —
+ *   corrected 2026-09-29, at the [P13.4] review: ST checks for a space and
+ *   nothing else, so a message ending on a newline gets the space too, and
+ *   this now does as ST does. ***One deliberate difference***: nothing when
+ *   the old text is empty, where ST would still add the space — an empty
+ *   message has nothing to be joined to, and a continuation of it that opens
+ *   on a stray space is a blemish ST's own path only reaches through a
+ *   greeting nobody wrote.
+ */
+interface Continuing {
+  index: number;
+  message: OutputMessage;
+  joiner: string;
+}
+
+/** The round's last message as a continue extends it, or null for an empty round. */
+function continuingFrom(messages: OutputMessage[]): Continuing | null {
+  const index = messages.length - 1;
+  const message = messages[index];
+  if (message === undefined) return null;
+  const joiner = message.text === '' || message.text.endsWith(' ') ? '' : ' ';
+  return { index, message, joiner };
+}
+
+/**
+ * The continued message's text: the old text, the joiner and the continuation —
+ * or the old text alone when the continuation came to nothing, so a reply
+ * cleaned to empty does not leave a trailing space on a message it never
+ * touched.
+ */
+function continuedText(continuing: Continuing, continuation: string): string {
+  return continuation === ''
+    ? continuing.message.text
+    : `${continuing.message.text}${continuing.joiner}${continuation}`;
 }
 
 /**

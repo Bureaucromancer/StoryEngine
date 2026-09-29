@@ -732,6 +732,12 @@ export async function advanceHead(
   handle: string,
   sessionId: string,
   turn: Turn,
+  /**
+   * ***The turn's hide entry, written with the head*** — `CommitExtras.hidden`,
+   * 2026-09-29 at the [P13.4] review: what a swipe, a continue or an edit
+   * carries from the turn it names. Absent leaves `session.hidden` as it is.
+   */
+  hidden?: true | readonly number[],
 ): Promise<SessionFile | null> {
   const session = await readSession(context, handle, sessionId);
   if (session === null) return null;
@@ -773,6 +779,9 @@ export async function advanceHead(
     updatedAt: new Date().toISOString(),
     headTurnId: turn.id,
     channels: applyEffects(atParent, turn.effects),
+    ...(hidden === undefined || (hidden !== true && hidden.length === 0)
+      ? {}
+      : { hidden: { ...session.hidden, [turn.id]: hidden === true ? true : [...hidden] } }),
   };
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
   indexSession(context.index, scopeOf(context, handle), next);
@@ -925,7 +934,15 @@ export async function moveHead(
   context: SessionContext,
   handle: string,
   sessionId: string,
-  turnId: string,
+  /**
+   * ***`null` is the root*** — the session before its first turn, [P13.4].
+   * [P13 §1.6]'s *Delete* is *"the head moves to the parent"*, and the parent
+   * of a first turn is nobody: without this, the one message a chat opens on
+   * (the greeting, §1.7) was the one message nobody could delete. Every turn
+   * stays where it was, a root nobody is on, and `resume` from the root goes
+   * forward when there is exactly one root to go to.
+   */
+  turnId: string | null,
   options: { resume?: boolean } = {},
 ): Promise<MoveHeadOutcome> {
   return withSessionLock(sessionId, async () => {
@@ -938,9 +955,18 @@ export async function moveHead(
     const turns = await readTurns(context, handle, sessionId);
     // Scoped to this session by the read itself, so a bare turn id from another
     // one cannot move this head — the same boundary `GET /turns/:turnId` keeps.
-    if (!turns.has(turnId)) return { kind: 'no-turn' };
+    if (turnId !== null && !turns.has(turnId)) return { kind: 'no-turn' };
 
-    const target = options.resume === true ? resumeFrom(session, turns, turnId) : turnId;
+    const roots = childrenByParent(turns).get(null) ?? [];
+    const only = roots.length === 1 ? (roots[0]?.id ?? null) : null;
+    const target =
+      options.resume !== true
+        ? turnId
+        : turnId !== null
+          ? resumeFrom(session, turns, turnId)
+          : only === null
+            ? null
+            : resumeFrom(session, turns, only);
     const path = walkPath(turns, target);
 
     /**

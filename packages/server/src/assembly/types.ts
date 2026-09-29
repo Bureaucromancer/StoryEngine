@@ -27,7 +27,7 @@ export type {
 } from '@storyengine/shared';
 
 /**
- * `BlockSource` minus the ~~two~~ ~~three~~ four a slot cannot name — a derivation rather
+ * `BlockSource` minus the ~~two~~ ~~three~~ ~~four~~ five a slot cannot name — a derivation rather
  * than a second list.
  *
  * A slot positions content the engine produces, so it can never point at the
@@ -35,11 +35,16 @@ export type {
  * not exist when the preset was authored) — ***or, since [P13.2], at the round
  * so far***, which the engine places after the input slot of every pack rather
  * than wherever a pack remembered to put it — ***or, since [P13.3], at the
- * author's note***, which the engine places at the session's own depth.
+ * author's note***, which the engine places at the session's own depth —
+ * ***or, since [P13.4], at the continue nudge***, which the engine puts last.
  */
 export type SlotSource = Exclude<
   BlockSource,
-  { kind: 'preset' } | { kind: 'step' } | { kind: 'round' } | { kind: 'note' }
+  | { kind: 'preset' }
+  | { kind: 'step' }
+  | { kind: 'round' }
+  | { kind: 'note' }
+  | { kind: 'continue' }
 >;
 
 /**

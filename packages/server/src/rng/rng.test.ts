@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DiceNotationError, parseDice } from './dice.js';
-import { Rng, type Tape } from './rng.js';
+import { Rng, swipeReplay, type Tape } from './rng.js';
 import { cryptoSource, seededSource } from './source.js';
 
 /**
@@ -377,5 +377,60 @@ describe('a group contest replays to an entry, not to a position', () => {
 
     expect(winner).not.toBe(won);
     expect(rewrite.tape[0]?.replayed).toBe(false);
+  });
+});
+
+/**
+ * ***A rewrite swipe replays call k's draws*** — `swipeReplay` and
+ * `Rng.speaking`, 2026-09-29 at the [P13.4] review. A swipe from message *k*
+ * makes call *k* first, so its keys count from 0 where the original's call *k*
+ * counted from wherever calls `0..k-1` left them.
+ */
+describe('a rewrite swipe from message k', () => {
+  /** A round of three speaking calls, each rolling the same entry, after a turn-wide draw. */
+  function aRound(): Rng {
+    const rng = seeded(7);
+    rng.at('se.hooks', 'entrance').float();
+    for (const message of [0, 1, 2]) {
+      rng.speaking(message, () => rng.at('lore.probability', 'ferry').float());
+    }
+    return rng;
+  }
+
+  it('tags the draws a speaking call makes, and nothing else', () => {
+    const rng = aRound();
+    expect(rng.tape.map((draw) => draw.message)).toEqual([undefined, 0, 1, 2]);
+  });
+
+  it('gives call k the draw the original call k made, re-keyed from 0', () => {
+    const original = aRound();
+    const rolledFor = (message: number): unknown =>
+      original.tape.find((draw) => draw.message === message)?.value;
+
+    const swipe = new Rng({
+      source: seededSource(999),
+      replay: swipeReplay(original.tape, 1),
+    });
+    swipe.at('se.hooks', 'entrance').float();
+    const first = swipe.speaking(1, () => swipe.at('lore.probability', 'ferry').float());
+    const second = swipe.speaking(2, () => swipe.at('lore.probability', 'ferry').float());
+
+    expect([first, second]).toEqual([rolledFor(1), rolledFor(2)]);
+    expect(swipe.tape.every((draw) => draw.replayed)).toBe(true);
+    expect(swipe.tape.map((draw) => [draw.key, draw.message])).toEqual([
+      ['se.hooks:entrance#0', undefined],
+      ['lore.probability:ferry#0', 1],
+      ['lore.probability:ferry#1', 2],
+    ]);
+  });
+
+  it('drops lore draws from a tape recorded before the tag, and keeps it whole from 0', () => {
+    const untagged: Tape = aRound().tape.map((draw) => {
+      const copy = { ...draw };
+      delete copy.message;
+      return copy;
+    });
+    expect(swipeReplay(untagged, 1).map((draw) => draw.site)).toEqual(['se.hooks']);
+    expect(swipeReplay(untagged, 0)).toBe(untagged);
   });
 });

@@ -198,6 +198,16 @@ export interface Draw {
   value: unknown;
   /** True when this value came off a tape rather than from the source. */
   replayed: boolean;
+  /**
+   * ***The round message whose speaking call drew it*** — the index of the
+   * message that call wrote, set on the draws its lore retrieval made, and
+   * absent on every other draw (a turn-wide one, or one on a call that speaks
+   * for nobody). Added 2026-09-29, at the [P13.4] review: a rewrite swipe from
+   * message *k* runs call *k* first, and without this its draws were read
+   * against the keys call 0 had made, so message *k* was given message 0's
+   * rolls and the tape called them replayed (`rng/rng.ts`, `swipeReplay`).
+   */
+  message?: number;
 }
 
 /** A turn's draws, in the order they happened. */
@@ -414,6 +424,19 @@ export type BlockSource =
    * in most sessions. The engine places it at its own depth in the history.
    */
   | { kind: 'note' }
+  /**
+   * ***The continue nudge*** — [P13 §1.6](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * *Continue*, added at [P13.4]: SillyTavern's `continue_nudge_prompt`
+   * (`openai.js:110`), the system line after the message being continued that
+   * asks the model to carry on rather than start again.
+   *
+   * *A fifth source no preset can position*, for the round's reason: every
+   * pack written before this places no such thing, and a continue that a pack
+   * had to opt into would be one that silently regenerated instead. The engine
+   * puts it last, after everything the pack and the chat placed, which is where
+   * ST's `continueMessageCollection` ends the chat history.
+   */
+  | { kind: 'continue' }
   /**
    * A block the preset authored, rather than a slot it positioned.
    *

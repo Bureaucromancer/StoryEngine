@@ -516,6 +516,12 @@ export const SCENE: ModeDefinition = {
    */
   legacy: { voice: 'narrator', dispatch: 'merged', select: 'fixed' },
   /**
+   * ***A chat opens on its cast's greetings*** — [P13 §1.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [P13.4]: a new Scene session is written an opening turn from each
+   * member's written openings, as SillyTavern opens a chat on `first_mes`.
+   */
+  openingTurn: true,
+  /**
    * Empty by fact rather than by omission. [06 §1] names presets for Adventure;
    * Scene has no second way to be configured, and minting `scene.default` would
    * create a permanent content identifier for a distinction nothing makes.

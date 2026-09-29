@@ -213,6 +213,30 @@ export interface CollectContext {
    */
   round?: readonly OutputMessage[];
   /**
+   * ***Round indices this call does not show*** — carried messages the person
+   * hid on the turn a swipe or a continue names (`TurnPayload.hidden`), added
+   * 2026-09-29 at the [P13.4] review. `session.hidden` is keyed by turn and
+   * the round's turn is not written yet, so the runner hands the entry in
+   * here, and {@link roundCandidates} skips those indices as
+   * {@link visibleMessages} skips a past turn's. *Absent or empty hides
+   * nothing.*
+   */
+  roundHidden?: readonly number[];
+  /**
+   * ***This call continues the round's last message*** — [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * *Continue*, [P13.4]. The runner sets it on the one speaking call a
+   * `continueOf` turn makes, whose `round` ends on the message being continued.
+   *
+   * **Two things change, and nothing else.** That last round entry becomes
+   * `required`, because a continuation of a message the budgeter dropped is a
+   * reply to nothing; and the call **ends on the continue nudge**
+   * ({@link continueCandidate}), SillyTavern's `continue_nudge_prompt`, placed
+   * after everything the pack and the chat placed. The old message is the last
+   * assistant entry before it, which is ST's shape when `continue_prefill` is
+   * off (`openai.js:896-914`); provider prefill is later work (§1.6's table).
+   */
+  continuing?: true;
+  /**
    * ***The voice this call writes the turn in*** — a third thing `appliesTo`
    * matches, beside the call kind and the input kind, [P13.3].
    *
@@ -481,8 +505,68 @@ export function collectCandidates(context: CollectContext): Collected {
     // Where an empty frame's runs go: an empty history run is still a place.
     empty: historyStart,
   };
-  return { candidates: splice(sequence, injected, frames), notFilled };
+  const candidates = splice(sequence, injected, frames);
+  /*
+   * ***A continue ends on the message it continues, and then the nudge*** —
+   * see `continueCandidate`. Spliced with the continued message still in the
+   * chat, so a depth counts over the chat including it, as ST's does; then
+   * moved out past every run the splice put after it, so a depth-0 note or
+   * depth prompt lands before it rather than between it and the nudge.
+   */
+  if (context.continuing === true) {
+    const continuedId = `se.round.${String((context.round?.length ?? 0) - 1)}`;
+    const at = candidates.findIndex((candidate) => candidate.id === continuedId);
+    const [continued] = at === -1 ? [] : candidates.splice(at, 1);
+    if (continued !== undefined) candidates.push(continued);
+    candidates.push(continueCandidate(context));
+  }
+  return { candidates, notFilled };
 }
+
+/**
+ * ***SillyTavern's continue nudge, verbatim*** — `default_continue_nudge_prompt`
+ * (`openai.js:110`). Verbatim rather than reworded, unlike the pack's
+ * instruction (§1.5), because this line is not the pack's voice: it is an
+ * instruction about the mechanics of one call, ST's wording is what imported
+ * chats were continued with, and a person comparing the two prompts should
+ * find the same sentence.
+ */
+export const CONTINUE_NUDGE =
+  '[Continue your last message without repeating its original content.]';
+
+/**
+ * ***The line a continue ends on*** — [P13 §1.6], [P13.4]; see
+ * {@link CollectContext.continuing}.
+ *
+ * **Last, after the splice, and right after the message it continues**,
+ * which `collectCandidates` moves out to the end with it: ST moves the
+ * continued message out past its injections — `populateChatHistory` takes the
+ * last *non-injected* message out of the chat after depth injection has run
+ * (`openai.js:908-910`) and sends it, then the nudge, as one collection — so
+ * a depth-0 author's note, card depth prompt or depth-0 lore sits *before* the
+ * continued message, and a depth *k* is counted over the chat including it.
+ * ~~Pushed after the splice alone, so a depth-0 run sits before the nudge~~ —
+ * corrected 2026-09-29, at the [P13.4] review: that put a depth-0 run between
+ * the continued message and the nudge, which is not where ST puts it. A reply
+ * that must begin where the old one ended should be asked for last.
+ * `system`, as ST sends it. **Required**, because a continue whose nudge the
+ * budgeter dropped is an ordinary reply that repeats the message it was meant
+ * to extend.
+ */
+function continueCandidate(context: CollectContext): Candidate {
+  return {
+    id: 'se.continue',
+    source: { kind: 'continue' },
+    reason: CONTINUE_REASON,
+    role: 'system',
+    text: CONTINUE_NUDGE,
+    priority: chatPriority(context) + (context.round?.length ?? 0),
+    required: true,
+  };
+}
+
+/** The workbench's words for the nudge — author-facing English, as `reason` is. */
+const CONTINUE_REASON = 'continue the last message';
 
 /**
  * One depth-addressed run, held back until the frames it counts over are known.
@@ -583,7 +667,10 @@ function namesOn(context: CollectContext): boolean {
       if (message.speaker !== null && message.text.length > 0) speakers.add(message.speaker.id);
     }
   }
-  for (const message of context.round ?? []) {
+  const hidden = context.roundHidden ?? [];
+  for (const [index, message] of (context.round ?? []).entries()) {
+    // A hidden carried line is not in the window, so it names nobody into it.
+    if (hidden.includes(index)) continue;
     if (message.speaker !== null && message.text.length > 0) speakers.add(message.speaker.id);
   }
   return speakers.size >= 2;
@@ -723,8 +810,11 @@ function roundCandidates(context: CollectContext): Candidate[] {
   // Named as the past turns are, and by the same count ([P13.3]) — the round
   // is the newest chat, so a window that names its speakers names these too.
   const named = namesOn(context);
+  const hidden = context.roundHidden ?? [];
   return round.flatMap((message, index) =>
-    message.text.length === 0
+    // A hidden carried message, as the history filter drops one — see
+    // `CollectContext.roundHidden`.
+    message.text.length === 0 || hidden.includes(index)
       ? []
       : [
           {
@@ -735,6 +825,10 @@ function roundCandidates(context: CollectContext): Candidate[] {
             role: message.speaker === null ? 'system' : 'assistant',
             text: asLine(message, named),
             priority: base + index,
+            // The message a continue extends — see `CollectContext.continuing`.
+            ...(context.continuing === true && index === round.length - 1
+              ? { required: true }
+              : {}),
           },
         ],
   );

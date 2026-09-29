@@ -134,6 +134,27 @@ export interface ModeDefinition {
    * Absent means off, which is every mode that says nothing.
    */
   renditions?: { illustration?: 'off' | 'on-demand' | 'each-turn' };
+  /**
+   * ***Whether a new session opens on its cast's written openings*** —
+   * [P13 §1.7](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.4].
+   *
+   * `true` makes session creation write an **opening turn**: output only, no
+   * call and no `request`, one message per cast member with a written opening —
+   * SillyTavern's greeting, which a chat opens on before anybody has typed. A
+   * single-character session writes the primary opening with each alternate as
+   * a sibling (ST's greetings-as-swipes); a group writes each member's primary,
+   * in cast order, as one message each.
+   *
+   * ***A declaration rather than a rule the engine infers***, because the
+   * engine may not name a mode and nothing it could read instead means this.
+   * `voice: 'embodied'` is the nearest, and the assistant is embodied too: an
+   * assistant session that greeted with whatever card was cast would be a
+   * mode's behaviour decided by a setting that says something else. Absent
+   * means no opening turn, which is every session every mode made before
+   * P13.4 — so a mode that says nothing is unchanged.
+   */
+  openingTurn?: boolean;
   setup: SetupSchema;
 }
 

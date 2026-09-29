@@ -284,6 +284,10 @@ const OWED = new Map<string, string>([
    * the surface, which is the only way out this map has.
    */
   [
+    'PUT /api/sessions/:p/turns/:p/hidden',
+    "P13.4 built hide and unhide as server behaviour (P13 §1.6), and the client is P13.5's by the stage's own split: the transcript's ghost and its hide action are §1.8's surface.",
+  ],
+  [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",
   ],
