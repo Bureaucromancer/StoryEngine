@@ -127,6 +127,19 @@ export class SseWriter {
          */
         this.#write(`event: rendition\ndata: ${JSON.stringify(frame.rendition)}\n\n`, false);
         return;
+      case 'summaries':
+        /**
+         * ***The summary warm*** — [P13.11]. No `id:` line, for the rendition
+         * frame's reason: the frame is the whole state. *A link's progress is
+         * droppable and the end is not*: a dropped `warming` frame is a
+         * progress bar one link behind until the next, and a dropped ending is
+         * a bar that never finishes.
+         */
+        this.#write(
+          `event: summaries\ndata: ${JSON.stringify(frame.warm)}\n\n`,
+          frame.warm.state === 'warming',
+        );
+        return;
     }
   }
 

@@ -1557,6 +1557,101 @@ work, as §1.6 says.
 
 *Ends at:* the gate's first sitting (§4) can be walked.
 
+*As built, 2026-09-29.* Each item of §1.8 has a client test —
+`play/PlayPage.chat.test.tsx` (the transcript, the gestures, the composer,
+the streamed round and its order, auto-mode), `CastPanel.chat.test.tsx`,
+`ChatSettingsPanel.test.tsx`, `SessionsPage.test.tsx`'s *picking the
+characters*, `reading/prose.test.ts`'s *a chat turn* — and the arithmetic
+under them is `play/chat.ts` (`chat.test.ts`), the stream's half
+`play/reducer.ts` (`reducer.test.ts`), the clock `useAutoMode.ts`. What the
+stage decided that §1.3a, §1.5 and §1.8 left open, each where the code carries
+its argument:
+
+- **The server read-side the surface needed, and nothing else.** Four
+  additions, each argued where it lives. `GET /sessions/:id` sends `chat`, the
+  **effective** settings through `chatSettingsOf` — so a pre-P13 session's
+  panel shows the narrated, merged, `fixed` values its turns get — and only
+  for a mode that plays as a chat (`isChatMode`: the mode declares
+  `castIsPresent`; not the voice, which a chat can switch). `PUT
+  /sessions/:id/chat` is the settings door (`routes/chat.ts`,
+  `sessions/chat-write.ts`), and **writing any of voice, dispatch and speakers
+  writes all three**: `chatSettingsOf`'s era rule reads a file with none of
+  them as the mode's legacy, so writing `dispatch` alone would have let an
+  absent `voice` fall to Scene's declared `embodied` and re-voiced a saved
+  game with one checkbox. The transcript sends `swipes`
+  (`sessions/swipes.ts`): which message each sibling is a swipe of. And the
+  stream says who: `call.started` carries the message's `speaker`, and a new
+  progress key, `speakers.picked`, carries the round's order once it is final
+  — §1.3a point 8's *response_queue* — with `by` saying whether the rules, a
+  model, the fallback or a rewrite chose (`state/events.ts`, two lines in
+  `turns/runner.ts`). `GET /modes` gained `openingTurn`, so the creation form
+  offers openings only where the mode writes them.
+- **A counter is placed by shared content, not by `carried`.** §1.6 draws the
+  swipe strip for *"siblings that differ only from message k"* on message *k*.
+  The server places each sibling at the length of the messages the two share
+  by speaker and text, clamped to the turn's last message, or `null` for a
+  sibling answering a different move (an edited input), which stays on the
+  turn's own strip. `carried` alone could not do it: a swipe of message 2
+  carries 0..1 from the turn it named, which carried nothing, yet both belong
+  on message 2's counter — and an import's swipes carry no flag at all. A
+  continue lands on the last message; greetings on the first, which is ST's
+  greetings-as-swipes.
+- **Branch at a message is an edit that stops there.** §1.8 lists *branch*
+  among a message's actions and §1.6 has no row for it. Mid-round it is an
+  `editOf` sibling whose lines are the round up to that message — the server
+  carries them whole — and at the last message there is nothing to cut, so it
+  is *continue from here*, a head move that writes nothing.
+- **Swipe is a rewrite** (`rewriteOf` + `fromMessage`), the Redo button's
+  default and for its reason: swiping past a failed check must not be
+  save-scumming by accident. Swipe and continue are not offered on a
+  narrator's line, and continue only on the last line and never a hidden one
+  — the three refusals [P13.4] built, not shown as buttons that fail.
+- **Talkativeness is written to the card**, as §1.3 puts it
+  (`modeData[mode].talkativeness`), through the ordinary library save and
+  under the session's mode id. So changing it in one chat's cast panel changes
+  it in every chat that card is in, and the control's hint says so; a
+  per-session value would be a second answer the runner does not read.
+- **Mute is presence relabelled.** In an embodied chat the one checkbox reads
+  *Muted*, ticked when presence is `false`; in a narrated one it stays *In the
+  scene*, because there presence means the room (`castIsPresentFor`).
+- **Dispatch shows only under the characters' voice** — [P13.2]'s *"either
+  shows dispatch only under embodied voice or says it has no effect"*, the
+  first of the two. **Smart's cost is in its option's label.** A pre-P13
+  session's `fixed` is shown as itself, offered by no control.
+- **An empty send in a chat is a turn with no input**, labelled *Let them talk*
+  while the box is empty, and it sends under `manual` with nobody named — the
+  policy picks one, as [P13.4] settled. It is refused, with a sentence, only
+  when nobody seated could answer (every member muted or gone), which is
+  [P13.4]'s *"should not offer that send, or should say it will get no
+  reply"* — both. *Who speaks next* is one-shot and cleared by the send; while
+  a round streams its place shows the order.
+- **The round is painted per message** from `call.started` and the indexed
+  deltas. A reattach mid-round cannot: `seen` is seeded from the snapshot's
+  cursor, so the earlier `call.started` frames do not replay and the pieces
+  before the snapshot exist only in its joined text — so the reducer paints
+  that text instead (`round.whole`). A swipe's carried messages arrive as one
+  unindexed piece and are not painted while it streams; the turn shows them
+  when it lands.
+- **Auto-mode is a timer per idle stretch**, not an interval — re-armed after
+  each reply, as ST's is — and typing, Stop and a failed turn each switch it
+  off; so does finding nobody left who could answer.
+- **The reading view names speakers** from `output.messages` in all three
+  renderings (`lines` on a passage); a turn with no attributed message reads
+  as prose, as before. A chat turn's pictures fall to the end of the turn on
+  both surfaces — anchoring one inside a message is later work.
+- **Legacy turns render as before**: the chat drawing is for a turn whose
+  `output.messages` exist; a narrated turn's siblings stay on the turn's strip.
+  Redo is now offered on a turn that answered no move but made a call (*let
+  them talk*), and sends no input for it.
+- **The entry budget was raised** from 310 to 320 kB gzip
+  (`tools/entry-budget.test.ts`, with the numbers): the stage's code added
+  7.78 kB to a play page that is on the common entry, and no dependency.
+- **Discharged**: `route-callers.test.ts`'s owed row for the hide route.
+  **Also documented**: the hide route itself, which [P13.4] left out of
+  `docs/api.md`.
+
+*Not walked:* the gate (§4.1 items 1 and 2) is now walkable and has not been.
+
 ### Part B
 
 #### P13.5a — Trackers
@@ -1784,9 +1879,81 @@ two cases; the rest of §2.7 is one case each there, and the two doors are in
 `ensureChain` is lazy and sequential (`sessions/summaries.ts:213`). After
 `importSession`, a background warm derives the head path's chain outside any
 turn job, reporting on the event bus. It is safe to race a turn: link keys never
-include text, so a duplicate derivation costs one call and changes no key.
+include text, so a duplicate derivation changes no key; and `ensureChain` joins
+a derivation already in flight rather than repeating it, so a race costs no
+duplicate call. *(Amended 2026-09-29: this read "a duplicate derivation costs
+one call", which review found false — see the as-built note's race bullet.)*
 
 *Ends at:* a long fixture's first previewed turn derives zero links.
+
+*As built, 2026-09-29.* The *Ends at* is `turns/warm-summaries.test.ts`'s
+first case: a 240-line SillyTavern chat through `importChatFile` (five links
+above Scene's window), warmed, then previewed with the whole chain held, then
+played with no `se.summary` call in the turn's record. The warm is
+`turns/warm-summaries.ts` (`SummaryWarmer`, on `AppServices.summaryWarm`).
+
+- **Every door warms, because the hook is on the store's context.**
+  `importSession` calls `SessionContext.imported` after a first import and
+  after every extending sync, a sync that changed nothing included, since a
+  warm over a warm chain reads files and asks for nothing and it finishes a
+  chain an earlier warm did not. The route, the chat sweep and upload, and a
+  backup restore all hand over that context, so none can forget it. A hook on
+  `ImportContext` would have needed each caller edited, one of them
+  `routes/sessions.ts`.
+- **The turn's questions in the turn's words.** The warm gathers at the head
+  and asks `summaryPlanFor`, so slot, depth and the summariser's role (with
+  `roles`, `stepRoles` and the bindings) are decided once for the turn, the
+  preview and the warm. The step's path conversion, candidates and keep rule
+  are now exported from `turns/summarise.ts` (`summarisablePath`,
+  `summaryCandidates`, `keptSummary`) and used by both. A warm that built its
+  path any other way would write keys no turn reads. No slot, or no
+  summariser, means no plan, no event and no call. The control case (the same
+  session in a mode with a slot warms) keeps that test from passing on its
+  own.
+- **The race costs no duplicate call, because `ensureChain` joins one in
+  flight.** Review found the plan's *"a duplicate derivation costs one call"*
+  wrong for the build as first written: two lazy walks of one chain run in
+  lockstep, each finding the next link missing, so a turn sent mid-warm paid
+  for every remaining link twice, on the endpoint it was waiting for. Now
+  `sessions/summaries.ts` keeps the derivations in flight by the link's file
+  path; a walk that reaches one waits for it and takes its link. An owner
+  registers before its second disk read, and leaves the map only after its
+  write, so no interleaving calls twice. A waiter whose link failed or was
+  cancelled goes round and derives it itself, so a warm stopped by a delete
+  does not fail a turn that joined it. In process only: a second process
+  over one data root would still pay the duplicate, and still write one key.
+  Both of the second `describe`'s cases race. At the store, two concurrent
+  `ensureChain`s in different words produce identical key lists, one file per
+  key, and derive every link exactly once between them. End to end, a warm
+  held inside its first call while a turn reaches its summary step: the
+  turn's carried `linkKey`s equal the files on disk exactly, and the
+  summariser calls equal the links. The turn is not otherwise serialised
+  behind the warm.
+- **Progress is a `summaries` frame** (`TurnStream.summaries`,
+  `Listener.onSummaries`, SSE `event: summaries`): whole state
+  (`warming | warmed | failed | cancelled`, `links`, `missing`, `derived`),
+  no `id:`, and not in the snapshot, for the rendition frame's reasons. The
+  `warming` frames are droppable and the ending is not. **The client does not
+  read it yet.** Its reducer ignores unknown frames, and showing *the story so
+  far is being read* is client work outside this stage.
+- **Bounded, cancellable, forgotten.** One warm per session: a second import
+  while it runs marks it to go round again, since the head may have moved.
+  `WARM_CONCURRENCY = 2` install-wide, FIFO beyond it, and a constant rather
+  than a config key until something measures a reason to turn it. Delete
+  awaits `SessionContext.deleting` under the session lock before the folder
+  moves. A reply that lands after the abort is thrown rather than written, so
+  no `summaries/` folder is recreated beside the trashed one.
+  `disposeServices` stops the warm after the renditions drain and before the
+  stores close, and `settled()` waits for it. Nothing is persisted: after a
+  restart the next turn derives what is missing.
+- **Usage** is one `usage.jsonl` line per link, purpose `summarise`, including
+  a call that failed or was cancelled after reaching the provider.
+- **Not covered:** removing an account does not cancel its warms. A warm in
+  flight then can write one link into a folder being removed. It is the same
+  exposure a rendition job has, and it is left for whoever next touches
+  account removal. [18 §7.5](../18-session-import.md)'s other open point, that the memory extractor
+  *"has the same shape and was not checked"*, is still unchecked. Its
+  eight-turn read is §3's *not in this phase*.
 
 #### P13.12 — The corpus and the gate test
 

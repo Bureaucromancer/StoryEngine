@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { ModelCall } from '@storyengine/shared';
 import type {
   Candidate,
   StepDefinition,
   StepHost,
   StepImplementation,
   StepInput,
+  TranscriptTurn,
 } from '@storyengine/sdk';
 
 import { storyDepth } from '../sessions/depth.js';
@@ -188,64 +190,14 @@ export function summarise(context: SummariseContext): {
   return {
     definition: SUMMARISE_STEP,
     run: async (input: StepInput, host: StepHost) => {
-      /**
-       * `transcript` to the chain's own shape. The one field that changes name
-       * is the identity — a `TranscriptTurn` calls it `turnId` because it is a
-       * reference, and a `Turn` calls it `id` because it is the thing.
-       */
-      const path: SummarisableTurn[] = (input.transcript ?? []).map((turn) => ({
-        id: turn.turnId,
-        ...(turn.input === undefined
-          ? {}
-          : {
-              input: {
-                text: turn.input.text,
-                ...(turn.input.attachments === undefined
-                  ? {}
-                  : { attachments: turn.input.attachments }),
-              },
-            }),
-        ...(turn.output === undefined ? {} : { output: { text: turn.output.text } }),
-      }));
-
+      const path = summarisablePath(input.transcript ?? []);
       const summariser: Summariser = {
         key: context.key,
-        run: async ({ previous, units }) => {
-          const result = await host.call({
-            candidates: [
-              block('se.summary.task', 'system', SUMMARISE_PROMPT),
-              ...(previous === null ? [] : [block('se.summary.previous', 'user', previous)]),
-              block('se.summary.turns', 'user', renderUnits(units)),
-            ],
-          });
-          const text = result.text.trim();
-          /**
-           * ***Only a finished summary is kept*** (2026-09-27).
-           *
-           * A link is written under a content key, served from then on without
-           * being asked for again, and handed to the next link as `previous`. So
-           * a reply that ran into its length limit mid-sentence was the story
-           * above the window for the rest of the session, and every link after
-           * it summarised the cut. A long session reaches that limit by design,
-           * since each link covers everything before it. A filtered reply came
-           * back empty and quietly removed the summary.
-           *
-           * Thrown rather than kept, so nothing is written for this link and the
-           * next turn asks again: the step is `warn`, and a turn without a
-           * summary is the state [P8]'s safety argument already prices.
-           * *`incomplete` is kept when it has words*, because some local
-           * endpoints never report why they stopped, and refusing those would
-           * refuse every summary they write.
-           */
-          if (result.outcome === 'truncated') {
-            throw new Error('The summary was cut off at its length limit, so it was not kept.');
-          }
-          if (result.outcome === 'refused') {
-            throw new Error('The provider refused to write the summary, so none was kept.');
-          }
-          if (text === '') throw new Error('The summary came back empty, so it was not kept.');
-          return text;
-        },
+        // So a turn stopped while it waits on the warm's derivation of a link
+        // stops waiting (`ensureChain`'s in-flight join).
+        signal: host.signal,
+        run: async ({ previous, units }) =>
+          keptSummary(await host.call({ candidates: summaryCandidates(previous, units) })),
       };
 
       const chain = await ensureChain(
@@ -277,6 +229,86 @@ export function summarise(context: SummariseContext): {
       return {};
     },
   };
+}
+
+/**
+ * `transcript` to the chain's own shape — [P8.1], and since [P13.11] the warm's
+ * too (`turns/warm-summaries.ts`).
+ *
+ * ***Shared rather than restated, because the warm is only worth anything if
+ * it arrives at the turn's keys.*** A link's key is a hash over its units, and
+ * a unit's over what this returns; a warm that built its path a second way
+ * would fill `summaries/` with links the next turn never asks for, and the
+ * turn would derive the whole chain anyway — the cliff, with a bill for the
+ * warm on top.
+ *
+ * The one field that changes name is the identity — a `TranscriptTurn` calls
+ * it `turnId` because it is a reference, and a `Turn` calls it `id` because it
+ * is the thing.
+ */
+export function summarisablePath(transcript: readonly TranscriptTurn[]): SummarisableTurn[] {
+  return transcript.map((turn) => ({
+    id: turn.turnId,
+    ...(turn.input === undefined
+      ? {}
+      : {
+          input: {
+            text: turn.input.text,
+            ...(turn.input.attachments === undefined
+              ? {}
+              : { attachments: turn.input.attachments }),
+          },
+        }),
+    ...(turn.output === undefined ? {} : { output: { text: turn.output.text } }),
+  }));
+}
+
+/**
+ * What one link's call is handed: the task, the link before as context, and
+ * the turns. Shared with the warm for {@link summarisablePath}'s reason — the
+ * prompt is in the summariser's key, and a warm that asked in other words
+ * would be writing prose the key does not describe.
+ */
+export function summaryCandidates(
+  previous: string | null,
+  units: readonly SummaryUnit[],
+): Candidate[] {
+  return [
+    block('se.summary.task', 'system', SUMMARISE_PROMPT),
+    ...(previous === null ? [] : [block('se.summary.previous', 'user', previous)]),
+    block('se.summary.turns', 'user', renderUnits(units)),
+  ];
+}
+
+/**
+ * ***Only a finished summary is kept*** (2026-09-27).
+ *
+ * A link is written under a content key, served from then on without being
+ * asked for again, and handed to the next link as `previous`. So a reply that
+ * ran into its length limit mid-sentence was the story above the window for
+ * the rest of the session, and every link after it summarised the cut. A long
+ * session reaches that limit by design, since each link covers everything
+ * before it. A filtered reply came back empty and quietly removed the summary.
+ *
+ * Thrown rather than kept, so nothing is written for this link and the next
+ * turn asks again: the step is `warn`, and a turn without a summary is the
+ * state [P8]'s safety argument already prices. *`incomplete` is kept when it
+ * has words*, because some local endpoints never report why they stopped, and
+ * refusing those would refuse every summary they write.
+ *
+ * *A function since [P13.11]*, so the warm keeps what the step keeps: a warm
+ * that wrote a cut-off link would hand every turn after it the cut.
+ */
+export function keptSummary(result: { text: string; outcome?: ModelCall['outcome'] }): string {
+  const text = result.text.trim();
+  if (result.outcome === 'truncated') {
+    throw new Error('The summary was cut off at its length limit, so it was not kept.');
+  }
+  if (result.outcome === 'refused') {
+    throw new Error('The provider refused to write the summary, so none was kept.');
+  }
+  if (text === '') throw new Error('The summary came back empty, so it was not kept.');
+  return text;
 }
 
 /**

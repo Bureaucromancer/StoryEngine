@@ -129,6 +129,29 @@ export interface SessionContext {
    * test. `app.ts` answers it from the operational store's `activeJob`.
    */
   busy?: (sessionId: string) => boolean;
+  /**
+   * ***A session arrived by import*** — [P13.11], [18 §7.5]'s cliff.
+   *
+   * `importSession` calls it after a first import and after every sync that
+   * extended one, and `app.ts` answers it by warming the head path's summary
+   * chain in the background, so the first turn played after importing a long
+   * chat does not derive every link inside itself. **On the store's context
+   * rather than the importer's**, because four doors import — the route, the
+   * chat sweep and upload, and a backup restore — and each hands over this
+   * context and nothing else; a hook on any narrower one would be a door that
+   * forgot it. *Called and not awaited*: the import's answer does not wait on
+   * a model. Optional, and absent means nothing warms, which is every
+   * store-only test.
+   */
+  imported?: (handle: string, sessionId: string) => void;
+  /**
+   * ***Stop deriving into a session that is going*** — [P13.11]. Awaited by
+   * `deleteSession` under the session's lock and before the folder moves,
+   * because a warm's link written after the move would make
+   * `sessions/<id>/summaries/` again beside the trashed one — the collision
+   * the busy refusal above exists to prevent for a turn's commit.
+   */
+  deleting?: (sessionId: string) => Promise<void>;
 }
 
 function scopeOf(context: SessionContext, handle: string): string {
@@ -637,6 +660,9 @@ export async function deleteSession(
     if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
     if (session === null) return { kind: 'no-session' };
+    // A summary warm stopped and waited for, before there is no folder to
+    // write into — see `SessionContext.deleting`.
+    await context.deleting?.(sessionId);
 
     const root = sessionRoot(context.layout, handle, sessionId);
     await context.layout.assertReal(root);

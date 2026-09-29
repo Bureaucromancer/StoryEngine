@@ -15,7 +15,7 @@ import {
   sessionJobsFrom,
 } from '../state/jobs.js';
 import type { JobContext } from '../state/jobs.js';
-import type { TurnStream } from './bus.js';
+import type { SummaryWarm, TurnStream } from './bus.js';
 
 /**
  * Snapshot plus cursor, with no gap between them —
@@ -90,7 +90,12 @@ export type StreamFrame =
    * That is the property `progress` cannot have — an event is a delta against a
    * draft — and it is why this kind needs neither a sequence nor a cursor.
    */
-  | { kind: 'rendition'; rendition: Rendition };
+  | { kind: 'rendition'; rendition: Rendition }
+  /**
+   * The summary chain's warm moved — [P13.11]. Whole state, applied by
+   * replacement, so it needs no cursor either; see `SummaryWarm`.
+   */
+  | { kind: 'summaries'; warm: SummaryWarm };
 
 export interface Attachment {
   snapshot: Snapshot;
@@ -153,6 +158,11 @@ export function attachToSession(
     },
     onRendition: (rendition) => {
       const frame: StreamFrame = { kind: 'rendition', rendition };
+      if (live) deliver(frame);
+      else buffered.push(frame);
+    },
+    onSummaries: (warm) => {
+      const frame: StreamFrame = { kind: 'summaries', warm };
       if (live) deliver(frame);
       else buffered.push(frame);
     },

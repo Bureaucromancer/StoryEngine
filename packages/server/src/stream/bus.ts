@@ -54,6 +54,42 @@ export interface Listener {
    * makes a late attach whole, which is why there is no second cursor.
    */
   onRendition(rendition: Rendition): void;
+  /**
+   * The summary chain's warm moved — [P13.11], [18 §7.5]'s cliff.
+   *
+   * ***Optional, and that is the one listener method that is.*** A warm is
+   * news a surface may show — *the story so far is being read* — and nothing a
+   * turn's correctness waits on: the next turn derives whatever the warm has
+   * not, so a listener that ignores these loses a progress bar and nothing
+   * else. Every other method here carries state a client must converge on.
+   */
+  onSummaries?(warm: SummaryWarm): void;
+}
+
+/**
+ * ***Where a session's summary warm is***, whole — [P13.11].
+ *
+ * **Counts rather than a delta, for the rendition frame's reason**: a warm has
+ * no sequence and no draft, so each frame is the whole state and a listener
+ * that missed three and read the fourth is where one that saw all four is.
+ * *Not in the snapshot either*: a warm is process-local and survives no
+ * restart, so a client attaching mid-warm learns of it from the next link.
+ */
+export interface SummaryWarm {
+  sessionId: string;
+  /**
+   * `warming` while links are being derived; then `warmed` (every missing link
+   * was written), `failed` (one could not be — the held prefix stands and the
+   * next turn asks again), or `cancelled` (the session was deleted, or the
+   * server is stopping).
+   */
+  state: 'warming' | 'warmed' | 'failed' | 'cancelled';
+  /** Links in the head path's chain. */
+  links: number;
+  /** Of those, how many were not on disk when the warm began. */
+  missing: number;
+  /** How many this warm has derived so far. */
+  derived: number;
 }
 
 /** What `checkpoint()` needs to reach the bus without importing it. */
@@ -135,6 +171,16 @@ export class TurnStream implements EventSink {
   rendition(sessionId: string, rendition: Rendition): void {
     this.#each(sessionId, (listener) => {
       listener.onRendition(rendition);
+    });
+  }
+
+  /**
+   * Tells a session's watchers where its summary warm is — [P13.11]. Nothing
+   * is accumulated, for `rendition`'s reason: the frame is the whole state.
+   */
+  summaries(warm: SummaryWarm): void {
+    this.#each(warm.sessionId, (listener) => {
+      listener.onSummaries?.(warm);
     });
   }
 

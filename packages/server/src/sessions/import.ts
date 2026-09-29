@@ -197,6 +197,28 @@ export async function importSession(
   document: unknown,
   options: SessionImportOptions = {},
 ): Promise<SessionImport> {
+  const result = await loadSession(context, handle, document, options);
+  /**
+   * ***And then the chain is warmed, outside this call*** — [P13.11],
+   * [18 §7.5]: *"an imported 2,000-turn chat at the default `span: 20` asks for
+   * ~99 summariser calls, one after another, inside the first turn played
+   * after import."* Told here rather than by each door, and after a sync as
+   * well as a first import, since a sync that appended a hundred turns is the
+   * same cliff a hundred turns high. A sync that changed nothing is told too:
+   * a warm over a warm chain reads the link files and asks for nothing, and a
+   * chain the last warm did not finish — a restart, a failed link — is
+   * finished by this one.
+   */
+  if (result.ok) context.sessions.imported?.(handle, result.sessionId);
+  return result;
+}
+
+async function loadSession(
+  context: ImportContext,
+  handle: string,
+  document: unknown,
+  options: SessionImportOptions,
+): Promise<SessionImport> {
   const read = readSessionExport(document);
   if ('reason' in read) {
     return { ok: false, reason: read.reason as 'unreadable' | 'wrong-schema' };
