@@ -1219,6 +1219,14 @@ this entry declines. [P12.8](workplan/29-p12-implementation.md)'s
 as P13's Part 2 on this reading and **not scheduled**, so *"still not a
 commitment"* above is unchanged.
 
+***Scheduled for Aventuras, 2026-09-29*** — by the person, for
+[P13](workplan/30-p13-aventuras-import.md)'s Part 2
+([§0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4)). This
+is a commitment for **one producer**, Aventuras' stories, and not for session
+import from other platforms in general: the paragraphs above stand for every
+other source, and the producer keeps the *one reader* shape this entry
+protects — deleting it deletes nothing else.
+
 Distinct from **card, lorebook and preset import**, which is committed and early
 ([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against
 formats that barely move. Session history is neither.

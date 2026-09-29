@@ -477,6 +477,14 @@ P13's Part 1, which is card and lorebook import and was never this document's
 subject. The paragraph above stands for the stories: a number is not a
 commitment, and [25 E4](25-open-questions.md) records the shape they would take.
 
+***And the stories are scheduled*** — *2026-09-29.* The person scheduled
+P13's Part 2 ([P13 §0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4)):
+the commitment the paragraph above withheld is now given, by the person and not
+by the numbering. The shape is unchanged — a producer of
+`storyengine.session-export/1` for Aventuras' stories, handing its export to
+`importSession`, the one reader — so §1's ordering and E4's *one reader* both
+still hold.
+
 **The one recorded way to reopen it earlier** is
 [P7 §1.10](workplan/23-p7-implementation.md)'s: *"a **format** argument rather
 than a completeness one… the case reopens for that one shape only."* E4's revision

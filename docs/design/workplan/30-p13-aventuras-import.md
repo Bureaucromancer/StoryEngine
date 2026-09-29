@@ -1,14 +1,18 @@
 # 30 — P13 implementation plan
 
 **Status: merged to `main` 2026-09-29 at `7565265`, from
-`claude/epic-hypatia-p1h6my`; the phase is open — Part 1's gate is unwalked and
-most of its stages unbuilt. P13.0 done — `34b3174` (the failing tests), `75c56ca` (the fix),
-2026-09-28, and the fix set aside for main's own at the merge of 2026-09-29
-([§0.4](#04-what-the-survey-found-in-our-own-tree)); the rest of Part 1 is
-design only.** Written 2026-09-26 on
+`claude/epic-hypatia-p1h6my`; the phase is open. Part 1 is built — P13.1 to
+P13.9, each cited below by its commit, P13.9 closed `recorded` — and its gate is
+unwalked; Part 2 was scheduled by the person on 2026-09-29
+([§0.3](#03-how-this-sits-with-25-e4)) and is being built. P13.0 done —
+`34b3174` (the failing tests), `75c56ca` (the fix), 2026-09-28, and the fix set
+aside for main's own at the merge of 2026-09-29
+([§0.4](#04-what-the-survey-found-in-our-own-tree)).** Written 2026-09-26 on
 `claude/epic-hypatia-p1h6my`, from a survey of Aventuras at `c43da108`
-(2026-09-25). Part 1 is planned to the stage; **Part 2 is headed and not
-scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives.
+(2026-09-25). Part 1 is planned to the stage; ~~**Part 2 is headed and not
+scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives~~
+**Part 2 was headed and not scheduled, and is now scheduled**, as
+[§0.3](#03-how-this-sits-with-25-e4) records.
 [§0.4](#04-what-the-survey-found-in-our-own-tree)'s findings against shipped
 code are fixed, and [§0.5](#05-found-in-passing-and-not-fixed-here) records what
 the work that fixed them found and left.
@@ -85,8 +89,21 @@ one format, not N importers"* — and Part 2 keeps it by construction:
 document gives the stories a number anyway. It does so on
 [P12 §1.5](29-p12-implementation.md)'s argument — a roadmap entry holds no
 commitment, and Part 1 is being built — and only as **headings**, so the stage
-names are checkable by `tools/citation-targets.test.ts`. The stories stay not
-scheduled; 18 §6 records the reading.
+names are checkable by `tools/citation-targets.test.ts`. ~~The stories stay not
+scheduled; 18 §6 records the reading.~~
+
+***Scheduled by the person, 2026-09-29.*** Asked to build P13's remaining parts,
+the person answered *yes to everything for part 2*, with its two open questions
+decided — [§4](#4--open-questions): system entries become turns, and locations,
+items and story beats become lore entries, *"for now lore is the right
+place"*, story beats being a feature they mean to build here later. That is the
+commitment the paragraphs above said a number did not make, and it is made by
+the person rather than by this document, which is the order E4 asks for. **The
+shape does not change**: the story converter is still a producer of
+`storyengine.session-export/1` handing its export to `importSession`, and
+deleting it still deletes nothing else. [18 §6](../18-session-import.md) and
+[25 E4](../25-open-questions.md) each record the scheduling where their own
+*not scheduled* stood.
 
 ### 0.4 What the survey found in our own tree
 
@@ -877,10 +894,11 @@ one, and only modified templates. *This stage may close as `recorded`* if the
 mapping table shows too little survives to be worth a preset — that is a
 finding, not a failure.~~
 
-### Part 2 — the stories, not scheduled
+### Part 2 — the stories, ~~not scheduled~~ scheduled 2026-09-29
 
-*Every stage below is a heading so it can be cited and checked, and none of them
-is scheduled.* [0.3](#03-how-this-sits-with-25-e4) is the argument;
+~~*Every stage below is a heading so it can be cited and checked, and none of them
+is scheduled.*~~ *Scheduled by the person on 2026-09-29
+([§0.3](#03-how-this-sits-with-25-e4)); every stage is built in order.* [0.3](#03-how-this-sits-with-25-e4) is the argument;
 [18 §2.3.1](../18-session-import.md) is the survey these stages would build on.
 
 ### P13.10 — `importSession` for a producer
