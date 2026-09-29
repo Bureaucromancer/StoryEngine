@@ -12,6 +12,7 @@ import {
   SETUP_SCHEMA,
   uuidv7,
   type Setup,
+  type Turn,
   type TurnAttachment,
 } from '@storyengine/shared';
 
@@ -37,15 +38,17 @@ import {
   setSessionRoles,
   readTurns,
   readTurnById,
+  reconstructAlong,
   setArchived,
   setMemoryConfig,
   setRenditionSelection,
   setName,
+  snapshotIsAt,
   undoTurn,
   writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
-import { castRows } from '../sessions/cast.js';
+import { actorsWithState, castRows } from '../sessions/cast.js';
 import { chatSettingsAtCreation } from '../sessions/chat-settings.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
@@ -87,6 +90,8 @@ import {
 import { readOnePart } from './import.js';
 import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
+import { keptSpeakers } from '../turns/smart-speakers.js';
+import { forceRefusal, type ForceRefusal } from '../turns/speakers.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
 import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
@@ -729,6 +734,38 @@ const SubmitBody = Type.Object(
       { additionalProperties: false },
     ),
     guidance: Type.Optional(Type.String({ maxLength: 4000 })),
+    /**
+     * ***Force-talk*** — who should reply, by actor id, in order;
+     * [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * added at [P13.1]. ST's member *speak* button and `/trigger`; Marinara's
+     * `forCharacterId`.
+     *
+     * **Overrides the session's speaker policy**, whatever it is. Reaches a
+     * **muted** member — that is what the button is for — and never the
+     * persona, somebody outside the cast, or somebody the story has written
+     * out; each of those is a 422 naming which, checked in the handler because
+     * it depends on the session and not on the shape.
+     *
+     * *At least one and no repeats*: an empty list would be a request to force
+     * nobody, which `manual` already is, and a repeated id would be a speaker
+     * asked for twice in one round — a client bug the schema can name. At most
+     * 32, the cast route's own ceiling.
+     *
+     * ***Recorded on the turn, and kept by a rewrite.*** The list lands on
+     * `Turn.input.speakers`, and a `rewriteOf` submission that leaves this out
+     * is forced to the redone turn's list, read off the record for the tape's
+     * reason — a rewrite is *"not that sentence"*, and who was asked to say it
+     * is not the sentence. A reroll keeps nothing, as it keeps no draw; a
+     * client that wants the same member again sends them again. Sent beside
+     * `rewriteOf`, this wins.
+     */
+    speakers: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 200 }), {
+        minItems: 1,
+        maxItems: 32,
+        uniqueItems: true,
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -3108,6 +3145,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           attachments?: { digest: string; caption?: string }[];
         };
         guidance?: string;
+        speakers?: string[];
       };
 
       /**
@@ -3118,6 +3156,25 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * refusal, and the runner's job starts after that question is settled.
        */
       let replay: Tape | undefined;
+      /**
+       * ***And who it spoke for*** — [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+       * point 7, [P13.1]. *Rewrite keeps the speakers and reroll asks again*:
+       * the tape carries every choice the rule-based arms make, and this carries
+       * one it cannot — a smart pick, which was a model's answer rather than a
+       * draw. Read from the same record in the same read, for the tape's
+       * reason.
+       */
+      let kept: string[] | undefined;
+      /**
+       * ***And who it was asked to speak for*** — the redone turn's force-talk,
+       * `Turn.input.speakers`, [P13.1]. The other choice of speaker the tape
+       * cannot carry, and the one a rewrite lost before the record kept it: a
+       * forced turn's rewrite played the session's policy, so *"Lund, answer
+       * that"* came back as whoever the policy chose — under `manual`, nobody.
+       * **The body's own `speakers` wins when sent**, since a person naming
+       * somebody now is a newer request than the one on the record.
+       */
+      let forced: string[] | undefined;
       if (body.rewriteOf !== undefined) {
         const rewritten = await readTurnById(
           services.sessions,
@@ -3131,6 +3188,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
         }
         replay = rewritten.tape;
+        kept = keptSpeakers(rewritten);
+        forced = forcedOn(rewritten);
       }
 
       /**
@@ -3202,6 +3261,53 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             message: `This mode does not accept ${kind} input.`,
             accepted,
           });
+        }
+      }
+
+      /**
+       * ***Force-talk, checked against the node the turn will answer at*** —
+       * [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+       * [P13.1].
+       *
+       * **A 422 naming the class of refusal**, for the input kind's reason: a
+       * silently dropped name is a person pressing *speak* on somebody and
+       * getting somebody else, or nobody, with nothing said. The three classes
+       * are `forceRefusal`'s, which the runner applies again when the turn runs:
+       * this is the refusal a person can act on, and the runner's is the guard
+       * that still holds if the node's state moves between the two.
+       *
+       * ***At the node, not at the head***, because status is per node: a
+       * character dead on one branch is alive on the branch being written from,
+       * and `parentTurnId` is how a submission says which. The head's snapshot
+       * is the cheap answer for the node it describes, and a replay along the
+       * path is the general one — `gatherAssemblyInputs`' rule, applied to the
+       * one question this needs answered before a job exists.
+       *
+       * *The cast is the roster plus anyone the node's channels name*, which is
+       * the set `resolveCast` loads. An id naming a card since deleted passes
+       * here and is dropped by the runner, which reads the library; a second
+       * library read on the submit path would buy a nicer refusal for a request
+       * only a stale client can make.
+       */
+      if (body.speakers !== undefined) {
+        const forcing = await readSession(services.sessions, account.handle, sessionId);
+        if (forcing !== null) {
+          const node = 'parentTurnId' in body ? (body.parentTurnId ?? null) : body.headTurnId;
+          const channels = snapshotIsAt(forcing, node)
+            ? forcing.channels
+            : await reconstructAlong(
+                services.sessions,
+                account.handle,
+                sessionId,
+                walkPath(await readTurns(services.sessions, account.handle, sessionId), node),
+              );
+          const refused = firstForceRefusal(body.speakers, forcing, channels);
+          if (refused !== null) {
+            return reply.code(422).send({
+              ...FORCE_REFUSALS[refused.reason],
+              speaker: refused.speaker,
+            });
+          }
         }
       }
 
@@ -3291,13 +3397,19 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * that already happened.
            */
           if (outcome.job.status === 'queued') {
-            services.runner.start(outcome.job, payloadOf(body, { replay, attempt, attachments }));
+            services.runner.start(
+              outcome.job,
+              payloadOf(body, { replay, kept, forced, attempt, attachments }),
+            );
           }
           return reply.send(accepted(outcome.job, sessionId));
         }
 
         case 'created':
-          services.runner.start(outcome.job, payloadOf(body, { replay, attempt, attachments }));
+          services.runner.start(
+            outcome.job,
+            payloadOf(body, { replay, kept, forced, attempt, attachments }),
+          );
           // 202: the work is accepted, not done. The stream is where it happens.
           return reply.code(202).send(accepted(outcome.job, sessionId));
       }
@@ -3426,6 +3538,7 @@ function payloadOf(
   body: {
     input: { text: string; actorId?: string | null; kind?: string };
     guidance?: string;
+    speakers?: readonly string[];
   },
   /**
    * What the route read off the record on the submission's behalf — the tape
@@ -3435,6 +3548,10 @@ function payloadOf(
    */
   fromRecord: {
     replay?: Tape | undefined;
+    /** Who a rewrite's redone turn spoke for — `TurnPayload.keptSpeakers`. */
+    kept?: readonly string[] | undefined;
+    /** Who a rewrite's redone turn was forced to speak for — its `input.speakers`. */
+    forced?: readonly string[] | undefined;
     attempt?: { turnId: string; text: string } | undefined;
     /** The move's pictures, as the store described them — never the client's claim. */
     attachments?: TurnAttachment[] | undefined;
@@ -3450,7 +3567,13 @@ function payloadOf(
   guidance?: string;
   attempt?: { turnId: string; text: string };
   replay?: Tape;
+  keptSpeakers?: readonly string[];
+  speakers?: readonly string[];
 } {
+  // The body's is checked by the handler before a job existed, and the
+  // record's was checked when its own turn was submitted; both are checked
+  // again by the selector when the turn runs — see `TurnPayload.speakers`.
+  const speakers = body.speakers ?? fromRecord.forced;
   return {
     input: {
       actorId: body.input.actorId ?? null,
@@ -3464,7 +3587,81 @@ function payloadOf(
     ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
     ...(fromRecord.attempt === undefined ? {} : { attempt: fromRecord.attempt }),
     ...(fromRecord.replay === undefined ? {} : { replay: fromRecord.replay }),
+    ...(fromRecord.kept === undefined ? {} : { keptSpeakers: fromRecord.kept }),
+    ...(speakers === undefined ? {} : { speakers }),
   };
+}
+
+/**
+ * ***The force-talk a turn recorded***, as a rewrite restores it — or
+ * `undefined` for a turn nobody forced.
+ *
+ * *Shape-guarded*, because the record is a file and an imported session's
+ * turns ride in through a spread: a hand-edited or foreign `speakers` that is
+ * not a list of ids is read as nobody forced, rather than handed to a selector
+ * whose filter expects strings. **An empty list is nobody forced too**, which
+ * the schema would never have accepted on the way in.
+ */
+function forcedOn(turn: Turn): string[] | undefined {
+  const held: unknown = turn.input?.speakers;
+  if (!Array.isArray(held)) return undefined;
+  const ids = held.filter((id): id is string => typeof id === 'string' && id !== '');
+  return ids.length === 0 ? undefined : ids;
+}
+
+/**
+ * What each force-talk refusal says — [P13 §1.3], [P13.1]. **One error class
+ * per reason**, because a client acts differently on each: a persona named is
+ * a client that should have offered impersonate instead, somebody outside the
+ * cast is a stale roster, and somebody written out is a status a person can
+ * correct in the cast panel before asking again.
+ */
+const FORCE_REFUSALS: Record<ForceRefusal, { error: string; message: string }> = {
+  persona: {
+    error: 'speaker-is-persona',
+    message: 'You speak for yourself here: the persona cannot be asked to reply.',
+  },
+  'not-in-cast': {
+    error: 'speaker-not-in-cast',
+    message: 'That character is not in this session’s cast.',
+  },
+  'written-out': {
+    error: 'speaker-written-out',
+    message: 'That character is dead or has left the story, so cannot be asked to reply.',
+  },
+};
+
+/**
+ * The first name force-talk refuses, and why — or null when every one may
+ * speak. **The first rather than all**, as the input kind and the pictures are
+ * refused: one 422 names one thing to fix, and the next submission finds the
+ * next.
+ *
+ * *Shape-guarded*, because `readSession` hands back whatever is in the file and
+ * a hand-edited `cast` may not be the object its type says it is — the same
+ * guard `resolveCast` keeps, for the same reason.
+ */
+function firstForceRefusal(
+  speakers: readonly string[],
+  session: { cast?: unknown },
+  channels: Readonly<Record<string, { value: unknown }>>,
+): { speaker: string; reason: ForceRefusal } | null {
+  const held: unknown = session.cast;
+  const cast = typeof held === 'object' && held !== null ? (held as Record<string, unknown>) : {};
+  const declared = Array.isArray(cast['actors'])
+    ? (cast['actors'] as unknown[]).filter((id): id is string => typeof id === 'string')
+    : [];
+  const persona = typeof cast['persona'] === 'string' ? cast['persona'] : null;
+  const scene = {
+    cast: new Set([...declared, ...actorsWithState(channels)]),
+    persona,
+    channels,
+  };
+  for (const speaker of speakers) {
+    const reason = forceRefusal(speaker, scene);
+    if (reason !== null) return { speaker, reason };
+  }
+  return null;
 }
 
 function accepted(

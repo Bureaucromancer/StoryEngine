@@ -165,12 +165,45 @@ export interface ModePreset {
  * they decide who talks this turn, over whoever presence and status say is
  * available:
  *
- * - `natural` — whoever the scene just addressed. The heuristic is the last
- *   turn's prose scanned for names, which is ST's and is honestly a heuristic.
- * - `list` — each in turn, rotating.
- * - `pooled` — one at random, drawn on the turn's tape so a replay is the same
- *   scene.
- * - `manual` — whoever the player named with the input, and nobody otherwise.
+ * - ~~`natural` — whoever the scene just addressed. The heuristic is the last
+ *   turn's prose scanned for names, which is ST's and is honestly a heuristic.~~
+ * - ~~`list` — each in turn, rotating.~~
+ * - ~~`pooled` — one at random, drawn on the turn's tape so a replay is the same
+ *   scene.~~
+ * - ~~`manual` — whoever the player named with the input, and nobody otherwise.~~
+ *
+ * ***Corrected 2026-09-29, at [P13.1]: those four lines named ST's arms and
+ * described something else.*** [P7.3] took the taxonomy and not the behaviour
+ * — [P13 §0.7](../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+ * lays the two side by side — and nothing noticed because no shipped step read
+ * the answer. The arms now do what `group-chats.js` does at the pinned commit
+ * ([P13 §1.3]), every random choice on the turn's tape:
+ *
+ * - `natural` — the default for a chat. Whoever the **activation text** names
+ *   (the input, or the last message when there is none), in the order the
+ *   words appear; then **every** member whose talkativeness roll succeeds; then,
+ *   if still nobody, one member at random. The last speaker sits out a turn
+ *   the player did not start, unless self-responses are allowed. *Not a
+ *   prose-only scan, and not able to answer nobody* while anybody is eligible.
+ * - `list` — **everybody** eligible, once each, in cast order. Not a rotation
+ *   of one: that was P7.3's reading, and ST's LIST (and Marinara's
+ *   `sequential`) is the whole group replying in turn within one round.
+ * - `pooled` — one member. After an input, anyone; on a turn with no input,
+ *   one who has not spoken since the last input, else anyone but the last
+ *   speaker.
+ * - `manual` — **nobody** replies to an input; replies are asked for by name
+ *   (force-talk, which overrides every arm). A turn with no input gets one
+ *   member at random, which is ST's and is what keeps *let them talk* from
+ *   silently doing nothing.
+ *
+ * **And a fifth, `smart`, which is not ST's** — [P13 §1.3a], Marinara's
+ * `smart` order built the way the hook selector is. The rules decide whenever
+ * they can (force-talk, a mention, a room of one); otherwise an engine step
+ * asks a model, with `natural`'s pick drawn beforehand as the fallback. It is
+ * the one arm that can cost a call, which is why §1.3a puts the cost in the
+ * control's label. The step is `se.speakers.smart`, engine-owned and planned
+ * only on a turn the rules could not settle; a session may point its
+ * `stepRoles` at that id to send the call to a cheaper model.
  *
  * **Lowercase, where the design note writes them as ST's constants.** A
  * `select` value lands in a mode definition, which is *content*, and every
@@ -180,9 +213,19 @@ export interface ModePreset {
  *
  * **`fixed` stays and is not one of the four.** It is the honest answer for a
  * mode that seats one actor, and removing it would force Scene to claim a
- * selection strategy for a choice it does not make.
+ * selection strategy for a choice it does not make. *It also stays after
+ * [P13.1]*: a pre-P13 Scene session reads as `fixed` through
+ * `ModeDefinition.legacy`, and a session file naming it has to keep meaning
+ * what it meant.
  */
-export const PARTICIPANT_SELECTORS = ['fixed', 'natural', 'list', 'pooled', 'manual'] as const;
+export const PARTICIPANT_SELECTORS = [
+  'fixed',
+  'natural',
+  'list',
+  'pooled',
+  'manual',
+  'smart',
+] as const;
 
 export interface ParticipantPolicy {
   /**
@@ -198,6 +241,40 @@ export interface ParticipantPolicy {
    * routed to a later phase does not survive.
    */
   select: (typeof PARTICIPANT_SELECTORS)[number];
+  /**
+   * ***A declared cast member with no presence value is present; presence
+   * `false` is muted*** —
+   * [P13 §1.3](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.1].
+   *
+   * **The problem is a default that made every arm select from nobody.**
+   * `se.presence` has been the eligibility test since [P7.3], its `init` is
+   * `false` because *a cast member nobody has mentioned is not in the scene*,
+   * and nothing in the build writes it — so under that reading nobody was ever
+   * eligible, and a selector could only ever answer an empty room. That
+   * default is right for a story whose cast wanders in and out of rooms, and
+   * wrong for a chat: somebody who added three characters to a group expects
+   * three characters in it.
+   *
+   * ***So a mode says which reading it plays, rather than the engine choosing
+   * one for everybody.*** Declared, a card on the session's cast is in the
+   * scene until something says otherwise, and presence `false` becomes
+   * **muted** — SillyTavern's `disabled_members`, Marinara's
+   * `inactiveCharacterIds`, and the checkbox the cast panel already draws. A
+   * muted member is still in the cast, still in the prompt, and still reachable
+   * by force-talk, which is exactly what ST's `force_chid` does with a disabled
+   * member (`group-chats.js:1006`).
+   *
+   * Absent means the old reading — present only when presence says `true` —
+   * which is every mode that has not asked, and which is why declaring it is
+   * not a migration of anybody's saved games.
+   *
+   * *No built-in mode declares it yet.* Scene is the one meant to, and the
+   * design dates that twice — [P13 §1.2] and §1.3 read as P13.1, §3's stage
+   * list as [P13.3] with the rest of Scene's declared values; P13.1 follows
+   * the stage list, and `speakers.ts`'s `naturalOrder` says why.
+   */
+  castIsPresent?: boolean;
   /**
    * How many actors a person may seat, checked at the create and cast routes.
    *

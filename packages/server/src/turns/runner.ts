@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { outputFromMessages, remedyFor } from '@storyengine/shared';
+import {
+  CONVENTIONAL_SECTION_IDS,
+  outputFromMessages,
+  remedyFor,
+  type SpeakerPick,
+} from '@storyengine/shared';
 
 import { extractMemories } from '../memory/extract.js';
 import { readMemoryConfig } from '../memory/config.js';
@@ -36,7 +41,6 @@ import type {
 } from '../sessions/types.js';
 import type { CastMember } from './cast.js';
 import { digestsOf, presentAttachments, readAttachment } from '../sessions/attachments.js';
-import { scanText } from '../assembly/pictures.js';
 import type { Occurrence } from '../notifications/router.js';
 import { finaliseTurn, type CommitContext, type Logger } from '../state/commit.js';
 import {
@@ -81,6 +85,7 @@ import { selectedBackdrop } from '../renditions/backdrop.js';
 import { summarise, summaryPlanFor, type SummariseReport } from './summarise.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
+import { SE_SPEAKERS_SMART, smartSpeakers } from './smart-speakers.js';
 import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
 import { storyDepth } from '../sessions/depth.js';
@@ -88,7 +93,17 @@ import { loreReached, retrieve, settleTiming } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
-import { lastProse, selectSpeakers, selectsSpeakers } from './speakers.js';
+import {
+  activationText,
+  chatSoFar,
+  lastSpeakerOf,
+  saysSomething,
+  selectSpeakers,
+  selectsSpeakers,
+  TALKATIVENESS_DEFAULT,
+  talkativenessOf,
+} from './speakers.js';
+import { chatSettingsOf } from '../sessions/chat-settings.js';
 
 /**
  * The step loop — [P2 §2.5], [P2 §2.10], [06 §6].
@@ -158,6 +173,56 @@ export interface TurnPayload {
    * the draws it would like to have had.
    */
   replay?: Tape;
+  /**
+   * ***Force-talk*** — who a person asked to reply, by actor id, in order;
+   * [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.1]. ST's member *speak* button and `/trigger`, Marinara's
+   * `forCharacterId`.
+   *
+   * **Used instead of any policy**, including `fixed`: `selectSpeakers` answers
+   * with these before it reads the policy, as `group-chats.js:1006` reads
+   * `force_chid` before the strategy. The route has already refused a name that
+   * is the persona, not in the cast, or written out of the story; the selector
+   * drops one that became so since, rather than trusting a check made before
+   * the job existed.
+   *
+   * ***A rewrite restores it from the record.*** The draft writes it to
+   * `Turn.input.speakers`, and a `rewriteOf` submission that names nobody
+   * itself is handed the redone turn's list by the route — read off the
+   * server's record, for `replay`'s reason. Without that a rewrite of a forced
+   * turn played the policy instead: force-talk is not a draw, so the tape could
+   * not carry it, and not a model's answer, so `keptSpeakers` did not either.
+   * *Restored as a request and not as a result*, so the selector's filter runs
+   * on it again. A reroll restores nothing and plays the policy, which is what
+   * *"not that outcome"* asks for; a client that wants the forced member back
+   * sends `speakers` again.
+   *
+   * *In memory with the rest of the payload*, so a job recovered after the
+   * process died loses it and plays the policy — the exposure `setup` and
+   * `replay` already name, and one fix covers all three.
+   */
+  speakers?: readonly string[];
+  /**
+   * ***Who the turn a rewrite redoes spoke for*** —
+   * [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+   * point 7, added at [P13.1]. Read by the route from the server's own record
+   * (`keptSpeakers`), beside `replay` and for its reason: a client cannot post
+   * the speakers it would like to have had.
+   *
+   * **Only `smart` reads it, and only where the rules asked.** Every other arm
+   * keeps its speakers on a rewrite already, because every choice it makes is a
+   * draw on the tape `replay` carries; `smart`'s one choice that is not a draw
+   * is the model's answer, and *rewrite keeps the speakers, reroll asks again*
+   * is §1.3a's line between the two gestures. So `se.speakers.smart`, on a
+   * rewrite, writes these and makes no call. *Force-talk is the other choice
+   * that is not a draw*, and it travels as `speakers` above rather than here:
+   * it settles the turn before any arm runs, so the rules never ask.
+   *
+   * *A rewrite is `replay`'s presence, not this field's* — this may be empty,
+   * or absent from a caller that never set it, and neither is a reason to ask
+   * a model on a turn somebody asked to have rewritten.
+   */
+  keptSpeakers?: readonly string[];
 }
 
 export interface RunnerOptions {
@@ -574,6 +639,19 @@ export class TurnRunner {
      */
     const renditions: { report: RenderReport | null } = { report: null };
     /**
+     * Who the smart order picked, and how — [P13 §1.3a], [P13.1]. The eighth
+     * cell, **up here with the other seven for the reason the paragraph above
+     * gives**: `write()` closes over it, to put the pick on the outcome of the
+     * step that made it.
+     *
+     * *A cell rather than a `StepResult` field*, which is §1.3a point 6 and the
+     * hook selector's precedent: a step cannot write `speakers` back through its
+     * result, and that is correct — widening the result would let any mode
+     * rewrite who spoke. The callback that fills this is engine code handed to
+     * engine code, and `planFor` cannot produce one.
+     */
+    const smart: { pick: SpeakerPick | null } = { pick: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -604,6 +682,19 @@ export class TurnRunner {
         inFlight.pending.call.wallMs = Date.now() - inFlight.pending.startedAt;
       }
       draft.steps = steps;
+      /**
+       * **The smart pick, on the outcome of the step that made it** — §1.3a
+       * point 7: *"the pick and its `because` lines go on the step's outcome,
+       * so the workbench shows who was chosen and why"*. Attached here rather
+       * than where the loop pushes the outcome, because the loop's two push
+       * sites are every step's and this is one step's; the checkpoint is the
+       * one place both a success and a warned failure pass through. The same
+       * object each time, so attaching it twice is attaching it once.
+       */
+      if (smart.pick !== null) {
+        const outcome = steps.find((step) => step.stepId === SE_SPEAKERS_SMART);
+        if (outcome !== undefined) outcome.speakers = smart.pick;
+      }
       draft.effects = effects;
       /**
        * **Absent rather than empty when the pass did not run** — [03 §8]'s
@@ -729,20 +820,38 @@ export class TurnRunner {
     }
 
     /**
-     * **Who talks this turn** — [06 §7.2]'s participant policy, [P7.3].
+     * **Who talks this turn** — [06 §7.2]'s participant policy, [P7.3], and
+     * ***the session's policy since [P13.1]***.
      *
      * **Once per turn and before the loop**, for two reasons that pull the same
      * way. A selection is a fact about the turn rather than about a step, so two
-     * steps must not be able to disagree about who is speaking; and `pooled`
-     * draws, so computing it per step would put a different number of draws on
+     * steps must not be able to disagree about who is speaking; and most arms
+     * draw, so computing it per step would put a different number of draws on
      * the tape depending on how many steps the plan happened to run — which is
      * a replay that diverges for a reason nobody could see.
      *
-     * *The site is the selector's own, so a `pooled` mode's draw sits beside the
-     * retriever's and the dice on one tape, under a name a person reading a
-     * replay can recognise.*
+     * *The site is the selector's own, so its draws sit beside the retriever's
+     * and the dice on one tape, under a name a person reading a replay can
+     * recognise.* The purpose is the arm's — `speaker`, `order`,
+     * `talkativeness:<actor id>` — because `natural`'s rolls must be keyed by
+     * the member they are for, or a rewrite after somebody left the room would
+     * hand one member's roll to the next.
+     *
+     * ***The policy is `chatSettingsOf`'s, not the mode's*** —
+     * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+     * The mode's `participants.select` is what a session is created with and
+     * what a pre-P13 one reads as through `legacy`; the session's own field
+     * wins over both, which is what makes the policy a setting rather than a
+     * constant. `castIsPresent` stays the mode's, because it is a statement
+     * about how the mode reads presence rather than a choice a chat makes.
+     *
+     * ***Force-talk overrides all of it***, `fixed` included — the submission
+     * named somebody, and a mode that makes no selection has not refused one
+     * made by a person. So a forced turn hands its steps a list even under
+     * `fixed`, which is the one way such a turn can have one.
      */
-    const spoken = lastProse(history);
+    const chat = chatSettingsOf(inputs.session, mode.definition);
+    const soFar = chatSoFar(history, chat.hidden);
     /**
      * The wizard's answers, narrowed once — [P7.4]. `mode.config` is `unknown`
      * because [06 §1] keeps it opaque to the host, and a hand-edited session can
@@ -753,23 +862,56 @@ export class TurnRunner {
       typeof declared === 'object' && declared !== null && !Array.isArray(declared)
         ? (declared as Record<string, unknown>)
         : undefined;
-    const speakers = selectsSpeakers(mode.definition.participants)
-      ? selectSpeakers({
-          policy: mode.definition.participants,
-          actors: cast.actors,
-          persona: cast.persona?.actor.id ?? null,
-          channels: running,
-          // Story turns: a rotation that counted a HUD edit as a turn skipped
-          // whoever's turn it was (`depth.ts`, 2026-09-27).
-          depth: storyDepth(history),
-          draw: rng.at('se.participants', 'speaker'),
-          ...(payload.input === undefined
-            ? {}
-            : // Captions count: naming somebody under a picture addresses them.
-              { input: { actorId: payload.input.actorId, text: scanText(payload.input) } }),
-          ...(spoken === undefined ? {} : { lastProse: spoken }),
-        })
-      : undefined;
+    /**
+     * ***Read through the session's mode id***, never a literal: talkativeness
+     * is how a *mode* plays a card, and the engine naming one mode's key would
+     * be that mode's behaviour living where no other mode could have it
+     * (`tools/repo-shape.test.ts`). *Once, because two read it* — the selector's
+     * rolls and the smart order's roster, which must not disagree about how
+     * chatty somebody is.
+     */
+    const talkativeness: Record<string, number> = Object.fromEntries(
+      cast.actors.map((member) => [
+        member.actor.id,
+        talkativenessOf(member.actor, mode.definition.id),
+      ]),
+    );
+    const selection =
+      payload.speakers !== undefined || selectsSpeakers(chat.speakers.policy)
+        ? selectSpeakers({
+            policy: chat.speakers.policy,
+            castIsPresent: mode.definition.participants.castIsPresent === true,
+            allowSelfResponses: chat.speakers.allowSelfResponses,
+            actors: cast.actors,
+            persona: cast.persona?.actor.id ?? null,
+            channels: running,
+            forced: payload.speakers,
+            hasInput: saysSomething(payload.input),
+            activation: activationText(payload.input, soFar),
+            lastSpeaker: lastSpeakerOf(soFar),
+            spokenSinceInput: soFar.spokenSinceInput,
+            talkativeness,
+            draw: (purpose) => rng.at('se.participants', purpose),
+          })
+        : undefined;
+    /**
+     * ***Who speaks, as the steps are handed it — and the one door by which
+     * that can change mid-turn.*** For `smart` with no rule deciding,
+     * `selection.ask` says a model should be asked and `speakers` is what a
+     * failed or unusable answer lands on — `natural`'s pick, already on the
+     * tape before any call is made.
+     *
+     * **A cell rather than a constant**, because `se.speakers.smart` answers
+     * after the loop has begun and before any step that reads the answer: its
+     * report writes here, and every step after it is handed what it wrote
+     * (§1.3a point 6). Nothing else writes it — no step's result can, and the
+     * smart step is planned only when the rules asked — so for every other
+     * turn this is the selection, fixed before the first step as it always
+     * was.
+     */
+    const spoken: { speakers: readonly string[] | undefined } = {
+      speakers: selection?.speakers,
+    };
 
     /**
      * Candidates the *steps* contributed, kept outside the loop.
@@ -1226,13 +1368,80 @@ export class TurnRunner {
         : withMemory;
 
     /**
+     * ***The smart order, prepended — first of all*** — [P13 §1.3a], [P13.1],
+     * and the eighth engine-owned step.
+     *
+     * **Planned only when the session plays `smart` and the rules asked** —
+     * §1.3a point 2, and `selection.ask` is exactly that: `selectSpeakers` sets
+     * it for the `smart` arm alone, and only when force-talk, a mention and a
+     * room of one have all failed to settle the turn. So most turns of a smart
+     * session carry no such step and make no such call, which is the design's
+     * first rule rather than a saving found afterwards. *Never on a setup turn*,
+     * whose parts run before there is anybody to reply to.
+     *
+     * **First, ahead even of the summariser and the hook selector**, because it
+     * is the one step that changes who the turn is for and every step after it
+     * is handed its answer. Neither of those reads `speakers`, so the order
+     * among the three costs nothing; putting the question the turn is most
+     * about first means a Stop pressed early has settled it.
+     *
+     * *Everything it needs, resolved here* — the hook selector's rule that a step
+     * does not go shopping. The roster is the eligible members `ask` names, in
+     * cast order, each with the talkativeness the rules rolled against and the
+     * card's own summary; the fallback is the pick those rules already drew.
+     * **A rewrite is `replay`'s presence**, and the speakers it keeps are the
+     * route's reading of the redone turn — so a rewrite never asks, whatever it
+     * managed to read.
+     */
+    const asking = payload.setup === true ? undefined : selection?.ask;
+    const withSpeakers: TurnPlan =
+      asking === undefined
+        ? withRender
+        : {
+            steps: [
+              smartSpeakers({
+                eligible: asking.eligible.flatMap((id) => {
+                  const member = cast.actors.find((one) => one.actor.id === id);
+                  if (member === undefined) return [];
+                  const summary = member.actor.profile.sections.find(
+                    (section) => section.id === CONVENTIONAL_SECTION_IDS.summary,
+                  );
+                  return [
+                    {
+                      id,
+                      name: member.actor.name,
+                      talkativeness: talkativeness[id] ?? TALKATIVENESS_DEFAULT,
+                      summary: summary?.body ?? '',
+                    },
+                  ];
+                }),
+                names: new Map(
+                  [...cast.actors, ...(cast.persona === null ? [] : [cast.persona])].map(
+                    (member) => [member.actor.id, member.actor.name],
+                  ),
+                ),
+                player: cast.persona?.actor.name ?? null,
+                hidden: chat.hidden,
+                fallback: selection?.speakers ?? [],
+                maxPerRound: chat.speakers.maxPerRound,
+                rewrite: payload.replay === undefined ? null : { kept: payload.keptSpeakers ?? [] },
+                report: (pick) => {
+                  smart.pick = pick;
+                  spoken.speakers = pick.picked.map((one) => one.id);
+                },
+              }),
+              ...withRender.steps,
+            ],
+          };
+
+    /**
      * **Story turns, once for the loop** (`depth.ts`, 2026-09-27). The path's
      * length counted channel writes, undos and backdrop choices, so memory
      * extraction *every eight turns* ran at whatever story turn the bookkeeping
      * had shifted the modulus to, and could skip a whole stretch.
      */
     const turnsOnPath = storyDepth(history);
-    for (const { definition, run } of withRender.steps) {
+    for (const { definition, run } of withSpeakers.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath,
         stages: new Set<string>(),
@@ -1278,7 +1487,8 @@ export class TurnRunner {
             sessionId: job.sessionId,
             parentTurnId: job.parentTurnId,
             ...(payload.input === undefined ? {} : { input: payload.input }),
-            ...(speakers === undefined ? {} : { speakers }),
+            // Read per step, from the cell — see `spoken` above.
+            ...(spoken.speakers === undefined ? {} : { speakers: spoken.speakers }),
             // `mode.config` is where the wizard's answers live ([P7.4]) — a
             // step reads them as `setup`, which is the mode's word for its own
             // declaration, and the record's word is `config`.
@@ -2167,7 +2377,22 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
     parentTurnId: job.parentTurnId,
     createdAt: new Date().toISOString(),
     status: 'failed',
-    ...(payload.input === undefined ? {} : { input: payload.input }),
+    /**
+     * **Force-talk rides on the input**, so the record says who the person
+     * asked for and a rewrite can ask again — `Turn.input.speakers`. Written
+     * here, from the payload, rather than by the route into `payload.input`,
+     * because the input a step is handed is the player's move and force-talk
+     * already reaches the steps as their `speakers`; the record is the one
+     * reader that needs it beside the words.
+     */
+    ...(payload.input === undefined
+      ? {}
+      : {
+          input:
+            payload.speakers === undefined
+              ? payload.input
+              : { ...payload.input, speakers: [...payload.speakers] },
+        }),
     effects: [],
     tape: [],
     steps: [],

@@ -202,6 +202,21 @@ describe('a file somebody edited by hand', () => {
     });
   });
 
+  /**
+   * ***`smart` is a policy a session may hold since [P13.1]***, which built
+   * its arm — before that a file naming it fell to the default, because a
+   * vocabulary with no implementation behind it would have been a promise the
+   * record could not keep. `fixed` stays readable beside it: a pre-P13 Scene
+   * session reads as `fixed`, and one written down says so.
+   */
+  it('reads smart order, and still reads fixed', () => {
+    expect(chatSettingsOf({ speakers: { policy: 'smart' } }, MOVED).speakers.policy).toBe('smart');
+    expect(chatSettingsOf({ speakers: { policy: 'fixed' } }, MOVED).speakers.policy).toBe('fixed');
+    expect(chatSettingsOf({ speakers: { policy: 'clever' } }, MOVED).speakers.policy).toBe(
+      'natural',
+    );
+  });
+
   it('keeps a note’s text when its depth or interval is unusable', () => {
     expect(chatSettingsOf({ note: { text: 'Keep it tense.', depth: -1 } }, MOVED).note).toEqual({
       text: 'Keep it tense.',

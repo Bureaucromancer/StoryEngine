@@ -957,6 +957,61 @@ export interface StepOutcome {
   error?: { reason: StepFailureReason; message: string };
   contributed: { blocks: number; effects: number };
   wallMs: number;
+  /**
+   * ***Who the smart order picked, how, and why*** — present on the outcome of
+   * `se.speakers.smart` alone,
+   * [P13 §1.3a](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * point 7, added at [P13.1].
+   *
+   * **On the step's outcome rather than on the turn**, which is where §1.3a
+   * puts it and the right place for a reason {@link HookSelection} does not
+   * share. The hook selector's decision had nowhere else to be recorded; this
+   * one's *result* already is — the output's messages name who spoke, and that
+   * is all the transcript shows. What is left over is the working: whether a
+   * model chose or the rules' pick played, and the one line the model gave for
+   * each. That is a fact about how one step ran, which is what an outcome is.
+   *
+   * *Present on a failed outcome too*, and that is the half of it that matters
+   * most. A warned `se.speakers.smart` is a turn that played the rule-based
+   * pick instead of the model's, and [00 §3.3] asks that a person who chose
+   * `smart` be able to see that it happened and to whom — the error says why,
+   * this says who spoke instead.
+   *
+   * **Optional, which after the [P11.10] freeze is the only kind of field this
+   * record can grow**; absent on every other step's outcome and on every turn
+   * written before it.
+   */
+  speakers?: SpeakerPick;
+}
+
+/**
+ * ***How a smart pick was reached, and what it was*** — the working behind a
+ * turn's speakers, [P13 §1.3a](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * `by` is one of three, and each is a different sentence in the workbench:
+ *
+ * - `model` — the call answered, and the answer survived the reader: every id
+ *   eligible, a name accepted only when it matched exactly one member.
+ * - `fallback` — the call failed or answered nothing usable, and `natural`'s
+ *   pick played. It was drawn on the turn's tape before the call, so it is the
+ *   same pick on any replay. The step's `error` beside this says why.
+ * - `rewrite` — no call was made, because a rewrite keeps the speakers of the
+ *   turn it redoes (§1.3a point 7: *"not that sentence"*, not *"not that
+ *   outcome"*). The redone turn's own speakers when it recorded any, else the
+ *   tape's pick replayed — which is what that turn's rules would have played.
+ */
+export interface SpeakerPick {
+  by: 'model' | 'fallback' | 'rewrite';
+  /**
+   * In the order they reply. **A name beside each id**, as a `Ref` carries
+   * one, so the workbench can say who without a library read — the name as it
+   * was when the pick was made, which is also what the model was shown.
+   *
+   * `because` is the model's one line for that member, cut to a line and to a
+   * length a panel can hold. Absent when it gave none, and always on a
+   * fallback or a rewrite, where nobody was asked.
+   */
+  picked: { id: string; name: string; because?: string }[];
 }
 
 /**
@@ -1192,6 +1247,26 @@ export interface Turn {
      * freeze rather than a change to the record this project has the most of.
      */
     attachments?: TurnAttachment[];
+    /**
+     * ***Who the person asked to reply*** — force-talk, the submission's
+     * `speakers`, [P13 §1.3](../../../docs/design/workplan/30-p13-scene-and-session-import.md);
+     * added at [P13.1] and **optional under the [P11.10] freeze for the reason
+     * `attachments` is**, absent on every turn nobody forced.
+     *
+     * **On the input because it is part of what was asked**, beside the words
+     * and the pictures, and ***on the record at all because a rewrite has to
+     * read it back***. Force-talk is the one choice of speaker that is neither
+     * a draw on the tape nor a model's answer: a rewrite replays the tape and
+     * keeps a smart pick, and before this field a rewrite of a forced turn kept
+     * neither half of *"Lund, answer that"* — it played the session's policy
+     * and answered with whoever that chose, which under `manual` is nobody.
+     *
+     * *The request, not the result.* Who actually replied is on the output's
+     * messages; this is who was named, in the order named, before the runner
+     * dropped anybody the story had written out since. A rewrite hands it back
+     * to the same filter rather than trusting that it still holds.
+     */
+    speakers?: string[];
   };
   /**
    * What the turn said — and, since [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md),

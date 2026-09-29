@@ -1718,7 +1718,7 @@ that caption with a placeholder where the picture would be.
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
   rewriteOf?: string, redoOf?: string,
   input: { text, actorId?, kind?, attachments?: [{ digest, caption? }] },
-  guidance? }
+  guidance?, speakers?: string[] }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
@@ -1794,6 +1794,29 @@ continuable on a model that does not.
 field this server did not know got a `200` and was silently dropped from the
 turn; a closed object answers `400`, which a client can act on.
 
+**`speakers` is force-talk**
+([P13 §1.3](design/workplan/30-p13-scene-and-session-import.md), P13.1):
+actor ids, in the order they should reply, and **it overrides the session's
+speaker policy** — SillyTavern's member *speak* button and `/trigger`,
+Marinara's `forCharacterId`. It reaches a **muted** member, which is what it is
+for, and nobody else the policy would not: the persona is **`422
+speaker-is-persona`**, an id outside the session's cast **`422
+speaker-not-in-cast`**, and somebody dead or departed **`422
+speaker-written-out`**, each carrying the refused `speaker`. Status is checked
+at the node the turn attaches to — `parentTurnId` when sent, else the head — so
+a branch from before a character died may still name them. At least one id and
+no repeats (`400` otherwise), at most 32.
+
+**A forced turn records who was named, and a rewrite keeps them.** The list is
+on the turn as `input.speakers` — the request, in the order asked, not who
+replied, which the output's messages say. A `rewriteOf` submission without
+`speakers` is forced to the redone turn's `input.speakers`, read from this
+server's record for the reason the tape is; a name that no longer passes the
+checks above when the turn runs is dropped rather than refused. `speakers`
+sent beside `rewriteOf` wins over the record. A reroll keeps nothing and plays
+the session's policy; a client that wants the same member again sends
+`speakers` again.
+
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
 ([06 §5.1](design/06-modes-and-turn-pipeline.md)): typed into the action it lands in history
@@ -1826,6 +1849,20 @@ none* are deliberately different answers: a record that merged them would make a
 correctly-quiet session indistinguishable from a broken one. **Absent means the
 selector did not run**, which is every session with no pool — never *it ran and
 had nothing to say*.
+
+**A `se.speakers.smart` outcome in `turn.steps` says who smart order picked and
+why** ([P13 §1.3a](design/workplan/30-p13-scene-and-session-import.md), P13.1).
+The step runs only on a turn of a `smart` session that no rule settled — nobody
+forced, nobody named, more than one member who may reply — so most turns of such
+a session have no such outcome. When it is there it carries `speakers: { by,
+picked }`: `picked` is `[{ id, name, because? }]` in the order they reply, and
+`by` is `model` (the call answered usably), `fallback` (it did not, and the
+rule-based pick drawn on the turn's tape played instead) or `rewrite` (a
+`rewriteOf` submission, which keeps the redone turn's speakers and makes no
+call). **A fallback is a `failed` outcome under `failure: "warn"`**, whose
+`error` says why and whose `speakers` says who spoke instead; the turn itself
+completes. `because` is the model's one line for that member and is absent on a
+fallback or a rewrite, where nobody was asked.
 
 `turn.spans` is what the engine understood about the turn's text — [06 §8.2],
 [03 §8](design/03-data-model.md), [10 §13.1](design/10-ui-surfaces.md). Each span

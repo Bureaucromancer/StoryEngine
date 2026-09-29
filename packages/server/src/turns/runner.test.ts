@@ -23,7 +23,7 @@ import {
   writeChannel,
   type SessionContext,
 } from '../sessions/store.js';
-import type { ChannelEffect, PooledHook, Turn } from '../sessions/types.js';
+import type { ChannelEffect, PooledHook, SessionFile, Turn } from '../sessions/types.js';
 import type { CommitContext, Logger } from '../state/commit.js';
 import { readDraft, readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
 import { openState, type OpenedState } from '../state/open.js';
@@ -50,6 +50,7 @@ import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/
 import { SE_LORE_TIMING } from '../sessions/channels.js';
 import type { Occurrence } from '../notifications/router.js';
 import { TurnRunner } from './runner.js';
+import { keptSpeakers, SE_SPEAKERS_SMART } from './smart-speakers.js';
 
 /**
  * The step loop — [P2 §2.5], [06 §6].
@@ -2986,86 +2987,132 @@ describe('the history the runner hands the collector', () => {
 
 /**
  * **A mode whose `select` is not `fixed`, running** — [P7.3]'s own *Ends at*,
- * and [06 §7.2]'s *"the policy selects speakers"*.
+ * [06 §7.2]'s *"the policy selects speakers"*, and ***the arms as ST runs them
+ * since [P13.1]***.
  *
- * The unit tests in `speakers.test.ts` say what each arm decides; what only a
- * turn can say is that the decision is **made once, before the loop, and reaches
- * a step**. `ENSEMBLE_MODE` declares `select: 'list'` and its step echoes what it
- * was handed, which is the one way a selection is observable from outside —
- * downstream, a merged call names nobody by design and `actorId` reaches
- * `resolveRole` and stops.
+ * The unit tests in `speakers.test.ts` say what each arm decides, row by row
+ * against `group-chats.js`; what only a turn can say is that the decision is
+ * **made once, before the loop, from the session's settings and the path, and
+ * reaches a step** — and that a rewrite makes the same one. `ENSEMBLE_MODE`
+ * declares `select: 'list'` and its step echoes what it was handed, which is
+ * the one way a selection is observable from outside — downstream, a merged
+ * call names nobody by design and `actorId` reaches `resolveRole` and stops.
+ *
+ * *The rotation tests this block used to hold went with the rotation*: ~~`list`
+ * rotates one speaker per turn on the path's depth~~ was P7.3's reading, and
+ * ST's LIST is everybody, once each, every round ([P13 §0.7]).
  */
 describe('a mode that selects speakers', () => {
+  /**
+   * ***The ensemble fixture under `castIsPresent`*** — [P13 §1.3]. A variant
+   * rather than a change to the fixture, because the tests below that write
+   * presence are about the old reading, which is still every mode's that does
+   * not ask for the new one.
+   */
+  const CHAT_MODE_ID = `${ENSEMBLE_MODE_ID}.chat`;
+
   beforeEach(() => {
     /**
      * Process-wide and not cleared afterwards, which is safe rather than
-     * sloppy: nothing else in the build names this id, and `installBuiltIns`
+     * sloppy: nothing else in the build names these ids, and `installBuiltIns`
      * re-registers the real modes on every `beforeEach` in this file. A
      * fixture that needed *removing* would be a reason to give the registry a
      * reset; this one does not.
      */
     registerMode(ENSEMBLE_MODE);
+    registerMode({
+      ...ENSEMBLE_MODE,
+      definition: {
+        ...ENSEMBLE_MODE.definition,
+        id: CHAT_MODE_ID,
+        participants: { ...ENSEMBLE_MODE.definition.participants, castIsPresent: true },
+      },
+    });
   });
 
-  /** A session playing the ensemble fixture, with the named actors in the room. */
-  async function ensemble(actors: string[], present = actors): Promise<string> {
+  /**
+   * A session playing the ensemble fixture, with the named actors in the room.
+   *
+   * *`speakers` is the session's own policy*, written the way creation writes
+   * it — so a test that passes one is testing that the session's setting wins
+   * over the mode's `list`.
+   */
+  async function ensemble(
+    actors: string[],
+    present: string[] | null = actors,
+    speakers?: SessionFile['speakers'],
+  ): Promise<string> {
     const session = await createSession(sessions, ACCOUNT, {
       name: 'Ensemble',
-      mode: { id: ENSEMBLE_MODE_ID, config: null },
+      mode: { id: present === null ? CHAT_MODE_ID : ENSEMBLE_MODE_ID, config: null },
       preset: TEST_PRESET,
       cast: { persona: null, actors },
+      ...(speakers === undefined ? {} : { speakers }),
     });
-    // Present, because eligibility is presence and status — which is the half of
-    // the taxonomy that could not have been built before [P7.2]. Each write is a
-    // bookkeeping turn, which is also what makes the depth arithmetic below
-    // worth pinning: they are on the path, and the rotation does not count them.
-    for (const id of present) {
+    // Present, because under the old reading eligibility is presence and
+    // status — which is the half of the taxonomy that could not have been
+    // built before [P7.2]. `null` is the chat variant, where nobody needs to be
+    // said to be here.
+    for (const id of present ?? []) {
       await writeChannel(sessions, ACCOUNT, session.id, `${SE_PRESENCE}#${id}`, true);
     }
     return session.id;
   }
 
-  /** One turn, and who its step said it was speaking for. */
-  async function spoke(sessionId: string, key: string): Promise<{ turn: Turn; chosen: string }> {
+  /** The session's speaker settings, with one policy — what creation writes. */
+  function policy(
+    select: 'natural' | 'list' | 'pooled' | 'manual' | 'smart',
+  ): NonNullable<SessionFile['speakers']> {
+    return { policy: select, allowSelfResponses: false, namesInHistory: 'groups', maxPerRound: 3 };
+  }
+
+  /**
+   * One turn, and who its step said it was speaking for — as a list, since a
+   * round is several.
+   */
+  async function spoke(
+    sessionId: string,
+    key: string,
+    options: {
+      text?: string;
+      speakers?: string[];
+      parentTurnId?: string | null;
+      replay?: Turn['tape'];
+      /** What the route reads off a rewrite's redone turn — `TurnPayload.keptSpeakers`. */
+      kept?: readonly string[];
+    } = {},
+  ): Promise<{ turn: Turn; chosen: string[] }> {
     const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
     const outcome = await submitTurn(commit, {
       account: ACCOUNT,
       sessionId,
       idempotencyKey: key,
       headTurnId: head,
+      ...(options.parentTurnId === undefined ? {} : { parentTurnId: options.parentTurnId }),
     });
     if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const text = options.text ?? 'Well?';
     runner.start(outcome.job, {
-      input: { actorId: null, kind: 'do', text: 'Well?', raw: 'Well?' },
+      input: { actorId: null, kind: 'do', text, raw: text },
+      ...(options.speakers === undefined ? {} : { speakers: options.speakers }),
+      ...(options.replay === undefined ? {} : { replay: options.replay }),
+      ...(options.kept === undefined ? {} : { keptSpeakers: options.kept }),
     });
     await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
 
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
-    const turn = onRecord(written.at(-1), 'the turn on disk').turn;
-    const text = turn.output?.text ?? '';
-    return { turn, chosen: text.slice(1, text.indexOf(']')) };
+    const turn = onRecord(
+      written.find((record) => record.turn.id === outcome.job.turnId),
+      'the turn on disk',
+    ).turn;
+    const said = turn.output?.text ?? '';
+    const inside = said.slice(1, said.indexOf(']'));
+    return { turn, chosen: inside === '' ? [] : inside.split(',') };
   }
 
-  /**
-   * **Two turns, because one proves nothing about a rotation.** Over a cast of
-   * two, any assertion satisfiable by *either* actor is satisfied by a selector
-   * that ignores its policy — so what is pinned is that the second turn answers
-   * the *other* one, and which one each is.
-   *
-   * The arithmetic is worth spelling out because it is also the branching claim:
-   * `list` rotates on the path's **depth**, ~~the two presence writes above are
-   * two turns on that path, so the first prose turn is depth 2 and takes
-   * `pool[0]`, and the second is depth 3 and takes `pool[1]`. Nothing counts
-   * prose turns~~ counted in turns of the story (2026-09-27), so the two presence
-   * writes above count for nothing and the first prose turn is depth 0 and takes
-   * `pool[0]`, the second depth 1 and `pool[1]`. Two writes hid the mistake,
-   * being even; the test below has an odd one. Nothing remembers who spoke —
-   * the node determines it, which is what makes two branches rotate
-   * independently for free ([07 §3]).
-   */
-  it('rotates through the cast, a turn each, and commits', async () => {
+  it('answers with everybody in the room, in cast order, every round', async () => {
     makeRunner();
     const vera = newActor('Vera');
     const lund = newActor('Lund');
@@ -3076,39 +3123,18 @@ describe('a mode that selects speakers', () => {
 
     const first = await spoke(sessionId, 'ensemble-1');
     expect(first.turn.status).toBe('complete');
-    expect(first.chosen).toBe(vera.id);
+    expect(first.chosen).toEqual([vera.id, lund.id]);
 
+    // The same again: nothing rotates, and nobody is skipped for having just
+    // spoken — ST's LIST bans nobody (`group-chats.js:1180`).
     const second = await spoke(sessionId, 'ensemble-2');
-    expect(second.turn.status).toBe('complete');
-    expect(second.chosen).toBe(lund.id);
-  });
-
-  /**
-   * ***A turn nobody narrated is nobody's turn*** (2026-09-27). The rotation
-   * read the path's length, so one HUD edit between two turns handed the next
-   * line back to whoever had just spoken.
-   */
-  it('skips nobody for a channel write between two turns', async () => {
-    makeRunner();
-    const vera = newActor('Vera');
-    const lund = newActor('Lund');
-    await create(library, ACCOUNT, vera);
-    await create(library, ACCOUNT, lund);
-
-    const sessionId = await ensemble([vera.id, lund.id]);
-
-    const first = await spoke(sessionId, 'ensemble-edit-1');
-    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'sparse');
-    const second = await spoke(sessionId, 'ensemble-edit-2');
-
-    expect(first.chosen).toBe(vera.id);
-    expect(second.chosen).toBe(lund.id);
+    expect(second.chosen).toEqual([vera.id, lund.id]);
   });
 
   it('skips somebody who is not in the room, so the policy reads the channels', async () => {
-    // The same cast and the same depth, with Vera absent — so a selector that
-    // rotated over `cast.actors` rather than over who is eligible would still
-    // answer Vera and this is what would notice.
+    // The same cast with Vera absent — so a selector that read `cast.actors`
+    // rather than who is eligible would still answer Vera, and this is what
+    // would notice.
     makeRunner();
     const vera = newActor('Vera');
     const lund = newActor('Lund');
@@ -3117,7 +3143,7 @@ describe('a mode that selects speakers', () => {
 
     const sessionId = await ensemble([vera.id, lund.id], [lund.id]);
 
-    expect((await spoke(sessionId, 'absent-1')).chosen).toBe(lund.id);
+    expect((await spoke(sessionId, 'absent-1')).chosen).toEqual([lund.id]);
   });
 
   it('selects nobody when the room is empty, and still runs the turn', async () => {
@@ -3133,6 +3159,506 @@ describe('a mode that selects speakers', () => {
 
     expect(only.turn.status).toBe('complete');
     expect(only.turn.output?.text.startsWith('[] ')).toBe(true);
+  });
+
+  /**
+   * **`castIsPresent`: a cast nobody has said anything about is all here** —
+   * [P13 §1.3]. Without it a chat is an empty room, because nothing in the
+   * build writes presence; with it, presence `false` is *muted*.
+   */
+  it('counts the cast as present under castIsPresent, and leaves out the muted', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], null);
+    expect((await spoke(sessionId, 'chat-1')).chosen).toEqual([vera.id, lund.id]);
+
+    await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${vera.id}`, false);
+    expect((await spoke(sessionId, 'chat-2')).chosen).toEqual([lund.id]);
+  });
+
+  /**
+   * ***The session's policy wins over the mode's*** — [P13 §1.2]. The fixture
+   * declares `list`; a session created with `manual` answers an input with
+   * nobody, which `list` never would.
+   */
+  it('plays the session’s policy rather than the mode’s declaration', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    await create(library, ACCOUNT, vera);
+
+    const sessionId = await ensemble([vera.id], null, policy('manual'));
+    expect((await spoke(sessionId, 'manual-1')).chosen).toEqual([]);
+  });
+
+  /**
+   * **Force-talk overrides the policy** — [P13 §1.3], `group-chats.js:1006`.
+   * `manual` replying to an input is nobody, so a forced turn answering at all
+   * is the override working; and a muted member is who the button reaches.
+   */
+  it('answers with whoever a submission forced, muted or not', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], null, policy('manual'));
+    await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${lund.id}`, false);
+
+    const forced = await spoke(sessionId, 'forced-1', { speakers: [lund.id, vera.id] });
+    expect(forced.chosen).toEqual([lund.id, vera.id]);
+  });
+
+  /**
+   * ***A rewrite picks the same speakers*** — [P13.1]'s proof obligation, and
+   * [19 §14.5]'s *same mechanical outcome, different prose* reaching who
+   * speaks. `natural` over three members draws a shuffle and a roll each, so
+   * the first turn's tape carries the selector's draws; the rewrite is a
+   * sibling handed that tape, and every one of those draws must come off it.
+   */
+  it('picks the same speakers when a turn is rewritten from its tape', async () => {
+    makeRunner();
+    const cast = [newActor('Vera'), newActor('Lund'), newActor('Abel')];
+    for (const actor of cast) await create(library, ACCOUNT, actor);
+
+    const sessionId = await ensemble(
+      cast.map((actor) => actor.id),
+      null,
+      policy('natural'),
+    );
+
+    const original = await spoke(sessionId, 'natural-1', { text: 'The rain did not let up.' });
+    const drawn = original.turn.tape.filter((draw) => draw.site === 'se.participants');
+    // **Before anything about replay**: the selector actually drew. Without
+    // this the rest holds just as well for a turn that drew nothing.
+    expect(drawn.filter((draw) => draw.purpose.startsWith('talkativeness:'))).toHaveLength(3);
+    expect(original.chosen.length).toBeGreaterThan(0);
+
+    const rewrite = await spoke(sessionId, 'natural-2', {
+      text: 'The rain did not let up.',
+      parentTurnId: original.turn.parentTurnId,
+      replay: original.turn.tape,
+    });
+
+    expect(rewrite.turn.parentTurnId).toBe(original.turn.parentTurnId);
+    expect(rewrite.chosen).toEqual(original.chosen);
+    const redrawn = rewrite.turn.tape.filter((draw) => draw.site === 'se.participants');
+    expect(redrawn.map((draw) => draw.key)).toEqual(drawn.map((draw) => draw.key));
+    expect(redrawn.every((draw) => draw.replayed)).toBe(true);
+  });
+
+  /**
+   * ***A rewrite of a forced turn keeps who was forced*** — [P13.1], and the
+   * one choice of speaker that is neither a draw on the tape nor a model's
+   * answer, so neither `replay` nor `keptSpeakers` can carry it.
+   *
+   * The forced turn records its list on `input.speakers`, and the rewrite is
+   * handed what the route hands it: the tape, `keptSpeakers`, and that list
+   * read back off the record. **Lund is muted and his talkativeness is 0**, so
+   * no policy would choose him on its own. The control is the same rewrite
+   * handed the tape alone — the route before this fix — which under each
+   * policy answers with somebody else: `manual` replying to an input is
+   * nobody, and `natural`, like `smart`'s rewrite replaying the tape's pick,
+   * is Vera, whose talkativeness is 1. Neither forced rewrite makes a smart
+   * call: force-talk settles the turn before the rules could ask.
+   */
+  const forcedRewrites: ['manual' | 'natural' | 'smart', 'vera' | null][] = [
+    ['manual', null],
+    ['natural', 'vera'],
+    ['smart', 'vera'],
+  ];
+  for (const [select, withoutIt] of forcedRewrites) {
+    it(`keeps a forced speaker on a rewrite under ${select}, muted as he is`, async () => {
+      makeRunner();
+      const talk = (value: number): Record<string, unknown> => ({
+        [CHAT_MODE_ID]: { talkativeness: value },
+      });
+      const vera = { ...newActor('Vera'), modeData: talk(1) };
+      const lund = { ...newActor('Lund'), modeData: talk(0) };
+      const abel = { ...newActor('Abel'), modeData: talk(0) };
+      for (const actor of [vera, lund, abel]) await create(library, ACCOUNT, actor);
+      const sessionId = await ensemble([vera.id, lund.id, abel.id], null, policy(select));
+      await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${lund.id}`, false);
+
+      const original = await spoke(sessionId, `forced-${select}`, { speakers: [lund.id] });
+      expect(original.chosen).toEqual([lund.id]);
+      expect(original.turn.input?.speakers).toEqual([lund.id]);
+
+      const rewrite = await spoke(sessionId, `forced-${select}-rewrite`, {
+        parentTurnId: original.turn.parentTurnId,
+        replay: original.turn.tape,
+        kept: keptSpeakers(original.turn),
+        speakers: onRecord(original.turn.input?.speakers, 'the force-talk on the forced turn'),
+      });
+      expect(rewrite.chosen).toEqual([lund.id]);
+      // Recorded again, so a rewrite of the rewrite keeps him too.
+      expect(rewrite.turn.input?.speakers).toEqual([lund.id]);
+      expect(rewrite.turn.request?.calls.map((call) => call.stepId)).toEqual([TEST_STEP.id]);
+
+      const tapeAlone = await spoke(sessionId, `forced-${select}-tape-alone`, {
+        parentTurnId: original.turn.parentTurnId,
+        replay: original.turn.tape,
+        kept: keptSpeakers(original.turn),
+      });
+      expect(tapeAlone.chosen).toEqual(withoutIt === null ? [] : [vera.id]);
+      expect(tapeAlone.turn.input).not.toHaveProperty('speakers');
+    });
+  }
+
+  /**
+   * ***Talkativeness is read through the session's mode id*** — never a
+   * literal one, which `tools/repo-shape.test.ts` forbids engine code to name.
+   * A card that says 0 for this mode, and 1 for another, stays quiet here:
+   * the other mode's value is not this one's.
+   */
+  it('reads talkativeness from the card under the session’s own mode', async () => {
+    makeRunner();
+    const vera = {
+      ...newActor('Vera'),
+      modeData: { [CHAT_MODE_ID]: { talkativeness: 1 } },
+    };
+    const lund = {
+      ...newActor('Lund'),
+      modeData: { [CHAT_MODE_ID]: { talkativeness: 0 }, [ENSEMBLE_MODE_ID]: { talkativeness: 1 } },
+    };
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], null, policy('natural'));
+    // Nobody named, so only the rolls decide: Vera's 1 beats any roll, and
+    // Lund's 0 beats none (a roll of exactly 0 aside, which a 48-bit float
+    // makes a one-in-2^48 flake rather than a real one).
+    expect((await spoke(sessionId, 'talk-1', { text: 'Rain.' })).chosen).toEqual([vera.id]);
+  });
+
+  /**
+   * ***Smart order, through a turn*** — [P13 §1.3a], and [P13.1]'s proof
+   * obligation for `smart` *"with a stubbed provider"*.
+   *
+   * `speakers.test.ts` holds the rules to their table and `smart-speakers.test.ts`
+   * holds the step to what it makes of an answer; **what only a turn can show is
+   * the wiring between them**, which is where each of §1.3a's promises is
+   * actually kept or broken. That a turn a rule settled *plans no step and makes
+   * no call* — invisible to a unit test of either half, and the design's first
+   * rule rather than a saving found afterwards. That an answer reaches the steps
+   * after the smart step through the runner's cell, and that the fallback
+   * reaches them when the answer is no good. And that a rewrite keeps the pick
+   * while a reroll asks again, which is the one place the route, the record and
+   * the runner have to agree.
+   *
+   * ***The room is rigged so `natural`'s pick can be stated without reading the
+   * tape.*** Vera's talkativeness is 1 and Lund's and Abel's are 0, so on a turn
+   * that names nobody `natural` answers Vera alone whatever the draws were (the
+   * one-in-2^48 roll of exactly 0 aside, as the test above says). That makes
+   * *"the tape's natural pick"* a value a test can write down, and it makes a
+   * model's answer of Abel or Lund distinguishable from the fallback on sight —
+   * a test whose model happened to agree with the rules could not tell a
+   * substituted answer from an ignored one. **Mara is in the cast and muted**:
+   * somebody the model can be tempted to name and may not choose.
+   */
+  describe('under smart order', () => {
+    interface Room {
+      sessionId: string;
+      vera: string;
+      lund: string;
+      abel: string;
+      mara: string;
+    }
+
+    async function room(): Promise<Room> {
+      const talk = (value: number): Record<string, unknown> => ({
+        [CHAT_MODE_ID]: { talkativeness: value },
+      });
+      const vera = { ...newActor('Vera'), modeData: talk(1) };
+      const lund = { ...newActor('Lund'), modeData: talk(0) };
+      const abel = { ...newActor('Abel'), modeData: talk(0) };
+      const mara = newActor('Mara');
+      for (const actor of [vera, lund, abel, mara]) await create(library, ACCOUNT, actor);
+
+      const sessionId = await ensemble([vera.id, lund.id, abel.id, mara.id], null, policy('smart'));
+      await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${mara.id}`, false);
+      return { sessionId, vera: vera.id, lund: lund.id, abel: abel.id, mara: mara.id };
+    }
+
+    /** An answer as a structured endpoint gives it: the object, and its JSON as the text. */
+    function answer(value: unknown): ScriptedReply {
+      return { object: value, text: JSON.stringify(value) };
+    }
+
+    /**
+     * The same reply three times — **the validation ladder's length**. An answer
+     * that fails the schema is re-asked twice before the step is handed the
+     * text (`performCall`, [P7.4]), so a script that gave one bad answer and
+     * then prose would hand the retry the prose and test the wrong thing.
+     */
+    function thrice(reply: ScriptedReply): ScriptedReply[] {
+      return [reply, reply, reply];
+    }
+
+    const PROSE: ScriptedReply = { text: 'The lamp guttered.' };
+
+    /** Which steps made the calls a turn records, in order. */
+    function callers(turn: Turn): string[] {
+      return (turn.request?.calls ?? []).map((call) => call.stepId);
+    }
+
+    function smartOutcome(turn: Turn): NonNullable<Turn['steps']>[number] | undefined {
+      return turn.steps?.find((step) => step.stepId === SE_SPEAKERS_SMART);
+    }
+
+    /**
+     * **Rules first, and most turns never make the call** — §1.3a point 1's
+     * three rows that answer without a model. Each turn below makes exactly one
+     * call, the ensemble step's own, and carries no `se.speakers.smart` outcome
+     * at all: the step is kept out of the plan rather than idling in it, which
+     * is the summariser's arrangement and the reason a smart session costs
+     * nothing extra on a turn where somebody is named.
+     */
+    describe('makes no call when a rule decides', () => {
+      it('when the input names somebody', async () => {
+        makeRunner();
+        const { sessionId, lund } = await room();
+
+        const named = await spoke(sessionId, 'smart-named', { text: 'Lund, is the lamp lit?' });
+        expect(named.chosen).toEqual([lund]);
+        expect(callers(named.turn)).toEqual([TEST_STEP.id]);
+        expect(smartOutcome(named.turn)).toBeUndefined();
+      });
+
+      it('when a submission forced somebody', async () => {
+        makeRunner();
+        const { sessionId, abel } = await room();
+
+        const forced = await spoke(sessionId, 'smart-forced', { speakers: [abel] });
+        expect(forced.chosen).toEqual([abel]);
+        expect(callers(forced.turn)).toEqual([TEST_STEP.id]);
+        expect(smartOutcome(forced.turn)).toBeUndefined();
+      });
+
+      it('when only one member can reply', async () => {
+        makeRunner();
+        const { sessionId, vera, lund, abel } = await room();
+        for (const id of [vera, lund]) {
+          await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${id}`, false);
+        }
+
+        // Abel, whose talkativeness is 0: a room of one answers with them
+        // whoever they are, which is ST's `natural` fallback too.
+        const alone = await spoke(sessionId, 'smart-alone');
+        expect(alone.chosen).toEqual([abel]);
+        expect(callers(alone.turn)).toEqual([TEST_STEP.id]);
+        expect(smartOutcome(alone.turn)).toBeUndefined();
+      });
+    });
+
+    /**
+     * ***The answer reaches the steps after it, and nothing else carries it***
+     * — §1.3a point 6. The ensemble step echoes who it was handed, so Abel then
+     * Lund in its output is the cell working: the selector's own answer before
+     * the loop was Vera, and nothing but the smart step's report could have
+     * changed it. And point 7: the pick and each `because` on the step's
+     * outcome, the call an ordinary entry of `request.calls`.
+     */
+    it('hands the model’s answer to the steps after it, and records who and why', async () => {
+      makeRunner();
+      const { sessionId, vera, lund, abel } = await room();
+      provider.setScript([
+        answer({
+          speakers: [{ id: abel, because: 'He was the one asked about the lamp.' }, { id: lund }],
+        }),
+        PROSE,
+      ]);
+
+      const picked = await spoke(sessionId, 'smart-model');
+
+      expect(picked.turn.status).toBe('complete');
+      expect(picked.chosen).toEqual([abel, lund]);
+      // First of all, ahead of every step that reads who speaks.
+      expect(picked.turn.steps?.[0]).toMatchObject({
+        stepId: SE_SPEAKERS_SMART,
+        stage: 'pre',
+        state: 'ok',
+        speakers: {
+          by: 'model',
+          picked: [
+            { id: abel, name: 'Abel', because: 'He was the one asked about the lamp.' },
+            { id: lund, name: 'Lund' },
+          ],
+        },
+      });
+      expect(smartOutcome(picked.turn)?.speakers?.picked[1]).not.toHaveProperty('because');
+
+      // The call: its own, first, unstreamed, at 0.2, closed over who may reply.
+      expect(callers(picked.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+      expect(picked.turn.request?.calls[0]?.params).toMatchObject({ temperature: 0.2 });
+      expect(provider.requests[0]?.streamed).toBe(false);
+      expect(provider.requests[0]?.schema).toMatchObject({
+        properties: { speakers: { items: { properties: { id: { enum: [vera, lund, abel] } } } } },
+      });
+    });
+
+    /**
+     * ***Every failure lands on the tape's `natural` pick, and says so*** —
+     * §1.3a point 4, and the obligation's four cases. *"A name"* is read as
+     * point 3 reads it: a name is accepted when it matches exactly one eligible
+     * member (the next test), so the name that must fall back is one that
+     * matches nobody who may reply — Mara's, who is muted.
+     *
+     * **Warned, never silent**: the outcome is `failed` under `warn`, carrying
+     * the error that says why *and* the pick that played instead, and the turn
+     * still completes. The fallback is Vera, which the rigged talkativeness
+     * makes `natural`'s answer, and the three rolls on the tape are the draws
+     * that produced it — made before the call, so the fallback did not depend
+     * on how the call went.
+     */
+    const unusable: [string, (room: Room) => ScriptedReply[], string][] = [
+      [
+        'an id nobody here may choose',
+        ({ mara }) => thrice(answer({ speakers: [{ id: mara }] })),
+        'named nobody who can reply here',
+      ],
+      [
+        'a name matching nobody who may reply',
+        () => thrice(answer({ speakers: [{ id: 'Mara' }] })),
+        'named nobody who can reply here',
+      ],
+      ['an empty list', () => thrice(answer({ speakers: [] })), 'named nobody to reply'],
+      [
+        'a call that throws',
+        () => [{ error: { class: 'terminal', message: 'The endpoint refused the request.' } }],
+        'The endpoint refused the request.',
+      ],
+    ];
+
+    for (const [what, script, says] of unusable) {
+      it(`plays the tape’s natural pick, warned, for ${what}`, async () => {
+        makeRunner();
+        const here = await room();
+        provider.setScript([...script(here), PROSE]);
+
+        const played = await spoke(here.sessionId, `smart-${what}`);
+
+        expect(played.turn.status).toBe('complete');
+        expect(played.chosen).toEqual([here.vera]);
+        expect(smartOutcome(played.turn)).toMatchObject({
+          state: 'failed',
+          failure: 'warn',
+          speakers: { by: 'fallback', picked: [{ id: here.vera, name: 'Vera' }] },
+        });
+        expect(smartOutcome(played.turn)?.error?.message).toContain(says);
+        // The call happened and is on the record, whatever became of it.
+        expect(callers(played.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+
+        const rolls = played.turn.tape.filter(
+          (draw) => draw.site === 'se.participants' && draw.purpose.startsWith('talkativeness:'),
+        );
+        expect(rolls.map((draw) => draw.purpose).sort()).toEqual(
+          [here.vera, here.lund, here.abel].map((id) => `talkativeness:${id}`).sort(),
+        );
+      });
+    }
+
+    /**
+     * **A timeout falls back too** — the first of point 4's list, and the one
+     * a local model makes most often: an endpoint that accepts the request and
+     * says nothing. `limits.providerTimeoutMs` ends the call as `terminal`, so
+     * it is not retried; the rule-based pick plays and the outcome says the
+     * endpoint went quiet, and the ensemble step's own call, which answers at
+     * once, still runs.
+     *
+     * *Not an unbound role, which point 4 also names*, because that cannot
+     * happen to this step alone: its role is `prose`, which the generate step
+     * needs too, and a session's `stepRoles` pointing it at a connection that
+     * is gone drops through to the next layer rather than failing
+     * (`resolveRole`, [P2B §1.2]). The unbound case is a turn whose generate
+     * step fails as well, which is the summariser's and the hook selector's
+     * situation and not a new one.
+     */
+    it('plays the tape’s natural pick, warned, when the call times out', async () => {
+      makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } } });
+      const here = await room();
+      provider.setScript([{ stallMs: 5_000 }, PROSE]);
+
+      const played = await spoke(here.sessionId, 'smart-timeout');
+
+      expect(played.turn.status).toBe('complete');
+      expect(played.chosen).toEqual([here.vera]);
+      expect(smartOutcome(played.turn)).toMatchObject({
+        state: 'failed',
+        failure: 'warn',
+        error: { reason: 'terminal' },
+        speakers: { by: 'fallback', picked: [{ id: here.vera, name: 'Vera' }] },
+      });
+      expect(callers(played.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+    });
+
+    /**
+     * **A name that matches exactly one eligible member is an answer** —
+     * §1.3a point 3, *"because Marinara found models do that"*. It fails the
+     * enum, so the ladder re-asks and then hands the step the text; the reader
+     * is what lets it through, and the turn says the model chose.
+     */
+    it('accepts a name that matches exactly one member who may reply', async () => {
+      makeRunner();
+      const { sessionId, lund } = await room();
+      provider.setScript([...thrice(answer({ speakers: [{ id: 'Lund' }] })), PROSE]);
+
+      const named = await spoke(sessionId, 'smart-by-name');
+
+      expect(named.chosen).toEqual([lund]);
+      expect(smartOutcome(named.turn)).toMatchObject({
+        state: 'ok',
+        speakers: { by: 'model', picked: [{ id: lund, name: 'Lund' }] },
+      });
+    });
+
+    /**
+     * ***Rewrite keeps the speakers, reroll asks again*** — §1.3a point 7, the
+     * line [07] draws between *"not that sentence"* and *"not that outcome"*.
+     *
+     * The rewrite is handed what the route hands it: the redone turn's tape
+     * and `keptSpeakers` of that turn, read off the record. The model is
+     * scripted to answer Lund if asked, so a rewrite that asked would say so;
+     * it answers Abel, the kept pick, and the only call is the ensemble's. The
+     * reroll is the same gesture with neither, and asks.
+     */
+    it('keeps the speakers on a rewrite without a call, and asks again on a reroll', async () => {
+      makeRunner();
+      const { sessionId, lund, abel } = await room();
+      provider.setScript([answer({ speakers: [{ id: abel }] }), PROSE]);
+      const original = await spoke(sessionId, 'smart-original');
+      expect(original.chosen).toEqual([abel]);
+
+      const lundIfAsked = [answer({ speakers: [{ id: lund }] }), PROSE];
+
+      provider.setScript(lundIfAsked);
+      const before = provider.requests.length;
+      const rewrite = await spoke(sessionId, 'smart-rewrite', {
+        parentTurnId: original.turn.parentTurnId,
+        replay: original.turn.tape,
+        kept: keptSpeakers(original.turn),
+      });
+      expect(rewrite.turn.parentTurnId).toBe(original.turn.parentTurnId);
+      expect(rewrite.chosen).toEqual([abel]);
+      expect(provider.requests.length - before).toBe(1);
+      expect(callers(rewrite.turn)).toEqual([TEST_STEP.id]);
+      expect(smartOutcome(rewrite.turn)).toMatchObject({
+        state: 'ok',
+        speakers: { by: 'rewrite', picked: [{ id: abel, name: 'Abel' }] },
+      });
+
+      provider.setScript(lundIfAsked);
+      const reroll = await spoke(sessionId, 'smart-reroll', {
+        parentTurnId: original.turn.parentTurnId,
+      });
+      expect(reroll.chosen).toEqual([lund]);
+      expect(callers(reroll.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+      expect(smartOutcome(reroll.turn)?.speakers?.by).toBe('model');
+    });
   });
 });
 

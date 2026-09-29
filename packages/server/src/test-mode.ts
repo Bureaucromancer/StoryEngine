@@ -397,10 +397,15 @@ export const TEST_MODE: Mode = {
  *
  * `select: 'list'` rather than `pooled`, because the exit line is about a
  * non-`fixed` mode *running* and a deterministic arm makes that one assertion
- * instead of two: the rotation is a function of the path, so the test says which
- * actor and not merely that there was one. `pooled`'s draw and its replay are
- * proved where they are cheap to prove, in `speakers.test.ts`, against a tape
- * rather than against a turn.
+ * instead of two: ~~the rotation is a function of the path, so the test says
+ * which actor and not merely that there was one.~~ *Corrected 2026-09-29, at
+ * [P13.1]*: `list` no longer rotates — it is every eligible member, once each,
+ * in cast order
+ * ([P13 §0.7](../../../docs/design/workplan/30-p13-scene-and-session-import.md))
+ * — and it is still the one arm with no draw, so the test can name exactly who
+ * was handed to the step. `pooled`'s draw and its replay are proved where they
+ * are cheap to prove, in `speakers.test.ts`, against a tape rather than against
+ * a turn.
  *
  * **Its step echoes what it was handed**, which is the only way an integration
  * test can see a selection at all: `speakers` crosses into a step and nothing

@@ -287,9 +287,24 @@ export interface StepInput {
    * it by construction, the same way `input` is. A `reads: ['speakers']` would
    * be a fourth pseudo-source in a set [06 §6] names as two.
    *
-   * **Empty is a real answer**, and `manual` is where it happens: nobody was
-   * named, so nobody in particular is speaking. It is not the same as absent,
-   * which is a turn whose mode declares `fixed` and makes no selection at all.
+   * **Empty is a real answer**, and `manual` is where it happens: ~~nobody was
+   * named~~ the player sent an input and nobody was asked to reply
+   * (*corrected 2026-09-29, at [P13.1]*), so nobody in particular is speaking.
+   * It is not the same as absent, which is a turn whose ~~mode declares~~
+   * **session plays** `fixed` and makes no selection at all.
+   *
+   * *The session's policy, not the mode's, since [P13.1]*: the mode's
+   * `participants.select` is what a session is created with, and a session
+   * may say otherwise ([P13 §1.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+   * **And a force-talk submission overrides both**, so a turn can carry
+   * speakers under `fixed` too — the one case where somebody asked by name.
+   *
+   * ***Under `smart`, possibly a model's answer*** ([P13 §1.3a]). When no rule
+   * settles the turn, an engine step runs first and asks; every step after it
+   * is handed that answer, and a step never sees the rule-based pick it
+   * replaced. A mode reads this the same way whichever produced it — which is
+   * the point: who chose is on the record, and what to do with the choice is
+   * the mode's.
    */
   speakers?: readonly string[];
   /**

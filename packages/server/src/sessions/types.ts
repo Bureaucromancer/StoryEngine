@@ -356,10 +356,14 @@ export interface SessionFile {
    * participant policy as a session setting, [P13 §1.2], [P13 §1.3].
    *
    * - `policy` — which of SillyTavern's activation strategies picks the
-   *   speakers. ***The SDK's `ParticipantPolicy['select']` for now***, which is
-   *   what the mode declares; [P13.1] widens the vocabulary with `smart` when
-   *   it builds smart order, and a type naming an arm with no implementation
-   *   behind it would be a promise the record cannot keep.
+   *   speakers. ***The SDK's `ParticipantPolicy['select']`***, which is what
+   *   the mode declares. ~~*For now*: [P13.1] widens the vocabulary with
+   *   `smart` when it builds smart order, and a type naming an arm with no
+   *   implementation behind it would be a promise the record cannot keep.~~
+   *   *Widened at [P13.1], 2026-09-29*, by the same edit that gave `smart` its
+   *   arm in `selectSpeakers` — so the type followed the implementation rather
+   *   than promising it. **It overrides the mode's declaration** at run time,
+   *   read through `chatSettingsOf`.
    * - `allowSelfResponses` — whether the last speaker may speak again; ST's
    *   `allow_self_responses`.
    * - `namesInHistory` — when each attributed message is prefixed with its
