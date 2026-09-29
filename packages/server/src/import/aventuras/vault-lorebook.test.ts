@@ -341,7 +341,8 @@ describe('the reader, with its books as candidates', () => {
     expect(formats.lastIndexOf('aventuras.vault-lorebook')).toBeLessThan(
       formats.indexOf('aventuras.vault-character'),
     );
-    const harbour = candidates[0]!;
+    // The first book, since P13.6 put the tags ahead of every book.
+    const harbour = candidates.find((one) => one.format === 'aventuras.vault-lorebook')!;
     expect(harbour.notes).toBeUndefined();
     expect(harbour.payload).toMatchObject({ name: 'Ash Harbour', favorite: true });
   });
@@ -401,6 +402,7 @@ describe('a sweep of an Aventuras vault’s lorebooks', () => {
     const outcome = await sweep({
       library: server.services.library,
       handle: 'ned',
+      tags: server.services.tags,
       files: opened.source,
     });
     if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);

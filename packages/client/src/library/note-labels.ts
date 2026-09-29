@@ -334,6 +334,32 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'The portrait is larger than the {limit} MB a card can carry, so {actor} was imported without it.',
 
   /**
+   * ***A vault tag, merged into the tag list*** — [P13.6]. Each row of
+   * Aventuras' `vault_tags` joins this account's tags by name: a new one is
+   * added, and one already here is left exactly as it is, colour included.
+   * These say which happened, and what became of the colour — Aventuras'
+   * seventeen colours land on the nearest of this library's eight swatches,
+   * and it keeps a tag list per kind of thing where this library keeps one,
+   * so a name two kinds shared is one tag with one colour. *"Anything carrying
+   * it keeps it as written"* because tags are open: an object's tag with no
+   * entry here still works, and only has no colour.
+   */
+  'import.aventuras.tagMinted':
+    'Added the tag “{tag}” from Aventuras’ {kind} tags, coloured {swatch} — the nearest of this library’s swatches to its {colour}.',
+  'import.aventuras.tagColourUnreadable':
+    'Added the tag “{tag}” from Aventuras’ {kind} tags without a colour: “{colour}” did not read as one.',
+  'import.aventuras.tagShared':
+    'Aventuras’ {kind} tag “{tag}” is the same tag here as another kind’s of that name: this library keeps one list of tags, not one per kind.',
+  'import.aventuras.tagKept':
+    '“{tag}” is already a tag here, so it was left as it is, its name and colour unchanged.',
+  'import.aventuras.tagColourDiffers':
+    'Aventuras’ {kind} tag “{tag}” would have been {swatch}; the tag here is {kept}, and keeps it. A name used by more than one kind is one tag here, with one colour.',
+  'import.aventuras.tagNameTooLong':
+    'The tag “{tag}” is longer than the {limit} characters a tag here can be, so it was not added. Anything carrying it keeps it as written.',
+  'import.aventuras.tagsFull':
+    'The tag “{tag}” was not added: this library already has {limit} tags, the most it keeps. Anything carrying it keeps it as written.',
+
+  /**
    * **The other direction, and it is new at this stage.**
    *
    * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by

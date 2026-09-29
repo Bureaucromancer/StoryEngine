@@ -31,6 +31,7 @@ import {
   VAULT_LOREBOOKS,
   VAULT_SCENARIO_NPCS,
   VAULT_SCENARIOS,
+  VAULT_TAGS,
   writeAventurasBackupFolder,
   writeAventurasDatabase,
   type AventurasDbOptions,
@@ -58,25 +59,33 @@ import { AVENTURAS_KNOWN_SCHEMA } from './schema.js';
  * *writes the characters and nothing else*, and a converted table is counted
  * by its rows rather than by a row of its own; the characters themselves are
  * `vault-character.test.ts`'s. *Since P13.4* the lorebooks too, and they are
- * `vault-lorebook.test.ts`'s.
+ * `vault-lorebook.test.ts`'s. *Since P13.6* the tags, into the registry rather
+ * than the library, which are `vault-tag.test.ts`'s.
  *
  * The databases are built by `fixtures/test-aventuras-db.ts` from hand-written
  * DDL, never from Aventuras' migrations (§3).
  */
 
 /**
- * ***What a sweep of the fixture converts*** — its characters since P13.3, its
- * lorebooks since P13.4 and its scenarios since P13.5: one review row per
- * vault row.
+ * ***The library objects a sweep of the fixture converts*** — its characters
+ * since P13.3, its lorebooks since P13.4 and its scenarios since P13.5: one
+ * review row per vault row.
  */
-const CONVERTED_OBJECTS = VAULT_CHARACTERS.length + VAULT_LOREBOOKS.length + VAULT_SCENARIOS.length;
+const LIBRARY_ROWS = VAULT_CHARACTERS.length + VAULT_LOREBOOKS.length + VAULT_SCENARIOS.length;
 
 /**
- * ***And what it writes***, which is more since P13.5: a scenario's npcs are
- * actors of their own beside its treatment, reported on the scenario's row
- * (`alsoProduced`) and not as rows of their own.
+ * ***Every row it converts***, which since P13.6 includes each `vault_tags`
+ * row — converted into the tag registry, and so a converted row of the review
+ * that is not an object in the library.
  */
-const WRITTEN_OBJECTS = CONVERTED_OBJECTS + VAULT_SCENARIO_NPCS;
+const CONVERTED_OBJECTS = LIBRARY_ROWS + VAULT_TAGS.length;
+
+/**
+ * ***And what it writes to the library***, which is more since P13.5: a
+ * scenario's npcs are actors of their own beside its treatment, reported on
+ * the scenario's row (`alsoProduced`) and not as rows of their own.
+ */
+const WRITTEN_OBJECTS = LIBRARY_ROWS + VAULT_SCENARIO_NPCS;
 
 let root: string;
 let layout: Layout;
@@ -675,7 +684,12 @@ describe('a sweep of an Aventuras install', () => {
   const serverLayout = (): Layout => server.services.library.layout;
 
   async function swept(files: FileSource): Promise<ImportReport> {
-    const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+    const outcome = await sweep({
+      library: server.services.library,
+      handle: 'ned',
+      tags: server.services.tags,
+      files,
+    });
     if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
     return outcome.report;
   }
@@ -728,6 +742,20 @@ describe('a sweep of an Aventuras install', () => {
       VAULT_SCENARIOS.map((one) => `aventura.db/scenario_vault/${String(one['id'])}`).sort(),
     );
     expect(new Set(scenarios.map((item) => item.disposition))).toEqual(new Set(['converted']));
+    // And one per tag (P13.6) — into the registry, not the library, so it is a
+    // converted row with no object behind it: four rows, three names.
+    const tagRows = report.items.filter((item) =>
+      item.source.startsWith('aventura.db/vault_tags/'),
+    );
+    expect(tagRows.map((item) => item.source).sort()).toEqual(
+      VAULT_TAGS.map((one) => `aventura.db/vault_tags/${String(one['id'])}`).sort(),
+    );
+    expect(new Set(tagRows.map((item) => item.disposition))).toEqual(new Set(['converted']));
+    expect((await server.services.tags.read('ned')).tags.map((tag) => tag.name).sort()).toEqual([
+      'harbour',
+      'noir',
+      'quiet',
+    ]);
 
     // Every story, with what Part 2 would bring from it — the entities, and
     // not the rows Aventuras' branches keep beside them: a branch's edit is
@@ -854,6 +882,7 @@ describe('a sweep of an Aventuras install', () => {
       fromZip.items.map((item) => item.source),
     );
     const vaultObject = (item: ImportItemReport): boolean =>
+      item.source.startsWith('aventura.db/vault_tags/') ||
       item.source.startsWith('aventura.db/character_vault/') ||
       item.source.startsWith('aventura.db/lorebook_vault/') ||
       item.source.startsWith('aventura.db/scenario_vault/');
@@ -874,7 +903,12 @@ describe('a sweep of an Aventuras install', () => {
     // found at the P13.2 review.
     const close = vi.spyOn(AventurasReader.prototype, 'close');
     try {
-      const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+      const outcome = await sweep({
+        library: server.services.library,
+        handle: 'ned',
+        tags: server.services.tags,
+        files,
+      });
 
       expect(outcome).toEqual({ ok: false, refusal: 'unknown-format' });
       expect(close).toHaveBeenCalledTimes(1);
@@ -891,6 +925,7 @@ describe('a sweep of an Aventuras install', () => {
       sweep({
         library: server.services.library,
         handle: 'ned',
+        tags: server.services.tags,
         files,
         freeBytes: () => Promise.resolve(0),
       }),
@@ -931,7 +966,13 @@ describe('a sweep of an Aventuras install', () => {
       const close = failingClose();
       let outcome;
       try {
-        outcome = await sweep({ library: server.services.library, handle: 'ned', files, log });
+        outcome = await sweep({
+          library: server.services.library,
+          handle: 'ned',
+          tags: server.services.tags,
+          files,
+          log,
+        });
         expect(close).toHaveBeenCalledTimes(1);
       } finally {
         close.mockRestore();
@@ -954,7 +995,12 @@ describe('a sweep of an Aventuras install', () => {
       const { files } = await configDirectory({}, server.dataDir);
       const close = failingClose();
       try {
-        const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+        const outcome = await sweep({
+          library: server.services.library,
+          handle: 'ned',
+          tags: server.services.tags,
+          files,
+        });
         expect(outcome.ok).toBe(true);
       } finally {
         close.mockRestore();
@@ -976,7 +1022,12 @@ describe('a sweep of an Aventuras install', () => {
       const close = failingClose();
       try {
         await expect(
-          sweep({ library: server.services.library, handle: 'ned', files: failing }),
+          sweep({
+            library: server.services.library,
+            handle: 'ned',
+            tags: server.services.tags,
+            files: failing,
+          }),
         ).rejects.toThrow('the disk went away');
         expect(close).toHaveBeenCalledTimes(1);
       } finally {
@@ -1002,7 +1053,12 @@ describe('a sweep of an Aventuras install', () => {
     };
 
     await expect(
-      sweep({ library: server.services.library, handle: 'ned', files: failing }),
+      sweep({
+        library: server.services.library,
+        handle: 'ned',
+        tags: server.services.tags,
+        files: failing,
+      }),
     ).rejects.toThrow('the disk went away');
 
     // Held while it was reading, so its absence now is `close()` and not luck.
@@ -1053,9 +1109,10 @@ describe('the fixture is what it claims to be', () => {
 
   it('gives an item for everything a reader sees and nothing it does not', async () => {
     // One observed item per row of the review — and, since P13.3, one
-    // candidate per character, since P13.4 one per lorebook before them, and
-    // since P13.5 one per scenario after them (§1.7's order), which are the
-    // only candidates there are.
+    // candidate per character, since P13.4 one per lorebook before them,
+    // since P13.5 one per scenario after them, and since P13.6 one per tag
+    // ahead of everything (§1.7's order), which are the only candidates there
+    // are.
     const reader = new AventurasReader(
       new MemoryFileSource({ 'aventura.db': await aventurasDatabaseBytes() }),
       layout,
@@ -1069,6 +1126,7 @@ describe('the fixture is what it claims to be', () => {
         item.outcome === 'candidate' ? [item.candidate] : [],
       );
       expect(candidates.map((candidate) => candidate.format)).toEqual([
+        ...VAULT_TAGS.map(() => 'aventuras.vault-tag'),
         ...VAULT_LOREBOOKS.map(() => 'aventuras.vault-lorebook'),
         ...VAULT_CHARACTERS.map(() => 'aventuras.vault-character'),
         ...VAULT_SCENARIOS.map(() => 'aventuras.vault-scenario'),

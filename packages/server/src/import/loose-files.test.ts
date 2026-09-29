@@ -66,6 +66,7 @@ async function run(tree: Record<string, Uint8Array | string>) {
   const outcome = await sweep({
     library: server.services.library,
     handle: 'ned',
+    tags: server.services.tags,
     files: new MemoryFileSource(tree),
   });
   if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
@@ -172,6 +173,7 @@ describe('a folder nobody arranged', () => {
     const outcome = await sweep({
       library: server.services.library,
       handle: 'ned',
+      tags: server.services.tags,
       files: opened.source,
     });
     if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);

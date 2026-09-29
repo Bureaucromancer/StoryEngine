@@ -499,6 +499,7 @@ describe('sweeping a Marinara data root', () => {
     const outcome = await sweep({
       library: server.services.library,
       handle: 'ned',
+      tags: server.services.tags,
       files: new MemoryFileSource({ ...marinaraFixture(), ...extra }),
     });
     return outcome;
@@ -659,7 +660,12 @@ describe('sweeping a Marinara data root', () => {
         return inner.read(path);
       },
     };
-    const outcome = await sweep({ library: server.services.library, handle: 'ned', files });
+    const outcome = await sweep({
+      library: server.services.library,
+      handle: 'ned',
+      tags: server.services.tags,
+      files,
+    });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
 
@@ -741,7 +747,12 @@ describe('the single-file export formats', () => {
         ? profileAsFileSource((envelope as { data: unknown }).data)
         : singleObjectAsFileSource(readEnvelope(envelope)!);
     expect(files).not.toBeNull();
-    return sweep({ library: server.services.library, handle: 'ned', files: files! });
+    return sweep({
+      library: server.services.library,
+      handle: 'ned',
+      tags: server.services.tags,
+      files: files!,
+    });
   }
 
   it('reads a single character envelope through the same converter as the table', async () => {

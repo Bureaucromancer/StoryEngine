@@ -41,6 +41,7 @@ import {
 } from './vault-character.js';
 import { LOREBOOK_TABLE, vaultLorebookItems } from './vault-lorebook.js';
 import { SCENARIO_TABLE, vaultScenarioItems } from './vault-scenario.js';
+import { TAG_TABLE, vaultTagItems } from './vault-tag.js';
 
 /**
  * ***A whole Aventuras install, read as a review*** —
@@ -75,6 +76,15 @@ import { SCENARIO_TABLE, vaultScenarioItems } from './vault-scenario.js';
  * keeps the map from a vault book's id to the book it became, and a link
  * resolves through it into `treatment.lore` or `actor.lore` (§1.7). This reader
  * resolves nothing itself: which object a row became is the Writer's to know.
+ *
+ * ***P13.6: the tags.*** `vault_tags` the same way once more
+ * (`vault-tag.ts`), and first of the four — §1.7's order begins with them —
+ * though nothing links to a tag, so the order is for the review and the
+ * registry rather than for a link: a tag is a name before it is anything
+ * else, and the books, characters and scenarios that carry it are written
+ * with its colour already in place. Each row becomes a registry entry
+ * rather than a library object, merged by name and never recolouring one
+ * already there (§1.8), and the objects are not stamped with it.
  *
  * ***The database is never read where it lies*** (§1.2). `survey()` takes a
  * private copy through `storage/sqlite-snapshot.ts` and opens that, read-only:
@@ -154,18 +164,23 @@ export const AVENTURAS_READS = [...AVENTURAS_DATABASE_FILES, AVENTURAS_METADATA]
 
 /**
  * ***The tables whose rows this reader turns into candidates***, in the order
- * it emits them — P13.4's lorebooks, then P13.3's characters, then P13.5's
- * scenarios: §1.7's order (tags, lorebooks, characters, scenarios), with the
- * tags still to join at the front at P13.6. The order is load-bearing, not
- * tidy: a scenario's or a character's link to a lorebook resolves only once
- * the lorebook is stored, and the Writer resolves it as it writes.
+ * it emits them — P13.6's tags, then P13.4's lorebooks, then P13.3's
+ * characters, then P13.5's scenarios: §1.7's order, complete. The order is
+ * load-bearing, not tidy: a scenario's or a character's link to a lorebook
+ * resolves only once the lorebook is stored, and the Writer resolves it as it
+ * writes. The tags lead for a gentler reason — see the file header.
  *
  * `registries.test.ts` holds this to the registry's `converted` rows in both
  * directions: a table said to be converted is converted here, and a table
  * converted here is not also listed as `recorded`. Such a table has no row of
  * its own in the review ({@link tableRows}); its rows are the count.
  */
-export const CONVERTED_TABLES = [LOREBOOK_TABLE, CHARACTER_TABLE, SCENARIO_TABLE] as const;
+export const CONVERTED_TABLES = [
+  TAG_TABLE,
+  LOREBOOK_TABLE,
+  CHARACTER_TABLE,
+  SCENARIO_TABLE,
+] as const;
 
 /**
  * The files SQLite keeps beside a database, which are the database rather than
@@ -323,7 +338,10 @@ export class AventurasReader implements SourceReader {
     // The vault, as candidates — after every table's row and before the
     // stories, so a review reads the database, then what it held, then what
     // Part 2 would bring. A database older than a table has none of its rows.
-    // Lorebooks first, in the order {@link CONVERTED_TABLES} names.
+    // Tags first, then lorebooks, in the order {@link CONVERTED_TABLES} names.
+    if (held.tables.has(TAG_TABLE)) {
+      yield* vaultTagItems(held.db, { database: AVENTURAS_DATABASE });
+    }
     if (held.tables.has(LOREBOOK_TABLE)) {
       yield* vaultLorebookItems(held.db, { database: AVENTURAS_DATABASE });
     }

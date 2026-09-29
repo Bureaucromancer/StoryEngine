@@ -421,6 +421,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       outcome = await sweep({
         library: services.library,
         handle: account.handle,
+        tags: services.tags,
         files: opened.source,
         freeBytes: services.freeBytes,
         log: request.log,
@@ -656,6 +657,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       outcome = await sweep({
         library: services.library,
         handle: account.handle,
+        tags: services.tags,
         files,
         freeBytes: services.freeBytes,
         log: request.log,
@@ -1021,6 +1023,7 @@ async function importOneFile(
     const outcome = await sweep({
       library: services.library,
       handle,
+      tags: services.tags,
       files: opened.source,
       // What a CHARX is identified by: the file the person sent, rather than
       // the `card.json` inside every one of them.
@@ -1076,6 +1079,7 @@ async function importOneFile(
     const outcome = await sweep({
       library: services.library,
       handle,
+      tags: services.tags,
       files,
       freeBytes: services.freeBytes,
       ...(onConflict === undefined ? {} : { onConflict }),
@@ -1103,6 +1107,7 @@ async function importOneFile(
     {
       library: services.library,
       handle,
+      tags: services.tags,
       files: new MemoryFileSource({ [filename]: bytes }),
       ...(onConflict === undefined ? {} : { onConflict }),
       // Only `aventuras.scenario` reads it. Passed unconditionally rather than

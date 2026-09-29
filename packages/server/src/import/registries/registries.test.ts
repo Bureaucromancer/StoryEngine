@@ -135,7 +135,12 @@ describe('the Aventuras registry', () => {
       .map(([table]) => table);
 
     expect(new Set(converted)).toEqual(new Set(CONVERTED_TABLES));
-    expect(converted).toEqual(['character_vault', 'lorebook_vault', 'scenario_vault']);
+    expect(converted).toEqual([
+      'character_vault',
+      'lorebook_vault',
+      'scenario_vault',
+      'vault_tags',
+    ]);
   });
 
   it('drops the settings table as a credential, and nothing else', () => {

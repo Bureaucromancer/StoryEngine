@@ -37,6 +37,7 @@ import {
   VAULT_LOREBOOK_FORMAT,
 } from './aventuras/vault-lorebook.js';
 import { UNTITLED_SCENARIO, VAULT_SCENARIO_FORMAT } from './aventuras/vault-scenario.js';
+import { VAULT_TAG_FORMAT, VaultTagMerge } from './aventuras/vault-tag.js';
 import {
   DEFAULT_BACKUP_CONFLICT,
   identify,
@@ -57,6 +58,7 @@ import { resolveWithin } from '../storage/paths.js';
 import type { BlobStore } from '../storage/card/envelope.js';
 import { sniff } from '../auth/avatars.js';
 import type { Logger } from '../state/commit.js';
+import type { TagStore } from '../tags/store.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
@@ -96,6 +98,25 @@ export interface SweepRequest {
   library: LibraryContext;
   /** Whose library the objects land in. */
   handle: string;
+  /**
+   * ***The account's tag registry*** —
+   * [P13.6](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **Only one source writes to it**: an Aventuras database, whose
+   * `vault_tags` rows are merged into the registry of `handle` (§1.8). Every
+   * other source leaves it alone — a backup's tags are merged *around* the
+   * sweep, by `backup/import.ts`, from the archive's own `tags.json`.
+   *
+   * ***Required, though one source in six reads it***, which is the opposite
+   * of the optional fields below, and deliberately. Those are answers to a
+   * question only one source asks, and absent has a right default. Here
+   * absent has none: a sweep of a database without the store would have to
+   * report its tags as converted when nothing was written, or say
+   * `recorded` for a table the registry calls `converted`, and a caller that
+   * forgot the field would find out from a person asking where their colours
+   * went. The type checker finds it instead, at every door that sweeps.
+   */
+  tags: TagStore;
   /** The root, already opened as a source. Transport is the caller's business. */
   files: FileSource;
   /** Identifies the review; the sweep job's id in a real run. */
@@ -373,9 +394,17 @@ class Writer {
    * through to the library (`#linkedLorebook`).
    */
   readonly #vaultLorebooks = new Map<string, Ref>();
+  /**
+   * ***`vault_tags` rows, into the registry*** — [P13.6]. Per Writer, which is
+   * per sweep, because which tags *this* sweep minted is state that spans it:
+   * it is what reports the second kind's row of a shared name `converted` on
+   * a first import and `unchanged` on the next (`vault-tag.ts`).
+   */
+  readonly #vaultTags: VaultTagMerge;
 
   constructor(request: SweepRequest) {
     this.#request = request;
+    this.#vaultTags = new VaultTagMerge(request.tags, request.handle);
   }
 
   /**
@@ -444,6 +473,17 @@ class Writer {
         return this.#aventurasVaultCharacter(candidate);
       case VAULT_SCENARIO_FORMAT:
         return this.#aventurasVaultScenario(candidate);
+      /**
+       * ***A `vault_tags` row (P13.6), and the one arm that does not end in
+       * `store()`.*** A tag is a registry entry, not a library object: it has
+       * no provenance for `identify()` to key a re-import on, no slug and no
+       * history, and the name *is* its identity (`sameTag`). So it is merged
+       * rather than stored, and `onConflict` is not consulted — a merge never
+       * overwrites, so `replace` must not recolour either; the reasons are at
+       * `VaultTagMerge.write`.
+       */
+      case VAULT_TAG_FORMAT:
+        return this.#vaultTags.write(candidate);
 
       /**
        * ***One of ours, which needs no conversion and therefore needs a

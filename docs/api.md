@@ -605,8 +605,20 @@ scenario's `metadata.linkedLorebookId` becomes the actor's `lore`, or the
 treatment's `lore` (never `required`), pointing at the book that `lorebook_vault`
 row became — or, when that row was refused, at the book an earlier import of it
 left here. `import.aventuras.linkedLorebookMissing` is said only when neither
-exists. Lorebooks are written first, then characters, then scenarios, so every
-link finds its book. Every other table is `recorded`,
+exists. **Since P13.6 its tags merge into the account's tags** (`GET
+/api/tags`): each `vault_tags` row is a review row with the source
+`aventura.db/vault_tags/<id>` and no `objectId`, since a tag is not a library
+object. A name not already a tag (compared as tags always are — case and spacing
+aside) is added, `converted`, on the swatch nearest its Aventuras colour by hue,
+greys on `stone` and a colour that does not read on none; a name already a tag
+is `unchanged` and left exactly as it is — never recoloured or renamed, whatever
+`onConflict` says. Aventuras keeps a tag list per kind and this server keeps
+one, so a name two kinds share is one tag, in the first row's colour, and
+`import.aventuras.tagColourDiffers` says when another row's would have been a
+different swatch. **No imported object is given `tagIds`**: adopting tags stays
+`POST /api/tags/adopt`'s. Tags are merged first, then lorebooks are written,
+then characters, then scenarios, so every link finds its book. Every other
+table is `recorded`,
 `skipped` or, for `settings`, `credential` — counted and never read, since it
 holds provider keys. A database missing a column this build reads, or with no
 `_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that

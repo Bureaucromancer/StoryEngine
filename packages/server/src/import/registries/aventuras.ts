@@ -135,7 +135,12 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
    * scenario converter; its linked lorebook resolved into `lore` (§1.7).
    */
   scenario_vault: 'converted',
-  vault_tags: 'recorded',
+  /**
+   * P13.6: one registry entry per name, merged by `sameTag` and never
+   * recolouring one already there; the kind has nowhere to go (§1.8). Not a
+   * library object, and the objects are not stamped with it.
+   */
+  vault_tags: 'converted',
   // Packs are their own stage (§1.10). P13.9 converts the three that carry
   // what somebody wrote, and may close them as `recorded` if too little of a
   // pack survives the mapping — which would be a finding, not a failure.

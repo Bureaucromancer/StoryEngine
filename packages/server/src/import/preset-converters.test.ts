@@ -57,6 +57,7 @@ describe('a converter that throws', () => {
     const outcome = await sweep({
       library: server.services.library,
       handle: 'ned',
+      tags: server.services.tags,
       files: new MemoryFileSource({ 'A.json': JSON.stringify(CHAT_PRESET), 'B.png': card }),
     });
 

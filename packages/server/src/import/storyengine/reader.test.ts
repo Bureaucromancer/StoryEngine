@@ -69,6 +69,7 @@ async function importInto(files: BackupFileSource, onConflict?: ConflictPolicy) 
   const outcome = await sweep({
     library: server.services.library,
     handle: 'ned',
+    tags: server.services.tags,
     fromHandle: 'ned',
     files,
     ...(onConflict === undefined ? {} : { onConflict }),
@@ -219,6 +220,7 @@ describe('a backup as an import source', () => {
     const outcome = await sweep({
       library: server.services.library,
       handle: 'ned',
+      tags: server.services.tags,
       fromHandle: 'mara',
       files,
     });

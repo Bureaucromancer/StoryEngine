@@ -102,6 +102,9 @@ export async function importBackup(
   const outcome = await sweep({
     library: context.library,
     handle: request.handle,
+    // Read by no reader a backup root can be — its tags are `mergeTags`'
+    // below, from the archive's `tags.json` — and required all the same.
+    tags: context.tags,
     fromHandle: request.fromHandle,
     files: request.files,
     onConflict: request.onConflict ?? DEFAULT_BACKUP_CONFLICT,

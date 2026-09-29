@@ -16,6 +16,7 @@ import {
   VAULT_LOREBOOKS,
   VAULT_SCENARIO_NPCS,
   VAULT_SCENARIOS,
+  VAULT_TAGS,
   writeAventurasBackupFolder,
 } from '../import/fixtures/test-aventuras-db.js';
 import { AventurasReader } from '../import/aventuras/reader.js';
@@ -100,6 +101,12 @@ function ledger(): string {
  */
 const VAULT_OBJECTS = VAULT_CHARACTERS.length + VAULT_LOREBOOKS.length + VAULT_SCENARIOS.length;
 
+/**
+ * ***And every converted row***, which since P13.6 counts each `vault_tags`
+ * row too: converted into the tag registry, and not an object in the library.
+ */
+const VAULT_ROWS = VAULT_OBJECTS + VAULT_TAGS.length;
+
 /** One row of a review, as far as the link test reads it. */
 interface Row {
   source: string;
@@ -142,7 +149,7 @@ describe('pointing the server at an Aventuras folder', () => {
       expect(sources).toContain(`aventura.db/scenario_vault/${String(scenario['id'])}`);
     }
     for (const story of STORIES) expect(sources).toContain(`aventura.db/stories/${story.id}`);
-    expect(report.counts.converted).toBe(VAULT_OBJECTS);
+    expect(report.counts.converted).toBe(VAULT_ROWS);
     expect(report.counts.credential).toBe(1);
 
     // Addressable, as every sweep's review is, and holding the same rows.
@@ -196,7 +203,7 @@ describe('pointing the server at an Aventuras folder', () => {
     }
 
     expect(response.status, JSON.stringify(response.body)).toBe(200);
-    expect(response.body.report.counts.converted).toBe(VAULT_OBJECTS);
+    expect(response.body.report.counts.converted).toBe(VAULT_ROWS);
     expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_ACTORS);
   });
 
@@ -265,6 +272,67 @@ describe('pointing the server at an Aventuras folder', () => {
       vault(first).map((row) => row.objectId),
     );
     expect((await ownObjects(server)).objects).toHaveLength(VAULT_OBJECTS + VAULT_SCENARIO_NPCS);
+  });
+
+  it('merges the vault’s tags into the account’s tags, stamps no object with them, and a second sweep mints nothing', async () => {
+    /**
+     * *P13.6 at the door* (§1.8): the four `vault_tags` rows arrive as three
+     * tags in `GET /api/tags` — `noir` is two kinds' — each on the swatch
+     * nearest its Aventuras colour, and the first kind's colour is the one
+     * `noir` takes. A tag this account already had is left exactly as it was,
+     * its own colour kept against Aventuras'. No imported object carries
+     * `tagIds`, since adoption is its own act; and a second sweep reports
+     * every tag row `unchanged` and leaves the registry as the first left it.
+     */
+    await grantFileAccess();
+    const root = join(container, 'aventura-backup');
+    await writeAventurasBackupFolder(root);
+    const mine = await server.request({
+      method: 'POST',
+      url: '/api/tags',
+      payload: { name: 'Quiet', swatch: 'amber' },
+    });
+    expect(mine.status, JSON.stringify(mine.body)).toBeLessThan(300);
+
+    const sweepIt = async (): Promise<Row[]> => {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+      expect(response.status, JSON.stringify(response.body)).toBe(200);
+      return (response.body.report.items as Row[]).filter((one) =>
+        one.source.startsWith('aventura.db/vault_tags/'),
+      );
+    };
+    const registry = async (): Promise<{ id: string; name: string; swatch: string | null }[]> => {
+      const response = await server.request({ method: 'GET', url: '/api/tags' });
+      expect(response.status).toBe(200);
+      return response.body.tags;
+    };
+
+    const first = await sweepIt();
+    expect(first).toHaveLength(VAULT_TAGS.length);
+    const after = await registry();
+    expect(after.map(({ name, swatch }) => ({ name, swatch }))).toEqual([
+      { name: 'Quiet', swatch: 'amber' },
+      { name: 'harbour', swatch: 'teal' },
+      { name: 'noir', swatch: 'violet' },
+    ]);
+    expect(first.find((one) => one.source === 'aventura.db/vault_tags/tag-4')).toMatchObject({
+      disposition: 'unchanged',
+    });
+
+    // Carrying the names, as the converters always made them, and no ids.
+    const bodies = (await ownObjects(server)).objects.map(
+      (listed) => listed['object'] as { tags?: string[]; tagIds?: unknown },
+    );
+    expect(bodies.some((body) => body.tags?.includes('noir') === true)).toBe(true);
+    for (const body of bodies) expect(body.tagIds).toBeUndefined();
+
+    const second = await sweepIt();
+    for (const row of second) expect(row.disposition, row.source).toBe('unchanged');
+    expect(await registry()).toEqual(after);
   });
 
   it('asks what the folder is without reading the database', async () => {

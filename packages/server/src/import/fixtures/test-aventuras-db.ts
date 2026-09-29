@@ -50,7 +50,9 @@ import { makePng } from '../../storage/card/test-png.js';
  * scenarios — a cast, openings or metadata that will not read, tags and a
  * starting time that will not either, links to a book that is not there and to
  * one that is refused, no setting, a row with no id — are
- * {@link AWKWARD_SCENARIOS}.
+ * {@link AWKWARD_SCENARIOS}; *since P13.6*, the tags — hex and grey colours,
+ * one that is no colour, a name that is another's in other case, an empty
+ * one, one too long, a row with no id — are {@link AWKWARD_TAGS}.
  *
  * Composable on purpose: {@link buildAventurasDatabase} works on any open
  * connection, so a later stage can add its own rows before or after, and the
@@ -294,6 +296,8 @@ export interface AventurasDbOptions {
   extraLorebooks?: readonly FixtureRow[];
   /** More `scenario_vault` rows after {@link VAULT_SCENARIOS} — {@link AWKWARD_SCENARIOS}, usually. */
   extraScenarios?: readonly FixtureRow[];
+  /** More `vault_tags` rows after {@link VAULT_TAGS} — {@link AWKWARD_TAGS}, usually. */
+  extraTags?: readonly FixtureRow[];
 }
 
 /**
@@ -886,15 +890,43 @@ export const AWKWARD_SCENARIOS: readonly FixtureRow[] = [
 ];
 
 /**
- * `vault_tags`: free hex colours, `noir` in two kinds and two colours (§1.8's
- * *one name used by two kinds becomes one tag*), and one grey enough to be
- * `stone`.
+ * `vault_tags`, **as the pin writes them** — a Tailwind token, not a hex
+ * colour (found at P13.6: §1.8 expected free hex, and Aventuras draws each
+ * tag's colour at random from seventeen `<hue>-500` tokens). `noir` in two
+ * kinds and two colours that land on two swatches (§1.8's *one name used by
+ * two kinds becomes one tag*), and two more names, one used on a character
+ * and one on a lorebook, so every kind is here.
  */
 export const VAULT_TAGS: readonly FixtureRow[] = [
-  { id: 'tag-1', name: 'noir', type: 'character', color: '#6366f1', created_at: CREATED },
-  { id: 'tag-2', name: 'noir', type: 'scenario', color: '#e11d48', created_at: CREATED },
-  { id: 'tag-3', name: 'harbour', type: 'lorebook', color: '#16a34a', created_at: CREATED },
-  { id: 'tag-4', name: 'quiet', type: 'character', color: '#a8a29e', created_at: CREATED },
+  { id: 'tag-1', name: 'noir', type: 'character', color: 'indigo-500', created_at: CREATED },
+  { id: 'tag-2', name: 'noir', type: 'scenario', color: 'rose-500', created_at: CREATED },
+  { id: 'tag-3', name: 'harbour', type: 'lorebook', color: 'emerald-500', created_at: CREATED },
+  { id: 'tag-4', name: 'quiet', type: 'character', color: 'sky-500', created_at: CREATED },
+];
+
+/**
+ * ***The tags a reader has to read around*** — P13.6, added only when a test
+ * asks ({@link AventurasDbOptions.extraTags}): §1.8's own hex, and a grey one
+ * that must be `stone`; a colour that is neither a token nor hex; a name
+ * differing from a fixture tag only in case and spacing, in a third kind, and
+ * in a colour that lands on the same swatch as the first `noir`; an empty
+ * name; a name past the registry's sixty-four characters; and a row with no
+ * id.
+ */
+export const AWKWARD_TAGS: readonly FixtureRow[] = [
+  { id: 'tag-hex', name: 'salt', type: 'lorebook', color: '#e11d48', created_at: CREATED },
+  { id: 'tag-grey', name: 'ashen', type: 'character', color: '#a8a29e', created_at: CREATED },
+  { id: 'tag-junk', name: 'murk', type: 'scenario', color: 'not a colour', created_at: CREATED },
+  { id: 'tag-case', name: '  NOIR ', type: 'lorebook', color: 'violet-500', created_at: CREATED },
+  { id: 'tag-blank', name: '   ', type: 'character', color: 'red-500', created_at: CREATED },
+  {
+    id: 'tag-long',
+    name: 'a tag name that goes on and on past anything a chip could hold in one line',
+    type: 'lorebook',
+    color: 'teal-500',
+    created_at: CREATED,
+  },
+  { id: null, name: 'nameless', type: 'character', color: 'lime-500', created_at: CREATED },
 ];
 
 export const PACK_IDS = { default: 'default-pack', rain: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e' };
@@ -1197,6 +1229,7 @@ export function buildAventurasDatabase(db: DatabaseSync, options: AventurasDbOpt
   for (const row of VAULT_SCENARIOS) insert(db, 'scenario_vault', row);
   for (const row of options.extraScenarios ?? []) insert(db, 'scenario_vault', row);
   for (const row of VAULT_TAGS) insert(db, 'vault_tags', row);
+  for (const row of options.extraTags ?? []) insert(db, 'vault_tags', row);
   for (const row of PRESET_PACKS) insert(db, 'preset_packs', row);
   for (const row of PACK_TEMPLATES) insert(db, 'pack_templates', row);
   for (const row of PACK_VARIABLES) insert(db, 'pack_variables', row);

@@ -384,6 +384,7 @@ describe('a sweep of an Aventuras vault', () => {
     const outcome = await sweep({
       library: server.services.library,
       handle: 'ned',
+      tags: server.services.tags,
       files: opened.source,
       ...(onConflict === undefined ? {} : { onConflict }),
     });
