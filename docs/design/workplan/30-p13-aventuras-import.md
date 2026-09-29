@@ -269,6 +269,11 @@ which a rebuild or a correction recovers without anything having been lost.
   Aventuras seeds the table from its objects' tags only while it is empty
   (`ensureTagsMigrated`), so an object can carry a name the table never had;
   tags are open, so it renders neutral, and nothing is lost.
+- **Neither zip reader checks CRCs** — noted at P13.8. Both trust the inflate
+  and the database's own `quick_check` afterwards; recorded in
+  `storage/zip-file.ts`'s header.
+- **`storage/README.md`'s file table is stale** — found at P13.8: it lists five
+  files and misses the zip and tar readers, the trash, the snapshot and more.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -524,7 +529,7 @@ and stay `recorded`.
 
 Aventuras keeps images as base64 in the database, so an install with a gallery
 is hundreds of megabytes, and **the upload paths will turn those away until
-[P13.8](#p138--streaming-large-uploads)**. The server-path sweep will not, which
+[P13.8](#p138--streaming-large-uploads-done)**. The server-path sweep will not, which
 ~~is why Part 1 is useful without P13.8~~ is why P13.8 comes after the reader
 rather than before it: an operator mounts the Aventuras config directory and
 sweeps it.
@@ -711,7 +716,38 @@ the preview arm, and a near-miss: a sweep pointed at `~/.config`, or at
 *Ends at:* the same database, handed over all four ways, produces the same
 library, and the second sweep of any of them is all `unchanged`.
 
-### P13.8 — Streaming large uploads
+### ~~P13.8 — Streaming large uploads~~ Done
+
+*Done — `5c6e5e6`, 2026-09-29.* `POST /import/file` sniffs at least sixteen
+bytes across chunks and lands a zip or a SQLite database in the import scratch
+root as it arrives (`routes/import-upload.ts`, `storage/upload-landing.ts`),
+under `limits.maxImportUploadMb` — 1024, `live`, applied; the seven-place edit,
+with [21 §4.3](../21-internal-contracts.md)'s live-key count corrected from a
+stale figure on the way. In order: the declared length, refused before the
+body; `fileSize` on the call and `truncated` after; for a landing declared past
+`maxUploadMb` or undeclared, one in flight server-wide (`503`, `retry-after`);
+1.1× free space plus the snapshot reserve (`507`); a 60-second idle timeout
+(`408`). Every early refusal closes the connection, and scratch and the slot
+are released before the reply. **Every archive lands, not only large ones** —
+deciding by size would trust `Content-Length` and give a zip two readers, so
+one backup would read differently at 60 MB and at 70 MB; size decides only who
+takes the slot. `storage/zip-file.ts` reads the archive on disk from the
+22 + 65535 + 20 tail window, sharing `zip.ts`'s central-directory parse, with
+the limits split — per entry at parse time (4× the import limit), 64 MB per
+`read()`, 256 MB of bytes actually inflated into memory; extraction to disk is
+bounded by the entry's declared size and a room check instead, since counting
+it would refuse exactly the databases this stage is for. The database and its
+log are inflated to their own scratch and reach the reader through a new
+`FileSource.land`, as the snapshot's `owned` input; a cut-short archive is
+`malformed`, not `not-a-zip`. The client sniffs locally and previews an archive
+without sending it — [P4's *a look, then a word*](16-p4-implementation.md),
+amended there — shows progress, and turns a dropped connection or a proxy's
+bare 413 into a sentence; `docs/deploy.md` names the proxy's body limit and read
+timeout. *Beyond the stage, from P13.7:* a bare SQLite upload of any name, and
+an Aventuras backup zip, import end to end through the landing, including a
+database past 64 MB inside a zip.
+
+*As planned:*
 
 ~~A multipart part streamed to scratch rather than buffered, and one zip entry
 stream-inflated to scratch with its bounds still checked from the central
@@ -897,7 +933,7 @@ refuse); WAL with un-checkpointed frames; and zipped through
 
 ## 4 — Open questions
 
-1. ~~**Is [P13.8](#p138--streaming-large-uploads) in Part 1?** Without it, a large
+1. ~~**Is [P13.8](#p138--streaming-large-uploads-done) in Part 1?** Without it, a large
    library reaches us only by server path, and a person with no shell on their
    server cannot hand one over.~~ **Yes** — 2026-09-28, on
    [§1.11](#111-size-and-the-one-transport-with-no-ceiling)'s narrower grounds.
