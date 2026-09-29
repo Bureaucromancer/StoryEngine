@@ -236,6 +236,11 @@ which a rebuild or a correction recovers without anything having been lost.
 - **`readSession` never checks a folder's name against the id inside it**, so a
   session folder copied by hand without editing its id overwrites the original's
   `session` row on rebuild.
+- ~~**`DirectorySource.read()` and `exists()` followed symlinks out of the
+  sweep root**~~ — *found and fixed at P13.1*: `#resolve` is lexical, so a link
+  inside a swept folder could read a file outside it, including the data
+  directory's own `accounts.json`, against `FileSource`'s documented contract.
+  Both now go through `#reach`, which checks the link's target.
 - **`foreign.source` means two things.** `turn.ts:962-970` describes the source
   application; the importer writes the source *session's* id.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
@@ -289,6 +294,28 @@ routes to the copy:
   into scratch, open the copy so SQLite replays the log, and run
   `PRAGMA quick_check`.
 
+***Amended at P13.1, 2026-09-29, by what building it found.*** Three things
+the paragraphs above did not know:
+
+- **A read-only open is not free.** A connection to a WAL database — a
+  read-only one included — creates the `-wal` and `-shm` beside it when they
+  are missing, and leaves them. A cleanly closed Aventuras has neither, so the
+  ordinary case, *close the app, then import*, would have left two files in
+  somebody's config directory, made by our process. So the vacuum route is
+  taken **only when it creates nothing** — a rollback-journal database, or a
+  WAL database whose `-wal` and `-shm` are both already there (Aventuras open,
+  or crashed) — and every other real path takes the copy route.
+- **The copy route brackets itself.** It copies the `-wal` before the
+  database and fingerprints the source before and after; a source that moved
+  in the window refuses `live-install` rather than yielding a copy that mixes
+  two moments. `quick_check` stays as the last word.
+- **Room first.** A snapshot is a copy the size of somebody's whole install,
+  written into our data volume, so it checks free space before allocating
+  anything — the backup subsystem's rule — and a shortfall is a typed
+  `SnapshotSpaceError` carrying the numbers, which P13.8's route turns into a
+  507. A failure that is ours (disk full, out of memory, an I/O error on our
+  copy) throws; only the source's faults refuse.
+
 ***Both run in a worker thread*** — *added 2026-09-28, from the P13.8 review.*
 `node:sqlite` is synchronous, and the server has no worker threads today, so a
 `VACUUM INTO` or a `quick_check` over a database of hundreds of megabytes on the
@@ -322,8 +349,19 @@ follows it: `Layout.importScratchRoot` is `state/import-scratch/`.
 new `storage/sqlite-snapshot.ts`; the reader receives a path it may open with
 `node:sqlite`, which is not lint-confined and is already opened directly by
 `index-db/open.ts` and `state/open.ts`. `LocalSource` gains `realPath(path)`,
-applying `#resolve`'s containment and data-root checks, so a server-path sweep
-can hand SQLite the real file.
+~~applying `#resolve`'s containment and data-root checks~~ *resolving the link
+target and checking it against the root and the data directory*, so a
+server-path sweep can hand SQLite the real file.
+
+*As built, P13.1.* `#resolve` turned out to be lexical only — it never looked at
+a link's target — so `realPath` checks the **resolved** path, through a new
+`#reach`; and `read` and `exists` now go through `#reach` too
+([§0.5](#05-found-in-passing-and-not-fixed-here)). Scratch is its own module,
+`storage/import-scratch.ts` — one directory per use, so disposing it takes the
+side files SQLite makes with it — and **P13.8's hand-over is not a `realPath`
+amendment**, as P13.1's stage text first had it: scratch lives inside the data
+directory, which `realPath` refuses by design. A landed upload is instead an
+`owned` input to the snapshot, whose ownership passes to it.
 
 ### 1.4 Gate on the columns, not on the version number
 
@@ -487,17 +525,31 @@ under all three policies. The entry-id collision, verified, then fixed with
 *Ended at:* fifteen tests red for their stated reasons at `34b3174`, green at
 `75c56ca` with the rest of the suite, and 28's P11.10 record corrected.
 
-### P13.1 — Scratch and the snapshot
+### ~~P13.1 — Scratch and the snapshot~~ Done
 
-`Layout.importScratchRoot`, `LocalSource.realPath`, `storage/sqlite-snapshot.ts`
+*Done — `c44feed`, 2026-09-29.* `Layout.importScratchRoot`
+(`state/import-scratch/`) and `storage/import-scratch.ts`; `realPath` on the
+directory source, through the new link-checking `#reach`;
+`storage/sqlite-snapshot.ts` with four inputs (`path`, `bytes`, `owned`, and the
+copy fallback) and a self-contained worker, `sqlite-snapshot-worker.ts`, that
+runs `VACUUM INTO` and `quick_check` off the main thread and loads from both the
+TypeScript sources and `dist` (`sqlite-snapshot.dist.test.ts`, which needs
+`pnpm build` first, as CI does); the backup exclusion; the boot sweep in
+`buildApp`, deliberately not in `buildServices`. ~~`Layout.importScratchRoot`,
+`LocalSource.realPath`, `storage/sqlite-snapshot.ts`
 ([§1.2](#12-the-snapshot-and-why-a--wal-file-never-refuses),
-[§1.3](#13-scratch-lives-under-state-through-the-layout)), run **in a worker
-thread**, the backup exclusion and the boot cleanup. P13.8 lands its uploads in
+[§1.3](#13-scratch-lives-under-state-through-the-layout)), run in a worker
+thread, the backup exclusion and the boot cleanup. P13.8 lands its uploads in
 the same scratch root, so it also needs a way to hand the reader a file it
 already owns — recorded here as an amendment to §1.3's `realPath`, which only
-covers a server-path source.
-*Proof obligation:* a WAL-mode database with committed, un-checkpointed frames
-snapshots with those frames present, by both routes.
+covers a server-path source.~~ The hand-over is the `owned` input
+([§1.3](#13-scratch-lives-under-state-through-the-layout)).
+*Proof obligation, met:* a WAL-mode database with committed, un-checkpointed
+frames — writer held open, autocheckpoint off — snapshots with those frames
+present by the vacuum route, the copy route, bytes with the log, and an owned
+file with its log; a control shows the main file alone lacks them. Two tests
+hold a main-thread lock that only a main-thread timer releases, so the snapshot
+completing proves the SQLite work ran elsewhere.
 
 ### P13.2 — The kind, the probe, and a reader that converts nothing yet
 
