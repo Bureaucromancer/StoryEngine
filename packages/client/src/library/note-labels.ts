@@ -322,6 +322,26 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{rows} settings were dropped without being read. They may include provider keys, which are never imported.',
   'import.aventuras.storyRecorded':
     '“{story}”, across all its branches: {entries} entries, {branches} branches, {characters} characters, {locations} locations, {items} items, {beats} story beats, {lore} lorebook entries, {chapters} chapters, {checkpoints} checkpoints and {images} images. Stories are not imported yet.',
+  /**
+   * ***A prompt pack, recorded*** — [P13.9]. Packs are not imported: their
+   * templates are written against Aventuras' own variables and its own prompt
+   * layout, and the narrator's — the only ones with a counterpart here — branch
+   * on point of view, tense and reinforcement, which a preset here cannot read.
+   * So the row says what the pack held, and the warning names the templates
+   * that are somebody's, since those are what the person is leaving behind.
+   *
+   * *"Differ from the ones Aventuras ships"* rather than *"were edited"*,
+   * because that is the test (`packs.ts`): a pack imported into Aventuras reads
+   * as untouched by Aventuras' own edit flag, and a template a pack was seeded
+   * with by an older Aventuras differs without anybody having touched it — so
+   * the sentence allows for that rather than claiming an edit.
+   */
+  'import.aventuras.packRecorded':
+    'The prompt pack “{pack}”: {templates} templates, {differ} of them different from the ones Aventuras ships; {variables} custom variables and {tracked} tracked variables. Prompt packs are not imported: their templates are written for Aventuras’ own prompt layout and variables, and would not read here as they do there.',
+  'import.aventuras.packTemplatesDiffer':
+    'In “{pack}”, these differ from Aventuras’ own and were not brought across: {templates}. Each is an edit, a pack somebody shared, or text from another version of Aventuras. They are still in Aventuras; copy any you want into a preset.',
+  'import.aventuras.packTemplatesUnlisted':
+    'In “{pack}”, {count} more templates differ from Aventuras’ own and are not named here.',
   'import.aventuras.newerSchema':
     'This database comes from a newer Aventuras (schema version {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
   'import.aventuras.backupMetadata':

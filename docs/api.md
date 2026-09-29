@@ -631,8 +631,9 @@ object is a half-import, which is worse than none.
 
 **An Aventuras folder** — a config directory, or an unzipped backup — is one
 database, and its review is a row for the database, one per table (with its row
-count), one per story (with what that story holds across all its branches — a
-branch's edits and deletions left out) and one per other file in the folder;
+count), one per prompt pack (below), one per story (with what that story holds
+across all its branches — a branch's edits and deletions left out) and one per
+other file in the folder;
 SQLite's own `-wal`, `-shm` and `-journal` are part of the database and not rows
 of their own. **Since P13.3 its characters convert**: `character_vault` has no
 row of its own, and instead each of its rows is one — an actor, with the source
@@ -672,7 +673,16 @@ one, so a name two kinds share is one tag, in the first row's colour, and
 `import.aventuras.tagColourDiffers` says when another row's would have been a
 different swatch. **No imported object is given `tagIds`**: adopting tags stays
 `POST /api/tags/adopt`'s. Tags are merged first, then lorebooks are written,
-then characters, then scenarios, so every link finds its book. Every other
+then characters, then scenarios, so every link finds its book. **Prompt packs
+are recorded, not converted** ([P13.9](design/workplan/30-p13-aventuras-import.md)):
+each `preset_packs` row is a `recorded` review row of its own, with the source
+`aventura.db/preset_packs/<id>` and no `objectId`, whose
+`import.aventuras.packRecorded` note counts its templates, how many of them
+differ from the text Aventuras ships (hashed as Aventuras hashes them: trimmed,
+CRLF made LF, SHA-256), its custom variables and its tracked variables; when
+any differ, `import.aventuras.packTemplatesDiffer` at `warn` names them — up to
+81 ids of at most 64 characters, and `import.aventuras.packTemplatesUnlisted`
+counts the rest. No preset is written. Every other
 table is `recorded`,
 `skipped` or, for `settings`, `credential` — counted and never read, since it
 holds provider keys. A database missing a column this build reads, or with no

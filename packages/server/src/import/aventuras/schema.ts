@@ -192,6 +192,13 @@ export const AVENTURAS_REQUIRED: Readonly<Record<string, TableRequirement>> = {
     ],
     optional: ['description', 'sort_order'],
   },
+  /**
+   * *Since P13.9*, counted per pack for the pack's row of the review
+   * (`packs.ts`) — which groups by this and selects nothing else of it, so it
+   * is all this table is gated on. A per-entity variable definition is P7's
+   * channel shape, and stays `recorded` (§1.10).
+   */
+  pack_runtime_variables: { since: 32, columns: ['pack_id'] },
 
   // ── The stories, as far as counting them per story needs ──────────────────
   stories: { since: 1, columns: ['id', 'title'] },

@@ -141,13 +141,24 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
    * library object, and the objects are not stamped with it.
    */
   vault_tags: 'converted',
-  // Packs are their own stage (§1.10). P13.9 converts the three that carry
-  // what somebody wrote, and may close them as `recorded` if too little of a
-  // pack survives the mapping — which would be a finding, not a failure.
+  // Packs are their own stage (§1.10), and ***P13.9 closed them `recorded`***,
+  // which the stage allowed and its mapping table decided: four of the pin's
+  // eighty-one templates have a counterpart here — the narrator's — and those
+  // branch on `pov`, `tense` and `narratorReinforcement`, which our render
+  // namespace has no name for, so a preset made of them would render voice
+  // rules that contradict the story and two empty user halves
+  // (`aventuras/packs.ts` has the whole argument). Recorded, then, and said:
+  // each pack is a row of its own beside its table's, naming the templates
+  // that differ from Aventuras' own — what somebody wrote, left in Aventuras.
+  // `pack_variables` would carry one for one and be inert; with no templates
+  // to read them they are counted on the pack's row instead.
+  /** One row per pack beside this one (`aventura.db/preset_packs/<id>`), with what it holds. */
   preset_packs: 'recorded',
+  /** Counted here and per pack; the ids that differ from the pin's text are named on the pack's row. */
   pack_templates: 'recorded',
+  /** Counted here and per pack. */
   pack_variables: 'recorded',
-  /** Per-entity tracked state: channel-shaped, P7's, and `recorded` past P13.9 too (§1.10). */
+  /** Per-entity tracked state: channel-shaped, P7's, and `recorded` past P13.9 too (§1.10). Counted per pack. */
   pack_runtime_variables: 'recorded',
   /** A chat with Aventuras' own assistant, with no counterpart here ("not in this phase"). */
   vault_assistant_conversations: 'recorded',

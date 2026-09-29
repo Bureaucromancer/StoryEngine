@@ -33,6 +33,7 @@ import {
   COPY_ON_WRITE,
   quoted,
 } from './schema.js';
+import { packRows } from './packs.js';
 import { isRecord } from './shapes.js';
 import {
   CHARACTER_TABLE,
@@ -85,6 +86,15 @@ import { TAG_TABLE, vaultTagItems } from './vault-tag.js';
  * with its colour already in place. Each row becomes a registry entry
  * rather than a library object, merged by name and never recolouring one
  * already there (§1.8), and the objects are not stamped with it.
+ *
+ * ***P13.9: the packs, recorded.*** Not converted — the stage's mapping table
+ * showed four of eighty-one templates with a counterpart here, and in those the
+ * variables they branch on with no name in our namespace (`packs.ts` has the
+ * argument). So each pack is one `recorded` row, as a story is, saying what it
+ * holds and which of its templates differ from the text Aventuras ships: what
+ * somebody wrote, and what this import leaves in Aventuras. After the vault's
+ * candidates and before the stories, since a pack is the library's and not a
+ * story's.
  *
  * ***The database is never read where it lies*** (§1.2). `survey()` takes a
  * private copy through `storage/sqlite-snapshot.ts` and opens that, read-only:
@@ -357,6 +367,7 @@ export class AventurasReader implements SourceReader {
     if (held.tables.has(SCENARIO_TABLE)) {
       yield* vaultScenarioItems(held.db, { database: AVENTURAS_DATABASE });
     }
+    yield* packRows(held.db, { database: AVENTURAS_DATABASE, tables: held.tables });
     yield* storyRows(held);
   }
 

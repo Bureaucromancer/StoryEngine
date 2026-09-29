@@ -36,12 +36,12 @@ import { makePng } from '../../storage/card/test-png.js';
  * where they are made: a PNG portrait as a data URL and a JPEG one; the legacy
  * string-array `visual_descriptors`; an empty vault lorebook and one with a
  * repeated entry name; a scenario and a character linked to a lorebook by id;
- * tags of one name in two kinds and two colours; a non-default pack with one
- * template somebody edited; a settings table with a provider key in it; and
- * two stories with different numbers of everything, and beside them the edits
- * and tombstones Aventuras' copy-on-write branches leave, which are rows and
- * not things a story holds. *Since P13.3*, the characters a reader has to read
- * around — a corrupt portrait, a truncated one, bare base64, a mislabelled
+ * tags of one name in two kinds and two colours; two packs whose templates
+ * differ from Aventuras' own in the three ways P13.9 found they can; a
+ * settings table with a provider key in it; and two stories with different
+ * numbers of everything, and beside them the edits and tombstones Aventuras'
+ * copy-on-write branches leave, which are rows and not things a story holds.
+ * *Since P13.3*, the characters a reader has to read around — a corrupt portrait, a truncated one, bare base64, a mislabelled
  * WebP, a link, unreadable JSON columns, a row with no id — are
  * {@link AWKWARD_CHARACTERS}, added only when a test asks for them; *since
  * P13.4*, the lorebooks — a twin of a book's name, entries that will not
@@ -954,48 +954,74 @@ export const PRESET_PACKS: readonly FixtureRow[] = [
 ];
 
 /**
- * Templates: the default pack's, untouched, and the Rain pack's — one of which
- * somebody edited, so its `content_hash` differs from its `baseline_hash`
- * (§1.10: *only a template whose hash differs is something somebody wrote*).
+ * Templates, as P13.9 reads them: *somebody's* is **different from the text
+ * Aventuras ships at the pin**, hashed as Aventuras hashes it (`packs.ts`).
+ *
+ * - The default pack has one row as shipped — `translate-narration-user`,
+ *   whose default is the one line `{{ content }}`, the only kind of default
+ *   short enough to be a fact rather than a copy of somebody's prose — and one
+ *   somebody edited in Aventuras' own editor, so its `content_hash` has moved
+ *   off its `baseline_hash`. The default pack's edits are real: migration 036
+ *   exists because Aventuras was reverting them, whatever §1.10 says about
+ *   non-default packs only.
+ * - The Rain pack was **imported** into Aventuras, which writes every template
+ *   with its content as its baseline — so its rewritten narrator reads as
+ *   untouched by §1.10's hash test and is still somebody's. Beside it, the
+ *   shipped `translate-input-user` with the whitespace and line ending an
+ *   editor leaves (Aventuras trims and makes CRLF LF before hashing, so it is
+ *   still the default), and a template id the pin does not ship at all.
+ *
+ * The hash columns are labels: nothing here reads them, and they say which
+ * rows Aventuras itself would call edited.
  */
 export const PACK_TEMPLATES: readonly FixtureRow[] = [
   {
     id: 'tpl-1',
     pack_id: PACK_IDS.default,
-    template_id: 'adventure',
-    content: 'You are the narrator of an adventure.',
-    content_hash: 'hash-adventure-baseline',
-    baseline_hash: 'hash-adventure-baseline',
+    template_id: 'translate-narration-user',
+    content: '{{ content }}',
+    content_hash: 'hash-translate-narration-user-baseline',
+    baseline_hash: 'hash-translate-narration-user-baseline',
     created_at: CREATED,
     updated_at: CREATED,
   },
   {
     id: 'tpl-2',
     pack_id: PACK_IDS.default,
-    template_id: 'adventure-user',
-    content: '{{ userInput }}',
-    content_hash: 'hash-adventure-user-baseline',
-    baseline_hash: 'hash-adventure-user-baseline',
-    created_at: CREATED,
-    updated_at: CREATED,
-  },
-  {
-    id: 'tpl-3',
-    pack_id: PACK_IDS.rain,
     template_id: 'adventure',
-    content: 'You narrate a town where it has rained for eleven days. Nobody is honest.',
+    content: 'You narrate. {{ protagonistName }} acts. Never write what they say.',
     content_hash: 'hash-adventure-edited',
     baseline_hash: 'hash-adventure-baseline',
     created_at: CREATED,
     updated_at: UPDATED,
   },
   {
+    id: 'tpl-3',
+    pack_id: PACK_IDS.rain,
+    template_id: 'adventure',
+    content: 'You narrate a town where it has rained for eleven days. Nobody is honest.',
+    content_hash: 'hash-rain-adventure',
+    baseline_hash: 'hash-rain-adventure',
+    created_at: CREATED,
+    updated_at: UPDATED,
+  },
+  {
     id: 'tpl-4',
     pack_id: PACK_IDS.rain,
-    template_id: 'classifier',
-    content: 'Classify the entities in the passage.',
-    content_hash: 'hash-classifier-baseline',
-    baseline_hash: 'hash-classifier-baseline',
+    template_id: 'translate-input-user',
+    content: '  {{ content }}\r\n',
+    content_hash: 'hash-translate-input-user-baseline',
+    baseline_hash: 'hash-translate-input-user-baseline',
+    created_at: CREATED,
+    updated_at: CREATED,
+  },
+  {
+    id: 'tpl-5',
+    pack_id: PACK_IDS.rain,
+    template_id: 'rain-weather',
+    content: 'It is still raining.',
+    content_hash: 'hash-rain-weather',
+    baseline_hash: 'hash-rain-weather',
     created_at: CREATED,
     updated_at: CREATED,
   },

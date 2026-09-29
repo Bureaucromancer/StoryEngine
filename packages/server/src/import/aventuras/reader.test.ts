@@ -23,6 +23,7 @@ import {
   buildAventurasDatabase,
   FIXTURE_API_KEY,
   openAventurasWithUnsavedFrames,
+  PRESET_PACKS,
   SETTINGS,
   STORIES,
   STORY_COW_ROWS,
@@ -694,7 +695,7 @@ describe('a sweep of an Aventuras install', () => {
     return outcome.report;
   }
 
-  it('accounts for every table, every story and every file, and writes only the vault’s books, characters and scenarios', async () => {
+  it('accounts for every table, every pack, every story and every file, and writes only the vault’s books, characters and scenarios', async () => {
     const directory = join(root, 'aventura-backup');
     await writeAventurasBackupFolder(directory);
     // What an older backup and a hand-copied folder carry beside the database.
@@ -816,10 +817,22 @@ describe('a sweep of an Aventuras install', () => {
     for (const file of ['metadata.json', 'notes.txt', 'stories/the-drowned-bell.avt']) {
       expect(row(report.items, file).disposition, file).toBe('skipped');
     }
+    // Every pack, recorded (P13.9): a row each beside its table's, and no
+    // preset written for any of them.
+    const packs = report.items.filter((item) =>
+      item.source.startsWith('aventura.db/preset_packs/'),
+    );
+    expect(packs.map((item) => item.source).sort()).toEqual(
+      PRESET_PACKS.map((one) => `aventura.db/preset_packs/${String(one['id'])}`).sort(),
+    );
+    expect(new Set(packs.map((item) => item.disposition))).toEqual(new Set(['recorded']));
+    expect((await ownObjects(server, 'presets')).objects).toEqual([]);
+
     const expected =
       1 +
       3 +
       (AVENTURAS_TABLES.length - CONVERTED_TABLES.length) +
+      PRESET_PACKS.length +
       STORIES.length +
       CONVERTED_OBJECTS;
     expect(report.items).toHaveLength(expected);
