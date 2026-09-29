@@ -5,15 +5,19 @@ import {
   outputFromMessages,
   SESSION_EXPORT_SCHEMA,
   type BranchRef,
+  type ChannelEffect,
   type ImportNote,
   type OutputMessage,
   type Ref,
   type Turn,
 } from '@storyengine/shared';
 
+import { PRESENCE_CHANNEL, SE_PRESENCE } from '../../sessions/cast.js';
 import { SPEAKER_DEFAULTS } from '../../sessions/chat-settings.js';
+import { applyEffects } from '../../sessions/store.js';
 import type { SessionFile } from '../../sessions/types.js';
 import {
+  effectKey,
   nodeKey,
   placeTime,
   readableTime,
@@ -68,7 +72,9 @@ import type {
  * 4. **Refs and resolution** ([P13 §2.5]): a ref per chat, the head on the
  *    root chat's, speakers named by the library where it knows them.
  * 5. **Settings** ([P13 §2.6]): the Scene chat fields, from the source where it
- *    said and from Scene's chat defaults where it did not.
+ *    said and from Scene's chat defaults where it did not — and the one setting
+ *    that is state rather than a field, a group's muted members, as effects on
+ *    the opening turns with the head cache to match ({@link mutedEffects}).
  */
 
 /**
@@ -288,21 +294,32 @@ export function buildSession(
   const cast: string[] = [];
   const beyondCast = new Set<string>();
   const unresolved = new Map<string, string>();
+  const meet = (speaker: ForeignRef): void => {
+    const resolved = resolution.speakers.get(speaker.key) ?? null;
+    if (resolved === null) {
+      if (!unresolved.has(speaker.key)) unresolved.set(speaker.key, speaker.name);
+    } else if (!cast.includes(resolved.id)) {
+      if (cast.length < CAST_CEILING) cast.push(resolved.id);
+      else beyondCast.add(resolved.id);
+    }
+  };
+  /**
+   * ***The roster first, in the group's order, then whoever else spoke*** —
+   * `ChatFamily.roster`. A group's members are its cast whether or not they
+   * said a word, and the order is the group's because `list` answers in cast
+   * order ([P13 §1.3]): reading it off the lines instead would reorder the
+   * round by who happened to speak first.
+   */
+  for (const member of family.roster ?? []) meet(member);
   for (const node of nodes.values()) {
     for (const line of node.lines) {
-      if (line.speaker === null) continue;
-      const resolved = resolution.speakers.get(line.speaker.key) ?? null;
-      if (resolved === null) {
-        if (!unresolved.has(line.speaker.key)) unresolved.set(line.speaker.key, line.speaker.name);
-      } else if (!cast.includes(resolved.id)) {
-        if (cast.length < CAST_CEILING) cast.push(resolved.id);
-        else beyondCast.add(resolved.id);
-      }
+      if (line.speaker !== null) meet(line.speaker);
     }
   }
 
   const sessionTime = headOf(walked, nodes)?.time ?? 0;
   const sessionId = uuidv7Shaped(sessionTime, sessionKey(context.account, family.key));
+  const muted = mutedMembers(family, settings, resolution, cast, notes);
   const turns = ordered.map((node) =>
     turnOf(node, {
       id: id(node.key),
@@ -311,6 +328,7 @@ export function buildSession(
       source: family.source,
       persona: resolution.persona,
       refOf,
+      effects: node.parentKey === null ? mutedEffects(node, id(node.key), muted) : [],
     }),
   );
 
@@ -401,6 +419,30 @@ export function buildSession(
 
   const head = headOf(walked, nodes);
   const lastSelectedChild = rememberedPath(walked, nodes, id);
+
+  /**
+   * ***The head cache, folded from the effects by the one fold there is.***
+   * `session.channels` is *"state at `headTurnId`. Derived."* (`SessionFile`),
+   * and this document now carries effects, so an empty map would not be a
+   * cache that has not been filled: it would be a hand edit.
+   * `reconcileHandEdits` reads a file whose map disagrees with the replay as a
+   * person having deleted those keys, and records that as a user-attributed
+   * effect on the first read — which here would unmute every muted member the
+   * moment the session was opened. So the map is the head path's effects
+   * through `applyEffects`, the same function the replay uses, and the two
+   * agree by construction rather than by a second opinion about what a mute
+   * looks like as state.
+   */
+  const byKey = new Map(turns.map((turn, at) => [ordered[at]?.key ?? '', turn]));
+  const headPath: Turn[] = [];
+  for (let key = head?.key ?? null; key !== null; key = nodes.get(key)?.parentKey ?? null) {
+    const turn = byKey.get(key);
+    if (turn !== undefined) headPath.unshift(turn);
+  }
+  const channels = headPath.reduce<SessionFile['channels']>(
+    (state, turn) => applyEffects(state, turn.effects),
+    {},
+  );
 
   // -------------------------------------------------------------------------
   // Notes — every one under `import.chat.*`, where `note-labels.test.ts` looks
@@ -493,7 +535,7 @@ export function buildSession(
       createdAt: rootCreated === null ? context.now : new Date(rootCreated).toISOString(),
       updatedAt: context.now,
     },
-    channels: {},
+    channels,
     mode: { id: context.modeId, config: null },
     cast: { persona: resolution.persona?.id ?? null, actors: cast },
     lore: [...resolution.lore],
@@ -742,6 +784,109 @@ function rememberedPath(
 }
 
 // ---------------------------------------------------------------------------
+// Muted members — [P13 §2.6], [P13.9]
+// ---------------------------------------------------------------------------
+
+/** A muted member the session can name: their foreign key, and the actor they are. */
+interface Muted {
+  key: string;
+  actorId: string;
+}
+
+/**
+ * ***Which muted members a presence effect can be written for*** — those the
+ * library resolved, and who are in the cast.
+ *
+ * `se.presence` is scoped per actor, so its scope key is a library id, and a
+ * member the library does not have has none. Writing the effect under the
+ * foreign key instead would put a name into the channel map that no cast
+ * member answers to — and `resolveCast` unions the actors the channels name
+ * into the cast, so it would be a phantom member, muted. Such a member is said
+ * instead: their lines keep their name ([P13 §2.5]) and the note says the mute
+ * did not come across. *In the cast too*, for the same reason, and the roster
+ * puts every resolved member there unless the cast ceiling was reached.
+ */
+function mutedMembers(
+  family: ChatFamily,
+  settings: ChatSettings,
+  resolution: ChatResolution,
+  cast: readonly string[],
+  notes: ImportNote[],
+): Muted[] {
+  const muted: Muted[] = [];
+  const seen = new Set<string>();
+  for (const key of settings.muted ?? []) {
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const resolved = resolution.speakers.get(key) ?? null;
+    if (resolved !== null && cast.includes(resolved.id)) {
+      muted.push({ key, actorId: resolved.id });
+      continue;
+    }
+    const name = family.roster?.find((member) => member.key === key)?.name ?? key;
+    notes.push({ key: 'import.chat.mutedUnresolved', params: { name }, level: 'warn' });
+  }
+  return muted;
+}
+
+/**
+ * ***A group's muted members, as the state the session opens in*** —
+ * [P13 §2.6]'s *"ST `disabled_members` … → presence `false` (muted)"*.
+ *
+ * **The decision, and the exception to [P13 §2.2] it is.** Presence is the
+ * `se.presence` channel (`sessions/cast.ts`): a value at a node, which only an
+ * effect on a turn writes. §2.2 has an imported turn carry `effects: []` and
+ * *"nothing fabricated"* — and the reason for that rule is a `TurnRequest` or
+ * a cost built from fields the source never had. A muted member is not that.
+ * SillyTavern *says* who is muted; the only question is where the saying goes,
+ * and a session has one place for it. Leaving it out would import a group whose
+ * muted member speaks up on the first turn, which is the source contradicted,
+ * not respected.
+ *
+ * - ***On every opening turn***, not only the first: a group's greetings can
+ *   come in as several sibling openings ([P13 §1.7]), each the root of its own
+ *   path, and a mute on one of them would hold on that path alone. The
+ *   source's state is the group's, not a greeting's. And *on the opening*
+ *   rather than at the head: SillyTavern keeps the group's mute as it is now,
+ *   not when it began, so there is no turn it truly belongs to — and the
+ *   opening is the one place every branch of the family inherits it from,
+ *   where the head would leave every other ref playing with the member back
+ *   in the room.
+ * - ***`proposedBy: engine`***, the same arm [P13 §2.6] gives Marinara's
+ *   tracker snapshots, and for the same reason. The other three would each be
+ *   a false statement: no model call exists to name (`model`), no step ran
+ *   (`step`), and `user` is what `reconcileHandEdits` writes for a person's
+ *   own edit *in this install* — which this was not, and which the workbench
+ *   would show as something the person did here. `engine` is the arm for a
+ *   value the engine recorded rather than one proposed to it, and the turn's
+ *   `foreign` already says where the engine got it.
+ * - ***Applied, built here rather than through `acceptEffect`.*** Presence is
+ *   `model-proposed`, which admits `engine`, and `false` is its schema's, so
+ *   `acceptEffect` would apply it too; it is not called because it mints a
+ *   random id and this builder is a function of its arguments. The id comes
+ *   from `effectKey` instead, over the turn's key and the member's foreign key.
+ * - ***`before: null`***, which is what `acceptEffect` records for a channel
+ *   nothing has written yet — an opening turn's running map is empty.
+ */
+function mutedEffects(node: Node, turnId: string, muted: readonly Muted[]): ChannelEffect[] {
+  return muted.map((member) => ({
+    id: uuidv7Shaped(node.time, effectKey(node.key, SE_PRESENCE, member.key)),
+    turnId,
+    channelId: SE_PRESENCE,
+    scopeKey: member.actorId,
+    op: { type: 'set', path: '/' },
+    before: null,
+    after: false,
+    proposedBy: { kind: 'engine' },
+    applied: true,
+    rejectedReason: null,
+    supersedes: null,
+    channelVersion: PRESENCE_CHANNEL.version,
+    scope: 'session',
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // One node, one turn
 // ---------------------------------------------------------------------------
 
@@ -787,7 +932,10 @@ function contentOf(input: Node['input'], lines: readonly Line[]): NodeContent {
 
 /**
  * ***A turn nothing ran*** — [P13 §2.2]'s *"`status: 'complete'`,
- * `effects: []`, `tape: []`, and nothing fabricated."*
+ * `effects: []`, `tape: []`, and nothing fabricated."* — *with the one
+ * exception [P13.9] makes*: an opening turn carries the muted members'
+ * presence, which is the source's state and not a fabrication
+ * ({@link mutedEffects}).
  *
  * **No `request`, `cost` or `steps`.** [18 §3]'s first consequence keeps them
  * optional precisely so a turn that never ran a model can exist, and
@@ -809,6 +957,7 @@ function turnOf(
     source: ChatFamily['source'];
     persona: ResolvedRef | null;
     refOf: (speaker: ForeignRef) => Ref;
+    effects: ChannelEffect[];
   },
 ): Turn {
   const messages: OutputMessage[] = node.lines.map((line) => ({
@@ -835,7 +984,7 @@ function turnOf(
         }),
     ...(messages.length === 0 ? {} : { output: outputFromMessages(messages) }),
     foreign: { source: on.source, id: node.foreignId },
-    effects: [],
+    effects: on.effects,
     tape: [],
   };
 }

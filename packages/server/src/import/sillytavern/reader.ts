@@ -289,7 +289,12 @@ export class SillyTavernReader implements SourceReader {
     ]);
   }
 
-  /** A group's own file, `groups/<id>.json`, on the same terms as a chat. */
+  /**
+   * A group's own file, `groups/<id>.json`, on the same terms as a chat: handed
+   * on unread to the session pass, which reads it beside the group's chats for
+   * their roster, reply strategy and muted members ([P13.9]) — a few hundred
+   * bytes, but only meaningful with the chats in view.
+   */
   #group(path: string): SourceItem {
     if (GROUP_FILE.test(path)) {
       return candidate({ source: path, format: SILLYTAVERN_GROUP_FORMAT, payload: null });

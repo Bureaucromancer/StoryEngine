@@ -107,10 +107,13 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
    *
    * - **`chats`**: one folder per character, one `.jsonl` per chat.
    * - **`group chats`**: one `.jsonl` per group chat.
-   * - **`groups`**: a group's members and settings. Read by the session pass
-   *   and, until [P13.9] maps its strategy and muted members onto the
-   *   session, recorded there with a note saying so; `converted` here because
-   *   the directory is one the importer now opens.
+   * - **`groups`**: a group's members and settings, read by the session pass
+   *   beside the group's chats ([P13.9], `sillytavern/families.ts`): its
+   *   members become the cast in the group's order, its strategy and
+   *   self-responses the session's speaker settings, and its muted members
+   *   presence `false` at the opening ([P13 §2.6]). Each file's row points at
+   *   the sessions it set up; one whose chats are not here is `recorded`, with
+   *   a note saying so.
    *
    * ***Opt-in in the browser folder upload*** ({@link CHAT_DIRECTORIES}), since
    * chats are most of a tree's bytes and a person importing their cards has

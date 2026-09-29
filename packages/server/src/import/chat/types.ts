@@ -170,6 +170,22 @@ export interface ChatSourceChat {
  *   change (creation, then id) makes that more than a hope.
  * - **`name`**: the session's name.
  *
+ * - **`roster`**: the members of a group, **in the group's own order**, when
+ *   the source keeps a list of them apart from the lines — SillyTavern's
+ *   `groups/<id>.json` `members` ([P13 §2.5]'s *"plus `groups/<id>.json`
+ *   `members` for the roster"*), Marinara's chat `characterIds`. Absent for a
+ *   single chat, and for a group chat whose group file did not come with it:
+ *   then the cast is whoever the lines say spoke, in the order they first did,
+ *   which is all the source left to go on. *Present, it is the cast's order and
+ *   its floor*: every member is resolved and cast whether or not they ever
+ *   spoke, because a member who was muted the whole chat, or joined and never
+ *   got a word in, is still a member — and a muted one has to be in the cast
+ *   for the presence that mutes them to name anybody (see
+ *   {@link ChatSettings.muted}). Speakers the roster does not name — a
+ *   `/sendas` stranger, a member removed since — follow it, in first-met order.
+ *   ***Not hashed into any id***: who is in a group changes without a line of
+ *   the chat changing, and a turn is its content ([P13 §2.4]).
+ *
  * *Grouping is the caller's job, not the builder's.* Which chats are a family
  * depends on what the source holds, and a pointer to a chat the source does not
  * have is a decision the caller makes ([P13 §2.5]'s *"a root of its own"*); the
@@ -181,6 +197,7 @@ export interface ChatFamily {
   key: string;
   name: string;
   chats: readonly ChatSourceChat[];
+  roster?: readonly ForeignRef[];
 }
 
 /** A library object as the session will name it. */
@@ -225,13 +242,24 @@ export interface ChatResolution {
  * - **`hidden`**: foreign ids of lines to hide **in addition to** each line's
  *   own `hidden` flag — for a source that records hiding somewhere other than
  *   on the line.
+ * - **`muted`**: {@link ForeignRef.key}s of members the source has switched
+ *   off — SillyTavern's `disabled_members`, Marinara's `inactiveCharacterIds` —
+ *   which [P13 §2.6] maps to presence `false`.
  *
- * *Muted members are deliberately not here.* [P13 §2.6] maps SillyTavern's
- * `disabled_members` to presence `false`, and presence is the `se.presence`
- * channel — state that an effect writes on a turn, not a field this document
- * has — while [P13 §2.2] has the builder write `effects: []` and fabricate
- * nothing. Where that effect belongs is P13.9's question, with the group file
- * that holds the list.
+ * ***Muted members are the one setting that is not a session field***, and
+ * they were left out of this type until [P13.9] decided where they go.
+ * Presence is the `se.presence` channel (`sessions/cast.ts`): state at a
+ * node, written only by an effect on a turn, with `session.channels` a
+ * derived cache of it at the head. So a mute is an effect or it is nothing —
+ * and [P13 §2.2] has the builder write `effects: []` *"and nothing
+ * fabricated"*. The builder's answer (`build.ts`, `mutedEffects`) is that
+ * ***the source's own state is not a fabrication***: it writes, on each
+ * opening turn, one applied `se.presence ← false` per muted member, proposed
+ * by `engine` — the arm for a value the engine recorded rather than one a
+ * model, a step or a person produced this session — and writes the matching
+ * head cache, so the session opens with the room SillyTavern had. Everything
+ * else §2.2 excludes stays excluded: no request, no cost, no tape, and no
+ * effect the source did not state.
  */
 export interface ChatSettings {
   voice?: NonNullable<SessionFile['voice']>;
@@ -239,6 +267,7 @@ export interface ChatSettings {
   speakers?: Partial<NonNullable<SessionFile['speakers']>>;
   note?: NonNullable<SessionFile['note']>;
   hidden?: readonly string[];
+  muted?: readonly string[];
 }
 
 /**

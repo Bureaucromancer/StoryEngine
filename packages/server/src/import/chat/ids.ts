@@ -138,6 +138,22 @@ export function sessionKey(account: string, familyKey: string): string {
 }
 
 /**
+ * ***An effect the source's own state writes on a turn*** — [P13.9]'s muted
+ * members, one `se.presence` per member on an opening turn (`build.ts`).
+ *
+ * Over the turn's **key**, the channel and the member's **foreign** key, and
+ * so for the reason {@link nodeKey} gives for its own inputs: a card imported
+ * later resolves the member to a different library id, and an effect whose id
+ * moved when the library did would make two builds of one family differ. *Not
+ * identity* — nothing looks an effect up by id across imports — but the builder
+ * is a function of its arguments, and an id drawn at random here would be the
+ * one byte that was not.
+ */
+export function effectKey(turnKey: string, channelId: string, memberKey: string): string {
+  return digest(['effect', SCHEME, turnKey, channelId, memberKey]);
+}
+
+/**
  * ***The latest time a source may claim***: 2^47 ms, in the year 6429.
  *
  * uuidv7 has 48 bits of milliseconds and the builder needs room above any real

@@ -826,3 +826,88 @@ describe('the session document (§2.5, §2.6)', () => {
     expect(headPath(built).map((turn) => turn.input?.text)).toEqual(['Hi.']);
   });
 });
+
+describe('a group’s roster and muted members — P13.9', () => {
+  const MARIS: ForeignRef = { key: 'Maris.png', name: 'Maris' };
+  const LUND: ForeignRef = { key: 'Lund.png', name: 'Lund' };
+  const CREW: ChatResolution = {
+    speakers: new Map([
+      ['Vera.png', { id: 'actor-vera', name: 'Vera' }],
+      ['Maris.png', { id: 'actor-maris', name: 'Maris' }],
+      ['Lund.png', { id: 'actor-lund', name: 'Lund' }],
+    ]),
+    persona: null,
+    lore: [],
+  };
+  const greetings = (): ChatSourceChat =>
+    chat('group chats/1.jsonl', [
+      // Two greetings as alternatives: two sibling openings, each a root.
+      said(VERA, 'Evening.', 1, {
+        swipes: [
+          { text: 'Evening.', at: 1 },
+          { text: 'Late again.', at: 1 },
+        ],
+        activeSwipe: 0,
+      }),
+      user('Two tickets.', 2),
+      said(VERA, 'Cash.', 3),
+    ]);
+
+  it('casts the roster in its order, silent members included, then anyone else who spoke', () => {
+    const built = build({ ...family(greetings()), roster: [MARIS, LUND] }, CREW, {});
+    expect(sessionOf(built).cast?.actors).toEqual(['actor-maris', 'actor-lund', 'actor-vera']);
+  });
+
+  it('mutes on every opening, as the engine recording the source, with the head cache to match', () => {
+    const of = { ...family(greetings()), roster: [VERA, MARIS, LUND] };
+    const built = build(of, CREW, { muted: ['Lund.png'] });
+
+    const openings = childrenOf(built, null);
+    expect(openings).toHaveLength(2);
+    for (const opening of openings) {
+      expect(opening.effects).toEqual([
+        {
+          id: expect.any(String) as string,
+          turnId: opening.id,
+          channelId: 'se.presence',
+          scopeKey: 'actor-lund',
+          op: { type: 'set', path: '/' },
+          before: null,
+          after: false,
+          proposedBy: { kind: 'engine' },
+          applied: true,
+          rejectedReason: null,
+          supersedes: null,
+          channelVersion: 1,
+          scope: 'session',
+        },
+      ]);
+    }
+    // Nothing past the opening carries one: the mute is inherited, not repeated.
+    expect(
+      headPath(built)
+        .slice(1)
+        .flatMap((turn) => turn.effects),
+    ).toEqual([]);
+    expect(sessionOf(built).channels).toEqual({
+      'se.presence#actor-lund': { version: 1, value: false },
+    });
+    // A function of its arguments still, effect ids and all.
+    expect(JSON.stringify(build(of, CREW, { muted: ['Lund.png'] }))).toBe(JSON.stringify(built));
+  });
+
+  it('says a muted member it cannot name, rather than muting a name nobody answers to', () => {
+    const built = build(
+      { ...family(greetings()), roster: [VERA, LUND] },
+      { ...CREW, speakers: new Map([['Vera.png', { id: 'actor-vera', name: 'Vera' }]]) },
+      { muted: ['Lund.png'] },
+    );
+    expect(built.document.turns.flatMap((turn) => turn.effects)).toEqual([]);
+    expect(sessionOf(built).channels).toEqual({});
+    expect(built.notes).toContainEqual({
+      key: 'import.chat.mutedUnresolved',
+      params: { name: 'Lund' },
+      level: 'warn',
+    });
+  });
+});

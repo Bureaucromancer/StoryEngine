@@ -190,7 +190,9 @@ describe('sweeping a tree of cards and chats', () => {
     expect(row(items, CHAT).disposition).toBe('converted');
   });
 
-  it('records a group’s own file, which is read at P13.9', async () => {
+  it('records a group’s own file whose chats did not come with it', async () => {
+    // Read since P13.9, and with nothing to apply its roster to: said so,
+    // rather than called converted into nothing.
     const items = await run({
       ...sillyTavernFixture(),
       'groups/1700000000000.json': JSON.stringify({ id: '1700000000000', members: [] }),
@@ -198,7 +200,7 @@ describe('sweeping a tree of cards and chats', () => {
 
     const group = row(items, 'groups/1700000000000.json');
     expect(group.disposition).toBe('recorded');
-    expect(group.notes.map((note) => note.key)).toEqual(['import.chat.groupNotRead']);
+    expect(group.notes.map((note) => note.key)).toEqual(['import.chat.groupNoChats']);
   });
 });
 

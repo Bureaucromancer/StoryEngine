@@ -340,10 +340,9 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * only when a session holds every turn the chat has, so nothing was lost by
    * not writing it twice. A chat that has grown since is `grownSince`
    * instead, and warns, because what it gained was left out — updating a
-   * session from its source is [P13.10a]'s. The four that are not a session at
-   * all — not chosen, over the upload limit, not taken by this kind of import,
-   * a group's own file — say why in the terms of the choice or the stage that
-   * decides it.
+   * session from its source is [P13.10a]'s. The three that are not a session
+   * at all — not chosen, over the upload limit, not taken by this kind of
+   * import — say why in the terms of the choice that decided it.
    */
   'import.chat.imported':
     'Imported as the session “{name}”, {turns} turns long. It is in Play, with your other sessions.',
@@ -364,8 +363,35 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This chat did not fit under the {limit} MB upload limit with the rest of the folder, so it was named and not sent. Import it on its own, or sweep the folder from the server.',
   'import.chat.notImportedHere':
     'This import brings in library objects only, so the chat was read and not turned into a session.',
-  'import.chat.groupNotRead':
-    'A group’s members and settings. Its chats come in with each message’s own speaker; the group’s reply order and muted members are not read yet.',
+
+  /**
+   * **Families and groups** —
+   * [P13.9](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   *
+   * A SillyTavern branch or checkpoint is its own file, and a family of them is
+   * one session; `inFamily` is the row of every file but the family's first,
+   * so a person scanning the review by file name finds where each chat went.
+   * The group notes say what a `groups/` file did — or, missing, did not do —
+   * for the chats beside it. `familyCycle` and `mutedUnresolved` warn: one is a
+   * guess about which chat came first, the other a character who was muted and
+   * is not now, since the session has nobody to mute.
+   */
+  'import.chat.inFamily':
+    '“{chat}” is a branch of “{family}”, and came in as a branch of that session.',
+  'import.chat.familyCycle':
+    '“{chat}” and “{parent}” each say they were branched from the other. “{chat}” was taken as the original.',
+  'import.chat.groupRead':
+    'The group “{group}”: its {members} members, reply order and muted members were applied to {sessions} sessions made from its chats.',
+  'import.chat.groupNoChats':
+    'The group “{group}” came without any of its chats, so there was nothing to apply its members and settings to.',
+  'import.chat.groupMissing':
+    '“{chat}” is a group chat whose group file did not come with it. Its cast is whoever speaks in it, and it replies the way Scene does by default.',
+  'import.chat.groupStrategyUnknown':
+    'The group “{group}” uses a reply order this version does not know ({strategy}), so its sessions use Scene’s default.',
+  'import.chat.groupGenerationMode':
+    'The group “{group}” built its prompts in SillyTavern’s “{mode}” mode. That is recorded only: here, which character’s card a reply sees is decided by the Scene pack.',
+  'import.chat.mutedUnresolved':
+    '“{name}” was muted in the group, but is not in this library, so they could not be muted here.',
 
   /**
    * **The other direction, and it is new at this stage.**

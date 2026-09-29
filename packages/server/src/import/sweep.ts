@@ -223,9 +223,9 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
    * *Candidates held, not bytes*: each chat is read when the pass reaches it
    * (`chat-sessions.ts`), so waiting for the cards costs a list of paths.
    *
-   * *One chat file, one session, for now.* [P13.9] groups a character's chats
+   * *One family, one session* ([P13.9]): the pass groups a character's chats
    * by `main_chat` into families and reads the `groups/` files beside them,
-   * which is why the pass is handed the whole list at once rather than one
+   * which is why it is handed the whole list at once rather than one
    * candidate at a time: a family is a question about more than one file.
    */
   items.push(...(await importChats(chatPassOf(request), chats)));

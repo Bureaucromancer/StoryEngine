@@ -148,13 +148,24 @@ export function resolveChat(
   // -------------------------------------------------------------------------
 
   const speakers = new Map<string, ResolvedRef | null>();
+  const resolve = (speaker: ForeignRef): void => {
+    if (speakers.has(speaker.key)) return;
+    const match = resolveSpeaker(family.source, speaker, library, unique);
+    if (match.ambiguous) ambiguous.add(speaker.name);
+    speakers.set(speaker.key, match.ref);
+  };
+  /**
+   * ***A group's roster first*** ([P13 §2.5]'s *"plus `groups/<id>.json`
+   * `members` for the roster"*, [P13.9]): every member is looked up whether or
+   * not they spoke, because the cast is the members and a muted one is exactly
+   * who the lines never mention. A member who did speak is the same key either
+   * way, so they are looked up once.
+   */
+  for (const member of family.roster ?? []) resolve(member);
   for (const chat of family.chats) {
     for (const message of chat.messages) {
       const speaker = message.role === 'character' ? message.speaker : undefined;
-      if (speaker === undefined || speakers.has(speaker.key)) continue;
-      const match = resolveSpeaker(family.source, speaker, library, unique);
-      if (match.ambiguous) ambiguous.add(speaker.name);
-      speakers.set(speaker.key, match.ref);
+      if (speaker !== undefined) resolve(speaker);
     }
   }
 

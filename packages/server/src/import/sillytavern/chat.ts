@@ -44,11 +44,12 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
  * file to decide it:
  * - **families** — `main_chat` names a chat by the name SillyTavern gave it,
  *   and which file that is, and whether it is here, is a question about the
- *   folder ([P13.9]); so {@link SillyTavernChatMeta.mainChat} is the raw name;
+ *   folder ([P13.9], `families.ts`); so {@link SillyTavernChatMeta.mainChat} is
+ *   the raw name;
  * - **resolution** — which library object a speaker key or a lorebook name is
  *   ([P13.8]); so speakers are {@link ForeignRef}s in the source's own terms;
  * - **group settings** — activation strategy, self-responses and muted members
- *   live in `groups/<id>.json`, not in the chat ([P13.9]).
+ *   live in `groups/<id>.json`, not in the chat ([P13.9], `families.ts`).
  */
 
 /**
@@ -150,9 +151,9 @@ export const SILLYTAVERN_CHAT_FORMAT = 'sillytavern.chat';
 /**
  * ***A group's own file*** — `groups/<id>.json`, its members, its reply
  * strategy and who is muted. Routed to the session pass with the chats, because
- * that is where [P13.9] reads it: a group chat's roster and settings come from
- * here, and the chats it names are in `group chats/`. *Recorded and not yet
- * read* until then, and the review says so.
+ * that is where [P13.9] reads it (`families.ts`, `parseSillyTavernGroup`): a
+ * group chat's roster and settings come from here, and the chats it names are
+ * in `group chats/`. Its row points at the sessions it set up.
  */
 export const SILLYTAVERN_GROUP_FORMAT = 'sillytavern.group';
 
