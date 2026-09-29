@@ -274,6 +274,14 @@ which a rebuild or a correction recovers without anything having been lost.
   `storage/zip-file.ts`'s header.
 - **`storage/README.md`'s file table is stale** — found at P13.8: it lists five
   files and misses the zip and tar readers, the trash, the snapshot and more.
+- **Neither upload door records an import job** — found at P13.7. Only
+  `/import/sweep` calls `recordImport`, so a library brought in by folder or
+  file upload has no addressable review, and `/import/objects/:id/notes` finds
+  nothing for its objects. It predates P13 and holds for every upload.
+- **A server-path sweep of the wrong folder walks it before advising** — found
+  at P13.7. Pointed at `~/.config` or a home folder, the sweep loose-walks it
+  within `DEFAULT_LOCAL_LIMITS` before the near miss is shown; the client asks
+  `inspect` first, which softens it, and a direct API sweep does not.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -707,14 +715,37 @@ sweeps passes it. *Ended at:* a second sweep is all `unchanged`, mints nothing
 and writes nothing. ~~[§1.8](#18-tags-merge-and-are-never-adopted).
 `SweepRequest` gains the tag store.~~
 
-### P13.7 — The other transports
+### ~~P13.7 — The other transports~~ Done
 
-The bare `.db` upload (`looksLikeSqlite` beside `looksLikeZip`), the zip upload,
-the preview arm, and a near-miss: a sweep pointed at `~/.config`, or at
-`Application Support`, suggests `com.karelian.aventura` beneath it
-(`near-miss.ts`).
-*Ends at:* the same database, handed over all four ways, produces the same
-library, and the second sweep of any of them is all `unchanged`.
+*Done — `2543afe`, 2026-09-29.* The upload doors themselves — a bare database
+under any name, and a backup zip — were P13.8's. What was left: the preview
+arm, where `/import/file/preview` answers a SQLite file as it answers a zip,
+`import.file.importsAsFolder` by its bytes and without opening it, so an older
+client or an API caller gets the answer the client now makes locally (it
+remains a prediction the column gate can refuse at the word, the trade §1.1
+already makes for folders); and the near miss, in `import/near-miss.ts`'s own
+table rather than a new module — six fixed places for
+`com.karelian.aventura/aventura.db` (the platform config folder itself, and
+from a home folder `.config`, `Library/Application Support` and
+`AppData/Roaming`, from `~/Library` and from `AppData`), each one question,
+verified against the classifier's own mark, never followed out of the picked
+folder, and silent for a bundle-id folder with no database. The notes are
+`import.root.aventurasBelow` and, beyond the stage, `aventurasAbove` from a
+backup's `stories/`, in the family every near miss already shares. **Found by
+the end condition:** `/import/file` answered a root as one file — its first
+converted row — so a second upload of a backup read as one `recorded` row and
+*all unchanged* could not be seen through that door, by a test or by a person.
+A root's answer now carries the sweep's whole `report` beside `item` and
+`notes`, and the panel renders it. *Ended at:* one fixture database, handed
+over as a server-path sweep, a folder upload, a bare SQLite named otherwise and
+a backup zip, each into a server of its own, makes the same library — every
+object's whole body with ids resolved to their rows, the card's pixels, the tag
+registry — and the second import of each is all `unchanged`, no object gaining a
+version (`routes/import-aventuras-transports.test.ts`). `pnpm test:gate` and
+`test:fixture-pair` pass at this boundary. ~~The bare `.db` upload
+(`looksLikeSqlite` beside `looksLikeZip`), the zip upload, the preview arm, and
+a near-miss: a sweep pointed at `~/.config`, or at `Application Support`,
+suggests `com.karelian.aventura` beneath it (`near-miss.ts`).~~
 
 ### ~~P13.8 — Streaming large uploads~~ Done
 
