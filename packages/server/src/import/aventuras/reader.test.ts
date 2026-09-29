@@ -29,6 +29,8 @@ import {
   UNSAVED,
   VAULT_CHARACTERS,
   VAULT_LOREBOOKS,
+  VAULT_SCENARIO_NPCS,
+  VAULT_SCENARIOS,
   writeAventurasBackupFolder,
   writeAventurasDatabase,
   type AventurasDbOptions,
@@ -63,10 +65,18 @@ import { AVENTURAS_KNOWN_SCHEMA } from './schema.js';
  */
 
 /**
- * ***What a sweep of the fixture writes*** — its characters since P13.3 and its
- * lorebooks since P13.4, one object per vault row.
+ * ***What a sweep of the fixture converts*** — its characters since P13.3, its
+ * lorebooks since P13.4 and its scenarios since P13.5: one review row per
+ * vault row.
  */
-const CONVERTED_OBJECTS = VAULT_CHARACTERS.length + VAULT_LOREBOOKS.length;
+const CONVERTED_OBJECTS = VAULT_CHARACTERS.length + VAULT_LOREBOOKS.length + VAULT_SCENARIOS.length;
+
+/**
+ * ***And what it writes***, which is more since P13.5: a scenario's npcs are
+ * actors of their own beside its treatment, reported on the scenario's row
+ * (`alsoProduced`) and not as rows of their own.
+ */
+const WRITTEN_OBJECTS = CONVERTED_OBJECTS + VAULT_SCENARIO_NPCS;
 
 let root: string;
 let layout: Layout;
@@ -131,7 +141,7 @@ async function both(
 /** Every character a pass offered the Writer, by source. */
 function characterSources(candidates: readonly ImportCandidate[]): string[] {
   return candidates
-    .filter((candidate) => candidate.format === 'aventuras.character')
+    .filter((candidate) => candidate.format === 'aventuras.vault-character')
     .map((candidate) => candidate.source);
 }
 
@@ -670,7 +680,7 @@ describe('a sweep of an Aventuras install', () => {
     return outcome.report;
   }
 
-  it('accounts for every table, every story and every file, and writes only the vault’s books and characters', async () => {
+  it('accounts for every table, every story and every file, and writes only the vault’s books, characters and scenarios', async () => {
     const directory = join(root, 'aventura-backup');
     await writeAventurasBackupFolder(directory);
     // What an older backup and a hand-copied folder carry beside the database.
@@ -710,6 +720,14 @@ describe('a sweep of an Aventuras install', () => {
       VAULT_LOREBOOKS.map((one) => `aventura.db/lorebook_vault/${String(one['id'])}`).sort(),
     );
     expect(new Set(lorebooks.map((item) => item.disposition))).toEqual(new Set(['converted']));
+    // And one per scenario (P13.5), each a treatment with its cast beside it.
+    const scenarios = report.items.filter((item) =>
+      item.source.startsWith('aventura.db/scenario_vault/'),
+    );
+    expect(scenarios.map((item) => item.source).sort()).toEqual(
+      VAULT_SCENARIOS.map((one) => `aventura.db/scenario_vault/${String(one['id'])}`).sort(),
+    );
+    expect(new Set(scenarios.map((item) => item.disposition))).toEqual(new Set(['converted']));
 
     // Every story, with what Part 2 would bring from it — the entities, and
     // not the rows Aventuras' branches keep beside them: a branch's edit is
@@ -779,12 +797,15 @@ describe('a sweep of an Aventuras install', () => {
     expect(report.items).toHaveLength(expected);
     expect(new Set(report.items.map((item) => item.source)).size).toBe(expected);
 
-    // The characters and lorebooks converted and written, nothing else, and
-    // the copy gone.
+    // The characters, lorebooks and scenarios converted and written, the
+    // scenarios' casts beside them, nothing else, and the copy gone.
     expect(report.counts.converted).toBe(CONVERTED_OBJECTS);
-    expect((await ownObjects(server)).objects).toHaveLength(CONVERTED_OBJECTS);
-    expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_CHARACTERS.length);
+    expect((await ownObjects(server)).objects).toHaveLength(WRITTEN_OBJECTS);
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(
+      VAULT_CHARACTERS.length + VAULT_SCENARIO_NPCS,
+    );
     expect((await ownObjects(server, 'lorebooks')).objects).toHaveLength(VAULT_LOREBOOKS.length);
+    expect((await ownObjects(server, 'treatments')).objects).toHaveLength(VAULT_SCENARIOS.length);
     expect(await scratchIn(serverLayout())).toEqual([]);
   });
 
@@ -834,7 +855,8 @@ describe('a sweep of an Aventuras install', () => {
     );
     const vaultObject = (item: ImportItemReport): boolean =>
       item.source.startsWith('aventura.db/character_vault/') ||
-      item.source.startsWith('aventura.db/lorebook_vault/');
+      item.source.startsWith('aventura.db/lorebook_vault/') ||
+      item.source.startsWith('aventura.db/scenario_vault/');
     expect(fromFolder.items.filter((item) => !vaultObject(item))).toEqual(
       fromZip.items.filter((item) => !vaultObject(item)),
     );
@@ -917,7 +939,7 @@ describe('a sweep of an Aventuras install', () => {
 
       if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
       expect(outcome.report.counts.converted).toBe(CONVERTED_OBJECTS);
-      expect((await ownObjects(server)).objects).toHaveLength(CONVERTED_OBJECTS);
+      expect((await ownObjects(server)).objects).toHaveLength(WRITTEN_OBJECTS);
       expect(warnings).toHaveLength(1);
       expect(warnings[0]?.[0]).toMatchObject({
         event: 'import.reader-close-failed',
@@ -1031,8 +1053,9 @@ describe('the fixture is what it claims to be', () => {
 
   it('gives an item for everything a reader sees and nothing it does not', async () => {
     // One observed item per row of the review — and, since P13.3, one
-    // candidate per character, and since P13.4 one per lorebook before them
-    // (§1.7's order), which are the only candidates there are.
+    // candidate per character, since P13.4 one per lorebook before them, and
+    // since P13.5 one per scenario after them (§1.7's order), which are the
+    // only candidates there are.
     const reader = new AventurasReader(
       new MemoryFileSource({ 'aventura.db': await aventurasDatabaseBytes() }),
       layout,
@@ -1047,7 +1070,8 @@ describe('the fixture is what it claims to be', () => {
       );
       expect(candidates.map((candidate) => candidate.format)).toEqual([
         ...VAULT_LOREBOOKS.map(() => 'aventuras.vault-lorebook'),
-        ...VAULT_CHARACTERS.map(() => 'aventuras.character'),
+        ...VAULT_CHARACTERS.map(() => 'aventuras.vault-character'),
+        ...VAULT_SCENARIOS.map(() => 'aventuras.vault-scenario'),
       ]);
       expect(new Set(items.map((item) => item.outcome))).toEqual(
         new Set(['observed', 'candidate']),

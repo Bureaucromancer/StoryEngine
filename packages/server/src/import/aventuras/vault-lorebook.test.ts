@@ -339,7 +339,7 @@ describe('the reader, with its books as candidates', () => {
     // §1.7's order: a book is stored before anything that could link to it.
     const formats = candidates.map((one) => one.format);
     expect(formats.lastIndexOf('aventuras.vault-lorebook')).toBeLessThan(
-      formats.indexOf('aventuras.character'),
+      formats.indexOf('aventuras.vault-character'),
     );
     const harbour = candidates[0]!;
     expect(harbour.notes).toBeUndefined();

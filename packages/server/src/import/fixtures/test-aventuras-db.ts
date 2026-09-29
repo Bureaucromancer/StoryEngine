@@ -46,7 +46,11 @@ import { makePng } from '../../storage/card/test-png.js';
  * {@link AWKWARD_CHARACTERS}, added only when a test asks for them; *since
  * P13.4*, the lorebooks — a twin of a book's name, entries that will not
  * parse or are not a list, entries missing their fields, a row with no id —
- * are {@link AWKWARD_LOREBOOKS}, on the same terms.
+ * are {@link AWKWARD_LOREBOOKS}, on the same terms; *since P13.5*, the
+ * scenarios — a cast, openings or metadata that will not read, tags and a
+ * starting time that will not either, links to a book that is not there and to
+ * one that is refused, no setting, a row with no id — are
+ * {@link AWKWARD_SCENARIOS}.
  *
  * Composable on purpose: {@link buildAventurasDatabase} works on any open
  * connection, so a later stage can add its own rows before or after, and the
@@ -288,6 +292,8 @@ export interface AventurasDbOptions {
   extraCharacters?: readonly FixtureRow[];
   /** More `lorebook_vault` rows after {@link VAULT_LOREBOOKS} — {@link AWKWARD_LOREBOOKS}, usually. */
   extraLorebooks?: readonly FixtureRow[];
+  /** More `scenario_vault` rows after {@link VAULT_SCENARIOS} — {@link AWKWARD_SCENARIOS}, usually. */
+  extraScenarios?: readonly FixtureRow[];
 }
 
 /**
@@ -800,6 +806,86 @@ export const VAULT_SCENARIOS: readonly FixtureRow[] = [
 ];
 
 /**
+ * ***How many actors the scenarios above bring with them*** — each npc is an
+ * actor of its own, beside the treatment (`scenario.ts`). Since P13.5 a sweep
+ * of the fixture writes these beside {@link VAULT_CHARACTERS}, so a test
+ * counting the library's actors counts both.
+ */
+export const VAULT_SCENARIO_NPCS = VAULT_SCENARIOS.reduce(
+  (count, row) => count + (Array.isArray(row['npcs']) ? row['npcs'].length : 0),
+  0,
+);
+
+/** A `scenario_vault` row with everything a plain one has; each awkward row overrides one thing. */
+function scenarioRow(id: string, name: string, overrides: FixtureRow): FixtureRow {
+  return {
+    id,
+    name,
+    description: null,
+    setting_seed: `${name}: somewhere, and somebody in it.`,
+    npcs: [],
+    primary_character_name: '',
+    first_message: null,
+    alternate_greetings: [],
+    tags: [],
+    favorite: 0,
+    source: 'manual',
+    original_filename: null,
+    metadata: null,
+    starting_time: null,
+    created_at: CREATED,
+    updated_at: UPDATED,
+    ...overrides,
+  };
+}
+
+/**
+ * ***The rows P13.5 has to read around*** — each an ordinary scenario but for
+ * one thing, added only when a test asks ({@link AventurasDbOptions.extraScenarios}),
+ * so the two above stay the whole vault for every stage that does not.
+ *
+ * - a cast that will not parse, beside tags that will not either — the cast
+ *   refuses the row, and both are named;
+ * - a cast that parses to something that is not a list;
+ * - alternate greetings that will not parse;
+ * - metadata that will not parse, which is where the link lives;
+ * - tags and a starting time that will not parse, which cost only themselves;
+ * - a link to a lorebook no row of the database holds;
+ * - a link to *Torn Pages*, the {@link AWKWARD_LOREBOOKS} book whose entries
+ *   will not read — refused when those books are there, and absent when not;
+ * - no setting at all, which the scenario converter refuses by its own rule;
+ * - and a row with no id, which a `TEXT PRIMARY KEY` in SQLite allows.
+ */
+export const AWKWARD_SCENARIOS: readonly FixtureRow[] = [
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c31', 'Torn Cast', {
+    npcs: '[{"name": "Ines',
+    tags: '{oops',
+  }),
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c32', 'Cast Not A List', {
+    npcs: { name: 'Ines Vaur', role: 'Dock inspector' },
+  }),
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c33', 'Torn Openings', {
+    first_message: 'It starts.',
+    alternate_greetings: '["It starts again", ',
+  }),
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c34', 'Torn Metadata', {
+    metadata: '{"linkedLorebookId": ',
+  }),
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c35', 'Loose Ends', {
+    tags: '["noir", ',
+    starting_time: '{"days": ',
+  }),
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c36', 'Lost Link', {
+    metadata: { linkedLorebookId: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4eff' },
+  }),
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c37', 'Torn Link', {
+    metadata: { linkedLorebookId: '7d2e4f60-1a3b-4c5d-8e9f-0a1b2c3d4e62' },
+  }),
+  scenarioRow('9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c38', 'No Setting', { setting_seed: '' }),
+  scenarioRow('', 'No Id', { id: null }),
+];
+
+/**
  * `vault_tags`: free hex colours, `noir` in two kinds and two colours (§1.8's
  * *one name used by two kinds becomes one tag*), and one grey enough to be
  * `stone`.
@@ -1109,6 +1195,7 @@ export function buildAventurasDatabase(db: DatabaseSync, options: AventurasDbOpt
   for (const row of VAULT_LOREBOOKS) insert(db, 'lorebook_vault', row);
   for (const row of options.extraLorebooks ?? []) insert(db, 'lorebook_vault', row);
   for (const row of VAULT_SCENARIOS) insert(db, 'scenario_vault', row);
+  for (const row of options.extraScenarios ?? []) insert(db, 'scenario_vault', row);
   for (const row of VAULT_TAGS) insert(db, 'vault_tags', row);
   for (const row of PRESET_PACKS) insert(db, 'preset_packs', row);
   for (const row of PACK_TEMPLATES) insert(db, 'pack_templates', row);

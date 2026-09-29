@@ -64,8 +64,19 @@ import { integer, jsonColumn, listColumn, stringOr, vaultRows } from './vault-ro
 /** The table, and the middle of every candidate's `source` (§1.5). */
 export const CHARACTER_TABLE = 'character_vault';
 
-/** What the reader recognised: the format `#aventurasCharacter` answers. */
-export const CHARACTER_FORMAT = 'aventuras.character';
+/**
+ * What the reader recognised: the format `#aventurasVaultCharacter` answers.
+ *
+ * ***Its own format since P13.5, where P13.3 shared the file's***
+ * (`aventuras.character`). The two were one arm while a row and a file
+ * converted the same way, and they no longer do: a row's
+ * `metadata.linkedLorebookId` resolves to the vault book stored earlier in the
+ * same sweep, and becomes the actor's `lore` (§1.7), where a file's names a row
+ * in an install that is not here. A format is the one thing the Writer
+ * dispatches on, so the difference is said there rather than guessed from the
+ * shape of a `source`.
+ */
+export const VAULT_CHARACTER_FORMAT = 'aventuras.vault-character';
 
 /**
  * ***The largest portrait carried, decoded*** — the per-file ceiling every
@@ -190,7 +201,7 @@ function characterItem(
     outcome: 'candidate',
     candidate: {
       source,
-      format: CHARACTER_FORMAT,
+      format: VAULT_CHARACTER_FORMAT,
       payload,
       ...(portrait === null ? {} : { assets: [key], inline: new Map([[key, portrait]]) }),
       ...(notes.length === 0 ? {} : { notes }),

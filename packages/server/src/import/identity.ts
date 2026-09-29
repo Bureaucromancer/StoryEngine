@@ -102,15 +102,34 @@ export function priorImportId(
   schemaId: PortableSchemaId,
   filename: string,
 ): string | null {
+  return priorImport(context, handle, schemaId, filename)?.id ?? null;
+}
+
+/**
+ * ***The object a file's earlier import is here, as a link to it*** — its id
+ * and its name, which is what a `Ref` carries — or null.
+ *
+ * [P13.5](../../../../docs/design/workplan/30-p13-aventuras-import.md): an
+ * Aventuras link to a vault lorebook whose row this sweep did not store —
+ * refused for an unreadable `entries` column, which leaves the book an earlier
+ * sweep made exactly as it was — still has somewhere to point, and it is that
+ * book. The name comes with the id because a link carries both, the name for
+ * display and for the fallback a `Ref` resolves by when an id is unknown.
+ */
+export function priorImport(
+  context: LibraryContext,
+  handle: string,
+  schemaId: PortableSchemaId,
+  filename: string,
+): { id: string; name: string } | null {
   const owner = userOwner(handle);
-  return (
-    findPriorImport(
-      context.db,
-      owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
-      schemaId,
-      filename,
-    )?.id ?? null
+  const prior = findPriorImport(
+    context.db,
+    owner.kind === 'system' ? 'system' : `user:${owner.handle}`,
+    schemaId,
+    filename,
   );
+  return prior === null ? null : { id: prior.id, name: prior.name };
 }
 
 /**

@@ -592,8 +592,21 @@ priority inverted into order), and `favorite`, `source`, `originalFilename`,
 `originalStoryId` and the row's `metadata` kept in the book's `metadata`. A book
 with no entries imports as an empty book; one whose `entries` will not parse
 is refused with an `import.aventuras.columnUnreadable` note and nothing is
-written, so a book imported from that row earlier is left as it was. Lorebooks
-are written before characters. Every other table is `recorded`,
+written, so a book imported from that row earlier is left as it was. **Since
+P13.5 its scenarios convert too**: each `scenario_vault` row is a treatment, with
+the source `aventura.db/scenario_vault/<id>`, converted exactly as the same
+scenario exported as a file would be — its npcs actors of their own in its cast,
+its openings, and everything the converter does not read (`starting_time`
+included) kept in the treatment's `metadata`. A scenario whose `npcs`,
+`alternate_greetings` or `metadata` will not parse is refused the same way a
+book's `entries` is, and for the same reason; bad `tags` or `starting_time` are
+noted and left out. **Links resolve inside the database**: a character's or a
+scenario's `metadata.linkedLorebookId` becomes the actor's `lore`, or the
+treatment's `lore` (never `required`), pointing at the book that `lorebook_vault`
+row became — or, when that row was refused, at the book an earlier import of it
+left here. `import.aventuras.linkedLorebookMissing` is said only when neither
+exists. Lorebooks are written first, then characters, then scenarios, so every
+link finds its book. Every other table is `recorded`,
 `skipped` or, for `settings`, `credential` — counted and never read, since it
 holds provider keys. A database missing a column this build reads, or with no
 `_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that

@@ -265,8 +265,15 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} characters were imported beside “{name}” and billed into its cast.',
   'import.aventuras.primaryNotInCast':
     'The scenario names “{actor}” as its lead, and no character by that name came with it.',
+  /**
+   * ***One sentence for two roads*** — [P13.5]. From a file the link can never
+   * resolve, and the remedy is a second export; from a database it resolves to
+   * the book that row became, and this fires only when the row is not there,
+   * or was refused and nothing from an earlier import is here. The sentence
+   * names both, since the note is the same key on both.
+   */
   'import.aventuras.linkedLorebookMissing':
-    'This scenario points at a lorebook that is not in the file. Export that lorebook from Aventuras separately and import it too.',
+    'This points at an Aventuras lorebook that was not imported with it, so the link was left out. From a file, export that lorebook from Aventuras separately and import it too; from a whole library, the lorebook was missing or could not be read.',
   'import.aventuras.scenarioAsLorebook':
     'The setting and its cast became {entries} entries. The setting is always active; each character fires on their own name.',
   'import.aventuras.openingsDropped':
@@ -317,10 +324,12 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * *Since P13.4* a lorebook's too — with one difference the sentence has to
    * say: an `entries` column that will not read is the book, not a field of it,
    * so that row is refused and nothing is written, rather than a book imported
-   * empty that a re-sweep would put in place of a good one.
+   * empty that a re-sweep would put in place of a good one. *Since P13.5* a
+   * scenario's cast, alternate openings and metadata — where its lorebook link
+   * lives — refuse the row by the same argument.
    */
   'import.aventuras.columnUnreadable':
-    'The {column} column could not be read as Aventuras writes it, so it was left out. If it held a lorebook’s entries, the book was not imported, and any copy already here was left as it was.',
+    'The {column} column could not be read as Aventuras writes it, so it was left out. If it held a lorebook’s entries, or a scenario’s cast, openings or metadata, that row was not imported, and any copy already here was left as it was.',
   'import.aventuras.portraitTooLarge':
     'The portrait is larger than the {limit} MB a card can carry, so {actor} was imported without it.',
 

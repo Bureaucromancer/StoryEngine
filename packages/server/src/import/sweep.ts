@@ -18,6 +18,7 @@ import {
   type Actor,
   type EmbeddedMedia,
   type Lorebook,
+  type Ref,
   type Treatment,
   isKnownSchema,
   schemaIdOf,
@@ -26,13 +27,21 @@ import {
 
 import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook, type ConvertedAventurasLorebook } from './aventuras/lorebook.js';
-import { AventurasReader } from './aventuras/reader.js';
-import { convertScenario } from './aventuras/scenario.js';
-import { convertVaultLorebook, VAULT_LOREBOOK_FORMAT } from './aventuras/vault-lorebook.js';
+import { AVENTURAS_DATABASE, AventurasReader } from './aventuras/reader.js';
+import { convertScenario, type ConvertedScenario } from './aventuras/scenario.js';
+import { isRecord, linkedLorebookId } from './aventuras/shapes.js';
+import { VAULT_CHARACTER_FORMAT } from './aventuras/vault-character.js';
+import {
+  convertVaultLorebook,
+  LOREBOOK_TABLE,
+  VAULT_LOREBOOK_FORMAT,
+} from './aventuras/vault-lorebook.js';
+import { UNTITLED_SCENARIO, VAULT_SCENARIO_FORMAT } from './aventuras/vault-scenario.js';
 import {
   DEFAULT_BACKUP_CONFLICT,
   identify,
   identifyNative,
+  priorImport,
   priorImportId,
   scenarioStamp,
   stableId,
@@ -342,6 +351,28 @@ class Writer {
     string,
     { treatment: Treatment; actorIds: string[]; lore: string[] }
   >();
+  /**
+   * ***A vault lorebook's Aventuras id → the book it is in this library*** —
+   * [P13 §1.7](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * `metadata.linkedLorebookId` on a `character_vault` or `scenario_vault` row
+   * names a `lorebook_vault` row by *its* id, which means nothing here; what
+   * it should become is the id of the book that row made. The reader emits the
+   * books first (its `CONVERTED_TABLES` order), so by the time a character or
+   * a scenario asks, every book this sweep will write is written, and this is
+   * where each says what it became.
+   *
+   * ***Every book `store()` settled, not only those it wrote.*** A book
+   * `unchanged` since the last sweep, or one a `skip` left alone, is still the
+   * book the link means, under the id `identify` re-pointed it to — so a
+   * re-sweep and a `skip` resolve exactly as a first sweep does, and a link
+   * resolved twice is the same link, which is what lets a character or a
+   * scenario compare `unchanged` the second time. Under `keep-both` it is the
+   * copy this sweep made, which is the one written beside the copy linking to
+   * it. A book that `failed` is not here, and is the one case a link falls
+   * through to the library (`#linkedLorebook`).
+   */
+  readonly #vaultLorebooks = new Map<string, Ref>();
 
   constructor(request: SweepRequest) {
     this.#request = request;
@@ -406,6 +437,13 @@ class Writer {
       // and tags, and its entries in the vault's flat shape.
       case VAULT_LOREBOOK_FORMAT:
         return this.#aventurasVaultLorebook(candidate);
+      // A `character_vault` and a `scenario_vault` row (P13.5): the file's own
+      // converters, and a link to a vault book resolved beside them, which is
+      // what a row can do and a file cannot (§1.7).
+      case VAULT_CHARACTER_FORMAT:
+        return this.#aventurasVaultCharacter(candidate);
+      case VAULT_SCENARIO_FORMAT:
+        return this.#aventurasVaultScenario(candidate);
 
       /**
        * ***One of ours, which needs no conversion and therefore needs a
@@ -1067,8 +1105,44 @@ class Writer {
       this.#request.destination,
     );
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
+    return this.#storeScenario(candidate, converted.value, null);
+  }
 
-    const { treatment, lorebook, cast, notes } = converted.value;
+  /**
+   * ***A `scenario_vault` row*** — [P13.5](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * The file's converter, told the link is this Writer's to resolve — so it
+   * does not say *missing* about a book stored three rows ago — and named from
+   * the row's own name, or a constant, never the source's stem, which for a
+   * row is a uuid. Then the link, then the file's own storing, cast first.
+   */
+  async #aventurasVaultScenario(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const converted = convertScenario(
+      candidate.payload,
+      UNTITLED_SCENARIO,
+      this.#request.destination,
+      { resolvesLinks: true },
+    );
+    if (!converted.ok) return refusedItem(candidate, converted.refusal);
+    const lore = this.#linkedLorebook(candidate.payload, converted.value.notes);
+    return this.#storeScenario(candidate, converted.value, lore);
+  }
+
+  /**
+   * The storing half of both: the cast, then the treatment that bills it.
+   *
+   * `lore` is the vault book a row's link resolved to, or `null` — always
+   * `null` for a file, which cannot resolve one. **Unused under the `lorebook`
+   * destination**, where the scenario is itself a book and a book has no field
+   * to link another from; the row's `metadata` still carries the Aventuras id
+   * verbatim, as it would from a file.
+   */
+  async #storeScenario(
+    candidate: ImportCandidate,
+    converted: ConvertedScenario,
+    lore: Ref | null,
+  ): Promise<ImportItemReport> {
+    const { treatment, lorebook, cast, notes } = converted;
 
     if (lorebook !== null) {
       stampImported(lorebook, candidate.source);
@@ -1137,6 +1211,17 @@ class Writer {
         note: member.note,
       }));
 
+    /**
+     * ***The linked book is where this treatment's world lives*** — [§1.7] —
+     * and it is linked, never required. `required` makes a consumer warn loudly
+     * when the book cannot be found, which is a claim that the scenario is
+     * *missing its world* without it; Aventuras made this book from a card's
+     * embedded `character_book`, and said nothing about how much the scenario
+     * leans on it. `flushTreatments` declines to invent the same intent for a
+     * card's scenario, for the same reason.
+     */
+    if (lore !== null) treatment.lore = [{ ref: lore, required: false }];
+
     stampImported(treatment, candidate.source);
     const outcome = await this.store(treatment, TREATMENT_SCHEMA, notes);
     return {
@@ -1151,8 +1236,29 @@ class Writer {
   async #aventurasCharacter(candidate: ImportCandidate): Promise<ImportItemReport> {
     const converted = convertCharacter(candidate.payload, nameOf(candidate.source));
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
+    return this.#storeAventurasCharacter(candidate, converted.value.actor, converted.value.notes);
+  }
+
+  /**
+   * ***A `character_vault` row*** — P13.3's, with P13.5's link: a row's
+   * `linkedLorebookId` becomes the actor's `lore` (§1.7), a list of plain
+   * `Ref`s, since an actor's lore link has no strength to set.
+   */
+  async #aventurasVaultCharacter(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const converted = convertCharacter(candidate.payload, nameOf(candidate.source));
+    if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
     const { actor, notes } = converted.value;
+    const lore = this.#linkedLorebook(candidate.payload, notes);
+    if (lore !== null) actor.lore = [lore];
+    return this.#storeAventurasCharacter(candidate, actor, notes);
+  }
+
+  async #storeAventurasCharacter(
+    candidate: ImportCandidate,
+    actor: Actor,
+    notes: ImportNote[],
+  ): Promise<ImportItemReport> {
     stampImported(actor, candidate.source);
     // Through `#createActor` rather than `store` directly, so a vault character
     // gets the same portrait handling a card does. A vault *file* carries none;
@@ -1185,24 +1291,85 @@ class Writer {
    * ids are derived from (`vault-lorebook.ts`).
    */
   async #aventurasVaultLorebook(candidate: ImportCandidate): Promise<ImportItemReport> {
-    return this.#storeAventurasLorebook(candidate, convertVaultLorebook(candidate.payload));
+    const rowId = isRecord(candidate.payload) ? candidate.payload['id'] : undefined;
+    return this.#storeAventurasLorebook(
+      candidate,
+      convertVaultLorebook(candidate.payload),
+      typeof rowId === 'string' ? rowId : undefined,
+    );
   }
 
+  /**
+   * `rowId` is a vault book's own Aventuras id, for {@link Writer.#vaultLorebooks}:
+   * given, the book is remembered under it once `store()` has settled which
+   * book here it is. A file has none, and is remembered by nothing.
+   */
   async #storeAventurasLorebook(
     candidate: ImportCandidate,
     converted: ParseOutcome<ConvertedAventurasLorebook>,
+    rowId?: string,
   ): Promise<ImportItemReport> {
     if (!converted.ok) return refusedItem(candidate, converted.refusal);
 
     const { lorebook, notes } = converted.value;
     stampImported(lorebook, candidate.source);
     const outcome = await this.store(lorebook, LOREBOOK_SCHEMA, notes);
+    if (rowId !== undefined && outcome !== 'failed') {
+      this.#vaultLorebooks.set(rowId, { id: lorebook.id, name: lorebook.name });
+    }
     return {
       source: candidate.source,
       disposition: Writer.dispositionOf(outcome),
       objectId: lorebook.id,
       notes,
     };
+  }
+
+  /**
+   * ***A row's `linkedLorebookId`, as a link to a book here*** — or `null`
+   * for a row that links to none, or to one that is not to be had —
+   * [P13 §1.7](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * Asked in two places, in order:
+   *
+   * 1. **The books this sweep settled** ({@link Writer.#vaultLorebooks}) —
+   *    every row of `lorebook_vault` the database holds and this build could
+   *    read, since they were all emitted first.
+   * 2. **The book an earlier sweep made of that row**, found by its identity
+   *    (§1.5). This is the case P13.4's refusal makes: a book whose `entries`
+   *    have gone bad since is refused and not written, *so that the good copy
+   *    here is left as it was* — and a link to it that then resolved to
+   *    nothing would, under the default `replace`, unlink every character
+   *    and scenario from that same good copy, which is the loss the refusal
+   *    was there to prevent, one object over. The same step finds a book
+   *    whose row has since been deleted from Aventuras while the book stays
+   *    here; import never deletes, and a link to the book this library holds
+   *    for that row is still the link the row made.
+   *
+   * ***`import.aventuras.linkedLorebookMissing` only when both come back
+   * empty***: the link names a row that is not in this database, or one that
+   * was refused, and no earlier import of it is here. A link that resolved
+   * says nothing — it is not news that a link works. The note is the file
+   * path's, and says the same thing: the book the link means did not come.
+   */
+  #linkedLorebook(payload: unknown, notes: ImportNote[]): Ref | null {
+    const linked = linkedLorebookId(isRecord(payload) ? payload['metadata'] : undefined);
+    if (linked === null) return null;
+
+    const settled = this.#vaultLorebooks.get(linked);
+    if (settled !== undefined) return { ...settled };
+
+    const { library, handle } = this.#request;
+    const earlier = priorImport(
+      library,
+      handle,
+      LOREBOOK_SCHEMA,
+      `${AVENTURAS_DATABASE}/${LOREBOOK_TABLE}/${linked}`,
+    );
+    if (earlier !== null) return earlier;
+
+    notes.push({ key: 'import.aventuras.linkedLorebookMissing', params: {}, level: 'warn' });
+    return null;
   }
 
   async #preset(candidate: ImportCandidate, convert: PresetConverter): Promise<ImportItemReport> {

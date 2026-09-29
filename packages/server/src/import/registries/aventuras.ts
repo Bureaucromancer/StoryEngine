@@ -130,7 +130,11 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
   character_vault: 'converted',
   /** P13.4: one lorebook per row, its flat vault entries mapped as Aventuras' export maps them (§0.4). */
   lorebook_vault: 'converted',
-  scenario_vault: 'recorded',
+  /**
+   * P13.5: one treatment and its cast per row, through the file's own
+   * scenario converter; its linked lorebook resolved into `lore` (§1.7).
+   */
+  scenario_vault: 'converted',
   vault_tags: 'recorded',
   // Packs are their own stage (§1.10). P13.9 converts the three that carry
   // what somebody wrote, and may close them as `recorded` if too little of a

@@ -29,6 +29,7 @@ import {
   FIXTURE_PORTRAITS,
   LOREBOOK_IDS,
   VAULT_CHARACTERS,
+  VAULT_SCENARIO_NPCS,
   writeAventurasDatabase,
   type AventurasDbOptions,
 } from '../fixtures/test-aventuras-db.js';
@@ -283,15 +284,17 @@ describe('the reader, with its rows as candidates', () => {
 
   it('offers one candidate per row, keyed by the row, with the portrait beside it and not in it', async () => {
     // The characters alone: the vault's lorebooks are candidates too since
-    // P13.4, and come first (`vault-lorebook.test.ts`).
+    // P13.4, and come first (`vault-lorebook.test.ts`); its scenarios since
+    // P13.5, and come after (`vault-scenario.test.ts`).
     const candidates = candidatesIn(await itemsOf({})).filter(
-      (one) => one.format === 'aventuras.character',
+      (one) => one.format === 'aventuras.vault-character',
     );
 
     // By name, so a review of a vault reads as a list.
     expect(candidates.map((one) => one.source)).toEqual([INES, MARA, DOCKMASTER].map(sourceOf));
     const ines = candidates[0]!;
-    expect(ines.format).toBe('aventuras.character');
+    // A row's own format since P13.5, not the file's: a row's link resolves.
+    expect(ines.format).toBe('aventuras.vault-character');
     expect(Object.keys(ines.payload as object)).not.toContain('portrait');
     const key = `${sourceOf(INES)}/portrait`;
     expect(ines.assets).toEqual([key]);
@@ -406,7 +409,10 @@ describe('a sweep of an Aventuras vault', () => {
   it('makes one actor per vault character, with what the vault said about each', async () => {
     const report = await swept(await install());
 
-    expect((await ownObjects(server, 'actors')).objects).toHaveLength(VAULT_CHARACTERS.length);
+    // With the scenarios' npcs beside them since P13.5, each an actor too.
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(
+      VAULT_CHARACTERS.length + VAULT_SCENARIO_NPCS,
+    );
     const ines = await stored(item(report, INES).objectId);
     expect(ines.actor.name).toBe('Ines Vaur');
     expect(summaryOf(ines.actor)).toBe(INES['description']);
@@ -505,11 +511,18 @@ describe('a sweep of an Aventuras vault', () => {
     expect(all).not.toContain('import.aventuras.portraitNotCarried');
   });
 
-  it('carries the lorebook link in the character’s metadata, unresolved until P13.5', async () => {
+  it('links the character to the lorebook its row names, and keeps the row’s own link', async () => {
     const report = await swept(await install());
     const { actor } = await stored(item(report, INES).objectId);
+    const book = report.items.find(
+      (one) => one.source === `aventura.db/lorebook_vault/${LOREBOOK_IDS.harbour}`,
+    );
 
-    expect(actor.lore).toEqual([]);
+    // P13.5 (§1.7): the Aventuras id became the book it made here.
+    expect(book?.objectId).toBeDefined();
+    expect(actor.lore).toEqual([{ id: book?.objectId, name: 'Ash Harbour' }]);
+    expect(keys(item(report, INES).notes)).not.toContain('import.aventuras.linkedLorebookMissing');
+    // And the vault's own words stay where they were, verbatim.
     expect(actor.compat).toMatchObject({ metadata: { linkedLorebookId: LOREBOOK_IDS.harbour } });
   });
 
@@ -664,7 +677,7 @@ describe('a sweep of an Aventuras vault', () => {
       expect(copy.actor.profile.traits).toEqual(['patient', 'unbribable']);
       expect(pixelBytes(copy.card)).toEqual(pixelBytes(FIXTURE_PORTRAITS.png));
       expect((await ownObjects(server, 'actors')).objects).toHaveLength(
-        VAULT_CHARACTERS.length + 1,
+        VAULT_CHARACTERS.length + VAULT_SCENARIO_NPCS + 1,
       );
     });
 
