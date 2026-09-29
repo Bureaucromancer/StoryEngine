@@ -989,6 +989,37 @@ describe('a session with a cast assembles the whole preset', () => {
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
   });
 
+  /**
+   * ***Voice, dispatch and the speaker policy are written down at creation*** —
+   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [P13.0].
+   *
+   * Read off the file rather than the reply, because what matters is what a
+   * later build reads: a session with none of the three is taken for one made
+   * before P13.0 and read as the mode's *legacy* values, so a session made now
+   * has to carry what it was made with — or the stage that changes Scene's
+   * declared values would re-voice it.
+   */
+  it('writes the mode’s declared voice, dispatch and speakers onto the session', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Says how it plays' },
+    });
+    expect(created.status).toBe(201);
+
+    const definition = defaultMode().definition;
+    const file = await sessionFileOf(created.body.session.id as string);
+    expect(file.voice).toBe(definition.voice);
+    expect(file.dispatch).toBe(definition.dispatch);
+    expect(file.speakers).toEqual({
+      policy: definition.participants.select,
+      allowSelfResponses: false,
+      namesInHistory: 'groups',
+      maxPerRound: 3,
+    });
+  });
+
   it('refuses a mode nobody has heard of at creation', async () => {
     // Distinct from the runner's fallback: nobody's story depends on a session
     // that does not exist yet, so silently substituting would be the surprise.

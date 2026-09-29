@@ -30,6 +30,15 @@ export * from './turn.js';
  */
 export * from './remedy.js';
 /**
+ * A turn's output as messages, and the text derived from them — [P13.0].
+ *
+ * Beside the turn record and not part of it, for `remedy.js`'s reason: the
+ * record is types, and `Turn.output.text` became a *derived* value that the
+ * server writes and the client reads, so one derivation is what keeps the two
+ * agreeing about it.
+ */
+export * from './output-messages.js';
+/**
  * The interchange format, and the event that freezes two records —
  * [25 B12](../../../docs/design/25-open-questions.md), [P11.10].
  */

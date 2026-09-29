@@ -46,6 +46,7 @@ import {
   type BranchRefOutcome,
 } from '../sessions/store.js';
 import { castRows } from '../sessions/cast.js';
+import { chatSettingsAtCreation } from '../sessions/chat-settings.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
 import type { HookSource } from '../sessions/types.js';
@@ -978,6 +979,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           config: Object.keys(answers).length === 0 ? null : answers,
         },
         preset,
+        /**
+         * **Voice, dispatch and the speaker policy, from what the mode declares
+         * today** — [P13 §1.2], [P13.0]. Written rather than left to default,
+         * because a session with none of the three is read as one made before
+         * P13.0 (`chatSettingsOf`), and this one was not: it keeps the voice it
+         * was made with when the mode's declared values change.
+         */
+        ...chatSettingsAtCreation(mode.definition),
         ...(cast === undefined ? {} : { cast }),
         ...(treatment === undefined ? {} : { treatment }),
         ...(lore === undefined ? {} : { lore }),

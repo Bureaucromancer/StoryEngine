@@ -286,6 +286,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     candidates: true,
     effects: true,
     message: true,
+    messages: true,
   };
 
   it('round-trips a StepInput through structuredClone with nothing lost', () => {
@@ -354,6 +355,17 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
         },
       ],
       message: { text: 'the answer', reasoning: 'she had been waiting a while' },
+      /**
+       * *Beside `message` only because `Required` puts every member here* — the
+       * runner refuses a result carrying both ([P13.0]). What this literal
+       * proves is that the shape crosses the hop, and a speaker is a `Ref`, an
+       * object inside an object inside an array, which is the depth a clone
+       * has to get right.
+       */
+      messages: [
+        { speaker: null, text: 'Rain.' },
+        { speaker: { id: 'actor-vera', name: 'Vera' }, text: '"Late."', carried: true },
+      ],
     };
 
     // `Required<StepResult>` rather than a bare literal: the annotation is what

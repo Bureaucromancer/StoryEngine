@@ -426,6 +426,19 @@ export const SCENE: ModeDefinition = {
   voice: 'narrator',
   dispatch: 'merged',
   /**
+   * ***What a Scene session written before [P13.0] was played as*** —
+   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   *
+   * **The same three values declared above, and written down before they
+   * move.** P13 changes Scene's declared values to `embodied`, `per-actor` and
+   * `natural`; every Scene session made before P13.0 carries none of the three
+   * fields, and absence meant these. Declared now, while it changes nothing, so
+   * that the stage flipping the values above cannot forget it — a deferral
+   * routed to *the stage that needs it* is the kind [P7 §0.1a] found does not
+   * survive.
+   */
+  legacy: { voice: 'narrator', dispatch: 'merged', select: 'fixed' },
+  /**
    * Empty by fact rather than by omission. [06 §1] names presets for Adventure;
    * Scene has no second way to be configured, and minting `scene.default` would
    * create a permanent content identifier for a distinction nothing makes.

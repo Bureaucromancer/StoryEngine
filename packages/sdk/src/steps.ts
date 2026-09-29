@@ -9,6 +9,7 @@ import type {
   GenerationParams,
   ModelCall,
   ModelRole,
+  OutputMessage,
   StepStage,
   TokenUsage,
   Turn,
@@ -411,7 +412,33 @@ export interface TranscriptTurn {
 export interface StepResult {
   candidates?: Candidate[];
   effects?: EffectProposal[];
+  /** The turn's output, spoken by nobody in particular — the narrator's one reply. */
   message?: { text: string; reasoning?: string };
+  /**
+   * ***The turn's output as several messages, each with its speaker*** —
+   * [P13 §1.1](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   *
+   * **For a step that voices several speakers**: a group round under `per-actor`
+   * dispatch, one message per member who replied, or a narrator paragraph beside
+   * embodied lines. It lands as `Turn.output.messages`, and **the runner derives
+   * `output.text` from it** — a step never writes the joined text itself, because
+   * a step that did could write one that disagrees with its own messages, and
+   * `text` is what every older reader believes.
+   *
+   * ***One or the other, never both.*** `message` is the one-speaker case and
+   * stays so that every step written before this compiles and behaves as it
+   * did. A result carrying both is refused as the step's failure, under its own
+   * `failure` policy, because the two are rival answers to *what did this turn
+   * say* and nothing in the result says which the author meant. Silently
+   * preferring one would turn an author's mistake into a transcript missing
+   * whatever the other held.
+   *
+   * *An empty list is a step that spoke for nobody* — a `manual` round with
+   * nobody named — and sets no output, which is what an absent output has always
+   * meant on the record.
+   */
+  messages?: OutputMessage[];
 }
 
 export interface StepCallRequest {

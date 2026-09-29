@@ -4,9 +4,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  joinMessageTexts,
   PRESET_SCHEMA,
   type Candidate,
   type EffectProposal,
+  type OutputMessage,
   type StepDefinition,
   type StepHost,
   type StepImplementation,
@@ -168,6 +170,26 @@ describe('a mode can be written against the SDK alone', () => {
 
     expect(Object.keys(contribution).sort()).toEqual(['channelId', 'region', 'widget']);
     expect(structuredClone(contribution)).toEqual(contribution);
+  });
+
+  /**
+   * ***A step that voices several speakers, from this package alone*** —
+   * [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   *
+   * `OutputMessage` is a record type and lives in `shared`, so what this
+   * asserts is that the re-export carries it: a mode author writing a group
+   * round names the type and the derivation through one import, and the result
+   * still clones, because it crosses the same hop the rest of `StepResult` does.
+   */
+  it('returns several attributed messages, and the text they derive to', () => {
+    const messages: OutputMessage[] = [
+      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: { id: 'actor-marlow', name: 'Marlow' }, text: '"You came."' },
+    ];
+    const result: StepResult = { messages };
+
+    expect(structuredClone(result)).toEqual(result);
+    expect(joinMessageTexts(messages)).toBe('Rain on the tin roof.\n\n"You came."');
   });
 
   it('hands over the portable schemas too, so a mode needs one import', () => {

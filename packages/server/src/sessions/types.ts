@@ -10,6 +10,7 @@ import type {
   Preset,
   Setup,
 } from '@storyengine/shared';
+import type { ParticipantPolicy } from '@storyengine/sdk';
 
 import type { SessionMemoryConfig } from '../memory/config.js';
 import type { Binding } from '../providers/types.js';
@@ -322,6 +323,97 @@ export interface SessionFile {
   memory?: SessionMemoryConfig;
 
   /**
+   * ***Narrated, or spoken by the characters themselves*** — [06 §3]'s first
+   * axis as a session setting,
+   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.0].
+   *
+   * **The field [06 §3] asked for and P7 promised**: both axes *"exposed
+   * per-session and overridable per-turn"*. [P7.3] deferred it and the stage it
+   * deferred to never mentioned it, which [P13 §0.6] records; until now the only
+   * readers echoed the mode's constant.
+   *
+   * ***Read through `chatSettingsOf`, never directly***, because absence is not
+   * one thing. A session carrying none of `voice`, `dispatch` and `speakers` was
+   * written before this field existed, and reads as what the mode's
+   * `ModeDefinition.legacy` says it was played as — so a mode changing its
+   * declared values does not re-voice everybody's saved games. Creation writes
+   * all three from P13.0 on, which is what makes that reading safe.
+   */
+  voice?: 'narrator' | 'embodied';
+  /**
+   * ***One call for the scene, or one per speaker*** — [06 §3]'s second axis,
+   * [P13 §1.2]. `merged` is one call writing for everybody present; `per-actor`
+   * is a call per speaker in order, each seeing the replies before it
+   * ([P13 §1.4]). In a single-character chat the two are the same call.
+   *
+   * Read through `chatSettingsOf`, for {@link SessionFile.voice}'s reason.
+   */
+  dispatch?: 'merged' | 'per-actor';
+  /**
+   * ***Who replies, and how the transcript names them*** —
+   * [06 §7.2](../../../../docs/design/06-modes-and-turn-pipeline.md)'s
+   * participant policy as a session setting, [P13 §1.2], [P13 §1.3].
+   *
+   * - `policy` — which of SillyTavern's activation strategies picks the
+   *   speakers. ***The SDK's `ParticipantPolicy['select']` for now***, which is
+   *   what the mode declares; [P13.1] widens the vocabulary with `smart` when
+   *   it builds smart order, and a type naming an arm with no implementation
+   *   behind it would be a promise the record cannot keep.
+   * - `allowSelfResponses` — whether the last speaker may speak again; ST's
+   *   `allow_self_responses`.
+   * - `namesInHistory` — when each attributed message is prefixed with its
+   *   speaker's name in the prompt ([P13 §1.5]).
+   * - `maxPerRound` — the most a `smart` pick may choose; default 3.
+   *
+   * *All four together or not at all*, because a partial object in a file
+   * somebody hand-edited is still read: `chatSettingsOf` fills a missing or
+   * malformed member with its default rather than refusing the session.
+   */
+  speakers?: {
+    policy: ParticipantPolicy['select'];
+    allowSelfResponses: boolean;
+    namesInHistory: 'never' | 'groups' | 'always';
+    maxPerRound: number;
+  };
+  /**
+   * ***The author's note*** — [P13 §1.5]'s, SillyTavern's
+   * `note_prompt`/`note_depth`/`note_interval`.
+   *
+   * Text placed in history at `depth` messages from the end, on every
+   * `every`-th input. **Unlike the guidance box it persists**, which is the whole
+   * difference between the two: guidance is one turn's advice and is never
+   * recorded ([06 §5.1]); a note is standing configuration a person set once.
+   * Absent is no note.
+   */
+  note?: { text: string; depth: number; every: number };
+  /**
+   * ***What history skips and the transcript ghosts*** — [P13 §1.6]'s hide,
+   * SillyTavern's `is_system` and Marinara's `hiddenFromAI`.
+   *
+   * Keyed by turn id: `true` hides the whole turn, a list hides those message
+   * indices of its `output.messages`. **Mutable session state rather than a field
+   * on the turn**, for `lastSelectedChild`'s reason: a turn is a line in an
+   * append-only segment, and hiding is something a person does to it afterwards,
+   * and undoes. *The turn ids survive an import* (`importSession` keeps them),
+   * so this map travels with its session unchanged.
+   */
+  hidden?: Record<string, true | number[]>;
+  /**
+   * ***What a chat has switched off of the prompt*** — [P13 §1.5].
+   *
+   * - `instruction: false` skips the pack's own instruction, so a card's system
+   *   prompt is sent alone — SillyTavern's default, one toggle away.
+   * - `cards[actorId]: false` skips that card's prompt fields entirely; a list
+   *   skips the named parts. SillyTavern's `forbid_overrides`, made per card.
+   *
+   * **Absent means send everything**, which is §1.5's stacking decision: a card
+   * that carries a system prompt was written to be sent with it, and the pack's
+   * framing is sent too. Keyed by actor id, which an import keeps.
+   */
+  prompts?: { instruction?: false; cards?: Record<string, false | CardPromptPart[]> };
+
+  /**
    * Set when the session is archived — [03 §10.3].
    *
    * **Archive is not deletion**, and it is here because most sessions people
@@ -336,6 +428,18 @@ export interface SessionFile {
    */
   archivedAt?: string;
 }
+
+/**
+ * ***Which of a card's own prompt fields a chat sends*** —
+ * [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ *
+ * One per field the Scene pack places: `system` is the card's `system_prompt`
+ * (`se.card.system`), `post-history` its `post_history_instructions`
+ * (`se.card.post-history`), and `depth` its `extensions.depth_prompt`
+ * (`se.card.depth`). A list in `SessionFile.prompts.cards` names the parts to
+ * skip.
+ */
+export type CardPromptPart = 'system' | 'post-history' | 'depth';
 
 /**
  * Where a pooled hook came from — [03 §4.1], [P7.5].

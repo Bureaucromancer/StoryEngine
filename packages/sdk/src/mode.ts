@@ -39,14 +39,51 @@ export interface ModeDefinition {
    *
    * **Neither has an engine consumer at this stage, and saying so is the point.**
    * §2.4 enumerates them as part of what the mode declares, and §3 makes them a
-   * pair — declaring one without the other would misstate the mode. At P7 they
+   * pair — declaring one without the other would misstate the mode. ~~At P7 they
    * become optional *session* fields whose absence means the mode's value, which
-   * is a field rather than a migration. What keeps them honest meanwhile is a
-   * test pinning them against what the default preset's narrator block actually
-   * instructs.
+   * is a field rather than a migration.~~ *Corrected 2026-09-29: P7 never did
+   * it* — [P7.3] deferred the fields to [P7.9], whose record never mentions
+   * them ([P13 §0.6](../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+   * **They became optional session fields at [P13.0]**, and these are now what
+   * a new session is *created with* rather than what every session reads:
+   * creation writes them onto the session explicitly, and `chatSettingsOf` in
+   * the server reads the session's own before these. What keeps them honest
+   * meanwhile is a test pinning them against what the default preset's narrator
+   * block actually instructs.
    */
   voice: 'narrator' | 'embodied';
   dispatch: 'merged' | 'per-actor';
+  /**
+   * ***What a session that predates this mode's current declared values reads
+   * as*** — [P13 §1.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.0].
+   *
+   * **The problem it exists for is a default that moves.** Absence on a session
+   * has always meant *the mode's value*, and P13 changes Scene's values from
+   * `narrator`/`merged`/`fixed` to `embodied`/`per-actor`/`natural`. Without this,
+   * that change would silently re-voice every Scene session anybody has ever
+   * played: a chat narrated in the third person for forty turns would answer
+   * turn forty-one in the first. So creation now writes the three values
+   * explicitly, and a session carrying **none** of them — which is exactly the
+   * set written before that — reads these instead of the declared ones.
+   *
+   * ***A declaration, not a migration***, and the difference is the whole
+   * choice. A migration would rewrite `session.json` under every existing
+   * session, which needs each one's lock and is a write nobody asked for; this
+   * says what those files already mean and leaves them as they are. It also
+   * belongs to the mode rather than to the engine: only the mode knows what it
+   * used to declare.
+   *
+   * Absent means the declared values, which is every mode whose values have
+   * never moved — and a mode that declares this before it moves anything reads
+   * the same either way, which is what lets it be written ahead of the change it
+   * exists to survive.
+   */
+  legacy?: {
+    voice: ModeDefinition['voice'];
+    dispatch: ModeDefinition['dispatch'];
+    select: ParticipantPolicy['select'];
+  };
 
   /**
    * **Named configurations of this mode** — [06 §1]'s *freeform* / *campaign*.

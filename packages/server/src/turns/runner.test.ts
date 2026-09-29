@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
-import type { PlotHook } from '@storyengine/shared';
+import type { OutputMessage, PlotHook } from '@storyengine/shared';
 
 import { DEFAULT_CONFIG, type Config } from '../config.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
@@ -25,14 +25,14 @@ import {
 } from '../sessions/store.js';
 import type { PooledHook, Turn } from '../sessions/types.js';
 import type { CommitContext, Logger } from '../state/commit.js';
-import { readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
+import { readDraft, readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
 import { openState, type OpenedState } from '../state/open.js';
 import { Layout } from '../storage/layout.js';
 import { Accounts } from '../auth/accounts.js';
 import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import { callOnRecord, onRecord } from '../test-record.js';
-import type { StepDefinition, TurnPlan } from './steps.js';
+import type { StepDefinition, StepResult, TurnPlan } from './steps.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { registerMode } from '../mode-registry.js';
 
@@ -3941,5 +3941,117 @@ describe('an introduction the narrator was asked to make', () => {
     const settled = turn.effects.find((effect) => effect.channelId === 'se.hook');
     expect(settled).toMatchObject({ scopeKey: 'hook-vera', after: 'fired', applied: true });
     expect(turn.spans?.some((span) => span.target.ref.id === actorId)).toBe(true);
+  });
+});
+
+/**
+ * ***A turn several people spoke in*** —
+ * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P13.0].
+ *
+ * A turn is one node however many messages it emits ([07 §3], [25 C11]), so
+ * what these hold to account is the record rather than any dispatch: a step
+ * hands back attributed messages, and the turn that lands on disk keeps them
+ * **and** a `text` every older reader can read. *No mode ships a step that does
+ * this yet* — per-actor dispatch is [P13.2]'s — which is why the step is a
+ * fixture here rather than Scene's.
+ */
+describe('a turn that speaks with several voices', () => {
+  const MARLOW = { id: 'actor-marlow', name: 'Marlow' };
+  const ELENA = { id: 'actor-elena', name: 'Elena' };
+
+  /** One streamed call, and whatever the test makes of what it said. */
+  function voicing(answer: (said: string) => StepResult): TurnPlan {
+    return {
+      steps: [
+        {
+          definition: TEST_STEP,
+          run: async (_input, host) => answer((await host.call({ stream: true })).text),
+        },
+      ],
+    };
+  }
+
+  it('commits the messages, with the text and reasoning derived from them', async () => {
+    const messages: OutputMessage[] = [
+      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: MARLOW, text: '"You came."', carried: true },
+      { speaker: ELENA, text: '"I said I would."', reasoning: 'She is tired.' },
+    ];
+    makeRunner({
+      script: [{ text: 'Rain on the tin roof.' }],
+      plan: voicing((said) => ({
+        messages: messages.map((one, at) => (at === 0 ? { ...one, text: said } : one)),
+      })),
+    });
+
+    const { job, turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+    expect(turn.output).toEqual({
+      text: 'Rain on the tin roof.\n\n"You came."\n\n"I said I would."',
+      reasoning: 'She is tired.',
+      messages,
+    });
+    /**
+     * *And the draft says the same*, because the draft is what a client
+     * attaching to the stream is handed as its snapshot's `turn` — so the
+     * speakers reach a watching transcript by the same road the text does.
+     */
+    expect(readDraft(commit, job.id)?.output).toEqual(turn.output);
+  });
+
+  /**
+   * ***Both is the step's failure, not a choice the runner makes for it.*** The
+   * two are rival answers to what the turn said; the falsifying mutation is a
+   * runner that prefers one, which would commit a `complete` turn missing
+   * whatever the other held.
+   */
+  it('refuses a result carrying both message and messages, under the step’s policy', async () => {
+    makeRunner({
+      script: [{ text: 'Rain on the tin roof.' }],
+      plan: voicing((said) => ({
+        message: { text: said },
+        messages: [{ speaker: MARLOW, text: '"You came."' }],
+      })),
+    });
+
+    const { turn } = await runTurn();
+
+    // `TEST_STEP` declares `abort`, so the turn fails with it.
+    expect(turn.status).toBe('failed');
+    expect(turn.steps?.[0]).toMatchObject({
+      stepId: TEST_STEP.id,
+      state: 'failed',
+      error: { reason: 'internal' },
+    });
+    expect(turn.steps?.[0]?.error?.message).toContain('both message and messages');
+    // Neither answer was recorded — what streamed is what survives, as for any
+    // step that failed after its words had arrived.
+    expect(turn.output?.messages).toBeUndefined();
+    expect(turn.output?.text).toBe('Rain on the tin roof.');
+  });
+
+  /**
+   * *An empty list spoke for nobody*, and the record's word for that is an
+   * absent output rather than an empty one — the distinction every optional
+   * field on a turn draws.
+   */
+  it('writes no output for a step that spoke for nobody', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: { ...TEST_STEP, role: null },
+            run: () => Promise.resolve({ messages: [] }),
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+    expect(turn).not.toHaveProperty('output');
   });
 });

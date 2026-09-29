@@ -7,12 +7,20 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { SESSION_EXPORT_SCHEMA, uuidv7, type Turn } from '@storyengine/shared';
+import {
+  outputFromMessages,
+  SESSION_EXPORT_SCHEMA,
+  uuidv7,
+  type OutputMessage,
+  type Turn,
+} from '@storyengine/shared';
 
 import { openIndex } from '../index-db/open.js';
+import { writeJsonAtomic } from '../storage/atomic.js';
 import { Layout } from '../storage/layout.js';
 import { exportSession } from './export.js';
-import { appendTurnOnly, createSession, type SessionContext } from './store.js';
+import { appendTurnOnly, createSession, sessionFilePath, type SessionContext } from './store.js';
+import type { SessionFile } from './types.js';
 
 /**
  * ***The round trip, and the three things a serialiser written against our own
@@ -161,5 +169,63 @@ describe('a session, exported whole', () => {
     const two = await exportSession({ sessions, build: null }, 'ned', session.id);
 
     expect(one?.turns.map((turn) => turn.id)).toEqual(two?.turns.map((turn) => turn.id));
+  });
+
+  /**
+   * ***What [P13.0] added travels, because nothing had to be told about it*** —
+   * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   *
+   * The export spreads the document and writes each turn as it is on disk, and
+   * this is the test that the spread is doing that job for the fields P13 grew:
+   * attributed messages on a turn — a narrator one, a carried one — and every
+   * chat setting on the session. The falsifying mutation is a serialiser that
+   * restates the shape, which would drop whichever of these it was written
+   * before.
+   */
+  it('carries a turn’s attributed messages and the session’s chat settings', async () => {
+    const made = await createSession(sessions, 'ned', {
+      name: 'Rain City',
+      voice: 'embodied',
+      dispatch: 'per-actor',
+      speakers: {
+        policy: 'list',
+        allowSelfResponses: true,
+        namesInHistory: 'always',
+        maxPerRound: 3,
+      },
+    });
+    const said = uuidv7();
+    const messages: OutputMessage[] = [
+      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: { id: 'actor-marlow', name: 'Marlow' }, text: '"You came."', carried: true },
+      { speaker: { id: 'actor-elena', name: 'Elena' }, text: '"I said I would."' },
+    ];
+    await appendTurnOnly(
+      sessions,
+      'ned',
+      made.id,
+      turn({ id: said, parentTurnId: null, output: outputFromMessages(messages) }),
+    );
+    const settings = {
+      note: { text: 'Keep it tense.', depth: 4, every: 2 },
+      hidden: { [said]: [1] },
+      prompts: { instruction: false as const, cards: { 'actor-elena': ['depth' as const] } },
+    };
+    const file: SessionFile = { ...made, ...settings };
+    await writeJsonAtomic(sessionFilePath(sessions.layout, 'ned', made.id), file);
+
+    const exported = await exportSession({ sessions, build: null }, 'ned', made.id);
+
+    expect(exported?.turns[0]?.output).toEqual({
+      text: 'Rain on the tin roof.\n\n"You came."\n\n"I said I would."',
+      messages,
+    });
+    expect(exported?.session).toMatchObject({
+      voice: 'embodied',
+      dispatch: 'per-actor',
+      speakers: made.speakers,
+      ...settings,
+    });
   });
 });

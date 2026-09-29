@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { remedyFor } from '@storyengine/shared';
+import { outputFromMessages, remedyFor } from '@storyengine/shared';
 
 import { extractMemories } from '../memory/extract.js';
 import { readMemoryConfig } from '../memory/config.js';
@@ -1498,6 +1498,32 @@ export class TurnRunner {
           },
         );
 
+        /**
+         * ***`message` or `messages`, and never both*** — [P13.0].
+         *
+         * Checked **before anything the result carries is applied**, so a
+         * refused result leaves no half of itself behind: no candidate
+         * contributed to a later step's call, no effect on the record. The
+         * whole result is the step's answer, and an answer that contradicts
+         * itself is not one.
+         *
+         * *Refused as the step's failure rather than resolved*, which is how
+         * this loop already treats a result it cannot apply — `acceptEffect`
+         * throws on an op it cannot apply for the same reason: *a programmer
+         * error rather than a rejected effect*. The two fields are rival
+         * answers to what the turn said, and nothing in the result says which
+         * the author meant; preferring either would turn a bug in a mode into a
+         * transcript quietly missing whatever the other held. Thrown here, the
+         * step fails `internal` under its own declared `failure` policy, and
+         * the record names why.
+         */
+        if (result.message !== undefined && result.messages !== undefined) {
+          throw new Error(
+            `Step ${definition.id} returned both message and messages; a step's output is one ` +
+              'or the other.',
+          );
+        }
+
         for (const candidate of result.candidates ?? []) contributed.push(candidate);
         const written: EventDraft[] = [];
         /**
@@ -1520,6 +1546,25 @@ export class TurnRunner {
           written.push(effectApplied(effect.channelId, effect.applied, effect.rejectedReason));
         }
         if (result.message) draft.output = result.message;
+        /**
+         * **Several speakers, and the text derived from them** —
+         * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+         *
+         * The step hands back attributed messages and the runner writes the
+         * joined `text` beside them, through the one derivation `shared` owns —
+         * so every reader of `text` (search, the transcript steps see, the
+         * summary chain, an older install reading an export) reads the round,
+         * and no step can record a `text` that disagrees with its messages.
+         *
+         * *Replacing what streamed*, as `message` does: the checkpoints above
+         * carried the words as they arrived, and the result is the turn's
+         * settled answer. An empty list spoke for nobody and sets nothing —
+         * which leaves whatever streamed, exactly as a result with no
+         * `message` does.
+         */
+        if (result.messages !== undefined && result.messages.length > 0) {
+          draft.output = outputFromMessages(result.messages);
+        }
 
         steps.push({
           stepId: definition.id,

@@ -1094,6 +1094,46 @@ export interface ChannelState {
 }
 
 /**
+ * ***One message of a turn's output, and who spoke it*** —
+ * [P13 §1.1](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * added at [P13.0].
+ *
+ * **`speaker: null` is the narrator**, and null rather than absent because it is
+ * an answer: *nobody in the cast said this, the scene did*. That is a Scene
+ * turn in `narrator` voice, a `/comment` line imported from SillyTavern, and
+ * the narrator half of [25 C2](../../../docs/design/25-open-questions.md)'s
+ * mixed voice. An absent speaker would read as *not recorded*, which is a
+ * different fact and not one this record has any reason to hold.
+ *
+ * *A `Ref` and not a bare actor id*, as a span's target is and for the reason
+ * {@link ActorSpanTarget} gives: the name travels with the id, so a transcript
+ * of a session whose actor was since deleted — or an export read on an install
+ * that never had the card — still says who spoke.
+ *
+ * `reasoning` is the speaker's own, when the model that voiced them returned
+ * any. Per message rather than per turn because under `per-actor` dispatch each
+ * message is its own call, and one call's thinking is not another's.
+ */
+export interface OutputMessage {
+  speaker: Ref | null;
+  text: string;
+  reasoning?: string;
+  /**
+   * ***Copied from the sibling this turn redoes, not generated*** —
+   * [P13 §1.6](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * swipe.
+   *
+   * A swipe regenerates one message of a round, and the tree is append-only, so
+   * it is a sibling that carries the messages before the swiped one and writes
+   * the swiped one fresh. **The carried ones are marked because they were not
+   * this turn's work**: the workbench must not attribute them to its calls, and
+   * a reader counting what a model wrote must not count them twice. `true` or
+   * absent, the record's usual shape for a flag.
+   */
+  carried?: true;
+}
+
+/**
  * One turn, as it is written to a segment — [03 §8].
  *
  * `parentTurnId` from the very first turn: the turn store is a tree that P2
@@ -1121,7 +1161,49 @@ export interface Turn {
      */
     attachments?: TurnAttachment[];
   };
-  output?: { text: string; reasoning?: string };
+  /**
+   * What the turn said — and, since [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * **who said each part of it**.
+   *
+   * ***A turn is one node however many messages it emits.***
+   * [07 §3](../../../docs/design/07-branching.md) says so for `per-actor`
+   * dispatch — *"one turn produces several messages. A turn is still **one
+   * node**"* — and [25 C11](../../../docs/design/25-open-questions.md) settled
+   * it. The record had nowhere for the several messages and nowhere for their
+   * authors: this was `{ text, reasoning? }` and a Scene group round had to be
+   * one paragraph by nobody. `messages` is where they go, each with its
+   * speaker ([P13 §1.1](../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+   *
+   * ***`text` stays, and becomes derived when `messages` is present*** — the
+   * messages' texts joined by a blank line (`joinMessageTexts`). **Every reader
+   * of `text` keeps working unchanged**, and there are more of them than there
+   * are writers: search indexes it, the summary chain and the memory extractor
+   * read it through the transcript, a later step reads it as `StepInput.output`,
+   * and an install older than this one reads it out of an export and has never
+   * heard of `messages`. A writer keeps the two consistent — `outputFromMessages`
+   * is the one way to — and a reader that knows `messages` prefers it, through
+   * `outputMessagesOf`, which also answers for every turn written before it.
+   *
+   * ***Additive and optional, so [P11.10](../../../docs/design/workplan/28-p11-implementation.md)'s
+   * freeze holds.*** The header above says what the freeze obliges: it is *a
+   * promise not to tighten*. An optional field every existing turn lacks
+   * tightens nothing — each of those turns stays valid, and a turn that carries
+   * it rides through `importSession`'s spread on an install that does not
+   * understand it, which is the second consequence of
+   * [18 §3](../../../docs/design/18-session-import.md) doing its job. So
+   * `storyengine.session-export/1` does not change.
+   *
+   * *It also gives [25 C2](../../../docs/design/25-open-questions.md) its
+   * record.* C2 is mixed voice within a turn — a narrator paragraph, then
+   * embodied dialogue — and that is a `speaker: null` message beside attributed
+   * ones. C2 is not built by this field; it no longer needs a format change
+   * when it is.
+   *
+   * ~~`Turn.output.speaker`, one speaker per output~~ — P13's first draft,
+   * superseded before it was built: it could not hold the group round
+   * SillyTavern writes as one batch, and C11 had already said what a turn is.
+   */
+  output?: { text: string; reasoning?: string; messages?: OutputMessage[] };
   /**
    * ***Where this turn came from, when it came from somewhere else*** —
    * [18 §3](../../../docs/design/18-session-import.md)'s second consequence,

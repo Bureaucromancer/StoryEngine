@@ -479,6 +479,20 @@ describe('what Scene declares, and what the engine does with it', () => {
     // merged: one reply, so it must not be told to answer as one actor.
     expect(text).not.toContain('in character');
   });
+
+  /**
+   * ***A Scene session from before P13.0 reads as what it was played as*** —
+   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * and half of [P13.0]'s *Ends at*.
+   *
+   * Pinned against literals rather than against `SCENE.voice` and friends, and
+   * that is the test: those move when P13 flips Scene's declared values, and
+   * this must not move with them, or every Scene session somebody has played
+   * would be re-voiced by the flip.
+   */
+  it('keeps what a pre-P13 session was played as: narrator, merged, fixed', () => {
+    expect(SCENE.legacy).toEqual({ voice: 'narrator', dispatch: 'merged', select: 'fixed' });
+  });
 });
 
 describe('what the package hands a host', () => {

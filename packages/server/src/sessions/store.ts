@@ -316,6 +316,22 @@ export interface NewSession {
    * where the library is read.
    */
   goals?: Goal[];
+  /**
+   * ***How the session plays as a chat, written down at creation*** —
+   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * [P13.0].
+   *
+   * Taken from the mode's declared values at the route (`chatSettingsAtCreation`),
+   * because the route is where the mode is resolved. **Written explicitly even
+   * though absence would read the same today**, and that is the point: absence
+   * on a session made before P13.0 means *what the mode used to declare*
+   * (`ModeDefinition.legacy`), so a session made now has to say what it was made
+   * with or it would be read as one of those — and re-voiced by the stage that
+   * changes what the mode declares.
+   */
+  voice?: SessionFile['voice'];
+  dispatch?: SessionFile['dispatch'];
+  speakers?: SessionFile['speakers'];
 }
 
 export async function createSession(
@@ -346,6 +362,9 @@ export async function createSession(
     ...(spec.goals === undefined || spec.goals.length === 0 ? {} : { goals: spec.goals }),
     ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
+    ...(spec.voice === undefined ? {} : { voice: spec.voice }),
+    ...(spec.dispatch === undefined ? {} : { dispatch: spec.dispatch }),
+    ...(spec.speakers === undefined ? {} : { speakers: spec.speakers }),
   };
 
   const root = sessionRoot(context.layout, handle, session.id);
@@ -1933,8 +1952,12 @@ export async function addSessionGoal(
  * whole object either way, and whether it came from the library or from the
  * panel's own fields is not a distinction this layer can see or needs to.
  *
- * ***A field on the session and not a channel***, which §1.1 leans and P7.3
- * decided the same way for voice and dispatch.
+ * ***A field on the session and not a channel***, which §1.1 leans ~~and P7.3
+ * decided the same way for voice and dispatch~~. *Corrected 2026-09-29: P7.3
+ * decided nothing about them* — it deferred voice and dispatch to P7.9, whose
+ * record never mentions them, and no session field existed until [P13.0] added
+ * both, the same way and for this reason
+ * ([P13 §0.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
  * [06 §4](../../../../docs/design/06-modes-and-turn-pipeline.md)'s channels are
  * story state — things a turn changes and a rewind restores. A pack is
  * configuration: the runner reads it, no step writes it, and a rewind that

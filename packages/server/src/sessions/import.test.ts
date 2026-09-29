@@ -3,10 +3,17 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { RENDITION_SCHEMA, uuidv7, type Rendition } from '@storyengine/shared';
+import {
+  outputFromMessages,
+  RENDITION_SCHEMA,
+  uuidv7,
+  type OutputMessage,
+  type Rendition,
+} from '@storyengine/shared';
 
+import { writeJsonAtomic } from '../storage/atomic.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
-import { appendTurnToSession, createSession } from './store.js';
+import { appendTurnToSession, createSession, readSession, sessionFilePath } from './store.js';
 import type { Turn } from './types.js';
 
 /**
@@ -378,6 +385,109 @@ describe('what a newer build wrote', () => {
     const carried = again['turns'] as { input?: Record<string, unknown> }[];
     expect(carried).toHaveLength(turns.length);
     for (const turn of carried) expect(turn.input?.['future']).toEqual(future);
+  });
+});
+
+/**
+ * ***A chat, and everything [P13.0] added to the record, from one install to
+ * another*** —
+ * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * and P13.0's own *Ends at*: *"a turn with three attributed messages and a
+ * hidden index exports and imports unchanged."*
+ *
+ * **Unchanged by `importSession`'s own rules**, which are the only changes an
+ * import makes: a new session id, each turn naming the session it is in now,
+ * and provenance on both. Everything else — the messages with their speakers
+ * and the carried mark, the hide map keyed by a turn id the import keeps, the
+ * speaker policy, the card switches and the author's note — is asserted equal
+ * on the *re-export* from the second install, because an install passing the
+ * session on is where a loss would travel.
+ */
+describe('a chat that travels', () => {
+  it('keeps three attributed messages and every chat setting, hidden index included', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain City' },
+    });
+    const sessionId = created.body.session.id as string;
+
+    const messages: OutputMessage[] = [
+      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: { id: 'actor-marlow', name: 'Marlow' }, text: '"You came."', carried: true },
+      {
+        speaker: { id: 'actor-elena', name: 'Elena' },
+        text: '"I said I would."',
+        reasoning: 'She is tired.',
+      },
+    ];
+    const turnId = uuidv7();
+    await appendTurnToSession(server.services.sessions, 'ned', sessionId, {
+      id: turnId,
+      sessionId,
+      parentTurnId: null,
+      createdAt: new Date(Date.UTC(2026, 8, 29, 12)).toISOString(),
+      status: 'complete',
+      input: { actorId: null, kind: 'do', text: 'Knock.', raw: 'Knock.' },
+      output: outputFromMessages(messages),
+      effects: [],
+      tape: [],
+    });
+
+    /**
+     * *Written into the file*, as a hand edit or the settings panel would: the
+     * routes that set these arrive with the stages that give them behaviour
+     * ([P13.4]'s hide routes, [P13.5]'s panel), and what this proves is the
+     * record, not a route.
+     */
+    const settings = {
+      speakers: {
+        policy: 'list' as const,
+        allowSelfResponses: true,
+        namesInHistory: 'always' as const,
+        maxPerRound: 2,
+      },
+      note: { text: 'Keep it tense.', depth: 4, every: 2 },
+      hidden: { [turnId]: [1] },
+      prompts: {
+        instruction: false as const,
+        cards: { 'actor-marlow': false as const, 'actor-elena': ['system' as const] },
+      },
+    };
+    const file = await readSession(server.services.sessions, 'ned', sessionId);
+    if (file === null) throw new Error('the session was not written');
+    await writeJsonAtomic(sessionFilePath(server.services.sessions.layout, 'ned', sessionId), {
+      ...file,
+      ...settings,
+    });
+
+    const there = await anotherInstall();
+    const imported = await there.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: await exported(server, sessionId),
+    });
+    expect(imported.status).toBe(201);
+    const landed = imported.body.sessionId as string;
+
+    const again = await exported(there, landed);
+    const session = again['session'] as Record<string, unknown>;
+    // Creation wrote these two, and they came across beside what was set by hand.
+    expect(session['voice']).toBe(file.voice);
+    expect(session['dispatch']).toBe(file.dispatch);
+    for (const [field, value] of Object.entries(settings)) {
+      expect(session[field], field).toEqual(value);
+    }
+
+    const [carried] = again['turns'] as Turn[];
+    expect(carried?.id).toBe(turnId);
+    expect(carried?.sessionId).toBe(landed);
+    expect(carried?.output).toEqual({
+      text: 'Rain on the tin roof.\n\n"You came."\n\n"I said I would."',
+      reasoning: 'She is tired.',
+      messages,
+    });
   });
 });
 
