@@ -306,7 +306,7 @@ which a rebuild or a correction recovers without anything having been lost.
 - **A story's own narrator prompt lives in `stories`, not the pack** — found
   at P13.9, for Part 2. `settings.customSystemPrompt` overrides the pack per
   story, so the narrator prompt somebody actually edited may be there;
-  [P13.11](#p1311--the-tree-and-the-pairing) should record it rather than
+  [P13.11](#p1311--the-tree-and-the-pairing-done) should record it rather than
   drop it.
 - **The trash defeats both `already-here` checks** — found at P13.10. A
   trashed session has no index rows, so the same export or source imports
@@ -321,6 +321,15 @@ which a rebuild or a correction recovers without anything having been lost.
 - **`POST /sessions/import` drops `prior`** — found at P13.10: a key-based
   `already-here` cannot tell the person which session it matched, where the
   client could offer a link to it.
+- **An import cannot choose a mode** — found at P13.11. The engine may not
+  spell a mode id, so an imported Aventuras story plays in the install's
+  default mode; the honest road is a person-chosen mode on the sweep request,
+  checked against the registry.
+- **Aventuras' own lineage view disagrees with its data** — found at P13.11:
+  when a child branch forks from main below its parent's fork, Aventuras shows
+  main up to the parent's fork. The rebuild follows
+  [18 §2.3.1](../18-session-import.md)'s rule; recorded in `story.ts`. Nothing
+  at the pin writes a `system` entry, so those arrive only in older data.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -954,9 +963,41 @@ imported twice is refused the second time only if its turn ids are the same —
 so the producer should derive turn ids stably from the Aventuras entry ids,
 which makes a re-import of the same story a refusal rather than a copy.~~
 
-### P13.11 — The tree, and the pairing
+### ~~P13.11 — The tree, and the pairing~~ Done
 
-[18 §2.3.1](../18-session-import.md)'s rebuild — lineage from
+*Done — `6edc194`, 2026-09-29.* `import/aventuras/story-rows.ts` reads a
+story's row, entries and branches — the columns Aventuras' own mappers read,
+each column added after its table gated on its migration by a new `late` rule,
+stricter than `optional` because a missing `branch_id` read as absent would
+silently flatten every branch into main — and never `parent_id`.
+`import/aventuras/story.ts` turns them into a `storyengine.session-export/1`
+document the Writer hands to `importSession` with the key
+`aventura.db/stories/<id>` and `requireLinks`; the producer never writes a
+session. Lineage is rebuilt from the branches, and a fork is looked up on its
+parent's own line first, so a grandchild forking from a re-paired action finds
+the branch's turn rather than main's. The pairing table is as planned, with an
+unanswered action kept on the path it stayed on in Aventuras, and a split pair
+re-paired off the turn's parent with `forkSplitPair`. Fields: `foreign` on the
+answer, or the lone action; `cost` only where Aventuras timed a generation, its
+`tokenCount` as completion tokens; never `request` — temperature, reasoning
+effort and profile are dropped for that reason; reasoning, suggestions and
+`original_input` carried; branches as `branchRefs` beside *Main*; the head from
+`current_branch_id`, with `lastSelectedChild` set along the way. Ids come from
+`producedTurnId`. **Stories are opt-in** — `SweepRequest.stories`, a `stories`
+field on the sweep, folder and file doors, and an unticked panel checkbox —
+because nothing in the design decided it and a library sweep should not fill a
+session list with sessions that an import never replaces and a person can only
+remove one at a time. Unasked, each story stays `recorded`; a re-sweep is
+`unchanged` naming the first session, whatever `onConflict` says, as the backup
+rules for sessions. **No mode is set**: the engine may not spell a mode id
+(`tools/repo-shape.test.ts`), so an import plays in the install's default mode
+with input kind `do`, Aventuras folding do, say and think into the text as
+prefixes; a person-chosen mode on the sweep request is the follow-up.
+`settings.customSystemPrompt` is recorded as
+`import.aventuras.customNarratorPrompt` with its length and not carried, for
+[P13.9](#p139--packs-into-presets-done-recorded)'s reason. *Ended at:* the
+fixture's *Lantern Fork* imports as ten turns in four named lines with its head
+on *Tower*, and a second sweep is all `unchanged` and makes no copy. ~~[18 §2.3.1](../18-session-import.md)'s rebuild — lineage from
 `branches.fork_entry_id` and per-branch positions, never from `parent_id`, which
 is always null — and its pairing table: an action and its narration are one
 `Turn`; an opening narration is a turn with no `input`; an action nobody
@@ -970,7 +1011,7 @@ set before the reader sees it so `foreignise` keeps it; metadata into `cost`,
 **never** into `request`, which would fabricate a call
 ([18 §3](../18-session-import.md)'s first consequence); `reasoning` into
 `output.reasoning`; `suggested_actions` into `suggestions`; branches into
-`branchRefs`; the head from `stories.current_branch_id`.
+`branchRefs`; the head from `stories.current_branch_id`.~~
 
 ### P13.12 — World state
 
@@ -1068,7 +1109,7 @@ refuse); WAL with un-checkpointed frames; and zipped through
    [§1.11](#111-size-and-the-one-transport-with-no-ceiling)'s narrower grounds.
 2. ~~**Part 2: are `system` entries turns?** They are rare, and a turn with no
    input and system text is honest; so is `recorded`.~~ **Yes**, turns with no
-   input — [P13.11](#p1311--the-tree-and-the-pairing).
+   input — [P13.11](#p1311--the-tree-and-the-pairing-done).
 3. ~~**Part 2: locations, items, story beats** — lore entries tagged by kind now,
    or `recorded` until a channel wants them? The first imports something usable
    and the second imports nothing wrong.~~ **Lore entries, tagged by kind**, story
