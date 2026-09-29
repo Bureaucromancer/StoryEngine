@@ -149,6 +149,8 @@ export function filterReads(
       attachments?: TurnAttachment[];
     };
     speakers?: readonly string[];
+    voice?: StepInput['voice'];
+    dispatch?: StepInput['dispatch'];
     setup?: Readonly<Record<string, unknown>>;
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
@@ -194,6 +196,15 @@ export function filterReads(
      * makes a payload smaller.
      */
     ...(everything.speakers === undefined ? {} : { speakers: everything.speakers }),
+    /**
+     * ***How the session speaks, unfiltered for `speakers`' reason*** —
+     * [P13.2]. The session's own settings applied to the session's own turn,
+     * which every step of its mode is entitled to; and without them a step
+     * could not decide whether to make one call or one per speaker, which is
+     * the decision [P13 §1.4] leaves to the mode.
+     */
+    ...(everything.voice === undefined ? {} : { voice: everything.voice }),
+    ...(everything.dispatch === undefined ? {} : { dispatch: everything.dispatch }),
     // Unfiltered for `speakers`' reason: the mode's own declaration, answered
     // for the mode's own session.
     ...(everything.setup === undefined ? {} : { setup: everything.setup }),

@@ -80,6 +80,42 @@ export const Placement = Type.Union(
 export type Placement = Static<typeof Placement>;
 
 /**
+ * ***Whose cards an actor-sourced block takes, on a call that speaks for
+ * somebody*** — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * added at [P13.2].
+ *
+ * **Absent is everyone, which is what every preset written before this
+ * means**, and it is also what [00 §2.10](../../../../docs/design/00-stance.md)
+ * asks of a scene with several people in it: *"the assembler is multi-actor
+ * from the start"*, so every present card stays in the prompt of every call,
+ * the speaker's first. That is SillyTavern's `APPEND` group mode without its
+ * string-joining (and without its member order, which puts the speaker
+ * wherever they fall). A pack that wants ST's `SWAP` — only the one who is
+ * talking — says so on the blocks that should narrow, with `speaker`; a block
+ * that wants the rest of the room under its own heading says `others`.
+ *
+ * ***The two scopes partition the cast on every call, speaking or not***,
+ * and that is the rule a pack author can hold in their head. `speaker` is the
+ * member the call speaks for and nobody else, so on a call that speaks for
+ * nobody — a narrator's merged call — it is **nobody**; `others` is everyone
+ * but that member, so on the same call it is **everyone**. A pack with one
+ * block of each therefore sends every card exactly once whichever way the
+ * session is voiced. The alternative considered — a scope that is inert on a
+ * call with no speaker — would send such a pack's cards twice to a narrator.
+ *
+ * **Optional and additive, so the file format does not move**: a preset
+ * without it is the preset it was, and an older build ignores the field as the
+ * unknown-field rule says it must.
+ */
+export const ActorScope = Type.Union([Type.Literal('speaker'), Type.Literal('others')], {
+  title: 'ActorScope',
+  description:
+    "Whose cards the block takes on a speaking call: the speaker's only, or everyone but " +
+    'the speaker. Absent is everyone.',
+});
+export type ActorScope = Static<typeof ActorScope>;
+
+/**
  * What fills a slot. Closed for now, and expected to grow as modes declare
  * channels — which is one of the four reasons this schema is `/0` (§8.5).
  *
@@ -91,8 +127,16 @@ export type Placement = Static<typeof Placement>;
 export const SlotSource = Type.Union(
   [
     Type.Object({ of: Type.Literal('persona') }),
-    /** "se.summary", "se.appearance", … */
-    Type.Object({ of: Type.Literal('actor'), sectionId: Type.String() }),
+    /**
+     * "se.summary", "se.appearance", … — and since [P13.2] an optional
+     * {@link ActorScope}, on this arm and the next, for a pack that narrows a
+     * card block to the member a call speaks for or to the rest of the room.
+     */
+    Type.Object({
+      of: Type.Literal('actor'),
+      sectionId: Type.String(),
+      scope: Type.Optional(ActorScope),
+    }),
     /**
      * Non-prose actor fields. `traits` is a real field rather than a Section, so
      * a slot cannot reach it through `sectionId` — and card import puts a legacy
@@ -102,6 +146,7 @@ export const SlotSource = Type.Union(
     Type.Object({
       of: Type.Literal('actor'),
       field: Type.Union([Type.Literal('traits'), Type.Literal('visual')]),
+      scope: Type.Optional(ActorScope),
     }),
     Type.Object({
       of: Type.Literal('lore'),
@@ -142,12 +187,20 @@ export const SlotSource = Type.Union(
      * lore → actor: the stance on the material, then the world, then the
      * person, which is the order they narrow in. An author who wants a
      * character's samples somewhere other than the setting's names one.
+     *
+     * ***`scope` narrows the actor carrier and nothing else*** ([P13.2]). A
+     * character's example dialogue is the one sample that belongs to a *who*,
+     * and [P13 §1.5] sends it scoped to the speaker: an example of how Lund
+     * talks, in the call where Vera is talking, is an instruction to sound like
+     * Lund. A treatment's or a book's samples belong to the story rather than
+     * to anybody in it, so the scope does not reach them.
      */
     Type.Object({
       of: Type.Literal('samples'),
       from: Type.Optional(
         Type.Union([Type.Literal('actor'), Type.Literal('treatment'), Type.Literal('lore')]),
       ),
+      scope: Type.Optional(ActorScope),
     }),
     Type.Object({ of: Type.Literal('channel'), channelId: Type.String() }),
     /**

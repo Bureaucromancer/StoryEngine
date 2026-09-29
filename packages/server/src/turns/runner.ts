@@ -2,9 +2,12 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  BETWEEN_MESSAGES,
   CONVENTIONAL_SECTION_IDS,
   outputFromMessages,
   remedyFor,
+  type OutputMessage,
+  type Ref,
   type SpeakerPick,
 } from '@storyengine/shared';
 
@@ -65,6 +68,7 @@ import {
   RoleUnresolved,
   WindowTooSmall,
 } from './calls.js';
+import { cleanReply } from './cleanup.js';
 import { acceptEffect } from './effects.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
@@ -652,6 +656,30 @@ export class TurnRunner {
      */
     const smart: { pick: SpeakerPick | null } = { pick: null };
     /**
+     * ***The round — every message a speaking call has written this turn*** —
+     * [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * [P13.2]. The ninth cell, and a different kind from the eight above: those
+     * carry a report *from* an engine step, and this carries what a mode's step
+     * said, **owned by the runner while it is being said**.
+     *
+     * *Why the runner and not the step.* A speaking call's reply streams into
+     * the turn before the step has it — the draft a watcher attaches to, and the
+     * record a crash leaves, must hold Vera's half-sentence under Vera's name —
+     * and the next speaker's prompt has to be built from it, which is assembly,
+     * which is the engine's ([06 §5]). So the runner opens a message for each
+     * speaking call, streams into it, cleans it when the call completes, and
+     * keeps `draft.output` equal to `outputFromMessages` of the lot. The step
+     * still returns the turn's `messages` as its answer, and its answer wins.
+     *
+     * - `speaking` is the one-at-a-time guard: a round is ordered, and a second
+     *   speaking call while one streams would be two messages at one index.
+     * - `failed` is the speaking call that failed, **by identity of the error it
+     *   threw**, so that the step loop's `catch` can tell *a speaker was lost* —
+     *   and keep the round — from any other failure that happens to arrive
+     *   while a round is in progress. Reset at each step.
+     */
+    const round: Round = { messages: [], speaking: false, failed: null };
+    /**
      * The in-flight call, while there is one — [P3.0]. `onCallAssembled`
      * pushes a provisional `ModelCall` into `calls` the moment assembly and
      * rendering are done, stamped for the only case in which it survives to
@@ -911,6 +939,70 @@ export class TurnRunner {
      */
     const spoken: { speakers: readonly string[] | undefined } = {
       speakers: selection?.speakers,
+    };
+
+    /**
+     * ***Who a speaking call speaks as, checked before anything is assembled***
+     * — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * [P13.2]. Null for a call that names no `speaker`, which is every call a
+     * narrator makes.
+     *
+     * **Three refusals, each a programmer error in a mode rather than a state
+     * of the story**, and each thrown as one — the step fails `internal` under
+     * its own policy, which is how this loop already answers a result it cannot
+     * apply:
+     *
+     * - *a speaker the cast does not hold.* The message needs a `Ref` with a
+     *   name, and the prompt needs a card to put first; the persona is not a
+     *   speaker, because the player's lines are the player's.
+     * - *an `actorId` naming somebody else.* A speaking call's model hint is its
+     *   speaker's, and a request naming two actors has not said which it meant.
+     * - *a second speaking call while one is running.* A round is ordered —
+     *   each call is shown the replies before it — so two at once would be two
+     *   messages at one index.
+     *
+     * `others` is who the reply must not go on to speak as, for the cleanup:
+     * the persona and every other member ({@link cleanReply}).
+     *
+     * ***`cleans` is the session's `per-actor`***, and that is where §1.4 puts
+     * the cleanup: it is step 3 of *"for each speaker"*, and of `merged` the same
+     * section says *"the text may voice several characters. Nothing splits
+     * it."* One merged reply cut at the second member's line would not be
+     * merged, and stripping the first member's label off a reply written as a
+     * script would leave its first line the only one with nobody's name on it.
+     */
+    const speakingAs = (
+      stepId: string,
+      request: { speaker?: string; actorId?: string },
+    ): { ref: Ref; index: number; others: string[]; cleans: boolean } | null => {
+      const speaker = request.speaker;
+      if (speaker === undefined) return null;
+      if (request.actorId !== undefined && request.actorId !== speaker) {
+        throw new Error(
+          `Step ${stepId} asked to speak as ${speaker} with ${request.actorId}'s model hint; ` +
+            "a speaking call's actor is its speaker.",
+        );
+      }
+      const member = cast.actors.find((one) => one.actor.id === speaker);
+      if (member === undefined) {
+        throw new Error(`Step ${stepId} asked to speak as ${speaker}, who is not in the cast.`);
+      }
+      if (round.speaking) {
+        throw new Error(
+          `Step ${stepId} started a speaking call while another was running; ` +
+            'a round is one speaker at a time.',
+        );
+      }
+      round.speaking = true;
+      return {
+        ref: { id: member.actor.id, name: member.actor.name },
+        index: round.messages.length,
+        others: [
+          ...(cast.persona === null ? [] : [cast.persona.actor.name]),
+          ...cast.actors.filter((one) => one !== member).map((one) => one.actor.name),
+        ],
+        cleans: chat.dispatch === 'per-actor',
+      };
     };
 
     /**
@@ -1476,6 +1568,10 @@ export class TurnRunner {
       // The retriever's timing proposals, gathered across every call this step
       // makes and committed with the step's own — see below.
       const loreEffects: EffectProposal[] = [];
+      // Where this step's own speaking calls begin in the round: a partial
+      // round is this step's messages, never an earlier step's ([P13.2]).
+      const roundStart = round.messages.length;
+      round.failed = null;
 
       try {
         let sinceCheckpoint = Date.now();
@@ -1489,6 +1585,10 @@ export class TurnRunner {
             ...(payload.input === undefined ? {} : { input: payload.input }),
             // Read per step, from the cell — see `spoken` above.
             ...(spoken.speakers === undefined ? {} : { speakers: spoken.speakers }),
+            // How this session speaks — `chatSettingsOf`'s, as the policy is
+            // ([P13.2]). The mode decides what to do with it.
+            voice: chat.voice,
+            dispatch: chat.dispatch,
             // `mode.config` is where the wizard's answers live ([P7.4]) — a
             // step reads them as `setup`, which is the mode's word for its own
             // declaration, and the record's word is `config`.
@@ -1509,201 +1609,316 @@ export class TurnRunner {
             random: randomOver(rng),
             signal,
             call: async (request) => {
-              /**
-               * The retriever, once per call — [P5.6].
-               *
-               * **Per call rather than per turn**, because `callKind` is one of
-               * its inputs: `generationTriggerFilter` lets an entry say *only
-               * during a summary*, and a scan hoisted out of this closure could
-               * not honour it. It reads `running`, so a call later in the turn
-               * sees the counters the earlier calls moved.
-               *
-               * The effects it proposes are collected into `loreEffects` and
-               * committed with the step's own, because only a step may propose
-               * one and this is inside a step's `call`. ***Proposed after the
-               * call is assembled*** (2026-09-27), by `settleTiming` over what
-               * the assembler included: an entry the shelf, the outlets or the
-               * chat-wide budget cut was otherwise counted as having fired.
-               *
-               * ***Not at all when the step brought its own candidates***, which
-               * is [P7.5] and is a correctness fix rather than a saving.
-               * `performCall` already knows what this case means — it zeroes
-               * `notFilled` and `refused` because *"a step supplied its own
-               * candidates: the preset was not consulted, so it honestly has
-               * nothing to say"* — but the retriever ran anyway, so a scan whose
-               * blocks were then discarded still **moved every matched entry's
-               * cooldown**. That is a lorebook entry recorded as having fired on
-               * a turn where its text reached no prompt, which is exactly the
-               * claim [P5.6]'s counters exist to make truthfully.
-               *
-               * *Nothing hit it before the plot-hook selector, which is the
-               * first step in the build to pass `candidates` — and it passes
-               * them for the reason [06 §6.1] gives: the judgement call is meant
-               * to be **cheap**, and the accumulated prompt is the whole scene.*
-               */
-              const brought = request.candidates !== undefined;
-              const lore = brought
-                ? null
-                : retrieve({
-                    lore: inputs.lore,
-                    preset,
-                    history,
-                    channels: running,
-                    persona: cast.persona,
-                    actors: cast.actors,
-                    callKind: definition.callKind,
-                    rng,
-                    ...(payload.input === undefined ? {} : { input: payload.input }),
-                  });
+              // A speaking call, or null — refused here, before the retriever
+              // moves any counter, when it names somebody it cannot speak as.
+              const voice = speakingAs(definition.id, request);
+              // Whether the call's message was settled — so a throw after that,
+              // from a checkpoint, cannot clean it twice and lose its `original`.
+              let settledHere = false;
+              try {
+                /**
+                 * The retriever, once per call — [P5.6].
+                 *
+                 * **Per call rather than per turn**, because `callKind` is one of
+                 * its inputs: `generationTriggerFilter` lets an entry say *only
+                 * during a summary*, and a scan hoisted out of this closure could
+                 * not honour it. It reads `running`, so a call later in the turn
+                 * sees the counters the earlier calls moved.
+                 *
+                 * The effects it proposes are collected into `loreEffects` and
+                 * committed with the step's own, because only a step may propose
+                 * one and this is inside a step's `call`. ***Proposed after the
+                 * call is assembled*** (2026-09-27), by `settleTiming` over what
+                 * the assembler included: an entry the shelf, the outlets or the
+                 * chat-wide budget cut was otherwise counted as having fired.
+                 *
+                 * ***Not at all when the step brought its own candidates***, which
+                 * is [P7.5] and is a correctness fix rather than a saving.
+                 * `performCall` already knows what this case means — it zeroes
+                 * `notFilled` and `refused` because *"a step supplied its own
+                 * candidates: the preset was not consulted, so it honestly has
+                 * nothing to say"* — but the retriever ran anyway, so a scan whose
+                 * blocks were then discarded still **moved every matched entry's
+                 * cooldown**. That is a lorebook entry recorded as having fired on
+                 * a turn where its text reached no prompt, which is exactly the
+                 * claim [P5.6]'s counters exist to make truthfully.
+                 *
+                 * *Nothing hit it before the plot-hook selector, which is the
+                 * first step in the build to pass `candidates` — and it passes
+                 * them for the reason [06 §6.1] gives: the judgement call is meant
+                 * to be **cheap**, and the accumulated prompt is the whole scene.*
+                 */
+                const brought = request.candidates !== undefined;
+                const lore = brought
+                  ? null
+                  : retrieve({
+                      lore: inputs.lore,
+                      preset,
+                      history,
+                      channels: running,
+                      persona: cast.persona,
+                      actors: cast.actors,
+                      callKind: definition.callKind,
+                      rng,
+                      ...(payload.input === undefined ? {} : { input: payload.input }),
+                    });
 
-              /**
-               * **`collectFor`, the collector's input as the gather knows it**
-               * (2026-09-27): the pack, the window, the cast, the carriers, the
-               * goal ([06 §7.3.3]'s *always injected*) and the dials
-               * ([06 §7.3.1]) come from there for all three callers that
-               * assemble, so the preview and impersonation cannot be handed a
-               * different prompt by omission. What is this turn's alone is here.
-               */
-              const fromPreset = brought
-                ? { candidates: [], notFilled: [] }
-                : collectFor(inputs, {
-                    callKind: definition.callKind,
-                    // What the player did, for a preset's per-kind block —
-                    // [13 §8.3], [P7.9]. Absent on a call with no submission
-                    // behind it, which is what keeps a `say` block off a judge.
-                    ...(payload.input === undefined ? {} : { inputKind: payload.input.kind }),
-                    // The running map, which moves as the steps apply effects.
-                    channels: running,
-                    lore: lore?.blocks ?? [],
-                    ...(payload.input === undefined ? {} : { input: payload.input }),
-                    ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
-                    // [06 §5.1]'s second producer, filled by the selector that ran
-                    // before this loop reached any step that assembles.
-                    ...(hooks.report?.guidance === undefined
-                      ? {}
-                      : { hookGuidance: hooks.report.guidance }),
-                    // The story above the window — [07 §5.1], [P8.1]. Filled by
-                    // the summariser, which is `pre` for the selector's reason
-                    // and has therefore run before this loop reached anything
-                    // that assembles. **Absent is not empty**: a session with no
-                    // summary slot builds no chain, and `emptyReason` draws the
-                    // line between *waiting on the engine* and *not yet long
-                    // enough to have one*.
-                    ...(summaries.report === null ? {} : { summary: summaries.report.links }),
-                    ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
-                  });
-
-              const outcome = await performCall(
-                {
-                  definition,
-                  /**
-                   * **[19 §5.1]'s layers, the session's own among them** —
-                   * [P7 §1.9], [P7.3]. `resolveRole` implemented the session and
-                   * step overrides from P2B and nothing outside a test handed
-                   * them over until P7.3; the preview and impersonation went on
-                   * not handing them over until `roleLayersOf` (2026-09-27),
-                   * which every caller now takes them from. The cast rides with
-                   * them, so a call naming an actor resolves with that actor's
-                   * hint — the cards, not the hints: a step passes an id and
-                   * cannot pass a preference its actor does not hold.
-                   */
-                  ...roleLayersOf(inputs),
-                  providers: this.#options.providers,
-                  config,
-                  preset: { params: preset.params, budget: preset.budget },
-                  signal,
-                  notFilled: fromPreset.notFilled,
-                  ...(lore === null ? {} : { refused: lore.refused }),
-                  picturesPresent,
-                  loadPicture,
-                  onCallAssembled: (provisional) => {
-                    contributedBlocks = provisional.blocks.filter((block) => block.included).length;
-                    const call: ModelCall = {
-                      id: provisional.id,
-                      stepId: provisional.stepId,
-                      role: provisional.role,
-                      purpose: provisional.purpose,
-                      resolved: provisional.resolved,
-                      blocks: provisional.blocks,
-                      budget: provisional.budget,
-                      notFilled: provisional.notFilled,
-                      messages: provisional.messages,
-                      params: provisional.params,
-                      usage: null,
-                      cost: null,
-                      wallMs: 0,
-                      finishReason: null,
+                /**
+                 * **`collectFor`, the collector's input as the gather knows it**
+                 * (2026-09-27): the pack, the window, the cast, the carriers, the
+                 * goal ([06 §7.3.3]'s *always injected*) and the dials
+                 * ([06 §7.3.1]) come from there for all three callers that
+                 * assemble, so the preview and impersonation cannot be handed a
+                 * different prompt by omission. What is this turn's alone is here.
+                 */
+                const fromPreset = brought
+                  ? { candidates: [], notFilled: [] }
+                  : collectFor(inputs, {
+                      callKind: definition.callKind,
+                      // What the player did, for a preset's per-kind block —
+                      // [13 §8.3], [P7.9]. Absent on a call with no submission
+                      // behind it, which is what keeps a `say` block off a judge.
+                      ...(payload.input === undefined ? {} : { inputKind: payload.input.kind }),
+                      // The running map, which moves as the steps apply effects.
+                      channels: running,
+                      lore: lore?.blocks ?? [],
+                      ...(payload.input === undefined ? {} : { input: payload.input }),
+                      ...(payload.guidance === undefined ? {} : { guidance: payload.guidance }),
+                      // [06 §5.1]'s second producer, filled by the selector that ran
+                      // before this loop reached any step that assembles.
+                      ...(hooks.report?.guidance === undefined
+                        ? {}
+                        : { hookGuidance: hooks.report.guidance }),
+                      // The story above the window — [07 §5.1], [P8.1]. Filled by
+                      // the summariser, which is `pre` for the selector's reason
+                      // and has therefore run before this loop reached anything
+                      // that assembles. **Absent is not empty**: a session with no
+                      // summary slot builds no chain, and `emptyReason` draws the
+                      // line between *waiting on the engine* and *not yet long
+                      // enough to have one*.
+                      ...(summaries.report === null ? {} : { summary: summaries.report.links }),
+                      ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
                       /**
-                       * The stamp for a process death, and nothing else ever
-                       * commits it — every live exit replaces this record by
-                       * id. Not `cancelled`: nobody pressed Stop, and blaming
-                       * the person is the mislabel the timeout work refused.
-                       * Not a new un-sent outcome either — the call *was*
-                       * sent, or was about to be; §1.6 reserves un-sent for
-                       * the dry run. `terminal` is honest: the right recovery
-                       * is a new turn, never a retry of this one.
+                       * ***Who this call speaks as, and what the round has said
+                       * so far*** — [P13.2]. The collector re-scopes the prompt
+                       * for the speaker and places the round after the input; a
+                       * copy, because the round grows while this call streams.
                        */
-                      outcome: 'error',
-                      error: {
-                        class: 'terminal',
-                        message: 'The server stopped before this call returned.',
-                      },
-                      retries: 0,
-                    };
-                    calls.push(call);
-                    inFlight.pending = { call, startedAt: provisional.startedAt };
-                    // Durable before dispatch — the whole point.
-                    write();
-                  },
-                  onProgress: (event) => {
-                    if (event.kind === 'started') {
-                      log?.info(
-                        { event: 'call.started', stepId: definition.id, model: event.model },
-                        'Call started',
-                      );
-                      write([callStarted(definition.id, definition.role ?? 'prose', event.model)]);
-                      return;
-                    }
+                      ...(voice === null
+                        ? {}
+                        : { speaker: voice.ref.id, round: [...round.messages] }),
+                    });
 
-                    // **Ephemeral first, durable on a window.** Every delta
-                    // reaches a watching client immediately; a checkpoint per
-                    // token would be an fsync storm under `synchronous = full`,
-                    // and the snapshot already carries the accumulated text.
-                    streamedText += event.text;
-                    bus.delta(job.sessionId, job.id, event.text);
-                    if (Date.now() - sinceCheckpoint >= config.sessions.streamCoalesceMs) {
-                      sinceCheckpoint = Date.now();
-                      draft.output = { text: streamedText };
-                      write([callStreaming(definition.id, estimateTokens(streamedText))]);
-                    }
-                  },
-                },
-                request,
-                [...fromPreset.candidates, ...contributed],
-              );
+                const outcome = await performCall(
+                  {
+                    definition,
+                    /**
+                     * **[19 §5.1]'s layers, the session's own among them** —
+                     * [P7 §1.9], [P7.3]. `resolveRole` implemented the session and
+                     * step overrides from P2B and nothing outside a test handed
+                     * them over until P7.3; the preview and impersonation went on
+                     * not handing them over until `roleLayersOf` (2026-09-27),
+                     * which every caller now takes them from. The cast rides with
+                     * them, so a call naming an actor resolves with that actor's
+                     * hint — the cards, not the hints: a step passes an id and
+                     * cannot pass a preference its actor does not hold.
+                     */
+                    ...roleLayersOf(inputs),
+                    providers: this.#options.providers,
+                    config,
+                    preset: { params: preset.params, budget: preset.budget },
+                    signal,
+                    notFilled: fromPreset.notFilled,
+                    ...(lore === null ? {} : { refused: lore.refused }),
+                    picturesPresent,
+                    loadPicture,
+                    onCallAssembled: (provisional) => {
+                      contributedBlocks = provisional.blocks.filter(
+                        (block) => block.included,
+                      ).length;
+                      const call: ModelCall = {
+                        id: provisional.id,
+                        stepId: provisional.stepId,
+                        role: provisional.role,
+                        purpose: provisional.purpose,
+                        resolved: provisional.resolved,
+                        blocks: provisional.blocks,
+                        budget: provisional.budget,
+                        notFilled: provisional.notFilled,
+                        messages: provisional.messages,
+                        params: provisional.params,
+                        usage: null,
+                        cost: null,
+                        wallMs: 0,
+                        finishReason: null,
+                        /**
+                         * The stamp for a process death, and nothing else ever
+                         * commits it — every live exit replaces this record by
+                         * id. Not `cancelled`: nobody pressed Stop, and blaming
+                         * the person is the mislabel the timeout work refused.
+                         * Not a new un-sent outcome either — the call *was*
+                         * sent, or was about to be; §1.6 reserves un-sent for
+                         * the dry run. `terminal` is honest: the right recovery
+                         * is a new turn, never a retry of this one.
+                         */
+                        outcome: 'error',
+                        error: {
+                          class: 'terminal',
+                          message: 'The server stopped before this call returned.',
+                        },
+                        retries: 0,
+                      };
+                      calls.push(call);
+                      inFlight.pending = { call, startedAt: provisional.startedAt };
+                      // Durable before dispatch — the whole point.
+                      write();
+                    },
+                    onProgress: (event) => {
+                      if (event.kind === 'started') {
+                        log?.info(
+                          { event: 'call.started', stepId: definition.id, model: event.model },
+                          'Call started',
+                        );
+                        write([
+                          callStarted(
+                            definition.id,
+                            definition.role ?? 'prose',
+                            event.model,
+                            voice?.index,
+                          ),
+                        ]);
+                        return;
+                      }
 
-              finalise(outcome.call);
-              if (lore !== null) {
-                loreEffects.push(...settleTiming(lore, loreReached(outcome.call.blocks), running));
+                      /**
+                       * ***A speaking call streams into its own message*** —
+                       * [P13 §1.4] point 4, [P13.2].
+                       *
+                       * The message is opened at the first piece of text rather
+                       * than when the call starts, so a draft never holds a
+                       * speaker with nothing said: a crash between the two would
+                       * otherwise commit an empty line under somebody's name.
+                       * `draft.output` is re-derived from the whole round on each
+                       * checkpoint, which is the one way `text` and `messages`
+                       * cannot drift. *The blank line between two speakers goes
+                       * out as a delta of its own, with no index*, so a reader
+                       * appending every piece to one text — the bus's own live
+                       * cell, and every client older than this stage — paints
+                       * what `output.text` will say.
+                       */
+                      if (voice !== null) {
+                        let open = round.messages[voice.index];
+                        if (open === undefined) {
+                          if (voice.index > 0) bus.delta(job.sessionId, job.id, BETWEEN_MESSAGES);
+                          open = { speaker: voice.ref, text: '' };
+                          round.messages.push(open);
+                        }
+                        open.text += event.text;
+                        bus.delta(job.sessionId, job.id, event.text, voice.index);
+                        if (Date.now() - sinceCheckpoint >= config.sessions.streamCoalesceMs) {
+                          sinceCheckpoint = Date.now();
+                          draft.output = outputFromMessages(round.messages);
+                          write([
+                            callStreaming(definition.id, estimateTokens(open.text), voice.index),
+                          ]);
+                        }
+                        return;
+                      }
+
+                      // **Ephemeral first, durable on a window.** Every delta
+                      // reaches a watching client immediately; a checkpoint per
+                      // token would be an fsync storm under `synchronous = full`,
+                      // and the snapshot already carries the accumulated text.
+                      streamedText += event.text;
+                      bus.delta(job.sessionId, job.id, event.text);
+                      if (Date.now() - sinceCheckpoint >= config.sessions.streamCoalesceMs) {
+                        sinceCheckpoint = Date.now();
+                        draft.output = { text: streamedText };
+                        write([callStreaming(definition.id, estimateTokens(streamedText))]);
+                      }
+                    },
+                  },
+                  request,
+                  [...fromPreset.candidates, ...contributed],
+                );
+
+                finalise(outcome.call);
+                if (lore !== null) {
+                  loreEffects.push(
+                    ...settleTiming(lore, loreReached(outcome.call.blocks), running),
+                  );
+                }
+                log?.info(
+                  {
+                    event: 'call.finished',
+                    stepId: definition.id,
+                    promptTokens: outcome.usage?.promptTokens ?? null,
+                    completionTokens: outcome.usage?.completionTokens ?? null,
+                  },
+                  'Call finished',
+                );
+                /**
+                 * ***A speaking call's reply, cleaned and kept*** — [P13 §1.4]
+                 * point 3, [P13.2]. Under `per-actor` dispatch a leading
+                 * `Name:` of the speaker's goes and the reply is cut where
+                 * another member's line begins ({@link cleanReply}, and both
+                 * sources' reasons for it there); a `merged` reply is kept as it
+                 * came. **What the model said survives as `original`, written only
+                 * when the two differ**, because nowhere else keeps it: a call's
+                 * record holds the prompt and never the reply.
+                 *
+                 * *Written into the round before `callFinished` is checkpointed*,
+                 * so the durable event that says the call ended arrives with the
+                 * draft already holding the settled message.
+                 */
+                const said =
+                  voice === null
+                    ? null
+                    : settled(voice, cleaned(voice, outcome.text), outcome.text);
+                if (voice !== null && said !== null) {
+                  round.messages[voice.index] = said;
+                  settledHere = true;
+                  draft.output = outputFromMessages(round.messages);
+                }
+                write([callFinished(definition.id, outcome.usage, outcome.call.wallMs)]);
+
+                return {
+                  callId: outcome.call.id,
+                  text: said?.text ?? outcome.text,
+                  ...(outcome.object === undefined ? {} : { object: outcome.object }),
+                  usage: outcome.usage,
+                  outcome: outcome.call.outcome,
+                  ...(voice === null ? {} : { speaker: voice.ref }),
+                  ...(said?.original === undefined ? {} : { original: said.original }),
+                };
+              } catch (error) {
+                /**
+                 * ***A speaker lost mid-round*** — [P13 §1.4]'s last paragraph,
+                 * [P13.2]. What streamed before the failure stays in the
+                 * speaker's message, cleaned by the same rule a finished reply
+                 * is, and the draft is re-derived from the round — so the words
+                 * a person watched arrive are on the record under the name
+                 * they arrived under, as gate 10 asks of any mid-stream
+                 * failure. **Remembered by the error's identity**: the step
+                 * loop's `catch` keeps the round only for *this* failure, and
+                 * only when the step let it through unchanged.
+                 */
+                if (voice !== null) {
+                  const cut = round.messages[voice.index];
+                  if (cut !== undefined && !settledHere) {
+                    round.messages[voice.index] = settled(
+                      voice,
+                      cleaned(voice, cut.text),
+                      cut.text,
+                    );
+                  }
+                  if (round.messages.length > 0) draft.output = outputFromMessages(round.messages);
+                  round.failed = { error, index: voice.index, speaker: voice.ref };
+                }
+                throw error;
+              } finally {
+                if (voice !== null) round.speaking = false;
               }
-              log?.info(
-                {
-                  event: 'call.finished',
-                  stepId: definition.id,
-                  promptTokens: outcome.usage?.promptTokens ?? null,
-                  completionTokens: outcome.usage?.completionTokens ?? null,
-                },
-                'Call finished',
-              );
-              write([callFinished(definition.id, outcome.usage, outcome.call.wallMs)]);
-
-              return {
-                callId: outcome.call.id,
-                text: outcome.text,
-                ...(outcome.object === undefined ? {} : { object: outcome.object }),
-                usage: outcome.usage,
-                outcome: outcome.call.outcome,
-              };
             },
           },
         );
@@ -1794,13 +2009,24 @@ export class TurnRunner {
         ]);
       } catch (error) {
         const reason = classifyStep(error);
+        /**
+         * ***Was this a speaker lost from a round?*** — [P13.2]. Only when the
+         * error is the very one a speaking call threw, so a step that caught it
+         * and failed for some other reason is judged on that reason. When it
+         * is, the call's words are already in the round and the draft already
+         * holds the round, so the two partial-text lines below must not
+         * replace a whole round with its last speaker's half-sentence.
+         */
+        const lost = lostTo(round, error);
 
         // A mid-stream failure has already handed the user words. The runner's
         // buffer is the only survivor — neither adapter attaches its
         // accumulation to the error — and gate 10 wants those words recorded.
         if (error instanceof CallFailed) {
           finalise(error.call);
-          if (error.partialText.length > 0) draft.output = { text: error.partialText };
+          if (lost === null && error.partialText.length > 0) {
+            draft.output = { text: error.partialText };
+          }
         }
         // And a Stop that landed mid-call is the same shape from the record's
         // side — finding 2 in [16]: the interrupted call is named, the words
@@ -1808,7 +2034,7 @@ export class TurnRunner {
         // attempts genuinely carries no call.
         if (error instanceof Cancelled && error.call !== undefined) {
           finalise(error.call);
-          if (error.partialText !== undefined && error.partialText.length > 0) {
+          if (lost === null && error.partialText !== undefined && error.partialText.length > 0) {
             draft.output = { text: error.partialText };
           }
         }
@@ -1830,14 +2056,48 @@ export class TurnRunner {
           inFlight.pending = null;
         }
 
+        /**
+         * ***A partial round commits*** — [P13 §1.4]'s last paragraph: *"a
+         * group round that loses its third speaker to a timeout is a turn with
+         * two messages, not a lost turn."* [P13.2].
+         *
+         * **The mechanism is this one decision and nothing on the step's
+         * side.** When the failure is a speaking call's and at least one
+         * earlier speaking call *of this step* finished, the messages the round
+         * has are already the draft's output, and the step's declared `abort` is
+         * handled as a `warn`: the turn goes on, the clock advances, and it
+         * commits complete. The outcome says so twice — `failure: 'warn'`, which
+         * is how it was handled, and `round`, which says how many messages were
+         * kept and who was lost. A declared `warn` or `ignore` is already not an
+         * abort and is left as declared.
+         *
+         * *Why the runner and not the step*: the runner owns the round's
+         * messages while they stream, so it alone knows which were finished when
+         * the failure landed — and a `StepResult` field for *I lost somebody*
+         * would let a step claim a partial round that never happened, or return
+         * messages the record never streamed.
+         *
+         * **Two cases stay ordinary failures.** The *first* speaking call
+         * failing leaves nothing to keep, so today's policy applies and an
+         * `abort` fails the turn. And a person's **Stop** is never a partial
+         * round, whatever had been said: cancellation overrides the declared
+         * mode below, as it always has — the draft keeps the round as far as it
+         * got, and the turn is the failed one they asked for.
+         */
+        const kept = lost === null ? 0 : lost.index - roundStart;
+        const partial = lost !== null && kept > 0 && reason !== 'cancelled';
+        const handled =
+          partial && definition.failure === 'abort' ? ('warn' as const) : definition.failure;
+
         steps.push({
           stepId: definition.id,
           stage: definition.stage,
           state: 'failed',
-          failure: definition.failure,
+          failure: handled,
           error: { reason, message: messageOf(error) },
           contributed: { blocks: contributedBlocks, effects: contributedEffects },
           wallMs: Date.now() - startedAt,
+          ...(partial ? { round: { kept, lost: lost.speaker } } : {}),
         });
 
         /**
@@ -1861,13 +2121,16 @@ export class TurnRunner {
          * `detail` is the provider's own words, which is the third item: it is
          * populated now and this is the line that was throwing it away.
          */
-        const level = levelFor(reason, definition.failure);
+        const level = levelFor(reason, handled);
         log?.[level](
           {
             event: 'step.failed',
             stepId: definition.id,
             reason,
             message: messageOf(error),
+            // The round a lost speaker left behind, by count and id — never the
+            // words, which are prose and never belong in a log ([21 §4.1]).
+            ...(partial ? { kept, lost: lost.speaker.id } : {}),
 
             ...(error instanceof CallFailed
               ? {
@@ -1904,12 +2167,13 @@ export class TurnRunner {
             ? { endpoint: error.endpoint, stalled: error.stalled }
             : {}),
         });
-        if (definition.failure !== 'ignore') {
+        if (handled !== 'ignore') {
           write([stepFailed(definition.id, reason, false, remedy)]);
         } else write();
 
         // Cancellation overrides the declared mode: a user's stop is not a warn.
-        if (definition.failure === 'abort' || reason === 'cancelled') {
+        // `handled` rather than the declaration, for a partial round ([P13.2]).
+        if (handled === 'abort' || reason === 'cancelled') {
           aborted = true;
           stoppedBy = reason;
           remedyFound = remedy;
@@ -2400,6 +2664,44 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
     // claim ([03 §8] — *absent* and *empty* are different claims, and the
     // workbench renders the difference).
   };
+}
+
+/** The runner's round cell — see where `#body` declares it. */
+interface Round {
+  messages: OutputMessage[];
+  speaking: boolean;
+  failed: { error: unknown; index: number; speaker: Ref } | null;
+}
+
+/**
+ * The speaking call a step's failure lost, when the failure is the one that
+ * call threw. *A function rather than an inline read*, because the loop resets
+ * `failed` at each step and the type checker, which cannot see the closure that
+ * sets it again, would narrow the read to that reset forever after.
+ */
+function lostTo(round: Round, error: unknown): Round['failed'] {
+  return round.failed !== null && round.failed.error === error ? round.failed : null;
+}
+
+/**
+ * A speaking call's reply as its round keeps it — cleaned under `per-actor`
+ * dispatch, as it came under `merged` (see `speakingAs` on why).
+ */
+function cleaned(
+  voice: { ref: Ref; others: readonly string[]; cleans: boolean },
+  text: string,
+): string {
+  return voice.cleans ? cleanReply(text, voice.ref.name, voice.others) : text;
+}
+
+/**
+ * ***A speaking call's message as the round keeps it*** — [P13.2]: the cleaned
+ * text under the speaker's name, and the model's own words as `original` only
+ * when cleanup changed them, so that absent means *this is what the model said*
+ * rather than *not recorded* (`OutputMessage.original`).
+ */
+function settled(voice: { ref: Ref }, text: string, said: string): OutputMessage {
+  return { speaker: voice.ref, text, ...(text === said ? {} : { original: said }) };
 }
 
 /**

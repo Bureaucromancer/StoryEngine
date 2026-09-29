@@ -418,7 +418,18 @@ export function planCall(
    * from a present one and `exactOptionalPropertyTypes` is on: passing
    * `sessionOverride: undefined` is not the same as not passing it.
    */
-  const resolution = resolveStepRole(context, definition, definition.role, request.actorId);
+  /**
+   * ***A speaking call resolves for its speaker*** — [P13.2]. `speaker` implies
+   * the `actorId` P7.3 built for exactly this layer, so the member a call speaks
+   * as is the member whose card's hint applies. The runner has already refused
+   * a request naming two different actors, so at most one of these is a choice.
+   */
+  const resolution = resolveStepRole(
+    context,
+    definition,
+    definition.role,
+    request.speaker ?? request.actorId,
+  );
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);
 
   const provider = context.providers(resolution.connection);

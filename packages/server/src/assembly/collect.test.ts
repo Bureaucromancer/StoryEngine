@@ -11,6 +11,7 @@ import {
   type Lorebook,
   type Preset,
   type PresetBlock,
+  type OutputMessage,
   type Treatment,
   type WritingSample,
 } from '@storyengine/shared';
@@ -2285,5 +2286,441 @@ describe('pictures on a move', () => {
     const picture = candidates.find((one) => one.image !== undefined);
     expect(picture?.text).toBe('[Picture — not shown, and not described]');
     expect(picture?.image?.digest).toBeNull();
+  });
+});
+
+/**
+ * ***A call that speaks for somebody*** — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P13.2].
+ */
+describe('a call that speaks for somebody', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  function sampleOf(id: string, body: string): WritingSample {
+    return { id, title: id, body, enabled: true, note: '' };
+  }
+
+  const persona = {
+    actor: actorWith('Ned', 'Ned keeps the rain off other people.'),
+    contentHash: 'sha256:ned-1',
+  };
+  const vera = {
+    actor: {
+      ...actorWith('Vera', 'Vera runs the night desk.'),
+      writingSamples: [sampleOf('v-1', 'Vera says less than she knows.')],
+    },
+    contentHash: 'sha256:vera-1',
+  };
+  const marlow = {
+    actor: actorWith('Marlow', 'Marlow owes somebody money.'),
+    contentHash: 'sha256:marlow-1',
+  };
+  const lund = {
+    actor: actorWith('Lund', 'Lund keeps the harbour.'),
+    contentHash: 'sha256:lund-1',
+  };
+
+  function scene(): Preset {
+    const pack = modeById('storyengine.scene')?.definition.assembly.defaultPreset;
+    if (pack === undefined) throw new Error('Scene is a built-in');
+    return pack;
+  }
+
+  const past = {
+    id: 'turn-1',
+    input: { actorId: null, kind: 'do', text: 'I knock.', raw: 'I knock.' },
+    output: { text: 'The door gave.' },
+  } as Turn;
+
+  /**
+   * ***A call that names nobody collects exactly what it collected before
+   * P13.2*** — the snapshot was written against the build without speaking
+   * calls, over the stock Scene pack with a persona, three cast members, a
+   * sample and a turn of history, so every slot that pack positions has
+   * something to say. Actor ids are replaced by names so the record reads.
+   */
+  it('collects, for a call that names nobody, what it collected before', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: scene(),
+        persona,
+        actors: [vera, marlow, lund],
+        history: [past],
+        input: { text: 'I wait.' },
+      }),
+    );
+    const named = (text: string): string =>
+      [vera, marlow, lund].reduce(
+        (out, member) => out.replaceAll(member.actor.id, member.actor.name),
+        text,
+      );
+    expect(
+      candidates.map((one) => ({
+        id: named(one.id),
+        role: one.role,
+        priority: one.priority,
+        text: one.text,
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "id": "se.instruction",
+          "priority": 90,
+          "role": "system",
+          "text": "You are the narrator of a scene. Write what happens next in third person, past tense. Describe only what the player could perceive. Never write the player's own dialogue, thoughts or decisions, and never end by asking what they do.",
+        },
+        {
+          "id": "se.persona",
+          "priority": 70,
+          "role": "system",
+          "text": "The player's character, Ned:
+      Ned keeps the rain off other people.",
+        },
+        {
+          "id": "se.actor.summary.Vera",
+          "priority": 70,
+          "role": "system",
+          "text": "Vera:
+      Vera runs the night desk.",
+        },
+        {
+          "id": "se.actor.summary.Marlow",
+          "priority": 70,
+          "role": "system",
+          "text": "Marlow:
+      Marlow owes somebody money.",
+        },
+        {
+          "id": "se.actor.summary.Lund",
+          "priority": 70,
+          "role": "system",
+          "text": "Lund:
+      Lund keeps the harbour.",
+        },
+        {
+          "id": "se.actor.traits.Vera",
+          "priority": 35,
+          "role": "system",
+          "text": "Vera's traits: watchful",
+        },
+        {
+          "id": "se.actor.traits.Marlow",
+          "priority": 35,
+          "role": "system",
+          "text": "Marlow's traits: watchful",
+        },
+        {
+          "id": "se.actor.traits.Lund",
+          "priority": 35,
+          "role": "system",
+          "text": "Lund's traits: watchful",
+        },
+        {
+          "id": "se.samples.Vera.v-1",
+          "priority": 20,
+          "role": "system",
+          "text": "Vera says less than she knows.",
+        },
+        {
+          "id": "se.history.turn-1.input",
+          "priority": 10,
+          "role": "user",
+          "text": "I knock.",
+        },
+        {
+          "id": "se.history.turn-1.output",
+          "priority": 10,
+          "role": "assistant",
+          "text": "The door gave.",
+        },
+        {
+          "id": "se.input",
+          "priority": 100,
+          "role": "user",
+          "text": "I wait.",
+        },
+      ]
+    `);
+  });
+
+  /** Every name the namespace holds, in one line a test can read. */
+  const NAMES = block({
+    kind: 'text',
+    id: 'se.names',
+    template:
+      'char={{ char }}|group={{ group }}|charIfNotGroup={{ charIfNotGroup }}|notChar={{ notChar }}|user={{ user }}',
+  });
+
+  function namesIn(over: Partial<CollectContext>): string | undefined {
+    return collectCandidates(context({ preset: preset([NAMES]), ...over })).candidates[0]?.text;
+  }
+
+  describe('the namespace, re-scoped to the speaker', () => {
+    /**
+     * ST's meanings, at the pin: `{{group}}` is every member, muted included
+     * (`MacroEnvBuilder.js:135`, `includeMuted: true`); `{{charIfNotGroup}}` is
+     * an alias of it (`env-macros.js:31`); `{{notChar}}` is documented as *all
+     * participants except the current speaker* (`env-macros.js:45-50`). Ours
+     * keeps the persona in `notChar`, which ST's group branch drops — see
+     * `RenderContext.notChar`.
+     */
+    it('names the speaker as char, the whole cast as the group, and everyone else as notChar', () => {
+      expect(namesIn({ persona, actors: [vera, marlow, lund], speaker: marlow.actor.id })).toBe(
+        'char=Marlow|group=Vera, Marlow, Lund|charIfNotGroup=Vera, Marlow, Lund|' +
+          'notChar=Ned, Vera, Lund|user=Ned',
+      );
+    });
+
+    it('reads as before for a call that speaks for nobody: char is the first of the cast', () => {
+      // `{{char}}` has meant the first cast member since P4.1, and a merged
+      // call still means it — the mutation is re-scoping without a speaker.
+      expect(namesIn({ persona, actors: [vera, marlow, lund] })).toBe(
+        'char=Vera|group=Vera, Marlow, Lund|charIfNotGroup=Vera, Marlow, Lund|' +
+          'notChar=Ned, Marlow, Lund|user=Ned',
+      );
+    });
+
+    it('says the one name, not a group, when the cast has one member', () => {
+      expect(namesIn({ persona, actors: [lund], speaker: lund.actor.id })).toBe(
+        'char=Lund|group=Lund|charIfNotGroup=Lund|notChar=Ned|user=Ned',
+      );
+    });
+
+    it('keeps a muted member in the group and in notChar', () => {
+      // The collector reads no presence at all, and that is the claim: a muted
+      // member is in the room and is somebody a reply must not speak as.
+      expect(
+        namesIn({
+          persona,
+          actors: [vera, marlow, lund],
+          speaker: vera.actor.id,
+          channels: { [`se.presence#${lund.actor.id}`]: { version: 1, value: false } },
+        }),
+      ).toBe(
+        'char=Vera|group=Vera, Marlow, Lund|charIfNotGroup=Vera, Marlow, Lund|' +
+          'notChar=Ned, Marlow, Lund|user=Ned',
+      );
+    });
+
+    it('puts the player in notChar by the word it uses for them when there is no persona', () => {
+      expect(namesIn({ persona: null, actors: [vera, marlow], speaker: marlow.actor.id })).toBe(
+        'char=Marlow|group=Vera, Marlow|charIfNotGroup=Vera, Marlow|' +
+          'notChar=the player, Vera|user=the player',
+      );
+    });
+
+    it('reads a speaker the cast does not hold as nobody', () => {
+      expect(namesIn({ persona, actors: [vera, marlow], speaker: 'somebody-else' })).toBe(
+        'char=Vera|group=Vera, Marlow|charIfNotGroup=Vera, Marlow|notChar=Ned, Marlow|user=Ned',
+      );
+    });
+
+    it("renders each actor block's wrapper about its own actor, notChar included", () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([
+            block({
+              kind: 'slot',
+              id: 'se.a',
+              source: { of: 'actor', sectionId: 'se.summary' },
+              wrapper: '{{ char }}, not {{ notChar }}: {{content}}',
+            }),
+          ]),
+          persona,
+          actors: [vera, marlow],
+          speaker: marlow.actor.id,
+        }),
+      );
+      expect(candidates.map((one) => one.text)).toEqual([
+        'Marlow, not Ned, Vera: Marlow owes somebody money.',
+        'Vera, not Ned, Marlow: Vera runs the night desk.',
+      ]);
+    });
+  });
+
+  describe('whose cards, in what order', () => {
+    const summary = (scope?: 'speaker' | 'others'): PresetBlock =>
+      block({
+        kind: 'slot',
+        id: 'se.a',
+        source:
+          scope === undefined
+            ? { of: 'actor', sectionId: 'se.summary' }
+            : { of: 'actor', sectionId: 'se.summary', scope },
+      });
+
+    const whose = (over: Partial<CollectContext>): string[] =>
+      collectCandidates(context({ actors: [vera, marlow, lund], ...over })).candidates.map(
+        (one) => one.text.split('\n')[0] ?? '',
+      );
+
+    it("puts the speaker's card first and keeps every other card", () => {
+      expect(whose({ preset: preset([summary()]), speaker: lund.actor.id })).toEqual([
+        'Lund keeps the harbour.',
+        'Vera runs the night desk.',
+        'Marlow owes somebody money.',
+      ]);
+    });
+
+    it('keeps cast order for a call that speaks for nobody', () => {
+      expect(whose({ preset: preset([summary()]) })).toEqual([
+        'Vera runs the night desk.',
+        'Marlow owes somebody money.',
+        'Lund keeps the harbour.',
+      ]);
+    });
+
+    it('narrows a block scoped to the speaker, and one scoped to the others', () => {
+      expect(whose({ preset: preset([summary('speaker')]), speaker: marlow.actor.id })).toEqual([
+        'Marlow owes somebody money.',
+      ]);
+      expect(whose({ preset: preset([summary('others')]), speaker: marlow.actor.id })).toEqual([
+        'Vera runs the night desk.',
+        'Lund keeps the harbour.',
+      ]);
+    });
+
+    it('partitions the cast on a call that speaks for nobody: speaker is nobody, others everyone', () => {
+      const { candidates, notFilled } = collectCandidates(
+        context({ preset: preset([summary('speaker')]), actors: [vera, marlow, lund] }),
+      );
+      expect(candidates).toEqual([]);
+      // Not `empty-source`: the cast has cards, and the block was not for any
+      // of them on this call.
+      expect(notFilled).toEqual([{ blockId: 'se.a', source: 'actor', reason: 'not-applicable' }]);
+      expect(whose({ preset: preset([summary('others')]) })).toHaveLength(3);
+    });
+
+    it('says a scoped block over an empty cast is empty, as an unscoped one is', () => {
+      const { notFilled } = collectCandidates(
+        context({ preset: preset([summary('speaker')]), actors: [] }),
+      );
+      expect(notFilled[0]?.reason).toBe('empty-source');
+    });
+
+    it("scopes the actor carrier's samples and leaves the treatment's alone", () => {
+      const noir = newTreatment('Rain City Noir');
+      noir.writingSamples = [sampleOf('t-1', 'The rain never lets up.')];
+      const marlowWithSample = {
+        ...marlow,
+        actor: { ...marlow.actor, writingSamples: [sampleOf('m-1', 'Marlow counts twice.')] },
+      };
+      const samples = (scope?: 'speaker' | 'others'): string[] =>
+        collectCandidates(
+          context({
+            preset: preset([
+              block({
+                kind: 'slot',
+                id: 'se.samples',
+                source: scope === undefined ? { of: 'samples' } : { of: 'samples', scope },
+              }),
+            ]),
+            actors: [vera, marlowWithSample],
+            carriers: { treatment: { treatment: noir, id: noir.id, contentHash: 'h' }, books: [] },
+            speaker: marlow.actor.id,
+          }),
+        ).candidates.map((one) => one.text);
+
+      expect(samples()).toEqual([
+        'The rain never lets up.',
+        'Marlow counts twice.',
+        'Vera says less than she knows.',
+      ]);
+      expect(samples('speaker')).toEqual(['The rain never lets up.', 'Marlow counts twice.']);
+      expect(samples('others')).toEqual([
+        'The rain never lets up.',
+        'Vera says less than she knows.',
+      ]);
+    });
+  });
+
+  describe('the round so far', () => {
+    const said = (member: { actor: Actor }, text: string): OutputMessage => ({
+      speaker: { id: member.actor.id, name: member.actor.name },
+      text,
+    });
+
+    const INPUT = block({
+      kind: 'slot',
+      id: 'se.input',
+      role: 'user',
+      priority: 100,
+      source: { of: 'input' },
+    });
+    const AFTER = block({ kind: 'text', id: 'se.after', template: 'Stay in the scene.' });
+
+    it('follows the input, in order, as the model’s own lines', () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([
+            block({ kind: 'slot', id: 'se.history', source: { of: 'history' } }),
+            INPUT,
+            AFTER,
+          ]),
+          history: [past],
+          input: { text: 'Well?' },
+          actors: [vera, marlow, lund],
+          speaker: lund.actor.id,
+          round: [said(vera, '"You came."'), said(marlow, '"I owe you nothing."')],
+        }),
+      );
+
+      expect(candidates.map((one) => [one.id, one.role, one.text])).toEqual([
+        ['se.history.turn-1.input', 'user', 'I knock.'],
+        ['se.history.turn-1.output', 'assistant', 'The door gave.'],
+        ['se.input', 'user', 'Well?'],
+        ['se.round.0', 'assistant', '"You came."'],
+        ['se.round.1', 'assistant', '"I owe you nothing."'],
+        ['se.after', 'system', 'Stay in the scene.'],
+      ]);
+      // Its own source, saying which message and whose, and priced as the
+      // history is: oldest cheapest, never required.
+      expect(candidates[3]?.source).toEqual({ kind: 'round', message: 0, actorId: vera.actor.id });
+      expect(candidates[4]?.source).toEqual({
+        kind: 'round',
+        message: 1,
+        actorId: marlow.actor.id,
+      });
+      expect(candidates.slice(3, 5).map((one) => [one.priority, one.required])).toEqual([
+        [100, undefined],
+        [101, undefined],
+      ]);
+    });
+
+    it('stands where the input would have been on a turn with no input', () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([INPUT, AFTER]),
+          actors: [vera, marlow],
+          speaker: marlow.actor.id,
+          round: [said(vera, '"You came."')],
+        }),
+      );
+      expect(candidates.map((one) => one.id)).toEqual(['se.round.0', 'se.after']);
+    });
+
+    it('goes last in a pack with no input slot, and skips a message cleanup emptied', () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([AFTER]),
+          actors: [vera, marlow, lund],
+          speaker: lund.actor.id,
+          round: [said(vera, ''), said(marlow, '"Later."')],
+        }),
+      );
+      expect(candidates.map((one) => [one.id, one.priority])).toEqual([
+        ['se.after', 50],
+        ['se.round.1', 101],
+      ]);
+    });
+
+    it('is nothing at all when the call is the first of its round', () => {
+      const { candidates } = collectCandidates(
+        context({ preset: preset([INPUT, AFTER]), input: { text: 'Well?' }, round: [] }),
+      );
+      expect(candidates.map((one) => one.id)).toEqual(['se.input', 'se.after']);
+    });
   });
 });

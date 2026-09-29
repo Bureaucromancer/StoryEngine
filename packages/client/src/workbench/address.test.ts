@@ -64,6 +64,10 @@ const EVERY_ARM: BlockSource[] = [
   { kind: 'input' },
   { kind: 'preset', blockId: 'b-1' },
   { kind: 'step', stepId: 's-1' },
+  // [P13.2]'s round, with its label added in the same edit, as this fixture's
+  // comment above asks of the next arm.
+  { kind: 'round', message: 0, actorId: 'a-4' },
+  { kind: 'round', message: 1, actorId: null },
 ];
 
 describe('every source has an address', () => {
@@ -88,6 +92,13 @@ describe('every source has an address', () => {
     expect(
       blockSourceAddress({ kind: 'persona', actorId: null, contentHash: null }).link,
     ).toBeUndefined();
+    // A reply earlier in the round links to whoever gave it; a narrator's
+    // line has nobody behind it.
+    expect(blockSourceAddress({ kind: 'round', message: 0, actorId: 'a-4' }).link).toEqual({
+      kind: 'actors',
+      id: 'a-4',
+    });
+    expect(blockSourceAddress({ kind: 'round', message: 1, actorId: null }).link).toBeUndefined();
   });
 
   /**

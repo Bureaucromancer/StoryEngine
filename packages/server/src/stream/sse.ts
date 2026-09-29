@@ -98,7 +98,14 @@ export class SseWriter {
          * that does not exist.
          */
         this.#write(
-          `event: delta\ndata: ${JSON.stringify({ jobId: frame.jobId, text: frame.text })}\n\n`,
+          `event: delta\ndata: ${JSON.stringify({
+            jobId: frame.jobId,
+            text: frame.text,
+            // A speaking call's message index, [P13.2] — absent, not null, on
+            // everything else, so the frame a pre-P13.2 client parses is the
+            // frame it always parsed.
+            ...(frame.message === undefined ? {} : { message: frame.message }),
+          })}\n\n`,
           true,
         );
         return;

@@ -192,6 +192,72 @@ describe('a mode can be written against the SDK alone', () => {
     expect(joinMessageTexts(messages)).toBe('Rain on the tin roof.\n\n"You came."');
   });
 
+  /**
+   * ***A round, fanned out from this package alone*** — [P13.2]. The session's
+   * voice and dispatch arrive on the input, a speaking call names its member,
+   * and the result carries back who spoke and, when cleanup changed the reply,
+   * what the model said — everything a step needs to write the turn's
+   * `messages` without declaring `cast` to learn a name.
+   */
+  it('speaks for each selected member in turn, from the input and the results alone', async () => {
+    const asked: (string | undefined)[] = [];
+    const host: StepHost = {
+      call: (request) => {
+        asked.push(request.speaker);
+        const name = request.speaker === 'actor-vera' ? 'Vera' : 'Lund';
+        return Promise.resolve({
+          callId: `call-${String(asked.length)}`,
+          text: `"${name} speaks."`,
+          usage: null,
+          ...(request.speaker === undefined ? {} : { speaker: { id: request.speaker, name } }),
+          ...(name === 'Vera' ? { original: `Vera: "${name} speaks."` } : {}),
+        });
+      },
+      random: {
+        at: () => {
+          throw new Error('a round draws nothing; its order is the selection');
+        },
+      },
+      signal: new AbortController().signal,
+    };
+    const round: StepImplementation = async (input, stepHost) => {
+      if (input.voice !== 'embodied' || input.dispatch !== 'per-actor') return {};
+      const messages: OutputMessage[] = [];
+      for (const speaker of input.speakers ?? []) {
+        const result = await stepHost.call({ stream: true, speaker });
+        if (result.speaker === undefined) continue;
+        messages.push({
+          speaker: result.speaker,
+          text: result.text,
+          ...(result.original === undefined ? {} : { original: result.original }),
+        });
+      }
+      return { messages };
+    };
+    const input: StepInput = {
+      turnId: 't',
+      sessionId: 's',
+      parentTurnId: null,
+      speakers: ['actor-vera', 'actor-lund'],
+      voice: 'embodied',
+      dispatch: 'per-actor',
+      channels: {},
+    };
+
+    const result = await round(input, host);
+
+    expect(asked).toEqual(['actor-vera', 'actor-lund']);
+    expect(result.messages).toEqual([
+      {
+        speaker: { id: 'actor-vera', name: 'Vera' },
+        text: '"Vera speaks."',
+        original: 'Vera: "Vera speaks."',
+      },
+      { speaker: { id: 'actor-lund', name: 'Lund' }, text: '"Lund speaks."' },
+    ]);
+    expect(structuredClone(result)).toEqual(result);
+  });
+
   it('hands over the portable schemas too, so a mode needs one import', () => {
     // `shared` is re-exported rather than re-declared: a second declaration
     // would be two vocabularies for one wire format. `/0` rather than `/1` is

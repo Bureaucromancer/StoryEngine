@@ -110,14 +110,32 @@ export const stepFailed = (
   params: { stepId, error, willRetry, ...(remedy === undefined ? {} : { remedy }) },
 });
 
-export const callStarted = (stepId: string, role: ModelRole, model: string): EventDraft => ({
+/**
+ * ***`message` is which of the turn's messages a speaking call is writing*** —
+ * [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+ * point 4, added at [P13.2]: *"Progress events gain `message: n`."*
+ *
+ * The index into the turn's `output.messages`, the same number the draft's
+ * messages and the `delta` frames carry, so a surface painting a round knows
+ * which bubble a call is filling from the durable events alone. **Absent on a
+ * call that speaks for nobody**, which is every call before P13.2 and every
+ * narrator's still: a consumer that never heard of it reads these events
+ * exactly as it did.
+ */
+export const callStarted = (
+  stepId: string,
+  role: ModelRole,
+  model: string,
+  message?: number,
+): EventDraft => ({
   key: 'call.started',
-  params: { stepId, role, model },
+  params: { stepId, role, model, ...(message === undefined ? {} : { message }) },
 });
 
-export const callStreaming = (stepId: string, tokens: number): EventDraft => ({
+/** `message` as on {@link callStarted}. `tokens` counts that message's text alone. */
+export const callStreaming = (stepId: string, tokens: number, message?: number): EventDraft => ({
   key: 'call.streaming',
-  params: { stepId, tokens },
+  params: { stepId, tokens, ...(message === undefined ? {} : { message }) },
 });
 
 export const callFinished = (

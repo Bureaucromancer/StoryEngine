@@ -29,8 +29,14 @@ import type { OutputMessage, Turn } from './turn.js';
  * are told apart in every place `text` is shown or searched — and so a reader
  * that knows nothing of messages shows a group round as the paragraphs it is,
  * rather than as one run-on block.
+ *
+ * ***Exported since [P13.2], for the one writer that cannot go through the two
+ * functions below***: the runner's live stream, which paints a round a delta at
+ * a time and has to put this between two speakers' deltas for a reader that
+ * appends them to one text — so the streamed text and the `text` derived here
+ * cannot disagree about what separates two messages.
  */
-const BETWEEN_MESSAGES = '\n\n';
+export const BETWEEN_MESSAGES = '\n\n';
 
 /**
  * `Turn.output.text` for a turn that has `messages` — their texts, in order,

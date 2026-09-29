@@ -274,6 +274,8 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     parentTurnId: true,
     input: true,
     speakers: true,
+    voice: true,
+    dispatch: true,
     setup: true,
     cast: true,
     channels: true,
@@ -309,6 +311,9 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
         // A readonly array, which is where a frozen input would cross badly — and
         // the shape a mode with a widened `select` hands every step ([P7.3]).
         speakers: ['actor-vera'],
+        // How the session speaks — two strings, handed to every step ([P13.2]).
+        voice: 'embodied',
+        dispatch: 'per-actor',
         // A frozen record, which is what a session's stored answers are by the
         // time they reach a step — and the shape a structured clone has to survive.
         setup: Object.freeze({ premise: 'A city that does not sleep.', dice: true }),

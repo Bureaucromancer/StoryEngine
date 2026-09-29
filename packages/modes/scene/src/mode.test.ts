@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { validate } from '@storyengine/sdk';
+import type { StepCallRequest, StepCallResult, StepHost, StepInput } from '@storyengine/sdk';
 
 import { modes } from './index.js';
 import {
@@ -567,5 +568,133 @@ describe('the pacing prose this pack ships', () => {
     }
     // And the refusal it *should* carry: the player is still mid-something.
     expect(text.toLowerCase()).toContain('player');
+  });
+});
+
+/**
+ * ***How the generate step speaks*** — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P13.2]. Against a host that records what it was asked, which is all a mode
+ * can see of the engine: the loop's order, which member each call named, and
+ * what the step returned. What a speaking call *does* — the re-scoped prompt,
+ * the round, the cleanup — is the engine's, and `runner-dispatch.test.ts`
+ * proves it through a real turn.
+ */
+describe('the generate step, by voice and dispatch', () => {
+  const run = SCENE_MODE.run[NARRATE.id];
+
+  /**
+   * A host that records what it was asked. `random` and `signal` are stubbed by
+   * omission, for the reason `staging.test.ts` gives at length: the step reads
+   * neither, and `AbortSignal` is a host global this package's tsconfig
+   * deliberately does not declare.
+   */
+  function host(): { asked: StepCallRequest[]; host: StepHost } {
+    const asked: StepCallRequest[] = [];
+    return {
+      asked,
+      host: {
+        call: (request: StepCallRequest): Promise<StepCallResult> => {
+          asked.push(request);
+          const id = request.speaker;
+          return Promise.resolve({
+            callId: `c-${String(asked.length)}`,
+            text: id === undefined ? 'The rain kept on.' : `"${id} speaks."`,
+            usage: null,
+            ...(id === undefined ? {} : { speaker: { id, name: id.toUpperCase() } }),
+            ...(id === 'vera' ? { original: 'Vera: "vera speaks."' } : {}),
+          });
+        },
+      } as unknown as StepHost,
+    };
+  }
+
+  const input = (over: Partial<StepInput>): StepInput => ({
+    turnId: 't',
+    sessionId: 's',
+    parentTurnId: null,
+    channels: {},
+    history: [],
+    ...over,
+  });
+
+  it('narrates as it always has: one call, no speaker, one message', async () => {
+    const { asked, host: stub } = host();
+    const result = await run?.(input({ voice: 'narrator', speakers: ['vera', 'lund'] }), stub);
+    expect(asked).toEqual([{ stream: true }]);
+    expect(result).toEqual({ message: { text: 'The rain kept on.' } });
+  });
+
+  it('reads a host that says nothing about voice as a narrator', async () => {
+    const { asked, host: stub } = host();
+    await run?.(input({ speakers: ['vera'] }), stub);
+    expect(asked).toEqual([{ stream: true }]);
+  });
+
+  it('speaks once per member, in the selection’s order, under per-actor dispatch', async () => {
+    const { asked, host: stub } = host();
+    const result = await run?.(
+      input({ voice: 'embodied', dispatch: 'per-actor', speakers: ['lund', 'vera', 'marlow'] }),
+      stub,
+    );
+    expect(asked.map((request) => request.speaker)).toEqual(['lund', 'vera', 'marlow']);
+    expect(result).toEqual({
+      messages: [
+        { speaker: { id: 'lund', name: 'LUND' }, text: '"lund speaks."' },
+        {
+          speaker: { id: 'vera', name: 'VERA' },
+          text: '"vera speaks."',
+          original: 'Vera: "vera speaks."',
+        },
+        { speaker: { id: 'marlow', name: 'MARLOW' }, text: '"marlow speaks."' },
+      ],
+    });
+  });
+
+  it('speaks once, for the first member, under merged dispatch', async () => {
+    const { asked, host: stub } = host();
+    const result = await run?.(
+      input({ voice: 'embodied', dispatch: 'merged', speakers: ['lund', 'vera'] }),
+      stub,
+    );
+    expect(asked).toEqual([{ stream: true, speaker: 'lund' }]);
+    expect(result).toEqual({
+      messages: [{ speaker: { id: 'lund', name: 'LUND' }, text: '"lund speaks."' }],
+    });
+  });
+
+  it('makes no call and returns nothing when nobody was selected', async () => {
+    for (const dispatch of ['per-actor', 'merged'] as const) {
+      const { asked, host: stub } = host();
+      const result = await run?.(input({ voice: 'embodied', dispatch, speakers: [] }), stub);
+      expect(asked, dispatch).toEqual([]);
+      expect(result, dispatch).toEqual({});
+    }
+  });
+
+  it('makes the one merged call when an embodied session makes no selection at all', async () => {
+    // `fixed` hands no `speakers`; silence forever would be the wrong answer.
+    const { asked, host: stub } = host();
+    const result = await run?.(input({ voice: 'embodied', dispatch: 'per-actor' }), stub);
+    expect(asked).toEqual([{ stream: true }]);
+    expect(result).toEqual({ message: { text: 'The rain kept on.' } });
+  });
+
+  it('lets a failed speaking call through to the host, which decides what the round keeps', async () => {
+    const { host: stub } = host();
+    let calls = 0;
+    const failing: StepHost = {
+      ...stub,
+      call: (request) => {
+        calls += 1;
+        return calls === 2 ? Promise.reject(new Error('gone')) : stub.call(request);
+      },
+    };
+    await expect(
+      run?.(
+        input({ voice: 'embodied', dispatch: 'per-actor', speakers: ['a', 'b', 'c'] }),
+        failing,
+      ),
+    ).rejects.toThrow('gone');
+    expect(calls).toBe(2);
   });
 });

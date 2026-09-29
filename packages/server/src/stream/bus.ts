@@ -30,7 +30,11 @@ import type { ProgressEvent } from '../state/jobs.js';
 
 export interface Listener {
   onEvents(jobId: string, events: readonly ProgressEvent[]): void;
-  onDelta(jobId: string, text: string): void;
+  /**
+   * `message` is the turn's message a speaking call's text belongs to —
+   * [P13.2]; see {@link TurnStream.delta}. Absent for everything else.
+   */
+  onDelta(jobId: string, text: string, message?: number): void;
   /**
    * A rendition's state changed — [06 §10.2], [P9.2].
    *
@@ -134,10 +138,23 @@ export class TurnStream implements EventSink {
     });
   }
 
-  delta(sessionId: string, jobId: string, text: string): void {
+  /**
+   * One piece of streamed text.
+   *
+   * ***`message` since [P13.2]***: the index into the turn's `output.messages`
+   * that a speaking call is filling, so a surface that paints a round as
+   * separate messages knows which one a piece belongs to. **Absent on text that
+   * belongs only to the turn's joined text** — a narrator's reply, which is not
+   * a message of its own until it lands, and the blank line the runner sends
+   * between two speakers so that a reader appending every piece to one string
+   * (this class's `#live`, and every client written before P13.2) builds the
+   * same `output.text` the turn will commit. A per-message reader skips those;
+   * a joined-text reader needs no change at all.
+   */
+  delta(sessionId: string, jobId: string, text: string, message?: number): void {
     this.#live.set(jobId, (this.#live.get(jobId) ?? '') + text);
     this.#each(sessionId, (listener) => {
-      listener.onDelta(jobId, text);
+      listener.onDelta(jobId, text, message);
     });
   }
 

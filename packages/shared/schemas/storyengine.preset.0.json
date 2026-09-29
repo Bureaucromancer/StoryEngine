@@ -186,6 +186,20 @@
                       },
                       "sectionId": {
                         "type": "string"
+                      },
+                      "scope": {
+                        "title": "ActorScope",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, or everyone but the speaker. Absent is everyone.",
+                        "anyOf": [
+                          {
+                            "const": "speaker",
+                            "type": "string"
+                          },
+                          {
+                            "const": "others",
+                            "type": "string"
+                          }
+                        ]
                       }
                     }
                   },
@@ -208,6 +222,20 @@
                           },
                           {
                             "const": "visual",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "scope": {
+                        "title": "ActorScope",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, or everyone but the speaker. Absent is everyone.",
+                        "anyOf": [
+                          {
+                            "const": "speaker",
+                            "type": "string"
+                          },
+                          {
+                            "const": "others",
                             "type": "string"
                           }
                         ]
@@ -276,6 +304,20 @@
                           },
                           {
                             "const": "lore",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "scope": {
+                        "title": "ActorScope",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, or everyone but the speaker. Absent is everyone.",
+                        "anyOf": [
+                          {
+                            "const": "speaker",
+                            "type": "string"
+                          },
+                          {
+                            "const": "others",
                             "type": "string"
                           }
                         ]

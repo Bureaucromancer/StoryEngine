@@ -6,6 +6,7 @@ import type {
   ChannelDefinition,
   Mode,
   ModeDefinition,
+  OutputMessage,
   StepDefinition,
   StepHost,
   StepInput,
@@ -413,10 +414,64 @@ export const NARRATE: StepDefinition = {
  * The step does not assemble, does not choose a model, and does not know what a
  * Scene is. It asks; the runner resolves the role from the definition and
  * assembles with the purpose the definition implies.
+ *
+ * ***It asks in one of three ways since [P13.2]***, and the session says which
+ * — `voice` and `dispatch` as `StepInput` hands them over, the session's own
+ * values rather than the ones declared below
+ * ([P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [§1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)):
+ *
+ * - **Narrator** — exactly what this step always did: one merged call, spoken by
+ *   nobody in particular, and one `message`. Who the policy selected does not
+ *   change it; a narrator speaks for the scene, not for a member. *Absent* reads
+ *   as narrator, because that is what a host that hands no voice played.
+ * - **Embodied, per-actor** — one **speaking call** per selected member, in the
+ *   order `speakers` gives, each awaited before the next: the host shows each
+ *   call the replies before it, streams each into a message of its own and
+ *   cleans it, so the loop's only job is the order. The order *is* the
+ *   selection's, which is what makes a rewrite replay the same round — the
+ *   policy's draws are on the tape, and this loop adds none. The turn's
+ *   `messages` are the calls' results, speaker and all.
+ * - **Embodied, merged** — Marinara's merged mode: **one** speaking call, for
+ *   the first selected member. Every present card is still in its prompt, the
+ *   first speaker's first, and the reply may voice several members; nothing
+ *   splits it and nothing cuts it, because a merged reply that stopped at the
+ *   second member's line would not be merged. One message, under the first
+ *   speaker's name.
+ *
+ * ***An empty `speakers` in an embodied voice is nobody speaking, and the step
+ * makes no call*** — `manual` after an input ([P13 §1.3]: *"nobody replies to
+ * an input"*), or a round the policy gave nobody. It returns nothing, which is
+ * what an absent output has always meant on the record: the turn is the
+ * player's input and no reply. *Absent `speakers` is different* — a session
+ * playing `fixed`, which makes no selection at all — and an embodied session
+ * with no selection makes the one merged call nobody in particular speaks,
+ * rather than falling silent for good.
+ *
+ * *If a speaking call fails*, the loop lets it go: a failure on the first is
+ * the step's own `abort`, and a failure after another member has spoken is a
+ * partial round the host keeps. The step has nothing to add to either, which
+ * is why it catches nothing.
  */
-async function narrate(_input: StepInput, host: StepHost): Promise<StepResult> {
-  const result = await host.call({ stream: true });
-  return { message: { text: result.text } };
+async function narrate(input: StepInput, host: StepHost): Promise<StepResult> {
+  if (input.voice !== 'embodied' || input.speakers === undefined) {
+    const result = await host.call({ stream: true });
+    return { message: { text: result.text } };
+  }
+
+  const speakers = input.dispatch === 'per-actor' ? input.speakers : input.speakers.slice(0, 1);
+  const messages: OutputMessage[] = [];
+  for (const speaker of speakers) {
+    const result = await host.call({ stream: true, speaker });
+    messages.push({
+      // The host names the speaker as the record will; a host too old to
+      // say is answered with the id, which is at least who it was.
+      speaker: result.speaker ?? { id: speaker, name: speaker },
+      text: result.text,
+      ...(result.original === undefined ? {} : { original: result.original }),
+    });
+  }
+  return messages.length === 0 ? {} : { messages };
 }
 
 export const SCENE: ModeDefinition = {

@@ -27,14 +27,19 @@ export type {
 } from '@storyengine/shared';
 
 /**
- * `BlockSource` minus the two a slot cannot name — a derivation rather than a
- * second list.
+ * `BlockSource` minus the ~~two~~ three a slot cannot name — a derivation rather
+ * than a second list.
  *
  * A slot positions content the engine produces, so it can never point at the
  * preset's own prose (that *is* a block) or at a step's contribution (which did
- * not exist when the preset was authored).
+ * not exist when the preset was authored) — ***or, since [P13.2], at the round
+ * so far***, which the engine places after the input slot of every pack rather
+ * than wherever a pack remembered to put it.
  */
-export type SlotSource = Exclude<BlockSource, { kind: 'preset' } | { kind: 'step' }>;
+export type SlotSource = Exclude<
+  BlockSource,
+  { kind: 'preset' } | { kind: 'step' } | { kind: 'round' }
+>;
 
 /**
  * `Candidate` moved to `@storyengine/sdk` at [P7.0] — a step returns them, so a

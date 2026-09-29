@@ -366,7 +366,34 @@ export type BlockSource =
    * navigation affordance no surface asks for yet.
    */
   | { kind: 'summary'; linkKey: string; range: [number, number] }
-  // The two a slot can never name, because no preset positions them.
+  // ~~The two~~ The three a slot can never name, because no preset positions
+  // them — `round` joined `preset` and `step` at [P13.2].
+  /**
+   * ***A message this turn has already said*** — the history a round builds as
+   * it goes, [P13 §1.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+   * point 2, added at [P13.2].
+   *
+   * Under `per-actor` dispatch the second speaker answers the first, as in both
+   * sources (`group-chats.js:1051-1076` regenerates the chat between members;
+   * Marinara's `generate.routes.ts:7370-7386` appends each reply before the
+   * next responder's call). Those replies are not history yet — the turn that
+   * holds them has not been committed — so they are not a `history` block, whose
+   * identity is a past turn and one of its two halves.
+   *
+   * `message` is the index into the turn's own `output.messages`, which is the
+   * identity: the draft and the committed record agree on it. `actorId` is who
+   * said it, null for a narrator's line, so the block table can say *whose* reply
+   * the next speaker was shown without reading the output.
+   *
+   * *A third source no preset can position*, beside `preset` and `step` below:
+   * the engine places these immediately after the input slot of every pack
+   * (`collectCandidates`), because a round that a pack had to opt into would be
+   * a pack that silently lost the conversation. Additive under the [P11.10]
+   * freeze — a union that grows an arm accepts every record it accepted — and
+   * the workbench's open label map renders an arm it has never heard of as the
+   * word itself rather than failing.
+   */
+  | { kind: 'round'; message: number; actorId: string | null }
   /**
    * A block the preset authored, rather than a slot it positioned.
    *
@@ -424,7 +451,11 @@ export type CallPurpose = 'prose' | 'effects' | 'verdict';
  * sentence, and nothing durable grows another free-English field.
  *
  * - `disabled` — the author switched the block off.
- * - `not-applicable` — `appliesTo` excludes this call's kind.
+ * - `not-applicable` — `appliesTo` excludes this call's kind, or — since
+ *   [P13.2] — the block's `scope` excludes everybody this call could take a card
+ *   from: `speaker` on a call that speaks for nobody, `others` in a cast of one.
+ *   Both are the block saying *not this call*, which is the sentence this reason
+ *   already meant.
  * - `no-producer` — the source has no producer at this phase (lore is P5,
  *   goals are Setup-borne, a channel has no text renderer…).
  * - `empty-source` — the producer ran and yielded nothing: an empty guidance
@@ -951,7 +982,20 @@ export interface StepOutcome {
   stepId: string;
   stage: StepStage;
   state: 'ok' | 'skipped' | 'failed';
-  /** How the definition declared a failure should be handled. */
+  /**
+   * ~~How the definition declared a failure should be handled.~~ *How the
+   * failure was handled* — corrected 2026-09-29, at [P13.2], because from then
+   * the two can differ in one case, and a reader of the record needs the one
+   * that happened.
+   *
+   * It is the declaration everywhere but a **partial round**: a step whose
+   * speaking call failed after another speaking call of the same step had
+   * written its message (`round` below). The engine keeps the messages the round
+   * has and commits the turn, so an `abort` declaration was handled as a `warn`
+   * — [P13 §1.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+   * *"a group round that loses its third speaker to a timeout is a turn with two
+   * messages, not a lost turn."* A declared `ignore` stays `ignore`.
+   */
   failure?: 'abort' | 'warn' | 'ignore';
   skipReason?: StepSkipReason;
   error?: { reason: StepFailureReason; message: string };
@@ -982,6 +1026,31 @@ export interface StepOutcome {
    * written before it.
    */
   speakers?: SpeakerPick;
+  /**
+   * ***A round that lost a speaker, and kept the others*** —
+   * [P13 §1.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * last paragraph, added at [P13.2].
+   *
+   * Present on a failed outcome whose failure was a **speaking call** — one that
+   * named a `speaker` — made after at least one earlier speaking call of the
+   * same step had finished. `kept` is how many messages of the round survived,
+   * counted up to the one that failed; `lost` is who did not get to answer,
+   * which is the fact a person looking at a two-message round needs first and
+   * which `error` — a class and an English sentence for the log — cannot say
+   * in a way the workbench can put a name to.
+   *
+   * ***The engine's to write, never a step's***, which is why it is here and not
+   * a `StepResult` field: the runner owns every speaking call's message while it
+   * streams, so it alone knows which messages were finished when the failure
+   * landed, and a step that could report its own partial round could report
+   * one that never happened. What the turn *says* is the output's messages;
+   * this is the working, the way `speakers` above is for a smart pick.
+   *
+   * *Absent when the first speaking call fails*: nothing was written, and the
+   * step's declared policy applies as it always has — an `abort` is a failed
+   * turn. Optional under the [P11.10] freeze, like every field this record grows.
+   */
+  round?: { kept: number; lost: Ref };
 }
 
 /**

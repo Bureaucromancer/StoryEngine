@@ -67,7 +67,12 @@ export interface Snapshot {
 export type StreamFrame =
   | { kind: 'snapshot'; snapshot: Snapshot }
   | { kind: 'progress'; jobId: string; event: ProgressEvent }
-  | { kind: 'delta'; jobId: string; text: string }
+  /**
+   * `message` — the turn's message a speaking call's text belongs to, [P13.2].
+   * Absent on a narrator's text and on the separator between two messages; see
+   * `TurnStream.delta`.
+   */
+  | { kind: 'delta'; jobId: string; text: string; message?: number }
   /**
    * A picture arrived, failed, or changed — [P9.2].
    *
@@ -136,8 +141,13 @@ export function attachToSession(
         else buffered.push(frame);
       }
     },
-    onDelta: (jobId, text) => {
-      const frame: StreamFrame = { kind: 'delta', jobId, text };
+    onDelta: (jobId, text, message) => {
+      const frame: StreamFrame = {
+        kind: 'delta',
+        jobId,
+        text,
+        ...(message === undefined ? {} : { message }),
+      };
       if (live) deliver(frame);
       else buffered.push(frame);
     },

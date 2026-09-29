@@ -1160,6 +1160,50 @@ imports unchanged, and a pre-P13 Scene session reads as narrator/merged/fixed.
 *Ends at:* a three-member `list` round produces three messages, and the third
 prompt holds the first two replies.
 
+*As built, 2026-09-29.* §1.4 left these to the stage, and got one of them
+slightly wrong; each is recorded where the code carries its argument.
+
+- **`{{notChar}}` is the persona and every other member, muted ones included.**
+  ST's documented meaning is *"all participants except the current speaker"*
+  (`env-macros.js:45-50`), but its group branch builds it with the user dropped
+  and muted members excluded (`MacroEnvBuilder.js:137`, `:194`). Ours keeps the
+  documented meaning, because *"do not write for {{notChar}}"* is the sentence
+  the macro exists for. `{{group}}` is the whole cast, muted included, and
+  `{{charIfNotGroup}}` its alias, as in ST. The three are always in the
+  namespace, counted from `char` — the speaker on a speaking call, the first of
+  the cast otherwise (`assembly/template.ts`).
+- **The speaker's cards come first, and that is ours, not ST's.** §1.4 calls
+  it ST's `APPEND` without the string-joining, but `APPEND` joins in member
+  order and drops muted members unless the group says `APPEND_DISABLED`
+  (`group-chats.js:549-558`); here every card stays and only the order moves.
+- **The two block scopes partition the cast on every call**: `speaker` is
+  nobody on a call that speaks for nobody, and `others` is everyone. `samples`
+  takes a scope too, for its actor carrier only, which is what §1.5's
+  *"scoped to the speaker"* example dialogue needs (`schema/preset.ts`).
+- **The round is a pseudo-source**, `BlockSource` `round`, placed by the
+  collector after the pack's first input slot (or last, in a pack with none),
+  each message an `assistant` entry priced as the history is.
+- **Cleanup cuts at the persona's line too** — ST's `trimWrongNames`
+  (`script.js:6433-6457`) — cuts before it strips, which is ST's order, and runs
+  under `per-actor` only: under `merged` *"nothing splits it"* (`turns/cleanup.ts`).
+- **A partial round is the runner's decision.** A speaking call's failure after
+  another speaking call of the same step finished is handled as `warn` —
+  `StepOutcome.failure` now records how a failure was handled, corrected on the
+  type — and the outcome's new `round` says how many messages were kept and who
+  was lost. A Stop is never a partial round. What a failed speaker had streamed
+  stays in their message.
+- **The stream says which message**: `call.started`, `call.streaming` and the
+  `delta` frame carry `message: n`, and the blank line between two speakers is
+  a delta without one, so a client that appends every delta still paints
+  `output.text` ([api.md](../../api.md)).
+
+*Left for [P13.3]:* the pack's wording (naming the speaker as the one to write,
+the group nudge); names in history, which prefixes the round's entries as it
+does past turns'; the preview, which still assembles one merged call; and the
+importer's macro table, which refuses `{{group}}`, maps `{{charIfNotGroup}}`
+to `{{ char }}` and leaves `{{notChar}}` verbatim — all three now have a name to
+map to.
+
 #### P13.3 — The Scene pack and the card's own fields
 
 - `SCENE_PRESET` rewritten (§1.5).

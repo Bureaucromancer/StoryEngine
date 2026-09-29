@@ -445,7 +445,8 @@ converted, `200 { item, notes }` when it did not.
 `item` is one row of the import review's vocabulary — `{ source, disposition,
 notes, objectId? }` — where `source` is the filename **as it arrived**, never a
 path ([21 §4.1.1](design/21-internal-contracts.md)). `disposition` is
-`converted`, `recorded` or `unrecognised`, and the middle one is the interesting
+`converted`, `recorded` or `unrecognised` — or `unchanged`, for a re-upload of
+what is already here — and `recorded` is the interesting
 answer: a PNG card today is a file this build converts at **P4.2**, so it is
 reported as *not yet* rather than refused as broken. Answering `4xx` would tell
 somebody their file is wrong when the truth is that the build is unfinished.
@@ -487,6 +488,29 @@ a kind name — setting prose, a cast and an opening in one file. `treatment` is
 the default and is what StoryEngine calls the unconflated version of that;
 `lorebook` is for a scenario whose setting prose is really a setting bible, and
 it costs the opening messages, which a lorebook has nowhere to hold.
+
+**A chat file becomes a session** —
+[P13.8](design/workplan/30-p13-scene-and-session-import.md). A SillyTavern chat,
+or Marinara's per-chat export of the same format, is JSON Lines, and it is
+recognised by its **content**, never its `.jsonl` name: two object lines, a
+header carrying `chat_metadata`, or — an old group chat holding only its
+greeting — one message line. It is read, its characters and persona are found in
+the account's library, and it is loaded as a new session in Play: `201` with
+`disposition: converted`, the new **session's** id as `item.objectId`, and an
+`import.chat.imported` note first. A chat a session here already holds entirely
+answers `200` `unchanged` with `import.chat.alreadyHere`. One whose beginning a
+session holds and which has grown in its source since answers `recorded` with
+`import.chat.grownSince`, counting the turns left out: updating a session from
+its source is [P13.10a](design/workplan/30-p13-scene-and-session-import.md)'s,
+and until then a grown chat is neither unchanged nor a second copy.
+
+**An optional `kind` field, `chat`, makes this door take a chat and nothing
+else.** A file that is not one answers `unrecognised` with
+`import.file.unrecognised` and nothing is written — the archive and envelope arms
+are not tried. It follows the before-the-file rule. Play's *Import session* sends
+a `.jsonl` here with `kind: chat` and opens the returned id; without the field, a
+`.jsonl` that was really a card would land in the library from a control that
+promised a session.
 
 ### `POST /api/import/file/preview`
 
@@ -630,7 +654,8 @@ carve-out included.
 
 ### `POST /api/import/directory/plan`
 
-`{ entries: [{ path, bytes }] }` → `200 { verdict, suggestions, wanted, declared, wantedBytes }`.
+`{ entries: [{ path, bytes }], chats? }` →
+`200 { verdict, suggestions, wanted, declared, wantedBytes, limitBytes, chats }`.
 The first half of a browser folder upload: what the folder is, and which of its
 files the importer will actually open.
 
@@ -650,6 +675,27 @@ path to point anywhere with, so acting on the advice means picking again.
 `wanted` is the paths to upload; `declared` is the rest. `422` for the same
 classification refusals as the sweep.
 
+**Chats are opt-in** —
+[P13.8](design/workplan/30-p13-scene-and-session-import.md). They are most of a
+SillyTavern tree's bytes, and a person who picked their data folder to bring in
+their cards has not thereby asked to send years of conversation. So `wanted`
+leaves them out unless the body says `chats: true`, and `chats` says what
+choosing them would add — reported whether or not they were chosen, because the
+point is to say it before the choice:
+
+- `count` — the `.jsonl` files under `chats/` and `group chats/`, or anywhere in
+  a loose folder;
+- `bytes` — everything the choice would send, `groups/*.json` included, since
+  that is what the limit counts;
+- `fit: { count, bytes }` — the same two numbers for what would actually go.
+
+`chats: true` makes the plan again with chats in `wanted`, **the library budgeted
+first**: chats spend only what the library leaves of `limits.maxUploadMb`, so one
+long conversation that sorts early can never push a card out, and `fit` is how
+much of the choice survives that. `limitBytes` is the limit the plan spent, so a
+client can name the number. A Marinara root reports zeros: its chats are in the
+store it already sends.
+
 ### `POST /api/import/directory`
 
 `multipart/form-data` → `200 { report }`. The folder itself.
@@ -663,6 +709,15 @@ an `onConflict` field is optional and means what it does on the sweep.
 bytes are *declared*: listed, reported, and never read. That is what keeps
 *nothing is silently dropped* true across a transport that deliberately does not
 carry everything.
+
+**An optional `chats` field says what the person chose**, when the plan offered
+chats. `skip`: they declined, and each chat named in the manifest and not sent is
+a `skipped` row with `import.chat.notChosen` — not declared, not unreadable.
+`include`: they chose them, so a chat named and not sent is one the plan's budget
+left out, and is `skipped` with `import.chat.overLimit` carrying the limit. No
+field takes whatever arrived. Chat files that did arrive become sessions in a
+pass after the library's, so each resolves against the cards that came in beside
+it, and each is one row as on [`POST /api/import/file`](#post-apiimportfile).
 
 - `400 {"error":"no-manifest"}` — a folder upload without its manifest.
 - `413 {"error":"too-large"}` — **the whole folder** past `limits.maxUploadMb`,
@@ -2120,7 +2175,7 @@ make it silently never have happened.
 event: snapshot     { sessionId, job, turn, text, cursor }   once, at open
 id: <jobId>.<seq>
 event: progress     { jobId, seq, key, params, at }          durable, sequenced
-event: delta        { jobId, text }                          ephemeral — no id
+event: delta        { jobId, text, message? }                ephemeral — no id
 event: overflow     { cursor }                               then the stream ends
 event: error        { error }                                a class, never a message
 : keepalive
@@ -2146,6 +2201,19 @@ the record cannot disagree about *why* something was refused.
 **Deltas are not durable and carry no id.** A reattach may see coalesced text
 rather than every delta that painted it live, which [P2 §2.10](design/workplan/08-p2-implementation.md)
 states as the trade; the snapshot's `text` is what makes that lossless.
+
+**`message` is which of the turn's messages a delta belongs to** — added at
+[P13.2](design/workplan/30-p13-scene-and-session-import.md), for a round under
+`per-actor` dispatch, where each speaker's call streams into a message of its
+own. It is the index into the turn's `output.messages`, and `call.started` and
+`call.streaming` carry the same `message` in their `params`. It is **absent**
+on a narrator's text and on the blank line the server sends between two
+speakers, so a client that appends every delta's `text` to one string — every
+client written before it — still ends with the turn's `output.text`, and a
+client that paints messages separately skips the deltas without one while a
+round is streaming. A reply is cleaned when its call completes, so the
+committed message can be shorter than what streamed; the draft and the turn
+say what was kept.
 
 The stream authenticates by cookie and requires no CSRF header, because that is
 what `EventSource` can do — it sends cookies and cannot set headers. Nothing may
