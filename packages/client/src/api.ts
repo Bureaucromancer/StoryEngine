@@ -2826,6 +2826,11 @@ export function importSessionDocument(document: unknown): Promise<{
   sessionId: string;
   turns: number;
   renditions: number;
+  /**
+   * The links the session names that resolve to nothing on this install — its
+   * cast and books live where it was exported ([P13.10]). Reported, and kept.
+   */
+  missing: { cast: string[]; lore: string[]; treatment: string[] };
 }> {
   return request('POST', '/api/sessions/import', document);
 }

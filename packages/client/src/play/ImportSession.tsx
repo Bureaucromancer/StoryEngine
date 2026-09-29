@@ -40,6 +40,8 @@ const WORDS = labels('sessions.import', {
   unreadable: 'That file is not a session export this build can read.',
   wrongSchema: 'That is a StoryEngine file of another kind.',
   noTurns: 'That export has no turns in it.',
+  brokenTree:
+    'That export’s turns do not make a story: one names a turn before it that is not in the file.',
   alreadyHere:
     'That session is already here. A copy of it would share its turns, so it is not loaded twice.',
   failed: 'The session could not be loaded.',
@@ -100,9 +102,11 @@ export function ImportSession(): JSX.Element {
                 setBusy(false);
                 /**
                  * **A class into a sentence, here** — [21 §1.4]. The server
-                 * sends `unreadable`, `wrong-schema`, `no-turns` or
-                 * `already-here`, and each has its own remedy: a broken file,
-                 * the wrong file, a file that is right and empty, and a
+                 * sends `unreadable`, `wrong-schema`, `no-turns`,
+                 * `broken-tree` or `already-here`, and each has its own
+                 * remedy: a broken file, the wrong file, a file that is right
+                 * and empty, a file whose turns name a parent it does not hold
+                 * (a hand edit, or a producer's defect — [P13.10]), and a
                  * session this install already holds.
                  *
                  * ***Read from `ApiError.code`*** (2026-09-27). This read
@@ -121,11 +125,13 @@ export function ImportSession(): JSX.Element {
                     ? WORDS.wrongSchema
                     : code === 'no-turns'
                       ? WORDS.noTurns
-                      : code === 'unreadable'
-                        ? WORDS.unreadable
-                        : code === 'already-here'
-                          ? WORDS.alreadyHere
-                          : WORDS.failed,
+                      : code === 'broken-tree'
+                        ? WORDS.brokenTree
+                        : code === 'unreadable'
+                          ? WORDS.unreadable
+                          : code === 'already-here'
+                            ? WORDS.alreadyHere
+                            : WORDS.failed,
                 );
               },
             );

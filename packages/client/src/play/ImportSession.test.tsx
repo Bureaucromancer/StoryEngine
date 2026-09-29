@@ -78,4 +78,18 @@ describe('a session file that cannot be loaded', () => {
 
     expect(await screen.findByText('That is a StoryEngine file of another kind.')).toBeTruthy();
   });
+
+  /** [P13.10]'s new class: a file whose turns name a parent it does not hold. */
+  it('says a broken tree is one', async () => {
+    importSessionDocument.mockRejectedValue(new ApiError(422, 'broken-tree', 'broken-tree'));
+    const input = renderPicker();
+
+    await choose(input, JSON.stringify({ schema: 'storyengine.session-export/1' }));
+
+    expect(
+      await screen.findByText(
+        'That export’s turns do not make a story: one names a turn before it that is not in the file.',
+      ),
+    ).toBeTruthy();
+  });
 });

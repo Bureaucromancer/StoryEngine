@@ -92,13 +92,15 @@ export function turnText(turn: Turn): string {
 
 export function indexSession(db: DatabaseSync, owner: string, session: SessionFile): void {
   db.prepare(
-    `insert into session (session_id, owner, name, head_turn_id, archived, updated_at)
-       values (?, ?, ?, ?, ?, ?)
+    `insert into session (session_id, owner, name, head_turn_id, archived, updated_at,
+                          origin_filename)
+       values (?, ?, ?, ?, ?, ?, ?)
        on conflict(session_id) do update set owner = excluded.owner,
                                              name = excluded.name,
                                              head_turn_id = excluded.head_turn_id,
                                              archived = excluded.archived,
-                                             updated_at = excluded.updated_at`,
+                                             updated_at = excluded.updated_at,
+                                             origin_filename = excluded.origin_filename`,
   ).run(
     session.id,
     owner,
@@ -106,6 +108,7 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
     session.headTurnId,
     session.archivedAt === undefined ? 0 : 1,
     session.updatedAt,
+    originFilenameOf(session),
   );
 
   /**
@@ -130,6 +133,57 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
     ...(session.cast?.actors ?? []),
     ...(session.lore ?? []),
   ]);
+}
+
+/**
+ * ***The key an imported session is found by again, or null*** —
+ * [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * The library's rule read off the session's own record: `source: 'import'`
+ * and a filename, the two fields `findPriorImport` reads from an object's
+ * `provenance` ([P4 §1.3]). **Shape-guarded**, because `readSession`
+ * validates nothing past the id and a hand-edited `origin` reaches here; a
+ * value that is not the shape is no key, which is what it was before this
+ * column existed.
+ */
+function originFilenameOf(session: SessionFile): string | null {
+  const origin = (session as { origin?: unknown }).origin;
+  if (typeof origin !== 'object' || origin === null) return null;
+  const { source, originalFilename } = origin as Record<string, unknown>;
+  if (source !== 'import') return null;
+  return typeof originalFilename === 'string' && originalFilename !== '' ? originalFilename : null;
+}
+
+/**
+ * ***The session of this owner that an earlier import of this source made***,
+ * or null — [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md),
+ * the session half of `findPriorImport`.
+ *
+ * **Per owner**, as the library's rule is and for its reason: two accounts
+ * importing one Aventuras database are two people with a story each, and
+ * telling the second that the first already has it would say something about
+ * an account it cannot see. *Archived sessions count* — archiving hides a
+ * session from a list and does not remove it ([03 §10.3]), so an import that
+ * made a second copy beside an archived one would be a duplicate somebody
+ * finds later. A session in the trash has no row and does not count; see the
+ * importer's header for what that costs.
+ *
+ * Ordered by id so that two sessions carrying one key — which only a hand
+ * copy can make — answer the same one every time.
+ */
+export function sessionImportedFrom(
+  db: DatabaseSync,
+  owner: string,
+  originalFilename: string,
+): { sessionId: string; name: string } | null {
+  const row = db
+    .prepare(
+      `select session_id, name from session
+        where owner = ? and origin_filename = ?
+        order by session_id limit 1`,
+    )
+    .get(owner, originalFilename) as { session_id: string; name: string } | undefined;
+  return row === undefined ? null : { sessionId: row.session_id, name: row.name };
 }
 
 /**
@@ -393,7 +447,7 @@ export function sessionHoldingTurns(db: DatabaseSync, turnIds: Iterable<string>)
 export function sessionSnapshot(db: DatabaseSync): string[] {
   const sessions = db
     .prepare(
-      `select session_id, owner, name, head_turn_id, archived, updated_at
+      `select session_id, owner, name, head_turn_id, archived, updated_at, origin_filename
          from session order by session_id`,
     )
     .all() as Record<string, unknown>[];

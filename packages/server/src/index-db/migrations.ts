@@ -81,8 +81,21 @@ import type { DatabaseSync } from 'node:sqlite';
  * reads (*[Picture, not described]*) and are now indexed as their captions
  * only ([25 E15]), because search is read by a person. Turns written before
  * pictures index exactly as they did; the bump is for the ones written since.
+ *
+ * **12 adds `session.origin_filename`** (2026-09-29, [P13.10]) — the key a
+ * session producer's re-import is found by, which is a session's
+ * `origin.originalFilename` as the library's is an object's
+ * `provenance.originalFilename`. 6's shape and 6's argument: a new column, and
+ * an index left at 11 would not have it, so the first `indexSession` after an
+ * upgrade would fail on an insert naming a column the table does not have —
+ * every session write on the install, not only an import. *Why a column when
+ * the library's own key is read out of `body` with `json_extract`*
+ * (`findPriorImport`): a session row caches no body, so there is nothing to
+ * extract from, and the alternative — opening every `session.json` an account
+ * holds to answer *is this story here* — is the walk this index exists to
+ * replace.
  */
-export const INDEX_SCHEMA_VERSION = 11;
+export const INDEX_SCHEMA_VERSION = 12;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -222,10 +235,18 @@ create table session (
   -- gone ([03 §10.3](../../../../docs/design/03-data-model.md)) — and a search that could not
   -- find them would make archiving a way to lose things.
   archived      integer not null default 0,
-  updated_at    text not null
+  updated_at    text not null,
+  -- Where an imported session came from, in its source's own terms —
+  -- \`origin.originalFilename\`, e.g. \`aventura.db/stories/<id>\` ([P13.10]).
+  -- Null for every session made here, and for an import that named no source.
+  -- A producer's re-import is found by it, per owner, as a library object's is
+  -- by its provenance ([P4 §1.3]); derived from \`session.json\` like every
+  -- other column here, so a rebuild writes it back.
+  origin_filename text
 ) strict;
 
 create index session_by_owner on session(owner, updated_at);
+create index session_by_origin on session(owner, origin_filename);
 
 -- ── What the last look at a session saw ──────────────────────────────────────
 --
