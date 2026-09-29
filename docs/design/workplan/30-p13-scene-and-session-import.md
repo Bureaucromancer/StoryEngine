@@ -1171,31 +1171,92 @@ slightly wrong; each is recorded where the code carries its argument.
   the macro exists for. `{{group}}` is the whole cast, muted included, and
   `{{charIfNotGroup}}` its alias, as in ST. The three are always in the
   namespace, counted from `char` — the speaker on a speaking call, the first of
-  the cast otherwise (`assembly/template.ts`).
+  the cast otherwise (`assembly/template.ts`). *Review, 2026-09-29*: on a call
+  that speaks for nobody, `{{notChar}}` is the persona alone — ST's solo-chat
+  meaning. Counted from the first of the cast it named everyone but them, and
+  it reaches narrator calls, because the importer keeps an ST preset's
+  `{{notChar}}` as written; before P13.2 it rendered empty there. So narrator
+  output is byte-identical for a pack that never spells it, and a pack that
+  does now reads the persona (`assembly/collect.ts`, `renderContextOf`, pinned
+  in `collect.test.ts`).
 - **The speaker's cards come first, and that is ours, not ST's.** §1.4 calls
   it ST's `APPEND` without the string-joining, but `APPEND` joins in member
   order and drops muted members unless the group says `APPEND_DISABLED`
   (`group-chats.js:549-558`); here every card stays and only the order moves.
+  *Review, 2026-09-29*: **muted (presence-`false`) members' cards are kept
+  too**, which contradicts §1.4's *"every present card"* (presence as §1.3
+  defines it) and §1.10's *"what they see is ST's"* — ST's `collectField` and
+  Marinara's `resolveActiveCharacterIds` both leave a muted member out. It is
+  so because the collector reads no presence, and Scene declares no
+  `castIsPresent` until P13.3, so *muted* cannot yet be told from *no presence
+  value*; [00 §2.10] argues for the other members' cards, not the muted ones.
+  **An open decision for [P13.3]**: filter non-speakers whose presence reads
+  `false` (keeping a muted speaker, as ST's `characterId !== index` exemption
+  keeps a force-talked one), or correct §1.4 to *"every card"* with a reason.
 - **The two block scopes partition the cast on every call**: `speaker` is
   nobody on a call that speaks for nobody, and `others` is everyone. `samples`
   takes a scope too, for its actor carrier only, which is what §1.5's
   *"scoped to the speaker"* example dialogue needs (`schema/preset.ts`).
 - **The round is a pseudo-source**, `BlockSource` `round`, placed by the
-  collector after the pack's first input slot (or last, in a pack with none),
-  each message an `assistant` entry priced as the history is.
+  collector after ~~the pack's first input slot~~ the input slot that applies
+  to this turn, or the first input slot when none does (or last, in a pack
+  with none), each message an `assistant` entry priced as the history is — the
+  history slot's `priority + index` ramp continued past the window's newest
+  turn, so the round is chat, trimmed before the cards and the instruction as
+  ST trims chat before card fields. *Review, 2026-09-29*: placed after the
+  first slot, a Freeform-shaped pack (a slot per input kind) showed a later
+  speaker the earlier replies before the move they answer; priced from the
+  input slot, the round outranked every block in the pack.
 - **Cleanup cuts at the persona's line too** — ST's `trimWrongNames`
   (`script.js:6433-6457`) — cuts before it strips, which is ST's order, and runs
   under `per-actor` only: under `merged` *"nothing splits it"* (`turns/cleanup.ts`).
+  It strips the speaker's `Name:` from the start of **every** line, as ST's
+  default per-line pass does (`script.js:6494-6497`) — ~~a leading one~~,
+  corrected at the review, 2026-09-29. A reply cleaned to nothing stays an
+  empty message with its `original`, and `output.text` leaves it out
+  (`joinMessageTexts` skips empty messages).
+- **A merged speaking call resolves with no hint** (review, 2026-09-29). Scene's
+  embodied `merged` call speaks as the first selected member — prompt and
+  attribution — but [06 §3] consults a card's `modelHint` only under
+  `per-actor`, so the runner passes the dispatch to `planCall` and a speaker
+  implies `actorId` for resolution under `per-actor` alone.
 - **A partial round is the runner's decision.** A speaking call's failure after
   another speaking call of the same step finished is handled as `warn` —
   `StepOutcome.failure` now records how a failure was handled, corrected on the
   type — and the outcome's new `round` says how many messages were kept and who
   was lost. A Stop is never a partial round. What a failed speaker had streamed
-  stays in their message.
+  stays in their message. *Review, 2026-09-29*: §1.4's *"two messages"* holds
+  when the third speaker fails before its first token; a mid-stream stall
+  leaves a third, cut message, kept because the person watched it arrive, and
+  `round.cut` says so (`kept` counts the calls that finished; `lost` is who
+  failed to finish). The kept speakers' lore timing settles as a finished
+  step's would — cooldown, sticky and `fired` for the entries their prompts
+  reached.
+- **Narrator voice ignores `dispatch`.** §1.4 opens on dispatch alone, but
+  everything a speaking call does is an embodied reply's: `{{char}}` as the
+  speaker, the speaker's cards first, the cut at another member's line. A
+  narrator speaks for the scene, not for a member. So a `narrator` session
+  makes one merged call and one `message` whatever `dispatch` says
+  (`modes/scene/src/mode.ts`, `narrate`; pinned in `turns/runner-dispatch.test.ts`,
+  whose narrator case passes `per-actor` explicitly). [06 §3]'s *narrator +
+  per-actor dialogue passes* cell is therefore not built. For [P13.5]: the
+  settings panel either shows dispatch only under embodied voice or says it has
+  no effect under narrator, until a stage defines that cell.
+- **A later speaker's lore scan reads the round** (review, 2026-09-29), as §1.4
+  point 2's *"the history includes this turn's earlier messages"* says and as
+  ST re-scans each member's generation over the chat holding the last reply
+  (`group-chats.js:1051`, `script.js:4565`): `RetrieveContext.round`, newest
+  first ahead of the input, so the previous reply is the scan's latest message.
 - **The stream says which message**: `call.started`, `call.streaming` and the
   `delta` frame carry `message: n`, and the blank line between two speakers is
   a delta without one, so a client that appends every delta still paints
-  `output.text` ([api.md](../../api.md)).
+  `output.text` ([api.md](../../api.md)) — up to cleanup: a reply that settles
+  shorter than it streamed rebases the bus's live cell on the draft, so a
+  reattach sees the cleaned text, while a client already appending keeps the
+  raw text until the turn lands (review, 2026-09-29).
+- **Three design notes state the old shapes, and carry dated corrections**:
+  [21 §1.1]'s `BlockSource` (the `round` arm), [04 §8.2]'s slot sources (the
+  `scope` field) and [19]'s template namespace (five names).
 
 *Left for [P13.3]:* the pack's wording (naming the speaker as the one to write,
 the group nudge); names in history, which prefixes the round's entries as it

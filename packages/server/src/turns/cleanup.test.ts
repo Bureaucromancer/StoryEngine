@@ -20,6 +20,12 @@ describe('cleanReply', () => {
     expect(cleanReply('  Vera :\n"You came."', 'Vera', OTHERS)).toBe('"You came."');
   });
 
+  it("strips the speaker's label from every line, not the first — ST script.js:6494-6497", () => {
+    expect(cleanReply('Vera: "You came."\nVera: "Sit."', 'Vera', OTHERS)).toBe(
+      '"You came."\n"Sit."',
+    );
+  });
+
   it("cuts at the first line opened by another member's name — ST script.js:3131-3137", () => {
     expect(cleanReply('"You came."\nShe set the glass down.\nLund: "Aye."', 'Vera', OTHERS)).toBe(
       '"You came."\nShe set the glass down.',
@@ -56,9 +62,10 @@ describe('cleanReply', () => {
   it('is exact about names: case, prefixes and the speaker’s own namesake', () => {
     expect(cleanReply('"Fine."\nlund: "aye."', 'Vera', OTHERS)).toBe('"Fine."\nlund: "aye."');
     expect(cleanReply('"Fine."\nLunda: "No."', 'Vera', OTHERS)).toBe('"Fine."\nLunda: "No."');
-    // Two members who share a name do not cut each other's replies.
+    // Two members who share a name do not cut each other's replies — the line
+    // is the speaker's own, and loses its label as every such line does.
     expect(cleanReply('"Fine."\nVera: "Again."', 'Vera', ['Vera', 'Lund'])).toBe(
-      '"Fine."\nVera: "Again."',
+      '"Fine."\n"Again."',
     );
   });
 

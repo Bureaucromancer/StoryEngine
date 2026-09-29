@@ -78,17 +78,28 @@ type BlockSource =
    *  and this is the one that is happening. With `part: "attachment"`, one
    *  picture on it ([25 E15]); absent is the words. */
   | { kind: "input"; part?: "attachment"; attachmentId?: string }
-  // ── The two a slot can never name, because no preset positions them ──
+  // ── ~~The two~~ The three a slot can never name, because no preset positions them ──
   | { kind: "preset"; blockId: string }   // a TextBlock: authored prose
   | { kind: "step"; stepId: StepId }      // contributed at runtime
+  /** ([P13.2](workplan/30-p13-scene-and-session-import.md), corrected
+   *  2026-09-29.) One reply of a round that has not been committed yet — an
+   *  earlier speaking call of this turn — placed by the collector after the
+   *  input and never by a pack. `message` is its index into the turn's
+   *  `output.messages`; `actorId` who said it, null for a narrator's. */
+  | { kind: "round"; message: number; actorId: ActorId | null }
 ```
 
 **`preset` and `step` are the asymmetry**, and naming it is the point. A slot
 positions content the engine produces, so it can never point at "the preset's own
 prose" — that is a `TextBlock`, which *is* a block rather than a reference to
 one. Likewise a step's contribution has no slot because it did not exist when the
-preset was authored. `SlotSource` is therefore **`BlockSource` minus those two**,
-which is a derivation rather than a second list.
+preset was authored. `SlotSource` is therefore **`BlockSource` minus those
+~~two~~ three**, which is a derivation rather than a second list. *Corrected
+2026-09-29, at [P13.2](workplan/30-p13-scene-and-session-import.md)*: `round`
+is the third, and cannot be slot-named for the reason a step's contribution
+cannot — the replies do not exist when the pack is authored — and for one more:
+every pack written before P13.2 positions no such slot, and a round a pack had
+to opt into would be a round in which each member answered the player alone.
 
 **`guidance` and `input` were added at P2.5, and their absence was a real
 gap rather than an omission.** [06 §5.1](06-modes-and-turn-pipeline.md) says the guidance

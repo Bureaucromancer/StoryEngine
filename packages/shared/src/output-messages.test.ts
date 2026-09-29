@@ -39,6 +39,17 @@ describe('joinMessageTexts', () => {
     expect(joinMessageTexts([{ speaker: null, text: 'Only this.' }])).toBe('Only this.');
     expect(joinMessageTexts([])).toBe('');
   });
+
+  it('leaves out a message that said nothing, so no blank line doubles', () => {
+    // A per-actor reply cleanup cut to nothing ([P13.2] review, 2026-09-29).
+    expect(
+      joinMessageTexts([
+        { speaker: null, text: 'A' },
+        { speaker: null, text: '', original: 'Ned: "Enough."' },
+        { speaker: null, text: 'C' },
+      ]),
+    ).toBe('A\n\nC');
+  });
 });
 
 describe('outputFromMessages', () => {

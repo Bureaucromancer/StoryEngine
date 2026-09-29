@@ -147,15 +147,38 @@ export class TurnStream implements EventSink {
    * belongs only to the turn's joined text** — a narrator's reply, which is not
    * a message of its own until it lands, and the blank line the runner sends
    * between two speakers so that a reader appending every piece to one string
-   * (this class's `#live`, and every client written before P13.2) builds the
-   * same `output.text` the turn will commit. A per-message reader skips those;
-   * a joined-text reader needs no change at all.
+   * (this class's `#live`, and every client written before P13.2) builds ~~the
+   * same `output.text` the turn will commit~~ the turn's `output.text` up to
+   * cleanup (*corrected 2026-09-29, at the [P13.2] review*): a speaker's reply
+   * can settle shorter than it streamed, and the joined pieces keep what was
+   * cut. `#live` is put right by {@link TurnStream.rebase} when that happens; a
+   * client already appending keeps the raw text until the turn lands. A
+   * per-message reader skips the unindexed pieces; a joined-text reader needs
+   * no change at all.
    */
   delta(sessionId: string, jobId: string, text: string, message?: number): void {
     this.#live.set(jobId, (this.#live.get(jobId) ?? '') + text);
     this.#each(sessionId, (listener) => {
       listener.onDelta(jobId, text, message);
     });
+  }
+
+  /**
+   * ***Replaces a job's accumulated text with the round's settled text*** —
+   * [P13.2] review, 2026-09-29.
+   *
+   * The live cell is what a reattaching client's snapshot is built from, and
+   * attach prefers it to the draft. Once cleanup has shortened a speaker's
+   * reply, the raw pieces joined here say what the draft no longer does — a
+   * cut line written for somebody else — so the runner rebases the cell on the
+   * draft's `output.text` whenever a reply settles changed. **The cell follows
+   * the round's settled text, not the raw stream**; later deltas append to it
+   * as before. Nothing is sent: a listener already attached has its own copy,
+   * and the committed turn corrects it. A job with no cell is left alone, so a
+   * late rebase cannot resurrect text `publish` or `forget` already dropped.
+   */
+  rebase(jobId: string, text: string): void {
+    if (this.#live.has(jobId)) this.#live.set(jobId, text);
   }
 
   live(jobId: string): string | null {

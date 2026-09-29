@@ -1033,9 +1033,15 @@ export interface StepOutcome {
    *
    * Present on a failed outcome whose failure was a **speaking call** — one that
    * named a `speaker` — made after at least one earlier speaking call of the
-   * same step had finished. `kept` is how many messages of the round survived,
-   * counted up to the one that failed; `lost` is who did not get to answer,
-   * which is the fact a person looking at a two-message round needs first and
+   * same step had finished. `kept` ~~is how many messages of the round
+   * survived, counted up to the one that failed~~ counts the speaking calls that
+   * finished; `lost` is ~~who did not get to answer~~ who failed to finish
+   * (*corrected 2026-09-29, at the [P13.2] review*). **When the lost speaker had
+   * already streamed words, those follow as one more message under their
+   * name**, cleaned as a finished reply is, and `cut` says so — kept because
+   * they are what the person watched arrive, and marked because nothing on the
+   * message itself says it stops mid-sentence. `lost` is the fact a person
+   * looking at a short round needs first, and
    * which `error` — a class and an English sentence for the log — cannot say
    * in a way the workbench can put a name to.
    *
@@ -1050,7 +1056,7 @@ export interface StepOutcome {
    * step's declared policy applies as it always has — an `abort` is a failed
    * turn. Optional under the [P11.10] freeze, like every field this record grows.
    */
-  round?: { kept: number; lost: Ref };
+  round?: { kept: number; lost: Ref; cut?: true };
 }
 
 /**

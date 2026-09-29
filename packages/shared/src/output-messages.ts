@@ -47,7 +47,18 @@ export const BETWEEN_MESSAGES = '\n\n';
  * stands, and a reader of `text` is reading the round.
  */
 export function joinMessageTexts(messages: readonly OutputMessage[]): string {
-  return messages.map((message) => message.text).join(BETWEEN_MESSAGES);
+  /**
+   * ***An empty message is nobody speaking*** (2026-09-29, the [P13.2] review),
+   * and is left out of the join. A per-actor reply cleanup cut to nothing — one
+   * that opened as another member — stays on the record with its words as
+   * `original`, but it said nothing, and joining it put a doubled blank line in
+   * `text` that no reader of `text` could explain. The collector's round
+   * (`roundCandidates`) skips it for the same reason.
+   */
+  return messages
+    .filter((message) => message.text.length > 0)
+    .map((message) => message.text)
+    .join(BETWEEN_MESSAGES);
 }
 
 /**
@@ -68,8 +79,10 @@ export function joinMessageTexts(messages: readonly OutputMessage[]): string {
 export function outputFromMessages(
   messages: readonly OutputMessage[],
 ): NonNullable<Turn['output']> {
+  // By the rule `text` joins by: a message that said nothing contributes no
+  // thinking either, so the two projections agree about who spoke.
   const thought = messages.flatMap((message) =>
-    message.reasoning === undefined ? [] : [message.reasoning],
+    message.reasoning === undefined || message.text.length === 0 ? [] : [message.reasoning],
   );
   return {
     text: joinMessageTexts(messages),

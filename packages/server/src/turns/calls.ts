@@ -171,6 +171,20 @@ export interface CallContext {
    * preference, and a step cannot pass a preference its actor does not hold.
    */
   cast?: { persona: CastMember | null; actors: readonly CastMember[] };
+  /**
+   * ***The session's dispatch, so a speaking call knows whether its speaker's
+   * hint applies*** — [P13.2], [06 §3].
+   *
+   * 06 §3 consults an actor's `modelHint` *only under `per-actor`*: a merged
+   * reply is the scene's, whoever it is attributed to, and a card asking for a
+   * model of its own has no claim on a call that voices the whole cast. Scene's
+   * embodied `merged` call still passes a `speaker` — the first selected
+   * member's, so the prompt is scoped to them and the message is theirs — and
+   * without this the first member's card would quietly choose the model for
+   * everybody. Absent reads as *not per-actor*, which is every caller that is
+   * not a turn's step.
+   */
+  dispatch?: 'merged' | 'per-actor';
   providers: ProviderFactory;
   config: Config;
   /**
@@ -423,12 +437,18 @@ export function planCall(
    * the `actorId` P7.3 built for exactly this layer, so the member a call speaks
    * as is the member whose card's hint applies. The runner has already refused
    * a request naming two different actors, so at most one of these is a choice.
+   *
+   * *Under `per-actor` only* (2026-09-29, [P13.2] review): 06 §3 consults a
+   * hint only there, so a merged speaking call — Scene's embodied `merged`
+   * reply, attributed to its first member but voicing the scene — resolves
+   * with no hint, as every merged call did before it. An explicit `actorId` is
+   * the step asking for that actor's preference outright and still gets it.
    */
   const resolution = resolveStepRole(
     context,
     definition,
     definition.role,
-    request.speaker ?? request.actorId,
+    request.actorId ?? (context.dispatch === 'per-actor' ? request.speaker : undefined),
   );
   if (!resolution.ok) throw new RoleUnresolved(definition.role, resolution.reason);
 

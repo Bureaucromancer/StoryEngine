@@ -277,9 +277,13 @@ export interface StepInput {
    *
    * Actor ids, in the order the policy chose them, over whoever presence and
    * status say is available. A step that makes one merged call can ignore it; a
-   * step that speaks for somebody passes one of these as
+   * ~~step that speaks for somebody passes one of these as
    * `StepCallRequest.actorId`, which is how an actor reaches `resolveRole`'s
-   * last layer.
+   * last layer.~~ step that speaks for somebody passes one of these as
+   * `StepCallRequest.speaker` (*corrected 2026-09-29, at [P13.2]*), which
+   * implies the `actorId` that reaches `resolveRole`'s last layer under
+   * `per-actor` dispatch. Scene's embodied `merged` call does not ignore the
+   * list either: it speaks as the first entry, one call for the scene.
    *
    * **Not filtered by `reads`, and the exception is principled.** [22 §3.1]'s
    * payload filter is about *sources* — a channel, the history, the output —
@@ -510,9 +514,15 @@ export interface StepCallRequest {
    * could pass one the card does not carry. Passing an *id* keeps the card the
    * only source.
    *
-   * **Absent is a merged call**, which is what `dispatch: 'merged'` means and
+   * ~~**Absent is a merged call**, which is what `dispatch: 'merged'` means and
    * what every shipped step does: one reply for the scene, spoken by nobody in
-   * particular, resolved with no hint. ~~`per-actor` dispatch is a mode fanning
+   * particular, resolved with no hint.~~ *Corrected 2026-09-29, at [P13.2]*: a
+   * call with neither `actorId` nor `speaker` is the narrator's or an embodied
+   * merged call with nobody selected, and resolves with no hint. Scene's
+   * speaking calls pass `speaker` — its embodied `merged` one too, for the
+   * first selected member — which implies this field under `per-actor`
+   * dispatch only: a merged speaking call still resolves with no hint, since
+   * [06 §3] consults one only under `per-actor`. ~~`per-actor` dispatch is a mode fanning
    * this out — the mode half is [P7.9]'s, since no shipped mode declares it, but
    * the engine half is here and works for a single call just as well.~~
    * *Corrected 2026-09-29, at [P13.2]*: [P7.9] never built the mode half, and a
@@ -542,14 +552,18 @@ export interface StepCallRequest {
    *    on the turn's output, attributed to the speaker, and the live events
    *    carry that message's index. When it completes under the session's
    *    `per-actor` dispatch, a leading `Name:` is stripped and the text is cut
-   *    where another member's line begins, as both sources clean a group
+   *    where another member's line, or the persona's, begins (ST's
+   *    `trimWrongNames`), as both sources clean a group
    *    reply; the result's `text` is the cleaned reply, and `original` says it
    *    was cleaned. Under `merged` the one reply may voice several members,
    *    so nothing is cut.
    *
-   * *And the model role resolves for the speaker* exactly as `actorId` does —
-   * a speaking call implies that `actorId`, and one that names a different
-   * `actorId` beside it is refused rather than guessed at. *A speaking call
+   * *And under `per-actor` dispatch the model role resolves for the speaker*
+   * exactly as `actorId` does — a speaking call implies that `actorId`, and one
+   * that names a different `actorId` beside it is refused rather than guessed
+   * at. Under `merged` the speaker's hint is not consulted ([06 §3]: a hint
+   * applies only under `per-actor`; 2026-09-29, [P13.2] review), since the one
+   * reply is the scene's whoever it is attributed to. *A speaking call
    * that brings its own `candidates`* is assembled from those alone, as any
    * call that brings them is: points 1 and 2 are the preset's collection, and
    * the preset is not consulted. Point 3 still holds.

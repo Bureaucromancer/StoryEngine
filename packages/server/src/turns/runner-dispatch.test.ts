@@ -6,7 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, type Actor, type OutputMessage } from '@storyengine/shared';
+import {
+  newActor,
+  newLorebook,
+  newLoreEntry,
+  type Actor,
+  type OutputMessage,
+} from '@storyengine/shared';
 
 import { Accounts } from '../auth/accounts.js';
 import { DEFAULT_CONFIG } from '../config.js';
@@ -15,6 +21,7 @@ import { create, type LibraryContext } from '../library.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
 import { SE_PRESENCE } from '../sessions/cast.js';
+import { SE_LORE_TIMING } from '../sessions/channels.js';
 import { readAllTurns } from '../sessions/segments.js';
 import {
   createSession,
@@ -260,10 +267,12 @@ async function chat(
     dispatch?: SessionFile['dispatch'];
     policy?: NonNullable<SessionFile['speakers']>['policy'];
     persona?: Actor;
+    lore?: string[];
   } = {},
 ): Promise<string> {
   const session = await createSession(sessions, ACCOUNT, {
     name: 'Chat',
+    ...(settings.lore === undefined ? {} : { lore: settings.lore }),
     cast: { persona: settings.persona?.id ?? null, actors: members.map((member) => member.id) },
     voice: settings.voice ?? 'embodied',
     dispatch: settings.dispatch ?? 'per-actor',
@@ -283,6 +292,14 @@ async function chat(
 /** Who spoke each message, by name. */
 function speakersOf(turn: Turn): (string | null)[] {
   return (turn.output?.messages ?? []).map((message) => message.speaker?.name ?? null);
+}
+
+/** A book with one entry that cools for three turns once it fires. */
+async function cooling(key: string, content: string): Promise<string> {
+  const book = newLorebook('Rain City');
+  book.entries = [{ ...newLoreEntry('The Ferryman'), keys: [key], content, cooldown: 3 }];
+  await create(library, ACCOUNT, book);
+  return book.id;
 }
 
 /** Everything a request sent after the player's words, joined as a reader sees it. */
@@ -449,6 +466,103 @@ describe('a per-actor round', () => {
     expect(afterInput(2, 'Well?')).toBe('assistant: "You came."\n\n"I owe you nothing."');
     expect(turn.output?.text).toBe('"You came."\n\n"I owe you nothing."\n\n"Aye."');
   });
+
+  /**
+   * ***The live cell follows the settled text*** (2026-09-29, the [P13.2]
+   * review) — attach prefers it to the draft, so a client reattaching after
+   * Marlow settled must not be shown the lines cleanup took out.
+   */
+  it('rebases the live text on the draft when cleanup shortens a reply', async () => {
+    makeRunner([
+      { text: '"You came."' },
+      { text: '"I owe you nothing."\nNed: "Enough."' },
+      { text: '"Aye."' },
+    ]);
+    const persona = await actor('Ned', 'A tired investigator.');
+    const vera = await actor('Vera', 'A fence.');
+    const marlow = await actor('Marlow', 'Owes somebody money.');
+    const lund = await actor('Lund', 'The harbourmaster.');
+    const sessionId = await chat([vera, marlow, lund], { persona });
+
+    const seen: { live: string | null; draft: string | undefined }[] = [];
+    const detach = bus.subscribe(sessionId, {
+      onEvents: (jobId, events) => {
+        if (events.some((event) => event.key === 'call.finished')) {
+          seen.push({ live: bus.live(jobId), draft: readDraft(commit, jobId)?.output?.text });
+        }
+      },
+      onDelta: () => undefined,
+      onRendition: () => undefined,
+    });
+    const turn = await play(sessionId, 'Well?');
+    detach();
+
+    expect(seen).toHaveLength(3);
+    for (const one of seen) expect(one.live).toBe(one.draft);
+    expect(seen[1]?.live).not.toContain('Ned:');
+    expect(seen[2]?.live).toBe(turn.output?.text);
+  });
+
+  /**
+   * ***A reply cleaned to nothing is kept, and says nothing*** (2026-09-29, the
+   * [P13.2] review) — on the record under the speaker's name with the model's
+   * words as `original`, out of `output.text` and out of the next prompt.
+   */
+  it('keeps a reply cleanup emptied as an empty message, and joins around it', async () => {
+    makeRunner([{ text: 'A' }, { text: 'Ned: "Enough."' }, { text: 'C' }]);
+    const persona = await actor('Ned', 'A tired investigator.');
+    const vera = await actor('Vera', 'A fence.');
+    const marlow = await actor('Marlow', 'Owes somebody money.');
+    const lund = await actor('Lund', 'The harbourmaster.');
+    const sessionId = await chat([vera, marlow, lund], { persona });
+
+    const deltas: string[] = [];
+    const detach = bus.subscribe(sessionId, {
+      onEvents: () => undefined,
+      onDelta: (_jobId, text) => deltas.push(text),
+      onRendition: () => undefined,
+    });
+    const turn = await play(sessionId, 'Well?');
+    detach();
+
+    expect(turn.output?.messages?.[1]).toEqual({
+      speaker: { id: marlow.id, name: 'Marlow' },
+      text: '',
+      original: 'Ned: "Enough."',
+    });
+    // One separator: the empty message is nobody speaking.
+    expect(turn.output?.text).toBe('A\n\nC');
+    expect(afterInput(2, 'Well?')).toBe('assistant: A');
+    // Two blank lines streamed, one after each reply that had words — the
+    // appended pieces keep Marlow's raw words, which cleanup settles later.
+    expect(deltas.filter((one) => one === '\n\n')).toHaveLength(2);
+  });
+
+  /**
+   * ***A later speaker's lore sees the round*** (2026-09-29, the [P13.2]
+   * review) — as SillyTavern re-scans each member's generation over the chat
+   * holding the previous reply.
+   */
+  it('activates lore on what an earlier speaker said this turn', async () => {
+    makeRunner([{ text: '"The ferryman is late."' }, { text: '"Aye."' }]);
+    const vera = await actor('Vera', 'A fence.');
+    const lund = await actor('Lund', 'The harbourmaster.');
+    const book = await cooling('ferryman', 'He works the crossing.');
+    const sessionId = await chat([vera, lund], { lore: [book] });
+
+    const turn = await play(sessionId, 'Well?');
+
+    const sent = (at: number): string =>
+      wire(at)
+        .map((one) => one.content)
+        .join('\n');
+    expect(sent(0)).not.toContain('He works the crossing.');
+    expect(sent(1)).toContain('He works the crossing.');
+    // Settled once, by the call whose prompt it reached.
+    const timing = turn.effects.filter((effect) => effect.channelId === SE_LORE_TIMING);
+    expect(timing).toHaveLength(1);
+    expect(timing[0]?.after).toEqual({ sticky: 0, cooldown: 3, fired: 1 });
+  });
 });
 
 /**
@@ -485,6 +599,36 @@ describe('a partial round', () => {
     expect(turn.effects.some((effect) => effect.channelId === 'se.clock')).toBe(true);
     // All three calls are on the record, the third as the failure it was.
     expect(turn.request?.calls.map((call) => call.outcome)).toEqual(['ok', 'ok', 'error']);
+    // Lund failed before his first word: nothing of his is on the turn.
+    expect(narrate?.round?.cut).toBeUndefined();
+  });
+
+  /**
+   * ***The kept speakers' lore settles*** (2026-09-29, the [P13.2] review) —
+   * the turn commits complete, and an entry that reached a kept reply's prompt
+   * starts its cooldown as it would had the step finished.
+   */
+  it("settles the lore the kept speakers' prompts reached", async () => {
+    makeRunner([{ text: '"You came."' }, { text: '"I owe you nothing."' }, { error: FAILED }]);
+    const vera = await actor('Vera', 'A fence.');
+    const marlow = await actor('Marlow', 'Owes somebody money.');
+    const lund = await actor('Lund', 'The harbourmaster.');
+    const book = await cooling('ferryman', 'He works the crossing.');
+    const sessionId = await chat([vera, marlow, lund], { lore: [book] });
+
+    const turn = await play(sessionId, 'The ferryman?');
+
+    expect(turn.status).toBe('complete');
+    expect(
+      wire(0)
+        .map((one) => one.content)
+        .join('\n'),
+    ).toContain('He works the crossing.');
+    const timing = turn.effects.filter((effect) => effect.channelId === SE_LORE_TIMING);
+    expect(timing.length).toBeGreaterThan(0);
+    expect(timing.at(-1)?.after).toEqual({ sticky: 0, cooldown: 3, fired: 1 });
+    const narrate = turn.steps?.find((step) => step.stepId === 'se.narrate');
+    expect(narrate?.contributed.effects).toBe(timing.length);
   });
 
   it('keeps what a speaker said before the failure cut them off', async () => {
@@ -503,9 +647,11 @@ describe('a partial round', () => {
     // counts the finished ones.
     expect(speakersOf(turn)).toEqual(['Vera', 'Lund']);
     expect(turn.output?.messages?.[1]?.text.length).toBeGreaterThan(0);
+    // And the outcome says the extra message is a cut one.
     expect(turn.steps?.find((step) => step.stepId === 'se.narrate')?.round).toEqual({
       kept: 1,
       lost: { id: lund.id, name: 'Lund' },
+      cut: true,
     });
   });
 
@@ -550,11 +696,38 @@ describe('the other two ways Scene speaks', () => {
     expect(system).toContain('The harbourmaster.');
   });
 
+  /**
+   * ***A merged call is the scene's, and a card's hint does not choose its
+   * model*** — [06 §3] consults a hint *only under `per-actor`*. The call
+   * speaks as Vera for its prompt and its attribution; her card asking for a
+   * cheaper model is not asking on everybody's behalf ([P13.2] review).
+   */
+  it('resolves a merged call with no hint, though it speaks as a member', async () => {
+    makeRunner([{ text: '"You came."' }]);
+    const vera = await actor('Vera', 'A fence.', '', {
+      modelHint: { role: 'prose', preferredModelIds: ['fake-lo'] },
+    });
+    const lund = await actor('Lund', 'The harbourmaster.');
+    const sessionId = await chat([vera, lund], { dispatch: 'merged' });
+
+    const turn = await play(sessionId, 'Well?');
+
+    expect(provider.requests).toHaveLength(1);
+    expect(provider.requests[0]?.modelId).toBe('fake-hi');
+    expect(speakersOf(turn)).toEqual(['Vera']);
+  });
+
+  /**
+   * ***Narrator voice ignores `dispatch`*** — per-actor written explicitly, so
+   * the combination this pins is visible rather than inherited from `chat`'s
+   * default: [06 §3]'s *narrator + per-actor* cell is not built (P13.2
+   * as-built).
+   */
   it('makes one call with no speaker in narrator voice, whoever was selected', async () => {
     makeRunner([{ text: 'Rain on the glass.' }]);
     const vera = await actor('Vera', 'A fence.');
     const lund = await actor('Lund', 'The harbourmaster.');
-    const sessionId = await chat([vera, lund], { voice: 'narrator' });
+    const sessionId = await chat([vera, lund], { voice: 'narrator', dispatch: 'per-actor' });
 
     const turn = await play(sessionId, 'Well?');
 

@@ -2476,10 +2476,36 @@ describe('a call that speaks for somebody', () => {
     it('reads as before for a call that speaks for nobody: char is the first of the cast', () => {
       // `{{char}}` has meant the first cast member since P4.1, and a merged
       // call still means it — the mutation is re-scoping without a speaker.
+      // `notChar` is the persona alone there (2026-09-29, the [P13.2] review):
+      // nobody is speaking, so there is no member to count the others from.
       expect(namesIn({ persona, actors: [vera, marlow, lund] })).toBe(
         'char=Vera|group=Vera, Marlow, Lund|charIfNotGroup=Vera, Marlow, Lund|' +
-          'notChar=Ned, Marlow, Lund|user=Ned',
+          'notChar=Ned|user=Ned',
       );
+    });
+
+    /**
+     * ***An imported pack's `{{notChar}}` on a narrator's call*** — the importer
+     * keeps it as written, and before P13.2 it rendered empty. Counted from
+     * `actors[0]` it would have told the narrator never to write for the
+     * persona and every member but the first; it names the persona, the one
+     * person a narrator must never write for.
+     */
+    it("gives a narrator's call SillyTavern's solo-chat notChar: the persona", () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([
+            block({ kind: 'text', id: 'se.never', template: 'Never write for {{notChar}}.' }),
+          ]),
+          persona,
+          actors: [vera, marlow],
+        }),
+      );
+      expect(candidates.map((one) => one.text)).toMatchInlineSnapshot(`
+        [
+          "Never write for Ned.",
+        ]
+      `);
     });
 
     it('says the one name, not a group, when the cast has one member', () => {
@@ -2513,7 +2539,7 @@ describe('a call that speaks for somebody', () => {
 
     it('reads a speaker the cast does not hold as nobody', () => {
       expect(namesIn({ persona, actors: [vera, marlow], speaker: 'somebody-else' })).toBe(
-        'char=Vera|group=Vera, Marlow|charIfNotGroup=Vera, Marlow|notChar=Ned, Marlow|user=Ned',
+        'char=Vera|group=Vera, Marlow|charIfNotGroup=Vera, Marlow|notChar=Ned|user=Ned',
       );
     });
 
@@ -2676,7 +2702,8 @@ describe('a call that speaks for somebody', () => {
         ['se.after', 'system', 'Stay in the scene.'],
       ]);
       // Its own source, saying which message and whose, and priced as the
-      // history is: oldest cheapest, never required.
+      // history's ramp continued — the history slot's 50, past its one turn —
+      // oldest cheapest, never required.
       expect(candidates[3]?.source).toEqual({ kind: 'round', message: 0, actorId: vera.actor.id });
       expect(candidates[4]?.source).toEqual({
         kind: 'round',
@@ -2684,9 +2711,119 @@ describe('a call that speaks for somebody', () => {
         actorId: marlow.actor.id,
       });
       expect(candidates.slice(3, 5).map((one) => [one.priority, one.required])).toEqual([
-        [100, undefined],
-        [101, undefined],
+        [51, undefined],
+        [52, undefined],
       ]);
+    });
+
+    /**
+     * ***Chat goes before card fields*** (2026-09-29, the [P13.2] review) —
+     * priced from the input slot, the round outranked every block in the pack,
+     * and a tight budget took the speaker's own card before an earlier reply.
+     */
+    it('is dropped before a card when the budget is tight', () => {
+      const { candidates } = collectCandidates(
+        context({
+          preset: preset([
+            block({ kind: 'slot', id: 'se.history', source: { of: 'history' } }),
+            block({
+              kind: 'slot',
+              id: 'se.card',
+              priority: 60,
+              source: { of: 'actor', sectionId: 'se.summary', scope: 'speaker' },
+            }),
+            INPUT,
+            block({ kind: 'text', id: 'se.after', priority: 90, template: 'Stay in the scene.' }),
+          ]),
+          input: { text: 'Well?' },
+          actors: [vera, marlow],
+          speaker: marlow.actor.id,
+          round: [said(vera, '"You came."')],
+        }),
+      );
+      const whole = assemble({ candidates, policy: GENEROUS });
+      const total = whole.blocks.reduce((sum, one) => sum + one.tokens, 0);
+      const tight = assemble({
+        candidates,
+        policy: { limit: { tokens: total - 1, ceiling: total - 1, source: 'user' }, reserved: 0 },
+      });
+      const included = (id: string): boolean | undefined =>
+        tight.blocks.find((one) => one.id === id)?.included;
+      expect(included('se.round.0')).toBe(false);
+      expect(included(`se.card.${marlow.actor.id}`)).toBe(true);
+    });
+
+    /**
+     * ***After the input the turn carried, not the pack's first*** (2026-09-29,
+     * the [P13.2] review) — Freeform's shape: a slot per input kind, each
+     * followed by its instruction. On a `say` turn the `do` slot is skipped, and
+     * a round placed after it came before the move it answers.
+     */
+    describe('in a pack with a slot per input kind', () => {
+      const pack = preset([
+        block({
+          kind: 'slot',
+          id: 'se.input.do',
+          role: 'user',
+          appliesTo: ['do'],
+          source: { of: 'input' },
+        }),
+        block({ kind: 'text', id: 'se.do.after', appliesTo: ['do'], template: 'Narrate it.' }),
+        block({
+          kind: 'slot',
+          id: 'se.input.say',
+          role: 'user',
+          appliesTo: ['say'],
+          source: { of: 'input' },
+        }),
+        block({ kind: 'text', id: 'se.say.after', appliesTo: ['say'], template: 'Answer it.' }),
+      ]);
+
+      it('follows the slot that applied', () => {
+        const { candidates } = collectCandidates(
+          context({
+            preset: pack,
+            inputKind: 'say',
+            input: { text: 'Well?' },
+            actors: [vera, marlow],
+            speaker: marlow.actor.id,
+            round: [said(vera, '"You came."')],
+          }),
+        );
+        expect(candidates.map((one) => one.id)).toEqual([
+          'se.input.say',
+          'se.round.0',
+          'se.say.after',
+        ]);
+      });
+
+      it('follows the first input slot on a turn with no input', () => {
+        const { candidates } = collectCandidates(
+          context({
+            preset: preset([
+              block({
+                kind: 'slot',
+                id: 'se.input.do',
+                role: 'user',
+                appliesTo: ['do'],
+                source: { of: 'input' },
+              }),
+              AFTER,
+              block({
+                kind: 'slot',
+                id: 'se.input.say',
+                role: 'user',
+                appliesTo: ['say'],
+                source: { of: 'input' },
+              }),
+            ]),
+            actors: [vera, marlow],
+            speaker: marlow.actor.id,
+            round: [said(vera, '"You came."')],
+          }),
+        );
+        expect(candidates.map((one) => one.id)).toEqual(['se.round.0', 'se.after']);
+      });
     });
 
     it('stands where the input would have been on a turn with no input', () => {

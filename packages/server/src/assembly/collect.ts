@@ -181,9 +181,10 @@ export interface CollectContext {
    * `{{char}}` becomes the speaker, and the three group names are counted from
    * them ({@link namesAbout}); the speaker's card comes first in every actor
    * block, and a block's `scope` narrows to them or away from them
-   * ({@link castFor}). Every other present card stays — [00 §2.10]'s *"the
-   * assembler is multi-actor from the start"*, which is exactly what
-   * SillyTavern's card-swapping is the opposite of.
+   * ({@link castFor}). Every other ~~present~~ card stays, muted ones too until
+   * [P13.3] reads presence (*corrected 2026-09-29*; see {@link castFor}) —
+   * [00 §2.10]'s *"the assembler is multi-actor from the start"*, which is
+   * exactly what SillyTavern's card-swapping is the opposite of.
    *
    * *An id the cast does not hold is a call that speaks for nobody.* The
    * runner refuses one before it gets here; this reads it the same way the rest
@@ -196,7 +197,8 @@ export interface CollectContext {
    *
    * **Handed in by the runner, which owns them while they stream**, for the
    * reason `attempt` is: a step handed the text could re-emit it as anything.
-   * Placed by {@link collectCandidates} immediately after the input slot as
+   * Placed by {@link collectCandidates} immediately after the input slot that
+   * applies to this turn (the first, when none does) as
    * the model's own lines, so the second speaker answers the first — the pack
    * does not position it and cannot forget it.
    *
@@ -229,23 +231,46 @@ export function collectCandidates(context: CollectContext): Collected {
     [];
   let historyStart: number | null = null;
   let historyCount = 0;
+  // Empty means all — which is what dissolves the eight special-cased
+  // template fields [04 §8.4.3] describes.
   /**
-   * ***The round so far, placed once*** — see {@link roundCandidates}. Placed
-   * at the first input slot the pack declares, whatever became of that slot:
-   * a turn with no input ([P13 §1.3]'s *let them talk*) emits nothing there,
-   * and the round still belongs where the input would have been.
+   * **Either kind matches** — [13 §8.3], [P7.9]. See
+   * {@link CollectContext.inputKind}: an input kind is also a call kind, and a
+   * block naming one applies when the turn carries it.
+   */
+  const applies = (block: PresetBlock): boolean =>
+    block.appliesTo.length === 0 ||
+    block.appliesTo.includes(context.callKind) ||
+    (context.inputKind !== undefined && block.appliesTo.includes(context.inputKind));
+  /**
+   * ***The round so far, placed once*** — see {@link roundCandidates}.
+   * ~~Placed at the first input slot the pack declares, whatever became of
+   * that slot~~ *Corrected 2026-09-29, at the [P13.2] review*: placed after the
+   * input slot that applies to this turn, or the first input slot when none
+   * does. A pack with a slot per input kind — Freeform's `se.input.do` and
+   * `se.input.say`, each followed by its instruction — has its *first* slot
+   * skipped on a `say` turn, and a round placed there showed a later speaker
+   * the earlier replies *before* the move they answer. The fallback is for a
+   * turn with no input ([P13 §1.3]'s *let them talk*), where no kind-filtered
+   * slot applies: it emits nothing there, and the round still belongs where
+   * the input would have been.
    */
   const round = roundCandidates(context);
   let roundPlaced = round.length === 0;
+  const blocks = context.preset.blocks;
+  const applied = blocks.findIndex(
+    (block) => isInputSlot(block) && block.enabled && applies(block),
+  );
+  const roundAfter = applied !== -1 ? applied : blocks.findIndex(isInputSlot);
 
   const skipped = (block: PresetBlock, reason: NotFilledReason): void => {
     notFilled.push({ blockId: block.id, source: sourceKindOf(block), reason });
   };
 
-  for (const [order, block] of context.preset.blocks.entries()) {
-    // After the input slot's own candidates, which the previous iteration
-    // pushed — or would have, had there been an input.
-    const afterInput = !roundPlaced && isInputSlot(context.preset.blocks[order - 1]);
+  for (const [order, block] of blocks.entries()) {
+    // After the chosen input slot's own candidates, which the previous
+    // iteration pushed — or would have, had there been an input.
+    const afterInput = !roundPlaced && roundAfter !== -1 && order - 1 === roundAfter;
     if (afterInput) {
       sequence.push(...round);
       roundPlaced = true;
@@ -254,18 +279,7 @@ export function collectCandidates(context: CollectContext): Collected {
       skipped(block, 'disabled');
       continue;
     }
-    // Empty means all — which is what dissolves the eight special-cased
-    // template fields [04 §8.4.3] describes.
-    /**
-     * **Either kind matches** — [13 §8.3], [P7.9]. See
-     * {@link CollectContext.inputKind}: an input kind is also a call kind, and a
-     * block naming one applies when the turn carries it.
-     */
-    const applicable =
-      block.appliesTo.length === 0 ||
-      block.appliesTo.includes(context.callKind) ||
-      (context.inputKind !== undefined && block.appliesTo.includes(context.inputKind));
-    if (!applicable) {
+    if (!applies(block)) {
       skipped(block, 'not-applicable');
       continue;
     }
@@ -319,11 +333,13 @@ export function collectCandidates(context: CollectContext): Collected {
     sequence.push(...filled);
   }
   /**
-   * *The input slot was the pack's last block — Scene's and Freeform's both
-   * end on it — or the pack has none*, and the round goes at the end: after
-   * the input where there is one, and in any case after everything the pack
-   * said, which is the only place a reply-in-progress can go in a prompt that
-   * did not say where the player speaks.
+   * *The chosen input slot was the pack's last block — Scene's stock pack ends
+   * on its one input slot; Freeform's ends on `se.instruction.story`, so it is
+   * placed in the loop — or the pack has none*, and the round goes at the end:
+   * after the input where there is one, and in any case after everything the
+   * pack said, which is the only place a reply-in-progress can go in a prompt
+   * that did not say where the player speaks. (~~Scene's and Freeform's both
+   * end on it~~ — corrected 2026-09-29, at the [P13.2] review.)
    */
   if (!roundPlaced) sequence.push(...round);
 
@@ -364,17 +380,32 @@ function isInputSlot(block: PresetBlock | undefined): boolean {
  * is why they are handed in as `OutputMessage`s, speaker and all, rather than as
  * bare text.
  *
- * **Priced as the history is**, oldest cheapest: the input slot's priority plus
- * the message's position, so a budget that has to lose part of the round loses
- * its beginning before its end — the same trade the history arm makes, and for
- * its reason. Never `required`: a round longer than the window is a round the
- * budgeter must be allowed to shorten.
+ * **Priced as the history is — its ramp continued**, oldest cheapest: the
+ * history slot's priority plus the window's length plus the message's position,
+ * so the round sits just above the newest past turn, and a budget that has to
+ * lose part of it loses its beginning before its end — the same trade the
+ * history arm makes, and for its reason. Never `required`: a round longer than
+ * the window is a round the budgeter must be allowed to shorten.
+ * ~~the input slot's priority plus the message's position~~ — *corrected
+ * 2026-09-29, at the [P13.2] review*: priced from the input slot, the round
+ * outranked every block in the pack, so under pressure the budgeter dropped
+ * the instruction and the speaker's own card before an earlier reply. Chat is
+ * what SillyTavern trims before card fields (`populateChatHistory` fills what
+ * `populateChatCompletion` leaves), and the round is chat. A pack with no
+ * enabled history slot falls back to the input slot's price, then to
+ * {@link ROUND_PRIORITY}.
  */
 function roundCandidates(context: CollectContext): Candidate[] {
   const round = context.round ?? [];
   if (round.length === 0) return [];
+  const history = context.preset.blocks.find(
+    (block) => block.kind === 'slot' && block.source.of === 'history' && block.enabled,
+  );
   const input = context.preset.blocks.find(isInputSlot);
-  const base = input?.priority ?? ROUND_PRIORITY;
+  const base =
+    history !== undefined
+      ? history.priority + context.history.length
+      : (input?.priority ?? ROUND_PRIORITY);
   return round.flatMap((message, index) =>
     message.text.length === 0
       ? []
@@ -391,7 +422,11 @@ function roundCandidates(context: CollectContext): Candidate[] {
   );
 }
 
-/** What the round is worth when the pack has no input slot to price it by: the most any block is. */
+/**
+ * What the round is worth when the pack has neither an enabled history slot
+ * nor an input slot to price it by. Priority is unbounded, so this is a
+ * fallback and claims nothing about the pack's other blocks.
+ */
 const ROUND_PRIORITY = 100;
 
 /**
@@ -493,6 +528,19 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
       return 'empty-source';
 
     /**
+     * ***A scope that left nobody is the block saying *not this call****
+     * ([P13.2]) — `speaker` on a call that speaks for nobody, `others` in a cast
+     * of one. That is `not-applicable`'s sentence rather than `empty-source`'s:
+     * the cast has cards, and this block was not for any of them this time.
+     * Checked only where a scope was written, so an unscoped block over an
+     * empty cast still says what it always said.
+     */
+    case 'actor':
+      if (block.source.scope !== undefined && outOfScope(block.source.scope, context)) {
+        return 'not-applicable';
+      }
+      return 'empty-source';
+    /**
      * ~~**The one source kind whose reason depends on which carrier it names**,
      * because the carriers landed at different times. A slot naming the
      * Treatment or the Lorebook has no producer at all — a session references
@@ -511,20 +559,11 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
      *
      * [P5.9] asks for exactly this and asks for it deliberately: *the test that
      * currently pins the split is the one that has to change*.
+     *
+     * *The [P13.2] scope check below applies to the actor carrier alone*: a
+     * Treatment or a Lorebook has no cast to scope, and a scope that left
+     * nobody returns `not-applicable` for the reason given at `case 'actor':`.
      */
-    /**
-     * ***A scope that left nobody is the block saying *not this call****
-     * ([P13.2]) — `speaker` on a call that speaks for nobody, `others` in a cast
-     * of one. That is `not-applicable`'s sentence rather than `empty-source`'s:
-     * the cast has cards, and this block was not for any of them this time.
-     * Checked only where a scope was written, so an unscoped block over an
-     * empty cast still says what it always said.
-     */
-    case 'actor':
-      if (block.source.scope !== undefined && outOfScope(block.source.scope, context)) {
-        return 'not-applicable';
-      }
-      return 'empty-source';
     case 'samples':
       if (
         block.source.from === 'actor' &&
@@ -632,7 +671,19 @@ function splice(
  * talking to the player."*
  */
 function renderContextOf(context: CollectContext): RenderContext {
-  return namesAbout(context, speakerOf(context) ?? context.actors[0]);
+  const speaking = speakerOf(context);
+  const names = namesAbout(context, speaking ?? context.actors[0]);
+  /**
+   * ***`notChar` on a call that speaks for nobody is the persona alone***
+   * (2026-09-29, the [P13.2] review). Counted from `actors[0]` it named the
+   * persona and every member but the first — on a narrator's merged call,
+   * where `actors[0]` is not speaking either, so the list was an accident of
+   * roster order. And it reached such calls: the importer keeps an ST
+   * preset's `{{notChar}}` as written, which rendered empty before P13.2 and
+   * would have rendered that list after. The persona is SillyTavern's solo-chat
+   * meaning, and the one person a narrator must never write for.
+   */
+  return speaking === undefined ? { ...names, notChar: names.user } : names;
 }
 
 /**
@@ -678,9 +729,19 @@ function speakerOf(context: CollectContext): CollectContext['actors'][number] | 
  * *to*. *That is ours rather than SillyTavern's*: §1.4 calls this ST's `APPEND`
  * without its string-joining, and `APPEND` joins every member's fields in
  * **member order**, the active one wherever it falls, leaving muted members
- * out unless the group says `APPEND_DISABLED` (`group-chats.js:549-558`). Every
- * card stays here, muted ones too, which is [00 §2.10]; only the order is new.
- * On a call that speaks for nobody, cast order, as it always was.
+ * out unless the group says `APPEND_DISABLED` (`group-chats.js:549-558`).
+ * ~~Every card stays here, muted ones too, which is [00 §2.10]~~; only the
+ * order is new. On a call that speaks for nobody, cast order, as it always was.
+ *
+ * *Corrected 2026-09-29, at the [P13.2] review*: muted members' cards stay
+ * because the collector reads no presence, not because anything decided they
+ * should. Scene declares no `castIsPresent` until [P13.3], so *muted* cannot
+ * yet be told from *no presence value*, and the cards follow the roster as
+ * they have since [P7.3]. That departs from [P13 §1.4]'s *"every present
+ * card"*, from ST's `collectField` (`group-chats.js:549-554`) and from
+ * Marinara's `resolveActiveCharacterIds` (`generate-route-utils.ts:1029-1043`),
+ * all of which leave a muted member out; [00 §2.10] is the reason for keeping
+ * the *other* members' cards, not the muted ones. Open for [P13.3].
  *
  * `scope` narrows it, and {@link ActorScope} states the rule: the two scopes
  * partition the cast on every call — `speaker` is the speaker or nobody,

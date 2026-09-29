@@ -423,21 +423,28 @@ export const NARRATE: StepDefinition = {
  *
  * - **Narrator** — exactly what this step always did: one merged call, spoken by
  *   nobody in particular, and one `message`. Who the policy selected does not
- *   change it; a narrator speaks for the scene, not for a member. *Absent* reads
- *   as narrator, because that is what a host that hands no voice played.
+ *   change it; a narrator speaks for the scene, not for a member — and
+ *   `dispatch` does not change it either; [06 §3]'s *narrator + per-actor* cell
+ *   is not built (P13.2 as-built). *Absent* reads as narrator, because that is
+ *   what a host that hands no voice played.
  * - **Embodied, per-actor** — one **speaking call** per selected member, in the
  *   order `speakers` gives, each awaited before the next: the host shows each
  *   call the replies before it, streams each into a message of its own and
  *   cleans it, so the loop's only job is the order. The order *is* the
  *   selection's, which is what makes a rewrite replay the same round — the
  *   policy's draws are on the tape, and this loop adds none. The turn's
- *   `messages` are the calls' results, speaker and all.
+ *   `messages` are the calls' results, speaker and all — *a reply cleanup cut
+ *   to nothing included*, deliberately (2026-09-29, the [P13.2] review): it
+ *   stays as an empty message under the speaker's name so its `original` stays
+ *   on the record, and `output.text` leaves it out, since it said nothing.
  * - **Embodied, merged** — Marinara's merged mode: **one** speaking call, for
  *   the first selected member. Every present card is still in its prompt, the
  *   first speaker's first, and the reply may voice several members; nothing
  *   splits it and nothing cuts it, because a merged reply that stopped at the
  *   second member's line would not be merged. One message, under the first
- *   speaker's name.
+ *   speaker's name — and the model is the scene's, not theirs: [06 §3] consults
+ *   a card's hint only under `per-actor`, so the host resolves a merged speaking
+ *   call with none.
  *
  * ***An empty `speakers` in an embodied voice is nobody speaking, and the step
  * makes no call*** — `manual` after an input ([P13 §1.3]: *"nobody replies to

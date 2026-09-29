@@ -1661,6 +1661,11 @@ export class TurnRunner {
                       callKind: definition.callKind,
                       rng,
                       ...(payload.input === undefined ? {} : { input: payload.input }),
+                      // What the round has said, scanned as the prompt shows
+                      // it — the same round `collectFor` is handed below
+                      // ([P13.2] review, 2026-09-29; ST re-scans each member's
+                      // generation over the chat holding the last reply).
+                      ...(voice === null ? {} : { round: round.messages.map((m) => m.text) }),
                     });
 
                 /**
@@ -1724,6 +1729,9 @@ export class TurnRunner {
                      * cannot pass a preference its actor does not hold.
                      */
                     ...roleLayersOf(inputs),
+                    // Whether a speaker's hint applies — 06 §3 consults one
+                    // under `per-actor` only ([P13.2] review).
+                    dispatch: chat.dispatch,
                     providers: this.#options.providers,
                     config,
                     preset: { params: preset.params, budget: preset.budget },
@@ -1804,12 +1812,22 @@ export class TurnRunner {
                        * out as a delta of its own, with no index*, so a reader
                        * appending every piece to one text — the bus's own live
                        * cell, and every client older than this stage — paints
-                       * what `output.text` will say.
+                       * ~~what `output.text` will say~~ `output.text` up to
+                       * cleanup (*corrected 2026-09-29, at the [P13.2]
+                       * review*): a reply that settles shorter than it streamed
+                       * leaves the joined pieces holding what was cut, so the
+                       * live cell is rebased on the draft when that happens —
+                       * see where the reply settles, below.
                        */
                       if (voice !== null) {
                         let open = round.messages[voice.index];
                         if (open === undefined) {
-                          if (voice.index > 0) bus.delta(job.sessionId, job.id, BETWEEN_MESSAGES);
+                          // After somebody who said something: a reply cleaned
+                          // to nothing is out of `output.text`, and so is the
+                          // blank line that would have followed it.
+                          if (round.messages.some((message) => message.text.length > 0)) {
+                            bus.delta(job.sessionId, job.id, BETWEEN_MESSAGES);
+                          }
                           open = { speaker: voice.ref, text: '' };
                           round.messages.push(open);
                         }
@@ -1859,9 +1877,9 @@ export class TurnRunner {
                 );
                 /**
                  * ***A speaking call's reply, cleaned and kept*** — [P13 §1.4]
-                 * point 3, [P13.2]. Under `per-actor` dispatch a leading
-                 * `Name:` of the speaker's goes and the reply is cut where
-                 * another member's line begins ({@link cleanReply}, and both
+                 * point 3, [P13.2]. Under `per-actor` dispatch the reply is
+                 * cut where another member's line begins and the speaker's
+                 * `Name:` goes from each line start ({@link cleanReply}, and both
                  * sources' reasons for it there); a `merged` reply is kept as it
                  * came. **What the model said survives as `original`, written only
                  * when the two differ**, because nowhere else keeps it: a call's
@@ -1869,7 +1887,11 @@ export class TurnRunner {
                  *
                  * *Written into the round before `callFinished` is checkpointed*,
                  * so the durable event that says the call ended arrives with the
-                 * draft already holding the settled message.
+                 * draft already holding the settled message. *And the bus's live
+                 * cell rebased on it when cleanup changed anything* (2026-09-29,
+                 * the [P13.2] review): attach prefers that cell to the draft, and
+                 * a client reattaching mid-round would otherwise be shown the
+                 * line cleanup just took out.
                  */
                 const said =
                   voice === null
@@ -1879,6 +1901,7 @@ export class TurnRunner {
                   round.messages[voice.index] = said;
                   settledHere = true;
                   draft.output = outputFromMessages(round.messages);
+                  if (said.original !== undefined) bus.rebase(job.id, draft.output.text);
                 }
                 write([callFinished(definition.id, outcome.usage, outcome.call.wallMs)]);
 
@@ -1905,14 +1928,15 @@ export class TurnRunner {
                  */
                 if (voice !== null) {
                   const cut = round.messages[voice.index];
+                  let rebased = false;
                   if (cut !== undefined && !settledHere) {
-                    round.messages[voice.index] = settled(
-                      voice,
-                      cleaned(voice, cut.text),
-                      cut.text,
-                    );
+                    const kept = settled(voice, cleaned(voice, cut.text), cut.text);
+                    round.messages[voice.index] = kept;
+                    rebased = kept.original !== undefined;
                   }
                   if (round.messages.length > 0) draft.output = outputFromMessages(round.messages);
+                  // The live cell follows the settled text, as above.
+                  if (rebased && draft.output !== undefined) bus.rebase(job.id, draft.output.text);
                   round.failed = { error, index: voice.index, speaker: voice.ref };
                 }
                 throw error;
@@ -2088,6 +2112,34 @@ export class TurnRunner {
         const partial = lost !== null && kept > 0 && reason !== 'cancelled';
         const handled =
           partial && definition.failure === 'abort' ? ('warn' as const) : definition.failure;
+        // Whether the lost speaker left words behind — a message of its own
+        // after the `kept` ones, which the outcome has to say is cut off
+        // (2026-09-29, the [P13.2] review): nothing on the message does.
+        const cut = partial && round.messages[lost.index] !== undefined;
+
+        /**
+         * ***The kept speakers' lore settles, as a finished step's does***
+         * (2026-09-29, the [P13.2] review). A partial round commits complete,
+         * and the entries that reached speaker 1..k's prompts reached the
+         * prompts of replies now on the record — so their cooldown and sticky
+         * start and they count as fired, exactly as they would had the step
+         * finished; and a cooling entry ticks for the turn it lived through.
+         * **Only the calls that completed are in `loreEffects`**: the failing
+         * call throws before its push. The step's own `result.effects` do not
+         * exist — the step threw and has no result — so nothing else is applied.
+         */
+        const settledLore: EventDraft[] = [];
+        if (partial) {
+          for (const proposal of loreEffects) {
+            const effect = acceptEffect(job.turnId, proposal, running);
+            effects.push(effect);
+            running = applyEffects(running, [effect]);
+            contributedEffects += 1;
+            settledLore.push(
+              effectApplied(effect.channelId, effect.applied, effect.rejectedReason),
+            );
+          }
+        }
 
         steps.push({
           stepId: definition.id,
@@ -2097,7 +2149,9 @@ export class TurnRunner {
           error: { reason, message: messageOf(error) },
           contributed: { blocks: contributedBlocks, effects: contributedEffects },
           wallMs: Date.now() - startedAt,
-          ...(partial ? { round: { kept, lost: lost.speaker } } : {}),
+          ...(partial
+            ? { round: { kept, lost: lost.speaker, ...(cut ? { cut: true as const } : {}) } }
+            : {}),
         });
 
         /**
@@ -2168,8 +2222,8 @@ export class TurnRunner {
             : {}),
         });
         if (handled !== 'ignore') {
-          write([stepFailed(definition.id, reason, false, remedy)]);
-        } else write();
+          write([stepFailed(definition.id, reason, false, remedy), ...settledLore]);
+        } else write(settledLore);
 
         // Cancellation overrides the declared mode: a user's stop is not a warn.
         // `handled` rather than the declaration, for a partial round ([P13.2]).

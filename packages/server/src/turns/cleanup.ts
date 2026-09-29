@@ -20,8 +20,11 @@
  *   reply at the first match of `(^|\n)Name:` for every group member but the
  *   one speaking. `cleanUpMessage` around it (`:6433-6457`) does the same for
  *   the **user's** name whatever the chat — `trimWrongNames`, which deletes a
- *   reply that opens as the user and cuts one that turns into them — and then
- *   strips a leading `Name:` of the speaker's own (`:6507-6519`).
+ *   reply that opens as the user and cuts one that turns into them — then
+ *   strips the speaker's own `Name:` from the start of **every** line
+ *   (`:6494-6497`, `(^|\n)Name:\s*`, which runs by default because
+ *   `allow_name2_display` is false, `power-user.js:191`), and then trims a
+ *   leading `Name:` again (`:6507-6519`).
  * - *Marinara.* The individual-group-generation branch
  *   (`packages/server/src/routes/generate.routes.ts:6652-6732`) strips a
  *   leading `Name:` (and a bare `Name` line) of the target's, then, where the
@@ -31,9 +34,13 @@
  *
  * **What this does is the part they agree on**, in the order ST applies it:
  * the text is cut at the first line that opens with another member's name
- * followed by a colon, and then the speaker's own leading label goes — so a
- * reply that opens `Vera: Lund:` keeps Lund's name as words Vera said, where
- * stripping first would have cut her line to nothing. The persona counts
+ * followed by a colon, and then the speaker's own label goes from the start
+ * of every line — ST's per-line strip, taken whole (~~the speaker's own
+ * leading label~~, *corrected 2026-09-29, at the [P13.2] review*: only the
+ * first line's went, and a reply written as a script kept `Vera:` on every
+ * line after it). The cut runs first, so a reply that opens `Vera: Lund:`
+ * keeps Lund's name as words Vera said, where stripping first would have cut
+ * her line to nothing; a name mid-line is never touched. The persona counts
  * as another member here, which is ST's `trimWrongNames` rather than
  * `cleanGroupMessage` and is the most useful of the three — a reply that goes on
  * to write the player's next line is the failure a group chat is most
@@ -53,8 +60,8 @@
  */
 
 /**
- * The reply with the speaker's leading label stripped and the text cut where
- * another member's line begins.
+ * The reply cut where another member's line begins, with the speaker's own
+ * label stripped from the start of each line.
  *
  * `others` is everybody the reply must not speak as — the rest of the cast and
  * the persona. A name equal to the speaker's is ignored, so two members who
@@ -81,10 +88,15 @@ export function cleanReply(reply: string, speaker: string, others: readonly stri
   if (own.length > 0) {
     const label = new RegExp(`^\\s*${escaped(own)}[ \\t]*:\\s*`);
     if (label.test(text)) text = text.replace(label, '');
+    // And at every later line start, as ST's per-line pass does — a reply
+    // written as a script labels each of the speaker's lines, not the first.
+    // Horizontal whitespace only after the colon, so the line keeps its break.
+    const each = new RegExp(`\\n[ \\t]*${escaped(own)}[ \\t]*:[ \\t]*`, 'g');
+    if (each.test(text)) text = text.replace(each, '\n');
   }
 
-  // Only the two edits above ever touch `text`, so a reply neither matched is
-  // returned as the very string it came in as.
+  // Only the edits above ever touch `text`, and each only when it matched, so
+  // a reply none matched is returned as the very string it came in as.
   return text;
 }
 
