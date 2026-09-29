@@ -227,6 +227,17 @@ function alwaysSkipped(context: BackupContext, name: string): boolean {
   if (/^state\/.*\.sqlite(-wal|-shm)$/.test(name)) return true;
   if (/^state\/state\.snapshot-.*\.sqlite$/.test(name)) return true;
   /**
+   * ***An import's scratch*** —
+   * [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * A private copy of somebody's whole Aventuras install, hundreds of
+   * megabytes once a gallery is in it, which exists only until the import
+   * that made it closes. An archive that took it would carry a second copy of
+   * a library nobody asked to back up — and, for a backup taken mid-import, a
+   * copy the import was about to delete. Named through the layout rather than
+   * spelled, so the two cannot come apart.
+   */
+  if (name === context.layout.portablePath(context.layout.importScratchRoot)) return true;
+  /**
    * ***`state/restore.pending`, and it is the one exclusion that is about the
    * machine rather than about the data*** —
    * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md). The

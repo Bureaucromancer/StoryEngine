@@ -42,7 +42,9 @@ import type { ImportItemReport, ImportNote } from '@storyengine/shared';
  *
  * Every path is relative, `/`-separated, and never escapes the root: an
  * implementation is responsible for refusing `..` and symlinks that leave, the
- * way `layout.assertReal` does for our own tree.
+ * way `layout.assertReal` does for our own tree. *(`DirectorySource` refused
+ * the first and followed the second in `read` and `exists` until P13.1's
+ * review; see its `#reach`.)*
  */
 export interface FileSource {
   /**
@@ -65,6 +67,40 @@ export interface FileSource {
    * would be a strange question to ask a zip.
    */
   exists(path: string): Promise<boolean>;
+
+  /**
+   * ***The file's real, absolute path on this machine, when it has one*** —
+   * [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * `null` when the path is missing, is not a regular file, or would leave the
+   * root or enter our data directory by any spelling, links included.
+   *
+   * **Optional, because only a local directory has one.** An upload, a zip
+   * entry and a Marinara envelope are bytes with a name; there is no file
+   * under them to point at, and making each of them answer `null` would make
+   * every new transport restate a method whose only honest answer is *no*.
+   *
+   * ***So the method's absence and its `null` mean different things***, and a
+   * reader must not treat them alike — corrected at review, 2026-09-29, when
+   * this said *"asks with `realPath?.()` and falls back to `read`"*.
+   * **Absent** — `source.realPath === undefined` — is a transport with no
+   * disk under it, and `read` is how that source is read. **`null` from a
+   * source that has the method** is a refusal of *that path*, and is final:
+   * the path leads out of the root or into our data directory, or is not a
+   * file. Reading the same path again through `read` would ask a second door
+   * the question the first one just answered — and until `DirectorySource`'s
+   * `read` checked where a link leads (the same review), that second door
+   * returned the bytes of our own operational store through a link the first
+   * had refused.
+   *
+   * **It exists for SQLite**, which opens a path rather than a byte array:
+   * `storage/sqlite-snapshot.ts` copies a database somebody else may be
+   * writing with `VACUUM INTO` from the real file, which is consistent and
+   * never holds the file in memory, where `read` is capped at 64 MB and a copy
+   * of the bytes is torn by whatever was written while it was taken. A path
+   * given out here is followed by something that is not us, which is why the
+   * implementation checks where it really leads rather than how it is spelled.
+   */
+  realPath?(path: string): Promise<string | null>;
 }
 
 /** Which source a root turned out to be. Open by intent — a new source adds an arm. */

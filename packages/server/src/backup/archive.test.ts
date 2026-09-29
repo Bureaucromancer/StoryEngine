@@ -338,6 +338,36 @@ describe('an install backup', () => {
   });
 
   /**
+   * ***An import's scratch is not part of the install*** —
+   * [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * It holds a private copy of somebody's whole Aventuras install for as long
+   * as one import runs, and a backup taken meanwhile would carry it.
+   *
+   * Catches: dropping the scratch root from `alwaysSkipped`.
+   */
+  it('leaves an import’s scratch behind', async () => {
+    await put('state/import-scratch/0199-a/vacuum.sqlite', 'a copy of somebody’s install');
+    await put(
+      'state/import-scratch/0199-a/vacuum.sqlite-journal',
+      'and what SQLite made beside it',
+    );
+    await put('state/import-scratch/stray', 'whatever a crash left');
+
+    const record = await takeBackup(context, {
+      owner: INSTALL,
+      contents: 'full',
+      reason: 'manual',
+    });
+    const found = await findBackup(context, INSTALL, record.id);
+    const members = await membersOf(found!.path);
+
+    expect([...members.keys()].filter((name) => name.includes('import-scratch'))).toEqual([]);
+    // The rest of `state/` still goes, so the filter above is not passing over nothing.
+    expect(members.has('state/build.json')).toBe(true);
+    expect(members.has('state/state.sqlite')).toBe(true);
+  });
+
+  /**
    * ***The instance lock, which the walk must never open*** (2026-09-27). On
    * POSIX, closing any descriptor to a file drops every lock the process holds
    * on it, so a walk that read the file would let a running server's lock go

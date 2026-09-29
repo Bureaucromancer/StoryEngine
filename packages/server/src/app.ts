@@ -85,6 +85,7 @@ import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { type OperationalPrune, startOperationalPrune } from './state/prune.js';
 import { fileExists, freeBytes } from './storage/files.js';
+import { sweepImportScratch } from './storage/import-scratch.js';
 import { stampDataDirectory } from './storage/stamp.js';
 import { clientBuildMissing, MACHINE, type StartableSeams } from './startable.js';
 import { UNSUPERVISED, type Supervision } from './supervision.js';
@@ -1304,9 +1305,34 @@ export async function buildApp(
   startUpdateCheck(services, app.log);
 
   /**
+   * ***What an import the last process was killed during left in scratch*** —
+   * [P13 §1.3](../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * A snapshot of somebody's Aventuras database is removed by the reader's
+   * `close()`, and a process that died mid-import never ran it, so the copy
+   * stayed: the size of a whole install, invisible to every listing, and kept
+   * out of every archive precisely so it could not be noticed that way either.
+   *
+   * **Here rather than in `buildServices`**, for a reason of its own:
+   * `buildServices` is what a CLI action runs, possibly beside a live server
+   * in the middle of an import, and emptying scratch from there would remove
+   * that import's database from under it. By this line the instance lock is
+   * held (`main.ts`), so nothing else is using the directory.
+   * `import-scratch.test.ts` holds both halves: the sweep runs at boot, and
+   * `buildServices` alone leaves scratch as it found it.
+   */
+  const scratch = await sweepImportScratch(services.layout).catch(() => 0);
+  if (scratch > 0) {
+    app.log.info(
+      { event: 'import.scratch-swept', entries: scratch },
+      'Removed what an interrupted import left behind',
+    );
+  }
+
+  /**
    * ***The backup timer*** — [P12.5]. Here rather than in `buildServices` for
-   * the reason one line up, and with more force: a migration or a CLI action
-   * that quietly started writing gigabyte archives into somebody's data
+   * the update check's reason above, and with more force: a migration or a CLI
+   * action that quietly started writing gigabyte archives into somebody's data
    * directory would be a surprising thing for `--reset-password` to do.
    */
   /**

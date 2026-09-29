@@ -75,6 +75,14 @@ function allSources(): string[] {
      */
     join(SERVER, 'backup', 'import.ts'),
     join(SERVER, 'routes', 'backups.ts'),
+    /**
+     * ***And the snapshot's*** —
+     * [P13.1](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+     * `import.aventuras.walCopied` is decided in `storage/`, because only the
+     * code that made the copy knows it replayed a log; the Aventuras reader
+     * passes the note on as it arrived.
+     */
+    join(SERVER, 'storage', 'sqlite-snapshot.ts'),
   ];
 }
 /**

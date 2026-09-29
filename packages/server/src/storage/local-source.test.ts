@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { openLocalSource } from './local-source.js';
+import { DEFAULT_LOCAL_LIMITS, openLocalSource } from './local-source.js';
 
 /**
  * The server-path transport, and the one refusal that makes
@@ -189,6 +189,149 @@ describe('what it reads', () => {
     expect(await opened.source.read('inside.txt')).not.toBeNull();
     expect(await opened.source.read('../../../etc/passwd')).toBeNull();
     expect(await opened.source.exists('..')).toBe(false);
+  });
+
+  it('says where a file really is, with no size ceiling', async () => {
+    /**
+     * [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md):
+     * the Aventuras reader hands SQLite the real file, because `VACUUM INTO`
+     * from the file is the one consistent copy of a database somebody is
+     * writing — and the one way past `maxFileBytes`, which `read` keeps.
+     */
+    await mkdir(join(root, 'com.karelian.aventura'), { recursive: true });
+    await writeFile(join(root, 'com.karelian.aventura', 'aventura.db'), 'x'.repeat(64));
+    const opened = await openLocalSource(root, dataRoot, {
+      ...DEFAULT_LOCAL_LIMITS,
+      maxFileBytes: 16,
+    });
+    if (!opened.ok) throw new Error('refused');
+
+    const real = await opened.source.realPath('com.karelian.aventura/aventura.db');
+    expect(real).toBe(await realpath(join(root, 'com.karelian.aventura', 'aventura.db')));
+    expect(await opened.source.read('com.karelian.aventura/aventura.db')).toBeNull();
+  });
+
+  it('gives no real path for anything #resolve refuses, however it is spelled', async () => {
+    const outside = await mkdtemp(join(tmpdir(), 'se-out-'));
+    await writeFile(join(outside, 'aventura.db'), 'x');
+    await mkdir(join(root, 'folder'));
+    try {
+      const opened = await open();
+      if (!opened.ok) throw new Error('refused');
+
+      expect(await opened.source.realPath(join('..', basename(outside), 'aventura.db'))).toBeNull();
+      expect(await opened.source.realPath('../../../etc/passwd')).toBeNull();
+      expect(await opened.source.realPath(join(outside, 'aventura.db'))).toBeNull();
+      // Nothing there, and a directory, are not files to hand SQLite.
+      expect(await opened.source.realPath('missing.db')).toBeNull();
+      expect(await opened.source.realPath('folder')).toBeNull();
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses our own data directory beneath an ancestor root, spelled or linked', async () => {
+    // `openLocalSource` refuses a root *inside* the data directory outright;
+    // this is the ancestor case, where the store is pruned rather than the
+    // root refused — and a path given to SQLite is a read like any other.
+    const inner = join(root, 'data');
+    await mkdir(join(inner, 'state'), { recursive: true });
+    await writeFile(join(inner, 'state', 'state.sqlite'), 'the operational store');
+    const opened = await openLocalSource(root, inner);
+    if (!opened.ok) throw new Error('refused');
+
+    expect(await opened.source.realPath('data/state/state.sqlite')).toBeNull();
+
+    try {
+      await symlink(join(inner, 'state'), join(root, 'looks-harmless'), 'dir');
+    } catch {
+      return; // Windows without developer mode; the spelled case above holds the rule.
+    }
+    expect(await opened.source.realPath('looks-harmless/state.sqlite')).toBeNull();
+  });
+
+  it('refuses a link that leads out of the root, and follows one that stays in it', async () => {
+    /**
+     * ***Stricter than `#resolve`, deliberately.*** `#resolve` is lexical and
+     * cannot see where a link leads. A real path is given away to something
+     * that *will* follow it, so here the link's target is checked exactly as a
+     * spelled path is — and, since P13.1's review, so it is for `read` and
+     * `exists`, below.
+     */
+    const outside = await mkdtemp(join(tmpdir(), 'se-out-'));
+    await writeFile(join(outside, 'aventura.db'), 'somebody else’s');
+    await writeFile(join(root, 'inside.db'), 'ours to read');
+    try {
+      await symlink(join(outside, 'aventura.db'), join(root, 'aventura.db'), 'file');
+      await symlink(outside, join(root, 'config'), 'dir');
+      await symlink(join(root, 'inside.db'), join(root, 'alias.db'), 'file');
+    } catch {
+      await rm(outside, { recursive: true, force: true });
+      return; // Windows without developer mode.
+    }
+    try {
+      const opened = await open();
+      if (!opened.ok) throw new Error('refused');
+
+      expect(await opened.source.realPath('aventura.db')).toBeNull();
+      expect(await opened.source.realPath('config/aventura.db')).toBeNull();
+      expect(await opened.source.realPath('alias.db')).toBe(
+        await realpath(join(root, 'inside.db')),
+      );
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('reads nothing through a link that leads out of the root or into our store', async () => {
+    /**
+     * ***Found at P13.1's review*** (2026-09-29), reproduced before it was
+     * fixed: `read` checked a path by its spelling alone and followed links,
+     * so `read('link/accounts.json')` with `link` pointing at the data
+     * directory returned our accounts file, and a link to a file outside the
+     * root returned that. `list` never yields a link, but the readers build
+     * paths of their own, and `FileSource`'s contract says a link that leaves
+     * is refused. `realPath`'s null for such a path is final for the same
+     * reason: a reader falling back to `read` would otherwise be handed the
+     * bytes `realPath` just refused.
+     */
+    const outside = await mkdtemp(join(tmpdir(), 'se-out-'));
+    await writeFile(join(outside, 'secret.txt'), 'somebody else’s');
+    const inner = join(root, 'data');
+    await mkdir(join(inner, 'state'), { recursive: true });
+    await writeFile(join(inner, 'accounts.json'), 'our accounts');
+    await writeFile(join(inner, 'state', 'state.sqlite'), 'the operational store');
+    await writeFile(join(root, 'inside.txt'), 'ours to read');
+    try {
+      await symlink(join(outside, 'secret.txt'), join(root, 'o-link.txt'), 'file');
+      await symlink(inner, join(root, 'link'), 'dir');
+      await symlink(join(inner, 'state', 'state.sqlite'), join(root, 'aventura.db'), 'file');
+      await symlink(join(root, 'inside.txt'), join(root, 'alias.txt'), 'file');
+    } catch {
+      await rm(outside, { recursive: true, force: true });
+      return; // Windows without developer mode.
+    }
+    try {
+      const opened = await openLocalSource(root, inner);
+      if (!opened.ok) throw new Error('refused');
+      const source = opened.source;
+
+      expect(await source.read('o-link.txt')).toBeNull();
+      expect(await source.read('link/accounts.json')).toBeNull();
+      expect(await source.read('aventura.db')).toBeNull();
+      expect(await source.exists('o-link.txt')).toBe(false);
+      expect(await source.exists('link/accounts.json')).toBe(false);
+      expect(await source.exists('link')).toBe(false);
+      // The pattern a reader follows: a refused real path is not read instead.
+      expect(await source.realPath('aventura.db')).toBeNull();
+
+      // A link that stays inside names nothing the root did not already reach.
+      const alias = await source.read('alias.txt');
+      expect(alias === null ? null : new TextDecoder().decode(alias)).toBe('ours to read');
+      expect(await source.exists('alias.txt')).toBe(true);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 
   it('survives a directory it cannot read', async () => {

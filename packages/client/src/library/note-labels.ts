@@ -272,6 +272,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
   'import.aventuras.repeatedNpcNames':
     '{count} characters in this scenario shared a name with an earlier one. Each was kept as its own actor.',
+  'import.aventuras.walCopied':
+    'Aventuras may have been open while this was read, so its latest changes were taken from its unsaved log. If anything looks missing, close Aventuras and import again.',
 
   /**
    * **The other direction, and it is new at this stage.**
