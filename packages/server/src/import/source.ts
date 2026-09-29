@@ -123,7 +123,18 @@ export type ImportSourceKind =
    * source"* is as true of ours as of a CHARX, and everything downstream — the
    * conflict policy, the review vocabulary, the job ledger — is the same work.
    */
-  | 'storyengine-backup';
+  | 'storyengine-backup'
+  /**
+   * ***A whole Aventuras install: one SQLite file*** —
+   * [P13 §1.1](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * One arm for four transports — the config directory by server path, an
+   * unzipped backup uploaded as a folder, the backup zip, a bare `aventura.db`
+   * — because every one of them arrives at the same thing: a root with
+   * `aventura.db` in it. [P12.8]'s *an archive is a root read through a
+   * different file source* again, and the reason the reader never asks which.
+   */
+  | 'aventuras';
 
 /**
  * Why a root was refused **before anything was written**.
@@ -201,4 +212,24 @@ export interface SourceReader {
   survey(): Promise<SourceSurvey>;
 
   items(): AsyncIterable<SourceItem>;
+
+  /**
+   * ***Lets go of whatever the reader holds*** —
+   * [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **Optional, because until the Aventuras reader no reader held anything.**
+   * Every other one reads through its file source and keeps nothing a garbage
+   * collector will not take back. The Aventuras reader holds a private copy of
+   * somebody's database in our scratch — a file the size of their whole
+   * install — and an open SQLite handle on it, and neither is memory: a copy
+   * nobody removes stays on the data volume until the next start sweeps it,
+   * and on Windows an open handle is a file that cannot be removed at all.
+   *
+   * **Whoever constructs a reader calls this, however the reading ended** — a
+   * survey that refused, items that were read to the end, items that threw
+   * half way. `sweep()` is the one caller today. It must be safe to call more
+   * than once, and after a survey that refused — which lets go by itself, so
+   * that path leaks nothing even for a caller that forgot.
+   */
+  close?(): Promise<void>;
 }

@@ -26,6 +26,7 @@ import {
 
 import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook } from './aventuras/lorebook.js';
+import { AventurasReader } from './aventuras/reader.js';
 import { convertScenario } from './aventuras/scenario.js';
 import {
   DEFAULT_BACKUP_CONFLICT,
@@ -126,6 +127,20 @@ export interface SweepRequest {
    * identified by it (see `CharxReader`); every other source ignores it.
    */
   rootName?: string;
+  /**
+   * ***How much the disk has free*** — `AppServices.freeBytes`, passed by the
+   * routes — [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **Only one reader asks**: the Aventuras reader, whose snapshot checks for
+   * room before it copies somebody's whole database into scratch. Absent
+   * means the storage layer's own `freeBytes`. On the request rather than
+   * found by the reader because the services already hold the one seam a
+   * test uses to answer *full* — the backup's room check reads it — and an
+   * import copy that asked the disk by another road would be the one room
+   * check that seam could not reach. *Found at the P13.2 review*, which found
+   * the route test mocking the storage module to get there.
+   */
+  freeBytes?: (path: string) => Promise<number | null>;
 }
 
 export type SweepOutcome =
@@ -139,16 +154,47 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
     return { ok: false, refusal: classification.refusal };
   }
 
-  const reader = readerFor(
-    classification.kind,
-    request.files,
-    request.fromHandle ?? request.handle,
-    request.rootName,
-  );
+  const reader = readerFor(classification.kind, request);
   if (reader === null) {
     throw new ImportNotImplementedError(`a ${classification.kind} root`);
   }
 
+  /**
+   * ***The reader is let go of however the reading ends*** —
+   * [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * The Aventuras reader is the first to hold anything (`SourceReader.close`):
+   * a copy of somebody's whole install in our scratch, and a handle on it. A
+   * survey that refused, items read to the end and items that threw half way
+   * all pass through here.
+   *
+   * *A `finally` in effect, with the first cause kept.* When the reading
+   * threw, a `close()` that also throws must not replace the error that
+   * explains what happened — `ScratchSpace.dispose`'s own advice — so it is
+   * caught on that path, and the boot sweep of the scratch root is the
+   * backstop for what it leaves. When the reading succeeded, a `close()` that
+   * throws is heard: it is a handle this process forgot, and the only other
+   * place it would ever show is a directory nobody looks in. *That is cheap
+   * while this reader writes nothing; the first stage that converts from it
+   * (P13.3) should weigh it again, since after writes it would cost the
+   * report of what was written.*
+   */
+  let outcome: SweepOutcome;
+  try {
+    outcome = await readThrough(reader, classification.kind, request);
+  } catch (error) {
+    await reader.close?.().catch(() => undefined);
+    throw error;
+  }
+  await reader.close?.();
+  return outcome;
+}
+
+/** The survey, then every item: the half of {@link sweep} that runs while the reader is held. */
+async function readThrough(
+  reader: SourceReader,
+  kind: string,
+  request: SweepRequest,
+): Promise<SweepOutcome> {
   const survey = await reader.survey();
   if (!survey.ok) return { ok: false, refusal: survey.refusal };
 
@@ -160,7 +206,7 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
    * policy, and `replace` reverted a live account's edits to the archive's.
    */
   const writer = new Writer(
-    classification.kind === 'storyengine-backup' && request.onConflict === undefined
+    kind === 'storyengine-backup' && request.onConflict === undefined
       ? { ...request, onConflict: DEFAULT_BACKUP_CONFLICT }
       : request,
   );
@@ -181,7 +227,7 @@ export async function sweep(request: SweepRequest): Promise<SweepOutcome> {
     ok: true,
     report: {
       jobId: request.jobId ?? 'unsaved',
-      source: classification.kind,
+      source: kind,
       items,
       counts: countBy(items),
     },
@@ -213,12 +259,9 @@ export async function convertOne(
   return [first, ...(await writer.flushTreatments())];
 }
 
-function readerFor(
-  kind: string,
-  files: FileSource,
-  forHandle: string,
-  rootName?: string,
-): SourceReader | null {
+function readerFor(kind: string, request: SweepRequest): SourceReader | null {
+  const { files, rootName } = request;
+  const forHandle = request.fromHandle ?? request.handle;
   // `loose-files` is swept by the same walker: a folder of cards somebody
   // assembled by hand is the ST tree with most of it missing, and the walker
   // already reports what it does not recognise.
@@ -233,6 +276,17 @@ function readerFor(
   // One of ours — [P12.8]. Told whose subtree to read, because an install
   // archive holds several and the archive does not know which was asked for.
   if (kind === 'storyengine-backup') return new BackupReader(files, forHandle);
+  // A whole Aventuras install — [P13.2]. Given the library's own layout,
+  // because the copy it reads is taken into that layout's scratch (§1.3), and
+  // the services' free-space seam, because that copy is what needs the room.
+  if (kind === 'aventuras') {
+    const { freeBytes } = request;
+    return new AventurasReader(
+      files,
+      request.library.layout,
+      freeBytes === undefined ? {} : { seams: { freeBytes } },
+    );
+  }
   return null;
 }
 

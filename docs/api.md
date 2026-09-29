@@ -460,6 +460,9 @@ prose ([P4 §1.4](design/workplan/16-p4-implementation.md)).
   `bodyLimit` stays as the outer bound.
 - `415 {"error":"not-multipart"}` for a body that is not multipart.
 - `400 {"error":"no-file"}` for a multipart body with no file in it.
+- `507 {"error":"no-space"}` when the file is an archive swept as a root — a
+  zip holding an Aventuras `aventura.db` — and there is no room for the copy of
+  the database the sweep reads from.
 
 CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
@@ -556,14 +559,31 @@ a symlink into the data directory is refused like a literal one.
 - `422 {"error":"live-install"}` — the source application is running, or is
   part-way through an upgrade. Reading it produces a torn library *quietly*,
   which is why this refuses rather than warns.
-- `422 {"error":"unknown-format"}` — written by a newer version than this build
-  reads.
+- `422 {"error":"unknown-format"}` — a format this build does not read: written
+  by a newer version (a Marinara store), or missing a part this build needs (an
+  Aventuras database without a table or column it reads).
 - `422 {"error":"ambiguous-root"}` — the folder probes as two applications at
   once. A wrong guess would convert a library through the wrong tables and the
   review would report that it went fine, so this refuses rather than picks.
+- `507 {"error":"no-space"}` — an Aventuras folder is read from a private copy of
+  its database, taken into this install's data directory first
+  ([P13 §1.2](design/workplan/30-p13-aventuras-import.md)), and there is not
+  room for one. The message carries the numbers. Not a refusal of the folder,
+  so it is not in the import ledger: the same request succeeds once there is room.
 
 Every refusal happens **before anything is written**. A refusal after the first
 object is a half-import, which is worse than none.
+
+**An Aventuras folder** — a config directory, or an unzipped backup — is one
+database, and its review is a row for the database, one per table (with its row
+count), one per story (with what that story holds across all its branches — a
+branch's edits and deletions left out) and one per other file in the folder;
+SQLite's own `-wal`, `-shm` and `-journal` are part of the database and not rows
+of their own. At P13.2 nothing in it converts: every table is `recorded`, `skipped` or,
+for `settings`, `credential` — counted and never read, since it holds provider
+keys. A database missing a column this build reads, or with no
+`_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that
+has every column is read, with a `warn` note saying so.
 
 `onConflict` decides what a re-import does when a file has changed: `replace`
 (the default, and the safe one — the write goes through the version history, so
@@ -591,10 +611,16 @@ which actually reads it refuses to answer.
 
 `verdict` is what the probes decided: `sillytavern`, `marinara`, `charx` (an
 unpacked CHARX card), `storyengine-backup` (an unpacked backup, whose library is
-imported and whose sessions, tags and settings are listed and left), or
-`loose-files` for a folder that matches nothing. Those are the five a directory
-can produce — `marinara-archive` and `marinara-envelope` are members of the same
-vocabulary but are never produced by pointing at a folder.
+imported and whose sessions, tags and settings are listed and left), `aventuras`
+(a folder holding `aventura.db` — Aventuras' config directory, or an unzipped
+backup of it), or `loose-files` for a folder that matches nothing. Those are the
+six a directory can produce — `marinara-archive` and `marinara-envelope` are
+members of the same vocabulary but are never produced by pointing at a folder.
+
+**`aventuras` is decided by the name alone**, and so is every verdict here: the
+database is not opened to answer this. Whether this build can read it is the
+sweep's question, answered from a copy — so a folder this calls `aventuras` can
+still be refused by the sweep as `unknown-format`.
 
 **It never lists a directory.** Every answer is a yes/no probe at a path this
 build already names in its own source. [10 §4.2.2](design/10-ui-surfaces.md)
@@ -670,6 +696,18 @@ carry everything.
   not each file in it. The limit is a running total; a thousand files each just
   under it is still a thousand times it.
 - `415 {"error":"not-multipart"}`.
+- `507 {"error":"no-space"}` — as on the sweep: an Aventuras folder's database
+  is copied before it is read, and there is no room for the copy.
+
+For an `aventuras` verdict the plan wants exactly `aventura.db`, its
+`aventura.db-wal` if there is one, and `metadata.json`. **The database and its
+log are wanted together or not at all**: the log holds commits the file does not
+have yet, so a budget that carried one without the other would hand the sweep an
+older database that looks whole. An upload that names a `-wal` and does not
+send it is refused `422 unreadable-root` for the same reason. Everything else in
+the folder — an older backup's `stories/*.avt` among it — is declared, and
+reported `skipped`, except `aventura.db-shm` and `aventura.db-journal`, which
+belong to the database and are never rows of their own.
 
 No `suggestions` here — the plan step is where advice can still be acted on.
 
@@ -3157,6 +3195,7 @@ proof obligation arriving for free.
 | 403 | `no-file-access` | A sweep from an account without the `fileAccess` capability |
 | 422 | `inside-data-root` / `not-absolute` / `unreadable-root` | A sweep root this build will not read |
 | 422 | `live-install` / `unknown-format` / `ambiguous-root` | A source folder refused before anything was written |
+| 507 | `no-space` | An import that reads from a private copy of somebody's database — an Aventuras folder, by path, upload or archive — with no room on the disk for the copy. The message carries the numbers |
 | 400 | `no-file` | A multipart upload with no file part |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
 | 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |

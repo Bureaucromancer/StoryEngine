@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { AVENTURAS_DATABASE_FILES, AVENTURAS_READS } from './aventuras/reader.js';
 import type { ImportSourceKind } from './source.js';
 import { SILLYTAVERN_DISPOSITIONS } from './registries/sillytavern.js';
 
@@ -72,6 +73,16 @@ const MARINARA_WANTED = [
  * is what bounds it.
  */
 function isWanted(kind: ImportSourceKind, path: string): boolean {
+  /**
+   * ***An Aventuras root is one file, and a log and a note beside it*** —
+   * [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * The reader reads exactly {@link AVENTURAS_READS}; everything else in the
+   * folder is listed and reported `skipped` without being opened. Without this
+   * arm the plan wanted the whole folder, and an older backup's
+   * `stories/*.avt` — every story again, as JSON — could spend the budget
+   * ahead of the database and leave the one file that matters declared.
+   */
+  if (kind === 'aventuras') return (AVENTURAS_READS as readonly string[]).includes(path);
   if (kind === 'marinara') {
     return MARINARA_WANTED.some((prefix) => path.startsWith(prefix));
   }
@@ -90,12 +101,36 @@ function isWanted(kind: ImportSourceKind, path: string): boolean {
 }
 
 /**
+ * ***Files that are one thing, carried together or not at all*** — found at
+ * the P13.2 review — or `null` for a file that stands alone.
+ *
+ * The budget below is spent entry by entry, and for most roots that is right:
+ * one card declared is one card missing, and the review says so. An Aventuras
+ * database and its `-wal` are not two files in that sense. The log holds
+ * commits the file does not have yet, so a budget that carried the database
+ * and declared the log handed the reader an *older* database that looked
+ * whole — and the review said nothing, since the log is part of the database
+ * rather than a row of its own. Carried as a bundle, the two fit together or
+ * are declared together, and a database that did not come is a refusal the
+ * person can see.
+ */
+function bundleOf(kind: ImportSourceKind, path: string): string | null {
+  if (kind === 'aventuras' && (AVENTURAS_DATABASE_FILES as readonly string[]).includes(path)) {
+    return AVENTURAS_DATABASE_FILES[0];
+  }
+  return null;
+}
+
+/**
  * Splits a manifest into what must be carried and what only needs naming.
  *
  * Entries are taken in the order given until `budgetBytes` is reached; anything
  * past it is declared instead. **Truncation is not silent** — a declared file is
  * still listed and still reported, so the review says what happened to it rather
  * than the file vanishing between the picker and the report.
+ *
+ * A {@link bundleOf bundle} is decided at its first member, by the size of all
+ * of its wanted members together, and every later member follows that answer.
  */
 export function planUpload(
   kind: ImportSourceKind,
@@ -106,13 +141,33 @@ export function planUpload(
   const declared: string[] = [];
   let wantedBytes = 0;
 
+  const bundleBytes = new Map<string, number>();
   for (const entry of manifest) {
-    if (!isWanted(kind, entry.path) || wantedBytes + entry.bytes > budgetBytes) {
-      declared.push(entry.path);
-      continue;
+    const bundle = bundleOf(kind, entry.path);
+    if (bundle === null || !isWanted(kind, entry.path)) continue;
+    bundleBytes.set(bundle, (bundleBytes.get(bundle) ?? 0) + entry.bytes);
+  }
+  const decided = new Map<string, boolean>();
+
+  for (const entry of manifest) {
+    const bundle = bundleOf(kind, entry.path);
+    let carry: boolean;
+    if (!isWanted(kind, entry.path)) {
+      carry = false;
+    } else if (bundle === null) {
+      carry = wantedBytes + entry.bytes <= budgetBytes;
+      if (carry) wantedBytes += entry.bytes;
+    } else {
+      let answer = decided.get(bundle);
+      if (answer === undefined) {
+        const bytes = bundleBytes.get(bundle) ?? 0;
+        answer = wantedBytes + bytes <= budgetBytes;
+        if (answer) wantedBytes += bytes;
+        decided.set(bundle, answer);
+      }
+      carry = answer;
     }
-    wanted.push(entry.path);
-    wantedBytes += entry.bytes;
+    (carry ? wanted : declared).push(entry.path);
   }
 
   return { wanted, declared, wantedBytes };

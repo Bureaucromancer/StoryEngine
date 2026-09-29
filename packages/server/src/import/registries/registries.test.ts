@@ -5,8 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import { IMPORT_DISPOSITIONS } from '@storyengine/shared';
 
+import { STORY_COUNTS } from '../aventuras/reader.js';
+import { AVENTURAS_REQUIRED } from '../aventuras/schema.js';
 import { NOT_CONVERTIBLE } from '../upload.js';
 
+import { AVENTURAS_DISPOSITIONS, AVENTURAS_STORY_TABLES, AVENTURAS_TABLES } from './aventuras.js';
 import { MARINARA_DISPOSITIONS, MARINARA_TABLES } from './marinara.js';
 import { SILLYTAVERN_DIRECTORIES, SILLYTAVERN_DISPOSITIONS } from './sillytavern.js';
 
@@ -39,6 +42,13 @@ const SOURCES = [
     names: [...MARINARA_TABLES],
     dispositions: MARINARA_DISPOSITIONS,
     expected: 81,
+  },
+  {
+    name: 'Aventuras',
+    /** Twenty-seven of the app's own at migration 039, and the runner's bookkeeping table. */
+    names: [...AVENTURAS_TABLES],
+    dispositions: AVENTURAS_DISPOSITIONS,
+    expected: 28,
   },
 ] as const;
 
@@ -99,6 +109,70 @@ describe('the registries are honest about what they do not convert', () => {
     const recorded = counted.filter((disposition) => disposition === 'recorded').length;
 
     expect(converted).toBeLessThan(recorded);
+  });
+});
+
+/**
+ * ***The Aventuras registry at P13.2, which converts nothing*** —
+ * [P13.2](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * Three claims the generic checks above cannot make, because they are about
+ * what this stage promised rather than about coverage.
+ */
+describe('the Aventuras registry', () => {
+  it('converts nothing yet — a `converted` row here would describe an import that did not happen', () => {
+    // P13.3 onwards change rows to `converted` one stage at a time, and this
+    // assertion with them; until then the review must not claim a table landed.
+    const converted = Object.entries(AVENTURAS_DISPOSITIONS)
+      .filter(([, disposition]) => disposition === 'converted')
+      .map(([table]) => table);
+
+    expect(converted).toEqual([]);
+  });
+
+  it('drops the settings table as a credential, and nothing else', () => {
+    // [P4 §1.1]: provider keys in plain text, dropped and never quarantined.
+    const credential = Object.entries(AVENTURAS_DISPOSITIONS)
+      .filter(([, disposition]) => disposition === 'credential')
+      .map(([table]) => table);
+
+    expect(credential).toEqual(['settings']);
+  });
+
+  it('knows every per-story table and every gated table as a table of the pin', () => {
+    // The reader counts the one and the gate checks the other; a name in
+    // either that the registry lacks would be counted or refused under a
+    // name the review then called unrecognised.
+    const known = new Set<string>(AVENTURAS_TABLES);
+    const stray = [...AVENTURAS_STORY_TABLES, ...Object.keys(AVENTURAS_REQUIRED)].filter(
+      (table) => !known.has(table),
+    );
+
+    expect(stray).toEqual([]);
+  });
+
+  it('gates on `story_id` exactly the tables the reader counts per story', () => {
+    /**
+     * *Found at the P13.2 review*, which found this asserting the premise
+     * *"every story table is counted"* when three are counted per table only,
+     * and nothing tying the reader's own list to the gate. Both directions now:
+     * a table the reader groups by `story_id` is gated on it, or a database
+     * without the column passes the survey and throws out of `items()`; and a
+     * table gated on it is one the reader groups by, or the gate refuses a
+     * database over a column nothing selects (`schema.ts`: *not one more*).
+     */
+    const counted = AVENTURAS_STORY_TABLES.filter((table) => STORY_COUNTS[table] !== null);
+    const gated = Object.entries(AVENTURAS_REQUIRED)
+      .filter(([, need]) => need.columns.includes('story_id'))
+      .map(([table]) => table);
+
+    expect(new Set(gated)).toEqual(new Set(counted));
+    // And the three counted per table only are the derived ones the reader names.
+    expect(AVENTURAS_STORY_TABLES.filter((table) => STORY_COUNTS[table] === null).sort()).toEqual([
+      'kept_separate',
+      'time_anchors',
+      'world_state_snapshots',
+    ]);
   });
 });
 

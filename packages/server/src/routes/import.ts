@@ -34,8 +34,9 @@ import {
   recordImport,
   recordRefusal,
 } from '../import/jobs.js';
-import { convertOne, sweep } from '../import/sweep.js';
+import { convertOne, sweep, type SweepOutcome } from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
+import { SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
 import { looksLikeZip } from '../storage/zip.js';
 import {
   openLocalSource,
@@ -99,6 +100,39 @@ class FolderTooLarge extends Error {}
  * not a second line of defence anybody has watched hold.
  */
 const MAX_FOLDER_FILES = 50_000;
+
+/**
+ * ***No room to copy somebody's database is a state of the disk, not a server
+ * fault*** — [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md),
+ * answering `routes/backups.ts`'s way: `507 no-space`, with the numbers.
+ *
+ * An Aventuras sweep takes a private copy of the database before it reads a
+ * row (`storage/sqlite-snapshot.ts`), and a copy the size of somebody's
+ * install is the one thing an import does that can fill the data volume. The
+ * snapshot checks for room first and throws `SnapshotSpaceError` when there is
+ * none, which is the right thing for it to do and was the error handler's bare
+ * `500` until this: logged as *Unhandled error*, and answered with a sentence
+ * that said nothing a person could act on. `ENOSPC` is the same answer arrived
+ * at late — something else filled the disk while the copy was written, noticed
+ * by our own write or by SQLite's, which the snapshot throws with that code.
+ *
+ * Answers and returns `true` when it was one of those; the caller rethrows
+ * anything else. Exported for its own test: a late `ENOSPC` is the one arm no
+ * route test can make happen, since the services' `freeBytes` seam produces
+ * only the early one.
+ */
+export function answeredNoRoom(error: unknown, reply: FastifyReply): boolean {
+  const late = (error as NodeJS.ErrnoException | null)?.code === 'ENOSPC';
+  if (!(error instanceof SnapshotSpaceError) && !late) return false;
+  void reply.code(507).send({
+    error: 'no-space',
+    message:
+      error instanceof SnapshotSpaceError
+        ? error.message
+        : 'There is not enough free space on the disk to read this import.',
+  });
+  return true;
+}
 
 function isTooLarge(error: unknown): boolean {
   return (
@@ -268,14 +302,22 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      */
     const into = destination(part.field('destination'));
 
-    const result = await importOneFile(
-      services,
-      account.handle,
-      part.filename,
-      part.bytes,
-      onConflict,
-      into,
-    );
+    let result: UploadResult;
+    try {
+      // An archive holding an `aventura.db` is swept like any root, and the
+      // sweep may need room for a copy of it.
+      result = await importOneFile(
+        services,
+        account.handle,
+        part.filename,
+        part.bytes,
+        onConflict,
+        into,
+      );
+    } catch (error) {
+      if (answeredNoRoom(error, reply)) return reply;
+      throw error;
+    }
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
   });
 
@@ -373,12 +415,21 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         .send({ error: opened.refusal, message: refusalMessage(opened.refusal) });
     }
 
-    const outcome = await sweep({
-      library: services.library,
-      handle: account.handle,
-      files: opened.source,
-      ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
-    });
+    let outcome: SweepOutcome;
+    try {
+      outcome = await sweep({
+        library: services.library,
+        handle: account.handle,
+        files: opened.source,
+        freeBytes: services.freeBytes,
+        ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
+      });
+    } catch (error) {
+      // Not recorded as a refusal: nothing was wrong with the folder, and the
+      // same request succeeds once there is room.
+      if (answeredNoRoom(error, reply)) return reply;
+      throw error;
+    }
 
     if (!outcome.ok) {
       // Recorded even though nothing was written, because *why did my import not
@@ -598,12 +649,19 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     }
 
     const files = new MemoryFileSource(carried, manifest);
-    const outcome = await sweep({
-      library: services.library,
-      handle: account.handle,
-      files,
-      ...(onConflict === undefined ? {} : { onConflict }),
-    });
+    let outcome: SweepOutcome;
+    try {
+      outcome = await sweep({
+        library: services.library,
+        handle: account.handle,
+        files,
+        freeBytes: services.freeBytes,
+        ...(onConflict === undefined ? {} : { onConflict }),
+      });
+    } catch (error) {
+      if (answeredNoRoom(error, reply)) return reply;
+      throw error;
+    }
 
     if (!outcome.ok) {
       return reply
@@ -773,8 +831,12 @@ function sweepRefusalMessage(refusal: SourceRefusal): string {
   switch (refusal) {
     case 'live-install':
       return 'That application is running, or is part-way through an upgrade. Close it and try again.';
+    // *Reworded at the P13.2 review.* This said only "written by a newer
+    // version", which was Marinara's one cause; an Aventuras database is
+    // refused for a part it lacks and never for being newer (P13 §1.4), and a
+    // backup archive with no manifest is not newer either.
     case 'unknown-format':
-      return 'That folder was written by a newer version than this build understands.';
+      return 'That folder is in a format this build cannot read: written by a newer version, or missing a part this build needs.';
     case 'ambiguous-root':
       return 'That folder looks like two different applications at once.';
     case 'unreadable-root':
@@ -958,6 +1020,7 @@ async function importOneFile(
       // What a CHARX is identified by: the file the person sent, rather than
       // the `card.json` inside every one of them.
       rootName: filename,
+      freeBytes: services.freeBytes,
       ...(onConflict === undefined ? {} : { onConflict }),
     });
     if (!outcome.ok) {
@@ -1008,6 +1071,7 @@ async function importOneFile(
       library: services.library,
       handle,
       files,
+      freeBytes: services.freeBytes,
       ...(onConflict === undefined ? {} : { onConflict }),
     });
     if (!outcome.ok) {

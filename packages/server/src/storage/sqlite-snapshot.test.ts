@@ -759,6 +759,28 @@ describe('a log it cannot use', () => {
   });
 });
 
+/**
+ * ***What a route reads off an error of ours*** — found at the P13.2 review,
+ * 2026-09-29. `SQLITE_FULL` is a full disk that SQLite noticed rather than the
+ * file system, and is thrown with the file system's `ENOSPC` so the routes
+ * answer it `507 no-space` as they do the copy's own; `SQLITE_IOERR_WRITE`
+ * may be a failing disk, and carries no code a route would answer as full.
+ */
+const FULL_DISK_CODE: Readonly<Record<number, string | undefined>> = {
+  13: 'ENOSPC',
+  778: undefined,
+};
+
+async function rejectionOf(promise: Promise<unknown>): Promise<NodeJS.ErrnoException> {
+  try {
+    await promise;
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw new Error('rejected with something that is not an Error', { cause: error });
+  }
+  throw new Error('resolved, and was expected to reject');
+}
+
 describe('what is ours to fix, thrown rather than refused', () => {
   it('when the check fails for a reason that is ours', async () => {
     /**
@@ -777,13 +799,15 @@ describe('what is ours to fix, thrown rather than refused', () => {
       db.exec('create table vault (id text)');
       db.close();
 
-      await expect(
+      const thrown = await rejectionOf(
         snapshotDatabase(
           layout,
           { kind: 'bytes', database: await readFile(source) },
           { run: full },
         ),
-      ).rejects.toThrow(/could not be checked/);
+      );
+      expect(thrown.message).toMatch(/could not be checked/);
+      expect(thrown.code).toBe(FULL_DISK_CODE[errcode]);
     }
     expect(await scratchEntries()).toEqual([]);
   });
@@ -809,9 +833,11 @@ describe('what is ours to fix, thrown rather than refused', () => {
         task.op === 'vacuum'
           ? Promise.resolve({ ok: false, message: 'database or disk is full', errcode })
           : runInWorker(task);
-      await expect(
+      const thrown = await rejectionOf(
         snapshotDatabase(layout, { kind: 'path', path: source }, { run: full, copy: counted }),
-      ).rejects.toThrow(/could not be copied/);
+      );
+      expect(thrown.message).toMatch(/could not be copied/);
+      expect(thrown.code).toBe(FULL_DISK_CODE[errcode]);
     }
     expect(copies).toBe(0);
     expect(await scratchEntries()).toEqual([]);

@@ -276,6 +276,33 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'Aventuras may have been open while this was read, so its latest changes were taken from its unsaved log. If anything looks missing, close Aventuras and import again.',
 
   /**
+   * ***A whole Aventuras install, read and not yet converted*** — [P13.2].
+   *
+   * The review of a database is a row per table and a row per story, so these
+   * say what each row held. `settingsDropped` is the one with a reason in it:
+   * the table is where Aventuras keeps provider keys in plain text, and a
+   * person should read that they were left behind *unread*, not merely left
+   * behind. *"May include"* since the P13.2 review: the reader never looks, so
+   * it cannot say an install that kept only a theme there holds a key.
+   *
+   * `storyRecorded` says *across all its branches* because that is what its
+   * numbers are — a branch's edits and tombstones left out, and a branch that
+   * copied the whole world counted once per branch — and not what any one of
+   * Aventuras' own views shows (the reader's `entitiesOnly`).
+   */
+  'import.aventuras.database':
+    'An Aventuras database at schema version {version}, with {tables} tables. Each is listed here with what became of it.',
+  'import.aventuras.tableRows': '{rows} rows in {table}.',
+  'import.aventuras.settingsDropped':
+    '{rows} settings were dropped without being read. They may include provider keys, which are never imported.',
+  'import.aventuras.storyRecorded':
+    '“{story}”, across all its branches: {entries} entries, {branches} branches, {characters} characters, {locations} locations, {items} items, {beats} story beats, {lore} lorebook entries, {chapters} chapters, {checkpoints} checkpoints and {images} images. Stories are not imported yet.',
+  'import.aventuras.newerSchema':
+    'This database comes from a newer Aventuras (schema version {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
+  'import.aventuras.backupMetadata':
+    'An Aventuras backup, made by version {appVersion} on {createdAt}, holding {storyCount} stories.',
+
+  /**
    * **The other direction, and it is new at this stage.**
    *
    * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by

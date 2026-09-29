@@ -364,6 +364,29 @@ function vacuumFailedOnOurSide(errcode: number | null): boolean {
 }
 
 /**
+ * ***A failure of ours, thrown — and a full disk thrown as one*** — found at
+ * the P13.2 review, 2026-09-29.
+ *
+ * A disk that fills while SQLite writes the copy is reported by SQLite, as
+ * `SQLITE_FULL`, and not by the file system: no `ENOSPC` reaches this process.
+ * Thrown as a plain `Error` it became the error handler's bare `500`, logged as
+ * *Unhandled error* — exactly the case the routes' `507 no-space` answer exists
+ * for, since the copy route's own `ENOSPC` (a write of ours that filled the
+ * disk) already reached it. So a `SQLITE_FULL` carries the code the file system
+ * would have given, and the route answers both alike. Only that one primary
+ * code: an `SQLITE_IOERR_WRITE` may be a full disk and may be a failing one,
+ * and a `507` that sends somebody to free space on a dying disk is the wrong
+ * advice.
+ */
+function ourFailure(what: string, outcome: { message: string; errcode: number | null }): Error {
+  const error = new Error(`${what}: ${outcome.message}`);
+  if (outcome.errcode !== null && (outcome.errcode & 0xff) === SQLITE_FULL) {
+    return Object.assign(error, { code: 'ENOSPC' });
+  }
+  return error;
+}
+
+/**
  * Route (a), or `null` when it failed in a way the copy route may answer.
  *
  * ***The fallback, and why a failure here is not a refusal.*** The usual cause
@@ -385,7 +408,7 @@ async function tryVacuum(tools: Tools, source: string): Promise<SnapshotResult |
     const outcome = await tools.run({ op: 'vacuum', source, target });
     if (outcome.ok) return held(space, target, 'vacuum', false);
     if (vacuumFailedOnOurSide(outcome.errcode)) {
-      throw new Error(`The database could not be copied: ${outcome.message}`);
+      throw ourFailure('The database could not be copied', outcome);
     }
   } catch (error) {
     await space.dispose().catch(() => undefined);
@@ -508,7 +531,7 @@ async function checked(
   if (outcome.ok) return held(space, target, route, replayed);
   // An extended result code carries its primary code in the low byte.
   if (outcome.errcode !== null && OUR_FAULT.has(outcome.errcode & 0xff)) {
-    throw new Error(`The copy of the database could not be checked: ${outcome.message}`);
+    throw ourFailure('The copy of the database could not be checked', outcome);
   }
   await space.dispose();
   return refused('live-install');

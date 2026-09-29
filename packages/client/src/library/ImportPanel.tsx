@@ -93,6 +93,7 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   charx: 'An unpacked CHARX character card. Ready to import.',
   'storyengine-backup':
     'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
+  aventuras: 'An Aventuras library. Read and listed; nothing is imported from it yet.',
   'loose-files':
     'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
 });
@@ -789,7 +790,7 @@ function PastImports(props: {
 /** Why a root was turned away, in words. Open-keyed, like every other map here. */
 const REFUSAL_LABELS: Record<string, string> = labels('import.refusal', {
   'live-install': 'That application was running.',
-  'unknown-format': 'Written by a newer version than this understands.',
+  'unknown-format': 'Written by a newer version, or missing a part this build needs.',
   'ambiguous-root': 'Looked like two applications at once.',
   'unreadable-root': 'Nothing readable there.',
   'inside-data-root': 'Inside this install’s own data directory.',
