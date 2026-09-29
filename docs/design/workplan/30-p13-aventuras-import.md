@@ -595,12 +595,23 @@ review and writes nothing — every registry table accounted for, per-story
 counts right, and a fake provider key in `settings` appearing nowhere in the
 report or the ledger.
 
-### P13.3 — Characters and their portraits
+### ~~P13.3 — Characters and their portraits~~ Done
 
-The `mapVaultCharacter` port, including `migrateVisualDescriptors`
+*Done — `2560802`, 2026-09-29.* `import/aventuras/vault-character.ts` maps each
+`character_vault` row as Aventuras' own mapper would, repairing the legacy
+descriptor array, and hands its portrait over as `ImportCandidate.inline`. A
+PNG is the card; a JPEG or WebP is `portrait-source` media on the blank card
+`#createActor` already had — so `CreateFrom.cardPixels` did not need to become
+optional, as §1.6 expected; a portrait over 64 MB is measured and never loaded
+(`import.aventuras.portraitTooLarge`). Two things beyond the stage, found by
+it: a PNG whose body will not parse now costs the portrait rather than the
+actor on every road in, and an actor carrying media now reports the id it was
+stored under. `sweep()` logs a `close()` failure after a successful read
+rather than losing the report of rows already written. ~~The
+`mapVaultCharacter` port, including `migrateVisualDescriptors`
 (`database.ts:105`) — `visual_descriptors` can still be the legacy string array,
 and `isVaultCharacter` wants a record — then the existing `#aventurasCharacter`.
-Portraits per [§1.6](#16-portraits-are-carried).
+Portraits per [§1.6](#16-portraits-are-carried).~~
 
 ### P13.4 — Vault lorebooks
 
