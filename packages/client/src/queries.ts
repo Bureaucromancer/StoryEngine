@@ -63,6 +63,7 @@ import {
   type Credentials,
   type IndexRow,
   type LibraryKind,
+  type LibraryFileError,
   type LibraryObject,
   type ObjectAddress,
   type ObjectImportNotes,
@@ -176,6 +177,21 @@ export function useLibraryObject(
   return useQuery({
     queryKey: ['library', kind, id, at ? `${at.source}:${at.slug}` : 'winner'],
     queryFn: () => api.readObject(kind, id, at),
+    refetchInterval: LIBRARY_POLL_MS,
+  });
+}
+
+/**
+ * ***What the library holds and could not read*** (2026-09-28) — one query for
+ * the panel over the list and for the page of an object whose file broke after
+ * it was read, so the two cannot disagree about a file. Polled like the
+ * library it describes: a file repaired in a text editor clears itself from
+ * both, where the panel's own query waited for a refocus.
+ */
+export function useLibraryErrors(): UseQueryResult<{ errors: LibraryFileError[] }> {
+  return useQuery({
+    queryKey: ['library', 'errors'],
+    queryFn: () => api.libraryErrors(),
     refetchInterval: LIBRARY_POLL_MS,
   });
 }

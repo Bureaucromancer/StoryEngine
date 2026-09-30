@@ -28,6 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const readObject = vi.fn();
 const deleteObject = vi.fn();
 const takeFile = vi.fn();
+const libraryErrors = vi.fn();
 const createObject = vi.fn();
 const authState = vi.fn();
 const listSessions = vi.fn();
@@ -49,6 +50,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     createObject: (...a: unknown[]) => createObject(...a) as unknown,
     authState: (...a: unknown[]) => authState(...a) as unknown,
     takeFile: (...a: unknown[]) => takeFile(...a) as unknown,
+    libraryErrors: (...a: unknown[]) => libraryErrors(...a) as unknown,
   },
 }));
 
@@ -107,6 +109,7 @@ beforeEach(() => {
   createObject.mockResolvedValue({ id: COPY_ID, slug: 'vera-kohl-2', contentHash: 'sha256:def' });
   authState.mockResolvedValue({ account: { handle: 'ned', locale: null } });
   listSessions.mockResolvedValue({ sessions: [] });
+  libraryErrors.mockResolvedValue({ errors: [] });
 });
 
 function renderPage(): void {
@@ -338,6 +341,48 @@ describe('taking an object with you', () => {
     expect(hrefOf('Download this package')).toBe(
       `/api/library/packages/${ACTOR_ID}/download?source=user&slug=harbour-set-2`,
     );
+  });
+});
+
+/**
+ * ***A file that broke after it was read, said where it is opened***
+ * (2026-09-28) — gap round A5.8.
+ *
+ * The index keeps the last good version of an object whose file stops reading,
+ * so this page showed it as current, offered Edit, and said nothing; the panel
+ * over the list was the only place that knew. The row is matched by where the
+ * file is, which is all a broken file still has.
+ */
+describe('an object whose file could not be read', () => {
+  function brokenRow(over: Record<string, unknown> = {}) {
+    return {
+      path: 'users/ned/library/actors/vera-kohl/card.png',
+      source: 'user',
+      kind: 'storyengine.actor/1',
+      slug: 'vera-kohl',
+      reason: 'schema',
+      detail: '/name must be string',
+      seenAt: 0,
+      ...over,
+    };
+  }
+
+  it('says so where it is opened, withholds Edit, and keeps Delete', async () => {
+    libraryErrors.mockResolvedValue({ errors: [brokenRow()] });
+    renderPage();
+
+    expect(
+      await screen.findByText(/The file on disk could not be read, so this is the last version/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'It is this kind of object with something missing, or something of the wrong type.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('/name must be string')).toBeTruthy();
+    expect(screen.getByText('users/ned/library/actors/vera-kohl/card.png')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
   });
 });
 

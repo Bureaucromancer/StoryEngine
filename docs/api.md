@@ -311,6 +311,11 @@ who saved the file got no error, no toast, and a stale object
 ([03 §5.1](design/03-data-model.md)). An entry clears when the file parses again,
 or when it is deleted.
 
+The library page lists these over its list, and since 2026-09-28 the page of an
+object whose file broke after it was read says so where it is opened — the
+reason, the complaint and the path — with Edit withheld and Delete kept. It is
+matched by `source`, `kind` and `slug`, which is all a broken file still has.
+
 ### `POST /api/library/:kind`
 
 Body is the portable object, or `{ object }`. → `201 { id, slug, contentHash, object }`.
@@ -363,7 +368,9 @@ the exit gate should not need one.
 - `428 {"error":"hash-required"}` if you sent none.
 - **`412 {"error":"stale", "current": …envelope}`** if the object moved since you
   read it.
-- **`409 {"error":"diverged"}`** if the file on disk cannot be read at all.
+- **`409 {"error":"diverged"}`** if the file on disk cannot be read as an object
+  of its kind: it will not parse, it names another kind or no id, or it fails
+  its schema. ~~cannot be read at all~~ (corrected 2026-09-28 — below).
 
 **The 412 is the interesting one.** It carries the *current* object so the UI can
 offer reload-and-reapply or save-as-a-copy rather than guessing
@@ -384,6 +391,15 @@ edit is still `412`, and **its envelope describes the file rather than the index
 row**, so the hash differs from the one you sent and reload-and-reapply works at
 once instead of after the watcher settles. Unreadable bytes are `409 diverged`
 with no envelope, because handing back the stale row is what invited the retry.
+
+**"Unreadable" is the index's word for it, not the parser's** (2026-09-28). The
+line was drawn at *does it parse*, and the index draws it at *would I take it*:
+a file that is JSON and not a valid lorebook is quarantined with the last good
+row kept, like one that is not JSON at all. The writes called it an edit, so a
+save was a `412` whose envelope was the refused file and the loop was back, and
+a `DELETE` was a `412` every time. Both paths now ask the index's own check
+(`acceptObject` in `index-db/ingest.ts`), so such a file is `409 diverged` on
+save and deletable — the same answers as bytes that do not parse.
 
 An object cannot change its `id` or its `schema`. System-owned objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.
@@ -3826,7 +3842,7 @@ proof obligation arriving for free.
 | 507 | `no-space` | An import that reads from a private copy of somebody's database — an Aventuras folder, by path, upload or archive — with no room on the disk for the copy. The message carries the numbers |
 | 400 | `no-file` | A multipart upload with no file part |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
-| 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
+| 409 | `diverged` | The file on disk cannot be read as an object of its kind — it will not parse, names another kind or no id, or fails its schema — and the index still holds the last good version: a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |

@@ -16,7 +16,12 @@ import {
   type TakenFile,
 } from '../api.js';
 import { formatTimestamp, timestampsOf } from '../format.js';
-import { useAuthState, useLibraryObject, useObjectImportNotes } from '../queries.js';
+import {
+  useAuthState,
+  useLibraryErrors,
+  useLibraryObject,
+  useObjectImportNotes,
+} from '../queries.js';
 import { Alert, AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import type { ObjectSearch } from '../router.js';
@@ -38,6 +43,7 @@ import { LorebookView, lorebookShape } from './LorebookView.js';
 import { labels } from '../i18n/catalogue.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 import { sentence } from './note-labels.js';
+import { fileErrorFor, reasonWords } from './QuarantinePanel.js';
 
 /**
  * The detail view. Read-only at this stage — editing is P1.7, and keeping the
@@ -148,6 +154,19 @@ function ObjectView(props: {
   const { object, kind, locale } = props;
   const stamps = timestampsOf(object.object);
   const editorRoute = editorRouteFor(kind);
+  /**
+   * ***A file that broke after it was read*** (2026-09-28) — gap round A5.8,
+   * and [10 §4.4]'s *"flagged invalid with the parse error shown"*, where it
+   * is opened.
+   *
+   * The index keeps the last good version of an object whose file stops
+   * reading, so this page showed it as current and offered Edit; the save was
+   * then refused (a 412 whose reload offered the broken file, until the server
+   * learned to call it damage), and nothing on the page said why. The panel
+   * over the list knew — this reads the same query, and matches the row by
+   * where the file is, which is the one thing a broken file still has.
+   */
+  const unreadable = fileErrorFor(useLibraryErrors().data?.errors, object);
 
   return (
     <>
@@ -163,6 +182,19 @@ function ObjectView(props: {
           loads. Nothing is lost; this copy is shown so the duplicate stays visible.
         </Alert>
       ) : null}
+
+      {unreadable === undefined ? null : (
+        <Alert tone="error" className="mb-6">
+          <p>
+            The file on disk could not be read, so this is the last version of it that could be.
+            Editing is off until the file is repaired, because a save would write over a file this
+            page cannot show. Delete still works, and moves the folder to the trash.
+          </p>
+          <p className="mt-1">{reasonWords(unreadable.reason)}</p>
+          {unreadable.detail === null ? null : <Fine>{unreadable.detail}</Fine>}
+          <code className="mt-1 block break-all text-xs">{unreadable.path}</code>
+        </Alert>
+      )}
 
       {/*
        * ***The warning [08 §2](../../../../docs/design/08-cross-session-memory.md)
@@ -261,7 +293,7 @@ function ObjectView(props: {
          * one without the other would have opened a lorebook in the actor
          * editor.
          */}
-        {editorRoute !== null && mutable(object) ? (
+        {editorRoute !== null && mutable(object) && unreadable === undefined ? (
           <Link to={editorRoute} params={{ id: object.id }} className={link.action}>
             Edit
           </Link>

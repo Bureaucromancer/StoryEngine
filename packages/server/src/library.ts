@@ -18,8 +18,8 @@ import {
 } from '@storyengine/shared';
 
 import {
+  acceptObject,
   contentHashOf,
-  decodeObject,
   type FileErrorReason,
   ingestFile,
   listFileErrors,
@@ -1122,6 +1122,29 @@ export async function readMedia(
 }
 
 /**
+ * The object a file currently holds, or `null` when the loader will not have it.
+ *
+ * The distinction the write paths need after P2C finding 8: *the file changed*
+ * and *the file broke* are different situations, and answering both the same
+ * way is what left a broken object neither writable nor deletable. Anything
+ * that throws, decodes to nothing, or sits at a path the layout does not
+ * recognise is the second case.
+ *
+ * ***And anything the index would refuse*** (2026-09-28). ~~Anything that
+ * throws, decodes to nothing~~ was the line, and the index draws it further
+ * in: a file that parses and is not a valid object of its kind is quarantined
+ * with the last good row kept. Here it read as an edit, so the write refused
+ * as `stale` with the refused file as the reload, and the loop was back.
+ * `acceptObject` is the index's own test, so the two cannot disagree again.
+ */
+function decodeOnDisk(context: LibraryContext, path: string, bytes: Uint8Array): unknown {
+  const parsed = context.layout.parseObjectPath(path);
+  if (parsed === null) return null;
+  const accepted = acceptObject(parsed, bytes);
+  return accepted.ok ? accepted.payload : null;
+}
+
+/**
  * Removes an object — by moving its folder, history and all, to the user's
  * trash. Deletion is a move, not an erasure ([03 §10.2]): the retention sweep
  * and a restore surface are P11's, but nothing should be unrecoverable in the
@@ -1131,25 +1154,6 @@ export async function readMedia(
  * Also hash-checked: deleting something a second tab has since edited is the
  * same mistake as overwriting it, and rather more final.
  */
-/**
- * The object a file currently holds, or `null` when the loader will not have it.
- *
- * The distinction the write paths need after P2C finding 8: *the file changed*
- * and *the file broke* are different situations, and answering both the same
- * way is what left a broken object neither writable nor deletable. Anything
- * that throws, decodes to nothing, or sits at a path the layout does not
- * recognise is the second case.
- */
-function decodeOnDisk(context: LibraryContext, path: string, bytes: Uint8Array): unknown {
-  const parsed = context.layout.parseObjectPath(path);
-  if (parsed === null) return null;
-  try {
-    return decodeObject(parsed, bytes);
-  } catch {
-    return null;
-  }
-}
-
 export async function remove(
   context: LibraryContext,
   handle: string,

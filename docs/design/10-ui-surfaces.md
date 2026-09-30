@@ -806,6 +806,13 @@ Honest accounting, because the user is right that this is a pain:
   flagged invalid with the parse error shown, and nothing crashes, hides it, or
   silently rewrites it. That behaviour is needed anyway for hand-edited-on-disk
   files and for imports, so the file browser doesn't create the requirement.
+
+  *Partly built, 2026-09-28.* The panel over the library list names every file
+  that will not read, with its reason in words and the parser's complaint, and
+  an object whose file broke after it was read says so on its own page, with
+  Edit withheld — a save would write over a file the page cannot show — and
+  Delete kept. Its row in the list is not flagged yet; the panel above the list
+  is what a person meets first.
 - **Upload is an attack surface** even among trusted users: size limits, no
   archive traversal on zip extraction (`zip-slip`), no execute bits, and content
   sniffing rather than trusting extensions.

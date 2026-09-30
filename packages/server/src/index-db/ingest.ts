@@ -142,6 +142,56 @@ export function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unkno
  * the two writers share the loader, the schema and the index, which is what
  * makes hand-editing safe rather than merely tolerated.
  */
+/**
+ * ***Whether the index takes these bytes as the object their place names***
+ * (2026-09-28) — the three checks {@link ingestFile} makes, as one answer: it
+ * parses, it names its own kind and an id, and it validates.
+ *
+ * Lifted for the write paths, which ask the same question from the other side.
+ * `update` and `remove` in `library.ts` meet a file whose hash is not the
+ * index's and must tell *somebody's edit* from *damage*, and they asked
+ * `decodeObject` alone — *does it parse*. So a file that is JSON and not a
+ * lorebook fell between the two: the index quarantined it and kept the last
+ * good row, and the writes called it an edit, so Save was a 412 whose reload
+ * offered the refused file and Delete a 412 every time — P2C finding 8 again,
+ * one step further in (gap round A5.8). One function is what keeps *indexed*
+ * and *writable over* from drawing the line in two places.
+ */
+export type Acceptance =
+  | { ok: true; payload: unknown; id: string }
+  | { ok: false; reason: 'unparsable' | 'wrong-kind' | 'schema'; detail: string };
+
+export function acceptObject(parsed: ParsedObjectPath, bytes: Uint8Array): Acceptance {
+  let payload: unknown;
+  try {
+    payload = decodeObject(parsed, bytes);
+  } catch (error) {
+    return { ok: false, reason: 'unparsable', detail: messageOf(error) };
+  }
+
+  const id = readId(payload);
+  if (id === null || schemaIdOf(payload) !== parsed.schemaId) {
+    // A file in `actors/` that does not describe an actor, or one with no id.
+    // Left out of the index rather than guessed at; it is still on disk and
+    // still the user's.
+    return {
+      ok: false,
+      reason: 'wrong-kind',
+      detail: id === null ? 'no id' : `declares ${String(schemaIdOf(payload))}`,
+    };
+  }
+
+  const result = validate(payload);
+  if (!result.valid) {
+    return {
+      ok: false,
+      reason: 'schema',
+      detail: result.issues.map((issue) => `${issue.path} ${issue.message}`).join('; '),
+    };
+  }
+  return { ok: true, payload, id };
+}
+
 export async function ingestFile(
   db: DatabaseSync,
   layout: Layout,
@@ -188,37 +238,9 @@ export async function ingestFile(
     return { kind: 'skipped', reason: 'unreadable', path };
   }
 
-  let payload: unknown;
-  try {
-    payload = decodeObject(parsed, bytes);
-  } catch (error) {
-    return recordInvalid(db, parsed, 'unparsable', messageOf(error), now);
-  }
-
-  const id = readId(payload);
-  if (id === null || schemaIdOf(payload) !== parsed.schemaId) {
-    // A file in `actors/` that does not describe an actor, or one with no id.
-    // Left out of the index rather than guessed at; it is still on disk and
-    // still the user's.
-    return recordInvalid(
-      db,
-      parsed,
-      'wrong-kind',
-      id === null ? 'no id' : `declares ${String(schemaIdOf(payload))}`,
-      now,
-    );
-  }
-
-  const result = validate(payload);
-  if (!result.valid) {
-    return recordInvalid(
-      db,
-      parsed,
-      'schema',
-      result.issues.map((issue) => `${issue.path} ${issue.message}`).join('; '),
-      now,
-    );
-  }
+  const accepted = acceptObject(parsed, bytes);
+  if (!accepted.ok) return recordInvalid(db, parsed, accepted.reason, accepted.detail, now);
+  const { payload, id } = accepted;
 
   const row: ObjectRow = {
     path,
