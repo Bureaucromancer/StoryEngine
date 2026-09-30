@@ -339,6 +339,15 @@ which a rebuild or a correction recovers without anything having been lost.
   P13.12. The world follows the session, and a session already here is left as
   it is, so a story imported at P13.11 keeps an empty cast on a re-sweep.
   Development data only; no release carried P13.11.
+- **Aventuras' inline `<pic …>` tags reach imported prose verbatim** — found
+  at P13.13. Aventuras strips them when it renders; P13.11's producer carries
+  `content` raw, so a story with inline pictures shows the literal tags in its
+  turns here. The picture still resolves, since the tag is its anchor;
+  stripping them means re-anchoring, and is a small follow-up.
+- **An Aventuras backdrop changes in place** — found at P13.13:
+  `saveBackground` updates a branch's row, so two imports either side of a
+  change would carry different bytes under one rendition id. Moot while a story
+  already here is never re-imported.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -1069,12 +1078,37 @@ interim home and recorded as one: they are a feature StoryEngine means to grow
 in its own right, and when it does, a beat imported as lore is what that
 feature's own import will read from, not something it has to reverse.~~
 
-### P13.13 — Images as renditions
+### ~~P13.13 — Images as renditions~~ Done
 
-`embedded_images` as `illustration`, `background_images` as `background`
+*Done — `65657b0`, 2026-09-30.* `import/aventuras/pictures.ts`, pure like
+`story.ts`, makes each finished `embedded_images` row an `illustration` on the
+turn that holds its entry — found through the producer's new `placement`,
+which looks an entry up on the line it was written on, so a branch's picture is
+on the branch's turn and a forked action's on the line that wrote it — and each
+branch's newest `background_images` row a `background` on the turn its line
+ends on, the one row Aventuras itself shows. Backgrounds are **carried and not
+selected**: which backdrop shows is the `se.backdrop` channel, a mode's, and an
+import names no mode. Records are `ready` and never jobs — ids
+`<producedTurnId>.<n>`, Aventuras' prompt as the recipe, provenance naming no
+binding and no seed (its style would be re-sent on a retry, so it is named on
+the review instead), `foreign` set, the anchor its `source_text`, and a digest
+under its own domain so an imported backdrop is never silently reused as a
+generated one. `story-rows.ts` lists pictures by `octet_length` and reads one
+only when it is carried, bounded as P13.3 bounds a portrait; the bytes are
+sniffed, never taken from the data URL, which Aventuras labels `image/png`
+whatever it holds. ~~The producer writes the bytes through
+`renditions/store.ts` itself~~ — **the reader writes them**: they cross
+through `importSession`'s existing `pixels` hook into the session it has just
+made, because the session id is minted inside it and every refusal comes
+before the session exists, so a refusal leaves no picture anywhere without any
+clean-up. One too large, one that is not a picture, one never finished, one
+with no turn, and a checkpoint's backdrop each cost only themselves, with a
+note. *Ended at:* the fixture's *Lantern Fork* imports with six illustrations
+and two backdrops, each served by the asset route; nothing is queued; a second
+sweep writes nothing. ~~`embedded_images` as `illustration`, `background_images` as `background`
 (`shared/src/rendition.ts:87`). The format carries records, not pixels
 (`session-export.ts:86`), so the producer writes the bytes through
-`renditions/store.ts` itself.
+`renditions/store.ts` itself.~~
 
 ### P13.14 — Chapters
 
