@@ -927,13 +927,27 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
      * ~~No producer at this phase.~~ The producer has been the channel's own
      * `render` since [P7.1]; what [P14.5b] adds is the one empty that is a
      * person's doing — a channel whose switch is off (`enabledBy`) — which is
-     * `disabled`'s sentence. Every other empty keeps the old answer, which the
-     * record has carried for five phases and nothing here needs to move.
+     * `disabled`'s sentence. ~~Every other empty keeps the old answer, which the
+     * record has carried for five phases and nothing here needs to move.~~
+     *
+     * ***A channel that renders is a producer, so its empty is `empty-source`***
+     * (2026-09-30) — lore's and the summary's line, for their reason. The old
+     * answer stopped being latent when [P14.5b]'s secret plot shipped as a slot:
+     * before the plot step's first pass, and after a failed one, the workbench
+     * said *nothing produces this yet* about a slot the step fills, which sends
+     * an author looking for a missing phase when the story is simply young.
+     * `no-producer` is kept for what really has none — a channel nobody
+     * declares, or one with no `render` or a `null` budget, which
+     * {@link renderWithin} never turns into text — and the switch stays first,
+     * because *switched off* is the more useful sentence whenever it is true.
      */
     case 'channel': {
       const definition = channelDefinition(block.source.channelId);
       if (definition !== null && !stateEnabled(definition, context.channels)) return 'disabled';
-      return 'no-producer';
+      if (definition?.render === undefined || definition.budget === null) {
+        return 'no-producer';
+      }
+      return 'empty-source';
     }
 
     /**

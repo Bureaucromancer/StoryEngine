@@ -20,7 +20,13 @@ import { DIALS_PRESET, TEST_PRESET } from '../test-mode.js';
 import { resolveLevel } from '../sessions/dials.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { modeById } from '../mode-registry.js';
-import { channelKey, registerChannel, SE_CLOCK, SE_LORE_TIMING } from '../sessions/channels.js';
+import {
+  channelKey,
+  registerChannel,
+  SE_CLOCK,
+  SE_LORE_TIMING,
+  type ChannelDefinition,
+} from '../sessions/channels.js';
 import type { SummaryLink } from '../sessions/summary-chain.js';
 import type { Turn } from '../sessions/types.js';
 import { assemble, type BudgetPolicy } from './assemble.js';
@@ -1724,6 +1730,63 @@ describe('a channel slot', () => {
       }),
     );
     expect(on.candidates[0]?.text).toBe('the vault is empty');
+  });
+
+  /**
+   * ***A rendered channel with nothing in it yet is an empty source***
+   * (2026-09-30). The slot said `no-producer` for every empty channel, so the
+   * secret plot read *nothing produces this yet* before the plot step's first
+   * pass — about a slot that step fills. `no-producer` is left to a channel
+   * nothing could ever render, and the switch still outranks both.
+   */
+  it('reads empty-source for a rendered channel with no value yet', () => {
+    const channel = (id: string, over: Partial<ChannelDefinition> = {}): void => {
+      registerChannel({
+        id,
+        owner: 'example.mode',
+        version: 1,
+        scope: 'session',
+        update: 'model-proposed',
+        visibility: 'hidden',
+        budget: 20,
+        schema: { type: 'string' },
+        init: { kind: 'literal', value: '' },
+        ...over,
+      });
+    };
+    channel('example.switch', {
+      update: 'user-only',
+      budget: null,
+      schema: { type: 'boolean' },
+      init: { kind: 'literal', value: true },
+    });
+    channel('example.secret', { render: '{{ value }}', enabledBy: 'example.switch' });
+    channel('example.unrendered');
+    channel('example.unbudgeted', { render: '{{ value }}', budget: null });
+    const slot = (id: string, channelId: string) =>
+      block({ kind: 'slot', id, source: { of: 'channel', channelId } });
+    const slotted = preset([
+      slot('se.secret', 'example.secret'),
+      slot('se.unrendered', 'example.unrendered'),
+      slot('se.unbudgeted', 'example.unbudgeted'),
+      slot('se.nobody', 'example.nobody'),
+    ]);
+
+    const young = collectCandidates(context({ preset: slotted, channels: {} }));
+    expect(young.notFilled.map((row) => [row.blockId, row.reason])).toEqual([
+      ['se.secret', 'empty-source'],
+      // Nothing could ever put these three into a prompt.
+      ['se.unrendered', 'no-producer'],
+      ['se.unbudgeted', 'no-producer'],
+      ['se.nobody', 'no-producer'],
+    ]);
+
+    const off = collectCandidates(
+      context({ preset: slotted, channels: { 'example.switch': { version: 1, value: false } } }),
+    );
+    expect(off.notFilled[0]).toEqual(
+      expect.objectContaining({ blockId: 'se.secret', reason: 'disabled' }),
+    );
   });
 
   it('says nothing for a template that will not compile, rather than taking the turn down', () => {
