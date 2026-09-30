@@ -61,14 +61,23 @@ let fake: FakeProvider;
 let head: string | null = null;
 let counter = 0;
 
-/** Stalls, for a picture that has to land while the next turn is written. */
-async function boot(stalls: { replyMs?: number; imageMs?: number } = {}): Promise<void> {
+/**
+ * Stalls, for a picture that has to land while the next turn is written; and a
+ * place, for the stager to find in every passage.
+ */
+async function boot(
+  stalls: { replyMs?: number; imageMs?: number; place?: string } = {},
+): Promise<void> {
   dataDir = await mkdtemp(join(tmpdir(), 'se-p9-sel-'));
   fake = new FakeProvider({
     script: [
       {
         text: 'The room was dim.',
-        object: { subject: 'a dim room', anchor: 'The room' },
+        object: {
+          subject: 'a dim room',
+          anchor: 'The room',
+          ...(stalls.place === undefined ? {} : { place: stalls.place }),
+        },
         ...(stalls.replyMs === undefined ? {} : { stallMs: stalls.replyMs }),
       },
     ],
@@ -354,6 +363,29 @@ describe('a place already rendered dispatches no job', () => {
     expect(backdropEffects.length).toBeGreaterThan(0);
     // **Ordinary, never escaped** — the amendment [P9 §0.3] made to §1.7.
     expect(backdropEffects.every((one) => one.scope === 'session')).toBe(true);
+  });
+});
+
+/**
+ * ***The place, tracked for a backdrop alone*** (2026-09-30). The stager is the
+ * place's only writer, and it asked nothing unless somebody present had faces
+ * to choose — so with *Stage a backdrop* on and staging left at its default, or
+ * a cast of imported cards with no sprites, the place was never written and
+ * every backdrop was the tone's mood.
+ */
+describe('the place, with only the backdrop on', () => {
+  beforeEach(async () => {
+    await boot({ place: 'the taproom' });
+    await write('se.backdrop.on', true);
+  });
+
+  it('is written from the passage every turn', async () => {
+    await takeATurn();
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const channels = (read.body as { session: { channels: Record<string, { value: unknown }> } })
+      .session.channels;
+    expect(channels['se.location']?.value).toBe('the taproom');
   });
 });
 

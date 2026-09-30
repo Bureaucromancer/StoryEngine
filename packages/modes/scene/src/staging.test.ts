@@ -88,8 +88,8 @@ describe('what the stager declares', () => {
    * be handed an empty map by `filterReads` and quietly behave as though staging
    * were always off.
    */
-  it('reads its own toggle, the prose and the cast, and writes the two channels', () => {
-    expect(STAGE_STEP.reads).toEqual(['output', 'cast', 'se.staging']);
+  it('reads its own toggles, the prose and the cast, and writes the two channels', () => {
+    expect(STAGE_STEP.reads).toEqual(['output', 'cast', 'se.staging', 'se.backdrop.on']);
     expect(STAGE_STEP.writes).toEqual([EXPRESSION_CHANNEL.id, LOCATION_CHANNEL.id]);
     // Not `se.backdrop`: that one is `engine-computed` and [P9] fills it, which
     // is why §7.2 reads like it forces [25 C16] and does not.
@@ -107,7 +107,12 @@ describe('what the stager declares', () => {
   });
 });
 
-describe('the three gates, none of which costs a call', () => {
+/**
+ * ~~The three gates, none of which costs a call~~ — two now: text-only and no
+ * prose (2026-09-30). The third, *nobody has a face*, stood in front of the
+ * place as well, and the place is asked on its own since.
+ */
+describe('the gates, and the question each one leaves', () => {
   it('does nothing at all when the session is text-only', async () => {
     const talking = host();
     const result = await stage(
@@ -140,27 +145,54 @@ describe('the three gates, none of which costs a call', () => {
   });
 
   /**
-   * ***The gate that will fire most often in practice.*** A character imported
+   * ~~***The gate that will fire most often in practice.*** A character imported
    * from a card with one portrait and no `sprites/` directory has nothing to
    * choose between, and a session of such characters is the common case — so a
-   * step that asked anyway would spend a call per turn to be told nothing.
+   * step that asked anyway would spend a call per turn to be told nothing.~~
+   *
+   * ***Nobody with a face is still a question about the place*** (2026-09-30).
+   * The gate stood in front of both questions, and this step is the place's
+   * only writer, so in the common case the place was never written and the
+   * backdrop was drawn from the tone alone, once a session. It asks where the
+   * scene is and nothing about people — no roster, no faces in the schema.
    */
-  it('does not ask when nobody in the scene has a face', async () => {
-    const talking = host();
-    await stage(
-      input({ cast: [member({ media: [{ id: 'm-card', role: 'portrait' }] })] }),
+  it.each([
+    ['nobody in the scene has a face', [member({ media: [{ id: 'm-card', role: 'portrait' }] })]],
+    ['there is nobody in the scene', []],
+    ['the one with faces is muted', [member({ present: false })]],
+  ])('asks only where the scene is when %s', async (_why, cast) => {
+    const talking = host({ object: { place: 'the harbourmaster’s office' } });
+    const result = await stage(input({ cast }), talking);
+
+    expect(talking.asked).toHaveLength(1);
+    const asked = talking.asked[0];
+    expect((asked?.candidates ?? []).map((one) => one.id)).toEqual([
+      'se.scene.stage.task',
+      'se.scene.stage.turn',
+    ]);
+    expect(Object.keys((asked?.schema as { properties: object }).properties)).toEqual(['place']);
+    expect(result.effects?.map((one) => one.channelId)).toEqual(['se.location']);
+  });
+
+  /**
+   * ***And *Stage a backdrop* on its own asks for the place*** (2026-09-30):
+   * the backdrop is drawn from it. Not for faces, which are staging's.
+   */
+  it('asks where the scene is for a backdrop, and nothing about faces', async () => {
+    const talking = host({ object: { place: 'the quay' } });
+    const result = await stage(
+      input({
+        channels: {
+          'se.staging': { value: false } as StepInput['channels'][string],
+          'se.backdrop.on': { value: true } as StepInput['channels'][string],
+        },
+      }),
       talking,
     );
 
-    expect(talking.asked).toEqual([]);
-  });
-
-  /** And an empty cast is the same answer by the same rule. */
-  it('does not ask when there is nobody in the scene', async () => {
-    const talking = host();
-    await stage(input({ cast: [] }), talking);
-
-    expect(talking.asked).toEqual([]);
+    const schema = talking.asked[0]?.schema as { properties: object };
+    expect(Object.keys(schema.properties)).toEqual(['place']);
+    expect(result.effects?.find((one) => one.channelId === 'se.location')?.after).toBe('the quay');
   });
 });
 
@@ -168,7 +200,7 @@ describe('what it proposes when it does run', () => {
   it('sets each actor’s face on that actor’s own scope, judged by the model', async () => {
     const result = await stage(
       input(),
-      host({ object: { faces: { 'a-vera': 'angry' }, place: 'the harbourmaster’s office' } }),
+      host({ object: { faces: { '1': 'angry' }, place: 'the harbourmaster’s office' } }),
     );
 
     const face = result.effects?.find((one) => one.channelId === 'se.expression');
@@ -227,8 +259,54 @@ describe('what it proposes when it does run', () => {
     const schema = talking.asked[0]?.schema as {
       properties: { faces: { properties: Record<string, { enum: string[] }> } };
     };
-    expect(schema.properties.faces.properties['a-vera']?.enum).toEqual(['neutral', 'angry']);
-    expect(schema.properties.faces.properties['a-lund']?.enum).toEqual(['tired']);
+    expect(schema.properties.faces.properties['1']?.enum).toEqual(['neutral', 'angry']);
+    expect(schema.properties.faces.properties['2']?.enum).toEqual(['tired']);
+  });
+
+  /**
+   * ***By number, which the prompt ties to a name*** (2026-09-30). The schema
+   * keyed faces by actor id and the roster named people, so two members with
+   * the standard expression pack could have their faces swapped and pass. Two
+   * people, one set of labels, and each face lands on its own person.
+   */
+  it('keeps two people with the same faces apart', async () => {
+    const talking = host({ object: { faces: { '1': 'angry', '2': 'neutral' } } });
+    const result = await stage(
+      input({ cast: [member(), member({ actorId: 'a-lund', name: 'Lund' })] }),
+      talking,
+    );
+
+    const roster = (talking.asked[0]?.candidates ?? []).find(
+      (one) => one.id === 'se.scene.stage.cast',
+    );
+    expect(roster?.text).toBe('1. Vera: neutral, angry\n2. Lund: neutral, angry');
+    const faces = (result.effects ?? [])
+      .filter((one) => one.channelId === 'se.expression')
+      .map((one) => [one.scopeKey, (one.after as { mediaId: string }).mediaId]);
+    expect(faces).toEqual([
+      ['a-vera', 'm-angry'],
+      ['a-lund', 'm-neutral'],
+    ]);
+  });
+
+  /**
+   * ***One bad half no longer sinks the other*** (2026-09-30). A reply keyed by
+   * name failed the schema whole, was asked for twice more and then dropped,
+   * place and all. Keys nobody asked for are allowed now, so what reaches the
+   * step is the answer, and the place in it stands.
+   */
+  it('keeps the place when the faces come back keyed by name', async () => {
+    const talking = host({ object: { faces: { Vera: 'angry' }, place: 'the office' } });
+    const result = await stage(input(), talking);
+
+    const schema = talking.asked[0]?.schema as {
+      additionalProperties?: unknown;
+      properties: { faces: { additionalProperties?: unknown }; place: { type: unknown } };
+    };
+    expect(schema.additionalProperties).toBeUndefined();
+    expect(schema.properties.faces.additionalProperties).toBeUndefined();
+    expect(schema.properties.place.type).toEqual(['string', 'null']);
+    expect(result.effects?.map((one) => one.channelId)).toEqual(['se.location']);
   });
 
   /**
