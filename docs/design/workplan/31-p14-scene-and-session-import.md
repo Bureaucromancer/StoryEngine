@@ -1,7 +1,10 @@
 # 31 — P14 implementation plan
 
-**Status: planned 2026-09-28, for immediate implementation.** No stage has
-landed. A feature in its own document, on the precedent
+**Status: merged to `main` 2026-09-30 at `8878851`, from
+`claude/sillytavern-marinara-import-id4eim`; the phase is open — every stage is
+built and reviewed (the as-built notes below), and the exit gate's critical list
+(§4.1) is unwalked.** ~~Planned 2026-09-28, for immediate implementation. No
+stage has landed.~~ A feature in its own document, on the precedent
 [P12 §1.5](29-p12-implementation.md) set.
 
 *Renumbered 2026-09-30, at the merge into main.* Written and built as **P13**
