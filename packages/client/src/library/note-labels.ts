@@ -412,6 +412,32 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '“{story}” has nothing in it yet, so there was no session to make.',
   'import.aventuras.storyRefused':
     '“{story}” could not be made into a session ({reason}), and nothing was written for it.',
+  /**
+   * ***A story's own file*** — [P13.15]. An Aventuras `.avt` is one story,
+   * every row of it, and comes across exactly as the same story does from
+   * the database: the same session, and the same one — so bringing a story
+   * across from either and then the other finds it already here, and every
+   * sentence above says the rest. These say what only a file can: which
+   * version of the format wrote it, that a format this build does not know
+   * is refused rather than guessed at, and the backdrop a file carries with
+   * no branch to put it on, which Aventuras' own import drops too. And one
+   * for the files an older backup carries beside its database, which are the
+   * database's own stories again, so the database is what is read.
+   */
+  'import.aventuras.avtStory':
+    '“{story}”, an Aventuras story file (format {version}): {entries} entries across {branches} branches besides the main line. Importing it makes it a session, with its characters, lorebook and pictures.',
+  'import.aventuras.avtOlderFormat':
+    'The file for “{story}” was written by an older Aventuras (format {version}). What that format did not carry yet — branches, pictures or portraits, depending on its age — is not in it, so it is not here either.',
+  'import.aventuras.avtNewerFormat':
+    'The file for “{story}” comes from a newer Aventuras (format {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
+  'import.aventuras.avtUnknownFormat':
+    '{file} is an Aventuras story file in a format this build cannot read (format {version}; this build reads 1.x up to {known}). Nothing was imported from it.',
+  'import.aventuras.avtUnreadable':
+    '{file} looks like an Aventuras story file, but it could not be read ({reason}). Nothing was imported from it.',
+  'import.aventuras.avtBackdropNotCarried':
+    'The file for “{story}” carries a background picture without saying which branch it belonged to, so it was left out, as Aventuras itself leaves it out when it imports the file.',
+  'import.aventuras.avtBesideDatabase':
+    'A story file beside the database. The database holds the same stories and is what was read, as Aventuras’ own restore does; to bring a story that is only in this file, import the file on its own.',
   'import.aventuras.forkSplitPair':
     'In “{story}”, the branch “{branch}” begins between an action and its answer, so here the action is repeated at the start of the branch with the branch’s own answer — beside the main line’s answer rather than after it.',
   'import.aventuras.forkEntryMissing':

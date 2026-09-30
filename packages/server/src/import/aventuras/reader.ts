@@ -585,6 +585,16 @@ export class AventurasReader implements SourceReader {
    * database holds every story they do, so here they are `skipped`, and a
    * backup of `.avt` files alone never reaches this reader (it has no
    * `aventura.db`, so it probes as loose files, which is Part 2's P13.15).
+   *
+   * ***And since P13.15, when a `.avt` can be read on its own, still not
+   * here.*** A backup wrote its `.avt` files from the very database beside
+   * them, in the same moment — Aventuras dropped them as *"pure
+   * duplication"* (`backupService.ts`) — so each holds a story the database
+   * holds, and the database's is the one read. Reading them as well would
+   * parse every story twice to be told `already-here` each time (their key is
+   * the database's, `aventuras/avt.ts`), and a folder upload would spend its
+   * budget carrying them. So they stay `skipped`, by name, and the row says
+   * why and how to bring one that is somehow not in the database: on its own.
    */
   async *#besideTheDatabase(held: Held): AsyncIterable<SourceItem> {
     for await (const path of this.#files.list()) {
@@ -593,7 +603,13 @@ export class AventurasReader implements SourceReader {
         yield observed(path, 'skipped', held.metadataNote === null ? [] : [held.metadataNote]);
         continue;
       }
-      yield observed(path, 'skipped');
+      yield observed(
+        path,
+        'skipped',
+        /\.avt$/i.test(path)
+          ? [{ key: 'import.aventuras.avtBesideDatabase', params: { file: path }, level: 'info' }]
+          : [],
+      );
     }
   }
 }

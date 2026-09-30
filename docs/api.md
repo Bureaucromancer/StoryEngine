@@ -528,7 +528,34 @@ and the same unknown-is-absent rule, for the same reasons.
 database's or backup's stories across as sessions, as the sweep's `stories`
 does ([P13.11](design/workplan/30-p13-aventuras-import.md)); anything else,
 or no field, is the default, which writes none. The same before-the-file rule
-applies. Every other kind of upload ignores it.
+applies. Every other kind of upload ignores it — **including an Aventuras
+story file**, below, which brings its story whatever the field says.
+
+**An Aventuras story file (`.avt`)** — [P13.15](design/workplan/30-p13-aventuras-import.md) —
+is recognised by its contents, whatever it is called: a JSON object whose
+`story` is an object and whose `entries` is an array, which is what
+Aventuras' own importer requires. It is one story, and becomes one session
+exactly as the same story does from the database (the sweep's `stories`,
+below): the same turns, cast, lorebook and illustrations, **under the same
+key**, `aventura.db/stories/<id>` from the story's id in the file — so a story
+brought across from the database and then from its file, or the other way
+round, is `unchanged` with `import.aventuras.storyAlreadyHere` the second
+time, naming the session the first made. The row's `source` is the file's
+name. **No `stories` field is needed**: the opt-in keeps a library sweep from
+filling the session list, and one file picked and previewed is a request for
+that story. What a file cannot carry: **backdrops** — `background_images` is
+not in a `.avt`, and the one backdrop a file may hold has no branch, so it is
+left out (`import.aventuras.avtBackdropNotCarried`), as Aventuras' own import
+leaves it. **The format is gated** as Aventuras reads it: `1.x` up to the
+pin's `1.10.0` imports, an older one as far as it goes
+(`import.aventuras.avtOlderFormat` — before 1.6.0 there are no branches, before
+1.4.0 no pictures), a newer `1.x` with `import.aventuras.avtNewerFormat` at
+`warn`; any other major, or a version that is not one, is `unrecognised` with
+`import.aventuras.avtUnknownFormat` and writes nothing, as is a file whose
+story has no id or that nests past 64 levels (`import.aventuras.avtUnreadable`).
+The file is buffered under `limits.maxUploadMb` like any JSON, and read once:
+its pictures stay in those bytes, measured and held to the 64 MB bound before
+each is decoded, one at a time.
 
 Exactly one format reads it, and that is the point rather than a limitation. A
 character card is an Actor and a world file is a Lorebook; neither poses a
@@ -568,7 +595,13 @@ change underneath, and the commit's answer is the real one.
   blurb, framingChars, cast, openings, destination, alternatives }` for an
   Aventuras scenario, `{ kind: 'sweep' }` for an archive or a Marinara envelope,
   `{ kind: 'opaque', name }` for something that converts and has no summary yet,
-  and `null` when nothing would be imported.
+  and `null` when nothing would be imported. **An Aventuras story file** is
+  `{ kind: 'opaque', name }` with the story's title, and its first note,
+  `import.aventuras.avtStory`, says which story, which format version, and how
+  many entries and branches it holds; its `reimport` is `new`, or `unchanged`
+  with `import.aventuras.storyAlreadyHere` when the story's key already names a
+  session here — answered from the key, without converting anything
+  ([P13.15](design/workplan/30-p13-aventuras-import.md)).
 - The scenario arm is the only one carrying a **question** rather than only
   statements: `alternatives` is what it could also be converted to, so a client
   can offer the switch without knowing which formats have a choice. It takes the
@@ -780,6 +813,19 @@ table is `recorded`,
 holds provider keys. A database missing a column this build reads, or with no
 `_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that
 has every column is read, with a `warn` note saying so.
+
+**Aventuras story files (`.avt`) in a swept folder** —
+[P13.15](design/workplan/30-p13-aventuras-import.md). A folder with no
+database in it — an older backup's `stories/`, or a folder of files somebody
+exported — sweeps as loose files, and each `.avt` in it is read by its
+contents as `/import/file` reads one: asked (`stories: true`), it is its story,
+`converted` into a session under the database's key for the same story, so a
+re-sweep, or the database swept later, finds it `unchanged`; not asked, it is
+`recorded` with the same `import.aventuras.storyRecorded` counts a database's
+story row has. **Beside a database, a `.avt` is not read**: an older backup
+wrote them from that very database, so each is a story the database holds and
+the database's is the one read — `skipped`, with
+`import.aventuras.avtBesideDatabase`.
 
 `onConflict` decides what a re-import does when a file has changed: `replace`
 (the default, and the safe one — the write goes through the version history, so

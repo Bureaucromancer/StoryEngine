@@ -271,3 +271,92 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
   kept_separate: 'recorded',
   world_state_snapshots: 'recorded',
 };
+
+/**
+ * ***The fields of a `.avt`, and what the story producer does with each*** —
+ * [P13.15](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * A `.avt` is `gatherStoryData()` serialised — the same rows as the tables
+ * above, one story's worth, run through Aventuras' own mappers — so each
+ * field is one of those tables, and **its disposition is that table's**: what
+ * a story from the database becomes, it becomes from the file. The exceptions
+ * are the file's own, each said beside it.
+ *
+ * Snapshot provenance:
+ *   source  aventuras/src/lib/services/import/types.ts, `AventuraExport` and
+ *           its version history, `EXPORT_FORMAT_VERSION = '1.10.0'`
+ *   commit  c43da108f6b3679950e76afe020f6b26abf0c9ce
+ *   taken   2026-09-30
+ *
+ * `version` and `exportedAt` are the envelope rather than content and are not
+ * listed: the first is the gate (`aventuras/avt.ts`), the second nothing
+ * reads. **A field this list lacks is skipped** — never read, and never
+ * refused, since every version after 1.0.0 added fields and changed none, so
+ * a newer file's extra field is one this build has no use for yet.
+ * `registries.test.ts` holds each field to its table's disposition through
+ * {@link AVT_FIELD_TABLES}, and `aventuras/avt.ts` reads its policy from here.
+ */
+export const AVT_FIELDS: Readonly<Record<string, ImportDisposition>> = {
+  /** `stories`'s row, through `mapStory`. */
+  story: 'converted',
+  /** `story_entries`, every branch's. */
+  entries: 'converted',
+  /** 1.6.0. */
+  branches: 'converted',
+  characters: 'converted',
+  locations: 'converted',
+  items: 'converted',
+  storyBeats: 'converted',
+  /** 1.1.0: the story's own `entries` table. */
+  lorebookEntries: 'converted',
+  /** 1.4.0: `embedded_images`, the base64 filled in by Aventuras' native exporter. */
+  embeddedImages: 'converted',
+  /** 1.7.0: counted, as the database's are, and never read (P13.14). */
+  chapters: 'recorded',
+  /** 1.6.0: counted; their snapshots are the largest thing in a file after its pictures. */
+  checkpoints: 'recorded',
+  /** 1.10.0: derived, as `time_anchors` is. */
+  timeAnchors: 'recorded',
+  /** 1.2.0: Aventuras' style-analysis working state. */
+  styleReviewState: 'skipped',
+  /**
+   * 1.9.0: the story's prompt pack — its name and the story's answers to its
+   * variables, never its templates. Packs are recorded (P13.9), and a binding
+   * to a pack this server has no counterpart of has nothing to bind.
+   */
+  packBinding: 'skipped',
+  /**
+   * 1.8.0, and ***the one field with no table***: a backdrop, but not
+   * `background_images` — one picture, with no branch and no time, taken
+   * from whatever the app last set on the story in memory, which a branch
+   * switch does not update (`story.svelte.ts`). Aventuras' own importer
+   * drops it (`createStory` has no column for it), and so does this, with a
+   * note (`import.aventuras.avtBackdropNotCarried`), since which line it
+   * belongs to is not something the file can say.
+   */
+  currentBgImage: 'skipped',
+};
+
+/**
+ * ***Which table each `.avt` field is***, or `null` for the three that are
+ * the file's own and have no table — so `registries.test.ts` can hold a field
+ * to its table's disposition, and a table that changes its answer changes the
+ * file's with it.
+ */
+export const AVT_FIELD_TABLES: Readonly<Record<string, string | null>> = {
+  story: 'stories',
+  entries: 'story_entries',
+  branches: 'branches',
+  characters: 'characters',
+  locations: 'locations',
+  items: 'items',
+  storyBeats: 'story_beats',
+  lorebookEntries: 'entries',
+  embeddedImages: 'embedded_images',
+  chapters: 'chapters',
+  checkpoints: 'checkpoints',
+  timeAnchors: 'time_anchors',
+  styleReviewState: null,
+  packBinding: null,
+  currentBgImage: null,
+};

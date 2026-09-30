@@ -27,6 +27,7 @@ import {
 
 import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook, type ConvertedAventurasLorebook } from './aventuras/lorebook.js';
+import { AVT_FORMAT, type AvtStory } from './aventuras/avt.js';
 import { AVENTURAS_DATABASE, AventurasReader } from './aventuras/reader.js';
 import { convertScenario, type ConvertedScenario } from './aventuras/scenario.js';
 import { carryPictures, planPictures, type CarriedPictures } from './aventuras/pictures.js';
@@ -549,6 +550,13 @@ class Writer {
        */
       case STORY_FORMAT:
         return this.#aventurasStory(candidate);
+      /**
+       * ***The same story, from its `.avt` (P13.15)*** — the same arm under
+       * another row source, so the same producer makes the same session and
+       * the same key finds it again. See `#aventurasAvt`.
+       */
+      case AVT_FORMAT:
+        return this.#aventurasAvt(candidate);
 
       /**
        * ***One of ours, which needs no conversion and therefore needs a
@@ -611,9 +619,79 @@ class Writer {
     // this is a caller that built a candidate by hand: say what it is, and
     // write nothing, as the reader would have.
     if (stories === undefined) return { source, disposition: 'recorded', notes: [] };
+    return this.#story(stories, source, source, candidate.payload as AventurasStoryRows);
+  }
 
+  /**
+   * ***A story from its `.avt`*** —
+   * [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **The row is the file's and the key is the story's.** The review names
+   * the file a person handed over — `stories/the-lantern-fork.avt`, or the
+   * upload's own name — while the session, its cast and its book are keyed
+   * `aventura.db/stories/<id>`, from the story's id in the file, which is the
+   * database's key for the same story (`aventuras/avt.ts` says why that id
+   * survives). So this arm and the database's are one arm under two row
+   * sources, and a story brought across by either is `already-here` by the
+   * other.
+   *
+   * ***Unasked, it is the database's `recorded` row***, with the same
+   * counts: a folder of `.avt` files swept for its cards is a library sweep
+   * as much as a database is, and `SweepRequest.stories`' reasons hold for
+   * it. The file door asks for a hand-picked one — see `importOneFile`.
+   */
+  async #aventurasAvt(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const { source } = candidate;
+    const file = candidate.payload as AvtStory;
+    const stories = this.#request.stories;
+    if (stories === undefined) {
+      return {
+        source,
+        disposition: 'recorded',
+        notes: [
+          {
+            key: 'import.aventuras.storyRecorded',
+            params: { story: file.title, ...file.tally },
+            level: 'info',
+          },
+          ...file.notes,
+        ],
+      };
+    }
+
+    const rows =
+      stories.maxPictureBytes === undefined
+        ? file.rows
+        : file.withPictureBound(stories.maxPictureBytes);
+    // What stays behind, as the database reader says it on the candidate.
+    const { chapters, checkpoints } = file.tally;
+    const behind: ImportNote[] =
+      chapters + checkpoints === 0
+        ? []
+        : [
+            {
+              key: 'import.aventuras.storyWorldRecorded',
+              params: { story: file.title, chapters, checkpoints },
+              level: 'info',
+            },
+          ];
+    const report = await this.#story(stories, source, file.key, rows);
+    return { ...report, notes: [...behind, ...file.notes, ...report.notes] };
+  }
+
+  /**
+   * ***One story, into one session*** — the body of both story arms. `source`
+   * is the review row's name; `key` is the story's, which the session, its
+   * turns and its world are keyed by — the same thing for a database's row,
+   * and not for a file.
+   */
+  async #story(
+    stories: NonNullable<SweepRequest['stories']>,
+    source: string,
+    key: string,
+    rows: AventurasStoryRows,
+  ): Promise<ImportItemReport> {
     const { handle } = this.#request;
-    const rows = candidate.payload as AventurasStoryRows;
     const story = rows.story.title;
     const alreadyHere: ImportNote = {
       key: 'import.aventuras.storyAlreadyHere',
@@ -621,7 +699,7 @@ class Writer {
       level: 'info',
     };
 
-    const prior = priorSessionImport(stories, handle, source);
+    const prior = priorSessionImport(stories, handle, key);
     if (prior !== null) {
       const here = await readSession(stories.sessions, handle, prior.sessionId);
       const linked = here === null ? [] : linksOf(here);
@@ -634,7 +712,7 @@ class Writer {
       };
     }
 
-    const produced = produceStory(rows, { handle, origin: source });
+    const produced = produceStory(rows, { handle, origin: key });
     if (!produced.ok) {
       // No session, so no world either: a cast and a book with nothing
       // linking to them would be objects this import made for nobody.
@@ -648,7 +726,7 @@ class Writer {
       };
     }
 
-    const world = produceWorld(rows, source);
+    const world = produceWorld(rows, key);
     const stored: ImportNote[] = [];
     const links = await this.#storyWorld(rows, world, stored);
     const { session } = produced.document;
@@ -671,7 +749,7 @@ class Writer {
     const said = [...produced.notes, ...world.notes, ...plan.notes, ...pictures.notes, ...stored];
 
     const result = await importSession(stories, handle, produced.document, {
-      originalFilename: source,
+      originalFilename: key,
       requireLinks: true,
       pixels: pictures.pixels,
     });

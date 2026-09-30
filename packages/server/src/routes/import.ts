@@ -19,7 +19,9 @@ import { planUpload, type ManifestEntry } from '../import/directory-upload.js';
 import { MemoryFileSource } from '../import/memory-source.js';
 import { nearMiss } from '../import/near-miss.js';
 import { previewOne } from '../import/preview.js';
-import { readUpload } from '../import/upload.js';
+import { readAvtUpload, readUpload } from '../import/upload.js';
+import type { AvtStory } from '../import/aventuras/avt.js';
+import { priorSessionImport } from '../sessions/import.js';
 import { FORWARDED_SAMPLER_PARAMS } from '../providers/forwarded-params.js';
 import {
   profileAsFileSource,
@@ -1047,6 +1049,53 @@ async function previewUpload(
     );
   }
 
+  /**
+   * ***An Aventuras story file*** —
+   * [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * Asked before the file is parsed whole, as the import asks it, for the
+   * size reason `readUpload` gives. *A look, then a word*, as for every
+   * hand-picked file: the look says which story and how much of it — and,
+   * from the story's key, whether it is already a session here, in which case
+   * the word would write nothing. Never `unknown`, since the key answers it
+   * without converting anything.
+   */
+  const avt = readAvtUpload(filename, bytes);
+  if (avt !== null) {
+    if (avt.outcome === 'observed') return blank(avt.report.disposition, avt.report.notes, null);
+    const story = avt.candidate.payload as AvtStory;
+    const prior = priorSessionImport({ sessions: services.sessions }, handle, story.key);
+    const notes: ImportNote[] = [
+      {
+        key: 'import.aventuras.avtStory',
+        params: {
+          story: story.title,
+          version: story.version,
+          entries: story.tally.entries,
+          branches: story.tally.branches,
+        },
+        level: 'info',
+      },
+      ...story.notes,
+      ...(prior === null
+        ? []
+        : [
+            {
+              key: 'import.aventuras.storyAlreadyHere',
+              params: { story: story.title },
+              level: 'info' as const,
+            },
+          ]),
+    ];
+    return {
+      source: filename,
+      disposition: prior === null ? 'converted' : 'unchanged',
+      notes,
+      advisories: [],
+      object: { kind: 'opaque', name: story.title === '' ? filename : story.title },
+      reimport: prior === null ? 'new' : 'unchanged',
+    };
+  }
+
   let parsed: unknown = null;
   try {
     parsed = JSON.parse(new TextDecoder().decode(bytes));
@@ -1106,6 +1155,45 @@ async function importOneFile(
     item: { source: filename, disposition, notes, ...(objectId ? { objectId } : {}) },
     notes,
   });
+
+  /**
+   * ***An Aventuras story file, asked before anything parses it whole*** —
+   * [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **A hand-picked `.avt` brings its story, whatever `stories` says.** The
+   * opt-in (`SweepRequest.stories`) is there to keep a *library* sweep from
+   * filling the session list with every story somebody ever started — two
+   * hundred sessions nobody picked, each taken back by hand. One file, picked
+   * out of a dialog, looked at in a preview that names the story, and then
+   * confirmed, is none of that: it is a request for that story, and the only
+   * thing this file can become. Asking again with a checkbox would ask the
+   * person a question they have already answered twice. A zip of them is a
+   * folder, and is swept under the opt-in like one.
+   *
+   * *Before the envelope check*, which parses the file whole, for the size
+   * reason `readUpload` gives: the story file is the one JSON here that is
+   * mostly pictures.
+   */
+  const avt = readAvtUpload(filename, bytes);
+  if (avt !== null) {
+    if (avt.outcome === 'observed') return { item: avt.report, notes: avt.report.notes };
+    const [answer] = await convertOne(
+      {
+        library: services.library,
+        handle,
+        tags: services.tags,
+        files: new MemoryFileSource({}),
+        stories: { sessions: services.sessions },
+      },
+      avt.candidate,
+    );
+    if (answer === undefined) {
+      return item('unrecognised', [
+        { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
+      ]);
+    }
+    return { item: answer, notes: answer.notes };
+  }
 
   /**
    * ~~**An archive is a root, so it is swept rather than read as an item**~~ —

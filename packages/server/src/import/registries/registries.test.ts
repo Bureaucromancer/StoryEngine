@@ -9,7 +9,13 @@ import { CONVERTED_TABLES, STORY_COUNTS } from '../aventuras/reader.js';
 import { AVENTURAS_REQUIRED } from '../aventuras/schema.js';
 import { NOT_CONVERTIBLE } from '../upload.js';
 
-import { AVENTURAS_DISPOSITIONS, AVENTURAS_STORY_TABLES, AVENTURAS_TABLES } from './aventuras.js';
+import {
+  AVENTURAS_DISPOSITIONS,
+  AVENTURAS_STORY_TABLES,
+  AVENTURAS_TABLES,
+  AVT_FIELD_TABLES,
+  AVT_FIELDS,
+} from './aventuras.js';
 import { MARINARA_DISPOSITIONS, MARINARA_TABLES } from './marinara.js';
 import { SILLYTAVERN_DIRECTORIES, SILLYTAVERN_DISPOSITIONS } from './sillytavern.js';
 
@@ -242,5 +248,30 @@ describe('the file and the folder say the same thing', () => {
       .filter((directory) => !known.has(directory));
 
     expect(unknown).toEqual([]);
+  });
+});
+
+/**
+ * ***A `.avt`'s fields are its tables*** — [P13.15]. A story from its file
+ * becomes what the same story from the database becomes, so a field that is a
+ * table must say what that table says: a table that stops being converted
+ * would otherwise go on being converted from every file.
+ */
+describe('the .avt fields', () => {
+  it('names a table for every field, or says it is the file’s own', () => {
+    expect(Object.keys(AVT_FIELD_TABLES).sort()).toEqual(Object.keys(AVT_FIELDS).sort());
+  });
+
+  it('gives each field its table’s disposition', () => {
+    const disagreements = Object.entries(AVT_FIELD_TABLES)
+      .filter(([, table]) => table !== null)
+      .filter(([field, table]) => AVT_FIELDS[field] !== AVENTURAS_DISPOSITIONS[table ?? ''])
+      .map(([field, table]) => `${field} ≠ ${String(table)}`);
+    expect(disagreements).toEqual([]);
+  });
+
+  it('has a disposition in the vocabulary for every field', () => {
+    const known = new Set<string>(IMPORT_DISPOSITIONS);
+    expect(Object.values(AVT_FIELDS).filter((disposition) => !known.has(disposition))).toEqual([]);
   });
 });

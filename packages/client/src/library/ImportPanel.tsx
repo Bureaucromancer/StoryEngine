@@ -578,12 +578,17 @@ export function ImportPanel(): JSX.Element {
               accessible name; `sr-only` hides it from sight but not from
               assistive technology, and the label's `htmlFor` is what makes the
               button's click reach it.
+
+              *`.avt` since [P13.15]*: an Aventuras story file, which a file
+              dialog filtering by this list would otherwise grey out — the
+              server knows it by its contents, but a person cannot pick a file
+              the dialog will not show.
             */}
             <input
               ref={fileInput}
               id="import-file"
               type="file"
-              accept=".png,.json,.charx,.seactor,.zip,.db"
+              accept=".png,.json,.charx,.seactor,.zip,.db,.avt"
               onChange={(event) => void onFile(event)}
               disabled={pending}
               className="sr-only"
@@ -712,10 +717,15 @@ export function ImportPanel(): JSX.Element {
             library arrives by any of them — its folder by path or from this
             browser, or its backup as a file — and the answer is about what
             to bring, not how it travels.
+
+            *A single story file needs no asking* ([P13.15]): picking one
+            `.avt` out of a dialog is asking for that story, and the preview
+            has already named it, so the hint says so rather than leaving a
+            person to wonder whether the box has to be ticked for it.
           */}
           <CheckboxField
             label="Also bring Aventuras stories across as sessions"
-            hint="Each story becomes a session of its own, opening where it was left. Importing the same library again never makes a second copy, and never replaces one. Other kinds of library ignore this."
+            hint="Each story becomes a session of its own, opening where it was left. Importing the same library again never makes a second copy, and never replaces one. A single Aventuras story file (.avt) always comes across as its story; other kinds of library ignore this."
             checked={stories}
             disabled={pending}
             onChange={setStories}
