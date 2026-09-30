@@ -127,6 +127,28 @@ describe('GET /api/me/notifications', () => {
   });
 });
 
+/**
+ * ***The stream's snapshot says when it was read*** (2026-09-28). A client
+ * announces a row on a reattach's snapshot only if it is recent, and recent by
+ * the clock that stamped the row rather than by its own, which may be minutes
+ * out — so the snapshot carries this server's.
+ */
+describe('GET /api/me/notifications/stream', () => {
+  it('opens with the list and the server’s clock as it was read', async () => {
+    finished('ned', 's-1');
+    const before = Date.now();
+
+    const tab = await server.stream({ url: '/api/me/notifications/stream' });
+    const snapshot = await tab.until((frame) => frame.event === 'snapshot');
+    await tab.abort();
+
+    const data = snapshot.data as { notifications: unknown[]; at: number };
+    expect(data.notifications).toHaveLength(1);
+    expect(data.at).toBeGreaterThanOrEqual(before);
+    expect(data.at).toBeLessThanOrEqual(Date.now());
+  });
+});
+
 describe('POST /api/me/notifications/read', () => {
   it('marks them all when no ids are named', async () => {
     finished('ned', 's-1');

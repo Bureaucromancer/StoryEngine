@@ -34,6 +34,13 @@ import type { NotificationList, NotificationView } from './types.js';
 
 export const NOTIFICATIONS_KEY = ['notifications'] as const;
 
+/**
+ * How recent a row on a reattach's snapshot must be to be announced — the
+ * server's coalescing window (`COALESCE_WINDOW_MS`), inside which two arrivals
+ * are one piece of news, and past which one is not news any more.
+ */
+const NEWS_WINDOW_MS = 120_000;
+
 const EMPTY: NotificationList = { notifications: [], unread: 0 };
 
 export function useNotificationList(enabled: boolean): UseQueryResult<NotificationList> {
@@ -129,27 +136,26 @@ export function useNotifications(
   }, [enabled]);
 
   /**
-   * ***What has already been announced, so a reconnect is silent.***
+   * How many folds of each row have been announced, **so a reconnect does not
+   * announce a row twice.**
    *
-   * The snapshot on reattach carries every unread notification, including the
+   * The snapshot on reattach carries the unread notifications, including the
    * ones this tab already chimed for. Without this, a flaky LAN would turn one
    * finished turn into a sound every three seconds — and the person would
    * reasonably conclude notifications are broken rather than that the network
-   * is. Ids rather than a timestamp, because a **fold** re-sends a row whose
-   * `createdAt` has not moved.
+   * is. Ids and counts rather than a timestamp, because a **fold** re-sends a
+   * row whose `createdAt` has not moved — and **a fold is news the second
+   * time**: *your picture is ready* and then *three pictures are ready* are
+   * different facts about the same row, and [09 §3.4]'s whole point is that the
+   * second one is worth saying once rather than three times. So the id alone
+   * would silence a fold, and a bare re-announce would chime for every arrival
+   * the fold exists to collapse.
    *
    * *A ref rather than state*: announcing must not re-render, and the value has
    * to be readable from inside the stream callback without re-subscribing.
-   */
-  const announced = useRef<Set<string>>(new Set());
-  /**
-   * How many folds of each row have been announced.
-   *
-   * **A fold is news the second time**: *your picture is ready* and then *three
-   * pictures are ready* are different facts about the same row, and [09 §3.4]'s
-   * whole point is that the second one is worth saying once rather than three
-   * times. So the id alone would silence a fold, and a bare re-announce would
-   * chime for every arrival the fold exists to collapse.
+   * (2026-09-28: a second ref, a set of ids announced, was written in three
+   * places and read in none; this is what did the work, and its reasons moved
+   * here.)
    */
   const foldedAt = useRef<Map<string, number>>(new Map());
 
@@ -166,18 +172,13 @@ export function useNotifications(
   const live = useRef({ prefs, muted });
   live.current = { prefs, muted };
 
-  const deliver = useCallback((one: NotificationView) => {
-    if (one.readAt !== null) return;
-    const seen = foldedAt.current.get(one.id);
-    if (seen !== undefined && seen >= one.folded) return;
-    announced.current.add(one.id);
-    foldedAt.current.set(one.id, one.folded);
-
-    /**
-     * **One decision, made once, and the three channels obey it** — `prefs.ts`'s
-     * `deliveryFor`. Three call sites each consulting the preferences would be
-     * three chances to disagree about what `off` means.
-     */
+  /**
+   * **One decision, made once, and the three channels obey it** — `prefs.ts`'s
+   * `deliveryFor`. Three call sites each consulting the preferences would be
+   * three chances to disagree about what `off` means. Its own function since
+   * 2026-09-28, because a reattach announces too (`onSnapshot` below).
+   */
+  const announce = useCallback((one: NotificationView) => {
     const how = deliveryFor(live.current.prefs, one.class, { muted: live.current.muted });
     if (how.sound) playChime(one.class);
     if (how.toast) setToast(one);
@@ -187,24 +188,58 @@ export function useNotifications(
     }
   }, []);
 
+  const deliver = useCallback(
+    (one: NotificationView) => {
+      if (one.readAt !== null) return;
+      const seen = foldedAt.current.get(one.id);
+      if (seen !== undefined && seen >= one.folded) return;
+      foldedAt.current.set(one.id, one.folded);
+      announce(one);
+    },
+    [announce],
+  );
+
   useEffect(() => {
     if (!enabled) return;
 
+    /** Whether this subscription has had its first snapshot yet. */
+    let attached = false;
     const handle = openNotificationStream({
       onSnapshot: (list) => {
         setConnected(true);
         client.setQueryData<NotificationList>(NOTIFICATIONS_KEY, list);
         /**
-         * **The snapshot is recorded as announced without announcing it.** What
-         * is on it is what was true before this tab attached — a reload, a
-         * reconnect, or a notification raised while this browser was closed —
-         * and none of that is news happening *now*. The badge shows it, which
-         * is the durable channel doing its job.
+         * **The first snapshot is recorded as announced without announcing
+         * it.** What is on it was true before this tab attached — a reload, or
+         * a notification raised while this browser was closed — and none of
+         * that is news happening *now*. The badge shows it, which is the
+         * durable channel doing its job.
+         *
+         * ***A later one announces what arrived while the stream was down***
+         * (2026-09-28). ~~A reconnect~~ was on the list above, and a row raised
+         * in those seconds reached this tab only inside the reattach's
+         * snapshot, so its chime, toast and browser notification never came —
+         * the finished turn a person left the room waiting to hear, and the
+         * notice a restore's restart raises before it listens. Only a row not
+         * yet announced at this fold (the flaky LAN still cannot repeat one),
+         * unread, and raised within the coalescing window of the server's own
+         * clock (`at`), so a laptop waking hours later does not chime for what
+         * finished while it slept; and only the newest of them, because chimes
+         * stack and one toast says one thing.
          */
-        for (const one of list.notifications) {
-          announced.current.add(one.id);
-          foldedAt.current.set(one.id, one.folded);
-        }
+        const news = list.notifications.filter(
+          (one) =>
+            one.readAt === null &&
+            (foldedAt.current.get(one.id) ?? 0) < one.folded &&
+            (list.at === undefined || list.at - one.updatedAt < NEWS_WINDOW_MS),
+        );
+        for (const one of list.notifications) foldedAt.current.set(one.id, one.folded);
+        const newest = news.reduce<NotificationView | null>(
+          (held, one) => (held === null || one.updatedAt > held.updatedAt ? one : held),
+          null,
+        );
+        if (attached && newest !== null) announce(newest);
+        attached = true;
       },
       onNotification: (one) => {
         client.setQueryData<NotificationList>(NOTIFICATIONS_KEY, (held) =>
@@ -226,7 +261,7 @@ export function useNotifications(
     return () => {
       handle.close();
     };
-  }, [client, deliver, enabled, account]);
+  }, [announce, client, deliver, enabled, account]);
 
   const markRead = useCallback(
     (ids: string[] = []) => {

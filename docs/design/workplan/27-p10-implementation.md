@@ -716,6 +716,17 @@ pictures are ready* are different facts, so the memory is a count per id rather
 than a set of ids, and [09 §3.4]'s coalescing would be pointless if the second
 one were silent.
 
+*Corrected 2026-09-28.* ~~what is on a snapshot was already true before this tab
+attached~~ — of the first snapshot, and not of a reattach's. A row raised in the
+seconds the stream was down reaches the tab only inside the reattach's snapshot,
+so it was recorded as announced and never announced: no chime for the turn a
+person left the room waiting to hear, and no toast for the notice a restore's
+restart raises before it listens. The flaky-LAN case never needed the silence —
+the per-row fold count already refuses a repeat. So a later snapshot announces
+the newest row it had not said yet, if it is unread and inside the coalescing
+window of the server's clock, which the snapshot now carries as `at`; a laptop
+waking hours later still does not chime for what finished while it slept.
+
 ***The transport was extracted rather than copied.*** `play/stream.ts` was
 written when the session stream was the only one; [09 §3.1] describes two, and
 the second has the same retry problem at a different address. So the `fetch`

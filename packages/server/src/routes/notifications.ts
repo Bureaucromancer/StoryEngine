@@ -144,6 +144,13 @@ export function registerNotificationRoutes(app: FastifyInstance, services: AppSe
     const snapshot = {
       notifications: listNotifications(services.state.db, handle),
       unread: unreadCount(services.state.db, handle),
+      /**
+       * ***This server's clock as the list was read*** (2026-09-28), so a
+       * client can tell a row raised in the seconds its stream was down from
+       * one a sleeping laptop slept through, against the clock the rows were
+       * stamped by rather than its own.
+       */
+      at: Date.now(),
     };
 
     reply.hijack();

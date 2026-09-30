@@ -152,6 +152,14 @@ The user stream is the one that has to survive disconnection, so it needs an
 wait, a reconnecting client replays from its last acknowledged id, and "persist
 until seen" becomes a property of storage rather than a hope about timing.
 
+*As built (P10.2; noted 2026-09-28):* ~~with a cursor~~ — the inbox is kept and
+the cursor is not. A notification is a record rather than a sequenced event, so
+the stream's first frame on every attach is the list itself, read in the same
+tick the listener subscribes, and a reconnecting client re-reads rather than
+replays. What waits is the row; what a client missed while its stream was down
+arrives on the reattach's snapshot, and the client announces the newest such row
+it had not yet said, which is what *replays* came to mean.
+
 **That inbox is operational state, not derived** — it goes with jobs and auth
 sessions in the store described in [21 §5.1](21-internal-contracts.md), never in
 the disposable index. A notification that vanishes when someone deletes
