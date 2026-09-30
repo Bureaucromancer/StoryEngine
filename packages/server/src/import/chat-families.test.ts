@@ -495,6 +495,35 @@ describe('a group of three', () => {
   });
 });
 
+describe('a group’s scenarios', () => {
+  it('links none when two members bring different scenarios, and says so', async () => {
+    const maris = {
+      spec: 'chara_card_v2',
+      spec_version: '2.0',
+      data: {
+        name: 'Maris Okonkwo',
+        description: 'Runs the night ferry.',
+        scenario: 'The last ferry leaves at midnight and someone is not on the manifest.',
+        first_mes: 'Pay at the rail.',
+      },
+    };
+    const items = await run({
+      ...sillyTavernFixture(),
+      ...group(),
+      'characters/Maris Okonkwo.png': withChunks(makePng(), [base64TextChunk('chara', maris)]),
+    });
+    const made = items.filter((item) =>
+      item.notes.some((note) => note.key === 'import.card.treatmentCreated'),
+    );
+    expect(made).toHaveLength(2);
+
+    const chat = row(items, GROUP_CHAT);
+    expect(chat.notes.map((note) => note.key)).toContain('import.chat.scenarioAmbiguous');
+    const { session } = await exported(chat.objectId);
+    expect(session.treatment).toBeUndefined();
+  });
+});
+
 describe('a group, again and in older shapes', () => {
   it('says it was compared with the sessions already here, and not that it made them', async () => {
     const tree = { ...sillyTavernFixture(), ...group() };

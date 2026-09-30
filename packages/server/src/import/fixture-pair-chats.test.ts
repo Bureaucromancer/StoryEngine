@@ -232,15 +232,19 @@ function leadingCard(blocks: readonly AssembledBlock[]): string | undefined {
  * the persona the chat was locked to, the description and personality, the
  * three [P13.3] prompt sections, the history the chat became, and the input.
  *
- * ***Not `se.treatment`, and that is a gap rather than a reading.*** The sweep
- * turns a card's `scenario` into a treatment, and the chat door links none to
- * the session it builds, so the slot is empty on every imported chat while
- * SillyTavern sends the scenario every turn. Nothing in the plan says which is
- * right; the P13.12 as-built note records it, and naming it here would make
- * this gate red over a decision nobody has taken.
+ * ~~***Not `se.treatment`, and that is a gap rather than a reading.*** The
+ * sweep turns a card's `scenario` into a treatment, and the chat door links
+ * none to the session it builds, so the slot is empty on every imported chat
+ * while SillyTavern sends the scenario every turn. Nothing in the plan says
+ * which is right; the P13.12 as-built note records it, and naming it here would
+ * make this gate red over a decision nobody has taken.~~ ***`se.treatment`
+ * since [P13.5c]***, which took the decision: the session pass links the
+ * treatment the sweep made from the cast's card scenario, as SillyTavern sends
+ * it, so the slot is fed and this gate says so.
  */
 const FED = [
   'se.persona',
+  'se.treatment',
   'se.actor.summary',
   'se.actor.traits',
   'se.card.system',
@@ -373,7 +377,8 @@ const at = (minute: number): string => new Date(Date.UTC(2026, 0, 2, 20, minute)
 /**
  * A card with the corpus card's words and [P13.3]'s three prompts. Vera's
  * `scenario` is kept, so the sweep makes the treatment it always has — which
- * the session it imports then does not link (the P13.12 as-built note).
+ * ~~the session it imports then does not link (the P13.12 as-built note)~~ the
+ * session it imports links, since [P13.5c].
  */
 function stCard(name: string, description: string, personality: string, scenario = ''): Uint8Array {
   return withChunks(makePng(), [

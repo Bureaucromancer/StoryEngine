@@ -113,8 +113,13 @@ export interface DirectContext {
    * ***The secret plot, if the session keeps one***, as its channels render —
    * every switched-on hidden channel that declares a reveal
    * (`secretChannels`), so the engine names none. Empty is no secret.
+   *
+   * ***A thunk, read when the step runs***: the director is placed after the
+   * mode's `pre` steps so that a plot pass which just wrote a fresh arc is the
+   * one it reads, and a value captured when the plan was built would be the
+   * arc from before the turn started.
    */
-  secrets: readonly string[];
+  secrets: () => readonly string[];
   /** The persona's name, for the player's lines; null reads as *the player*. */
   player: string | null;
   /** Who said each line, by actor id — a `Ref`'s own name is the fallback. */
@@ -156,18 +161,19 @@ export function direct(context: DirectContext): {
         });
       };
 
+      const secrets = context.secrets();
       let text: string;
       try {
         const result = await host.call({
           candidates: [
             block('se.scene.direct.task', 'system', TASKS[context.push]),
-            ...(context.secrets.length === 0
+            ...(secrets.length === 0
               ? []
               : [
                   block(
                     'se.scene.direct.secret',
                     'system',
-                    `Where the story is secretly heading (the player does not know this):\n${context.secrets.join('\n\n')}`,
+                    `Where the story is secretly heading (the player does not know this):\n${secrets.join('\n\n')}`,
                   ),
                 ]),
             block('se.scene.direct.recent', 'user', recentText(context, input)),

@@ -3,12 +3,13 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { ImportItemReport, Turn } from '@storyengine/shared';
+import { newTreatment, type ImportItemReport, type Turn } from '@storyengine/shared';
 
 import { CHAT_IMPORT_MODE_ID } from '../mode-registry.js';
 import { exportSession } from '../sessions/export.js';
 import { listSessions } from '../sessions/store.js';
 import type { SessionFile } from '../sessions/types.js';
+import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 import { sillyTavernFixture } from './fixtures/test-sillytavern.js';
 import { MemoryFileSource } from './memory-source.js';
@@ -110,6 +111,93 @@ describe('sweeping a tree of cards and chats', () => {
     const speakers = turns.flatMap((turn) => turn.output?.messages ?? []);
     expect(speakers.length).toBeGreaterThan(0);
     expect(speakers.every((message) => message.speaker?.id === vera)).toBe(true);
+  });
+
+  /**
+   * ***The card's scenario reaches the session*** — [P13.5c], the gap
+   * [P13.12] found: the sweep made a treatment from Vera's `scenario` and the
+   * chat's session linked none, so `se.treatment` was empty on every imported
+   * chat while SillyTavern sends the scenario every turn. The treatment is
+   * found by its provenance — the `scenario:` stamp the sweep gives it — and
+   * the cast it names.
+   */
+  it('links the treatment the sweep made from the card’s scenario', async () => {
+    const items = await run(sillyTavernFixture());
+    const made = items.filter((item) =>
+      item.notes.some((note) => note.key === 'import.card.treatmentCreated'),
+    );
+    expect(made).toHaveLength(1);
+
+    const { session } = await exported(row(items, CHAT).objectId);
+    expect(session.treatment).toBe(made[0]?.objectId);
+    expect(row(items, CHAT).notes.map((note) => note.key)).not.toContain(
+      'import.chat.scenarioAmbiguous',
+    );
+  });
+
+  it('links the newer treatment when the card’s scenario was edited, and calls nothing ambiguous', async () => {
+    const { [CHAT]: chat, ...cards } = sillyTavernFixture();
+    const first = await run(cards);
+    const old = first.find((item) =>
+      item.notes.some((note) => note.key === 'import.card.treatmentCreated'),
+    );
+    // Vera's card again, its scenario rewritten: a second treatment names her,
+    // and the first still does.
+    const edited = {
+      spec: 'chara_card_v2',
+      spec_version: '2.0',
+      data: {
+        name: 'Vera Solano',
+        description: 'A dock inspector who notices what the manifests leave out.',
+        scenario: 'The rain has stopped at last, and the inspections are caught up.',
+        first_mes: 'You again. Third time this week.',
+      },
+    };
+    const second = await run({
+      'characters/Vera Solano.png': withChunks(makePng(), [base64TextChunk('chara', edited)]),
+    });
+    const newer = second.find((item) =>
+      item.notes.some((note) => note.key === 'import.card.treatmentCreated'),
+    );
+    expect(newer?.objectId).toBeDefined();
+    expect(newer?.objectId).not.toBe(old?.objectId);
+
+    const items = await run({ [CHAT]: chat ?? '' });
+    const { session } = await exported(row(items, CHAT).objectId);
+    expect(session.treatment).toBe(newer?.objectId);
+    expect(row(items, CHAT).notes.map((note) => note.key)).not.toContain(
+      'import.chat.scenarioAmbiguous',
+    );
+  });
+
+  it('links no treatment a person wrote, even one naming the chat’s character', async () => {
+    const { [CHAT]: chat, ...cards } = sillyTavernFixture();
+    const first = await run(cards);
+    const vera = row(first, 'characters/Vera Solano.png').objectId ?? '';
+    // Vera's scenario treatment, gone; one written by hand naming her, in its place.
+    const scenario = first.find((item) =>
+      item.notes.some((note) => note.key === 'import.card.treatmentCreated'),
+    );
+    const url = `/api/library/treatments/${scenario?.objectId ?? ''}`;
+    const held = await server.request({ method: 'GET', url });
+    const removed = await server.request({
+      method: 'DELETE',
+      url,
+      headers: { 'if-match': held.body.contentHash as string },
+    });
+    expect(removed.status, JSON.stringify(removed.body)).toBeLessThan(300);
+    const handWritten = newTreatment('Harbour, by hand');
+    handWritten.cast = [{ ref: { id: vera, name: 'Vera' }, billing: 'npc', note: '' }];
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/treatments',
+      payload: handWritten,
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+
+    const items = await run({ [CHAT]: chat ?? '' });
+    const { session } = await exported(row(items, CHAT).objectId);
+    expect(session.treatment).toBeUndefined();
   });
 
   it('resolves against a card walked after the chat, because the pass waits for the library', async () => {

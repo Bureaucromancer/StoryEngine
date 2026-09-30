@@ -1963,9 +1963,10 @@ coming. It runs `se.scene.direct` before the reply, one small call whose
 direction reaches the guidance slot (as `se.guidance.direction`, a `step`
 producer); when that call fails, the session's pack's own push text for the
 flavour stands in. Any other value is `400`, and beside `authored` it is `422
-conflicting-gesture`. **A rewrite keeps it**: a `rewriteOf` submission without
-`push` is pushed as the redone turn was, read off that turn's director outcome;
-`push` sent beside `rewriteOf` wins.
+conflicting-gesture`. **A rewrite or a guided redo keeps it**: a `rewriteOf`
+or `redoOf` submission without `push` is pushed as the redone turn was, read
+off that turn's director outcome; `push` sent beside either wins. A plain
+reroll names no turn, so a client redoing a pushed turn sends `push` itself.
 
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
@@ -2022,6 +2023,24 @@ text stood in — a `failed` outcome under `failure: "warn"`, whose `error` says
 why; the turn completes. `text` is the words the guidance slot carried, absent
 only when the call failed and the pack ships no push text, so the turn ran
 undirected.
+
+**An outcome with `revisions` says what an editor did to the turn's messages**
+([P13 §1.9.4](design/workplan/30-p13-scene-and-session-import.md), P13.5c) —
+Scene's `se.scene.edit`, or any step whose mode declares `revises`. It is
+`[{ index, edited?, changes?, notices? }]`, one row per message the editor had
+something to say about, by the message's index in `output.messages` (a turn with
+no `messages` is one message, index `0`). `edited: true` means the message's
+text was replaced **before the turn was written**: `output.text` and the
+message's `text` are the edited words, and the message's `original` is what the
+model wrote (or what cleanup kept of it, when cleanup had already written one).
+`changes` is the editor's account of what it changed. `notices` is what it found
+and left alone — continuity findings, `{ issue, quote?, fix? }` — and one with
+both `quote` and `fix` is applied by the edit gesture (`editOf` with the
+message's text, `quote` replaced by `fix`), which writes a sibling. **Absent**
+when the editor is off, needed no edit and found nothing, or failed; a failed
+editor is a `failed` outcome under `failure: "warn"` and the turn keeps the
+unedited reply. While the editor runs with its hold on, the round's `delta`
+frames arrive only once the edit is in.
 
 `turn.spans` is what the engine understood about the turn's text — [06 §8.2],
 [03 §8](design/03-data-model.md), [10 §13.1](design/10-ui-surfaces.md). Each span

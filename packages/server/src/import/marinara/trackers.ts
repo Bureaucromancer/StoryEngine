@@ -4,6 +4,7 @@
 import type { ImportNote } from '@storyengine/shared';
 
 import type { ChatStateValue, ForeignRef } from '../chat/types.js';
+import { EDITOR_AGENTS, editorSwitches } from './editor.js';
 import { plotSwitches } from './plot.js';
 
 /**
@@ -183,13 +184,20 @@ export function trackerSwitches(
    */
   out.push(...plotSwitches(metadata, active));
   /**
-   * *Agents that are neither trackers nor the director* — the prose guardian,
-   * the echo chamber — come with [P13.5c]; until then their switches are a
-   * note, which is what `agentsNotCarried` has said since [P13.10], now about
-   * the rest rather than all of them.
+   * ***The editor and the echo chamber*** ([P13.5c]): their switches, the
+   * prose guardian's settings, and a note each for immersive HTML and the
+   * card-evolution auditor, which are not built — `editorSwitches`'.
+   */
+  out.push(...editorSwitches(metadata, active, chat, notes));
+  /**
+   * *Agents none of the above answers for* — the ones with an equivalent here
+   * under another name (§1.9.1: expression, background, illustrator, lorebook
+   * keeper…) and the discarded ones — are still one note, which is what
+   * `agentsNotCarried` has said since [P13.10], now about what is left.
    */
   const others = active.filter(
-    (agent) => AGENT_TRACKERS[agent] === undefined && agent !== 'director',
+    (agent) =>
+      AGENT_TRACKERS[agent] === undefined && agent !== 'director' && !EDITOR_AGENTS.has(agent),
   );
   if (others.length > 0) {
     notes.push({ key: 'import.chat.agentsNotCarried', params: { chat }, level: 'info' });

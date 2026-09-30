@@ -59,7 +59,7 @@ import {
   NobodyWouldReply,
   WhoSpeaksNext,
 } from './ChatComposer.js';
-import { ChatMessages, type ChatGestures } from './ChatMessages.js';
+import { ChatMessages, EditedOriginal, type ChatGestures } from './ChatMessages.js';
 import { ChatSettingsPanel } from './ChatSettingsPanel.js';
 import { anyoneWouldReply, canSpeak, hiddenEntry, hideSent, turnSiblings } from './chat.js';
 import { Portrait } from './Portrait.js';
@@ -620,6 +620,12 @@ export function PlayPage({
         parentTurnId: turn.parentTurnId,
         ...(rewrite ? { rewriteOf: turn.id } : {}),
         ...(guidance === undefined ? {} : { guidance, redoOf: turn.id }),
+        /**
+         * ***A pushed turn is redone pushed*** — [P13.5b]. A rewrite gets it
+         * from the server, off the redone turn's director outcome; a plain
+         * reroll names no turn the server could read it from, so it is sent.
+         */
+        ...(rewrite ? {} : pushOf(turn)),
       }),
     onSuccess: (accepted) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
@@ -1731,6 +1737,9 @@ function TurnView({
           busy={busy}
         />
       )}
+      {chatShaped || turn.output?.original === undefined ? null : (
+        <EditedOriginal text={turn.output.original} />
+      )}
       {/* **A mode's own decoration on the message** — [06 §9]'s third region,
           [P7.11]. The engine already has one of these in the overlay above; this
           is the same idea declared rather than written, and Scene's expression
@@ -2275,4 +2284,11 @@ function impersonateLine(error: unknown): string {
   }
   if (code === 'cancelled') return 'The server stopped before the draft was written. Try again.';
   return 'That draft could not be written. Try again in a moment.';
+}
+
+/** The push a turn's director outcome records, shape-guarded; nothing for an unpushed turn. */
+function pushOf(turn: TurnRecord): { push?: 'natural' | 'random' } {
+  const push: unknown = turn.steps?.find((step) => step.stepId === 'se.scene.direct')?.direction
+    ?.push;
+  return push === 'natural' || push === 'random' ? { push } : {};
 }

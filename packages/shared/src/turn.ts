@@ -1122,6 +1122,67 @@ export interface StepOutcome {
    * stand in (a pack that ships no push text), so the turn ran undirected.
    */
   direction?: Direction;
+  /**
+   * ***What an editor did to this turn's messages, and what it noticed*** —
+   * [P13 §1.9.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.5c]. Present on the outcome of a step that declares
+   * `revises` and answered about at least one message; one row per message it
+   * answered about, by the message's index in the turn's output.
+   *
+   * ***On the outcome, for {@link direction}'s reason***: what the turn *says*
+   * is its messages, already edited — `OutputMessage.original` is where the
+   * unedited text went — and this is the working behind the edit. `changes`
+   * is the editor's own account of what it changed ([P13 §1.9.4]: *"the step
+   * outcome carries the `changes`"*); `notices` is what it found and did
+   * **not** change, which the transcript draws as a checklist on the message
+   * ([24 §2c.2]'s *"emits notices, never effects"*). *The engine writes it from
+   * the step's result*, as it writes `round`, so a step cannot record an edit
+   * that never reached the message.
+   */
+  revisions?: RevisionRecord[];
+}
+
+/**
+ * ***One thing an editor found in a message and left for a person*** —
+ * {@link StepOutcome.revisions}, [P13.5c]: a continuity finding, by default.
+ *
+ * `issue` is the finding in words. `quote` and `fix` together make it
+ * **applicable**: the exact text in the message and what should replace it, so
+ * applying the finding is the edit gesture over the message with that one
+ * substitution — a sibling authored with the fix ([P13 §1.6]), never a rewrite
+ * in place. A finding without both is one a person reads and fixes by hand.
+ */
+export interface RevisionNotice {
+  issue: string;
+  quote?: string;
+  fix?: string;
+}
+
+/**
+ * ***What a revising step answers about one message*** — the result half,
+ * [P13.5c]. `index` is the message's place in the turn's output (the one
+ * message a narrator's turn has is `0`). `text`, when present, **replaces**
+ * the message's text before the turn is written; the engine keeps the text it
+ * replaced as the message's `original`. `changes` and `notices` go on the
+ * outcome ({@link RevisionRecord}).
+ */
+export interface MessageRevision {
+  index: number;
+  text?: string;
+  changes?: readonly string[];
+  notices?: readonly RevisionNotice[];
+}
+
+/**
+ * ***One row of {@link StepOutcome.revisions}*** — a {@link MessageRevision}
+ * as the record keeps it: the text is not repeated (it is the message's now),
+ * and `edited` says whether it replaced anything.
+ */
+export interface RevisionRecord {
+  index: number;
+  edited?: true;
+  changes?: string[];
+  notices?: RevisionNotice[];
 }
 
 /**
@@ -1464,7 +1525,23 @@ export interface Turn {
    * superseded before it was built: it could not hold the group round
    * SillyTavern writes as one batch, and C11 had already said what a turn is.
    */
-  output?: { text: string; reasoning?: string; messages?: OutputMessage[] };
+  output?: {
+    text: string;
+    reasoning?: string;
+    messages?: OutputMessage[];
+    /**
+     * ***A narrated reply's text as the model returned it, once the editor
+     * changed it*** — [P13.5c], `OutputMessage.original` for a turn with only
+     * `text`. *Here rather than by giving the turn `messages`*, because a turn
+     * with `messages` is read as one entry per message and a narrator's as
+     * `system` (`assembly/collect.ts`), and the client draws it chat-shaped: an
+     * edit would change the role the narrator's reply has in every later
+     * prompt, and how it is drawn. `outputMessagesOf` puts it on the one
+     * narrator message it reads, so a reader of messages sees it where it
+     * would look. **Only beside a text-only output**, and only when it differs.
+     */
+    original?: string;
+  };
   /**
    * ***Where this turn came from, when it came from somewhere else*** —
    * [18 §3](../../../docs/design/18-session-import.md)'s second consequence,

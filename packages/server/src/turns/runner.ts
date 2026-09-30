@@ -5,8 +5,12 @@ import {
   BETWEEN_MESSAGES,
   CONVENTIONAL_SECTION_IDS,
   outputFromMessages,
+  outputMessagesOf,
   remedyFor,
+  type MessageRevision,
   type OutputMessage,
+  type RevisionNotice,
+  type RevisionRecord,
   type Direction,
   type Ref,
   type SpeakerPick,
@@ -30,6 +34,7 @@ import {
   renderedChannels,
   SE_CLOCK,
   secretChannels,
+  switchOn,
 } from '../sessions/channels.js';
 import { applyEffects, readSession } from '../sessions/store.js';
 import type {
@@ -1357,7 +1362,9 @@ export class TurnRunner {
               direct({
                 push: pushing,
                 fallback: inputs.preset.pushDirections?.[pushing] ?? null,
-                secrets: secretChannels(running),
+                // A closure over the `let`, so the plot pass's effects this
+                // turn are what it reads — see `DirectContext.secrets`.
+                secrets: () => secretChannels(running),
                 player: cast.persona?.actor.name ?? null,
                 names: new Map(
                   [...cast.actors, ...(cast.persona === null ? [] : [cast.persona])].map(
@@ -1785,6 +1792,73 @@ export class TurnRunner {
      * Empty on every other turn, as it has been since P2.
      */
     const armed: ReadonlySet<string> = new Set(pushing === undefined ? [] : [PUSH_FLAG]);
+    /**
+     * ***Hold for rewrite*** — [P13 §1.9.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * [P13.5c]: *"a round being edited streams to the transcript only once the
+     * edit is in."* Decided **before the loop**, because the prose streams
+     * long before any `post` step runs, and from the declaration alone
+     * (`StepDefinition.revises`): a revising `post` step in this plan, one of
+     * its switches on, and its hold on. The engine names no editor.
+     *
+     * *What holding does*: the round's pieces do not reach the bus, and the
+     * streaming checkpoints do not copy them into the draft, so neither a
+     * watcher nor one attaching mid-turn reads a sentence the editor then
+     * takes back. **A settled reply still lands in the draft** — the record a
+     * crash leaves must hold what was said before an editor that may never
+     * answer — so an attach in the window between a reply settling and the
+     * edit landing reads the unedited text; the finished turn replaces it.
+     * `release` sends the round once the revising step has answered, failed or
+     * been skipped, and after the loop whatever happened.
+     */
+    const hold = {
+      on:
+        payload.setup !== true &&
+        withSpeakers.steps.some(({ definition }) => {
+          const revises = definition.revises;
+          return (
+            definition.stage === 'post' &&
+            revises?.hold !== undefined &&
+            revises.enabledBy.some((toggle) => switchOn(toggle, running)) &&
+            switchOn(revises.hold, running)
+          );
+        }),
+      released: false,
+    };
+    /**
+     * ***The message a continue extends, which no revising step may edit*** —
+     * [P13.5c]'s review. Its opening is an earlier turn's text, already edited
+     * or not when that turn was written, and an editor handed the whole message
+     * would re-edit it (and a rewritten opening would no longer be what the
+     * screen shows, so the hold's release would drop it). *Skipped whole*
+     * rather than split into a fixed prefix and an editable suffix: shown to a
+     * revising step as `carried`, and refused by `revise` if one tries anyway.
+     * The continuation goes unedited — the decision the as-built records.
+     */
+    const continuedAt =
+      payload.carry?.continues === true && payload.carry.messages.length > 0
+        ? payload.carry.messages.length - 1
+        : null;
+    const release = (): void => {
+      if (!hold.on || hold.released) return;
+      hold.released = true;
+      const output = draft.output;
+      if (output === undefined) return;
+      const spoken = output.messages !== undefined;
+      const carriedLines = payload.carry?.messages ?? [];
+      let said = carriedText.length > 0;
+      outputMessagesOf(output).forEach((message, index) => {
+        if (message.carried === true) return;
+        // A continue's message was on screen up to where it was extended.
+        const before = carriedLines[index]?.text;
+        if (before !== undefined && !message.text.startsWith(before)) return;
+        const piece = before === undefined ? message.text : message.text.slice(before.length);
+        if (piece.length === 0) return;
+        if (said && before === undefined) bus.delta(job.sessionId, job.id, BETWEEN_MESSAGES);
+        bus.delta(job.sessionId, job.id, piece, spoken ? index : undefined);
+        said = true;
+      });
+      bus.rebase(job.id, output.text);
+    };
     for (const { definition, run } of withSpeakers.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath,
@@ -1856,7 +1930,24 @@ export class TurnRunner {
             }),
             channels: running,
             history,
-            ...(draft.output === undefined ? {} : { output: { text: draft.output.text } }),
+            // The messages too since [P13.5c], for a step that revises one at a time.
+            ...(draft.output === undefined
+              ? {}
+              : {
+                  output: {
+                    text: draft.output.text,
+                    ...(draft.output.messages === undefined
+                      ? {}
+                      : {
+                          messages:
+                            definition.revises === undefined || continuedAt === null
+                              ? draft.output.messages
+                              : draft.output.messages.map((message, index) =>
+                                  index === continuedAt ? { ...message, carried: true } : message,
+                                ),
+                        }),
+                  },
+                }),
           }),
           {
             // The host's `random`, not the turn's `Rng` — the same tape and the
@@ -2126,24 +2217,30 @@ export class TurnRunner {
                           round.messages[voice.index] = open;
                           if (extending.joiner !== '') {
                             open.text += extending.joiner;
-                            bus.delta(job.sessionId, job.id, extending.joiner, voice.index);
+                            if (!hold.on) {
+                              bus.delta(job.sessionId, job.id, extending.joiner, voice.index);
+                            }
                           }
                         }
                         if (open === undefined) {
                           // After somebody who said something: a reply cleaned
                           // to nothing is out of `output.text`, and so is the
                           // blank line that would have followed it.
-                          if (round.messages.some((message) => message.text.length > 0)) {
+                          if (
+                            !hold.on &&
+                            round.messages.some((message) => message.text.length > 0)
+                          ) {
                             bus.delta(job.sessionId, job.id, BETWEEN_MESSAGES);
                           }
                           open = { speaker: voice.ref, text: '' };
                           round.messages.push(open);
                         }
                         open.text += event.text;
-                        bus.delta(job.sessionId, job.id, event.text, voice.index);
+                        // Held for an edit: the pieces stay here (see `hold`).
+                        if (!hold.on) bus.delta(job.sessionId, job.id, event.text, voice.index);
                         if (Date.now() - sinceCheckpoint >= config.sessions.streamCoalesceMs) {
                           sinceCheckpoint = Date.now();
-                          draft.output = outputFromMessages(round.messages);
+                          if (!hold.on) draft.output = outputFromMessages(round.messages);
                           write([
                             callStreaming(definition.id, estimateTokens(open.text), voice.index),
                           ]);
@@ -2156,10 +2253,10 @@ export class TurnRunner {
                       // token would be an fsync storm under `synchronous = full`,
                       // and the snapshot already carries the accumulated text.
                       streamedText += event.text;
-                      bus.delta(job.sessionId, job.id, event.text);
+                      if (!hold.on) bus.delta(job.sessionId, job.id, event.text);
                       if (Date.now() - sinceCheckpoint >= config.sessions.streamCoalesceMs) {
                         sinceCheckpoint = Date.now();
-                        draft.output = { text: streamedText };
+                        if (!hold.on) draft.output = { text: streamedText };
                         write([callStreaming(definition.id, estimateTokens(streamedText))]);
                       }
                     },
@@ -2377,6 +2474,23 @@ export class TurnRunner {
         if (result.messages !== undefined && result.messages.length > 0) {
           draft.output = outputFromMessages([...carriedAhead, ...result.messages]);
         }
+        /**
+         * ***A revision, applied before the turn is written*** — [P13.5c]. The
+         * declaration is checked here rather than trusted: a step that did not
+         * declare `revises`, or is not `post`, fails under its own policy
+         * rather than rewriting prose it had no claim on.
+         */
+        let revisionRecord: RevisionRecord[] = [];
+        if (result.revisions !== undefined && result.revisions.length > 0) {
+          if (definition.revises === undefined || definition.stage !== 'post') {
+            throw new Error(
+              `Step ${definition.id} returned revisions without declaring revises in the post stage.`,
+            );
+          }
+          const applied = revise(definition.id, draft.output, result.revisions, continuedAt);
+          if (applied.output !== undefined) draft.output = applied.output;
+          revisionRecord = applied.record;
+        }
 
         steps.push({
           stepId: definition.id,
@@ -2384,6 +2498,7 @@ export class TurnRunner {
           state: 'ok',
           contributed: { blocks: contributedBlocks, effects: contributedEffects },
           wallMs: Date.now() - startedAt,
+          ...(revisionRecord.length === 0 ? {} : { revisions: revisionRecord }),
         });
         log?.info({ event: 'step.finished', stepId: definition.id }, 'Step finished');
         write([
@@ -2394,6 +2509,7 @@ export class TurnRunner {
           ),
           ...written,
         ]);
+        if (definition.revises !== undefined) release();
       } catch (error) {
         const reason = classifyStep(error);
         /**
@@ -2588,6 +2704,9 @@ export class TurnRunner {
           write([stepFailed(definition.id, reason, false, remedy), ...settledLore]);
         } else write(settledLore);
 
+        // A failed editor lets the round through unedited — see `hold`.
+        if (definition.revises !== undefined) release();
+
         // Cancellation overrides the declared mode: a user's stop is not a warn.
         // `handled` rather than the declaration, for a partial round ([P13.2]).
         if (handled === 'abort' || reason === 'cancelled') {
@@ -2598,6 +2717,8 @@ export class TurnRunner {
         }
       }
     }
+    // Whatever stopped the loop — a Stop, an abort, an editor never reached.
+    release();
 
     /**
      * **A fired hook and a lapsed commitment, after the loop and not as a
@@ -3090,6 +3211,105 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
     // claim ([03 §8] — *absent* and *empty* are different claims, and the
     // workbench renders the difference).
   };
+}
+
+/**
+ * ***A revising step's answer, applied to the turn's output*** —
+ * `StepResult.revisions`, [P13 §1.9.4], [P13.5c].
+ *
+ * Each revision names a message by its index in the output (a turn of one
+ * message is index `0`). A `text` that differs replaces the message's text and
+ * keeps what it replaced as `original` — **unless the message already has one**,
+ * which is cleanup's copy of the model's own reply ([P13.2]) and the truer
+ * original of the two: *show original* offers what the model said. `changes`
+ * and `notices` become the outcome's record, copied field by field so a step
+ * cannot put anything else on the turn.
+ *
+ * ***Refused, as the step's failure***: an index the output does not have, one
+ * named twice, a carried message (an earlier turn's work), and an empty
+ * `text` — blanking a message is not an edit, and an editor that meant *no
+ * change* says so by leaving `text` out.
+ *
+ * *A narrator's single output becomes one unattributed message when edited*,
+ * because `original` lives on a message and a bare `{ text }` output has none;
+ * `outputMessagesOf` already reads the two shapes as the same line.
+ */
+function revise(
+  stepId: string,
+  output: Turn['output'],
+  revisions: readonly MessageRevision[],
+  continuedAt: number | null = null,
+): { output: Turn['output']; record: RevisionRecord[] } {
+  const messages = outputMessagesOf(output).map((message) => ({ ...message }));
+  const seen = new Set<number>();
+  const record: RevisionRecord[] = [];
+  let edited = false;
+  for (const revision of revisions) {
+    const { index } = revision;
+    const message = messages[index];
+    if (!Number.isInteger(index) || message === undefined || seen.has(index)) {
+      throw new Error(`Step ${stepId} revised message ${String(index)}, which it cannot revise.`);
+    }
+    seen.add(index);
+    if (message.carried === true || index === continuedAt) {
+      throw new Error(`Step ${stepId} revised message ${String(index)}, which was carried.`);
+    }
+    let changed = false;
+    if (revision.text !== undefined) {
+      if (typeof revision.text !== 'string' || revision.text.trim() === '') {
+        throw new Error(`Step ${stepId} revised message ${String(index)} to nothing.`);
+      }
+      if (revision.text !== message.text) {
+        message.original ??= message.text;
+        message.text = revision.text;
+        changed = true;
+        edited = true;
+      }
+    }
+    const changes = (revision.changes ?? []).filter(
+      (change): change is string => typeof change === 'string' && change.trim() !== '',
+    );
+    const notices = (revision.notices ?? []).flatMap((notice): RevisionNotice[] =>
+      typeof notice.issue !== 'string' || notice.issue.trim() === ''
+        ? []
+        : [
+            {
+              issue: notice.issue,
+              ...(typeof notice.quote === 'string' && notice.quote !== ''
+                ? { quote: notice.quote }
+                : {}),
+              ...(typeof notice.fix === 'string' ? { fix: notice.fix } : {}),
+            },
+          ],
+    );
+    if (!changed && changes.length === 0 && notices.length === 0) continue;
+    record.push({
+      index,
+      ...(changed ? { edited: true as const } : {}),
+      ...(changes.length === 0 ? {} : { changes }),
+      ...(notices.length === 0 ? {} : { notices }),
+    });
+  }
+  if (!edited) return { output, record };
+  /**
+   * ***A narrated reply stays a narrated reply*** — a turn with only `text` is
+   * edited in place, its `original` beside it, rather than given `messages`:
+   * a lone narrator message would be `system` in every later prompt where the
+   * unedited reply is `assistant`, and drawn chat-shaped where it was prose
+   * (see `Turn['output'].original`).
+   */
+  const only = messages[0];
+  if (output !== undefined && output.messages === undefined && only !== undefined) {
+    return {
+      output: {
+        ...output,
+        text: only.text,
+        ...(only.original === undefined ? {} : { original: only.original }),
+      },
+      record,
+    };
+  }
+  return { output: outputFromMessages(messages), record };
 }
 
 /** The runner's round cell — see where `#body` declares it. */

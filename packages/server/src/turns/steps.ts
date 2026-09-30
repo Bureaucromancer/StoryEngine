@@ -158,7 +158,7 @@ export function filterReads(
     setup?: Readonly<Record<string, unknown>>;
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
-    output?: { text: string };
+    output?: StepInput['output'];
     cast?: readonly CastEntry[];
     /** A person's run between turns ([P13.5a]) — see `StepInput.onDemand`. */
     onDemand?: true;

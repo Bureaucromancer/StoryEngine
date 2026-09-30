@@ -816,10 +816,12 @@ const SubmitBody = Type.Object(
      * outcome records it; when that call fails the pack's own push text stands
      * in, and the outcome says so.
      *
-     * ***Kept by a rewrite***, as force-talk is: a `rewriteOf` submission that
-     * leaves it out is pushed as the redone turn was, read off that turn's
-     * director outcome. Sent beside `rewriteOf`, this wins. An edit makes no
-     * call, so it refuses one (`conflicting-gesture`).
+     * ***Kept by a rewrite and a guided redo***, as force-talk is: a
+     * `rewriteOf` or `redoOf` submission that leaves it out is pushed as the
+     * redone turn was, read off that turn's director outcome. Sent beside
+     * either, this wins. A plain reroll names no turn, so the client sends it
+     * (read off the same outcome). An edit makes no call, so it refuses one
+     * (`conflicting-gesture`).
      */
     push: Type.Optional(Type.Union([Type.Literal('natural'), Type.Literal('random')])),
     /**
@@ -3493,6 +3495,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .send({ error: 'no-such-turn', message: 'No such turn in this session to redo.' });
         }
         attempt = { turnId: previous.id, text: previous.output?.text ?? '' };
+        // A guided redo of a pushed turn is pushed too, for a client that did
+        // not send it — the body's own, or a rewrite's record, still wins.
+        pushed ??= pushedOn(previous);
       }
 
       /**

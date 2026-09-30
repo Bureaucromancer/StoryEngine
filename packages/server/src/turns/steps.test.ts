@@ -291,6 +291,8 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     effects: true,
     message: true,
     messages: true,
+    // An editor's answer — plain data, readonly arrays of strings and records ([P13.5c]).
+    revisions: true,
   };
 
   it('round-trips a StepInput through structuredClone with nothing lost', () => {
@@ -332,7 +334,11 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
         ],
         channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
         history: [historyTurn()],
-        output: { text: 'The rain did not let up.' },
+        // With its messages, as a revising step reads it ([P13.5c]).
+        output: {
+          text: 'The rain did not let up.',
+          messages: [{ speaker: null, text: 'The rain did not let up.' }],
+        },
         onDemand: true,
       },
     );
@@ -373,6 +379,14 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
       messages: [
         { speaker: null, text: 'Rain.', original: 'Narrator: Rain.' },
         { speaker: { id: 'actor-vera', name: 'Vera' }, text: '"Late."', carried: true },
+      ],
+      revisions: [
+        {
+          index: 0,
+          text: 'Rain, still.',
+          changes: ['Removed a banned word.'],
+          notices: [{ issue: 'The lamp was out.', quote: 'lit lamp', fix: 'dark lamp' }],
+        },
       ],
     };
 

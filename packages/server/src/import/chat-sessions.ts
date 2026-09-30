@@ -4,12 +4,14 @@
 import {
   ACTOR_SCHEMA,
   LOREBOOK_SCHEMA,
+  TREATMENT_SCHEMA,
   type ImportItemReport,
   type ImportNote,
 } from '@storyengine/shared';
 
 import { ownerKey } from '../index-db/ingest.js';
-import { objectsNamed } from '../index-db/query.js';
+import { usedBy } from '../index-db/links.js';
+import { findById, objectsNamed } from '../index-db/query.js';
 import { turnsNotHeld } from '../index-db/sessions.js';
 import type { LibraryContext } from '../library.js';
 import { CHAT_IMPORT_MODE_ID } from '../mode-registry.js';
@@ -313,6 +315,26 @@ async function loadFamily(
   );
   const notes: ImportNote[] = [...input.notes, ...resolved.notes, ...building];
 
+  /**
+   * ***The card's scenario, linked*** — found at [P13.12] (*"an imported chat
+   * session sends no scenario"*), fixed at [P13.5c]. SillyTavern sends a
+   * character's `scenario` on every turn of its chats; the sweep turns that
+   * text into a Treatment, and until this the chat door linked none, so
+   * `se.treatment` was `empty-source` on every imported chat. Written on the
+   * document, so a first import creates the session with it; a sync leaves a
+   * session's treatment alone, since choosing one is a person's to change.
+   */
+  const cast = built.document.session['cast'] as { actors?: readonly string[] } | undefined;
+  const scenario = scenarioTreatmentOf(door, cast?.actors ?? []);
+  if (scenario.id !== null) built.document.session['treatment'] = scenario.id;
+  if (scenario.ambiguous) {
+    notes.push({
+      key: 'import.chat.scenarioAmbiguous',
+      params: { chat: family.name },
+      level: 'info',
+    });
+  }
+
   try {
     const result = await importSession({ sessions: door.sessions }, door.handle, built.document, {
       // A chat is a source that goes on changing, so a second import of it
@@ -383,6 +405,52 @@ async function loadFamily(
       ],
     };
   }
+}
+
+/**
+ * ***The Treatment the sweep made from the cast's card scenario*** — by its
+ * provenance: a treatment synthesised from a card's `scenario` is stamped
+ * `scenario:<digest>` as its `originalFilename` (`scenarioStamp`) and names
+ * the card's actor in its cast (`flushTreatments`), and the index's link table
+ * answers *which treatments name this actor* in one query. *This account's
+ * library only*, as the resolver is.
+ *
+ * **One treatment or none.** A chat whose cards share one scenario (the sweep
+ * dedupes identical text into one treatment) links it; a group whose members
+ * bring different scenarios cannot — a session plays under one treatment, and
+ * SillyTavern sends each speaker's own, which this cannot express — so none is
+ * linked and a note says so. A treatment somebody wrote by hand is never
+ * picked up by this: it has no scenario stamp. *Each actor chooses first* —
+ * its newest scenario treatment, since an edited card leaves the old one
+ * naming it too — and only the choices are compared.
+ */
+function scenarioTreatmentOf(
+  door: ChatDoor,
+  actors: readonly string[],
+): { id: string | null; ambiguous: boolean } {
+  const owner = ownerKey(userOwner(door.handle));
+  const found = new Set<string>();
+  for (const actorId of actors) {
+    // Per actor, the newest: a card re-imported with its scenario changed
+    // leaves the treatment its old text made beside the new one, and both name
+    // the actor. Ids are uuidv7, so the largest is the latest made. Only
+    // *distinct actors* choosing distinct treatments is ambiguity — one
+    // actor's superseded scenario never is.
+    let newest: string | null = null;
+    for (const use of usedBy(door.library.db, actorId, [owner])) {
+      if (use.fromKind !== TREATMENT_SCHEMA) continue;
+      const treatment = findById(door.library.db, use.fromId);
+      const stamp = (treatment?.body as { provenance?: { originalFilename?: unknown } } | undefined)
+        ?.provenance?.originalFilename;
+      if (typeof stamp !== 'string' || !stamp.startsWith('scenario:')) continue;
+      if (newest === null || use.fromId > newest) newest = use.fromId;
+    }
+    if (newest !== null) found.add(newest);
+  }
+  const [only] = found;
+  return found.size === 1 && only !== undefined
+    ? { id: only, ambiguous: false }
+    : { id: null, ambiguous: found.size > 1 };
 }
 
 /**

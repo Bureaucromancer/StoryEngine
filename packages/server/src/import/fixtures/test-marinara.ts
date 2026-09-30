@@ -483,12 +483,24 @@ const CHATS = [
     ['char_vera'],
     {
       // Three trackers on, and only when asked — [P13.5a]; and the director
-      // keeping a secret plot, revisited every ten messages — [P13.5b].
+      // keeping a secret plot, revisited every ten messages — [P13.5b]; and the
+      // prose guardian with its own banned words, not holding, the echo
+      // chamber, and immersive HTML, which is not built — [P13.5c].
       enableAgents: true,
-      activeAgentIds: ['world-state', 'character-tracker', 'inventory-tracker', 'director'],
+      activeAgentIds: [
+        'world-state',
+        'character-tracker',
+        'inventory-tracker',
+        'director',
+        'prose-guardian',
+        'echo-chamber',
+        'html',
+      ],
       manualTrackers: true,
       narrativeDirectorSecretPlotEnabled: true,
       narrativeDirectorSecretPlotRunInterval: 10,
+      proseGuardianBannedWords: 'ozone, tapestry',
+      proseGuardianHoldForRewrite: false,
     },
     0,
   ),

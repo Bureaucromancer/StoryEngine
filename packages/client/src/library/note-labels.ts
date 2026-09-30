@@ -472,7 +472,24 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.chat.branchLinkMissing':
     '“{chat}” was a branch in Marinara, but the export removed its link to the chat it came from. It is a session of its own, repeating the start it shares with that chat.',
   'import.chat.agentsNotCarried':
-    '“{chat}” ran Marinara agents that are not trackers — the narrative director, the prose guardian, the echo chamber or the secret plot. Their switches and state are not imported yet; they arrive with those features.',
+    '“{chat}” ran Marinara agents this version does not import, or imports under another name (expressions, backgrounds, illustrations, summaries). Their switches were not carried.',
+
+  /**
+   * **The editor and the echo chamber** —
+   * [P13.5c](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * Their switches and settings come; the two agents that are not built each
+   * say why, in a sentence a person can act on.
+   */
+  'import.chat.scenarioAmbiguous':
+    'The characters in “{chat}” brought different scenarios, so the session was given none.',
+  'import.chat.continuityApplies':
+    '“{chat}” ran Marinara’s continuity checker, which rewrites what it finds, so it came across doing the same.',
+  'import.chat.echoChamberDiffers':
+    '“{chat}” ran Marinara’s Echo Chamber, a live audience. Here the echo chamber has the scene’s characters react instead.',
+  'import.chat.immersiveHtmlNotBuilt':
+    '“{chat}” ran Marinara’s immersive HTML agent. It is not built here: markup a model wrote could run code in this app.',
+  'import.chat.cardEvolutionNotBuilt':
+    '“{chat}” ran Marinara’s card-evolution auditor. It is not built here: a card changed inside one story would carry it into every other.',
 
   /**
    * **The trackers' state** —

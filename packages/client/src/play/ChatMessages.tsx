@@ -3,7 +3,7 @@
 
 import { useEffect, useState, type JSX } from 'react';
 
-import type { OutputMessage, TextSpan } from '@storyengine/shared';
+import type { OutputMessage, RevisionNotice, TextSpan } from '@storyengine/shared';
 
 import type { ChatSettings, LibraryObject, SwipeGroups, TurnRecord } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
@@ -65,7 +65,24 @@ const WORDS = labels('play.chat', {
   previous: 'Previous reply',
   next: 'Next reply',
   count: '{at} of {of}',
+  original: 'Edited: show the original',
+  findings: 'What the continuity check found',
+  apply: 'Apply',
 });
+
+/**
+ * ***What the model wrote, a click away*** — shared with the prose view, where
+ * a narrated turn the editor changed keeps `output.original` rather than
+ * becoming a message ([P13.5c]).
+ */
+export function EditedOriginal({ text }: { text: string }) {
+  return (
+    <details>
+      <summary className={`${disclosure.quiet} text-sm`}>{WORDS.original}</summary>
+      <p className="whitespace-pre-wrap text-sm text-ink-subtle">{text}</p>
+    </details>
+  );
+}
 
 export interface ChatGestures {
   onGo: (turnId: string) => void;
@@ -149,6 +166,11 @@ export function ChatMessages(
           head={props.head}
           narrated={props.voice === 'narrator'}
           counters={messageSiblings(props.swipes, index, index === lastSpoken)}
+          notices={(turn.steps ?? []).flatMap((step) =>
+            (step.revisions ?? []).flatMap((row) =>
+              row.index === index ? (row.notices ?? []) : [],
+            ),
+          )}
           busy={props.busy}
           gestures={props}
         />
@@ -243,6 +265,8 @@ function MessageLine(props: {
   head: boolean;
   narrated: boolean;
   counters: string[][];
+  /** What an editor found in this line and left for a person ([P13.5c]). */
+  notices: RevisionNotice[];
   busy: boolean;
   gestures: ChatGestures;
 }): JSX.Element {
@@ -290,6 +314,41 @@ function MessageLine(props: {
           <summary className={`${disclosure.quiet} text-sm`}>{WORDS.thinking}</summary>
           <p className="whitespace-pre-wrap text-sm text-ink-subtle">{message.reasoning}</p>
         </details>
+      )}
+      {/* ***Edited, and the original a click away*** — [P13 §1.9.4]: the
+          editor's rewrite (or cleanup's trim) is the line; what the model
+          wrote is `original`, offered, never shown in its place. */}
+      {message.original === undefined ? null : <EditedOriginal text={message.original} />}
+      {/* ***Continuity, as a checklist on the line it is about*** — each
+          finding says what is wrong, and one that names its words and their
+          fix is applied by the edit gesture: a sibling with that substitution,
+          the line as it was staying on the tree. */}
+      {props.notices.length === 0 ? null : (
+        <ul aria-label={WORDS.findings} className="flex flex-col gap-1 text-sm text-ink-subtle">
+          {props.notices.map((notice, at) => (
+            <li key={at} className="flex items-start gap-2">
+              <span className="flex-1">{notice.issue}</span>
+              {notice.quote !== undefined &&
+              notice.fix !== undefined &&
+              message.text.includes(notice.quote) ? (
+                <Button
+                  type="button"
+                  size="compact"
+                  disabled={props.busy}
+                  onClick={() => {
+                    gestures.onEditMessage(
+                      turn,
+                      index,
+                      message.text.replace(notice.quote ?? '', () => notice.fix ?? ''),
+                    );
+                  }}
+                >
+                  {WORDS.apply}
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       )}
       {props.hidden ? <Fine>{WORDS.hidden}</Fine> : null}
       {props.counters.map((ids, at) => (

@@ -825,9 +825,21 @@ which rewrites the message and keeps the original in the message's extras.
 
 #### 1.9.5 The rest of the catalogue
 
-- **Echo chamber** (side reactions from other characters, shown beside the
-  chat): built as a panel fed by a cadence step, since it never touches the
-  story. Off by default.
+- **Echo chamber.** ~~Side reactions from other characters~~ — corrected at
+  P13.5c's review: Marinara's agent is a configurable *fictional live
+  audience* (`official-agent-knowledge.ts`: *"a configurable fictional live
+  audience reacting to the current scene"*) — invented stream-chat handles in
+  a chosen style, several messages a generation, accumulating in its panel,
+  and skipped on a swipe, a regenerate or a continue (`generate.routes.ts`).
+  **Scene deliberately builds a different thing under the same switch**:
+  asides from the scene's present characters, one each, replacing the panel
+  per turn and run on a swipe too. Invented names are outside the cast, which
+  is what the rest of the pack reasons over; and a per-turn panel is an effect
+  on its turn, so a swipe has its own reactions and a rewind takes them back,
+  where an accumulating one would disagree with the tree. The import turns the
+  switch on and says it is not the same feature (`echoChamberDiffers`). Built
+  as a panel fed by a cadence step, since it never touches the story. Off by
+  default.
 - **Beholder** (per-character body slots: worn, holding, wounds): folded into
   `se.track.character`'s `fields` rather than a seventh channel. That is our
   choice, not Marinara's, which keeps it as its own agent with typed state
@@ -1880,7 +1892,10 @@ carries `agent_memory` rows and a director that keeps a plot
   `{ when: 'armed', flag: 'push' }`. The runner plans it only on a pushed turn
   (the suggester's rule) and still evaluates its condition. **After the mode's
   own `pre` steps**, so a plot pass that just wrote a fresh arc is the one the
-  direction reads. One plain-text call over its own candidates — the task, the
+  direction reads — *which it did not, until P13.5c's review*: the secrets were
+  resolved when the plan was built, before any step ran. `DirectContext.secrets`
+  is a thunk over the runner's running channels now, read when the step runs
+  (`director.test.ts` holds the first-turn case). One plain-text call over its own candidates — the task, the
   secret if the session keeps one, the last eight visible messages and the
   move — capped at 600 characters; the task words are the engine's (they make
   the answer a direction, as the hook selector's make its answer a hook), and
@@ -1894,7 +1909,10 @@ carries `agent_memory` rows and a director that keeps a plot
   reach the guidance slot as a third producer, `se.guidance.direction`
   (`CollectContext.direction`), after the person's box and a fired hook.
   **A rewrite keeps the push** (read off the redone turn's outcome, as
-  force-talk is read off `input.speakers`) and asks the director again; an
+  force-talk is read off `input.speakers`) and asks the director again; so
+  does a guided redo (`redoOf`), and a plain reroll, which names no turn, is
+  sent the push by the client off the same outcome (both added at P13.5c's
+  review, which found a second attempt at a pushed turn running undirected); an
   edit refuses it (`conflicting-gesture`). *Not `Turn.input.push`*: a *let
   them talk* turn has no input to hang it on, and the outcome already says it.
 - **The secret plot** is Scene's (`plot.ts`): `se.plot.secret` (hidden,
@@ -1955,6 +1973,15 @@ control (`PUT …/roles`, P7B §1.12). And every Scene turn now carries a third
 dead `ok` row, the plot pass switched off — [25 C17], now past its *decide
 with the second instance*.
 
+*Corrected at [P13.5c], 2026-09-30.* The stage left the import's
+`agentsNotCarried` sentence naming *the narrative director … or the secret
+plot* as not imported, which this stage had just made untrue; the note fires
+for the director no longer (`trackers.ts` filtered it), but the words a person
+reads for the remaining agents still named it. P13.5c rewrote the sentence for
+what is actually left (the agents with an equivalent under another name, and
+the discarded ones). The 319.85 kB entry this stage recorded is where P13.5c's
+budget argument starts (`tools/entry-budget.test.ts`).
+
 #### P13.5c — The editor and the echo chamber
 
 - `se.scene.edit`: style edits applied before commit, per message, with the
@@ -1966,6 +1993,142 @@ with the second instance*.
 *Ends at:* a banned word in a reply is edited out before the turn is written,
 and the message offers the original; a continuity finding applied from the
 checklist is a sibling.
+
+*As built, 2026-09-30.* The two claims are `routes/editor.test.ts`, through the
+submission, the channel routes and the edit gesture (with the hold, a failed
+editor, a two-speaker round and the echo chamber beside them); the step's own
+claims are `modes/scene/src/edit.test.ts` and `echo.test.ts`; the transcript's
+are `PlayPage.chat.test.tsx`'s two editor cases; the import's
+`import/marinara/editor.test.ts`, over the shared fixture, whose root chat now
+runs the prose guardian (its own banned words, hold off), the echo chamber and
+immersive HTML. What the stage decided that §1.9.4–§1.9.6 left open:
+
+- **The contract grew a revision, rather than the engine naming an editor.**
+  Nothing could change what an earlier step said: a `post` step was handed the
+  output to read and could return only effects, candidates or rival messages.
+  So `StepDefinition.revises { enabledBy, hold? }` declares a step that may
+  answer with `StepResult.revisions` — `[{ index, text?, changes?, notices? }]`
+  over `StepInput.output.messages` (now handed to a step that reads `output`,
+  index `0` for a one-message turn). The runner applies them **before the turn
+  is written** (`revise`): a `text` replaces the message's and the replaced
+  text becomes `original` — *unless cleanup already wrote one*, which is the
+  model's own reply and the truer original, so *show original* always offers
+  what the model said. A revision from a step without the declaration, outside
+  `post`, of a carried message, of an index the turn lacks, or to empty text is
+  that step's failure under its own policy. The record is
+  `StepOutcome.revisions [{ index, edited?, changes?, notices? }]`, written by
+  the engine from the result as `round` is, so a step cannot record an edit
+  that did not reach the message. ~~A narrator's bare `{ text }` output becomes
+  one unattributed message when edited, since `original` lives on a message.~~
+  Corrected at the review: a lone unattributed message is read as `system` in
+  every later prompt (`collect.ts`'s per-message arm) and drawn chat-shaped,
+  where the unedited reply is `assistant` and prose — so an edited narrated
+  reply **stays text-only**, its original on `Turn['output'].original`, which
+  `outputMessagesOf` puts on the one narrator message it reads and the prose
+  view offers as the same disclosure (`EditedOriginal`).
+- **A continue's message is not edited** — the review's finding, decided
+  rather than fixed in halves. Its opening is an earlier turn's text, already
+  edited or not when that turn was written, and an editor handed the whole
+  message would re-edit it. The runner shows the continued message to a
+  revising step as `carried` and `revise` refuses a revision of it, so **the
+  continuation goes unedited**, whatever the switches say; splitting it into a
+  read-only prefix and an editable suffix is left until somebody misses it.
+  Under the hold the continue's text is still released whole once the editor
+  has answered (with nothing to do for that message).
+- **Hold for rewrite is the engine's, from the declaration.** The prose streams
+  long before any `post` step runs, so the runner decides before the loop:
+  a revising step in the plan with any `enabledBy` switch on and its `hold`
+  on. Held, the round's pieces reach neither the bus nor the streaming
+  checkpoints; `release` sends the round — per message, indexed, separated as a
+  live round is — once the revising step answered, failed or was never
+  reached. *A settled reply still lands in the draft* (a crash must leave what
+  was said before an editor that may never answer), so a client attaching in
+  the window between a reply settling and its edit landing reads the unedited
+  text until the turn finishes. `sessions/channels.ts`'s `switchOn` is
+  exported for it.
+- **Scene's editor** (`edit.ts`): `se.edit.style.on`, `se.edit.continuity.on`,
+  `se.edit.continuity.apply`, `se.edit.hold` (on — Marinara's default) and
+  `se.edit.style { banned, avoid, prefer }` (Marinara's defaults in substance:
+  *ozone* banned, repetition and purple prose avoided), all user-only and under
+  *Agents*. `se.scene.edit` is `post`, declared straight after the narrator so
+  the stager, the trackers, the engine's passes and a picture read the edited
+  prose; one call **per message** whatever the dispatch (a merged or narrated
+  turn is one message), carried lines skipped, answering Marinara's
+  `{ editNeeded, editedText, changes }` plus `issues [{ issue, quote, fix }]`;
+  any call failing fails the step `warn` and the round goes through unedited.
+  **Under `notice` alone nothing rewrites** (the review's finding, [24 §2c.2]'s
+  *"notices, never effects"*): with style off and continuity not applying, the
+  model is not offered the rewrite shape and a rewrite it returns anyway is
+  dropped, its findings' quotes matched against the unedited text.
+  *`continuity: 'notice' | 'apply'` is a switch*, `se.edit.continuity.apply`,
+  off = notice: the widget vocabulary has no choice arm and this would have
+  been its only user, at 0.15 kB of budget. Said here because §1.9.4 names a
+  two-valued setting.
+- **A finding is applicable only with its words.** Under `notice` the model is
+  told not to fix continuity and to list each contradiction with the exact
+  words of the reply as returned and their replacement; the step keeps a
+  finding's `quote`/`fix` only when the quote is in the text the message will
+  carry. The transcript draws the findings as a list on their message
+  (`ChatMessages.tsx`), and *Apply* is the existing edit gesture with that one
+  substitution: a sibling authored with the fix, the original on the tree. A
+  finding without its words is a line to read and fix by hand.
+- **The transcript** marks an edited line with a closed *Edited: show the
+  original* disclosure, the reasoning's shape. It shows for any `original`,
+  cleanup's too — that is also a reply changed after the model wrote it.
+- **The echo chamber** (`echo.ts`): `se.echo.on` (off), `se.echo.cadence`
+  (every story turn), and `se.echo`, the reactions as `{ name, value }` rows so
+  the panel draws them with the custom tracker's `pairs` arm. **No `render`**,
+  so no slot can place it and the picture digest skips it: the chorus never
+  reaches a prompt. `se.scene.echo` is `post`, last of Scene's, over the
+  present members but the persona (a muted member is out of the room), one
+  reaction each, names the scene does not hold dropped.
+  **Not Marinara's echo chamber, on purpose** (the review's finding, §1.9.5
+  corrected): Marinara's is a live audience of invented handles, several
+  messages a generation, accumulating, skipped on a regenerate or continue;
+  this is the cast's asides, per turn, run on a swipe. Route (a) of the two the
+  review offered — keep the feature and correct the record — since aligning
+  would need a regenerate signal `StepInput` does not carry. The import says so
+  (`echoChamberDiffers`).
+- **The import** (`import/marinara/editor.ts`, from `trackerSwitches`):
+  `prose-guardian`, `continuity` and `echo-chamber` in `activeAgentIds` (with
+  `enableAgents`, the trackers' rule) are the three switches; **continuity
+  comes applying**, since Marinara's checker rewrites, with a note saying how
+  to switch it to notices (`continuityApplies`); the three prose-guardian
+  strings are `se.edit.style` whenever the chat set any (a person's words,
+  whether or not the agent ran), a missing one the channel's default; an
+  explicit `proseGuardianHoldForRewrite: false` is the hold off. `echo-chamber`
+  turns `se.echo.on` on with a note that Scene's is the cast reacting, not a
+  live audience (`echoChamberDiffers`). `html` and
+  `card-evolution-auditor` are a note each saying why they are not built
+  (`immersiveHtmlNotBuilt`, `cardEvolutionNotBuilt`); `agentsNotCarried` is
+  narrowed to what is left.
+- **The scenario** — P13.12's first *found, not fixed*. A chat's session is
+  written with the Treatment the sweep made from its cast's card scenario,
+  found by provenance: a treatment stamped `scenario:` whose cast names the
+  actor, through the index's link table (`scenarioTreatmentOf`,
+  `chat-sessions.ts`). One treatment or none: a group whose members bring
+  different scenarios gets none and a note (`scenarioAmbiguous`), since a
+  session plays under one and SillyTavern sends each speaker's own. First
+  import only; a sync leaves a session's treatment to the person.
+  `chat-sessions.test.ts` holds the link and that a hand-written treatment
+  naming the actor is not taken; `fixture-pair-chats.test.ts` now lists
+  `se.treatment` among the slots a pair must feed (and fails with the link
+  removed).
+- **The entry bundle is 320.25 kB gzip** (319.85 before; 320.43 until the new
+  notes' sentences were shortened), past the 320 ceiling the last two notes
+  said the next addition would meet. **Raised to 325, with the argument in
+  `tools/entry-budget.test.ts`**: the checklist, the disclosure and the note
+  sentences, no dependency.
+
+*Left for its owner.* Every Scene turn now carries **five** dead `ok` rows
+(plot, editor, stager, trackers, echo) — [25 C17], where `revises.enabledBy`
+is recorded as the shape a general answer could take. The editor makes one
+call per message on top of the narrator's, the stager's and the trackers' —
+[25 C18]'s cost, grown. The editor's and the chorus's models are the
+session's `stepRoles` at `se.scene.edit` and `se.scene.echo`, which still have
+no control (P7B §1.12). The editor switches and settings arrive on a first
+import only, the trackers' reason. And the gate's critical item 5 (*"whether
+an edited message reads better than its original"*) is a person's.
 
 #### P13.6 — The chat tree builder
 
@@ -2317,7 +2480,9 @@ by that project alone. The two new files are `import/fixture-pair-chats.test.ts`
      chat. SillyTavern sends the card's scenario on every turn of that chat.
      Neither §2.6 nor [18](../18-session-import.md) says which should happen.
      The pair test leaves `se.treatment` out of `FED` rather than assert the
-     gap.
+     gap. *Fixed at [P13.5c]*, 2026-09-30: the session pass links the
+     treatment the sweep made from the cast's card scenario, found by its
+     `scenario:` stamp and cast, and `se.treatment` is in `FED`.
   2. **Example dialogue reaches the model with `<START>` verbatim.** Nothing in
      the server reads it. SillyTavern treats it as the separator between
      example chats and replaces it. `{{user}}` in the same text is kept on

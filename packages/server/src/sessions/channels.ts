@@ -195,7 +195,16 @@ export function revealed(
   return definition.reveal !== undefined && switchOn(definition.reveal, channels);
 }
 
-function switchOn(toggle: string, channels: Readonly<Record<string, ChannelState>>): boolean {
+/**
+ * ***Whether a boolean switch channel reads `true`*** — its value, or its
+ * declared `init` when nobody has touched it. Exported at [P13.5c] for the
+ * runner's *hold for rewrite* (`StepDefinition.revises`), whose switches are
+ * named by a step rather than by a channel's `enabledBy`.
+ */
+export function switchOn(
+  toggle: string,
+  channels: Readonly<Record<string, ChannelState>>,
+): boolean {
   return (channels[toggle]?.value ?? initialValue(toggle)) === true;
 }
 

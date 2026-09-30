@@ -7,6 +7,7 @@ import type {
   ChannelState,
   EffectOp,
   GenerationParams,
+  MessageRevision,
   ModelCall,
   ModelRole,
   OutputMessage,
@@ -115,6 +116,31 @@ export interface StepDefinition {
    * from the step's id would be the engine naming a mode's feature.
    */
   onDemand?: { label: string };
+  /**
+   * ***This step may revise the turn's messages before the turn is written***
+   * — [P13 §1.9.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * editor, declared at [P13.5c].
+   *
+   * **A declaration, because what it permits is the one thing no step could
+   * do before**: change what an earlier step said. A `post` step has always
+   * been handed the output to read; only a step declaring this may answer with
+   * {@link StepResult.revisions}, and only in the `post` stage, since a
+   * revision of prose nobody has written yet is nothing. The engine refuses a
+   * revision from any other step as that step's failure.
+   *
+   * - `enabledBy` — the boolean channels that switch it on, **any of which**
+   *   will do (an editor for style and one for continuity are one call). The
+   *   step still reads its own switches; this is for the engine, which has to
+   *   know *before the prose streams* whether an edit is coming.
+   * - `hold` — a boolean channel: while it is on (and the step is), the
+   *   engine streams none of the round until the step has answered, so a
+   *   person never reads a sentence the editor then takes back — Marinara's
+   *   *hold for rewrite*. Absent is never held.
+   *
+   * *The step names channels; the engine reads switches.* Neither says which
+   * mode's editor this is, which is the rule every declaration here keeps.
+   */
+  revises?: { enabledBy: readonly string[]; hold?: string };
 }
 
 /**
@@ -489,8 +515,18 @@ export interface StepInput {
    * not in this list, which is the list the host's history window counts too.
    */
   transcript?: readonly TranscriptTurn[];
-  /** Present only when `reads` includes `output`. */
-  output?: { text: string };
+  /**
+   * Present only when `reads` includes `output`.
+   *
+   * ***`messages` since [P13.5c]***: the turn's output as its messages, each
+   * with its speaker — present when the output has them, which is a round
+   * under `per-actor` dispatch or a swipe's carried lines — so a step that
+   * revises (see {@link StepDefinition.revises}) can answer about one message
+   * at a time. Absent, the output is one message, index `0`. *Carried*
+   * messages are marked (`OutputMessage.carried`): they are an earlier turn's
+   * work, and the engine refuses a revision of one.
+   */
+  output?: { text: string; messages?: readonly OutputMessage[] };
   /**
    * ***A person asked for this run*** — {@link StepDefinition.onDemand},
    * [P13.5a].
@@ -563,6 +599,26 @@ export interface StepResult {
    * meant on the record.
    */
   messages?: OutputMessage[];
+  /**
+   * ***What this step changed in the turn's messages, and what it noticed*** —
+   * [P13 §1.9.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.5c]. Only from a `post` step declaring
+   * {@link StepDefinition.revises}.
+   *
+   * One entry per message the step has something to say about, by its index
+   * in `output.messages` (or `0` for a turn of one message). A `text` replaces
+   * the message's text **before the turn is written**, so the turn's authored
+   * bytes are the edited ones; the engine keeps what it replaced as the
+   * message's `original` — unless cleanup already kept the model's own reply
+   * there, which is the older and truer original. `changes` and `notices` land
+   * on the step's outcome (`StepOutcome.revisions`), never in the prose.
+   *
+   * ***Refused as the step's failure***, under its own policy, when it names a
+   * message the turn does not have or one that was carried, or brings an empty
+   * `text`: an editor that answered with nothing has not edited, and blanking
+   * a message is not a revision.
+   */
+  revisions?: readonly MessageRevision[];
 }
 
 export interface StepCallRequest {

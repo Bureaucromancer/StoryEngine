@@ -950,6 +950,19 @@ id rather than by position because a `pre` step moved it off `steps[0]`. (a)
 is still the answer that adds no vocabulary; the count is now three steps, and
 "decide with the second instance" is past due.
 
+*Five since [P13.5c](workplan/30-p13-scene-and-session-import.md)*: the editor
+(`se.scene.edit`, `post`, off until style or continuity is switched on) and the
+echo chamber (`se.scene.echo`, `post`, off) are two more, so every Scene turn now
+carries five `ok` rows that read a switch and return. The editor's switches are
+also read by the engine — `StepDefinition.revises.enabledBy`, for *hold for
+rewrite*, which has to know before the prose streams whether an edit is coming —
+which is (a)'s shape arriving by the side door: a mode naming, declaratively,
+the channels that decide whether its step does anything. Generalising that
+field to every step (skip the step, write no row, when none of its switches is
+on) would close this question with no new arm; it was not done here because
+the skip changes what the record says about every existing turn shape, and
+that is a decision for this question rather than for a stage.
+
 **C18. Three `post` steps make three calls over the same prose. — OPEN, noted
 rather than solved** (2026-09-13, [P7.12](workplan/23-p7-implementation.md)). The
 goal judge asks *was the goal met*, the suggester asks *what could they do next*,

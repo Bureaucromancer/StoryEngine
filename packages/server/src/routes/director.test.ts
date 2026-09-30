@@ -213,6 +213,21 @@ describe('push story', () => {
     });
   });
 
+  it('is kept by a guided redo that does not send it', async () => {
+    const sessionId = await aScene();
+    const pushed = await play(sessionId, [{ text: DIRECTION }, { text: 'Vera reads.' }], {
+      push: 'random',
+    });
+    const redone = await play(
+      sessionId,
+      [{ text: 'A fire starts on the quay.' }, { text: 'Smoke.' }],
+      { redoOf: pushed.id, guidance: 'Shorter.', parentTurnId: pushed.parentTurnId },
+    );
+    expect(redone.steps?.find((step) => step.stepId === 'se.scene.direct')).toMatchObject({
+      direction: { push: 'random', by: 'model', text: 'A fire starts on the quay.' },
+    });
+  });
+
   it('refuses a flavour it does not know, and a push on a turn written by hand', async () => {
     const sessionId = await aScene();
     const unknown = await server.request({
@@ -289,6 +304,21 @@ describe('the secret plot', () => {
       kind: 'record',
       record: { value: ARC },
     });
+  });
+
+  it('is read by the director on the very turn the plot pass writes it', async () => {
+    const sessionId = await aScene();
+    await put(sessionId, 'se.plot.secret.on', true);
+    // No arc yet, so the pass runs first; the director, placed after it, must
+    // read the arc just written rather than the empty plot the turn began with.
+    await play(sessionId, [{ object: ARC }, { text: DIRECTION }, { text: 'Vera reads.' }], {
+      push: 'natural',
+    });
+    expect(provider.requests).toHaveLength(3);
+    expect(provider.requests[0]?.schema).toBeDefined();
+    const director = provider.requests[1]?.messages ?? [];
+    expect(director.some((message) => message.content.includes(ARC.description))).toBe(true);
+    expect(everything(provider.requests[1])).toContain('secretly heading');
   });
 
   it('is read by the director, and silent in both prompts once switched off', async () => {

@@ -13,6 +13,8 @@ import type {
   StepResult,
 } from '@storyengine/sdk';
 
+import { ECHO_CHANNELS, ECHO_STEP, ECHO_SURFACES, echo } from './echo.js';
+import { EDIT_CHANNELS, EDIT_STEP, EDIT_SURFACES, edit } from './edit.js';
 import { PLOT_CHANNELS, PLOT_STEP, PLOT_SURFACES, plot } from './plot.js';
 import { SCENE_PRESET } from './preset.js';
 import { STAGE_STEP, stage } from './staging.js';
@@ -560,8 +562,13 @@ export const SCENE: ModeDefinition = {
    * ***Four since [P13.5b]***: the secret plot's pass first, because it is
    * `pre` — an arc it writes steers this turn's reply, and the runner puts the
    * engine's director after it so a push reads the fresh arc.
+   *
+   * ***Six since [P13.5c]***: the editor straight after the narrator, first
+   * among the `post` steps, so everything after it — the stager, the
+   * trackers, the engine's own passes — reads the prose the turn is written
+   * with; and the echo chamber last of Scene's, reacting to that prose.
    */
-  steps: [PLOT_STEP, NARRATE, STAGE_STEP, TRACK_STEP],
+  steps: [PLOT_STEP, NARRATE, EDIT_STEP, STAGE_STEP, TRACK_STEP, ECHO_STEP],
   /**
    * ~~**A declaration the engine does not yet consult**~~ — **consulted since
    * [P7.0]**: `registerMode` installs a mode's declared channels, so this array
@@ -593,6 +600,9 @@ export const SCENE: ModeDefinition = {
     ...TRACKING_CHANNELS,
     // The secret plot, its switch, its reveal and its cadence — [P13.5b], `plot.ts`.
     ...PLOT_CHANNELS,
+    // The editor's switches, rules and hold; the echo chamber — [P13.5c].
+    ...EDIT_CHANNELS,
+    ...ECHO_CHANNELS,
   ],
   /**
    * One kind, matching what the wire already defaults to — so nothing that
@@ -663,6 +673,9 @@ export const SCENE: ModeDefinition = {
     ...TRACKING_SURFACES,
     // The secret plot's switch, cadence, reveal and card — [P13.5b], `plot.ts`.
     ...PLOT_SURFACES,
+    // The editor's and the echo chamber's settings, and the chorus's panel — [P13.5c].
+    ...EDIT_SURFACES,
+    ...ECHO_SURFACES,
   ],
   /**
    * ***What Scene wants of pictures before anybody says otherwise*** —
@@ -694,5 +707,7 @@ export const SCENE_MODE: Mode = {
     [NARRATE.id]: narrate,
     [STAGE_STEP.id]: stage,
     [TRACK_STEP.id]: track,
+    [EDIT_STEP.id]: edit,
+    [ECHO_STEP.id]: echo,
   },
 };

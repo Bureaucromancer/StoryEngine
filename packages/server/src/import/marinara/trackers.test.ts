@@ -357,6 +357,12 @@ describe('a Marinara roleplay with trackers, swept', () => {
       // The director's secret plot, switched on, every ten messages — [P13.5b].
       ['se.plot.secret.on', true],
       ['se.plot.secret.cadence', { everyNTurns: 5 }],
+      // The prose guardian and the echo chamber, the guardian's banned words
+      // and its hold switched off — [P13.5c], `editor.test.ts`.
+      ['se.edit.style.on', true],
+      ['se.echo.on', true],
+      ['se.edit.style', expect.objectContaining({ banned: 'ozone, tapestry' })],
+      ['se.edit.hold', false],
     ]);
 
     // The first round is the active swipe's: the office, Vera and the ledger.
@@ -467,7 +473,13 @@ describe('a Marinara roleplay with trackers, swept', () => {
       surfaces
         .filter((one) => one.region === 'panel' && one.kind === 'record')
         .map((one) => one.channelId),
-    ).toEqual(['se.track.world', 'se.track.character', 'se.track.inventory']);
+    ).toEqual([
+      'se.track.world',
+      'se.track.character',
+      'se.track.inventory',
+      // The echo chamber's panel, switched on by the import ([P13.5c]).
+      'se.echo',
+    ]);
     expect(read.body.actions).toEqual([{ stepId: 'se.scene.track', label: 'Update trackers' }]);
     // Opening it wrote nothing: the cache already was the replay.
     expect(read.body.session.headTurnId).toBe(session.headTurnId);

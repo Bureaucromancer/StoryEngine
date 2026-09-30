@@ -344,7 +344,19 @@ async function runNextTurn(): Promise<Turn> {
  * assertions below that meant *the narrator's outcome* read it by id
  * ({@link narrator}) rather than by position.
  */
-const SCENE_STEPS = ['se.scene.plot', 'se.narrate', 'se.scene.stage', 'se.scene.track'];
+/*
+ * *And [P13.5c]'s editor and echo chamber make six*, both off by default and
+ * both the same one-read `ok`: the editor after the narrator (first of the
+ * `post` steps), the chorus last of Scene's. 25 C17's dead rows are now four.
+ */
+const SCENE_STEPS = [
+  'se.scene.plot',
+  'se.narrate',
+  'se.scene.edit',
+  'se.scene.stage',
+  'se.scene.track',
+  'se.scene.echo',
+];
 
 /** The narrator's outcome on a Scene turn — by id, since [P13.5b] put a `pre` step first. */
 function narrator(turn: Turn | undefined): StepOutcome | undefined {
@@ -361,12 +373,17 @@ describe('a turn goes all the way through', () => {
       // The secret plot's pass, [P13.5b]: off, so the same one-read `ok`.
       { stepId: 'se.scene.plot', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       { stepId: 'se.narrate', state: 'ok' },
+      // The editor, [P13.5c]: off, and it revised nothing, so no `revisions`.
+      { stepId: 'se.scene.edit', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       // `ok` and contributing nothing, which is the whole of `SCENE_STEPS`'s note.
       { stepId: 'se.scene.stage', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       // The trackers, [P13.5a]: all six off by default, so the same one-read
       // `ok` for the same reason.
       { stepId: 'se.scene.track', state: 'ok', contributed: { blocks: 0, effects: 0 } },
+      // The echo chamber, [P13.5c]: off, the same.
+      { stepId: 'se.scene.echo', state: 'ok', contributed: { blocks: 0, effects: 0 } },
     ]);
+    expect(turn.steps?.find((step) => step.stepId === 'se.scene.edit')?.revisions).toBeUndefined();
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([03 §8]).
     // Bound once, and read from that binding below. Two spellings of the same

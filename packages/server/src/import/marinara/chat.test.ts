@@ -327,7 +327,7 @@ describe('a Marinara chat, joined from its tables', () => {
             summary: 'They met.',
             enableAgents: true,
             // Not the director, whose push and plot are carried since [P13.5b].
-            activeAgentIds: ['world-state', 'prose-guardian'],
+            activeAgentIds: ['world-state', 'prose-guardian', 'expression'],
           },
         ),
       ],
@@ -351,13 +351,15 @@ describe('a Marinara chat, joined from its tables', () => {
       'import.chat.hiddenFromUserShown',
       'import.chat.rewriteOriginalsNotCarried',
       'import.chat.summaryNotCarried',
-      // [P13.5a]: the world tracker's switch came across, the director's did
-      // not, and the trackers' models are Marinara's global ones.
+      // [P13.5a]: the world tracker's switch came across, the expression
+      // agent's did not (it is `se.scene.stage` here), and the trackers' models
+      // are Marinara's global ones. The prose guardian's came too ([P13.5c]).
       'import.chat.agentsNotCarried',
       'import.chat.agentModelsNotCarried',
     ]);
     expect(only(read).state).toEqual([
       { channelId: 'se.track.world.on', version: 1, init: false, value: true },
+      { channelId: 'se.edit.style.on', version: 1, init: false, value: true },
     ]);
   });
 });

@@ -19,6 +19,8 @@ import {
   SCENE_MODE,
   STAGING_CHANNEL,
 } from './mode.js';
+import { ECHO_CHANNELS, ECHO_STEP } from './echo.js';
+import { EDIT_CHANNELS, EDIT_STEP } from './edit.js';
 import { PLOT_CHANNELS, PLOT_STEP } from './plot.js';
 import { STAGE_STEP } from './staging.js';
 import { TRACK_STEP, TRACKING_CHANNELS } from './tracking.js';
@@ -83,6 +85,8 @@ describe('the manifest is data', () => {
       NARRATE.id,
       STAGE_STEP.id,
       TRACK_STEP.id,
+      EDIT_STEP.id,
+      ECHO_STEP.id,
     ]);
     expect(SCENE_MODE.definition).toBe(SCENE);
   });
@@ -334,6 +338,9 @@ describe('what Scene declares, and what the engine does with it', () => {
       ...TRACKING_CHANNELS,
       // The secret plot, its switch, reveal and cadence — [P13.5b], `plot.test.ts`.
       ...PLOT_CHANNELS,
+      // The editor's and the echo chamber's — [P13.5c], `edit.test.ts`, `echo.test.ts`.
+      ...EDIT_CHANNELS,
+      ...ECHO_CHANNELS,
     ]);
     expect(CLOCK_CHANNEL.id).toBe('se.clock');
     // [06 §7.2]'s background channel, declared at [P7.9]. The id is a literal
@@ -486,7 +493,8 @@ describe('what Scene declares, and what the engine does with it', () => {
     // on a backdrop is a control competing with the thing it controls. The
     // rest are [P13.5a]'s: six tracker cards in the panel, and six switches
     // and the cadence in settings — then [P13.5b]'s secret plot: its switch and
-    // cadence in settings, its reveal and its card in the panel.
+    // cadence in settings, its reveal and its card in the panel — then
+    // [P13.5c]'s editor (five settings) and echo chamber (two settings, a card).
     expect(SCENE.surfaces.map((one) => one.region)).toEqual([
       'stage',
       'message',
@@ -497,6 +505,8 @@ describe('what Scene declares, and what the engine does with it', () => {
       'settings',
       'settings',
       'panel',
+      'panel',
+      ...Array<string>(7).fill('settings'),
       'panel',
     ]);
     for (const contribution of SCENE.surfaces) {
@@ -537,13 +547,23 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(SCENE.steps.map((step) => step.id)).toEqual([
       'se.scene.plot',
       'se.narrate',
+      'se.scene.edit',
       'se.scene.stage',
       'se.scene.track',
+      'se.scene.echo',
     ]);
     for (const step of SCENE.steps) expect(typeof SCENE_MODE.run[step.id]).toBe('function');
     // `pre` first — the secret plot steers this turn's reply — then `generate`
-    // before `post`: the stager and the trackers read what the narrator wrote.
-    expect(SCENE.steps.map((step) => step.stage)).toEqual(['pre', 'generate', 'post', 'post']);
+    // before `post`: the editor first of the `post` steps ([P13.5c]), so the
+    // stager, the trackers and the echo chamber read the prose as edited.
+    expect(SCENE.steps.map((step) => step.stage)).toEqual([
+      'pre',
+      'generate',
+      'post',
+      'post',
+      'post',
+      'post',
+    ]);
   });
 
   /**

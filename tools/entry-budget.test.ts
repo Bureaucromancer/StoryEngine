@@ -72,7 +72,24 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * of its own, which a feature stage should not make in passing. The new
  * number leaves about five kB, a little more than the three the stage found.
  */
-const JS_CEILING_KB = 320;
+/*
+ * ***Raised to 325 on 2026-09-30, at [P13.5c]*** (the editor and the echo
+ * chamber, [P13 §1.9.4–§1.9.5](../docs/design/workplan/30-p13-scene-and-session-import.md)).
+ * P13.5a's and P13.5b's as-built notes recorded the entry closing in on 320 —
+ * **318.7**, **319.65**, **319.85** — each saying the next addition would have
+ * to argue for the ceiling. This is that argument. The stage measured
+ * **320.43** and, with its four new import notes' sentences shortened (and the
+ * old `agentsNotCarried` one with them), **320.25**: the transcript's *Edited:
+ * show the original* disclosure and the continuity checklist with its *Apply*
+ * (`ChatMessages.tsx`), and the notes, which are on the entry because
+ * `note-labels.ts` is. **No new dependency**, which is the [20 §7] trigger.
+ * Five kB is P13.5's own margin again, a little under two stages at this
+ * phase's rate; what would buy room instead is the first `React.lazy`
+ * (P13.5's note above), or moving the note sentences off the entry with the
+ * library surface that is their only reader — a loading decision, which a
+ * feature stage should not make in passing.
+ */
+const JS_CEILING_KB = 325;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

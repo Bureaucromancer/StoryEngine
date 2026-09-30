@@ -115,6 +115,7 @@ export function outputMessagesOf(output: Turn['output']): OutputMessage[] {
       speaker: null,
       text: output.text,
       ...(output.reasoning === undefined ? {} : { reasoning: output.reasoning }),
+      ...(output.original === undefined ? {} : { original: output.original }),
     },
   ];
 }

@@ -345,6 +345,80 @@ describe('the gestures on a message', () => {
     });
   });
 
+  /**
+   * ***The editor's two marks*** — [P13 §1.9.4], [P13.5c]: an edited line
+   * offers what the model wrote, and a continuity finding on a line is applied
+   * by the edit gesture with its one substitution.
+   */
+  it('marks an edited line and offers its original behind a disclosure', async () => {
+    const edited: TurnRecord = {
+      ...ROUND,
+      output: {
+        text: ROUND.output?.text ?? '',
+        messages: (ROUND.output?.messages ?? []).map((message, at) =>
+          at === 1 ? { ...message, original: '"You came, ozone and all."' } : message,
+        ),
+      },
+    };
+    readTranscript.mockResolvedValue({ turns: [LEGACY, edited] });
+    renderPage();
+    const vera = await lineOf('"You came."');
+    const shown = within(vera).getByText('Edited: show the original');
+    expect(shown.closest('details')?.open).toBe(false);
+    await userEvent.click(shown);
+    expect(shown.closest('details')?.open).toBe(true);
+    expect(within(vera).getByText('"You came, ozone and all."')).toBeDefined();
+    // The other lines were not edited and say nothing.
+    expect(within(await lineOf('"Aye."')).queryByText('Edited: show the original')).toBeNull();
+  });
+
+  it('lists continuity findings on their line, and applies one as an edit', async () => {
+    const found: TurnRecord = {
+      ...ROUND,
+      steps: [
+        {
+          stepId: 'se.scene.edit',
+          stage: 'post',
+          state: 'ok',
+          contributed: { blocks: 0, effects: 0 },
+          wallMs: 1,
+          revisions: [
+            {
+              index: 1,
+              notices: [
+                { issue: 'Vera has never met you.', quote: 'You came', fix: 'Who are you' },
+                { issue: 'It stopped raining an hour ago.' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    readTranscript.mockResolvedValue({ turns: [LEGACY, found] });
+    renderPage();
+    const vera = await lineOf('"You came."');
+    const list = within(vera).getByRole('list', { name: 'What the continuity check found' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+    // Only the finding that names its words and their fix can be applied.
+    const apply = within(list).getAllByRole('button', { name: 'Apply' });
+    expect(apply).toHaveLength(1);
+    await userEvent.click(apply[0]!);
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          editOf: ROUND.id,
+          authored: {
+            messages: [
+              { speaker: null, text: 'Rain on the glass.' },
+              { speaker: VERA.id, text: '"Who are you."' },
+              { speaker: LUND.id, text: '"Aye."' },
+            ],
+          },
+        }),
+      );
+    });
+  });
+
   it('hides one line by sending the turn’s whole entry', async () => {
     answerSession({ chat: { ...CHAT, hidden: { [ROUND.id]: [0] } } });
     renderPage();
@@ -476,6 +550,42 @@ describe('the composer in a chat', () => {
         screen.getByRole<HTMLSelectElement>('combobox', { name: 'Push the story' }).value,
       ).toBe('');
     });
+  });
+
+  it('rerolls a pushed turn pushed, reading the push off its director outcome', async () => {
+    const pushed: TurnRecord = {
+      ...ROUND,
+      tape: [
+        {
+          key: 'lore.probability:e1#0',
+          site: 'lore.probability',
+          purpose: 'e1',
+          index: 0,
+          kind: 'chance',
+          detail: 'p=0.5',
+          value: true,
+          replayed: false,
+        },
+      ],
+      steps: [
+        {
+          stepId: 'se.scene.direct',
+          stage: 'pre',
+          state: 'ok',
+          contributed: { blocks: 0, effects: 0 },
+          wallMs: 0,
+          direction: { push: 'random', by: 'model', text: 'A fire starts.' },
+        },
+      ],
+    };
+    readTranscript.mockResolvedValue({ turns: [LEGACY, pushed] });
+    renderPage();
+    await lineOf('"Aye."');
+    await userEvent.click(screen.getByRole('button', { name: 'Reroll' }));
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(expect.objectContaining({ push: 'random' }));
+    });
+    expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('rewriteOf');
   });
 
   it('sends no push when none was chosen', async () => {

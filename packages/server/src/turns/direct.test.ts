@@ -67,7 +67,7 @@ function context(over: Partial<DirectContext> = {}): DirectContext & { reports: 
   return {
     push: 'natural',
     fallback: 'The pack says: move on.',
-    secrets: [],
+    secrets: () => [],
     player: 'Ned',
     names: new Map([['a-vera', 'Vera']]),
     hidden: {},
@@ -91,7 +91,7 @@ describe('the director', () => {
   });
 
   it('asks over its own candidates — the recent lines, the move and the secret — and reports the answer', async () => {
-    const ctx = context({ push: 'random', secrets: ['The harbourmaster smuggles.'] });
+    const ctx = context({ push: 'random', secrets: () => ['The harbourmaster smuggles.'] });
     const calls = host('  A fire starts\non the quay.  ');
     const result = await direct(ctx).run(
       input([turn('t-1', 'Hello.', 'Vera nods.'), turn('t-2', 'Secret.', 'Hidden reply.')]),

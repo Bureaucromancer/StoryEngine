@@ -48,6 +48,29 @@ export {
   trackerPath,
   writeBack,
 } from './tracking.js';
+export {
+  CONTINUITY_APPLY,
+  CONTINUITY_ON,
+  EDIT_CHANNELS,
+  EDIT_STEP,
+  EDIT_SURFACES,
+  HOLD,
+  SE_SCENE_EDIT,
+  STYLE,
+  STYLE_ON,
+  edit,
+} from './edit.js';
+export {
+  ECHO,
+  ECHO_CADENCE,
+  ECHO_CHANNELS,
+  ECHO_EVERY,
+  ECHO_ON,
+  ECHO_STEP,
+  ECHO_SURFACES,
+  SE_SCENE_ECHO,
+  echo,
+} from './echo.js';
 export { SCENE_PRESET } from './preset.js';
 
 /**
