@@ -5,6 +5,7 @@ import type { Rendition, RenditionPurpose } from '@storyengine/shared';
 
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
+import { inPlayFor } from '../mode-registry.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { renderedChannels } from '../sessions/channels.js';
@@ -149,7 +150,7 @@ export async function illustrateTurn(
    * and a place has no moment."* So the refusal above is the only thing that can
    * stop it, and the assembly below is handed an empty moment and an empty cast.
    */
-  const channels = renderedChannels(inputs.channels);
+  const channels = renderedChannels(inputs.channels, inPlayFor(inputs.mode.definition.id));
   if (request.purpose === 'background' && placeOf(channels) === undefined) {
     return { held: 'no-place' };
   }

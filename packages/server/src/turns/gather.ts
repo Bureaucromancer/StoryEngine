@@ -10,7 +10,7 @@ import {
 import { castIsPresentFor, chatSettingsOf, noteDue } from '../sessions/chat-settings.js';
 import { saysSomething } from './speakers.js';
 import type { Accounts } from '../auth/accounts.js';
-import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, defaultMode, resolvedMode } from '../mode-registry.js';
 import type { Mode } from '@storyengine/sdk';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { RoleBindings } from '../providers/roles.js';
@@ -245,9 +245,11 @@ export async function gatherAssemblyInputs(
    * [00 §3.3]: a session whose mode came from a newer build, or from an
    * extension that is not installed, is still somebody's story and should
    * still open. `declaredMode` travels out so the caller can say so.
+   * *Through `resolvedMode`*, the one answer the session's view gets too
+   * (2026-09-30).
    */
   const declaredMode = session?.mode?.id ?? DEFAULT_MODE_ID;
-  const mode = modeById(declaredMode) ?? defaultMode();
+  const mode = resolvedMode(declaredMode) ?? defaultMode();
 
   /**
    * The session's own copy, or the mode's pack for a session that has none —
@@ -347,7 +349,16 @@ export function roleLayersOf(
 
 /** What the collector takes from the gather rather than from the call. */
 type FromGather =
-  'preset' | 'history' | 'persona' | 'actors' | 'channels' | 'carriers' | 'goal' | 'dials' | 'chat';
+  | 'preset'
+  | 'history'
+  | 'persona'
+  | 'actors'
+  | 'channels'
+  | 'modeId'
+  | 'carriers'
+  | 'goal'
+  | 'dials'
+  | 'chat';
 
 /**
  * ***The collector's input, the half this gather knows filled here once***
@@ -398,6 +409,7 @@ export function collectFor(
     persona: inputs.cast.persona,
     actors: inputs.cast.actors,
     channels: inputs.channels,
+    modeId: inputs.mode.definition.id,
     carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
     ...(inputs.goals.current === null
       ? {}

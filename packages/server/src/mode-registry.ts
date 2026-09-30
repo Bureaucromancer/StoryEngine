@@ -160,6 +160,30 @@ export function defaultMode(): Mode {
   return mode;
 }
 
+/**
+ * ***The mode a session plays*** — the one it names, or the default when this
+ * build has never heard of that one ([00 §3.3], {@link DEFAULT_MODE_ID}).
+ * `null` only when nothing is registered at all, which is a unit test's world
+ * rather than a server's; a caller that must have a mode follows this with
+ * {@link defaultMode}, and gets that function's throw.
+ *
+ * ***One answer, asked everywhere*** (2026-09-30). The turn resolved an unknown
+ * mode to the default (`gather.ts`), and so — each with its own copy of the
+ * fallback — did the chat settings, the gestures, the preset reset and the
+ * session's presentation; the session read's HUD, surfaces, actions, dials and
+ * input kinds, the channel write, the cast and input checks and the on-demand
+ * reply took the id as written. So a session naming a mode from a newer build,
+ * or an extension that is not installed, *played* as Scene and was *shown* as
+ * nothing: no clock or place, no stage, no *Update trackers*, no input kinds,
+ * and a 404 for a write to the staging switch its own turns were reading. Every
+ * function in this file that takes a session's mode id resolves it through this
+ * one, so the id a caller has in hand can no longer give the view one mode and
+ * the turn another.
+ */
+export function resolvedMode(id: string | undefined): Mode | null {
+  return modeById(id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
+}
+
 /** Every mode registered so far, in registration order. */
 export function registeredModes(): readonly Mode[] {
   return [...registered.values()];
@@ -359,16 +383,46 @@ function withoutParts(setup: ModeDefinition['setup']): ModeDefinition['setup'] {
  *   everywhere, which is why they were registered outside a mode in the first
  *   place.
  *
- * So the test is *is there a registered mode with this owner, and is it not the
- * one being played* — and an owner no mode answers to is a package's.
+ * ~~So the test is *is there a registered mode with this owner, and is it not the
+ * one being played* — and an owner no mode answers to is a package's.~~
+ *
+ * ***A mode's channel is in play where the mode playing declares it***
+ * (2026-09-30), and a package's everywhere, as before. The owner rule broke on
+ * the case the SDK invites: `dialChannel` hands out one spelling on purpose —
+ * *"the second mode to want one spells it the same way"* (`sdk/dials.ts`) —
+ * and registration is last-write-wins, so a second mode declaring
+ * `se.difficulty` took the channel's `owner`, and with it the dial, the
+ * channel write and the workbench line, away from Freeform, whose turns would
+ * still read a value nobody could change any more. The owner answers *whose is
+ * it*; the question here is *does this session's mode use it*, and the
+ * declaration is the mode saying so. It is also the only way a mode's channel
+ * reaches the registry ({@link registerMode}), so every channel the owner rule
+ * gave a mode, this gives it too. **The owner still draws [06 §4.1]'s line**:
+ * one no registered mode answers to is a package's.
+ *
+ * *The mode is the one the session plays* — {@link resolvedMode}, so a session
+ * naming a mode this build does not have sees the default's channels, which are
+ * the ones its turns write.
  *
  * *An unregistered channel is not in play either*, which keeps the two answers a
  * caller cares about — **unknown** and **not yours** — from needing two calls.
  */
-export function channelInPlay(channelId: string, modeId: string): boolean {
+export function channelInPlay(channelId: string, modeId: string | undefined): boolean {
   const definition = channelDefinition(channelId);
   if (definition === null) return false;
-  return modeById(definition.owner) === null || definition.owner === modeId;
+  const declared = resolvedMode(modeId)?.definition.channels;
+  if (declared?.some((channel) => channel.id === channelId) === true) return true;
+  return modeById(definition.owner) === null;
+}
+
+/**
+ * {@link channelInPlay} for one session, as a predicate — for the walks in
+ * `sessions/channels.ts` (`renderedChannels`, `secretChannels`), which cannot
+ * import this file for the cycle described above, and so take the rule as an
+ * argument rather than a mode id.
+ */
+export function inPlayFor(modeId: string | undefined): (channelId: string) => boolean {
+  return (channelId) => channelInPlay(channelId, modeId);
 }
 
 /**
@@ -380,7 +434,7 @@ export function channelInPlay(channelId: string, modeId: string): boolean {
  */
 export function sessionSurfaces(
   channels: Readonly<Record<string, ChannelState>>,
-  modeId: string,
+  modeId: string | undefined,
 ): ChannelSurface[] {
   return channelSurfaces(channels).filter((surface) => channelInPlay(surface.channelId, modeId));
 }
@@ -472,7 +526,8 @@ export interface SurfaceMembers {
 
 export function modeSurfaces(
   channels: Readonly<Record<string, ChannelState>>,
-  modeId: string,
+  /** The mode the session names — resolved here ({@link resolvedMode}). */
+  modeId: string | undefined,
   /**
    * Which session these surfaces belong to — [P9.2].
    *
@@ -494,12 +549,12 @@ export function modeSurfaces(
   /** Who an actor-scoped record is about — see {@link SurfaceMembers}. */
   members?: SurfaceMembers,
 ): ModeSurface[] {
-  const mode = modeById(modeId);
+  const mode = resolvedMode(modeId);
   if (mode === null) return [];
 
   const out: ModeSurface[] = [];
   for (const contribution of mode.definition.surfaces) {
-    if (!channelInPlay(contribution.channelId, modeId)) continue;
+    if (!channelInPlay(contribution.channelId, mode.definition.id)) continue;
     const definition = channelDefinition(contribution.channelId);
     /**
      * ***Hidden has no surface — until it is revealed*** — [06 §7.3]'s reveal
@@ -692,9 +747,15 @@ export interface ModeAction {
 
 export function modeActions(
   channels: Readonly<Record<string, ChannelState>>,
-  modeId: string,
+  modeId: string | undefined,
 ): ModeAction[] {
-  const mode = modeById(modeId);
+  /**
+   * ***The mode the session plays***, resolved ({@link resolvedMode}) — the
+   * route runs the resolved mode's step (`turns/on-demand.ts` takes the turn's
+   * gather), so a session naming an unknown mode was offered no *Update
+   * trackers* that the route would have run as Scene's.
+   */
+  const mode = resolvedMode(modeId);
   if (mode === null) return [];
   const out: ModeAction[] = [];
   for (const step of mode.definition.steps) {

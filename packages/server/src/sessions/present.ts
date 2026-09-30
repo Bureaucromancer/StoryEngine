@@ -3,7 +3,7 @@
 
 import type { Goal } from '@storyengine/shared';
 
-import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
+import { resolvedMode } from '../mode-registry.js';
 import { readableGoals } from './goals.js';
 import { presetOf } from './preset-of.js';
 import type { SessionFile } from './types.js';
@@ -56,7 +56,7 @@ export function presentSession(file: SessionFile | null): PresentedSession | nul
   delete shown.goals;
   // No mode registered is a unit test's world, not a server's, and the file's
   // own pack is then the only honest answer.
-  const mode = modeById(file.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
+  const mode = resolvedMode(file.mode?.id);
   return {
     ...shown,
     ...(file.preset === undefined || mode === null ? {} : { preset: presetOf(file.preset, mode) }),

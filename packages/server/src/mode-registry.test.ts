@@ -154,6 +154,174 @@ describe('the mode registry', () => {
   });
 });
 
+/**
+ * ***The mode a session plays, and the channels that come with it*** —
+ * `resolvedMode` and `channelInPlay` (2026-09-30).
+ *
+ * The turn played a session naming an unknown mode as the default; the view
+ * showed it as nothing, since the surfaces, the actions and the channel rule
+ * took the id as written. And the channel rule read only the `owner`, which
+ * last-write-wins registration hands to whichever mode declared a shared dial
+ * last. Loaded fresh for the first describe's reason; the default is a
+ * stand-in registered under the default's own id, so what is asserted is the
+ * container's rule and not Scene's content.
+ */
+describe('the mode a session plays', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function freshRegistry(): Promise<typeof import('./mode-registry.js')> {
+    return import('./mode-registry.js');
+  }
+
+  function channel(id: string, owner: string): import('@storyengine/sdk').ChannelDefinition {
+    return {
+      id,
+      owner,
+      version: 1,
+      scope: 'session',
+      update: 'user-only',
+      visibility: 'player',
+      budget: null,
+      schema: { type: ['string', 'null'] },
+      init: { kind: 'literal', value: 'dawn' },
+      render: '{{ value }}',
+      surface: { kind: 'text', label: 'When' },
+    };
+  }
+
+  /** The default as a stand-in: a channel it owns, shows, and updates on demand. */
+  async function withDefault(): Promise<typeof import('./mode-registry.js')> {
+    const registry = await freshRegistry();
+    const base = fakeMode(registry.DEFAULT_MODE_ID);
+    const when = channel('example.when', registry.DEFAULT_MODE_ID);
+    // A secret the director steers by: hidden, with a reveal it has not had.
+    const secret = {
+      ...channel('example.secret', registry.DEFAULT_MODE_ID),
+      visibility: 'hidden',
+      reveal: 'example.secret.shown',
+      init: { kind: 'literal', value: 'the ledger burned' },
+    } as const;
+    const update: import('@storyengine/sdk').StepDefinition = {
+      ...step('example.update'),
+      stage: 'post',
+      contributes: 'effects',
+      writes: [when.id],
+      onDemand: { label: 'Update the time' },
+    };
+    registry.registerMode({
+      definition: {
+        ...base.definition,
+        inputs: ['do', 'say'],
+        channels: [when, secret],
+        steps: [...base.definition.steps, update],
+        surfaces: [
+          { region: 'panel', channelId: when.id, widget: { kind: 'text', label: 'When' } },
+        ],
+      },
+      run: { ...base.run, [update.id]: () => Promise.resolve({}) },
+    });
+    return registry;
+  }
+
+  it('plays the mode it names, and the default for one this build never heard of', async () => {
+    const registry = await withDefault();
+    const quiet = fakeMode('example.quiet');
+    registry.registerMode(quiet);
+    const fallback = registry.modeById(registry.DEFAULT_MODE_ID);
+
+    expect(registry.resolvedMode('example.quiet')).toBe(quiet);
+    expect(registry.resolvedMode('example.not-installed')).toBe(fallback);
+    expect(registry.resolvedMode(undefined)).toBe(fallback);
+  });
+
+  it('is nothing at all when nothing is registered', async () => {
+    const registry = await freshRegistry();
+
+    expect(registry.resolvedMode('example.not-installed')).toBeNull();
+  });
+
+  /**
+   * ***What the turn plays is what the page shows*** — the HUD, the mode's
+   * placements, what may be run between turns and the channels that may be
+   * written. Each against the default's own answer, and each non-empty, so the
+   * equality cannot hold by both being nothing.
+   */
+  it('shows a session naming an unknown mode everything the default shows', async () => {
+    const registry = await withDefault();
+    const id = registry.DEFAULT_MODE_ID;
+    const gone = 'example.not-installed';
+
+    expect(registry.channelInPlay('example.when', gone)).toBe(true);
+    expect(registry.sessionSurfaces({}, gone)).toEqual(registry.sessionSurfaces({}, id));
+    expect(registry.sessionSurfaces({}, id)).toHaveLength(1);
+    expect(registry.modeSurfaces({}, gone, 's-1')).toEqual(registry.modeSurfaces({}, id, 's-1'));
+    expect(registry.modeSurfaces({}, id, 's-1')).toHaveLength(1);
+    expect(registry.modeActions({}, gone)).toEqual([
+      { stepId: 'example.update', label: 'Update the time' },
+    ]);
+    // And what a picture is told, through the predicate the walk takes.
+    const { renderedChannels } = await import('./sessions/channels.js');
+    const told = renderedChannels({}, registry.inPlayFor(id));
+    expect(told).toContainEqual({ id: 'example.when', text: 'dawn' });
+    expect(renderedChannels({}, registry.inPlayFor(gone))).toEqual(told);
+  });
+
+  /**
+   * ***Another mode's channel is not this session's*** — the [P7.9] rule, now
+   * also what a picture is told: a mode that declares the channel nowhere
+   * neither shows it nor hears it.
+   */
+  it('tells a session on another mode nothing of the default’s channels', async () => {
+    const registry = await withDefault();
+    registry.registerMode(fakeMode('example.quiet'));
+    const { renderedChannels } = await import('./sessions/channels.js');
+
+    expect(registry.channelInPlay('example.when', 'example.quiet')).toBe(false);
+    expect(registry.sessionSurfaces({}, 'example.quiet')).toEqual([]);
+    expect(renderedChannels({}, registry.inPlayFor('example.quiet'))).not.toContainEqual(
+      expect.objectContaining({ id: 'example.when' }),
+    );
+  });
+
+  it('steers a session on another mode by none of the default’s secrets', async () => {
+    const registry = await withDefault();
+    registry.registerMode(fakeMode('example.quiet'));
+    const { secretChannels } = await import('./sessions/channels.js');
+
+    expect(secretChannels({}, registry.inPlayFor(registry.DEFAULT_MODE_ID))).toEqual([
+      'the ledger burned',
+    ]);
+    expect(secretChannels({}, registry.inPlayFor('example.quiet'))).toEqual([]);
+  });
+
+  /**
+   * ***A shared dial is every declaring mode's*** — `dialChannel` spells the
+   * id once so two modes can share it (`sdk/dials.ts`), and registration is
+   * last-write-wins, so the owner names only the last. Freeform registering
+   * before a second declarer lost the dial its turns still read.
+   */
+  it('lets every mode that declares a shared dial play it, whoever registered last', async () => {
+    const registry = await withDefault();
+    const { dialChannel } = await import('@storyengine/sdk');
+    for (const id of ['example.first', 'example.second']) {
+      const mode = fakeMode(id);
+      registry.registerMode({
+        ...mode,
+        definition: { ...mode.definition, channels: [dialChannel('difficulty', id)] },
+      });
+    }
+    registry.registerMode(fakeMode('example.third'));
+
+    expect(registry.channelInPlay('se.difficulty', 'example.first')).toBe(true);
+    expect(registry.channelInPlay('se.difficulty', 'example.second')).toBe(true);
+    // A mode that declares none has none — the rule [P7.9] made, kept.
+    expect(registry.channelInPlay('se.difficulty', 'example.third')).toBe(false);
+    expect(registry.channelInPlay('se.difficulty', registry.DEFAULT_MODE_ID)).toBe(false);
+  });
+});
+
 function step(id: string): import('@storyengine/sdk').StepDefinition {
   return {
     id,

@@ -41,6 +41,8 @@ import {
   ENSEMBLE_MODE_ID,
   SHAPED_MODE,
   SHAPED_MODE_ID,
+  TEST_MODE,
+  TEST_MODE_ID,
   TEST_PRESET,
   TEST_STEP,
 } from '../test-mode.js';
@@ -447,6 +449,50 @@ describe('a turn goes all the way through', () => {
     expect(clock[0]?.proposedBy).toEqual({ kind: 'engine' });
     expect(clock[0]?.applied).toBe(true);
     expect(readClock(session?.channels ?? {})).toEqual({ day: 1, hour: 8, minute: 5 });
+  });
+
+  /**
+   * ***Only a mode that plays the clock advances it*** (2026-09-30). The clock
+   * is Scene's ([06 §4.1]), and the channel route refused it on any other
+   * mode's session as no such channel; this runner advanced it on every one,
+   * so each Freeform turn recorded a time nothing in Freeform keeps.
+   */
+  async function aTurnPlaying(modeId: string): Promise<Turn> {
+    const session = await createSession(sessions, ACCOUNT, {
+      name: modeId,
+      mode: { id: modeId, config: null },
+      preset: TEST_PRESET,
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: `playing-${session.id}`,
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    return onRecord(written.at(-1), 'the turn on disk').turn;
+  }
+
+  it('advances no clock for a mode that does not play one', async () => {
+    registerMode(TEST_MODE);
+
+    const turn = await aTurnPlaying(TEST_MODE_ID);
+
+    expect(turn.status).toBe('complete');
+    expect(turn.effects.filter((effect) => effect.channelId === SE_CLOCK)).toEqual([]);
+  });
+
+  it('advances the default’s clock for a mode this build does not have', async () => {
+    // Played as the default ([00 §3.3]), so kept as the default keeps it.
+    const turn = await aTurnPlaying('example.not-installed');
+
+    expect(turn.status).toBe('complete');
+    expect(turn.effects.filter((effect) => effect.channelId === SE_CLOCK)).toHaveLength(1);
   });
 
   it('frees the session, so the next turn composes against the new head', async () => {

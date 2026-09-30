@@ -19,7 +19,7 @@ import {
 import { DIALS_PRESET, TEST_PRESET } from '../test-mode.js';
 import { resolveLevel } from '../sessions/dials.js';
 import { installBuiltIns } from '../mode-loader.js';
-import { modeById } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
 import {
   channelKey,
   registerChannel,
@@ -78,6 +78,7 @@ function context(over: Partial<CollectContext> = {}): CollectContext {
     persona: null,
     actors: [],
     channels: {},
+    modeId: DEFAULT_MODE_ID,
     ...over,
   };
 }
@@ -2384,6 +2385,103 @@ describe('the time and the place', () => {
   it('say nothing of a place nobody has named yet', () => {
     const clockOnly = { 'se.clock': channels['se.clock'] };
     expect(said('narrate', clockOnly)).toEqual(['When this is happening: Day 3, 09:05', undefined]);
+  });
+});
+
+/**
+ * ***Only the channels the session's mode plays*** (2026-09-30) — `modeId`,
+ * read through `channelInPlay`, the rule the HUD and the channel write kept.
+ * The registry holds every mode's declarations and the collector walked all of
+ * it: a Freeform session with Scene's world tracker switched on had Scene's
+ * state in its prompt, and a pack slotting Scene's clock read a clock only a
+ * session playing Scene advances.
+ */
+describe('a session on another mode', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  const FREEFORM = 'storyengine.freeform';
+  const world = {
+    'se.track.world.on': { version: 1, value: true },
+    'se.track.world': {
+      version: 1,
+      value: {
+        date: '',
+        time: 'dusk',
+        location: 'the docks',
+        weather: '',
+        temperature: '',
+        fields: [],
+        recent: [],
+      },
+    },
+  };
+
+  it('is told of no tracker its mode does not keep', () => {
+    const slot = block({ kind: 'slot', id: 'se.state', source: { of: 'state' } });
+    const said = (modeId: string) =>
+      collectCandidates(
+        context({ modeId, preset: preset([slot]), channels: world }),
+      ).candidates.find((candidate) => candidate.id === 'se.state')?.text;
+
+    expect(said(DEFAULT_MODE_ID)).toContain('the docks');
+    expect(said(FREEFORM)).toBeUndefined();
+  });
+
+  it('hears nothing from a slot naming a channel its mode does not play', () => {
+    const slot = block({
+      kind: 'slot',
+      id: 'se.clock',
+      source: { of: 'channel', channelId: SE_CLOCK },
+    });
+    const channels = { [SE_CLOCK]: { version: 1, value: { day: 3, hour: 9, minute: 5 } } };
+    const scene = collectCandidates(context({ preset: preset([slot]), channels }));
+    const freeform = collectCandidates(
+      context({ modeId: FREEFORM, preset: preset([slot]), channels }),
+    );
+
+    expect(scene.candidates.map((candidate) => candidate.id)).toEqual(['se.clock']);
+    expect(freeform.candidates).toEqual([]);
+    // The reason a channel nobody declares gets — from this session's side,
+    // there is no such channel.
+    expect(freeform.notFilled.find((row) => row.blockId === 'se.clock')?.reason).toBe(
+      'no-producer',
+    );
+  });
+
+  it('stands a slot aside only for a tracker its mode keeps', () => {
+    // A tracker claiming the clock, kept by Freeform and switched on in a
+    // session playing Scene — which has no such tracker to say the time. Its
+    // switch is set here only, so the registry this file shares is left with a
+    // tracker nothing switches on.
+    registerChannel({
+      id: 'example.elsewhere',
+      owner: FREEFORM,
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'player',
+      budget: 100,
+      render: '{{ value }}',
+      schema: { type: 'string' },
+      init: { kind: 'literal', value: 'noon' },
+      enabledBy: 'example.elsewhere.on',
+      state: { label: 'Elsewhere', supersedes: [SE_CLOCK] },
+    });
+    const slot = block({
+      kind: 'slot',
+      id: 'se.clock',
+      source: { of: 'channel', channelId: SE_CLOCK },
+    });
+    const channels = {
+      [SE_CLOCK]: { version: 1, value: { day: 3, hour: 9, minute: 5 } },
+      'example.elsewhere.on': { version: 1, value: true },
+    };
+
+    const { candidates } = collectCandidates(context({ preset: preset([slot]), channels }));
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(['se.clock']);
   });
 });
 

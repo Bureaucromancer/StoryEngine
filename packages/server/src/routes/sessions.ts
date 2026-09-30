@@ -83,7 +83,7 @@ import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeActions, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
 import { DIAL_CHANNELS, packLevels, readDial, resolveLevel } from '../sessions/dials.js';
-import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, modeById, resolvedMode, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
@@ -1525,8 +1525,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     };
 
     // What this session is playing, which three of the blocks below need and
-    // none of them needed before a second mode declared anything.
-    const modeId = session.mode?.id ?? DEFAULT_MODE_ID;
+    // none of them needed before a second mode declared anything. ***Resolved***
+    // (2026-09-30, `resolvedMode`): a session naming a mode this build does not
+    // have plays the default, and is shown the default's HUD, surfaces,
+    // actions, dials and input kinds — where it was shown none of them.
+    const packMode = resolvedMode(session.mode?.id);
+    const modeId = packMode?.definition.id ?? session.mode?.id ?? DEFAULT_MODE_ID;
 
     /**
      * ***The two dials*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
@@ -1558,7 +1562,6 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * own pack has the level lists the mode shipped after it was taken, and a
      * dial the turn resolves is a dial this panel offers.
      */
-    const packMode = modeById(modeId) ?? modeById(DEFAULT_MODE_ID);
     const preset = packMode === null ? session.preset : presetOf(session.preset, packMode);
     const dials: Record<
       string,
@@ -1653,7 +1656,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * what is accepted, which is the same list the submit route refuses
        * against.
        */
-      inputs: modeById(modeId)?.definition.inputs ?? [],
+      inputs: packMode?.definition.inputs ?? [],
       /**
        * Whether this session wants suggested actions — [R11], [P7.9].
        *
@@ -1681,7 +1684,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       renditions: {
         illustration: readIllustration(
           session.channels,
-          modeById(modeId)?.definition.renditions?.illustration,
+          packMode?.definition.renditions?.illustration,
         ),
         ...(SE_BACKDROP_ON in session.channels
           ? { backdrop: readBackdropOn(session.channels) }
@@ -1701,7 +1704,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!session) return;
 
       const body = request.body as { persona: string | null; actors: string[] };
-      const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID);
+      const mode = resolvedMode(session.mode?.id);
       if (mode !== null && body.actors.length > mode.definition.participants.maxActors) {
         return reply.code(422).send({
           error: 'too-many-actors',
@@ -2086,7 +2089,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         if (presetId === 'default') {
           const session = await readSession(services.sessions, account.handle, sessionId);
           if (session === null) return reply.code(404).send({ error: 'not-found' });
-          const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
+          const mode = resolvedMode(session.mode?.id);
           if (!mode) return reply.code(422).send({ error: 'unknown-mode' });
           next = structuredClone(mode.definition.assembly.defaultPreset);
         } else {
@@ -2215,10 +2218,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * this route would accept a write to it on **any** session — a Scene
        * session acquiring a `se.difficulty` nothing reads, which then sits in
        * `session.json` and in the effect log looking like state. `channelInPlay`
-       * is the `owner` rule: a channel owned by a *mode* belongs to a session
-       * playing it, and one owned by a *package* — cast, hooks, goals, lore —
-       * is available everywhere, which is why those were registered outside a
-       * mode to begin with.
+       * is ~~the `owner` rule: a channel owned by a *mode* belongs to a session
+       * playing it~~ *the declaration rule since 2026-09-30: a mode's channel
+       * belongs to a session whose mode declares it, so a dial two modes share
+       * is both of theirs*, and one owned by a *package* — cast, hooks, goals,
+       * lore — is available everywhere, which is why those were registered
+       * outside a mode to begin with. *The mode is the one the session plays*
+       * (2026-09-30): `channelInPlay` resolves an id this build does not know
+       * to the default, whose channels such a session's turns write — the
+       * staging switch its stager was reading was a 404 here.
        *
        * **A 404 rather than a 422**, and it is the same answer an unregistered
        * id gets: from this session's point of view there is no such channel, and
@@ -2226,7 +2234,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * ships from a session route.
        */
       const { channelId } = splitChannelKey(key);
-      if (!channelInPlay(channelId, session.mode?.id ?? DEFAULT_MODE_ID)) {
+      if (!channelInPlay(channelId, session.mode?.id)) {
         return reply
           .code(404)
           .send({ error: 'no-such-channel', message: 'This session has no such channel.' });
@@ -2242,12 +2250,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         session: presentSession(outcome.session),
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
-        hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
-        surfaces: modeSurfaces(
-          outcome.session.channels,
-          session.mode?.id ?? DEFAULT_MODE_ID,
-          sessionId,
-        ),
+        hud: sessionSurfaces(outcome.session.channels, session.mode?.id),
+        surfaces: modeSurfaces(outcome.session.channels, session.mode?.id, sessionId),
       });
     },
   );
@@ -3668,7 +3672,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        */
       if (kind !== undefined && kind !== DEFAULT_INPUT_KIND) {
         const submitting = await readSession(services.sessions, account.handle, sessionId);
-        const accepted = modeById(submitting?.mode?.id ?? DEFAULT_MODE_ID)?.definition.inputs;
+        const accepted = resolvedMode(submitting?.mode?.id)?.definition.inputs;
         if (submitting !== null && accepted !== undefined && !accepted.includes(kind)) {
           return reply.code(422).send({
             error: 'unknown-input-kind',

@@ -310,6 +310,54 @@ describe('what the gather resolves without a job', () => {
 });
 
 /**
+ * ***The collector is told the mode the turn plays*** (2026-09-30), so a
+ * channel slot, the state block and a tracker standing a slot aside see only
+ * that mode's channels (`channelInPlay`) — the rule the HUD and the channel
+ * write kept, where the collector walked every mode's declarations.
+ */
+describe('the mode the collector is told', () => {
+  it('is the one the session plays, so another mode’s tracker says nothing', async () => {
+    const state = defaultMode().definition.assembly.defaultPreset.blocks.find(
+      (block) => block.id === 'se.state',
+    );
+    if (state === undefined) throw new Error('the default pack has a state slot');
+    const world = {
+      'se.track.world.on': { version: 1, value: true },
+      'se.track.world': {
+        version: 1,
+        value: {
+          date: '',
+          time: 'dusk',
+          location: 'the docks',
+          weather: '',
+          temperature: '',
+          fields: [],
+          recent: [],
+        },
+      },
+    };
+    const said = async (modeId: string): Promise<string | undefined> => {
+      const created = await createSession(sessions, ACCOUNT, {
+        name: modeId,
+        mode: { id: modeId, config: null },
+      });
+      const inputs = await gatherAssemblyInputs(
+        { sessions, accounts },
+        { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+      );
+      const collected = collectFor(
+        { ...inputs, preset: { ...inputs.preset, blocks: [{ ...state, enabled: true }] } },
+        { callKind: 'narrate', voice: 'narrator', channels: world, lore: [] },
+      );
+      return collected.candidates.find((candidate) => candidate.id === 'se.state')?.text;
+    };
+
+    expect(await said(DEFAULT_MODE_ID)).toContain('the docks');
+    expect(await said('storyengine.freeform')).toBeUndefined();
+  });
+});
+
+/**
  * ***A session copied before a block shipped is assembled with it***
  * (2026-09-27) — `presetOf`, through the gather every turn and every preview
  * calls. The file on disk is exactly what a session begun on the first alpha

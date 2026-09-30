@@ -457,6 +457,47 @@ describe('Illustrate, pressed by hand', () => {
    * picture of the tone alone. It answers with the class instead, as it does
    * for no binding, and makes nothing.
    */
+  /**
+   * ***A picture is told only what its session's mode keeps*** (2026-09-30) —
+   * `renderedChannels`' `inPlay`. Scene's clock sits in the registry beside
+   * every other mode's declarations, and a Freeform picture was told the hour:
+   * the starting time for ever, since only a session playing Scene moves it.
+   */
+  it('tells a Freeform picture nothing of Scene’s clock', async () => {
+    await boot({ bindImage: true });
+    const scene = sessionId;
+    const sceneTurn = await takeATurn();
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Freeform',
+        mode: 'storyengine.freeform',
+        modeConfig: { premise: 'Rain on the quay.', difficulty: 'even', directedness: 'following' },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    sessionId = created.body.session.id as string;
+    head = null;
+    const freeformTurn = await takeATurn();
+
+    const told = async (session: string, turnId: string): Promise<string> => {
+      const asked = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${session}/turns/${turnId}/illustrate`,
+        payload: { purpose: 'illustration' },
+      });
+      expect(asked.status, JSON.stringify(asked.body)).toBe(202);
+      const id = (asked.body as { rendition: Rendition }).rendition.id;
+      const held = await readRenditions(server.services.sessions.layout, 'ned', session);
+      return JSON.stringify(held.get(id)?.prompt.fragments ?? null);
+    };
+
+    expect(await told(scene, sceneTurn)).toContain('Day 1, 08:05');
+    expect(await told(sessionId, freeformTurn)).not.toMatch(/Day \d/);
+    await settled(server);
+  });
+
   it('refuses Set the scene where the story has named no place', async () => {
     await boot({ bindImage: true });
     const turnId = await takeATurn();

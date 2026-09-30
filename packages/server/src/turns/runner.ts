@@ -109,7 +109,7 @@ import { SE_GOAL } from '../sessions/goals.js';
 import { storyDepth } from '../sessions/depth.js';
 import { loreReached, retrieve, settleTiming } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
-import { planFor, setupPlanFor } from '../mode-registry.js';
+import { channelInPlay, inPlayFor, planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
 import { TALKATIVENESS_DEFAULT, talkativenessMap, turnSelection } from './speakers.js';
 import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
@@ -1386,7 +1386,7 @@ export class TurnRunner {
                 fallback: inputs.preset.pushDirections?.[pushing] ?? null,
                 // A closure over the `let`, so the plot pass's effects this
                 // turn are what it reads — see `DirectContext.secrets`.
-                secrets: () => secretChannels(running),
+                secrets: () => secretChannels(running, inPlayFor(mode.definition.id)),
                 player: cast.persona?.actor.name ?? null,
                 names: new Map(
                   [...cast.actors, ...(cast.persona === null ? [] : [cast.persona])].map(
@@ -1692,7 +1692,7 @@ export class TurnRunner {
                  * a list rendered here was the state before any of them — the
                  * place the stager moves, a turn late in every backdrop.
                  */
-                channels: () => renderedChannels(running),
+                channels: () => renderedChannels(running, inPlayFor(mode.definition.id)),
                 /**
                  * **Empty at 1.0, and a field rather than a later migration.**
                  * What an endpoint wants beyond a prompt is per-connection
@@ -2939,8 +2939,14 @@ export class TurnRunner {
      * proposed rather than computed. It goes through the same registry gate
      * every step effect does — engine-proposed, so admitted; the identical
      * proposal from a model is refused.
+     *
+     * ***Only for a mode that plays it*** (2026-09-30). The clock is Scene's
+     * channel ([06 §4.1]), and the channel write route refused it on any other
+     * mode's session as *no such channel* — while this line advanced it on
+     * every Freeform and assistant turn, so their effect logs carried a time
+     * nothing in them keeps, and a Freeform picture was told the hour.
      */
-    if (!aborted) {
+    if (!aborted && channelInPlay(SE_CLOCK, mode.definition.id)) {
       const effect = acceptEffect(
         job.turnId,
         {

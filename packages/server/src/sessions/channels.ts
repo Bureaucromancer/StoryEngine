@@ -855,14 +855,25 @@ export function channelSurfaces(
  *
  * Ordered by channel id so the list is stable, because a prompt built from it is
  * hashed and an order that varied would make one place look like two.
+ *
+ * ***Only the channels in play for the session*** (2026-09-30) — `inPlay` is
+ * `mode-registry.ts`'s `inPlayFor`, the rule the HUD and the channel write
+ * already kept ([06 §4.1]). This walked the registry, which holds every mode's
+ * declarations, so a Freeform session's picture was told Scene's clock — a
+ * *"Day 3, 09:05"* the engine advanced on every Freeform turn, for a mode with
+ * no clock. *Required, and a predicate rather than a mode id*: required so the
+ * next caller cannot walk the whole build by leaving it out, and a predicate
+ * because this file cannot import the registry that owns the rule (the cycle
+ * that file's note describes).
  */
 export function renderedChannels(
   channels: Readonly<Record<string, ChannelState>>,
+  inPlay: (channelId: string) => boolean,
 ): { id: string; text: string }[] {
   const out: { id: string; text: string }[] = [];
 
   for (const definition of registeredChannels()) {
-    if (definition.render === undefined) continue;
+    if (definition.render === undefined || !inPlay(definition.id)) continue;
     // A tracker switched off says nothing here either ([P14.5a]) — this digest
     // feeds an illustration's prompt, and a character's thoughts from before
     // the switch went off are not the picture's to draw.
@@ -907,11 +918,19 @@ export function renderedChannels(
  * plot without spelling its id, as the state block reads the trackers. Every
  * key it holds, rendered and trimmed; blank is nothing. Revealed or not, since
  * the director is not the player.
+ *
+ * *Only the channels in play for the session* — {@link renderedChannels}'
+ * `inPlay`, for its reason (2026-09-30): another mode's secret is not this
+ * session's to steer by.
  */
-export function secretChannels(channels: Readonly<Record<string, ChannelState>>): string[] {
+export function secretChannels(
+  channels: Readonly<Record<string, ChannelState>>,
+  inPlay: (channelId: string) => boolean,
+): string[] {
   const out: string[] = [];
   for (const definition of registeredChannels()) {
     if (definition.visibility !== 'hidden' || definition.reveal === undefined) continue;
+    if (!inPlay(definition.id)) continue;
     if (definition.render === undefined || !stateEnabled(definition, channels)) continue;
     const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
     for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {

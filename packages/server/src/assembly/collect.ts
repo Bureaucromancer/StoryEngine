@@ -17,6 +17,7 @@ import {
 } from '@storyengine/shared';
 
 import { estimateTokens } from './assemble.js';
+import { channelInPlay } from '../mode-registry.js';
 import { readPresence } from '../sessions/cast.js';
 import {
   channelDefinition,
@@ -103,6 +104,16 @@ export interface CollectContext {
   persona: { actor: Actor; contentHash: string } | null;
   actors: readonly { actor: Actor; contentHash: string }[];
   channels: Readonly<Record<string, ChannelState>>;
+  /**
+   * ***The mode the turn plays*** (2026-09-30) — resolved, so never an id this
+   * build does not know (`resolvedMode`), and read through `channelInPlay`: a
+   * channel slot, the state block and a tracker standing a slot aside see only
+   * the channels this session's mode plays, as the HUD and the channel write
+   * always did. The registry holds every mode's declarations, and a walk over
+   * it answers *does this build have such a channel* when the question is
+   * *does this session*.
+   */
+  modeId: string;
   /**
    * What the player just did — the words, and since 2026-09-27 the pictures on
    * the move ([25 E15]), each of which becomes a candidate of its own.
@@ -942,10 +953,10 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
      * because *switched off* is the more useful sentence whenever it is true.
      */
     case 'channel': {
-      const definition = channelDefinition(block.source.channelId);
+      const definition = channelHere(block.source.channelId, context);
       if (definition !== null && !stateEnabled(definition, context.channels)) return 'disabled';
       // Stood aside for a tracker a person switched on — their doing too.
-      if (superseded(block.source.channelId, context.channels)) return 'disabled';
+      if (superseded(block.source.channelId, context)) return 'disabled';
       if (definition?.render === undefined || definition.budget === null) {
         return 'no-producer';
       }
@@ -2091,7 +2102,7 @@ function emit(
  * assembler bills with, so the cap means the same thing here as it does there.
  */
 function channelText(channelId: string, context: CollectContext): string {
-  const definition = channelDefinition(channelId);
+  const definition = channelHere(channelId, context);
   if (definition === null) return '';
   /**
    * ***Switched off is silent*** — `ChannelDefinition.enabledBy`, [P14.5b]: a
@@ -2100,9 +2111,23 @@ function channelText(channelId: string, context: CollectContext): string {
    * established-state block's rule, for a slot that names one channel.
    */
   if (!stateEnabled(definition, context.channels)) return '';
-  if (superseded(channelId, context.channels)) return '';
+  if (superseded(channelId, context)) return '';
   const state = context.channels[channelId];
   return renderWithin(definition, state === undefined ? initialValue(channelId) : state.value);
+}
+
+/**
+ * ***A channel as this session sees it*** (2026-09-30): its declaration while
+ * the session's mode plays it, and `null` otherwise — which is how an
+ * undeclared channel already reads, and the answer the channel write route
+ * gives the same question (*"This session has no such channel"*). A pack
+ * slotting another mode's channel is a slot with nothing to say, not a window
+ * onto a value this session's turns never keep: Scene's clock in a Freeform
+ * pack would otherwise read its starting time for ever, since only a session
+ * playing Scene advances it.
+ */
+function channelHere(channelId: string, context: CollectContext): ChannelDefinition | null {
+  return channelInPlay(channelId, context.modeId) ? channelDefinition(channelId) : null;
 }
 
 /**
@@ -2111,12 +2136,14 @@ function channelText(channelId: string, context: CollectContext): string {
  * own date, time and place, and the pack's clock and place slots stand aside
  * while it is on rather than tell the narrator a second, disagreeing time.
  * *Only the slot*: surfaces and the rendition step read the channel elsewhere.
+ * *Only a tracker in play* stands one aside, since only one in play is said.
  */
-function superseded(channelId: string, channels: Readonly<Record<string, ChannelState>>): boolean {
+function superseded(channelId: string, context: CollectContext): boolean {
   return registeredChannels().some(
     (definition) =>
       definition.state?.supersedes?.includes(channelId) === true &&
-      stateEnabled(definition, channels),
+      channelInPlay(definition.id, context.modeId) &&
+      stateEnabled(definition, context.channels),
   );
 }
 
@@ -2163,6 +2190,8 @@ function establishedState(context: CollectContext): { text: string; keys: string
   for (const definition of registeredChannels()) {
     const declared = definition.state;
     if (declared === undefined || !stateEnabled(definition, context.channels)) continue;
+    // Another mode's tracker is not this session's to report (2026-09-30).
+    if (!channelInPlay(definition.id, context.modeId)) continue;
 
     const owned = Object.keys(context.channels).filter((key) => keyBelongsTo(key, definition.id));
     for (const key of owned.length === 0 ? [definition.id] : owned.sort()) {

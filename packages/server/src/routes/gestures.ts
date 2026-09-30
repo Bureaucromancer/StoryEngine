@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { outputMessagesOf, type OutputMessage, type Turn } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
-import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
+import { resolvedMode } from '../mode-registry.js';
 import { chatSettingsOf } from '../sessions/chat-settings.js';
 import { setHidden } from '../sessions/hidden.js';
 import { presentSession } from '../sessions/present.js';
@@ -387,7 +387,7 @@ export async function gestureOf(
   if (session === null) {
     return { refused: { status: 404, body: { error: 'not-found', message: 'No such session.' } } };
   }
-  const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
+  const mode = resolvedMode(session.mode?.id);
   const voice = mode === null ? 'narrator' : chatSettingsOf(session, mode.definition).voice;
   const messages = outputMessagesOf(turn.output);
   const placed = siblingOf(body, turn);

@@ -5,7 +5,7 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 
 import { type AppServices, requireAccount } from '../app.js';
-import { DEFAULT_MODE_ID, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
+import { modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels } from '../sessions/channels.js';
 import { presentSession } from '../sessions/present.js';
 import { readSession } from '../sessions/store.js';
@@ -69,7 +69,9 @@ export function registerOnDemandRoutes(app: FastifyInstance, services: AppServic
 
       switch (outcome.kind) {
         case 'written': {
-          const modeId = outcome.session.mode?.id ?? DEFAULT_MODE_ID;
+          // The mode the session plays — resolved inside both, as the step
+          // that just ran was (`resolvedMode`).
+          const modeId = outcome.session.mode?.id;
           return reply.send({
             session: presentSession(outcome.session),
             turn: outcome.turn,

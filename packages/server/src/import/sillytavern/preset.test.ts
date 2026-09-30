@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { isKnownSchema, newActor, schemaIdOf, validate } from '@storyengine/shared';
 
 import { collectCandidates } from '../../assembly/collect.js';
+import { DEFAULT_MODE_ID } from '../../mode-registry.js';
 import { MACRO_NOTE_LIMIT } from '../macros.js';
 import { malformedInputs } from '../parse.js';
 import { convertChatCompletionPreset } from './preset.js';
@@ -285,6 +286,7 @@ describe('what a prompt’s triggers mean here', () => {
       persona: null,
       actors: [],
       channels: {},
+      modeId: DEFAULT_MODE_ID,
     });
     expect(candidates.map((candidate) => candidate.id)).toContain('st.main');
   });
@@ -436,6 +438,7 @@ describe('the nine fixed fields become two general properties', () => {
       persona: null,
       actors: [{ actor: vera, contentHash: 'h' }],
       channels: {},
+      modeId: DEFAULT_MODE_ID,
     });
     expect(candidates.map((candidate) => candidate.text)).toEqual([
       "[Vera's personality: watchful, dry]",

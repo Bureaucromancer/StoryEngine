@@ -3175,3 +3175,59 @@ describe('the pack a session reply shows', () => {
     ]);
   });
 });
+
+/**
+ * ***A session naming a mode this build does not have is shown the mode it
+ * plays*** (2026-09-30) — `resolvedMode`, [00 §3.3].
+ *
+ * The file arrives the way a session from a newer build or a missing extension
+ * does: already on disk, naming a mode nothing registered. Its turns played the
+ * default; the read showed it as nothing — no HUD, no stage, no actions, no
+ * input kinds — and refused a write to the staging switch its stager read.
+ */
+describe('a session whose mode is not installed', () => {
+  async function namingAnUnknownMode(id: string): Promise<void> {
+    const path = join(server.dataDir, 'users', 'ned', 'sessions', id, 'session.json');
+    const file = JSON.parse(await readFile(path, 'utf8'));
+    file.mode = { id: 'example.not-installed', config: null };
+    await writeFile(path, JSON.stringify(file));
+  }
+
+  it('is shown what the default shows, as its turns play it', async () => {
+    // A tracker on, so *Update trackers* is offered and the comparison below
+    // cannot hold by both lists being empty.
+    const on = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.track.world.on`,
+      payload: { value: true },
+    });
+    expect(on.status, JSON.stringify(on.body)).toBe(200);
+    const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    await namingAnUnknownMode(sessionId);
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(after.status).toBe(200);
+    // The file says what it says; the view is of the mode that plays it.
+    expect(after.body.session.mode.id).toBe('example.not-installed');
+    for (const field of ['hud', 'surfaces', 'actions', 'inputs', 'renditions', 'chat']) {
+      expect(after.body[field], field).toEqual(before.body[field]);
+    }
+    expect(before.body.hud.length).toBeGreaterThan(0);
+    expect(before.body.surfaces.length).toBeGreaterThan(0);
+    expect(before.body.actions.length).toBeGreaterThan(0);
+    expect(before.body.inputs.length).toBeGreaterThan(0);
+  });
+
+  it('may write the switches its turns read', async () => {
+    await namingAnUnknownMode(sessionId);
+
+    const staged = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.staging`,
+      payload: { value: true },
+    });
+
+    expect(staged.status, JSON.stringify(staged.body)).toBe(200);
+  });
+});

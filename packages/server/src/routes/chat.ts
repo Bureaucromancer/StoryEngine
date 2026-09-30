@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { PARTICIPANT_SELECTORS } from '@storyengine/sdk';
 
 import { type AppServices, requireAccount } from '../app.js';
-import { DEFAULT_MODE_ID, modeById } from '../mode-registry.js';
+import { resolvedMode } from '../mode-registry.js';
 import { isChatMode } from '../sessions/chat-settings.js';
 import { setChatSettings, type ChatPatch } from '../sessions/chat-write.js';
 import { presentSession } from '../sessions/present.js';
@@ -109,7 +109,7 @@ export function registerChatRoutes(app: FastifyInstance, services: AppServices):
        * be a field on the file nothing in that mode reads: configuration with no
        * effect, which [work plan §2.3] refuses as firmly as the inverse.
        */
-      const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
+      const mode = resolvedMode(session.mode?.id);
       if (mode === null || !isChatMode(mode.definition)) {
         return reply.code(422).send({
           error: 'not-a-chat',
