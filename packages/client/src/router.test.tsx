@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { LIBRARY_KINDS } from './api.js';
@@ -203,5 +206,38 @@ describe('the new-object addresses', () => {
     await router.invalidate();
 
     expect(router.state.matches.at(-1)?.routeId).toBe('/library/$kind/$id');
+  });
+});
+
+/**
+ * ***Every page follows the language*** (2026-09-28). The router's `Outlet` is
+ * memoised, so a page re-renders on a change of language only if it subscribes
+ * itself: `localised` for a page the route names, `useActiveLocale()` at the
+ * top of one the route renders inline. A route added without either would
+ * keep the words it rendered with — held here, since no rendered test visits
+ * every page.
+ */
+describe('every page follows the language', () => {
+  const INLINE = ['Home', 'Play', 'Compare', 'Reading', 'Search'];
+
+  it('names each page through `localised`, or renders it inline', () => {
+    const routes = Object.values(router.routesById) as {
+      id: string;
+      options: { component?: { name?: string } };
+    }[];
+    const names = routes
+      .filter((route) => route.id !== '__root__')
+      .map((route) => route.options.component?.name ?? '');
+    expect(names.length).toBeGreaterThan(20);
+    expect(names.filter((name) => name !== 'Localised' && !INLINE.includes(name))).toEqual([]);
+  });
+
+  it('subscribes each inline page itself, since a call is not a name', () => {
+    const text = readFileSync(join(import.meta.dirname, 'router.tsx'), 'utf8');
+    for (const name of INLINE) {
+      const at = text.indexOf(`component: function ${name}() {`);
+      expect(at, `${name} moved or was renamed`).toBeGreaterThanOrEqual(0);
+      expect(text.slice(at, at + 80), name).toContain('useActiveLocale();');
+    }
   });
 });

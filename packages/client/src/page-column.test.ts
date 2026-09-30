@@ -53,6 +53,10 @@ function read(path: string): string {
  *
  * Both spellings: `component: LibraryPage` and the inline
  * `component: function Play() {…}` two routes use to read their own params.
+ * *And a third since 2026-09-28*: `component: localised(LibraryPage)`, which
+ * every page a route names now takes so it follows a change of language
+ * (`i18n/useLocale.ts`) — read through, since the page is the column's owner
+ * and the wrapper renders no element of its own.
  */
 function routeComponents(): string[] {
   const router = read('router.tsx');
@@ -60,7 +64,7 @@ function routeComponents(): string[] {
   // Anchored to the start of a line, because this file's own prose says
   // "a hand-rolled class component: it …" and an unanchored scan reads that
   // sentence as a route.
-  for (const match of router.matchAll(/^\s*component:\s*(?:function\s+)?(\w+)/gm)) {
+  for (const match of router.matchAll(/^\s*component:\s*(?:function\s+|localised\()?(\w+)/gm)) {
     const name = match[1] ?? '';
     // The app shell is not a page: it is what the pages are mounted inside,
     // and `createRootRoute` is how it says so.

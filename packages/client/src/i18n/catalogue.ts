@@ -119,7 +119,9 @@ export function englishCatalogue(): Record<string, Record<string, string>> {
  * same argument `active` is a module-level value for: the tables are read from
  * places that are not components, so the *authority* cannot live in the tree.
  * What React needs is not the value but a nudge, which is what this is —
- * `useSyncExternalStore` over `activeLocale`, once, at the root.
+ * `useSyncExternalStore` over `activeLocale`, once, at the root. *Corrected
+ * 2026-09-28:* ~~once, at the root~~ — at the root and in every routed page,
+ * because the router memoises between them (`useActiveLocale`).
  */
 const WATCHERS = new Set<() => void>();
 

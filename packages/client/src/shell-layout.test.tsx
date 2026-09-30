@@ -127,6 +127,8 @@ vi.mock('./play/stream.js', () => ({
 }));
 
 const { router } = await import('./router.js');
+const { applyCatalogue } = await import('./i18n/catalogue.js');
+const { MACHINE_FRENCH } = await import('./i18n/fr-x-machine.js');
 
 function renderApp(): void {
   // A fresh client per test, never the `queries.ts` singleton — a shared cache
@@ -225,5 +227,38 @@ describe('one main view', () => {
     await screen.findByRole('heading', { name: 'Settings', level: 1 });
 
     expect(main.scrollTop).toBe(0);
+  });
+});
+
+/**
+ * ***A change of language reaches the routed page*** (2026-09-28). The shell
+ * re-renders when a catalogue lands, and the router's `Outlet` is memoised, so
+ * the page under it went on reading the tables it had last rendered with: a
+ * switch made on a page left that page in the language it was leaving. Held on
+ * the real router, because it is the router's memo that hid it — a test that
+ * mounts a page by itself, or mocks the router, cannot see this either way.
+ */
+describe('a change of language', () => {
+  it('reaches the routed page, and comes back', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/play/$sessionId', params: { sessionId: SESSION_ID } });
+    });
+    await screen.findByRole('heading', { name: 'The Ashfall Road', level: 1 });
+    expect(await screen.findByPlaceholderText('What do you do?')).toBeTruthy();
+
+    try {
+      act(() => {
+        applyCatalogue('fr-x-machine', MACHINE_FRENCH);
+      });
+      expect(
+        await screen.findByPlaceholderText('Que faites-vous à cet instant précis ?'),
+      ).toBeTruthy();
+    } finally {
+      act(() => {
+        applyCatalogue('en', {});
+      });
+    }
+    expect(await screen.findByPlaceholderText('What do you do?')).toBeTruthy();
   });
 });

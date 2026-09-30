@@ -2587,6 +2587,15 @@ labels are the first place to look. `useLocale.test.tsx` carries what a test can
 imported before any catalogue existed, and a component that knows nothing about
 either re-rendering in French.
 
+*Corrected 2026-09-28.* ~~reaches every surface~~ — every surface but the page
+on screen. The shell re-renders when a catalogue lands, and the router's `Outlet`
+is memoised, so a routed page kept the tables it last rendered with until
+something else re-rendered it: a switch made on the settings page left that
+page's role table in the language being left, both ways. The test's component
+subscribed itself, which is why it passed. Each route's component now subscribes
+too (`localised`, `useActiveLocale`), and `shell-layout.test.tsx` holds it on the
+real router.
+
 ### P11.9 — Release engineering, which is the other half of the bar
 
 [work plan §8](01-work-plan.md) rewritten rather than extended, and then built: CI that

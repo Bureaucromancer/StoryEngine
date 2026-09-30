@@ -27,6 +27,7 @@ import { SettingsPage } from './settings/SettingsPage.js';
 import { SessionsPage } from './play/SessionsPage.js';
 import { Shell } from './Shell.js';
 import { Alert } from './ui/Alert.js';
+import { localised, useActiveLocale } from './i18n/useLocale.js';
 
 /**
  * Two surfaces and their pages: Library at `/library`, Play at `/play`, plus the
@@ -159,7 +160,7 @@ const libraryRoute = createRoute({
   // An unknown kind in the URL is dropped rather than rejected: the unfiltered
   // list is a sensible reading of every address.
   validateSearch: validateLibrarySearch,
-  component: LibraryPage,
+  component: localised(LibraryPage),
 });
 
 /**
@@ -217,6 +218,7 @@ const indexRoute = createRoute({
   path: '/',
   validateSearch: validateIndexSearch,
   component: function Home() {
+    useActiveLocale();
     // The release travels as a prop rather than being read inside the page, for
     // the reason `playRoute` already passes `block` that way: the page is
     // mounted in tests without a router, and a component reaching for a route
@@ -230,7 +232,7 @@ const sessionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/play',
   validateSearch: validateSessionsSearch,
-  component: SessionsPage,
+  component: localised(SessionsPage),
 });
 
 /**
@@ -278,6 +280,7 @@ const playRoute = createRoute({
   path: '/play/$sessionId',
   validateSearch: validatePlaySearch,
   component: function Play() {
+    useActiveLocale();
     const { sessionId } = playRoute.useParams();
     // The block to open on travels as a prop rather than being read inside the
     // page, for the reason `sessionId` already does: the page is mounted in
@@ -305,7 +308,7 @@ const playRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
-  component: SettingsPage,
+  component: localised(SettingsPage),
 });
 
 const objectRoute = createRoute({
@@ -319,7 +322,7 @@ const objectRoute = createRoute({
    * — and a broken link should land somewhere real rather than on an error.
    */
   validateSearch: validateObjectSearch,
-  component: ObjectDetailPage,
+  component: localised(ObjectDetailPage),
 });
 
 /**
@@ -339,6 +342,7 @@ const compareRoute = createRoute({
     ...(typeof search['after'] === 'string' ? { after: search['after'] } : {}),
   }),
   component: function Compare() {
+    useActiveLocale();
     const { sessionId } = compareRoute.useParams();
     return <ComparePage sessionId={sessionId} pair={compareRoute.useSearch()} />;
   },
@@ -361,6 +365,7 @@ const readingRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { from?: string } =>
     typeof search['from'] === 'string' ? { from: search['from'] } : {},
   component: function Reading() {
+    useActiveLocale();
     const { sessionId } = readingRoute.useParams();
     const { from } = readingRoute.useSearch();
     return <ReadingPage sessionId={sessionId} {...(from === undefined ? {} : { from })} />;
@@ -382,6 +387,7 @@ const searchRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { q?: string } =>
     typeof search['q'] === 'string' ? { q: search['q'] } : {},
   component: function Search() {
+    useActiveLocale();
     const { q } = searchRoute.useSearch();
     return <SearchPage query={q ?? ''} />;
   },
@@ -390,7 +396,7 @@ const searchRoute = createRoute({
 const actorEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/actors/$id/edit',
-  component: ActorEditorPage,
+  component: localised(ActorEditorPage),
 });
 
 /**
@@ -407,7 +413,7 @@ const actorEditorRoute = createRoute({
 const newActorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/actors/new',
-  component: NewActorPage,
+  component: localised(NewActorPage),
 });
 
 /**
@@ -439,14 +445,14 @@ const lorebookEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/lorebooks/$id/edit',
   validateSearch: validateEditorSearch,
-  component: LorebookEditorPage,
+  component: localised(LorebookEditorPage),
 });
 
 /** A new lorebook, before it exists — `newActorRoute`'s twin. */
 const newLorebookRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/lorebooks/new',
-  component: NewLorebookPage,
+  component: localised(NewLorebookPage),
 });
 
 /**
@@ -463,14 +469,14 @@ const newLorebookRoute = createRoute({
 const presetEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/presets/$id/edit',
-  component: PresetEditorPage,
+  component: localised(PresetEditorPage),
 });
 
 /** A new preset — and unlike the other two, it starts from a shipped pack ([P7B §1.3]). */
 const newPresetRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/presets/new',
-  component: NewPresetPage,
+  component: localised(NewPresetPage),
 });
 
 /**
@@ -487,32 +493,32 @@ const newPresetRoute = createRoute({
 const treatmentEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/treatments/$id/edit',
-  component: TreatmentEditorPage,
+  component: localised(TreatmentEditorPage),
 });
 const newTreatmentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/treatments/new',
-  component: NewTreatmentPage,
+  component: localised(NewTreatmentPage),
 });
 const setupEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/setups/$id/edit',
-  component: SetupEditorPage,
+  component: localised(SetupEditorPage),
 });
 const newSetupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/setups/new',
-  component: NewSetupPage,
+  component: localised(NewSetupPage),
 });
 const packageEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/packages/$id/edit',
-  component: PackageEditorPage,
+  component: localised(PackageEditorPage),
 });
 const newPackageRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/library/packages/new',
-  component: NewPackagePage,
+  component: localised(NewPackagePage),
 });
 
 const routeTree = rootRoute.addChildren([
