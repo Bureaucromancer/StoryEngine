@@ -84,6 +84,26 @@ describe('the declaration', () => {
     expect(ASSISTANT_CONTEXT.update).toBe('user-only');
     const slot = ASSISTANT_PRESET.blocks.find((block) => block.id === ASSISTANT_CONTEXT.id);
     expect(slot, 'the pack positions the context').toBeDefined();
+    // ***And words for it*** (2026-09-30): a budget with no template renders
+    // the same nothing as no budget, which is how this test stayed green over
+    // a block that was empty on every turn. What the words say is asserted
+    // where they are rendered (the server's `collect.test.ts`).
+    expect(ASSISTANT_CONTEXT.render, 'the context has words').toEqual(expect.any(String));
+  });
+
+  /**
+   * ***A guided redo is shown the answer it replaces*** (2026-09-30) —
+   * Scene's `se.attempt`, and the same two claims its test pins: straight
+   * after the guidance, so the wrapper is the seam between the instruction and
+   * the prose it is about; and advisory, as the collector will force anyway.
+   */
+  it('shows a guided redo the answer it is replacing, after the guidance', () => {
+    const ids = ASSISTANT_PRESET.blocks.map((block) => block.id);
+    const attempt = ASSISTANT_PRESET.blocks.find((block) => block.id === 'se.attempt');
+
+    expect(ids.indexOf('se.attempt')).toBe(ids.indexOf('se.guidance') + 1);
+    expect(attempt?.advisory).toBe(true);
+    expect(attempt?.kind === 'slot' ? attempt.source : null).toEqual({ of: 'attempt' });
   });
 
   /** The card carries the voice, so nothing here may — §7.4's own split. */

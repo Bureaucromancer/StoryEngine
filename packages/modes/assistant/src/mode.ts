@@ -96,6 +96,31 @@ export const ASSISTANT_CONTEXT: ChannelDefinition = {
     additionalProperties: true,
   },
   init: { kind: 'literal', value: null },
+  /**
+   * ***What the block says*** (2026-09-30).
+   *
+   * The budget made this channel a block, and nothing gave the block any
+   * words: a channel with no `render` "has no textual form"
+   * (`renderedChannels`), and the collector's renderer answers it with nothing
+   * (`renderWithin`). So the slot the pack positions was empty on every turn,
+   * the workbench said *nothing produces this*, and the panel's *"You can see
+   * what they have open"* was never true of any prompt. The test that pinned
+   * the budget could not see it, because a budget with no template renders
+   * the same nothing as no budget at all.
+   *
+   * ***One sentence, in the library's own words for its kinds*** — the ones
+   * the person reads on the page (`library/labels.tsx`), so the assistant says
+   * *the actor* about what the person calls an actor. A kind this does not
+   * name goes as written. `null`, which the panel writes where nothing is
+   * open, renders nothing (`renderChannelValue`).
+   */
+  render:
+    'What they have open{% if where %}, in {{ where }}{% endif %}: ' +
+    '{% case kind %}{% when "actors" %}the actor{% when "lorebooks" %}the lorebook' +
+    '{% when "treatments" %}the treatment{% when "setups" %}the setup' +
+    '{% when "presets" %}the preset{% when "packages" %}the package' +
+    '{% when "session" %}the session{% else %}{{ kind }}{% endcase %}' +
+    '{% if name %} “{{ name }}”{% endif %}{% if id %} (id {{ id }}){% endif %}.',
 };
 
 /**

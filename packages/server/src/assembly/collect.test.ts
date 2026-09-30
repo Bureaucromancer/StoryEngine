@@ -2396,6 +2396,64 @@ describe('the time and the place', () => {
  * state in its prompt, and a pack slotting Scene's clock read a clock only a
  * session playing Scene advances.
  */
+/**
+ * ***The assistant says what it can see*** (2026-09-30) — the real pack, and
+ * the channel the assistant panel writes.
+ *
+ * The context channel had a budget and no `render`, and `renderWithin` gives
+ * such a channel no words, so the slot the pack positions was empty on every
+ * turn: the panel's *"You can see what they have open"* was true of no
+ * prompt, and the mode's own test, which checked the budget, could not see it.
+ */
+describe('the assistant’s view of the screen', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  const ASSISTANT = 'storyengine.assistant';
+
+  function collectWith(value: unknown) {
+    const pack = modeById(ASSISTANT)?.definition.assembly.defaultPreset;
+    if (pack === undefined) throw new Error('the assistant is a built-in');
+    return collectCandidates(
+      context({
+        modeId: ASSISTANT,
+        preset: pack,
+        channels: { 'se.assistant.context': { version: 1, value } },
+      }),
+    );
+  }
+
+  const said = (value: unknown) =>
+    collectWith(value).candidates.find((candidate) => candidate.id === 'se.assistant.context')
+      ?.text;
+
+  it('tells it what the person has open, in the library’s words', () => {
+    expect(said({ kind: 'actors', id: 'a-1', name: 'Vera', where: 'the library' })).toBe(
+      'What they have open, in the library: the actor “Vera” (id a-1).',
+    );
+    expect(said({ kind: 'session', id: 's-1', where: 'a session' })).toBe(
+      'What they have open, in a session: the session (id s-1).',
+    );
+  });
+
+  it('names a kind it has no word for as it was written', () => {
+    expect(said({ kind: 'widgets', id: 'w-1', where: 'the library' })).toBe(
+      'What they have open, in the library: widgets (id w-1).',
+    );
+  });
+
+  it('says nothing when nothing is open, and says why', () => {
+    const { candidates, notFilled } = collectWith(null);
+
+    expect(candidates.find((candidate) => candidate.id === 'se.assistant.context')).toBeUndefined();
+    // A channel that renders is a producer, so its empty is its source's.
+    expect(notFilled.find((row) => row.blockId === 'se.assistant.context')?.reason).toBe(
+      'empty-source',
+    );
+  });
+});
+
 describe('a session on another mode', () => {
   beforeEach(async () => {
     await installBuiltIns();

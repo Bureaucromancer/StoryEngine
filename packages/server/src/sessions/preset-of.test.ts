@@ -69,6 +69,19 @@ describe('a copy of the mode’s own pack', () => {
     expect(ids(read)).toContain('se.location');
   });
 
+  /**
+   * ***The assistant's attempt slot*** (2026-09-30), which every assistant
+   * conversation begun before it lacks — gained straight after the guidance,
+   * which is the place the pack's own note argues for.
+   */
+  it('gains the assistant’s attempt slot after the guidance', () => {
+    const assistant = 'storyengine.assistant';
+    const read = presetOf(copiedWithout(['se.attempt'], assistant), mode(assistant));
+
+    expect(ids(read)).toEqual(ids(shipped(assistant)));
+    expect(ids(read).indexOf('se.attempt')).toBe(ids(read).indexOf('se.guidance') + 1);
+  });
+
   it('gains a block even when none of those before it survived', () => {
     // The nearest earlier block is the anchor; with none, the start is.
     const read = presetOf(copiedWithout(['se.instruction']), mode());
