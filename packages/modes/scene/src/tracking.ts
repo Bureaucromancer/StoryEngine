@@ -236,6 +236,8 @@ function tracker(
     render: string;
     budget: number;
     label: string;
+    /** See `EstablishedState.supersedes`. */
+    supersedes?: readonly string[];
   },
 ): Tracker {
   const on = toggle(`${id}.on`);
@@ -259,7 +261,11 @@ function tracker(
       init: { kind: 'literal', value: shape.empty },
       render: shape.render,
       budget: shape.budget,
-      state: { label: shape.label, enabledBy: on.id },
+      state: {
+        label: shape.label,
+        enabledBy: on.id,
+        ...(shape.supersedes === undefined ? {} : { supersedes: shape.supersedes }),
+      },
     },
   };
 }
@@ -291,6 +297,13 @@ export const WORLD = tracker('se.track.world', 'world', {
   ].join('\n'),
   budget: 200,
   label: 'The world',
+  /**
+   * ***The clock and the place stand aside while this is on*** (2026-09-30).
+   * The pack tells the narrator both, and this renders a date, a time and a
+   * place of the model's own keeping — two clocks that disagree would be worse
+   * than either. The HUD and the backdrop still read the engine's.
+   */
+  supersedes: ['se.clock', 'se.location'],
 });
 
 export const CHARACTER = tracker('se.track.character', 'characters', {

@@ -58,6 +58,17 @@ describe('a copy of the mode’s own pack', () => {
     expect(ids(read)).toEqual(ids(shipped()));
   });
 
+  /**
+   * ***The time and the place*** (2026-09-30), which every Scene session made
+   * before they shipped lacks — and which it gains where the pack puts them,
+   * so an existing story's narrator is told them from its next turn.
+   */
+  it('gains the clock and the place slots a session was copied without', () => {
+    const read = presetOf(copiedWithout(['se.clock', 'se.location']), mode());
+    expect(ids(read)).toEqual(ids(shipped()));
+    expect(ids(read)).toContain('se.location');
+  });
+
   it('gains a block even when none of those before it survived', () => {
     // The nearest earlier block is the anchor; with none, the start is.
     const read = presetOf(copiedWithout(['se.instruction']), mode());

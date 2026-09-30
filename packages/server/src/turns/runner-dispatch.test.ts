@@ -201,6 +201,10 @@ function wire(at: number): { role: string; content: string }[] {
  * positions that has anything to say says it. What P14.2 added can only
  * reach a call that names a speaker, and this session never names one; if
  * any of it leaked into the merged call, this is the assertion that goes red.
+ *
+ * ***It moved once, on purpose*** (2026-09-30): the pack tells the narrator
+ * the time since, so the system block ends with the clock. The session names
+ * no place, so nothing is said of one.
  */
 describe('a narrator session', () => {
   it('sends the prompt it sent before per-actor dispatch existed', async () => {
@@ -231,7 +235,9 @@ describe('a narrator session', () => {
       The harbourmaster.
 
       How Vera speaks:
-      Clipped. Never says please.",
+      Clipped. Never says please.
+
+      When this is happening: Day 1, 08:05",
           "role": "system",
         },
         {

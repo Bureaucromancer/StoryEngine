@@ -944,6 +944,8 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
     case 'channel': {
       const definition = channelDefinition(block.source.channelId);
       if (definition !== null && !stateEnabled(definition, context.channels)) return 'disabled';
+      // Stood aside for a tracker a person switched on — their doing too.
+      if (superseded(block.source.channelId, context.channels)) return 'disabled';
       if (definition?.render === undefined || definition.budget === null) {
         return 'no-producer';
       }
@@ -2098,8 +2100,24 @@ function channelText(channelId: string, context: CollectContext): string {
    * established-state block's rule, for a slot that names one channel.
    */
   if (!stateEnabled(definition, context.channels)) return '';
+  if (superseded(channelId, context.channels)) return '';
   const state = context.channels[channelId];
   return renderWithin(definition, state === undefined ? initialValue(channelId) : state.value);
+}
+
+/**
+ * ***Whether a switched-on block already says what this channel's slot would***
+ * — `EstablishedState.supersedes`, 2026-09-30. Scene's world tracker keeps its
+ * own date, time and place, and the pack's clock and place slots stand aside
+ * while it is on rather than tell the narrator a second, disagreeing time.
+ * *Only the slot*: surfaces and the rendition step read the channel elsewhere.
+ */
+function superseded(channelId: string, channels: Readonly<Record<string, ChannelState>>): boolean {
+  return registeredChannels().some(
+    (definition) =>
+      definition.state?.supersedes?.includes(channelId) === true &&
+      stateEnabled(definition, channels),
+  );
 }
 
 /**

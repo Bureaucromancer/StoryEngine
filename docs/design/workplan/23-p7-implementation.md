@@ -4305,9 +4305,13 @@ visible rather than hidden, and the fix is a question rather than a stage.*
 
 - ***`se.location` has no preset slot***, and that is the hold rather than an
   omission — §0.2 holds Scene's growth behind PLAYABLE because `SCENE_PRESET` is
-  the artefact sitting K interrogates. The channel's own `render` puts the place
+  the artefact sitting K interrogates. ~~The channel's own `render` puts the place
   in the prompt through the channel mechanism, so **the feature works and the
-  pack is untouched**. A block for it is the first thing to add after K.
+  pack is untouched**.~~ A block for it is the first thing to add after K.
+  *Corrected 2026-09-30:* a `render` says how a value reads, and nothing puts a
+  channel in a prompt but a slot a pack positions — so the place, and the clock
+  with it, reached no call until Scene's pack slotted both (audit S4). The hold
+  itself had lapsed by then: [P14.5b] shipped channel slots in this pack.
 - ***Nothing generates a backdrop***, which is [P9]'s by name.
 - ***An expression cannot be authored, only imported*** — [P11]'s image slots.
 - ***Freeform contributes no surfaces***, and its `surfaces: []` is now a fact

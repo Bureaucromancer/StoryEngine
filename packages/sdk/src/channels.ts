@@ -280,6 +280,22 @@ export interface EstablishedState {
    * had it would send. Absent means always rendered.
    */
   enabledBy?: string;
+  /**
+   * ***What this block already says in a channel of its own*** (2026-09-30): the
+   * ids of channels whose **prompt slots** stand aside while this one is
+   * switched on.
+   *
+   * Scene's world tracker keeps a model-written date, time and place, and
+   * Scene's pack also tells the narrator the engine's clock and the stager's
+   * place. Two clocks that disagree are worse than either, so while the
+   * tracker is on the narrator hears the tracker's. *Only a slot stands aside*:
+   * the channel's surface still shows it and a backdrop is still drawn from
+   * it, since neither is the prompt the two would contradict each other in.
+   * Declared by the tracker rather than listed by the engine, the rule that
+   * keeps a mode's content out of engine code. Absent means nothing stands
+   * aside.
+   */
+  supersedes?: readonly string[];
 }
 
 export interface ChannelDefinition {

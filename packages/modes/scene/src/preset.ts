@@ -505,6 +505,64 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
+     * ***When and where the scene is*** — [06 §7.2], added 2026-09-30.
+     *
+     * *The K hold rested on a belief that was false*: that a channel's `render`
+     * puts its value in the prompt by itself ([P7.12]'s *"the feature works and
+     * the pack is untouched"*). Nothing positions a channel but a slot, so the
+     * clock the engine advances every turn and the place the stager reads from
+     * the prose reached no call at all, and a narrator that had been told
+     * neither could not keep a scene where or when it was. [P14.5b] shipped
+     * channel slots since, which is the hold's own condition met.
+     *
+     * **For the narration, a suggestion and a drafted move** — the three calls
+     * that write the story or a line of it; a secret plot is `narrate`-only
+     * for secrecy, and neither of these is secret. *Standing aside while the
+     * world tracker is on* (`EstablishedState.supersedes`), whose own date,
+     * time and place the state block already carries: two clocks that
+     * disagree would be worse than either. `omitWhenEmpty`, so a session with
+     * no place yet says nothing about one. Sessions on this pack gain both
+     * through `presetOf`; one on a library preset gets them by resetting to
+     * the mode's own.
+     */
+    {
+      id: 'se.clock',
+      label: 'the time',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 50,
+      appliesTo: ['narrate', 'suggest', 'impersonate'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      wrapper: 'When this is happening: {{content}}',
+      source: {
+        of: 'channel',
+        channelId: 'se.clock',
+      },
+    },
+    {
+      id: 'se.location',
+      label: 'the place',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 50,
+      appliesTo: ['narrate', 'suggest', 'impersonate'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'channel',
+        channelId: 'se.location',
+      },
+    },
+    /**
      * ***The story above the window*** — [07 §5.1](../../../../docs/design/07-branching.md),
      * [25 E1](../../../../docs/design/25-open-questions.md), added at
      * [P8.1](../../../../docs/design/workplan/25-p8-implementation.md).

@@ -446,7 +446,9 @@ describe('a turn killed mid-generation', () => {
     expect(budget?.decisions.map((decision) => decision.blockId)).toEqual(
       blocks.map((block) => block.id),
     );
-    expect(budget?.nextToDrop).toContain('se.instruction');
+    // The lowest-ranked block the pack kept for this call — the clock since
+    // 2026-09-30, which a squeezed prompt should lose before its instruction.
+    expect(budget?.nextToDrop).toContain('se.clock');
   });
 
   /**

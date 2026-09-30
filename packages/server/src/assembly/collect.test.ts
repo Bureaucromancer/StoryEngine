@@ -2323,6 +2323,70 @@ describe('a past input as the pack framed it', () => {
  * descriptions, two appearances and two voices, and nothing to say which was
  * which — and the persona's name was in no prompt at all.
  */
+/**
+ * ***When and where the scene is, told to whoever writes it*** (2026-09-30).
+ *
+ * The clock the engine advances every turn and the place the stager reads
+ * from the prose reached no call: the belief that a channel's `render` puts it
+ * in the prompt by itself was false, and nothing positioned either. Scene's
+ * pack slots both now — for the narration, a suggestion and a drafted move —
+ * and stands them aside while the world tracker keeps its own date, time and
+ * place, which the state block already carries.
+ */
+describe('the time and the place', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  function scene(): Preset {
+    const pack = modeById('storyengine.scene')?.definition.assembly.defaultPreset;
+    if (pack === undefined) throw new Error('Scene is a built-in');
+    return pack;
+  }
+
+  const channels = {
+    'se.clock': { version: 1, value: { day: 3, hour: 9, minute: 5 } },
+    'se.location': { version: 1, value: 'the harbourmaster’s office' },
+  };
+
+  const said = (callKind: string, held: CollectContext['channels'] = channels) => {
+    const { candidates } = collectCandidates(
+      context({ preset: scene(), callKind, channels: held }),
+    );
+    return ['se.clock', 'se.location'].map(
+      (id) => candidates.find((candidate) => candidate.id === id)?.text,
+    );
+  };
+
+  it.each(['narrate', 'suggest', 'impersonate'])('are told to a %s call', (callKind) => {
+    expect(said(callKind)).toEqual([
+      'When this is happening: Day 3, 09:05',
+      'Where this is happening: the harbourmaster’s office',
+    ]);
+  });
+
+  it('are told to no judge', () => {
+    expect(said('goal-judge')).toEqual([undefined, undefined]);
+  });
+
+  it('stand aside while the world tracker keeps its own', () => {
+    const tracked = { ...channels, 'se.track.world.on': { version: 1, value: true } };
+    expect(said('narrate', tracked)).toEqual([undefined, undefined]);
+
+    const { notFilled } = collectCandidates(context({ preset: scene(), channels: tracked }));
+    expect(
+      notFilled
+        .filter((row) => row.blockId === 'se.clock' || row.blockId === 'se.location')
+        .map((row) => row.reason),
+    ).toEqual(['disabled', 'disabled']);
+  });
+
+  it('say nothing of a place nobody has named yet', () => {
+    const clockOnly = { 'se.clock': channels['se.clock'] };
+    expect(said('narrate', clockOnly)).toEqual(['When this is happening: Day 3, 09:05', undefined]);
+  });
+});
+
 describe('a wrapper names who its block is about', () => {
   beforeEach(async () => {
     await installBuiltIns();
@@ -2658,6 +2722,10 @@ describe('a call that speaks for somebody', () => {
    * instructions to the call's voice, and a call that writes the turn and
    * names nobody is the narrator's (`CollectContext.voice`). The snapshot did
    * not move — which is the claim: the narrated setting is byte-identical.
+   *
+   * ***It moved once, on purpose*** (2026-09-30): the pack slots the time and
+   * the place since, so the narrator is told the clock — this session has no
+   * place yet, so that slot says nothing. Everything else is as it was.
    */
   it('collects, for a call that names nobody, what it collected before', () => {
     const { candidates } = collectCandidates(
@@ -2741,6 +2809,12 @@ describe('a call that speaks for somebody', () => {
           "priority": 20,
           "role": "system",
           "text": "Vera says less than she knows.",
+        },
+        {
+          "id": "se.clock",
+          "priority": 50,
+          "role": "system",
+          "text": "When this is happening: Day 1, 08:00",
         },
         {
           "id": "se.history.turn-1.input",

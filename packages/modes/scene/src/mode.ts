@@ -90,7 +90,9 @@ export const CLOCK_CHANNEL: ChannelDefinition = {
    * This was `null` — *never injected* — and the collector's own comment said
    * why: *"a channel value is an object with no channel-to-text renderer
    * specified, which is also why the clock's budget is null."* A renderer exists
-   * now, so the field can mean what 06 §4 says it means.
+   * now, so the field can mean what 06 §4 says it means. *Where a pack
+   * positions it*, which Scene's did not until 2026-09-30 (`se.clock` in
+   * `preset.ts`): a budget bounds a slot, and there was none.
    *
    * Twenty-four tokens is roughly four times what `render` below produces, which
    * is deliberate slack rather than a measurement: the cap is a guard against a
@@ -371,7 +373,9 @@ export const EXPRESSION_CHANNEL: ChannelDefinition = {
  *
  * *It does enter the prompt*, unlike the two above — a narrator that has been
  * told where the scene is writes a scene that stays there, which is the cheapest
- * continuity this mode has. Hence a `render` and a small `budget`.
+ * continuity this mode has. Hence a `render` and a small `budget`. ~~It does~~
+ * *It did not, until 2026-09-30*: a `render` says how the value reads, and only
+ * a slot puts a channel in a prompt — the pack's `se.location`, placed since.
  */
 export const LOCATION_CHANNEL: ChannelDefinition = {
   id: 'se.location',

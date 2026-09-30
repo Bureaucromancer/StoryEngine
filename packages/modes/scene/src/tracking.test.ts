@@ -119,8 +119,25 @@ describe('what is declared', () => {
       expect(one.toggle.update).toBe('user-only');
       // A judgement about prose: a model proposes, and a person may edit.
       expect(one.channel.update).toBe('model-proposed');
-      expect(one.channel.state).toEqual({ label: expect.any(String), enabledBy: one.toggle.id });
+      expect(one.channel.state).toMatchObject({
+        label: expect.any(String),
+        enabledBy: one.toggle.id,
+      });
     }
+    /**
+     * ***The world's own date, time and place stand the pack's aside***
+     * (2026-09-30) — `EstablishedState.supersedes`: two clocks that disagree
+     * would be worse than either. Only the world's; the others say nothing the
+     * clock or the place would.
+     */
+    expect(TRACKERS.map((one) => one.channel.state?.supersedes)).toEqual([
+      ['se.clock', 'se.location'],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
     // The one per-actor tracker, which is why the state slot exists at all.
     expect(CHARACTER.channel.scope).toBe('actor');
     // The spelling `tracking.ts` repeats rather than imports.
