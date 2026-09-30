@@ -491,7 +491,7 @@ export type TagWrite =
     }
   | { kind: 'delete'; id: string }
   | { kind: 'order'; ids: string[] }
-  | { kind: 'rename'; id: string; to: string; rewriteGates: boolean }
+  | { kind: 'rename'; id: string; to: string; rewriteGates: boolean; dryRun?: boolean }
   | { kind: 'adopt' };
 
 /**
@@ -505,6 +505,10 @@ export type TagWrite =
 export interface TagWriteResult {
   tags: TagEntry[];
   gatesFound?: { book: string; entry: string }[];
+  /** A rename's: the actors it renames, and what it did to the gates when asked. */
+  actorsRenamed?: number;
+  booksRewritten?: string[];
+  skipped?: { id: string; name: string; reason: string }[];
 }
 
 export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrite> {
@@ -520,7 +524,11 @@ export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrit
       if (write.kind === 'patch') return api.patchTag(write.id, write.patch);
       if (write.kind === 'delete') return api.deleteTag(write.id);
       if (write.kind === 'rename') {
-        return api.renameTag(write.id, { to: write.to, rewriteGates: write.rewriteGates });
+        return api.renameTag(write.id, {
+          to: write.to,
+          rewriteGates: write.rewriteGates,
+          ...(write.dryRun === true ? { dryRun: true } : {}),
+        });
       }
       if (write.kind === 'adopt') return api.adoptTags();
       return api.orderTags(write.ids);
@@ -535,7 +543,8 @@ export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrit
        * nothing would refetch on its own and the shelf would go on showing the
        * old name until something else happened to reload it.
        */
-      if (write.kind === 'rename' || write.kind === 'adopt') {
+      // A dry run changed nothing, so there is nothing to refetch.
+      if ((write.kind === 'rename' && write.dryRun !== true) || write.kind === 'adopt') {
         void client.invalidateQueries({ queryKey: ['library'] });
       }
     },

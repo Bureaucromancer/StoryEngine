@@ -1299,6 +1299,18 @@ decide.
 `409` when the new name is another tag: merging is a different operation with a
 different answer about what happens to the objects.
 
+***`dryRun` asks first*** (2026-09-28). With `dryRun: true` nothing moves — not
+the registry, not a book — and the answer carries `gatesFound` and
+`actorsRenamed`: how many of the account's actors carry the tag by its id
+(adopted, `tagIds` aligned with `tags`), the only carriers a rename renames. The
+clash is checked before a dry run answers, so it is a `409` too. The panel asks
+first because the question has to be answered **before** the rename: afterwards
+the old name is nowhere left to scan for, which is why its old second press —
+a rename with `rewriteGates` after the first — rewrote nothing. It asks only
+when there are gates **and** a renamed actor: an actor read from its own names
+keeps the old one, so a gate on it goes on matching, and rewriting that gate
+would break it. The real rename answers `booksRewritten` and `skipped` as well.
+
 ### `POST /api/tags/adopt`
 
 → the whole list, plus `{ adopted, minted, skipped, unchanged }`.

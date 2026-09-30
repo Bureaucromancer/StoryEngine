@@ -26,6 +26,7 @@ import { disclosure, table } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
+import { folderName } from './book-document.js';
 import { ByFields } from './ByField.js';
 import { loreEntrySchema } from './fields.js';
 import type { ObjectImportNotes } from '../api.js';
@@ -402,12 +403,6 @@ const CLAMP_CHARS = 400;
 /** Whether this text is long enough that a clamp would actually clamp it. */
 function clampable(content: string): boolean {
   return content.split(/\r?\n/).length > CLAMP_LINES || content.length > CLAMP_CHARS;
-}
-/** A folder's name for a chip, or the word the Ungrouped node goes by. */
-function folderName(book: Lorebook, id: string | null): string {
-  if (id === null) return 'Ungrouped';
-  const found = book.folders.find((candidate) => candidate.id === id);
-  return found === undefined || found.name === '' ? 'Untitled folder' : found.name;
 }
 
 /** An active narrowing, and the control that removes it. */

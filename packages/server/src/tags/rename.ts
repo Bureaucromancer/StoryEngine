@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  ACTOR_SCHEMA,
   LOREBOOK_SCHEMA,
   normaliseTagName,
   sameTag,
@@ -33,30 +34,58 @@ import { TagsError, type TagStore } from './store.js';
 export interface RenameReport {
   /** Lore entries whose actor-tag gate mentions the old name. */
   gatesFound: { book: string; entry: string }[];
+  /**
+   * ***The actors this rename actually renames*** (2026-09-28): the account's
+   * own whose `tagIds` hold the tag, index-aligned with `tags`, which are the
+   * only carriers `resolveTagNames` reads through the registry. The question
+   * about the gates is worth asking only when this is not zero — see
+   * `renameTag`.
+   */
+  actorsRenamed: number;
   /** Books actually rewritten, when the caller asked for it. */
   booksRewritten: string[];
   /** Books that could not be written, and why. */
   skipped: { id: string; name: string; reason: string }[];
 }
 
+/**
+ * ***Asked before it is done*** (2026-09-28). The dialog renamed first and
+ * offered to rewrite the gates second — and by the second press the registry
+ * already held the new name, so the scan for the old one found nothing and
+ * *Update them to the new name* rewrote nothing, every time. A `dryRun` scans
+ * and counts and moves nothing, so the one real rename can carry the answer.
+ *
+ * **The clash is checked before the dry run answers**, against the registry it
+ * read, so a question about gates is never asked of a rename that is going to
+ * be refused. The write keeps its own check inside the mutation, because the
+ * registry can change between the two.
+ */
 export async function renameTag(
   library: LibraryContext,
   tags: TagStore,
   handle: string,
   id: string,
   to: string,
-  rewriteGates: boolean,
+  options: { rewriteGates: boolean; dryRun?: boolean },
 ): Promise<RenameReport> {
+  const { rewriteGates } = options;
   const name = normaliseTagName(to);
   if (name === '') throw new TagsError('invalid', 'A tag needs a name.');
 
   const before = await tags.read(handle);
   const entry = before.tags.find((tag) => tag.id === id);
   if (!entry) throw new TagsError('not-found', `No tag with id ${id}.`);
+  const taken = before.tags.find((tag) => tag.id !== id && sameTag(tag.name, name));
+  if (taken) throw new TagsError('conflict', `${taken.name} is already a tag.`);
 
   const from = entry.name;
 
-  const report: RenameReport = { gatesFound: [], booksRewritten: [], skipped: [] };
+  const report: RenameReport = {
+    gatesFound: [],
+    actorsRenamed: 0,
+    booksRewritten: [],
+    skipped: [],
+  };
 
   /**
    * **Found before the registry moves.** Once the entry is renamed the old name
@@ -64,12 +93,18 @@ export async function renameTag(
    * to happen even when nothing will be rewritten, because the count is what
    * the caller is being asked to decide about.
    */
-  const books = list(library, handle).filter((row) => row.schemaId === LOREBOOK_SCHEMA);
+  const rows = list(library, handle);
+  const books = rows.filter((row) => row.schemaId === LOREBOOK_SCHEMA);
   for (const book of books) {
     for (const entryName of gatesMentioning(book.body, from)) {
       report.gatesFound.push({ book: book.name, entry: entryName });
     }
   }
+  report.actorsRenamed = rows.filter(
+    (row) => row.schemaId === ACTOR_SCHEMA && carriesById(row.body, id),
+  ).length;
+
+  if (options.dryRun === true) return report;
 
   await tags.mutate(handle, (current) => {
     const clash = current.tags.find((tag) => tag.id !== id && sameTag(tag.name, name));
@@ -154,6 +189,19 @@ function withRenamedGates(body: unknown, from: string, to: string): Record<strin
       };
     }),
   };
+}
+
+/**
+ * Whether an object carries this tag **by its id** — adopted, with `tagIds`
+ * index-aligned with `tags`. Anything else is read from its own names
+ * (`resolveTagNames`), so a rename of the registry row does not reach it.
+ */
+function carriesById(body: unknown, id: string): boolean {
+  if (typeof body !== 'object' || body === null) return false;
+  const { tags, tagIds } = body as { tags?: unknown; tagIds?: unknown };
+  if (!Array.isArray(tags) || !Array.isArray(tagIds)) return false;
+  if (tags.length !== tagIds.length) return false;
+  return tagIds.includes(id);
 }
 
 function entriesOf(body: unknown): Record<string, unknown>[] {

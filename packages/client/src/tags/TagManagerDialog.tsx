@@ -76,9 +76,29 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
   const [newName, setNewName] = useState('');
   /** The tag being renamed, and what to. `null` is nobody. */
   const [renaming, setRenaming] = useState<{ id: string; from: string; to: string } | null>(null);
-  /** What the last rename reported, so the offer to fix the gates has a subject. */
-  const [gates, setGates] = useState<{ book: string; entry: string }[]>([]);
-  const [lastRenamed, setLastRenamed] = useState<{ id: string; to: string } | null>(null);
+  /**
+   * ***The question, asked before the rename*** (2026-09-28): the gates a dry
+   * run found under the old name, for the name it was asked about. The dialog
+   * used to rename first and offer the rewrite after, and by then the old name
+   * was nowhere to scan for — so *Update them to the new name* rewrote nothing.
+   */
+  const [asking, setAsking] = useState<{ to: string; gates: number } | null>(null);
+  /** What the last real rename did, said once. */
+  const [renamed, setRenamed] = useState<string | null>(null);
+
+  /** The one real rename, carrying the answer to the question, if one was asked. */
+  function rename(id: string, to: string, rewriteGates: boolean): void {
+    write.mutate(
+      { kind: 'rename', id, to, rewriteGates },
+      {
+        onSuccess: (result) => {
+          setRenaming(null);
+          setAsking(null);
+          setRenamed(renamedLine(result.booksRewritten ?? [], result.skipped ?? []));
+        },
+      },
+    );
+  }
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
 
@@ -164,31 +184,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
         </Alert>
       ) : null}
 
-      {/*
-       * **[05 §1]'s answer, shown rather than acted on.** A gate naming the old
-       * spelling stops matching, and activation says nothing when it does — so
-       * the count is reported and the rewrite is a separate, deliberate press.
-       */}
-      {gates.length === 0 ? null : (
-        <Alert tone="warning" role="status">
-          <p className="mb-2">{gatesPrompt(gates.length)}</p>
-          <Button
-            type="button"
-            disabled={write.isPending || lastRenamed === null}
-            onClick={() => {
-              if (lastRenamed === null) return;
-              write.mutate({
-                kind: 'rename',
-                id: lastRenamed.id,
-                to: lastRenamed.to,
-                rewriteGates: true,
-              });
-            }}
-          >
-            Update them to the new name
-          </Button>
-        </Alert>
-      )}
+      {renamed === null ? null : <Note role="status">{renamed}</Note>}
 
       {registry.isPending ? <Note>Loading the tags…</Note> : null}
 
@@ -263,6 +259,8 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
                 }}
                 onRename={() => {
                   setRenaming({ id: tag.id, from: tag.name, to: tag.name });
+                  setAsking(null);
+                  setRenamed(null);
                 }}
                 onDelete={() => {
                   write.mutate({ kind: 'delete', id: tag.id });
@@ -283,44 +281,87 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
                 value={renaming.to}
                 onChange={(to) => {
                   setRenaming({ ...renaming, to });
+                  // The question was asked of the name as it was.
+                  setAsking(null);
                 }}
                 required
               />
             </div>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={write.isPending || renaming.to.trim() === ''}
-              onClick={() => {
-                write.mutate(
-                  {
-                    kind: 'rename',
-                    id: renaming.id,
-                    to: renaming.to.trim(),
-                    // Reported first; rewriting is a second, separate press.
-                    rewriteGates: false,
-                  },
-                  {
-                    onSuccess: (result) => {
-                      setGates(result.gatesFound ?? []);
-                      setLastRenamed({ id: renaming.id, to: renaming.to.trim() });
-                      setRenaming(null);
+            {asking === null ? (
+              <Button
+                type="button"
+                variant="primary"
+                disabled={write.isPending || renaming.to.trim() === ''}
+                onClick={() => {
+                  const { id } = renaming;
+                  const to = renaming.to.trim();
+                  /**
+                   * **Asked first, and only when the answer matters.** A gate on
+                   * the old name stops matching only an actor the rename renames
+                   * — one carrying the tag by its id. In a library nobody
+                   * adopted, every actor keeps its own name and every gate goes
+                   * on matching it, so rewriting them would be what broke them.
+                   */
+                  write.mutate(
+                    { kind: 'rename', id, to, rewriteGates: false, dryRun: true },
+                    {
+                      onSuccess: (result) => {
+                        const gates = result.gatesFound?.length ?? 0;
+                        if (gates > 0 && (result.actorsRenamed ?? 0) > 0) {
+                          setAsking({ to, gates });
+                          return;
+                        }
+                        rename(id, to, false);
+                      },
                     },
-                  },
-                );
-              }}
-            >
-              Rename
-            </Button>
+                  );
+                }}
+              >
+                Rename
+              </Button>
+            ) : null}
             <Button
               type="button"
               onClick={() => {
                 setRenaming(null);
+                setAsking(null);
               }}
             >
               Cancel
             </Button>
           </div>
+          {/*
+           * **[05 §1]'s question, asked before anything moves.** A gate naming
+           * the old spelling stops matching, and activation says nothing when it
+           * does — so the count is said and the choice is the person's, both
+           * answers being defensible.
+           */}
+          {asking === null ? null : (
+            <div className="mt-2 flex flex-col gap-2">
+              <p>{gatesQuestion(asking.gates)}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={write.isPending}
+                  onClick={() => {
+                    rename(renaming.id, asking.to, true);
+                  }}
+                >
+                  Rename and update them
+                </Button>
+                <Button
+                  type="button"
+                  disabled={write.isPending}
+                  onClick={() => {
+                    rename(renaming.id, asking.to, false);
+                  }}
+                >
+                  Rename only
+                </Button>
+              </div>
+            </div>
+          )}
         </Alert>
       )}
 
@@ -634,10 +675,28 @@ function renamePrompt(from: string): string {
  * The whole sentence per case, rather than a number dropped into a fragment —
  * the discipline the password rule states, for the same reason.
  */
-function gatesPrompt(count: number): string {
+function gatesQuestion(count: number): string {
   return count === 1
-    ? 'One lore entry gates on the old name and will stop matching. Its book is otherwise untouched.'
-    : `${String(count)} lore entries gate on the old name and will stop matching. Their books are otherwise untouched.`;
+    ? 'One lore entry gates on this name, and will stop matching the characters carrying it once it is renamed. Its book is otherwise untouched either way.'
+    : `${String(count)} lore entries gate on this name, and will stop matching the characters carrying it once it is renamed. Their books are otherwise untouched either way.`;
+}
+
+/** What a rename did to the gates, when it was asked to do anything. */
+function renamedLine(
+  rewritten: readonly string[],
+  skipped: readonly { name: string; reason: string }[],
+): string {
+  const done =
+    rewritten.length === 0
+      ? 'Renamed.'
+      : rewritten.length === 1
+        ? `Renamed, and the gates in ${rewritten[0] ?? ''} now use the new name.`
+        : `Renamed, and the gates in ${String(rewritten.length)} books now use the new name.`;
+  if (skipped.length === 0) return done;
+  const [only] = skipped;
+  return skipped.length === 1 && only !== undefined
+    ? `${done} ${only.name} could not be updated: ${only.reason}`
+    : `${done} ${String(skipped.length)} books could not be updated.`;
 }
 
 function adoptLabel(name: string): string {

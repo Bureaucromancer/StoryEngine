@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TagEntry } from '@storyengine/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -338,59 +338,137 @@ describe('prune', () => {
  *
  * A lore entry's `actorTagFilter` holds author-written names and activation
  * compares them exactly, so a rename can stop lore firing with nothing anywhere
- * saying so. The surface reports what it found; rewriting is a second press.
+ * saying so. ***Asked before the rename, since 2026-09-28***: a dry run finds
+ * the gates under the old name, and the one real rename carries the answer.
+ * The dialog used to rename first and offer the rewrite after, when the old
+ * name was nowhere left to find, so the offer rewrote nothing.
  */
 describe('renaming', () => {
-  it('sends the new name without touching the lore gates', async () => {
-    open([entry({ id: 'tag-1', name: 'noir' })]);
-    const row = await rowFor('noir');
+  /** A dry run that finds this, then a rename that did that. */
+  function answering(
+    asked: { gates: number; actors: number },
+    did: {
+      booksRewritten?: string[];
+      skipped?: { id: string; name: string; reason: string }[];
+    } = {},
+  ): void {
+    renameTag.mockImplementation((_id: string, body: { dryRun?: boolean }) =>
+      Promise.resolve(
+        body.dryRun === true
+          ? {
+              tags: [],
+              gatesFound: Array.from({ length: asked.gates }, () => ({
+                book: 'Ardent',
+                entry: 'Harbour',
+              })),
+              actorsRenamed: asked.actors,
+              booksRewritten: [],
+              skipped: [],
+            }
+          : {
+              tags: [],
+              gatesFound: [],
+              actorsRenamed: asked.actors,
+              booksRewritten: did.booksRewritten ?? [],
+              skipped: did.skipped ?? [],
+            },
+      ),
+    );
+  }
 
+  async function renameTo(name: string): Promise<void> {
+    const row = await rowFor('noir');
     await userEvent.click(within(row).getByRole('button', { name: 'Rename noir' }));
     const box = screen.getByRole('textbox', { name: 'New name' });
     await userEvent.clear(box);
-    await userEvent.type(box, 'Noir Fiction');
+    await userEvent.type(box, name);
     await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+  }
 
-    expect(renameTag).toHaveBeenCalledWith('tag-1', {
+  it('asks first, then renames once without touching the gates when there are none', async () => {
+    answering({ gates: 0, actors: 1 });
+    open([entry({ id: 'tag-1', name: 'noir' })]);
+
+    await renameTo('Noir Fiction');
+
+    await waitFor(() => {
+      expect(renameTag).toHaveBeenCalledTimes(2);
+    });
+    expect(renameTag).toHaveBeenNthCalledWith(1, 'tag-1', {
+      to: 'Noir Fiction',
+      rewriteGates: false,
+      dryRun: true,
+    });
+    expect(renameTag).toHaveBeenLastCalledWith('tag-1', {
       to: 'Noir Fiction',
       rewriteGates: false,
     });
+    expect(await screen.findByText('Renamed.')).toBeTruthy();
   });
 
-  it('reports the gates it found rather than acting on them', async () => {
-    renameTag.mockResolvedValue({
-      tags: [],
-      gatesFound: [{ book: 'Ardent', entry: 'Harbour' }],
-    });
+  it('asks about the gates before anything is renamed', async () => {
+    answering({ gates: 1, actors: 1 });
     open([entry({ id: 'tag-1', name: 'noir' })]);
-    const row = await rowFor('noir');
 
-    await userEvent.click(within(row).getByRole('button', { name: 'Rename noir' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    await renameTo('Noir Fiction');
 
-    expect(await screen.findByText(/One lore entry gates on the old name/)).toBeTruthy();
+    expect(await screen.findByText(/One lore entry gates on this name/)).toBeTruthy();
+    // The question, and nothing moved yet.
+    expect(renameTag).toHaveBeenCalledTimes(1);
   });
 
-  it('rewrites them only on a second, deliberate press', async () => {
-    renameTag.mockResolvedValue({
-      tags: [],
-      gatesFound: [{ book: 'Ardent', entry: 'Harbour' }],
-    });
+  it('renames once, carrying the answer, and says what it rewrote', async () => {
+    answering({ gates: 1, actors: 1 }, { booksRewritten: ['Ardent'] });
     open([entry({ id: 'tag-1', name: 'noir' })]);
-    const row = await rowFor('noir');
 
-    await userEvent.click(within(row).getByRole('button', { name: 'Rename noir' }));
-    const box = screen.getByRole('textbox', { name: 'New name' });
-    await userEvent.clear(box);
-    await userEvent.type(box, 'Noir Fiction');
-    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    await renameTo('Noir Fiction');
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename and update them' }));
 
-    await userEvent.click(await screen.findByRole('button', { name: /Update them/ }));
-
+    await waitFor(() => {
+      expect(renameTag).toHaveBeenCalledTimes(2);
+    });
     expect(renameTag).toHaveBeenLastCalledWith('tag-1', {
       to: 'Noir Fiction',
       rewriteGates: true,
     });
+    expect(
+      await screen.findByText('Renamed, and the gates in Ardent now use the new name.'),
+    ).toBeTruthy();
+  });
+
+  it('renames and leaves the gates when told to', async () => {
+    answering({ gates: 2, actors: 1 });
+    open([entry({ id: 'tag-1', name: 'noir' })]);
+
+    await renameTo('Noir Fiction');
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename only' }));
+
+    await waitFor(() => {
+      expect(renameTag).toHaveBeenLastCalledWith('tag-1', {
+        to: 'Noir Fiction',
+        rewriteGates: false,
+      });
+    });
+  });
+
+  /**
+   * *No actor renamed, no question*: in a library nobody adopted, every actor
+   * keeps its own names, so a gate on the old one goes on matching — and a
+   * rewrite would be what broke it. Aventuras imports mint tags exactly so.
+   */
+  it('does not ask, and does not rewrite, when no actor carries the tag by its id', async () => {
+    answering({ gates: 1, actors: 0 });
+    open([entry({ id: 'tag-1', name: 'noir' })]);
+
+    await renameTo('Noir Fiction');
+
+    await waitFor(() => {
+      expect(renameTag).toHaveBeenLastCalledWith('tag-1', {
+        to: 'Noir Fiction',
+        rewriteGates: false,
+      });
+    });
+    expect(screen.queryByText(/gates on this name/)).toBeNull();
   });
 
   it('will not send an empty name', async () => {

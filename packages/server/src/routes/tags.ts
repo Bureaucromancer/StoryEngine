@@ -74,6 +74,13 @@ const RenameBody = Type.Object(
      * lets somebody decide ([05 §1]).
      */
     rewriteGates: Type.Optional(Type.Boolean()),
+    /**
+     * ***Report, and change nothing*** (2026-09-28): the gates the old name
+     * holds and the actors the rename would rename, so the question can be
+     * asked before the one real rename rather than after it, when the old name
+     * is no longer there to find.
+     */
+    dryRun: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -226,17 +233,17 @@ export function registerTagRoutes(app: FastifyInstance, services: AppServices): 
       if (!account) return;
 
       const { id } = request.params as { id: string };
-      const { to, rewriteGates } = request.body as { to: string; rewriteGates?: boolean };
+      const { to, rewriteGates, dryRun } = request.body as {
+        to: string;
+        rewriteGates?: boolean;
+        dryRun?: boolean;
+      };
 
       try {
-        const report = await renameTag(
-          services.library,
-          services.tags,
-          account.handle,
-          id,
-          to,
-          rewriteGates ?? false,
-        );
+        const report = await renameTag(services.library, services.tags, account.handle, id, to, {
+          rewriteGates: rewriteGates ?? false,
+          dryRun: dryRun ?? false,
+        });
         const registry = await services.tags.read(account.handle);
         return await reply.send({ tags: registry.tags, ...report });
       } catch (error) {

@@ -630,11 +630,21 @@ export const api = {
    * spelling — [05 §1](../../../docs/design/05-tagging.md). `rewriteGates` is
    * off unless asked, because both answers are defensible.
    */
+  /**
+   * A rename, or with `dryRun` the question before one (2026-09-28): the gates
+   * the name holds and how many actors the rename would rename, with nothing
+   * moved. `booksRewritten` and `skipped` answer the real one.
+   */
   renameTag: (
     id: string,
-    body: { to: string; rewriteGates?: boolean },
-  ): Promise<{ tags: TagEntry[]; gatesFound: { book: string; entry: string }[] }> =>
-    request('POST', `/api/tags/${encodeURIComponent(id)}/rename`, body),
+    body: { to: string; rewriteGates?: boolean; dryRun?: boolean },
+  ): Promise<{
+    tags: TagEntry[];
+    gatesFound: { book: string; entry: string }[];
+    actorsRenamed: number;
+    booksRewritten: string[];
+    skipped: { id: string; name: string; reason: string }[];
+  }> => request('POST', `/api/tags/${encodeURIComponent(id)}/rename`, body),
 
   /** The one deliberate write across the library, after which renaming is free. */
   adoptTags: (): Promise<{
