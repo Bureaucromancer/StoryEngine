@@ -1040,14 +1040,18 @@ export function useSessionHooks(
 ): UseMutationResult<
   { session: SessionSummary },
   Error,
-  { add: Record<string, unknown> } | { remove: string }
+  { add: Record<string, unknown> } | { remove: string; from?: HookRow['source'] }
 > {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (change: { add: Record<string, unknown> } | { remove: string }) =>
+    mutationFn: (
+      change: { add: Record<string, unknown> } | { remove: string; from?: HookRow['source'] },
+    ) =>
       'add' in change
         ? addSessionHook(sessionId, change.add)
-        : removeSessionHook(sessionId, change.remove),
+        : change.from === undefined
+          ? removeSessionHook(sessionId, change.remove)
+          : removeSessionHook(sessionId, change.remove, change.from),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
     },

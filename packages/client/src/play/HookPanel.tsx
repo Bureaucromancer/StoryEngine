@@ -83,8 +83,17 @@ export function HookPanel(props: { sessionId: string }): JSX.Element | null {
           <Pacing sessionId={props.sessionId} level={hooks?.pacing ?? 'normal'} />
         )}
         <div className="flex flex-col gap-2">
+          {/*
+           * **Keyed by the row's source as well as its id** (2026-09-28): one
+           * hook can reach the pool through two carriers, drawn as two rows, and
+           * a key on the id alone gave both rows one identity.
+           */}
           {rows.map((row) => (
-            <Hook key={row.hookId} sessionId={props.sessionId} row={row} />
+            <Hook
+              key={`${row.hookId}:${row.source.kind}:${row.source.id ?? ''}`}
+              sessionId={props.sessionId}
+              row={row}
+            />
           ))}
         </div>
         <AddHook sessionId={props.sessionId} />
@@ -325,7 +334,9 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
             write.mutate({ key: `se.hook#${row.hookId}`, value: null });
           }}
           onRemove={() => {
-            hooks.mutate({ remove: row.hookId });
+            // The row's own source, so only this row goes — the same reason
+            // `Save this to…` sends it (2026-09-28).
+            hooks.mutate({ remove: row.hookId, from: row.source });
           }}
         />
       )}

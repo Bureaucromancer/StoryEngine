@@ -14,7 +14,7 @@ import {
 import { LibraryError, read, update, type LibraryContext } from '../library.js';
 
 import { readSession, type SessionContext } from './store.js';
-import { readPool } from './pool-shape.js';
+import { readPool, sameHookSource } from './pool-shape.js';
 import type { HookSource, PooledHook } from './types.js';
 
 /**
@@ -305,11 +305,6 @@ function pooledHook(
 ): PooledHook | undefined {
   const byId = pool.filter((entry) => entry.hook.id === hookId);
   if (from === undefined) return byId[0];
-
-  const wanted = from.kind === 'session' ? undefined : from.id;
-  return byId.find(
-    (entry) =>
-      entry.source.kind === from.kind &&
-      (entry.source.kind === 'session' || entry.source.id === wanted),
-  );
+  // The one comparison of sources, which the remove route shares (2026-09-28).
+  return byId.find((entry) => sameHookSource(entry.source, from));
 }

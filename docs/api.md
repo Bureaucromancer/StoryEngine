@@ -1696,6 +1696,15 @@ remove it would make the copy a binding ([00 §3.1](design/00-stance.md)). It do
 not reach the treatment. Removing one that is already gone succeeds — it is the
 state the caller asked for — while a missing **session** is still a `404`.
 
+***`?from=&fromId=` names one row*** (2026-09-28). A pool can hold one hook
+through two carriers, and the panel draws each as its own row; without the query
+the delete takes every row under the id, as it always has. `from` is the row's
+source kind — `session`, `treatment`, `setup` or `lore` — and `fromId` the
+carrier's id, required for the three carriers and refused for `session` (`400
+invalid`). A source is read as the panel shows it, so a row whose stored source
+is unreadable is `from=session`. A named row the pool does not hold removes
+nothing and succeeds.
+
 ### `POST /api/sessions/:sessionId/hooks/:hookId/promote`
 
 `{ target: { kind: 'treatment' | 'setup' | 'lore', id }, from? }` →

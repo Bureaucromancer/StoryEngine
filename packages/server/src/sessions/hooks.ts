@@ -15,7 +15,7 @@ import { introducedOn, isTerminal, readParty, readStatus } from './cast.js';
 import { channelKey, initialValue } from './channels.js';
 import { storyDepth } from './depth.js';
 import { levelFragments } from './dials.js';
-import { isHookSource } from './pool-shape.js';
+import { pooledSource } from './pool-shape.js';
 import type { PooledHook, Turn } from './types.js';
 
 /**
@@ -705,7 +705,7 @@ export function malformedRows(entries: readonly Record<string, unknown>[]): Hook
     return {
       hookId: typeof hook['id'] === 'string' ? hook['id'] : '',
       title: typeof hook['title'] === 'string' ? hook['title'] : '',
-      source: isHookSource(entry['source']) ? entry['source'] : { kind: 'session' },
+      source: pooledSource(entry),
       state: null,
       refusal: 'malformed',
       entrances: [],

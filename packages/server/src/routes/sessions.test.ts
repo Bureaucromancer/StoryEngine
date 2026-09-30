@@ -1963,6 +1963,124 @@ describe('a session’s hook pool', () => {
       expect(removed.status).toBe(200);
     });
 
+    /**
+     * ***One row, the one pressed*** (2026-09-28). A pool holds one hook
+     * through two carriers on purpose, and the panel draws each as its own
+     * row; by id alone, Remove on either took both. The pool is written by
+     * hand because that is the plainest way to hold two entries under one id —
+     * a treatment's and a lorebook's, edited apart.
+     */
+    describe('when two rows share one id', () => {
+      async function twoRows(): Promise<string> {
+        const sessionId = await aSession();
+        const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+        const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+        await writeFile(
+          file,
+          JSON.stringify({
+            ...stored,
+            hooks: [
+              { hook: hook('hook-war'), source: { kind: 'treatment', id: 't-rain' } },
+              {
+                hook: { ...hook('hook-war'), title: 'The war, as the kingdom tells it' },
+                source: { kind: 'lore', id: 'book-flowers' },
+              },
+            ],
+          }),
+        );
+        return sessionId;
+      }
+
+      function sourcesOf(held: { hooks?: { source: unknown }[] }): unknown[] {
+        return (held.hooks ?? []).map((entry) => entry.source);
+      }
+
+      it('removes only the row the caller names', async () => {
+        const sessionId = await twoRows();
+
+        const removed = await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/hook-war?from=lore&fromId=book-flowers`,
+        });
+
+        expect(removed.status).toBe(200);
+        expect(sourcesOf(await sessionFileOf(sessionId))).toEqual([
+          { kind: 'treatment', id: 't-rain' },
+        ]);
+      });
+
+      it('removes every row under the id when no row is named, as before', async () => {
+        const sessionId = await twoRows();
+
+        await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/hook-war`,
+        });
+
+        expect((await sessionFileOf(sessionId)).hooks).toBeUndefined();
+      });
+
+      it('removes nothing, and succeeds, for a row the pool does not hold', async () => {
+        const sessionId = await twoRows();
+
+        const removed = await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/hook-war?from=setup&fromId=s-elsewhere`,
+        });
+
+        expect(removed.status).toBe(200);
+        expect(sourcesOf(await sessionFileOf(sessionId))).toHaveLength(2);
+      });
+
+      it('refuses a source whose id does not fit its kind, and removes nothing', async () => {
+        const sessionId = await twoRows();
+
+        for (const query of ['from=session&fromId=x', 'from=lore', 'fromId=book-flowers']) {
+          const refused = await server.request({
+            method: 'DELETE',
+            url: `/api/sessions/${sessionId}/hooks/hook-war?${query}`,
+          });
+          expect(refused.status, query).toBe(400);
+        }
+        expect(sourcesOf(await sessionFileOf(sessionId))).toHaveLength(2);
+      });
+
+      /**
+       * *A malformed row is found by the source it is shown with* — the panel
+       * draws a source it cannot read as the session's own, and the remove
+       * reads it through the same function, so the row's Remove reaches it.
+       */
+      it('finds a malformed row by the source the panel showed for it', async () => {
+        const sessionId = await aSession();
+        const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+        const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+        await writeFile(
+          file,
+          JSON.stringify({
+            ...stored,
+            hooks: [
+              { hook: { id: 'broken', title: 'Storm' }, source: { kind: 'somewhere' } },
+              { hook: hook('broken'), source: { kind: 'treatment', id: 't-rain' } },
+            ],
+          }),
+        );
+        const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+        const shown = (read.body.hooks.rows as { hookId: string; source: unknown }[]).filter(
+          (row) => row.hookId === 'broken',
+        );
+        expect(shown.map((row) => row.source)).toContainEqual({ kind: 'session' });
+
+        await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/broken?from=session`,
+        });
+
+        expect(sourcesOf(await sessionFileOf(sessionId))).toEqual([
+          { kind: 'treatment', id: 't-rain' },
+        ]);
+      });
+    });
+
     it('is a 404 for a session that is not there', async () => {
       const response = await server.request({
         method: 'POST',

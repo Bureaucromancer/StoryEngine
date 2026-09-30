@@ -13,6 +13,7 @@ import {
   kindOfSchema,
   LIBRARY_KINDS,
   listSessions,
+  removeSessionHook,
   renameSession,
   setSessionLore,
   uploadFailure,
@@ -322,6 +323,25 @@ describe('ids in addresses', () => {
       '/api/admin/connections/lab%2Fgpu',
       '/api/admin/connections/..%2Fescape',
       '/api/admin/connections/house%232/bindings',
+    ]);
+  });
+
+  /**
+   * ***A hook row is removed by its source*** (2026-09-28): the kind as it is
+   * and the carrier's id escaped, nothing for the session's own, and the bare
+   * address when no row is named — which still means every row under the id.
+   */
+  it('names the pooled row a hook removal means, escaped', async () => {
+    const seen = urls();
+
+    await removeSessionHook('s1', 'hook-war');
+    await removeSessionHook('s1', 'hook-war', { kind: 'session' });
+    await removeSessionHook('s1', 'hook-war', { kind: 'lore', id: 'book/rain' });
+
+    expect(seen).toEqual([
+      '/api/sessions/s1/hooks/hook-war',
+      '/api/sessions/s1/hooks/hook-war?from=session',
+      '/api/sessions/s1/hooks/hook-war?from=lore&fromId=book%2Frain',
     ]);
   });
 

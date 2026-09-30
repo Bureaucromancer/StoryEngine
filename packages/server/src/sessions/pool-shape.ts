@@ -69,3 +69,29 @@ export function pooledId(entry: unknown): string | undefined {
   const id = (hook as { id?: unknown }).id;
   return typeof id === 'string' ? id : undefined;
 }
+
+/**
+ * ***Where a pool entry says it came from, as the panel shows it***
+ * (2026-09-28).
+ *
+ * A source the file does not spell as one of the four is shown as the
+ * session's own — `malformedRows` has always drawn it that way — so this is
+ * the one reading of it, shared by the row a person sees and the remove that
+ * row sends. Two readings would let the panel name a row the remove could not
+ * find.
+ */
+export function pooledSource(entry: unknown): HookSource {
+  if (typeof entry !== 'object' || entry === null) return { kind: 'session' };
+  const source = (entry as { source?: unknown }).source;
+  return isHookSource(source) ? source : { kind: 'session' };
+}
+
+/**
+ * Whether two sources name the same carrier — **the kind and the id**, because
+ * the kind alone collapses two lorebooks, and a `session` source has no id to
+ * compare.
+ */
+export function sameHookSource(a: HookSource, b: HookSource): boolean {
+  if (a.kind === 'session' || b.kind === 'session') return a.kind === b.kind;
+  return a.kind === b.kind && a.id === b.id;
+}

@@ -1036,7 +1036,7 @@ export function PlayPage({
           offers at a completion are the most consequential control on the page.
           A disclosure like its neighbours, present even with no chain because
           the control that sets one is inside it. */}
-      <GoalPanel sessionId={sessionId} />
+      <GoalPanel sessionId={sessionId} busy={running || gesture.isPending || send.isPending} />
 
       {/* **The authored plot waiting to happen** — [10 §10.1], [P7.5]. Beside
           the lore panel rather than beside the cast, which 10 §10.1 chose

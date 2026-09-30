@@ -639,6 +639,14 @@ describe('the context meter', () => {
       expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy();
     });
     expect(previewTurn).toHaveBeenCalledTimes(2);
+    // ***And the goal panel waits for it*** (2026-09-28): its writes move the
+    // head, which the server refuses while the turn runs. The page tells it —
+    // with an objective typed, so that the turn is the only reason left.
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Set an objective' }),
+      'Find the fixer.',
+    );
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Set' }).disabled).toBe(true);
   });
 
   it('lets the last answer win when two are in flight', async () => {

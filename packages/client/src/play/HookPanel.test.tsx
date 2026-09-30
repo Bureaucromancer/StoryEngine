@@ -366,8 +366,41 @@ describe('the hook panel', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Remove' }));
 
     await waitFor(() => {
-      expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war');
+      expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war', {
+        kind: 'treatment',
+        id: 't1',
+      });
     });
+  });
+
+  /**
+   * ***The row pressed, and only it*** (2026-09-28). One hook can reach the
+   * pool through two carriers and is drawn as two rows; by id alone, Remove on
+   * either took both, and the two rows shared a React key. The row's source
+   * goes with the request, as it does for `Save this to…`.
+   */
+  it('names the row it removes when two rows share an id', async () => {
+    // React says so on the console when two siblings share a key, and says
+    // nothing else: the rows render, and it is their identity across a
+    // re-render that is lost.
+    const warned = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    answerWith([WAR, { ...WAR, source: { kind: 'lore', id: 'book-rain' } }]);
+    await renderPanel();
+
+    const removes = await screen.findAllByRole('button', { name: 'Remove' });
+    expect(removes).toHaveLength(2);
+    await userEvent.click(removes[1]!);
+
+    await waitFor(() => {
+      expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war', {
+        kind: 'lore',
+        id: 'book-rain',
+      });
+    });
+    expect(
+      warned.mock.calls.some((call) => call.some((part) => String(part).includes('same key'))),
+    ).toBe(false);
+    warned.mockRestore();
   });
 
   /**

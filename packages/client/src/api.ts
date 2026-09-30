@@ -1607,15 +1607,26 @@ export function addSessionHook(
   return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/hooks`, { hook });
 }
 
-/** And back out — any of them, whichever source put it there ([00 §3.1]). */
+/**
+ * And back out — any of them, whichever source put it there ([00 §3.1]).
+ *
+ * ***The row's own source travels with it*** (2026-09-28), as it does for a
+ * promotion: one hook can sit in the pool twice, through two carriers, and
+ * without `from` the server removes every row under the id. Absent, it still
+ * means exactly that.
+ */
 export function removeSessionHook(
   sessionId: string,
   hookId: string,
+  from?: HookRow['source'],
 ): Promise<{ session: SessionSummary }> {
-  return request(
-    'DELETE',
-    `/api/sessions/${encodeURIComponent(sessionId)}/hooks/${encodeURIComponent(hookId)}`,
-  );
+  const address = `/api/sessions/${encodeURIComponent(sessionId)}/hooks/${encodeURIComponent(hookId)}`;
+  if (from === undefined) return request('DELETE', address);
+  const query =
+    from.kind === 'session' || from.id === undefined
+      ? `from=${from.kind}`
+      : `from=${from.kind}&fromId=${encodeURIComponent(from.id)}`;
+  return request('DELETE', `${address}?${query}`);
 }
 
 /**

@@ -508,6 +508,33 @@ const HookParams = Type.Object({
 });
 
 /**
+ * ***Which pooled row a Remove means*** (2026-09-28) — the query form of
+ * `PromoteBody.from` below, for the same reason: an id does not name one row,
+ * because a pool holds the same hook through two carriers on purpose.
+ *
+ * *Flat rather than nested*, because a query string is flat: `from` is the
+ * kind, `fromId` the carrier's id. **Closed**, and the id's presence checked
+ * against the kind in the handler, which is where a union of two query shapes
+ * can be said plainly — `session` has no id and the three carriers always do.
+ * Absent altogether, the remove takes every row under the id, which is what an
+ * id on its own can honestly ask for.
+ */
+const HookRemoveQuery = Type.Object(
+  {
+    from: Type.Optional(
+      Type.Union([
+        Type.Literal('session'),
+        Type.Literal('treatment'),
+        Type.Literal('setup'),
+        Type.Literal('lore'),
+      ]),
+    ),
+    fromId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  },
+  { additionalProperties: false },
+);
+
+/**
  * Where a pooled hook is being saved to — [03 §4.1], [15 §5.1].
  *
  * ***Closed, which is the opposite of `HookBody` beside it, and the difference
@@ -1770,18 +1797,46 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * *Removing a hook that is already gone succeeds.* It is the state the caller
    * asked for, and a 404 would make a double-click an error — where a missing
    * **session** stays a 404, because that is a different claim.
+   *
+   * ***One row, when the caller names it*** (2026-09-28): `?from=&fromId=` is
+   * the pressed row's source, and only that row goes. Without it every row
+   * under the id went — both of two rows that one hook reached the pool as,
+   * from one press on either. A `from` that matches nothing removes nothing
+   * and still succeeds, for the double-click's reason above.
    */
   app.delete(
     '/sessions/:sessionId/hooks/:hookId',
-    { schema: { params: HookParams } },
+    { schema: { params: HookParams, querystring: HookRemoveQuery } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
+
+      const { from, fromId } = request.query as { from?: HookSource['kind']; fromId?: string };
+      if (
+        from === undefined ? fromId !== undefined : (from === 'session') !== (fromId === undefined)
+      ) {
+        return reply.code(400).send({
+          error: 'invalid',
+          message:
+            from === undefined
+              ? 'A row’s source id comes with its kind.'
+              : from === 'session'
+                ? 'A session’s own hook has no source id.'
+                : 'A hook from a library object names that object.',
+        });
+      }
       if (!(await mine(services, request, reply))) return;
 
       const { sessionId, hookId } = request.params as { sessionId: string; hookId: string };
+      const source: HookSource | undefined =
+        from === undefined
+          ? undefined
+          : from === 'session'
+            ? { kind: 'session' }
+            : { kind: from, id: fromId ?? '' };
       const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
         remove: hookId,
+        ...(source === undefined ? {} : { from: source }),
       });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });

@@ -34,7 +34,7 @@ import {
   quarantineEffects,
   splitChannelKey,
 } from './channels.js';
-import { pooledId } from './pool-shape.js';
+import { pooledId, pooledSource, sameHookSource } from './pool-shape.js';
 import { listSnapshots, readSnapshot, writeSnapshot } from './snapshots.js';
 import {
   appendTurn,
@@ -49,6 +49,7 @@ import type {
   BranchRef,
   ChannelEffect,
   ChannelState,
+  HookSource,
   PooledHook,
   SessionFile,
   Turn,
@@ -1896,7 +1897,7 @@ export async function setSessionHooks(
   context: SessionContext,
   handle: string,
   sessionId: string,
-  change: { add?: PlotHook; remove?: string },
+  change: { add?: PlotHook; remove?: string; from?: HookSource },
 ): Promise<SessionFile | null> {
   return withSessionLock(sessionId, async () => {
     const session = await readSession(context, handle, sessionId);
@@ -1907,12 +1908,26 @@ export async function setSessionHooks(
      * An entry the schema refuses may have no `hook` at all, and reading
      * `entry.hook.id` off one threw before the remove it was asked for; a
      * malformed hook with an id is exactly what a person removes.
+     *
+     * ***And by the row's source, when the caller names one*** (2026-09-28).
+     * A pool holds two entries under one id on purpose — the same hook reaching
+     * a session through two carriers, then edited apart on each — and the panel
+     * draws each as its own row with its own Remove. By id alone, pressing
+     * Remove on one took both. `from` is the pressed row's source, read the way
+     * the panel read it (`pooledSource`), so a malformed row is found by the
+     * source it was shown with; with no `from`, every row under the id goes, as
+     * before.
      */
     const pool = Array.isArray(session.hooks) ? session.hooks : [];
+    const { remove, from } = change;
     const without =
-      change.remove === undefined
+      remove === undefined
         ? pool
-        : pool.filter((entry) => pooledId(entry) !== change.remove);
+        : pool.filter(
+            (entry) =>
+              pooledId(entry) !== remove ||
+              (from !== undefined && !sameHookSource(pooledSource(entry), from)),
+          );
     /**
      * **A structured clone, the way creation copies one**, so an author editing
      * the object they submitted cannot reach into a running session — and
