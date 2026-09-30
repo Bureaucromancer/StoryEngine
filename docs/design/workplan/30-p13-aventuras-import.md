@@ -365,6 +365,13 @@ which a rebuild or a correction recovers without anything having been lost.
   found at P13.14: `currentBranchChapters` keeps every chapter whose
   `branch_id` is null, whatever the fork point. Whoever reopens chapters
   inherits it.
+- **Aventuras' sync stamps its `.avt` payloads 1.7.0** — found at P13.15:
+  `sync.ts` writes `version: '1.7.0'` over fields from 1.9 and 1.10, so a sync
+  payload reads here as an older format while carrying newer fields. Harmless;
+  extra fields are read or skipped.
+- **Some story labels say *the database* for a story from a file** — found at
+  P13.15: `picturesUnplaced`, `entriesUnplaced` and `forkEntryMissing` read a
+  little oddly under a `.avt`.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
