@@ -1253,6 +1253,27 @@ P11.10 shipped the format with a writer and a reader, so a converter aimed at it
 is no longer a reader for a format with no writer. Still not a commitment — §7
 prices what is left and proposes an order, and schedules nothing.
 
+***Scheduled for Aventuras, 2026-09-29*** — by the person, for
+[P13](workplan/30-p13-aventuras-import.md)'s Part 2
+([§0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4)). This
+is a commitment for **one producer**, Aventuras' stories, and not for session
+import from other platforms in general: the paragraphs above stand for every
+other source, and the producer keeps the *one reader* shape this entry
+protects — deleting it deletes nothing else.
+
+*And a second, 2026-09-30, at the merge of the two.* The paragraph above was
+written on P13's branch while [P14](workplan/31-p14-scene-and-session-import.md)
+— SillyTavern and Marinara roleplay chats into Scene — was scheduled and built
+on another, and merged to `main` first. So *"one producer … not for session
+import from other platforms in general"* stopped being true before it reached
+`main`: SillyTavern's and Marinara's chats are producers too
+(`import/chat-sessions.ts`), in the same shape — a pure converter that emits the
+format and hands it to `importSession`. What the paragraph protects holds for all
+three: one reader, and a converter that can be deleted alone. The one thing P14
+added to the reader is an `extend` arm, asked for by its doors and never
+inferred, because a chat goes on growing where a finished export does not
+([P14 §2.7](workplan/31-p14-scene-and-session-import.md#27-sync-a-re-import-extends-the-session-it-came-from)).
+
 Distinct from **card, lorebook and preset import**, which is committed and early
 ([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against
 formats that barely move. Session history is neither.

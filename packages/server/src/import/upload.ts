@@ -10,6 +10,7 @@ import {
 
 import { codecFor } from '../storage/card/index.js';
 
+import { AVT_FORMAT, readAvt } from './aventuras/avt.js';
 import { isAventurasLorebook, isVaultCharacter, isVaultScenario } from './aventuras/shapes.js';
 import { SILLYTAVERN_CHAT_FORMAT } from './sillytavern/chat.js';
 import type { ImportCandidate, SourceItem } from './source.js';
@@ -172,6 +173,25 @@ export function readUpload(
   const codec = codecFor(bytes);
   if (codec !== null) return readCard(filename, bytes, codec);
 
+  /**
+   * ***An Aventuras story file, before anything parses the bytes whole*** —
+   * [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **First among the JSON shapes, for two reasons.** It has `entries`, so the
+   * probe below would take it for a SillyTavern world and convert its story
+   * entries as lore — which it did until this stage, making a lorebook of
+   * somebody's story. And it is the one JSON here that can be as large as the
+   * transport allows, most of it pictures: `JSON.parse` below would hold it
+   * three times over, where `readAvt` reads the one copy there is and leaves
+   * every picture in it until the Writer carries it (`aventuras/avt.ts`).
+   *
+   * Not gated on `confidence`: `story` as an object beside `entries` as an
+   * array is Aventuras' own required shape, and self-identifying — a folder
+   * sweep can be trusted with it as with a card's chunk.
+   */
+  const avt = readAvtUpload(filename, bytes);
+  if (avt !== null) return avt;
+
   const text = new TextDecoder().decode(bytes);
   let parsed: unknown;
   try {
@@ -269,6 +289,22 @@ export function readUpload(
   }
 
   return candidate({ source: filename, format, payload: parsed });
+}
+
+/**
+ * ***An Aventuras `.avt`, as one item — or `null` for a file that is not
+ * one***, which leaves the other probes to it.
+ *
+ * Exported for the file door, which asks this before it parses a file whole
+ * to look for a Marinara envelope, for the size reason above; a candidate
+ * here is one story, and a refusal is the `unrecognised` row that says which
+ * version was refused.
+ */
+export function readAvtUpload(filename: string, bytes: Uint8Array): SourceItem | null {
+  const read = readAvt(bytes, { file: filename });
+  if (read.kind === 'not-avt') return null;
+  if (read.kind === 'refused') return observed(filename, 'unrecognised', read.notes);
+  return candidate({ source: filename, format: AVT_FORMAT, payload: read.story });
 }
 
 /**

@@ -264,6 +264,38 @@ export class Layout {
   }
 
   /**
+   * ***`state/import-scratch/` — where an import keeps the files it made and
+   * nobody else may see*** — [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * The first tenant is `sqlite-snapshot.ts`'s private copy of somebody's
+   * Aventuras database; the second is [P13.8]'s streamed upload, which lands
+   * here and is handed on without being copied again. Each use takes a
+   * directory of its own (`import-scratch.ts`), so letting go of one is a
+   * single removal that also takes whatever SQLite made beside it — a `-wal`,
+   * a `-shm`, a `-journal` — without anyone having to know their names.
+   *
+   * **In `state/` because it is beside what it follows.** [P12]'s own snapshot
+   * writes `state/state.snapshot-<id>.sqlite` next to the database it copies;
+   * this is the same kind of file made for the same reason, and `state/` is
+   * the directory that holds what is operational rather than derived or
+   * authored.
+   *
+   * - **Not `os.tmpdir()`.** In a container `/tmp` is commonly a small tmpfs,
+   *   and these files are the size of somebody's whole install — hundreds of
+   *   megabytes once a gallery is in it. The data directory is the one volume
+   *   an operator has already sized for our files.
+   * - **Not under `users/`**, so the watcher and the library never see a
+   *   half-written copy and nothing indexes it.
+   * - ***Never in an archive*** (`backup/archive.ts`'s `alwaysSkipped`), and
+   *   emptied at every start (`sweepImportScratch`), because a process that
+   *   was killed mid-import cannot run the `finally` that would have removed
+   *   what it made.
+   */
+  get importScratchRoot(): string {
+    return resolveWithin(this.stateRoot, 'import-scratch');
+  }
+
+  /**
    * `.restore/` — where a restore unpacks, and where the install it replaced
    * is kept — [P12.12](../../../../docs/design/workplan/29-p12-implementation.md),
    * as corrected 2026-09-27.

@@ -66,6 +66,29 @@ const PROBES: readonly Probe[] = [
    * *is this that kind of root* and *is it one this build can read*.
    */
   { kind: 'storyengine-backup', requires: ['backup.json'] },
+  /**
+   * ***A whole Aventuras install*** —
+   * [P13 §1.1](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * The database is the install: every story, every vault object, every pack,
+   * tag and setting is in the one file. `metadata.json` is deliberately not
+   * required, because a config directory has none — only a backup carries one
+   * — and requiring it would refuse the transport that has no size ceiling.
+   *
+   * ***No pre-flight here, unlike Marinara's — and §1.1 said there would be
+   * one.*** §1.1 puts an `aventurasPreflight` in `classifyRoot` as well as in
+   * the reader's `survey()`, so that a preview and a sweep cannot disagree.
+   * Every check worth making on this root is a question for SQLite about a
+   * *copy* of the file, and this function cannot make one: it also answers the
+   * folder plan, which holds names and no bytes at all, and `inspect`, which
+   * must stay a probe; and a real database is hundreds of megabytes where a
+   * directory source's `read` stops at sixty-four. What `exists` can say — the
+   * name is there — is the probe itself, so the whole gate
+   * (`aventuras/schema.ts`'s `aventurasPreflight`) runs in `survey()`, once,
+   * on the snapshot. A preview can therefore call a root `aventuras` that the
+   * sweep then refuses as `unknown-format`, which is the order the two already
+   * run in for a backup whose manifest is not ours.
+   */
+  { kind: 'aventuras', requires: ['aventura.db'] },
 ];
 
 /** The sentinels a Marinara data root carries while it is not safe to read. */

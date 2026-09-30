@@ -89,7 +89,22 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * library surface that is their only reader — a loading decision, which a
  * feature stage should not make in passing.
  */
-const JS_CEILING_KB = 325;
+/*
+ * ***Raised to 331 on 2026-09-30, at the merge of P13 after P14*** — no stage
+ * of either grew it; the two branches did, each inside its own ceiling.
+ * [P13](../docs/design/workplan/30-p13-aventuras-import.md) was built against
+ * 310 and never reached it, and P14 raised to 325 for itself without P13's
+ * client on the entry. Merged, the entry measured **326.03**: P14's **320.25**
+ * and about **5.8 kB** of P13's own code — the Aventuras review sentences in
+ * `note-labels.ts` (on the entry for P14.5c's reason above), the import
+ * panel's *stories* choice, the landed-upload meter and its preview, and the
+ * `.avt` sniff. **No new dependency** — neither side touched a manifest —
+ * which is the [20 §7] trigger. The same five kB of margin again, and the
+ * same remedy named twice above and still not taken: the note sentences off
+ * the entry with the library surface that is their only reader, which is a
+ * loading decision and not a merge's to make.
+ */
+const JS_CEILING_KB = 331;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

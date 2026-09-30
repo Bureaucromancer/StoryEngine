@@ -154,7 +154,14 @@ export interface SessionContext {
   deleting?: (sessionId: string) => Promise<void>;
 }
 
-function scopeOf(context: SessionContext, handle: string): string {
+/**
+ * The owner key this account's session rows are filed under — `user:<handle>`
+ * unless a caller says otherwise. Exported for the importer
+ * ([P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md)),
+ * which asks the index about this account's sessions and its library and has
+ * to ask under the key the rows were written with.
+ */
+export function scopeOf(context: SessionContext, handle: string): string {
   return (context.scope ?? ((each: string) => `user:${each}`))(handle);
 }
 

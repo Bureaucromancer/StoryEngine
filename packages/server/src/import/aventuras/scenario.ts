@@ -115,10 +115,31 @@ const CONSUMED = new Set([
   'updatedAt',
 ]);
 
+/**
+ * How the caller will treat what the converter cannot see from the object
+ * alone — [P13.5](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ */
+export interface ScenarioConversionOptions {
+  /**
+   * ***The caller resolves `linkedLorebookId` itself***, so the converter must
+   * not say it could not.
+   *
+   * A *file* cannot resolve the link — the id names a row in somebody's
+   * install, and the file is one row of it — so the converter says so
+   * whenever the link is there, and that stays the file path's behaviour. A
+   * `scenario_vault` row arrives in a sweep that has just stored the
+   * `lorebook_vault` rows beside it (§1.7), and the Writer turns the link into
+   * `treatment.lore`; *not there* is then a fact about the database the Writer
+   * knows and this does not. Absent means `false`: a file.
+   */
+  resolvesLinks?: boolean;
+}
+
 export function convertScenario(
   input: unknown,
   fallbackName: string,
   destination: ImportDestination = 'treatment',
+  options: ScenarioConversionOptions = {},
 ): ParseOutcome<ConvertedScenario> {
   if (!isRecord(input) || !isVaultScenario(input)) return refused('wrong-shape');
 
@@ -130,7 +151,7 @@ export function convertScenario(
   const npcs = readNpcs(input['npcs']);
   const openings = readOpenings(input);
 
-  linkedLorebookWarning(input, notes);
+  if (options.resolvesLinks !== true) linkedLorebookWarning(input, notes);
 
   return destination === 'lorebook'
     ? parsed(asLorebook(input, name, settingSeed, npcs, openings, notes))
@@ -332,6 +353,11 @@ function entryBody(npc: Npc): string {
  * meaningless here — it names a row in their install — but its presence is a
  * fact worth reporting, because the remedy is a second export they have to go
  * and do.
+ *
+ * ***A file only*** since
+ * [P13.5](../../../../../docs/design/workplan/30-p13-aventuras-import.md): from
+ * the database the link resolves, and the Writer says *missing* only when the
+ * row it names is not there (`ScenarioConversionOptions.resolvesLinks`).
  */
 function linkedLorebookWarning(
   scenario: Readonly<Record<string, unknown>>,

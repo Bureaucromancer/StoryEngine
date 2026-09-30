@@ -64,6 +64,14 @@ export interface LocalSource {
   list(): AsyncIterable<string>;
   read(path: string): Promise<Uint8Array | null>;
   exists(path: string): Promise<boolean>;
+  /**
+   * The file's real, absolute path on this machine, or null —
+   * [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * Required here and optional on the importer's `FileSource`, because this is
+   * the one source that has a disk under it. See `DirectorySource.realPath`.
+   */
+  realPath(path: string): Promise<string | null>;
 }
 
 /**
@@ -293,7 +301,7 @@ class DirectorySource implements LocalSource {
   }
 
   async read(path: string): Promise<Uint8Array | null> {
-    const full = this.#resolve(path);
+    const full = await this.#reach(path);
     if (full === null) return null;
     try {
       // Asked before reading, not after: `readFile` on a very large file has
@@ -307,14 +315,72 @@ class DirectorySource implements LocalSource {
   }
 
   async exists(path: string): Promise<boolean> {
-    const full = this.#resolve(path);
-    if (full === null) return false;
+    return (await this.#reach(path)) !== null;
+  }
+
+  /**
+   * ***Where a file really is, for a reader that has to hand it to something
+   * that is not us*** — [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * The Aventuras reader hands its database to SQLite, which opens a path and
+   * not a byte array, and it has to: `VACUUM INTO` from the real file is the
+   * only way to copy a database somebody else is writing without tearing it,
+   * and the only way to take one past `maxFileBytes` without holding it in
+   * memory ([§1.11]). So this is the one method here with **no size ceiling**,
+   * and that is the reason it exists rather than an oversight in it.
+   *
+   * Every refusal `read` makes — which is `#reach`'s, links followed and
+   * their targets checked — and one more: **a regular file
+   * or nothing.** The only caller wants a database, and a directory or a
+   * device handed to SQLite as one is a refusal waiting to be made in a worse
+   * place.
+   */
+  async realPath(path: string): Promise<string | null> {
+    const real = await this.#reach(path);
+    if (real === null) return null;
     try {
-      await stat(full);
-      return true;
+      return (await stat(real)).isFile() ? real : null;
     } catch {
-      return false;
+      return null;
     }
+  }
+
+  /**
+   * ***Where a path really leads, or null***: every refusal `#resolve` makes,
+   * and then the same two again on the target — for `read`, `exists` and
+   * `realPath` alike.
+   *
+   * `#resolve` is lexical: it refuses `..` and a name spelled into our data
+   * directory, and it cannot see that `link/accounts.json` is a symbolic link
+   * to somewhere else. So the path is resolved through its links, and a target
+   * outside the root — or inside our own store, however it was reached — is
+   * refused exactly as a spelled one is. A link that stays inside the root is
+   * allowed, since it names nothing the root did not already reach.
+   *
+   * ***`read` and `exists` went without this until P13.1's review***
+   * (2026-09-29), which reproduced `read('link/accounts.json')`, with `link`
+   * pointing at the data directory, returning our accounts file, and a link
+   * to a file outside the root returning that file. The walk not following
+   * links was the whole of the defence, and a path does not have to come from
+   * the walk: the readers build their own — a Marinara manifest's table, a
+   * card's portrait — and `FileSource`'s contract promised links that leave
+   * are refused. `realPath` was written with the check, because a path it
+   * gives away is followed by something that is not us; the same review
+   * found the reader's documented fallback from a refused `realPath` to
+   * `read` handing over our operational store, which is why the check now
+   * lives here, once, for all three.
+   */
+  async #reach(path: string): Promise<string | null> {
+    const full = this.#resolve(path);
+    if (full === null) return null;
+    let real: string;
+    try {
+      real = await realpath(full);
+    } catch {
+      return null;
+    }
+    if (!contains(this.#root, real)) return null;
+    return this.#isOurs(real) ? null : real;
   }
 
   /**

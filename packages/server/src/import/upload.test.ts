@@ -3,6 +3,8 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { AVT_FORMAT } from './aventuras/avt.js';
+import { SILLYTAVERN_CHAT_FORMAT } from './sillytavern/chat.js';
 import { readUpload, type ProbeConfidence } from './upload.js';
 
 /**
@@ -306,5 +308,54 @@ describe('a chat file', () => {
     expect(readUpload('server.log', log, 'any').outcome).toBe('candidate');
     expect(readUpload('server.log', log, 'high').outcome).toBe('observed');
     expect(format(readUpload('Vera.jsonl', lines(LINE, LINE), 'high'))).toBe('sillytavern.chat');
+  });
+});
+
+/**
+ * ***The probe's order, where two branches each put a probe first*** — the
+ * merge of [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md)
+ * and [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * P13.15 put the Aventuras story-file probe ahead of every JSON shape, because
+ * a `.avt` has `entries` and the SillyTavern world probe took it for a
+ * lorebook. P14.8 put the chat probes where JSON Lines fail the document
+ * parse, and a one-line chat where the document parse succeeds. Each branch
+ * tested its own half; this holds the two together, so a later reordering
+ * that lets one take the other's file is a red test rather than a story
+ * imported as lore, or a chat imported as a story.
+ */
+describe('a story file and a chat, read by one probe', () => {
+  const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
+  const format = (item: ReturnType<typeof readUpload>): string | null =>
+    item.outcome === 'candidate' ? item.candidate.format : null;
+
+  /** The least a `.avt` is: a 1.x version, a `story` with an id, and `entries`. */
+  const AVT = JSON.stringify({
+    version: '1.10.0',
+    story: { id: 'story-1', title: 'The Lantern Fork' },
+    entries: [],
+  });
+  const HEADER = { user_name: 'You', character_name: 'Vera', chat_metadata: {} };
+  const LINE = { name: 'Vera', is_user: false, mes: 'Hm.', send_date: '2026-01-01T10:00:00Z' };
+
+  it('reads a story file as a story, at either confidence, whatever it is called', () => {
+    expect(format(readUpload('The Lantern Fork.avt', encode(AVT)))).toBe(AVT_FORMAT);
+    expect(format(readUpload('worlds.json', encode(AVT), 'high'))).toBe(AVT_FORMAT);
+    expect(format(readUpload('chat.jsonl', encode(AVT)))).toBe(AVT_FORMAT);
+  });
+
+  it('leaves a chat to the chat probes, even one whose lines say story and entries', () => {
+    // The two keys a story file is recognised by, inside a chat's line: the
+    // story probe's first look (`mayBeAvt`) finds them, and its parse then
+    // finds more than one document and lets the chat probes have it.
+    const talk = { ...LINE, mes: 'The story so far.', extra: { story: {}, entries: [] } };
+    const chat = [HEADER, LINE, talk].map((row) => JSON.stringify(row)).join('\n');
+
+    expect(format(readUpload('Vera.jsonl', encode(chat)))).toBe(SILLYTAVERN_CHAT_FORMAT);
+    expect(format(readUpload('Vera.jsonl', encode(chat), 'high'))).toBe(SILLYTAVERN_CHAT_FORMAT);
+    // A header alone is one JSON document, and still not a story file.
+    expect(format(readUpload('Vera.jsonl', encode(JSON.stringify(HEADER))))).toBe(
+      SILLYTAVERN_CHAT_FORMAT,
+    );
   });
 });

@@ -114,6 +114,73 @@ describe('what a Marinara data root has to carry', () => {
   });
 });
 
+/**
+ * ***An Aventuras folder*** — [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * One database, its log and a backup's note; and the database and its log are
+ * one thing, which the budget may not split (found at the P13.2 review).
+ */
+describe('what an Aventuras folder has to carry', () => {
+  const FOLDER: ManifestEntry[] = [
+    { path: 'aventura.db', bytes: 1_000 },
+    { path: 'aventura.db-wal', bytes: 200 },
+    { path: 'aventura.db-shm', bytes: 32 },
+    { path: 'metadata.json', bytes: 10 },
+    { path: 'stories/the-drowned-bell.avt', bytes: 50 },
+  ];
+
+  it('carries the database, its log and the note, and only names the rest', () => {
+    const plan = planUpload('aventuras', FOLDER, HUGE);
+
+    expect(plan.wanted).toEqual(['aventura.db', 'aventura.db-wal', 'metadata.json']);
+    // The index of the log is not data, and an older backup's stories are in
+    // the database already.
+    expect(plan.declared).toEqual(['aventura.db-shm', 'stories/the-drowned-bell.avt']);
+  });
+
+  it('never carries the database without its log', () => {
+    // Room for the database and not for its log: carrying the one would hand
+    // the reader an older database that looks whole. Both are declared, and
+    // what still fits is carried.
+    const plan = planUpload('aventuras', FOLDER, 1_100);
+
+    expect(plan.wanted).toEqual(['metadata.json']);
+    expect(plan.declared).toEqual([
+      'aventura.db',
+      'aventura.db-wal',
+      'aventura.db-shm',
+      'stories/the-drowned-bell.avt',
+    ]);
+    expect(plan.wantedBytes).toBe(10);
+  });
+
+  it('decides the pair together whichever the manifest names first', () => {
+    const reversed = [FOLDER[1]!, FOLDER[0]!, FOLDER[3]!];
+
+    expect(planUpload('aventuras', reversed, 1_200).wanted).toEqual([
+      'aventura.db-wal',
+      'aventura.db',
+    ]);
+    expect(planUpload('aventuras', reversed, 1_199).wanted).toEqual(['metadata.json']);
+  });
+
+  it('carries a database with no log beside it on its own', () => {
+    const plan = planUpload('aventuras', [FOLDER[0]!, FOLDER[3]!], 1_000);
+
+    expect(plan.wanted).toEqual(['aventura.db']);
+    expect(plan.declared).toEqual(['metadata.json']);
+  });
+
+  it('accounts for every entry exactly once, whatever the budget', () => {
+    for (const budget of [0, 10, 1_000, 1_199, 1_200, 1_210, HUGE]) {
+      const plan = planUpload('aventuras', FOLDER, budget);
+      expect([...plan.wanted, ...plan.declared].sort()).toEqual(
+        FOLDER.map((entry) => entry.path).sort(),
+      );
+      expect(plan.wantedBytes).toBeLessThanOrEqual(budget);
+    }
+  });
+});
+
 describe('a folder nobody arranged', () => {
   it('carries everything, because the probe reads every file', () => {
     // [P4 §7.8]: a loose root has no positions to route by, so it asks each file

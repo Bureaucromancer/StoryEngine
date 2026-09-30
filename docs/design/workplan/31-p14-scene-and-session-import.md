@@ -2325,6 +2325,19 @@ two cases; the rest of §2.7 is one case each there, and the two doors are in
 - **Not done.** A backup restored under another account handle names the same
   source with ids hashed for the old handle, so a sync there appends the whole
   family beside itself. A group's renamed title does not rename the session.
+- *Since the merge with [P13](30-p13-aventuras-import.md), 2026-09-30.* P13.10
+  indexed the same column at the same version, for an Aventuras story's
+  re-import to be *refused*; the merge kept one column and this stage's
+  `sessionByOrigin`. Two things reach this stage's doors. **A door that does
+  not ask for `extend`** — an export or a backup — **is refused
+  `already-here` by the key too**, naming the session, where it was refused
+  by held turns only: so a backup restored under another handle into an
+  account that already imported the same chat is `skipped` there, rather than
+  a second session beside it; the case *Not done* describes, where the account
+  has no such session, is unchanged. **And every door's turns are put in tree
+  order first** (`treeOf`), the `extend` arm's included, refused
+  `broken-tree` only for a dangling parent, a cycle or a head not in the
+  document, none of which a chat's converter writes.
 
 #### P14.11 — The first turn after a long import
 

@@ -125,3 +125,20 @@ export function strings(value: unknown): string[] {
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
 }
+
+/**
+ * ***The vault lorebook a character or a scenario links to***, or `null` —
+ * [P13 §1.7](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * `metadata.linkedLorebookId`, where Aventuras keeps it on both kinds
+ * (`characterVault.svelte.ts`, `scenarioVault.svelte.ts`) when it splits a
+ * card's embedded `character_book` into a vault book of its own. Read by
+ * truthiness, as Aventuras' own vault browser reads it
+ * (`!!item.metadata?.linkedLorebookId`): an empty string links to nothing
+ * there, so it links to nothing here.
+ */
+export function linkedLorebookId(metadata: unknown): string | null {
+  if (!isRecord(metadata)) return null;
+  const id = metadata['linkedLorebookId'];
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}

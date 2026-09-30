@@ -702,6 +702,7 @@ interface Config {
   }
   limits: {
     maxUploadMb: number
+    maxImportUploadMb: number                // [P13.8]
     extensionStorageQuotaMb: number
     contextTokens: number                    // [25 E5]
     reservedCompletionTokens: number
@@ -737,6 +738,7 @@ interface Config {
 | `sessions.streamKeepaliveMs` | `reconnect` | `15000` | A keepalive is a property of a connection, so an open stream keeps the interval it opened with |
 | `sessions.streamCoalesceMs` | `live` | `250` | How long streamed text accumulates before a durable checkpoint. `0` checkpoints every chunk |
 | `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; ~~there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3)~~ *corrected 2026-09-27:* read on every upload since [P4.1](workplan/16-p4-implementation.md), a file or a folder's total, so `applied`; the only bound on an upload, since Fastify's `bodyLimit` never sees a multipart body |
+| `limits.maxImportUploadMb` | `live` | `1024` | The largest archive or SQLite database `POST /api/import/file` takes, added at [P13.8](workplan/30-p13-aventuras-import.md). Those two are landed on disk as they arrive rather than buffered, and this bounds that landing alone; everything else stays under `maxUploadMb`. **A cap of its own rather than a `max()` against `maxUploadMb`**, so it can be *lowered* — below `maxUploadMb` too — and tighten the one upload written to the data volume at any size, which every signed-in account may send. `applied`: read per request, before the body and as it lands |
 | `limits.extensionStorageQuotaMb` | `live` | `32` | |
 | `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([25 E5](25-open-questions.md)) |
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
@@ -992,9 +994,12 @@ changes.**
 This exists because a settings surface that shows a control doing nothing is the
 placeholder [work plan §2.2](workplan/01-work-plan.md) forbids, and remembering
 which keys are which is not a mechanism. ~~Of the eleven keys tiered `live` at
-P2A, five are applied and six are honestly declared unread.~~ **Thirteen are
+P2A, five are applied and six are honestly declared unread.~~ ~~**Thirteen are
 tiered `live` today; nine are applied and four are honestly declared unread**
-(counted 2026-09-13). *The direction of travel is the point rather than the
+(counted 2026-09-13).~~ **Eighteen are tiered `live` today; sixteen are applied
+and two are honestly declared unread** (counted 2026-09-29, when
+[P13.8](workplan/30-p13-aventuras-import.md) added `limits.maxImportUploadMb`,
+applied from the start). *The direction of travel is the point rather than the
 figures* — the table was designed so that a key acquiring a reader is a one-word
 edit and a visible one, and two phases of ordinary work moved four keys across
 it without anybody re-tiering anything.

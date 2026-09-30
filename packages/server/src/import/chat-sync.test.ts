@@ -136,6 +136,7 @@ const ASKED = [player(1, 'Manifests?'), vera(2, 'Define unusual.')];
 async function run(tree: Record<string, Uint8Array | string>): Promise<ImportItemReport[]> {
   const outcome = await sweep({
     library: server.services.library,
+    tags: server.services.tags,
     sessions: server.services.sessions,
     handle: 'ned',
     files: new MemoryFileSource(tree),

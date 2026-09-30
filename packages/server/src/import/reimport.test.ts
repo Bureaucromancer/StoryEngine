@@ -44,6 +44,7 @@ async function run(tree: Record<string, Uint8Array | string>, onConflict?: Confl
   const outcome = await sweep({
     library: server.services.library,
     handle: 'ned',
+    tags: server.services.tags,
     files: new MemoryFileSource(tree),
     ...(onConflict === undefined ? {} : { onConflict }),
   });

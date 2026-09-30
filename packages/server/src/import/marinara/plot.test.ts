@@ -130,6 +130,7 @@ describe('a Marinara roleplay whose director kept a plot, swept', () => {
   it('writes the root’s arc on the head turn, and the session opens with it hidden', async () => {
     const outcome = await sweep({
       library: server.services.library,
+      tags: server.services.tags,
       sessions: server.services.sessions,
       handle: 'ned',
       files: new MemoryFileSource(marinaraFixture()),

@@ -297,6 +297,7 @@ describe('against a real library, after a real sweep', () => {
     // the session pass does with it.
     const outcome = await sweep({
       library: server.services.library,
+      tags: server.services.tags,
       handle: 'ned',
       files: new MemoryFileSource(tree),
     });

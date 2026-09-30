@@ -138,7 +138,10 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
 /**
  * `origin.originalFilename`, read as the file a person may have edited: a
  * string or nothing, since a hand-written number here must not throw out of
- * every write of the session.
+ * every write of the session. *Any origin's*, not only an `import` one's
+ * ([P13.10] first read only those): `importSession` stamps `source: 'import'`
+ * on everything it writes, so the two readings differ only for a hand edit,
+ * and this one agrees with what the importer reads out of a document.
  */
 function originFilenameOf(session: SessionFile): string | null {
   const named: unknown = session.origin?.originalFilename;
@@ -146,35 +149,45 @@ function originFilenameOf(session: SessionFile): string | null {
 }
 
 /**
- * ***The session this account made from a source*** —
- * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
- * [P14.10a].
+ * ***The session this account made from a source***, or null —
+ * [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md) and
+ * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * ([P14.10a]), which each needed it, on two branches at once, and each wrote
+ * it; this is the one that survived the merge. The session half of
+ * `findPriorImport`.
  *
  * The library's re-import rule, applied to a session: *same owner, same
- * `originalFilename`* is the same thing (`import/identity.ts`). An imported
- * chat's session carries its family's root path there, so a later import of
- * the same chat asks this and extends what it finds instead of making a second
- * session.
+ * `originalFilename`* is the same thing (`import/identity.ts`). **Two callers
+ * ask it for two answers**: a producer's re-import (`aventura.db/stories/<id>`)
+ * is refused `already-here` naming what this finds, and a chat's (its
+ * family's root path) extends it.
+ *
+ * **Per owner**, as the library's rule is and for its reason: two accounts
+ * importing one source are two people with a session each, and telling the
+ * second that the first already has it would say something about an account
+ * it cannot see. *Archived sessions count* — archiving hides from a list
+ * rather than removing ([03 §10.3]), and an archived chat that grew is still
+ * that chat. A session in the trash has no row and does not count; see the
+ * importer's header for what that costs.
  *
  * *The newest, if several*: two sessions can claim one source only when one
- * was restored from a backup beside the other, and the one somebody made last
- * is the likelier one to mean. Archived sessions count — archiving hides from a
- * list rather than removing ([03 §10.3]), and an archived chat that grew is
- * still that chat.
+ * was restored from a backup beside the other, or copied by hand, and the one
+ * somebody touched last is the likelier one to mean. The id breaks a tie, so
+ * the same one answers every time.
  */
 export function sessionByOrigin(
   db: DatabaseSync,
   owner: string,
   originalFilename: string,
-): string | null {
+): { sessionId: string; name: string } | null {
   const row = db
     .prepare(
-      `select session_id from session
+      `select session_id, name from session
         where owner = ? and origin_filename = ?
-        order by updated_at desc limit 1`,
+        order by updated_at desc, session_id limit 1`,
     )
-    .get(owner, originalFilename) as { session_id: string } | undefined;
-  return row?.session_id ?? null;
+    .get(owner, originalFilename) as { session_id: string; name: string } | undefined;
+  return row === undefined ? null : { sessionId: row.session_id, name: row.name };
 }
 
 /**
@@ -469,7 +482,7 @@ export function turnsNotHeld(db: DatabaseSync, turnIds: Iterable<string>): numbe
 export function sessionSnapshot(db: DatabaseSync): string[] {
   const sessions = db
     .prepare(
-      `select session_id, owner, name, head_turn_id, archived, updated_at
+      `select session_id, owner, name, head_turn_id, archived, updated_at, origin_filename
          from session order by session_id`,
     )
     .all() as Record<string, unknown>[];

@@ -314,6 +314,7 @@ describe('a Marinara roleplay with trackers, swept', () => {
   }> {
     const outcome = await sweep({
       library: server.services.library,
+      tags: server.services.tags,
       sessions: server.services.sessions,
       handle: 'ned',
       files: new MemoryFileSource(marinaraFixture()),

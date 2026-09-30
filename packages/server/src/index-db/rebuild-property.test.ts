@@ -19,6 +19,7 @@ import { LibraryWatcher } from './watcher.js';
 import { sillyTavernFixture } from '../import/fixtures/test-sillytavern.js';
 import { MemoryFileSource } from '../import/memory-source.js';
 import { sweep } from '../import/sweep.js';
+import { TagStore } from '../tags/store.js';
 
 /**
  * **The gate**: a rebuild from disk equals the incrementally maintained index —
@@ -591,6 +592,7 @@ describe('a rebuild agrees with the index a bulk import built', () => {
       const outcome = await sweep({
         library: { db: library.db, layout: library.layout, keepHistoryPerObject: 10 },
         handle: 'ned',
+        tags: new TagStore(library.layout),
         files: new MemoryFileSource(sillyTavernFixture()),
       });
       if (!outcome.ok) throw new Error(`the fixture root was refused: ${outcome.refusal}`);

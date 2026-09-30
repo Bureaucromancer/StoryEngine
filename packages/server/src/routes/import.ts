@@ -9,6 +9,7 @@ import type {
   ImportItemReport,
   ImportNote,
   ImportPreview,
+  ImportReport,
   NearMissOffer,
 } from '@storyengine/shared';
 
@@ -19,7 +20,9 @@ import { MemoryFileSource } from '../import/memory-source.js';
 import { nearMiss } from '../import/near-miss.js';
 import { previewOne } from '../import/preview.js';
 import { SILLYTAVERN_CHAT_FORMAT } from '../import/sillytavern/chat.js';
-import { readUpload } from '../import/upload.js';
+import { readAvtUpload, readUpload } from '../import/upload.js';
+import type { AvtStory } from '../import/aventuras/avt.js';
+import { priorSessionImport } from '../sessions/import.js';
 import { FORWARDED_SAMPLER_PARAMS } from '../providers/forwarded-params.js';
 import {
   profileAsFileSource,
@@ -36,10 +39,16 @@ import {
   recordImport,
   recordRefusal,
 } from '../import/jobs.js';
-import { convertOne, sweep } from '../import/sweep.js';
+import { convertOne, sweep, type SweepOutcome, type SweepRequest } from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
+import { LandedDatabaseSource, LandedZipSource } from '../import/landed-source.js';
+import type { FileSource } from '../import/source.js';
 import { readSession } from '../sessions/store.js';
+import { looksLikeSqlite, SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
+import { LandingSpaceError } from '../storage/upload-landing.js';
 import { looksLikeZip } from '../storage/zip.js';
+import { DEFAULT_ZIP_FILE_LIMITS } from '../storage/zip-file.js';
+import { receiveImportUpload, type ReceivedUpload } from './import-upload.js';
 import {
   openLocalSource,
   openParentSource,
@@ -72,6 +81,23 @@ import {
 interface UploadResult {
   item: ImportItemReport;
   notes: ImportNote[];
+  /**
+   * ***The whole review, when the file was a root*** —
+   * [P13.7](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * Absent for a single file, whose one row is the review.
+   *
+   * `item` and `notes` answer an archive as though it were one file, which
+   * was a fair summary of a zip of cards and is not one of an Aventuras
+   * backup: a library of rows answered with its first converted row, and the
+   * second upload of the same backup with one `recorded` row named for the
+   * zip — so *everything was unchanged*, the answer a re-import exists to
+   * give, could not be read through this door at all, where the sweep and the
+   * folder upload both give it row by row. The report is carried beside the
+   * summary rather than instead of it so a client that reads only `item` goes
+   * on working; its `jobId` is `unsaved`, as the folder upload's is, since
+   * neither upload door records a job.
+   */
+  report?: ImportReport;
 }
 
 const MEGABYTE = 1024 * 1024;
@@ -102,6 +128,41 @@ class FolderTooLarge extends Error {}
  * not a second line of defence anybody has watched hold.
  */
 const MAX_FOLDER_FILES = 50_000;
+
+/**
+ * ***No room to copy somebody's database is a state of the disk, not a server
+ * fault*** — [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md),
+ * answering `routes/backups.ts`'s way: `507 no-space`, with the numbers.
+ *
+ * An Aventuras sweep takes a private copy of the database before it reads a
+ * row (`storage/sqlite-snapshot.ts`), and a copy the size of somebody's
+ * install is the one thing an import does that can fill the data volume. The
+ * snapshot checks for room first and throws `SnapshotSpaceError` when there is
+ * none, which is the right thing for it to do and was the error handler's bare
+ * `500` until this: logged as *Unhandled error*, and answered with a sentence
+ * that said nothing a person could act on. `ENOSPC` is the same answer arrived
+ * at late — something else filled the disk while the copy was written, noticed
+ * by our own write or by SQLite's, which the snapshot throws with that code.
+ *
+ * Answers and returns `true` when it was one of those; the caller rethrows
+ * anything else. Exported for its own test: a late `ENOSPC` is the one arm no
+ * route test can make happen, since the services' `freeBytes` seam produces
+ * only the early one.
+ */
+export function answeredNoRoom(error: unknown, reply: FastifyReply): boolean {
+  const late = (error as NodeJS.ErrnoException | null)?.code === 'ENOSPC';
+  // `LandingSpaceError` since [P13.8]: the landing answers its own, with the
+  // connection closed behind it, and this is the backstop for one that is not.
+  const early = error instanceof SnapshotSpaceError || error instanceof LandingSpaceError;
+  if (!early && !late) return false;
+  void reply.code(507).send({
+    error: 'no-space',
+    message: early
+      ? error.message
+      : 'There is not enough free space on the disk to read this import.',
+  });
+  return true;
+}
 
 function isTooLarge(error: unknown): boolean {
   return (
@@ -137,6 +198,23 @@ function conflictPolicy(value: string | null): ConflictPolicy | undefined {
  */
 function destination(value: string | null): ImportDestination | undefined {
   return value === 'treatment' || value === 'lorebook' ? value : undefined;
+}
+
+/**
+ * ***Whether the sweep brings an Aventuras install's stories as sessions*** —
+ * [P13.11](../../../../docs/design/workplan/30-p13-aventuras-import.md), and
+ * `SweepRequest.stories` for why it is asked rather than assumed.
+ *
+ * **Only the word `true` asks**, off a multipart field as off a JSON body: a
+ * sweep that writes sessions is the one kind a person has to take back one at
+ * a time, so anything else — a missing field, `1`, `on` — is the default,
+ * which writes none. The answer is the context the Writer needs, or nothing.
+ */
+function storiesFor(
+  services: AppServices,
+  asked: string | boolean | null | undefined,
+): SweepRequest['stories'] {
+  return asked === true || asked === 'true' ? { sessions: services.sessions } : undefined;
 }
 
 /**
@@ -240,7 +318,11 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     // CSRF is the app-wide hook's business and applies here like any mutation —
     // named because an upload route is exactly where somebody would be tempted
     // to make an exception for a form post.
-    const part = await readOnePart(request, reply, services);
+    //
+    // ***Not `readOnePart` since [P13.8]***: an archive or a database is landed
+    // on disk rather than buffered (`import-upload.ts`), and everything else is
+    // buffered under the limit it always had.
+    const part = await receiveImportUpload(request, reply, services);
     if (part === null) return;
 
     /**
@@ -272,6 +354,13 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const into = destination(part.field('destination'));
 
     /**
+     * ***And whether to bring stories*** — [P13.11]. Before the file for the
+     * same reason again; read by an Aventuras database or backup and by
+     * nothing else, which is every archive this door lands.
+     */
+    const stories = storiesFor(services, part.field('stories'));
+
+    /**
      * ***`kind: chat` — the file must be a chat, or nothing is written*** —
      * [P14.8]. Play's *Import session* sends a `.jsonl` here and opens the
      * row's `objectId` as a session. Without this, a `.jsonl` that was really a
@@ -281,15 +370,43 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      */
     const only = part.field('kind') === 'chat' ? 'chat' : undefined;
 
-    const result = await importOneFile(
-      services,
-      account.handle,
-      part.filename,
-      part.bytes,
-      onConflict,
-      into,
-      only,
-    );
+    let result: UploadResult | null = null;
+    let failure: { error: unknown } | null = null;
+    try {
+      // An archive holding an `aventura.db` is swept like any root, and the
+      // sweep may need room for a copy of it.
+      result =
+        part.kind === 'landed'
+          ? await importLanded(services, account.handle, part, onConflict, request.log, {
+              stories,
+              only,
+            })
+          : await importOneFile(
+              services,
+              account.handle,
+              part.filename,
+              part.bytes,
+              onConflict,
+              into,
+              only,
+            );
+    } catch (error) {
+      failure = { error };
+    } finally {
+      /**
+       * The landing, and the large-upload slot, however the import ended —
+       * ***and before anything is answered***. A reply sent first lets the
+       * client, and the next request, see a server still holding a gigabyte
+       * of scratch and the slot for a moment after it said it was done; found
+       * by the test that looks at scratch as soon as a `507` arrives.
+       */
+      if (part.kind === 'landed') await part.release().catch(() => undefined);
+    }
+    if (failure !== null) {
+      if (answeredNoRoom(failure.error, reply)) return reply;
+      throw failure.error;
+    }
+    if (result === null) throw new Error('An import finished with neither a result nor a failure.');
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
   });
 
@@ -366,7 +483,8 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       });
     }
 
-    const body = request.body as { root: string; onConflict?: ConflictPolicy };
+    const body = request.body as { root: string; onConflict?: ConflictPolicy; stories?: boolean };
+    const stories = storiesFor(services, body.stories);
     const opened = await openLocalSource(body.root, services.layout.dataRoot);
     if (!opened.ok) {
       // Recorded here as well as below, because **there are two places a root can
@@ -387,14 +505,26 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         .send({ error: opened.refusal, message: refusalMessage(opened.refusal) });
     }
 
-    const outcome = await sweep({
-      library: services.library,
-      // Chats become sessions in the same sweep ([P14.8]), after the cards.
-      sessions: services.sessions,
-      handle: account.handle,
-      files: opened.source,
-      ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
-    });
+    let outcome: SweepOutcome;
+    try {
+      outcome = await sweep({
+        library: services.library,
+        // Chats become sessions in the same sweep ([P14.8]), after the cards.
+        sessions: services.sessions,
+        handle: account.handle,
+        tags: services.tags,
+        files: opened.source,
+        freeBytes: services.freeBytes,
+        log: request.log,
+        ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
+        ...(stories === undefined ? {} : { stories }),
+      });
+    } catch (error) {
+      // Not recorded as a refusal: nothing was wrong with the folder, and the
+      // same request succeeds once there is room.
+      if (answeredNoRoom(error, reply)) return reply;
+      throw error;
+    }
 
     if (!outcome.ok) {
       // Recorded even though nothing was written, because *why did my import not
@@ -516,7 +646,10 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         library: services.library,
         sessions: services.sessions,
         handle: account.handle,
+        tags: services.tags,
         files: opened.source,
+        freeBytes: services.freeBytes,
+        log: request.log,
         onConflict: 'skip',
       });
       if (!outcome.ok) {
@@ -674,6 +807,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const carried: Record<string, Uint8Array> = {};
     let manifest: string[] = [];
     let onConflict: ConflictPolicy | undefined;
+    let stories: SweepRequest['stories'];
     /**
      * ***Whether the person chose chats*** — [P14.8]. `skip` says they did not,
      * and the chats they were offered were named in the manifest and never
@@ -721,6 +855,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         }
         if (part.fieldname === 'manifest') manifest = parseManifest(String(part.value));
         if (part.fieldname === 'onConflict') onConflict = String(part.value) as ConflictPolicy;
+        if (part.fieldname === 'stories') stories = storiesFor(services, String(part.value));
         if (part.fieldname === 'chats') {
           chats = String(part.value) !== 'skip';
           included = String(part.value) === 'include';
@@ -750,17 +885,27 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const notCarried = included
       ? new Set(manifest.filter((path) => !Object.hasOwn(carried, path)))
       : undefined;
-    const outcome = await sweep({
-      library: services.library,
-      sessions: services.sessions,
-      handle: account.handle,
-      files,
-      chats,
-      ...(notCarried === undefined
-        ? {}
-        : { notCarried, uploadLimitMb: services.config.limits.maxUploadMb }),
-      ...(onConflict === undefined ? {} : { onConflict }),
-    });
+    let outcome: SweepOutcome;
+    try {
+      outcome = await sweep({
+        library: services.library,
+        sessions: services.sessions,
+        handle: account.handle,
+        tags: services.tags,
+        files,
+        freeBytes: services.freeBytes,
+        log: request.log,
+        chats,
+        ...(notCarried === undefined
+          ? {}
+          : { notCarried, uploadLimitMb: services.config.limits.maxUploadMb }),
+        ...(onConflict === undefined ? {} : { onConflict }),
+        ...(stories === undefined ? {} : { stories }),
+      });
+    } catch (error) {
+      if (answeredNoRoom(error, reply)) return reply;
+      throw error;
+    }
 
     if (!outcome.ok) {
       return reply
@@ -913,6 +1058,8 @@ const SweepBody = Type.Object(
     onConflict: Type.Optional(
       Type.Union([Type.Literal('replace'), Type.Literal('keep-both'), Type.Literal('skip')]),
     ),
+    /** Bring an Aventuras install's stories as sessions — [P13.11]. Absent is no. */
+    stories: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -932,8 +1079,12 @@ function sweepRefusalMessage(refusal: SourceRefusal): string {
   switch (refusal) {
     case 'live-install':
       return 'That application is running, or is part-way through an upgrade. Close it and try again.';
+    // *Reworded at the P13.2 review.* This said only "written by a newer
+    // version", which was Marinara's one cause; an Aventuras database is
+    // refused for a part it lacks and never for being newer (P13 §1.4), and a
+    // backup archive with no manifest is not newer either.
     case 'unknown-format':
-      return 'That folder was written by a newer version than this build understands.';
+      return 'That folder is in a format this build cannot read: written by a newer version, or missing a part this build needs.';
     case 'ambiguous-root':
       return 'That folder looks like two different applications at once.';
     case 'unreadable-root':
@@ -1024,6 +1175,92 @@ async function previewUpload(
     );
   }
 
+  /**
+   * ***A SQLite database is a root too*** —
+   * [P13.7](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * Since P13.8 `/import/file` sweeps any SQLite upload, whatever it was
+   * called, as an Aventuras root of one file, and this door went on answering
+   * `unrecognised` for the same bytes — so an older client, or anybody calling
+   * the API directly, was told *not a file this reads* about a file the commit
+   * then imported. The answer is the zip arm's, word for word, because it is
+   * the same fact: a folder in a file, whose contents are the sweep's business.
+   *
+   * **Not opened, where the zip above is.** Opening a zip is a parse of its
+   * central directory in memory, cheap and pure; asking anything of a database
+   * means a copy on disk and a worker (`storage/sqlite-snapshot.ts`), which is
+   * a sweep's worth of machinery for a look that writes nothing. So a SQLite
+   * file that is not Aventuras' — no `_sqlx_migrations`, a column missing — is
+   * called a folder here and refused at the word by the column gate, with an
+   * `import.file.refused` note. That is the order a directory already takes:
+   * `inspect` calls a folder `aventuras` by the name of its database, and the
+   * sweep may still refuse it ([P13 §1.1](../../../../docs/design/workplan/30-p13-aventuras-import.md), as built).
+   *
+   * ***And the client never sends one here*** (`library/import-sniff.ts`). This
+   * door still buffers under `limits.maxUploadMb` rather than landing under
+   * `maxImportUploadMb`, deliberately — it is a look, and a look that took a
+   * gigabyte to scratch would be a second import door with none of the first's
+   * accounting. An Aventuras install is often past the ordinary limit, so a
+   * client that asked here would be refused a `413` for a file the import door
+   * takes, after sending it once to learn what its first sixteen bytes said.
+   * The client reads those bytes itself and answers exactly this; the arm is
+   * for everybody else, and for a database small enough to fit.
+   */
+  if (looksLikeSqlite(bytes)) {
+    return blank(
+      'converted',
+      [{ key: 'import.file.importsAsFolder', params: { file: filename }, level: 'info' }],
+      { kind: 'sweep' },
+    );
+  }
+
+  /**
+   * ***An Aventuras story file*** —
+   * [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * Asked before the file is parsed whole, as the import asks it, for the
+   * size reason `readUpload` gives. *A look, then a word*, as for every
+   * hand-picked file: the look says which story and how much of it — and,
+   * from the story's key, whether it is already a session here, in which case
+   * the word would write nothing. Never `unknown`, since the key answers it
+   * without converting anything.
+   */
+  const avt = readAvtUpload(filename, bytes);
+  if (avt !== null) {
+    if (avt.outcome === 'observed') return blank(avt.report.disposition, avt.report.notes, null);
+    const story = avt.candidate.payload as AvtStory;
+    const prior = priorSessionImport({ sessions: services.sessions }, handle, story.key);
+    const notes: ImportNote[] = [
+      {
+        key: 'import.aventuras.avtStory',
+        params: {
+          story: story.title,
+          version: story.version,
+          entries: story.tally.entries,
+          branches: story.tally.branches,
+        },
+        level: 'info',
+      },
+      ...story.notes,
+      ...(prior === null
+        ? []
+        : [
+            {
+              key: 'import.aventuras.storyAlreadyHere',
+              params: { story: story.title },
+              level: 'info' as const,
+            },
+          ]),
+    ];
+    return {
+      source: filename,
+      disposition: prior === null ? 'converted' : 'unchanged',
+      notes,
+      advisories: [],
+      object: { kind: 'opaque', name: story.title === '' ? filename : story.title },
+      reimport: prior === null ? 'new' : 'unchanged',
+    };
+  }
+
   let parsed: unknown = null;
   try {
     parsed = JSON.parse(new TextDecoder().decode(bytes));
@@ -1087,11 +1324,13 @@ async function importOneFile(
 
   /**
    * ***A chat, or `unrecognised` before anything is tried*** — [P14.8]'s
-   * `kind: chat`. Asked first, so neither the archive arm nor the envelope arm
-   * below can sweep a zip or a Marinara profile into the library on the way
-   * to answering a door that only ever wanted a conversation. A file that is
-   * one falls through to the one-item reader below, which reads it the same
-   * way again and hands it to the session pass.
+   * `kind: chat`. Asked first, so neither the story-file arm nor the envelope
+   * arm below can sweep an `.avt` or a Marinara profile into the library on
+   * the way to answering a door that only ever wanted a conversation — and an
+   * archive, which since [P13.8] never reaches this function, is refused the
+   * same way by {@link importLanded}. A file that is one falls through to the
+   * one-item reader below, which reads it the same way again and hands it to
+   * the session pass.
    */
   if (only === 'chat') {
     const read = readUpload(filename, bytes);
@@ -1103,53 +1342,50 @@ async function importOneFile(
   }
 
   /**
-   * **An archive is a root, so it is swept rather than read as an item**
-   * ([P4 §1.3], [§7.5]).
+   * ***An Aventuras story file, asked before anything parses it whole*** —
+   * [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md).
    *
-   * This is the same argument the profile envelope below makes, and it pays for
-   * three things at once rather than one: a CHARX (`card.json` and its assets),
-   * a zipped Marinara data root — the archive form P4.3 deferred for want of
-   * exactly this reader — and a zip somebody made of their cards folder, which
-   * classifies as `loose-files` and sweeps like any other. None of the readers
-   * learns that the bytes came out of an archive.
+   * **A hand-picked `.avt` brings its story, whatever `stories` says.** The
+   * opt-in (`SweepRequest.stories`) is there to keep a *library* sweep from
+   * filling the session list with every story somebody ever started — two
+   * hundred sessions nobody picked, each taken back by hand. One file, picked
+   * out of a dialog, looked at in a preview that names the story, and then
+   * confirmed, is none of that: it is a request for that story, and the only
+   * thing this file can become. Asking again with a checkbox would ask the
+   * person a question they have already answered twice. A zip of them is a
+   * folder, and is swept under the opt-in like one.
    *
-   * Tried before JSON because a zip is never JSON, and `looksLikeZip` is a
-   * four-byte signature rather than a parse.
+   * *Before the envelope check*, which parses the file whole, for the size
+   * reason `readUpload` gives: the story file is the one JSON here that is
+   * mostly pictures.
    */
-  if (only !== 'chat' && looksLikeZip(bytes)) {
-    const opened = ZipFileSource.open(bytes);
-    if (!opened.ok) {
+  const avt = readAvtUpload(filename, bytes);
+  if (avt !== null) {
+    if (avt.outcome === 'observed') return { item: avt.report, notes: avt.report.notes };
+    const [answer] = await convertOne(
+      {
+        library: services.library,
+        handle,
+        tags: services.tags,
+        files: new MemoryFileSource({}),
+        stories: { sessions: services.sessions },
+      },
+      avt.candidate,
+    );
+    if (answer === undefined) {
       return item('unrecognised', [
-        {
-          key: 'import.file.badArchive',
-          params: { file: filename, refusal: opened.refusal },
-          level: 'warn',
-        },
+        { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
       ]);
     }
-
-    const outcome = await sweep({
-      library: services.library,
-      sessions: services.sessions,
-      handle,
-      files: opened.source,
-      // What a CHARX is identified by: the file the person sent, rather than
-      // the `card.json` inside every one of them.
-      rootName: filename,
-      ...(onConflict === undefined ? {} : { onConflict }),
-    });
-    if (!outcome.ok) {
-      return item('unrecognised', [
-        {
-          key: 'import.file.refused',
-          params: { file: filename, refusal: outcome.refusal },
-          level: 'warn',
-        },
-      ]);
-    }
-    return reportAsUpload(filename, outcome.report.items);
+    return { item: answer, notes: answer.notes };
   }
 
+  /**
+   * ~~**An archive is a root, so it is swept rather than read as an item**~~ —
+   * *moved to {@link importLanded} at [P13.8]*, with its reasoning, because an
+   * archive no longer reaches this function: it is landed on disk before a
+   * byte of it is buffered, and these bytes are never a zip.
+   */
   // Marinara's own export formats, which are the same reader over a different
   // file source ([P4 §1.3]) — a `.marinara.json` is one row of a table that
   // happens to have travelled alone.
@@ -1186,7 +1422,9 @@ async function importOneFile(
       library: services.library,
       sessions: services.sessions,
       handle,
+      tags: services.tags,
       files,
+      freeBytes: services.freeBytes,
       ...(onConflict === undefined ? {} : { onConflict }),
     });
     if (!outcome.ok) {
@@ -1198,7 +1436,7 @@ async function importOneFile(
         },
       ]);
     }
-    return reportAsUpload(filename, outcome.report.items);
+    return reportAsUpload(filename, outcome.report);
   }
 
   // Everything else is one item from the upload reader, written by the sweep's
@@ -1220,6 +1458,7 @@ async function importOneFile(
        */
       sessions: services.sessions,
       handle,
+      tags: services.tags,
       files: new MemoryFileSource({ [filename]: bytes }),
       ...(onConflict === undefined ? {} : { onConflict }),
       // Only `aventuras.scenario` reads it. Passed unconditionally rather than
@@ -1258,6 +1497,144 @@ async function importOneFile(
 }
 
 /**
+ * ***An archive or a database that was landed on disk*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * **An archive is a root, so it is swept rather than read as an item**
+ * ([P4 §1.3], [§7.5]) — moved here from `importOneFile` when archives stopped
+ * being buffered. This is the same argument the profile envelope makes, and it
+ * pays for several things at once rather than one: a CHARX (`card.json` and
+ * its assets), a zipped Marinara data root, a zip somebody made of their cards
+ * folder, which classifies as `loose-files` — and, since P13, an Aventuras
+ * backup. None of the readers learns that the bytes came out of an archive,
+ * nor now that the archive is on disk.
+ *
+ * **A bare database is a root too**, of one file: [P13 §1.1]'s fourth
+ * transport, *recognised by the SQLite header*. It is landed under the name
+ * the probe looks for, so it classifies as `aventuras` by that name, and the
+ * reader takes the landing itself as the snapshot's `owned` input
+ * (`FileSource.land`) — no second copy, and none of it in memory. A database
+ * that is not Aventuras' is refused by the reader's column gate, as one found
+ * in a folder would be.
+ *
+ * The landing is the caller's to release; this only reads it. The archive's
+ * handle is closed here, in a `finally`, before the release removes the file.
+ */
+async function importLanded(
+  services: AppServices,
+  handle: string,
+  part: Extract<ReceivedUpload, { kind: 'landed' }>,
+  onConflict?: ConflictPolicy,
+  /** The request's logger, for the one thing a sweep cannot put in its report ({@link SweepRequest.log}). */
+  log?: SweepRequest['log'],
+  asked: {
+    /** Whether an Aventuras root's stories become sessions ({@link SweepRequest.stories}). */
+    stories?: SweepRequest['stories'];
+    /** Play's *Import session* door, which only a chat answers ([P14.8]). */
+    only?: 'chat' | undefined;
+  } = {},
+): Promise<UploadResult> {
+  const { filename } = part;
+  const { stories, only } = asked;
+  const unrecognised = (note: ImportNote): UploadResult => ({
+    item: { source: filename, disposition: 'unrecognised', notes: [note] },
+    notes: [note],
+  });
+
+  /**
+   * ***A chat door never opens an archive*** — [P14.8]'s `kind: chat`, as
+   * `importOneFile` answers it for a file that is not a chat. The two arrived
+   * on two branches: P14.8 refused a zip in `importOneFile`'s archive arm, and
+   * P13.8 had moved that arm here, so the refusal moved with it. Asked before
+   * the archive is opened, so nothing in it is swept into the library on the
+   * way to saying *that is not a conversation*.
+   */
+  if (only === 'chat') {
+    return unrecognised({
+      key: 'import.file.unrecognised',
+      params: { file: filename },
+      level: 'warn',
+    });
+  }
+
+  let files: FileSource;
+  let archive: LandedZipSource | null = null;
+  if (part.format === 'zip') {
+    const opened = await LandedZipSource.open(part.space.path(part.name), {
+      layout: services.layout,
+      limits: landedZipLimits(services),
+      freeBytes: services.freeBytes,
+    });
+    if (!opened.ok) {
+      return unrecognised({
+        key: 'import.file.badArchive',
+        params: { file: filename, refusal: opened.refusal },
+        level: 'warn',
+      });
+    }
+    archive = opened.source;
+    files = archive;
+  } else {
+    files = new LandedDatabaseSource(part.space, part.name);
+  }
+
+  try {
+    const outcome = await sweep({
+      library: services.library,
+      // A zip of a SillyTavern folder carries its chats, and they come across
+      // as sessions as a server-path sweep's do ([P14.8]).
+      sessions: services.sessions,
+      handle,
+      tags: services.tags,
+      files,
+      // What a CHARX is identified by: the file the person sent, rather than
+      // the `card.json` inside every one of them.
+      rootName: filename,
+      freeBytes: services.freeBytes,
+      ...(log === undefined ? {} : { log }),
+      ...(onConflict === undefined ? {} : { onConflict }),
+      ...(stories === undefined ? {} : { stories }),
+    });
+    if (!outcome.ok) {
+      return unrecognised({
+        key: 'import.file.refused',
+        params: { file: filename, refusal: outcome.refusal },
+        level: 'warn',
+      });
+    }
+    return reportAsUpload(filename, outcome.report);
+  } finally {
+    await archive?.close();
+  }
+}
+
+/**
+ * ***How far one entry of a landed archive may declare itself***, as a
+ * multiple of the import upload limit — [P13.8]'s *per-entry cap at parse
+ * time*.
+ *
+ * The in-memory reader's 64 MB per entry was a bound on the heap; an entry
+ * landed on disk is bounded by the disk instead, and the one that is landed
+ * is somebody's database, which can be larger than the archive that carried
+ * it. Aventuras deflates at level 1, and a database's bulk is its pictures as
+ * base64, which barely compress — so a real one is under twice its entry.
+ * Four times is room for a database with little in it but text, and it keeps
+ * a bomb to a known multiple of what the operator already agreed to receive;
+ * past it, the archive is refused before anything is inflated. At the default
+ * of 1024 MB it is the zip format's own ceiling without zip64, which is not
+ * read here at all.
+ */
+const ENTRY_ALLOWANCE = 4;
+
+function landedZipLimits(services: AppServices): typeof DEFAULT_ZIP_FILE_LIMITS {
+  const cap = services.config.limits.maxImportUploadMb * MEGABYTE * ENTRY_ALLOWANCE;
+  return {
+    ...DEFAULT_ZIP_FILE_LIMITS,
+    maxEntryBytes: Math.min(cap, DEFAULT_ZIP_FILE_LIMITS.maxEntryBytes),
+  };
+}
+
+/**
  * A whole sweep's report, answered as one upload result.
  *
  * **Shared by the two arms that turn one file into a root** — a Marinara
@@ -1272,10 +1649,11 @@ async function importOneFile(
  * every row names something inside it — so there is nothing to prefer, and the
  * thing a person wants to see is what landed. Every note travels regardless.
  */
-function reportAsUpload(filename: string, items: readonly ImportItemReport[]): UploadResult {
-  const converted = items.find((row) => row.disposition === 'converted');
+function reportAsUpload(filename: string, report: ImportReport): UploadResult {
+  const converted = report.items.find((row) => row.disposition === 'converted');
   return {
     item: converted ?? { source: filename, disposition: 'recorded', notes: [] },
-    notes: items.flatMap((row) => row.notes),
+    notes: report.items.flatMap((row) => row.notes),
+    report,
   };
 }

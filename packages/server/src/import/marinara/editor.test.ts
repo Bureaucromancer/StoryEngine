@@ -108,6 +108,7 @@ describe('a Marinara roleplay with an editor and a chorus, swept', () => {
   it('opens with the editor’s switches and rules, and notes the HTML agent', async () => {
     const outcome = await sweep({
       library: server.services.library,
+      tags: server.services.tags,
       sessions: server.services.sessions,
       handle: 'ned',
       files: new MemoryFileSource(marinaraFixture()),

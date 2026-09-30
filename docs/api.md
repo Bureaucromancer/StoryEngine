@@ -457,10 +457,56 @@ prose ([P4 §1.4](design/workplan/16-p4-implementation.md)).
 - `413 {"error":"too-large"}` over `limits.maxUploadMb`, **read per request**.
   That is what moved the key from `unread` to `applied` after three phases as
   the standing example of a live key nobody read: raise the limit in Settings and
-  the next upload takes the file, without a restart. Fastify's constructor
-  `bodyLimit` stays as the outer bound.
+  the next upload takes the file, without a restart. ~~Fastify's constructor
+  `bodyLimit` stays as the outer bound.~~ *Corrected 2026-09-27:* Fastify's
+  `bodyLimit` never sees a multipart body, so this is the only bound. **Since
+  [P13.8](design/workplan/30-p13-aventuras-import.md) a zip or a SQLite database
+  is bounded by `limits.maxImportUploadMb` instead** (below), and the message
+  names which of the two refused it. A request whose declared length is past
+  both is refused before its body is read.
 - `415 {"error":"not-multipart"}` for a body that is not multipart.
 - `400 {"error":"no-file"}` for a multipart body with no file in it.
+- `507 {"error":"no-space"}` when there is no room on the disk: for 1.1× a
+  landed upload and a reserve before it is written (below), or for the copy of
+  an Aventuras database the sweep reads from.
+- `503 {"error":"upload-busy"}`, with `retry-after`, when another **large**
+  upload is being landed — one declared larger than `limits.maxUploadMb`, or
+  declaring no length at all. One at a time, server-wide, because the disk is.
+- `408 {"error":"upload-stalled"}` when the file stopped arriving for a minute
+  part way through.
+
+**Every refusal made before the body has been read through carries
+`Connection: close`** ([P13.8](design/workplan/30-p13-aventuras-import.md)). A browser sending a large body reads nothing
+until it has finished sending, so a refusal left on an open connection reaches
+it as a reset rather than as this answer; closing is what lets the answer
+through. It is not a guarantee, and a client should read a dropped connection
+during an upload as *the server or something in front of it refused this*.
+
+**A zip or a SQLite database is landed, not buffered** —
+[P13.8](design/workplan/30-p13-aventuras-import.md). The first sixteen bytes are
+sniffed (across however many chunks they arrive in), and a file that begins
+like a zip or like SQLite is written to the import scratch root as it arrives,
+under `limits.maxImportUploadMb` — a limit of its own, which can be set below
+`maxUploadMb` — and read from there. Everything else is buffered as before.
+**A zip** is swept as a root, read on disk with the limits split: an entry is
+held to four times the import limit by its declared size, anything read into
+memory to 64 MB, and the archive's total to 256 MB of what was actually read —
+so an Aventuras backup's database is inflated to scratch at whatever size, and
+the `stories/*.avt` an old backup carries beside it cost nothing. **A bare
+SQLite database**, whatever it was called, is swept as an Aventuras root of one
+file, `aventura.db`, from where it landed; one that is not Aventuras' is
+refused by the reader's column gate, `unrecognised` with an
+`import.file.refused` note.
+
+**A root's answer carries its whole review** —
+[P13.7](design/workplan/30-p13-aventuras-import.md). A zip, a database or a
+Marinara envelope is swept as a root, and its answer is `{ item, notes, report }`:
+`item` and `notes` summarise it as one file (the first converted row, and every
+note), and `report` is the sweep's `{ jobId, source, items, counts }` row by row,
+exactly as `/import/sweep` and `/import/directory` answer — so a second upload
+of the same backup reads `unchanged` row by row, as a second sweep of its folder
+does. `jobId` is `unsaved`: neither upload door records a job. A single file's
+answer has no `report`; its one row is the review.
 
 CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
@@ -478,6 +524,39 @@ upload over a spelling is the worse answer.
 **An optional `destination` field** — `treatment` or `lorebook` — decides what a
 source with a genuine choice becomes. It follows the same before-the-file rule
 and the same unknown-is-absent rule, for the same reasons.
+
+**An optional `stories` field** — the word `true` — brings an Aventuras
+database's or backup's stories across as sessions, as the sweep's `stories`
+does ([P13.11](design/workplan/30-p13-aventuras-import.md)); anything else,
+or no field, is the default, which writes none. The same before-the-file rule
+applies. Every other kind of upload ignores it — **including an Aventuras
+story file**, below, which brings its story whatever the field says.
+
+**An Aventuras story file (`.avt`)** — [P13.15](design/workplan/30-p13-aventuras-import.md) —
+is recognised by its contents, whatever it is called: a JSON object whose
+`story` is an object and whose `entries` is an array, which is what
+Aventuras' own importer requires. It is one story, and becomes one session
+exactly as the same story does from the database (the sweep's `stories`,
+below): the same turns, cast, lorebook and illustrations, **under the same
+key**, `aventura.db/stories/<id>` from the story's id in the file — so a story
+brought across from the database and then from its file, or the other way
+round, is `unchanged` with `import.aventuras.storyAlreadyHere` the second
+time, naming the session the first made. The row's `source` is the file's
+name. **No `stories` field is needed**: the opt-in keeps a library sweep from
+filling the session list, and one file picked and previewed is a request for
+that story. What a file cannot carry: **backdrops** — `background_images` is
+not in a `.avt`, and the one backdrop a file may hold has no branch, so it is
+left out (`import.aventuras.avtBackdropNotCarried`), as Aventuras' own import
+leaves it. **The format is gated** as Aventuras reads it: `1.x` up to the
+pin's `1.10.0` imports, an older one as far as it goes
+(`import.aventuras.avtOlderFormat` — before 1.6.0 there are no branches, before
+1.4.0 no pictures), a newer `1.x` with `import.aventuras.avtNewerFormat` at
+`warn`; any other major, or a version that is not one, is `unrecognised` with
+`import.aventuras.avtUnknownFormat` and writes nothing, as is a file whose
+story has no id or that nests past 64 levels (`import.aventuras.avtUnreadable`).
+The file is buffered under `limits.maxUploadMb` like any JSON, and read once:
+its pictures stay in those bytes, measured and held to the 64 MB bound before
+each is decoded, one at a time.
 
 Exactly one format reads it, and that is the point rather than a limitation. A
 character card is an Actor and a world file is a Lorebook; neither poses a
@@ -507,7 +586,9 @@ and until then a grown chat is neither unchanged nor a second copy.
 **An optional `kind` field, `chat`, makes this door take a chat and nothing
 else.** A file that is not one answers `unrecognised` with
 `import.file.unrecognised` and nothing is written — the archive and envelope arms
-are not tried. It follows the before-the-file rule. Play's *Import session* sends
+are not tried, and neither is the `.avt` arm; an archive, landed on disk since
+[P13.8](design/workplan/30-p13-aventuras-import.md), is refused before it is
+opened. It follows the before-the-file rule. Play's *Import session* sends
 a `.jsonl` here with `kind: chat` and opens the returned id; without the field, a
 `.jsonl` that was really a card would land in the library from a control that
 promised a session.
@@ -515,9 +596,21 @@ promised a session.
 ### `POST /api/import/file/preview`
 
 **What that upload would do, with nothing written.** `multipart/form-data` with
-one file part → `200 { preview }`. Same limits, same three transport refusals and
+one file part → `200 { preview }`. ~~Same limits, same three transport refusals and
 the same CSRF rule as `/import/file`, because both doors read the part through
-the same function.
+the same function.~~ *Since [P13.8](design/workplan/30-p13-aventuras-import.md)*
+the same three transport refusals and the same CSRF rule, and **not the same
+limits**: this door still buffers every file under `limits.maxUploadMb`, and
+lands nothing. An archive or a database is only ever answered *this is a folder
+in a file*, which the client knows from the file's first bytes without sending
+it — so the client does not send one here at all, and a large backup is not
+uploaded twice to be told what its name already said. **Since
+[P13.7](design/workplan/30-p13-aventuras-import.md) a SQLite file is answered
+the same way as a zip** — `import.file.importsAsFolder` and `{ kind: 'sweep' }`,
+by its first sixteen bytes and whatever it was called — where it had been
+`unrecognised` for bytes `/import/file` imports. The database is not opened to
+answer: whether it is an Aventuras database this build can read is the column
+gate's question at the commit, which can still refuse it.
 
 `preview` is `{ source, disposition, notes, advisories, object, reimport }`.
 `disposition` and `reimport` are **predictions**, not records — the file could
@@ -528,7 +621,13 @@ change underneath, and the commit's answer is the real one.
   blurb, framingChars, cast, openings, destination, alternatives }` for an
   Aventuras scenario, `{ kind: 'sweep' }` for an archive or a Marinara envelope,
   `{ kind: 'opaque', name }` for something that converts and has no summary yet,
-  and `null` when nothing would be imported.
+  and `null` when nothing would be imported. **An Aventuras story file** is
+  `{ kind: 'opaque', name }` with the story's title, and its first note,
+  `import.aventuras.avtStory`, says which story, which format version, and how
+  many entries and branches it holds; its `reimport` is `new`, or `unchanged`
+  with `import.aventuras.storyAlreadyHere` when the story's key already names a
+  session here — answered from the key, without converting anything
+  ([P13.15](design/workplan/30-p13-aventuras-import.md)).
 - The scenario arm is the only one carrying a **question** rather than only
   statements: `alternatives` is what it could also be converted to, so a client
   can offer the switch without knowing which formats have a choice. It takes the
@@ -562,7 +661,7 @@ and move the credential rule from the server to the client.
 
 ### `POST /api/import/sweep`
 
-`{ root, onConflict? }` → `200 { report }`. Points the server at a folder on its
+`{ root, onConflict?, stories? }` → `200 { report }`. Points the server at a folder on its
 own filesystem and imports what it finds.
 
 **Gated on `fileAccess`**, as [10 §4.2.2](design/10-ui-surfaces.md) widened it —
@@ -580,14 +679,179 @@ a symlink into the data directory is refused like a literal one.
 - `422 {"error":"live-install"}` — the source application is running, or is
   part-way through an upgrade. Reading it produces a torn library *quietly*,
   which is why this refuses rather than warns.
-- `422 {"error":"unknown-format"}` — written by a newer version than this build
-  reads.
+- `422 {"error":"unknown-format"}` — a format this build does not read: written
+  by a newer version (a Marinara store), or missing a part this build needs (an
+  Aventuras database without a table or column it reads).
 - `422 {"error":"ambiguous-root"}` — the folder probes as two applications at
   once. A wrong guess would convert a library through the wrong tables and the
   review would report that it went fine, so this refuses rather than picks.
+- `507 {"error":"no-space"}` — an Aventuras folder is read from a private copy of
+  its database, taken into this install's data directory first
+  ([P13 §1.2](design/workplan/30-p13-aventuras-import.md)), and there is not
+  room for one. The message carries the numbers. Not a refusal of the folder,
+  so it is not in the import ledger: the same request succeeds once there is room.
 
 Every refusal happens **before anything is written**. A refusal after the first
 object is a half-import, which is worse than none.
+
+**An Aventuras folder** — a config directory, or an unzipped backup — is one
+database, and its review is a row for the database, one per table (with its row
+count), one per prompt pack (below), one per story (with what that story holds
+across all its branches — a branch's edits and deletions left out) and one per
+other file in the folder;
+SQLite's own `-wal`, `-shm` and `-journal` are part of the database and not rows
+of their own. **Since P13.3 its characters convert**: `character_vault` has no
+row of its own, and instead each of its rows is one — an actor, with the source
+`aventura.db/character_vault/<id>` that a re-import is recognised by, and its
+portrait carried (a PNG as the card's image, a JPEG or WebP as the card's
+`portrait-source` media on a blank card). **Since P13.4 its lorebooks convert
+the same way**: each `lorebook_vault` row is a lorebook with the source
+`aventura.db/lorebook_vault/<id>`, taking the book's own name, description and
+tags, its vault entries mapped as Aventuras' own export maps them (keywords to
+keys, aliases to secondary keys, `always` to constant, `never` to disabled,
+priority inverted into order), and `favorite`, `source`, `originalFilename`,
+`originalStoryId` and the row's `metadata` kept in the book's `metadata`. A book
+with no entries imports as an empty book; one whose `entries` will not parse
+is refused with an `import.aventuras.columnUnreadable` note and nothing is
+written, so a book imported from that row earlier is left as it was. **Since
+P13.5 its scenarios convert too**: each `scenario_vault` row is a treatment, with
+the source `aventura.db/scenario_vault/<id>`, converted exactly as the same
+scenario exported as a file would be — its npcs actors of their own in its cast,
+its openings, and everything the converter does not read (`starting_time`
+included) kept in the treatment's `metadata`. A scenario whose `npcs`,
+`alternate_greetings` or `metadata` will not parse is refused the same way a
+book's `entries` is, and for the same reason; bad `tags` or `starting_time` are
+noted and left out. **Links resolve inside the database**: a character's or a
+scenario's `metadata.linkedLorebookId` becomes the actor's `lore`, or the
+treatment's `lore` (never `required`), pointing at the book that `lorebook_vault`
+row became — or, when that row was refused, at the book an earlier import of it
+left here. `import.aventuras.linkedLorebookMissing` is said only when neither
+exists. **Since P13.6 its tags merge into the account's tags** (`GET
+/api/tags`): each `vault_tags` row is a review row with the source
+`aventura.db/vault_tags/<id>` and no `objectId`, since a tag is not a library
+object. A name not already a tag (compared as tags always are — case and spacing
+aside) is added, `converted`, on the swatch nearest its Aventuras colour by hue,
+greys on `stone` and a colour that does not read on none; a name already a tag
+is `unchanged` and left exactly as it is — never recoloured or renamed, whatever
+`onConflict` says. Aventuras keeps a tag list per kind and this server keeps
+one, so a name two kinds share is one tag, in the first row's colour, and
+`import.aventuras.tagColourDiffers` says when another row's would have been a
+different swatch. **No imported object is given `tagIds`**: adopting tags stays
+`POST /api/tags/adopt`'s. Tags are merged first, then lorebooks are written,
+then characters, then scenarios, so every link finds its book. **Prompt packs
+are recorded, not converted** ([P13.9](design/workplan/30-p13-aventuras-import.md)):
+each `preset_packs` row is a `recorded` review row of its own, with the source
+`aventura.db/preset_packs/<id>` and no `objectId`, whose
+`import.aventuras.packRecorded` note counts its templates, how many of them
+differ from the text Aventuras ships (hashed as Aventuras hashes them: trimmed,
+CRLF made LF, SHA-256), its custom variables and its tracked variables; when
+any differ, `import.aventuras.packTemplatesDiffer` at `warn` names them — up to
+81 ids of at most 64 characters, and `import.aventuras.packTemplatesUnlisted`
+counts the rest. No preset is written. **Since
+[P13.11](design/workplan/30-p13-aventuras-import.md) its stories become sessions
+— when the request says `stories: true`, and only then.** Each story is one
+row, `aventura.db/stories/<id>`, which is also the session's
+`origin.originalFilename`; `stories`, `story_entries` and `branches` — and
+since P13.12 the five tables of a story's world — have no rows of their own. Asked, a story is `converted` with the new session as its
+`objectId` — its tree rebuilt from Aventuras' branches and positions (an action
+and its answer are one turn; an opening, a second narration in a row or a
+`system` entry is a turn with no input; an action nobody answered is a
+`failed` turn; a branch that begins between an action and its answer repeats
+the action with the branch's own answer, and
+`import.aventuras.forkSplitPair` says so), its branches as named `branchRefs`
+beside *Main*, and its head on the branch the person was on. Every turn has
+`foreign: { source: "aventuras", id }` and ids derived from the account, the
+story and its entries; generation metadata goes to `cost` (model, wall-clock
+time, Aventuras' own token count of the answer) and never to `request`;
+reasoning to `output.reasoning`; saved suggestions to `suggestions`. The
+session names no mode, and plays in the server's default mode;
+`import.aventuras.storyImported` says which mode it had in Aventuras, and
+`import.aventuras.storyWorldRecorded` counts the chapters and checkpoints
+that stayed behind (the pictures, until P13.13, below). **The chapters stay
+behind for good** ([P13.14](design/workplan/30-p13-aventuras-import.md),
+closed `recorded`): each is a summary Aventuras' own model wrote, and a
+session's summaries here are written by this server's summariser from the
+turns, all of which come across — so no summary, keyword or boundary of a
+chapter is read, only the count, and the note says why. Every turn's text is
+the entry's with Aventuras' inline `<pic …>` tags taken out, as Aventuras
+shows it (since P13.14; the pictures they stood for are below). **Since
+[P13.12](design/workplan/30-p13-aventuras-import.md) its world comes too**:
+`characters`, `locations`, `items`, `story_beats` and `entries` are resolved
+for the branch the session opens on — a branch's edit (`overrides_id`) in
+place of what it edits, a deletion (`deleted`) hidden, a row only another
+branch has left out — and written before the session, which links them. Each
+character is an actor keyed `aventura.db/stories/<id>/characters/<character
+id>` (the id of the character a branch edited, so an edit is the same actor),
+mapped as a vault character is, its portrait carried as a vault portrait is;
+the protagonist (`relationship: "self"`) is the session's `cast.persona`, and
+everyone else `cast.actors`. The story's entries, places, items and beats are
+one lorebook keyed `aventura.db/stories/<id>/lorebook`, in `session.lore`:
+places, items and beats each in a folder and tagged `location`, `item` and
+`story-beat`, with Aventuras' own fields in each entry's
+`metadata.aventuras` — story beats for now, until they have a home of their
+own (`import.aventuras.storyBeatsAsLore`). Entry ids are derived from the
+story, the table and the row, so no other book shares one. These objects
+have no rows of their own: the story's row names them in `alsoProduced`, and
+`import.aventuras.storyWorld` counts them. `import.aventuras.worldBranchesDiffer`
+counts the other branches whose world differs, which stay in Aventuras.
+**Since [P13.13](design/workplan/30-p13-aventuras-import.md) its pictures
+come too**, as finished renditions of the session — `ready`, with their
+bytes, and never queued as jobs: each `embedded_images` row an
+`illustration` on the turn that holds its entry, on whichever branch (a
+forked action's is on the turn of the line it was written on), anchored by
+Aventuras' `source_text` — or, for a picture the model asked for inline,
+whose `source_text` is its `<pic …>` tag, on the sentence the tag followed,
+so it sits where Aventuras drew it (since P13.14; a tag first in its entry
+leaves the picture unanchored, under the text, and a tag the entry does not
+hold keeps the tag as its anchor with `anchorResolved: false`); and each
+branch's newest `background_images` row
+a `background` on the turn its line ends on, **carried and not selected**
+— the import names no mode, and the `se.backdrop` selection is a mode's —
+so it is chosen by hand in a mode that shows one. Their ids are the turn's
+and an ordinal (`<turnId>.<n>`), their `prompt` is Aventuras' prompt as one
+fragment (a background's is empty), their `provenance` names no binding
+and no seed, and `foreign` is `{ source: "aventuras", id }`. The bytes are
+sniffed, not taken from the data URL's type: a PNG, JPEG or WebP is served
+by `GET /sessions/:id/renditions/:renditionId/asset` as any rendition is;
+anything else, or a link, is left out (`import.aventuras.pictureUnreadable`,
+`warn`), as is one past the 64 MB bound, measured before it is read
+(`import.aventuras.pictureTooLarge`, `warn`) — and the rest of the story
+imports. `import.aventuras.storyPictures` counts what came,
+`import.aventuras.pictureModels` names the Aventuras models that drew them,
+and `import.aventuras.picturesUnfinished`, `import.aventuras.picturesUnplaced`
+and `import.aventuras.checkpointBackgrounds` count the ones never finished,
+the ones whose entry or branch is gone, and the ones a checkpoint saved,
+which stay with it. The bytes are written by the session import itself, into
+the session it has just made, so a story it refuses leaves no picture
+anywhere; one whose bytes cannot be written arrives as its recipe, with no
+asset, and `import.aventuras.picturesWithoutPixels` counts it. A story's own narrator prompt (`settings.customSystemPrompt`) is not carried,
+for the reason packs are not: `import.aventuras.customNarratorPrompt` at
+`warn` names its length. A story with no entries is `skipped`
+(`import.aventuras.storyEmpty`). **A story brought across before is
+`unchanged`**, whatever `onConflict` says, with the session it became as its
+`objectId` and `import.aventuras.storyAlreadyHere`: a session is never
+replaced or doubled by an import, so what was written in Aventuras since is
+not brought across — its world included: nothing of it is written again, and
+the row's `alsoProduced` names what the session here already links to. Not asked, each story is `recorded`, and its
+`import.aventuras.storyRecorded` note counts what it holds. Every other
+table is `recorded`,
+`skipped` or, for `settings`, `credential` — counted and never read, since it
+holds provider keys. A database missing a column this build reads, or with no
+`_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that
+has every column is read, with a `warn` note saying so.
+
+**Aventuras story files (`.avt`) in a swept folder** —
+[P13.15](design/workplan/30-p13-aventuras-import.md). A folder with no
+database in it — an older backup's `stories/`, or a folder of files somebody
+exported — sweeps as loose files, and each `.avt` in it is read by its
+contents as `/import/file` reads one: asked (`stories: true`), it is its story,
+`converted` into a session under the database's key for the same story, so a
+re-sweep, or the database swept later, finds it `unchanged`; not asked, it is
+`recorded` with the same `import.aventuras.storyRecorded` counts a database's
+story row has. **Beside a database, a `.avt` is not read**: an older backup
+wrote them from that very database, so each is a story the database holds and
+the database's is the one read — `skipped`, with
+`import.aventuras.avtBesideDatabase`.
 
 `onConflict` decides what a re-import does when a file has changed: `replace`
 (the default, and the safe one — the write goes through the version history, so
@@ -615,10 +879,16 @@ which actually reads it refuses to answer.
 
 `verdict` is what the probes decided: `sillytavern`, `marinara`, `charx` (an
 unpacked CHARX card), `storyengine-backup` (an unpacked backup, whose library is
-imported and whose sessions, tags and settings are listed and left), or
-`loose-files` for a folder that matches nothing. Those are the five a directory
-can produce — `marinara-archive` and `marinara-envelope` are members of the same
-vocabulary but are never produced by pointing at a folder.
+imported and whose sessions, tags and settings are listed and left), `aventuras`
+(a folder holding `aventura.db` — Aventuras' config directory, or an unzipped
+backup of it), or `loose-files` for a folder that matches nothing. Those are the
+six a directory can produce — `marinara-archive` and `marinara-envelope` are
+members of the same vocabulary but are never produced by pointing at a folder.
+
+**`aventuras` is decided by the name alone**, and so is every verdict here: the
+database is not opened to answer this. Whether this build can read it is the
+sweep's question, answered from a copy — so a folder this calls `aventuras` can
+still be refused by the sweep as `unknown-format`.
 
 **It never lists a directory.** Every answer is a yes/no probe at a path this
 build already names in its own source. [10 §4.2.2](design/10-ui-surfaces.md)
@@ -627,7 +897,7 @@ an endpoint that enumerated children would hand back exactly the map that clause
 refuses.
 
 `suggestions` is an array of near misses — the folder is recognisably part of a
-real SillyTavern or Marinara install, but is not the one to point at:
+real SillyTavern, Marinara or Aventuras install, but is not the one to point at:
 
 ```json
 {
@@ -648,6 +918,21 @@ that is recognised but whose right sibling cannot honestly be named, which is a
 real answer rather than a failure to have one: a SillyTavern data folder holding
 several people's libraries has no handle to guess, and a Marinara install from
 before 1.5.7 has no newer folder to point at.
+
+**Aventuras is found where the platforms put it** —
+[P13.7](design/workplan/30-p13-aventuras-import.md). Its config directory is
+`com.karelian.aventura` under `~/.config`, `~/Library/Application Support` or
+`%APPDATA%` ([01 §2](design/01-source-survey.md)), so a folder that is one of
+those, a home folder above one, `~/Library` or `AppData` is answered with the
+path down to it: `leadsTo: "aventuras"`, `verified`, and the note
+`import.root.aventurasBelow` with that `path`. Six fixed places, each asked one
+question — is `aventura.db` there — and never a search; a folder with the
+bundle id's name and no database in it is not suggested, and neither is one
+reached through a link that leaves the folder named, since a sweep would not
+follow that link either. A folder *inside* an Aventuras root — the `stories/`
+an older backup carries — is pointed back up with `import.root.aventurasAbove`.
+The sweep of the folder that was named still sweeps that folder; it never
+sweeps the suggestion.
 
 **A suggestion is advice, not a gate.** Acting on one sends a fresh absolute path
 back through this route or the sweep, which re-validate from scratch — the
@@ -704,7 +989,9 @@ store it already sends.
 Each file's **relative path travels as its field name** — a multipart filename
 cannot carry a directory and survive sanitising — and is rebuilt segment-wise
 with `.` and `..` dropped. A `manifest` field carries the full path list as JSON;
-an `onConflict` field is optional and means what it does on the sweep.
+an `onConflict` field is optional and means what it does on the sweep, and so
+is a `stories` field — `true` brings an Aventuras folder's stories across as
+sessions, exactly as the sweep's `stories` does.
 
 **Named and not sent is not the same as absent.** Paths in the manifest without
 bytes are *declared*: listed, reported, and never read. That is what keeps
@@ -725,6 +1012,18 @@ it, and each is one row as on [`POST /api/import/file`](#post-apiimportfile).
   not each file in it. The limit is a running total; a thousand files each just
   under it is still a thousand times it.
 - `415 {"error":"not-multipart"}`.
+- `507 {"error":"no-space"}` — as on the sweep: an Aventuras folder's database
+  is copied before it is read, and there is no room for the copy.
+
+For an `aventuras` verdict the plan wants exactly `aventura.db`, its
+`aventura.db-wal` if there is one, and `metadata.json`. **The database and its
+log are wanted together or not at all**: the log holds commits the file does not
+have yet, so a budget that carried one without the other would hand the sweep an
+older database that looks whole. An upload that names a `-wal` and does not
+send it is refused `422 unreadable-root` for the same reason. Everything else in
+the folder — an older backup's `stories/*.avt` among it — is declared, and
+reported `skipped`, except `aventura.db-shm` and `aventura.db-journal`, which
+belong to the database and are never rows of their own.
 
 No `suggestions` here — the plan step is where advice can still be acted on.
 
@@ -3427,6 +3726,7 @@ proof obligation arriving for free.
 | 403 | `no-file-access` | A sweep from an account without the `fileAccess` capability |
 | 422 | `inside-data-root` / `not-absolute` / `unreadable-root` | A sweep root this build will not read |
 | 422 | `live-install` / `unknown-format` / `ambiguous-root` | A source folder refused before anything was written |
+| 507 | `no-space` | An import that reads from a private copy of somebody's database — an Aventuras folder, by path, upload or archive — with no room on the disk for the copy. The message carries the numbers |
 | 400 | `no-file` | A multipart upload with no file part |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
 | 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |

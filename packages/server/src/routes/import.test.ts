@@ -1248,6 +1248,80 @@ describe('a chat, through the doors', () => {
       'Vera Solano',
     );
   });
+
+  /**
+   * ***And an archive or a story file is not a chat either*** — the merge of
+   * [P14.8] with [P13.8] and [P13.15]. P14.8 refused a zip in
+   * `importOneFile`'s archive arm, which P13.8 had moved out to
+   * `importLanded`, so the refusal went with it; and P13.15's `.avt` arm,
+   * which brings a story without the `stories` opt-in, sits below the chat
+   * check. Each would otherwise answer Play's door with a library or a
+   * session it never asked for.
+   */
+  it('through Play’s door, refuses a zip and a story file before either is read', async () => {
+    const boundary = '----storyengineTestBoundary';
+    const asChat = (filename: string, body: Uint8Array | string): Buffer =>
+      Buffer.concat([
+        Buffer.from(
+          [
+            `--${boundary}`,
+            'Content-Disposition: form-data; name="kind"',
+            '',
+            'chat',
+            `--${boundary}`,
+            `Content-Disposition: form-data; name="file"; filename="${filename}"`,
+            'Content-Type: application/octet-stream',
+            '',
+            '',
+          ].join('\r\n'),
+        ),
+        Buffer.from(body),
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]);
+    const send = (payload: Buffer) =>
+      server.request({
+        method: 'POST',
+        url: '/api/import/file',
+        payload,
+        headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      });
+
+    const zipped = await send(
+      asChat(
+        'cards.zip',
+        makeZip([
+          {
+            name: 'Vera.json',
+            body: JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } }),
+          },
+        ]),
+      ),
+    );
+    const story = await send(
+      asChat(
+        'The Lantern Fork.avt',
+        JSON.stringify({
+          version: '1.10.0',
+          story: { id: 'story-1', title: 'The Lantern Fork' },
+          entries: [],
+        }),
+      ),
+    );
+
+    for (const response of [zipped, story]) {
+      expect(response.status).toBe(200);
+      expect(response.body.item.disposition).toBe('unrecognised');
+      expect(response.body.item.notes.map((note: { key: string }) => note.key)).toEqual([
+        'import.file.unrecognised',
+      ]);
+    }
+    const actors = await server.request({ method: 'GET', url: '/api/library/actors' });
+    expect(actors.body.objects.map((row: { name: string }) => row.name)).not.toContain(
+      'Vera Solano',
+    );
+    const sessions = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(sessions.body.sessions).toEqual([]);
+  });
 });
 
 describe('the size of a folder upload', () => {

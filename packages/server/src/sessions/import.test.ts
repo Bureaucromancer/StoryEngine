@@ -4,16 +4,28 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  newActor,
   outputFromMessages,
   RENDITION_SCHEMA,
   uuidv7,
   type OutputMessage,
   type Rendition,
+  type SessionExport,
 } from '@storyengine/shared';
 
+import { rebuild } from '../index-db/rebuild.js';
+import { sessionByOrigin, sessionSnapshot } from '../index-db/sessions.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
-import { appendTurnToSession, createSession, readSession, sessionFilePath } from './store.js';
+import { importSession, type ImportContext } from './import.js';
+import { producedTurnId } from './producer.js';
+import {
+  appendTurnToSession,
+  createSession,
+  readSession,
+  readTurns,
+  sessionFilePath,
+} from './store.js';
 import type { Turn } from './types.js';
 
 /**
@@ -555,5 +567,447 @@ describe('a picture’s path', () => {
       url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(`${turnId}.0`)}/asset`,
     });
     expect(served.status).toBe(404);
+  });
+});
+
+/**
+ * ***What the reader checks now that somebody else writes its input*** —
+ * [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md)
+ * (2026-09-29). Our own exports never showed any of these, because the
+ * exporter and the reader were written against the same records; a producer
+ * is a second writer, and these are the ways it can be wrong.
+ */
+describe('a document somebody else wrote', () => {
+  /** A turn with nothing in it but its place in the tree. */
+  function bare(id: string, parentTurnId: string | null, over: Partial<Turn> = {}): Turn {
+    return {
+      id,
+      sessionId: 'elsewhere',
+      parentTurnId,
+      createdAt: '2026-09-29T12:00:00.000Z',
+      status: 'complete',
+      effects: [],
+      tape: [],
+      ...over,
+    };
+  }
+
+  function documentOf(
+    turns: unknown[],
+    session: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      schema: 'storyengine.session-export/1',
+      exportedBy: { version: null, at: '2026-09-29T12:00:00.000Z' },
+      session: {
+        id: 'elsewhere',
+        name: 'Somewhere else',
+        createdAt: '2026-09-29T12:00:00.000Z',
+        updatedAt: '2026-09-29T12:00:00.000Z',
+        headTurnId: null,
+        channels: {},
+        ...session,
+      },
+      turns,
+      renditions: [],
+    };
+  }
+
+  const context = (): ImportContext => ({ sessions: server.services.sessions });
+
+  /**
+   * ***Out of order is put in order, not refused*** — the one departure from
+   * the stage's wording, argued at `treeOf`: our own exporter sorts by id, and
+   * an id minted on a slower clock sorts before its parent. What is appended
+   * is parents first, so a forward walk never meets a dangling parent.
+   */
+  it('appends a child listed before its parent after it', async () => {
+    const [a, b, c] = [uuidv7(), uuidv7(), uuidv7()];
+    const result = await importSession(
+      context(),
+      'ned',
+      documentOf([bare(c, b), bare(b, a), bare(a, null)], { headTurnId: c }),
+    );
+    expect(result).toMatchObject({ ok: true, turns: 3 });
+    if (!result.ok) return;
+
+    const read = await readTurns(server.services.sessions, 'ned', result.sessionId);
+    expect([...read.keys()]).toEqual([a, b, c]);
+    const session = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${result.sessionId}/turns`,
+    });
+    expect((session.body.turns as { id: string }[]).map((turn) => turn.id)).toEqual([a, b, c]);
+  });
+
+  /**
+   * ***What no order can mend is refused, and nothing is written.*** A parent
+   * the file does not hold is the tree missing its middle; a cycle has no
+   * order; a head naming no turn leaves the session pointing at nothing.
+   */
+  it('refuses a tree it cannot build, before writing anything', async () => {
+    const [a, b, c] = [uuidv7(), uuidv7(), uuidv7()];
+    for (const [label, document] of [
+      ['a parent not in the file', documentOf([bare(a, null), bare(b, c)])],
+      ['a cycle', documentOf([bare(a, null), bare(b, c), bare(c, b)])],
+      ['a turn its own parent', documentOf([bare(a, null), bare(b, b)])],
+      ['a head not in the file', documentOf([bare(a, null)], { headTurnId: c })],
+      [
+        'a parent that is not an id',
+        documentOf([bare(a, null), { ...bare(b, a), parentTurnId: 7 }]),
+      ],
+    ] as const) {
+      const result = await importSession(context(), 'ned', document);
+      expect(result, label).toEqual({ ok: false, reason: 'broken-tree' });
+    }
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(listed.body.sessions).toEqual([]);
+  });
+
+  it('answers a broken tree through the route as a class', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: documentOf([bare(uuidv7(), uuidv7())]),
+    });
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe('broken-tree');
+  });
+
+  /**
+   * *A repeated id is one turn, the last line of it* — what the segment reader
+   * shows for a segment that holds a turn twice, which a re-run append makes
+   * and a backup carries as it is.
+   */
+  it('keeps the last copy of a turn listed twice', async () => {
+    const a = uuidv7();
+    const result = await importSession(
+      context(),
+      'ned',
+      documentOf([
+        bare(a, null, { output: { text: 'first' } }),
+        bare(a, null, { output: { text: 'second' } }),
+      ]),
+    );
+    expect(result).toMatchObject({ ok: true, turns: 1 });
+    if (!result.ok) return;
+    const read = await readTurns(server.services.sessions, 'ned', result.sessionId);
+    expect(read.get(a)?.output?.text).toBe('second');
+  });
+
+  /**
+   * ***Links are reported, and refused only when a producer asks.*** An export
+   * from another install names that install's cast, and play already survives
+   * a link that resolves to nothing — so row 10's round trip still loads, and
+   * says what did not come. A producer wrote the objects it links to, so for
+   * it a missing one is its own defect.
+   */
+  it('reports the links that resolve to nothing here', async () => {
+    const vera = newActor('Vera');
+    await server.request({ method: 'POST', url: '/api/library/actors', payload: vera });
+    const [ghost, book, treatment] = [uuidv7(), uuidv7(), uuidv7()];
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: documentOf([bare(uuidv7(), null)], {
+        cast: { persona: vera.id, actors: [vera.id, ghost, ghost] },
+        lore: [book, vera.id],
+        treatment,
+      }),
+    });
+    expect(response.status).toBe(201);
+    // An actor named as a lorebook is a link of the wrong kind, which play
+    // misses exactly as it misses one that is not there.
+    expect(response.body.missing).toEqual({
+      cast: [ghost],
+      lore: [book, vera.id],
+      treatment: [treatment],
+    });
+
+    // Kept, not dropped: the objects may yet arrive, by package, under the
+    // ids the session names.
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${response.body.sessionId as string}`,
+    });
+    expect(read.body.session.cast.actors).toEqual([vera.id, ghost, ghost]);
+  });
+
+  it('refuses them instead when asked, and writes nothing', async () => {
+    const ghost = uuidv7();
+    const result = await importSession(
+      context(),
+      'ned',
+      documentOf([bare(uuidv7(), null)], { cast: { persona: null, actors: [ghost] } }),
+      { requireLinks: true },
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: 'missing-links',
+      missing: { cast: [ghost], lore: [], treatment: [] },
+    });
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(listed.body.sessions).toEqual([]);
+  });
+
+  /**
+   * ***Another account's object is not a link this account can follow***,
+   * which is `library.read`'s rule and so play's.
+   */
+  it('counts another account’s object as missing', async () => {
+    const vera = newActor('Vera');
+    await server.request({ method: 'POST', url: '/api/library/actors', payload: vera });
+    const result = await importSession(
+      context(),
+      'amy',
+      documentOf([bare(uuidv7(), null)], { cast: { persona: null, actors: [vera.id] } }),
+    );
+    expect(result).toMatchObject({ ok: true, missing: { cast: [vera.id] } });
+  });
+});
+
+/**
+ * ***A key to be found by again*** — [P13.10]'s `origin.originalFilename`,
+ * [P13 §1.5]'s *identity is the row*, applied to a session.
+ */
+describe('a session a producer made', () => {
+  const KEY = 'aventura.db/stories/0b5c1f36-story';
+
+  function oneTurn(): Record<string, unknown> {
+    const id = uuidv7();
+    return {
+      schema: 'storyengine.session-export/1',
+      exportedBy: { version: null, at: '2026-09-29T12:00:00.000Z' },
+      session: {
+        id: 'story',
+        name: 'The Salt Road',
+        createdAt: '2026-09-29T12:00:00.000Z',
+        updatedAt: '2026-09-29T12:00:00.000Z',
+        headTurnId: id,
+        channels: {},
+      },
+      turns: [
+        {
+          id,
+          sessionId: 'story',
+          parentTurnId: null,
+          createdAt: '2026-09-29T12:00:00.000Z',
+          status: 'complete',
+          effects: [],
+          tape: [],
+        },
+      ],
+      renditions: [],
+    };
+  }
+
+  const context = (): ImportContext => ({ sessions: server.services.sessions });
+
+  it('carries its key, and a second import of the source is refused naming the first', async () => {
+    const first = await importSession(context(), 'ned', oneTurn(), { originalFilename: KEY });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const stored = await readSession(server.services.sessions, 'ned', first.sessionId);
+    expect(stored?.origin).toMatchObject({ source: 'import', originalFilename: KEY });
+
+    /**
+     * *Fresh turn ids*, so the turn check cannot be what refuses it: this is
+     * a producer whose derivation changed between versions, and the key is
+     * the half that still holds.
+     */
+    const second = await importSession(context(), 'ned', oneTurn(), { originalFilename: KEY });
+    expect(second).toEqual({
+      ok: false,
+      reason: 'already-here',
+      prior: { sessionId: first.sessionId, name: 'The Salt Road' },
+    });
+  });
+
+  /** Per account, as the library's rule is — and nothing about ned is said to amy. */
+  it('is another account’s to import as well', async () => {
+    await importSession(context(), 'ned', oneTurn(), { originalFilename: KEY });
+    const theirs = await importSession(context(), 'amy', oneTurn(), { originalFilename: KEY });
+    expect(theirs.ok).toBe(true);
+  });
+
+  /**
+   * ***Derived, so a rebuild writes it back*** — the column is a restatement
+   * of `session.json`, and an index deleted and rebuilt must still refuse.
+   */
+  it('is found again after the index is rebuilt', async () => {
+    const first = await importSession(context(), 'ned', oneTurn(), { originalFilename: KEY });
+    const { index, layout } = server.services.sessions;
+    const before = sessionSnapshot(index);
+    await rebuild(index, layout);
+    expect(sessionSnapshot(index)).toEqual(before);
+    expect(sessionByOrigin(index, 'user:ned', KEY)).toMatchObject({
+      sessionId: first.ok ? first.sessionId : null,
+    });
+  });
+
+  /**
+   * ***It travels with the session*** — the exporter writes `origin` as it is
+   * on disk, so the key goes where the session goes, and the reader keeps it
+   * as it keeps `foreign`: an export of a produced session, loaded on another
+   * install, is still that source row's story there.
+   */
+  it('keeps the key an export carries', async () => {
+    const first = await importSession(context(), 'ned', oneTurn(), { originalFilename: KEY });
+    if (!first.ok) throw new Error('import failed');
+    const there = await anotherInstall();
+    const landed = await there.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: await exported(server, first.sessionId),
+    });
+    expect(landed.status).toBe(201);
+    const again = await exported(there, landed.body.sessionId as string);
+    expect((again['session'] as { origin?: unknown }).origin).toMatchObject({
+      source: 'import',
+      originalFilename: KEY,
+    });
+
+    const twice = await importSession({ sessions: there.services.sessions }, 'ned', oneTurn(), {
+      originalFilename: KEY,
+    });
+    expect(twice).toMatchObject({ ok: false, reason: 'already-here' });
+  });
+
+  /** A session made here has no key, and an export of one gives none. */
+  it('gives a session with no source no key', async () => {
+    const { sessionId } = await aSessionSaying('The cathedral was three streets east.');
+    const there = await anotherInstall();
+    const landed = await there.request({
+      method: 'POST',
+      url: '/api/sessions/import',
+      payload: await exported(server, sessionId),
+    });
+    const again = await exported(there, landed.body.sessionId as string);
+    expect((again['session'] as { origin?: { originalFilename?: unknown } }).origin).toMatchObject({
+      originalFilename: null,
+    });
+  });
+});
+
+/**
+ * ***The consequence of `already-here` for a producer***, shown with one —
+ * [P13.10]'s last sentence, and `producer.ts`'s header.
+ *
+ * A toy source, shaped like the rows P13.11 will read — entries with their own
+ * ids and times, an action and its answer paired into a turn — and a producer
+ * in a dozen lines that turns it into the format. Not a converter: it is here
+ * to show what the id a producer chooses does to a second import.
+ */
+describe('a producer, importing one story twice', () => {
+  interface Entry {
+    id: string;
+    at: number;
+    action: string;
+    answer: string;
+  }
+  const STORY = {
+    id: 'c7d2-story',
+    title: 'The Salt Road',
+    entries: [
+      { id: 'e-1', at: Date.UTC(2026, 4, 1, 9), action: 'Walk north.', answer: 'Salt flats.' },
+      { id: 'e-2', at: Date.UTC(2026, 4, 1, 10), action: 'Rest.', answer: 'Night falls.' },
+    ] satisfies Entry[],
+  };
+
+  function produce(idOf: (entry: Entry, origin: string) => string): {
+    document: SessionExport;
+    origin: string;
+  } {
+    const origin = `aventura.db/stories/${STORY.id}`;
+    let parent: string | null = null;
+    const turns: Turn[] = [];
+    for (const entry of STORY.entries) {
+      const id = idOf(entry, origin);
+      turns.push({
+        id,
+        sessionId: STORY.id,
+        parentTurnId: parent,
+        createdAt: new Date(entry.at).toISOString(),
+        status: 'complete',
+        input: { actorId: null, kind: 'do', text: entry.action, raw: entry.action },
+        output: { text: entry.answer },
+        effects: [],
+        tape: [],
+        foreign: { source: 'aventuras', id: entry.id },
+      });
+      parent = id;
+    }
+    return {
+      origin,
+      document: {
+        schema: 'storyengine.session-export/1',
+        exportedBy: { version: null, at: new Date(0).toISOString() },
+        session: {
+          id: STORY.id,
+          name: STORY.title,
+          createdAt: new Date(STORY.entries[0]?.at ?? 0).toISOString(),
+          updatedAt: new Date(STORY.entries[1]?.at ?? 0).toISOString(),
+          headTurnId: parent,
+        },
+        turns,
+        renditions: [],
+      },
+    };
+  }
+
+  const derived = (handle: string) => (entry: Entry, origin: string) =>
+    producedTurnId({ handle, origin, sourceId: entry.id, at: entry.at });
+  const context = (): ImportContext => ({ sessions: server.services.sessions });
+
+  it('is refused the second time when its turn ids are derived from the source', async () => {
+    const once = produce(derived('ned'));
+    const twice = produce(derived('ned'));
+    // The same story, the same ids: the whole of the property.
+    expect(twice.document.turns.map((turn) => turn.id)).toEqual(
+      once.document.turns.map((turn) => turn.id),
+    );
+
+    // Without the key, so it is the turn ids alone that refuse.
+    expect((await importSession(context(), 'ned', once.document)).ok).toBe(true);
+    expect(await importSession(context(), 'ned', twice.document)).toEqual({
+      ok: false,
+      reason: 'already-here',
+    });
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect((listed.body.sessions as unknown[]).length).toBe(1);
+  });
+
+  /**
+   * ***And a copy, every time, when they are minted*** — which is why the
+   * producer derives them, and why it passes its key as well.
+   */
+  it('makes a copy when its turn ids are minted fresh, unless it passes its key', async () => {
+    const minted = () => uuidv7();
+    expect((await importSession(context(), 'ned', produce(minted).document)).ok).toBe(true);
+    expect((await importSession(context(), 'ned', produce(minted).document)).ok).toBe(true);
+    const listed = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect((listed.body.sessions as unknown[]).length).toBe(2);
+
+    const keyed = produce(minted);
+    const options = { originalFilename: keyed.origin };
+    expect((await importSession(context(), 'ned', keyed.document, options)).ok).toBe(true);
+    expect(await importSession(context(), 'ned', produce(minted).document, options)).toMatchObject({
+      ok: false,
+      reason: 'already-here',
+    });
+  });
+
+  /**
+   * *The handle is in the derivation*, so two accounts on one install can each
+   * import the same database — a turn id is one row on the install, and
+   * without it the second person would be refused for the first one's turns.
+   */
+  it('lets a second account import the same story', async () => {
+    const ned = produce(derived('ned'));
+    const amy = produce(derived('amy'));
+    expect((await importSession(context(), 'ned', ned.document)).ok).toBe(true);
+    expect((await importSession(context(), 'amy', amy.document)).ok).toBe(true);
   });
 });

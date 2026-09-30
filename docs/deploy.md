@@ -178,6 +178,18 @@ turn `cookieSecure` on from a page it can see arrived over HTTPS, directly or
 through a proxy it is told to trust, and it refuses an address, a port or a
 client root the next start could not use.
 
+**A reverse proxy has an upload limit and a read timeout of its own**, and a
+large import meets both before StoryEngine sees it. An Aventuras backup is a
+whole library with its pictures in it — hundreds of megabytes is ordinary — and
+StoryEngine takes one up to `limits.maxImportUploadMb` (1024 MB by default),
+while nginx's `client_max_body_size` defaults to 1 MB and most proxies stop
+waiting on a slow upload after a minute or so. Raise the body limit to match
+(`client_max_body_size 1100m;` in nginx; Caddy has no limit unless you set one)
+and give the proxy's read timeout room for the slowest connection you will
+upload over (`proxy_read_timeout` and `client_body_timeout` in nginx). A proxy's
+refusal reaches the import panel as its own sentence, not as a failure of the
+file.
+
 ## Updates
 
 StoryEngine checks once a day whether there is a newer build on your channel,

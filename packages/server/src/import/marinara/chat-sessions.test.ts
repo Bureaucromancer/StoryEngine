@@ -52,6 +52,7 @@ async function run(
 ): Promise<ImportItemReport[]> {
   const outcome = await sweep({
     library: server.services.library,
+    tags: server.services.tags,
     ...(sessions ? { sessions: server.services.sessions } : {}),
     handle: 'ned',
     files,
@@ -411,6 +412,7 @@ describe('the other doors', () => {
     const [answer] = await convertOne(
       {
         library: server.services.library,
+        tags: server.services.tags,
         sessions: server.services.sessions,
         handle: 'ned',
         files: new MemoryFileSource({ 'Night Crossing.jsonl': bytes }),

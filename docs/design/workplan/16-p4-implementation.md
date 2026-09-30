@@ -2603,6 +2603,21 @@ the true one and the preview an expired prediction — and that is the honest
 posture rather than a gap, the alternative being the server-side scratch copy
 §1.4 refused.
 
+***Amended at [P13.8](30-p13-aventuras-import.md#p138--streaming-large-uploads-done),
+2026-09-29: an archive or a database is looked at in the browser, not sent.***
+The look was a round trip for every hand-picked file, and for a zip it never
+said more than *this is a folder in a file*, since previewing a root would be a
+dry run of a whole sweep. Since P13.8 such a file can be somebody's whole
+Aventuras install — a gigabyte uploaded to be told what its first four bytes
+said, then uploaded again on the word — and the preview door buffers under
+`maxUploadMb`, so a large one would be refused there before the import door that
+takes it was ever asked. So the client sniffs the two signatures the server
+does, a zip's local header and SQLite's sixteen-byte header, and shows the
+answer the server would have given (`import.file.importsAsFolder`) without
+sending anything. Still a look, then a word; only where the look is made has
+moved. The cost is that an archive too broken to open is refused at the word
+rather than at the look, in the same words.
+
 **The commit is a second upload, not a POST of the converted object.** Sending it
 to `/api/library/presets` would have been less work and cost four things at once:
 `stampImported` never runs, so re-import identity is dead for that object;

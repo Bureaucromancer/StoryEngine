@@ -51,6 +51,7 @@ async function run(
 ): Promise<ImportItemReport[]> {
   const outcome = await sweep({
     library: server.services.library,
+    tags: server.services.tags,
     sessions: server.services.sessions,
     handle: 'ned',
     files: new MemoryFileSource(tree),
@@ -307,6 +308,7 @@ describe('a chat that is not made into a session', () => {
   it('is recorded, with a reason, by a sweep asked for library objects only', async () => {
     const outcome = await sweep({
       library: server.services.library,
+      tags: server.services.tags,
       handle: 'ned',
       files: new MemoryFileSource(sillyTavernFixture()),
     });
@@ -328,6 +330,7 @@ describe('one chat file on its own', () => {
     const [answer] = await convertOne(
       {
         library: server.services.library,
+        tags: server.services.tags,
         sessions: server.services.sessions,
         handle: 'ned',
         files: new MemoryFileSource({ 'Vera - 2026-01-01.jsonl': bytes }),
@@ -356,6 +359,7 @@ describe('one chat file on its own', () => {
     const [answer] = await convertOne(
       {
         library: server.services.library,
+        tags: server.services.tags,
         sessions: server.services.sessions,
         handle: 'ned',
         files: new MemoryFileSource({ '2026-01-01.jsonl': bytes }),

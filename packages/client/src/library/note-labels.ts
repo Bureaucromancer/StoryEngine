@@ -73,6 +73,14 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This card names the player with SillyTavern’s placeholder. It is kept as written, so the model reads the placeholder rather than a name.',
   'import.card.wantsPromptOverride': 'This card wants to override prompts ({fields}); review.',
   'import.card.portraitUnreadable': 'The portrait could not be read, so the card has none.',
+  /**
+   * ***The portrait that was a picture and not a PNG*** — [P13.3]. A card's
+   * own image can only be a PNG, so an Aventuras portrait in JPEG or WebP is
+   * kept on the actor as its source image and the card starts blank; this is
+   * the sentence that stops a blank card reading as a lost face.
+   */
+  'import.card.portraitAsSource':
+    'The portrait is a {format}, and a card’s own image has to be a PNG, so it is kept with {actor} as the portrait’s source image and the card itself is blank.',
   // [P7.10]: a count rather than silence. An import that quietly grew a
   // character eight pictures is a surprise; one that says it did is a feature.
   'import.card.expressions': 'Brought {count} expressions in with {actor}.',
@@ -238,6 +246,16 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This is inside a Marinara storage folder. Point two folders up, at the data folder itself.',
   'import.root.marinaraTooOld':
     'This is a Marinara data folder from before version 1.5.7, which kept everything in one database file. This build reads only the newer file storage.',
+  /**
+   * ***Aventuras' config directory, beneath the folder picked*** — [P13.7].
+   * The path is said in full because it is the one part nobody remembers: a
+   * reverse-DNS folder name, sometimes under a hidden folder, which a person
+   * with a file picker would otherwise have to go and find.
+   */
+  'import.root.aventurasBelow':
+    'Aventuras keeps its library in {path}, beneath this folder — point at that instead.',
+  'import.root.aventurasAbove':
+    'This is one folder out of an Aventuras folder. Point at the folder above it, which holds the database with the whole library in it.',
 
   /**
    * **Aventuras' three single-file vault exports** — [P4 §1.5]'s *"honest
@@ -257,8 +275,15 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} characters were imported beside “{name}” and billed into its cast.',
   'import.aventuras.primaryNotInCast':
     'The scenario names “{actor}” as its lead, and no character by that name came with it.',
+  /**
+   * ***One sentence for two roads*** — [P13.5]. From a file the link can never
+   * resolve, and the remedy is a second export; from a database it resolves to
+   * the book that row became, and this fires only when the row is not there,
+   * or was refused and nothing from an earlier import is here. The sentence
+   * names both, since the note is the same key on both.
+   */
   'import.aventuras.linkedLorebookMissing':
-    'This scenario points at a lorebook that is not in the file. Export that lorebook from Aventuras separately and import it too.',
+    'This points at an Aventuras lorebook that was not imported with it, so the link was left out. From a file, export that lorebook from Aventuras separately and import it too; from a whole library, the lorebook was missing or could not be read.',
   'import.aventuras.scenarioAsLorebook':
     'The setting and its cast became {entries} entries. The setting is always active; each character fires on their own name.',
   'import.aventuras.openingsDropped':
@@ -272,6 +297,227 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
   'import.aventuras.repeatedNpcNames':
     '{count} characters in this scenario shared a name with an earlier one. Each was kept as its own actor.',
+  'import.aventuras.walCopied':
+    'Aventuras may have been open while this was read, so its latest changes were taken from its unsaved log. If anything looks missing, close Aventuras and import again.',
+
+  /**
+   * ***A whole Aventuras install, read and not yet converted*** — [P13.2].
+   *
+   * The review of a database is a row per table and a row per story, so these
+   * say what each row held. `settingsDropped` is the one with a reason in it:
+   * the table is where Aventuras keeps provider keys in plain text, and a
+   * person should read that they were left behind *unread*, not merely left
+   * behind. *"May include"* since the P13.2 review: the reader never looks, so
+   * it cannot say an install that kept only a theme there holds a key.
+   *
+   * `storyRecorded` says *across all its branches* because that is what its
+   * numbers are — a branch's edits and tombstones left out, and a branch that
+   * copied the whole world counted once per branch — and not what any one of
+   * Aventuras' own views shows (the reader's `entitiesOnly`).
+   */
+  'import.aventuras.database':
+    'An Aventuras database at schema version {version}, with {tables} tables. Each is listed here with what became of it; a table that was imported is listed as the things it held.',
+  'import.aventuras.tableRows': '{rows} rows in {table}.',
+  'import.aventuras.settingsDropped':
+    '{rows} settings were dropped without being read. They may include provider keys, which are never imported.',
+  'import.aventuras.storyRecorded':
+    '“{story}”, across all its branches: {entries} entries, {branches} branches, {characters} characters, {locations} locations, {items} items, {beats} story beats, {lore} lorebook entries, {chapters} chapters, {checkpoints} checkpoints and {images} images. Stories become sessions only when an import asks for them.',
+
+  /**
+   * ***A story, brought across as a session*** — [P13.11]. The import that
+   * asks for stories makes each one a session of its own: an action and its
+   * answer are one turn, Aventuras' branches are named branches, and the
+   * session opens where the person left the story. These say what came, what
+   * was re-read to make it a tree, and what stayed in Aventuras — ~~the
+   * world,~~ the chapters ~~and the pictures~~, ~~which a later stage brings~~
+   * which P13.14 recorded rather than brought (the world came at P13.12, and
+   * the pictures at P13.13, below), and a narrator
+   * prompt of the story's own, which is written for Aventuras' prompt layout
+   * the way its prompt packs are (`packRecorded` says why those stay).
+   *
+   * *"Plays here in this server's default mode"*: the importer names no mode
+   * (a mode is the registry's knowledge, not the engine's), so an imported
+   * story plays in whichever mode this install starts sessions in.
+   */
+  'import.aventuras.storyImported':
+    '“{story}” is now a session of {turns} turns, with {branches} named branches besides the main line, opening where the story was left. It was an Aventuras {mode} story, and plays here in this server’s default mode.',
+  /**
+   * ***What stayed behind, and — since P13.14 — why the chapters did.*** The
+   * key and its counts are P13.11's, so a review saved before still reads;
+   * what changed is the sentence. ~~*"Not brought across yet"*~~: the chapter
+   * summaries are not coming later. Each is Aventuras' model's summary of a
+   * stretch of the story, and this server keeps its own summaries of a long
+   * session, written by its own summariser from the turns — every one of
+   * which came across — so the story loses nothing it plays with, and a
+   * summary somebody else's model wrote is never passed off as one this
+   * server wrote. Checkpoints are the phase's *deliberately not carried*.
+   */
+  'import.aventuras.storyWorldRecorded':
+    'Not brought across from “{story}”: {chapters} chapter summaries and {checkpoints} checkpoints, which are still in Aventuras. The chapter summaries were written by Aventuras’ own model; every turn they summarise came across, and this server writes its own summaries of a long story from those turns.',
+  /**
+   * ***And its world*** — [P13.12]. The characters, places, items, story
+   * beats and lorebook entries of the branch the session opens on: the
+   * characters become the session's cast, the rest one lorebook of the
+   * story's own, each kind in a folder and tagged by what it is. Story beats
+   * are there *for now* — `storyBeatsAsLore` says so, because a person who
+   * later finds a place of their own for beats should know where these went.
+   * `worldBranchesDiffer` is the one sentence about the branches the person
+   * was not on: one session has one cast, so what those held differently
+   * stays in Aventuras, and the counts say how much.
+   *
+   * `storyWorldRecorded` keeps its key and loses the world from its sentence,
+   * so a review saved before this stage still reads — with the older counts
+   * it carried simply not named. *And at P13.13 it loses the images*, below,
+   * on the same terms.
+   */
+  'import.aventuras.storyWorld':
+    '“{story}” came with its world: {characters} characters in its cast, and a lorebook of its own with {lore} lorebook entries, {locations} locations, {items} items and {beats} story beats, as they stood on the branch the story was left on.',
+  'import.aventuras.storyPersona':
+    '{actor} is who you played in “{story}”, so they are the session’s persona.',
+  'import.aventuras.storyBeatsAsLore':
+    '{count} story beats from “{story}” are lorebook entries for now, tagged “story-beat” with everything Aventuras kept about them, until story beats have a place of their own here.',
+  'import.aventuras.worldBranchesDiffer':
+    'In “{story}”, {branches} other branches hold a different world from the one brought across — {entities} characters, places, items, beats or entries differ in at least one of them. Only the branch the story was left on came across; the others are still in Aventuras.',
+  'import.aventuras.worldFieldsUnreadable':
+    'In “{story}”, {count} saved details of its characters, places, items, beats or entries could not be read and were left out. Everything else about them was brought across.',
+  /**
+   * ***And its pictures*** — [P13.13]. Each picture Aventuras drew into an
+   * entry is on the turn that entry became, on whichever branch, and each
+   * branch's backdrop on the turn its line ends on. *"Not shown until you
+   * choose it"*: the import names no mode, and which backdrop is showing is
+   * something a mode that stages one keeps, so a backdrop comes across as a
+   * picture and not as a choice. `pictureModels` is the one place the model
+   * that drew them is said: this server has no connection that drew them, and
+   * a record claiming one would be a request that never happened.
+   */
+  'import.aventuras.storyPictures':
+    '“{story}” came with its pictures: {illustrations} drawn into its text, each beside the turn it illustrates, and {backgrounds} backgrounds, each on the last turn of the branch it belonged to — not shown until you choose it, in a mode that shows a background.',
+  'import.aventuras.pictureModels':
+    'The pictures in “{story}” were drawn in Aventuras by {models}. They came with the prompts they were drawn from; drawing one again here uses this server’s own image model.',
+  'import.aventuras.picturesUnfinished':
+    'In “{story}”, {count} pictures Aventuras never finished drawing have nothing to bring across, and were left out.',
+  'import.aventuras.picturesUnplaced':
+    'In “{story}”, {count} pictures belong to entries or branches the database no longer has, so there is no turn to put them beside; they were left out.',
+  'import.aventuras.checkpointBackgrounds':
+    'In “{story}”, {count} backgrounds saved with checkpoints stay with the checkpoints, which are not brought across. They are still in Aventuras.',
+  'import.aventuras.pictureTooLarge':
+    'In “{story}”, {count} pictures are larger than {limit} MB and were left out. The rest of the story was brought across.',
+  'import.aventuras.pictureUnreadable':
+    'In “{story}”, {count} pictures could not be read as PNG, JPEG or WebP images — or are links, which are never fetched — and were left out. The rest of the story was brought across.',
+  'import.aventuras.picturesWithoutPixels':
+    'In “{story}”, {count} pictures could not be written and came across as the prompts they were drawn from, which can be drawn again here.',
+  'import.aventuras.storyAlreadyHere':
+    '“{story}” was brought across before and is already a session here, so it was not imported again. Anything written in it in Aventuras since then is not brought across.',
+  'import.aventuras.storyEmpty':
+    '“{story}” has nothing in it yet, so there was no session to make.',
+  'import.aventuras.storyRefused':
+    '“{story}” could not be made into a session ({reason}), and nothing was written for it.',
+  /**
+   * ***A story's own file*** — [P13.15]. An Aventuras `.avt` is one story,
+   * every row of it, and comes across exactly as the same story does from
+   * the database: the same session, and the same one — so bringing a story
+   * across from either and then the other finds it already here, and every
+   * sentence above says the rest. These say what only a file can: which
+   * version of the format wrote it, that a format this build does not know
+   * is refused rather than guessed at, and the backdrop a file carries with
+   * no branch to put it on, which Aventuras' own import drops too. And one
+   * for the files an older backup carries beside its database, which are the
+   * database's own stories again, so the database is what is read.
+   */
+  'import.aventuras.avtStory':
+    '“{story}”, an Aventuras story file (format {version}): {entries} entries across {branches} branches besides the main line. Importing it makes it a session, with its characters, lorebook and pictures.',
+  'import.aventuras.avtOlderFormat':
+    'The file for “{story}” was written by an older Aventuras (format {version}). What that format did not carry yet — branches, pictures or portraits, depending on its age — is not in it, so it is not here either.',
+  'import.aventuras.avtNewerFormat':
+    'The file for “{story}” comes from a newer Aventuras (format {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
+  'import.aventuras.avtUnknownFormat':
+    '{file} is an Aventuras story file in a format this build cannot read (format {version}; this build reads 1.x up to {known}). Nothing was imported from it.',
+  'import.aventuras.avtUnreadable':
+    '{file} looks like an Aventuras story file, but it could not be read ({reason}). Nothing was imported from it.',
+  'import.aventuras.avtBackdropNotCarried':
+    'The file for “{story}” carries a background picture without saying which branch it belonged to, so it was left out, as Aventuras itself leaves it out when it imports the file.',
+  'import.aventuras.avtBesideDatabase':
+    'A story file beside the database. The database holds the same stories and is what was read, as Aventuras’ own restore does; to bring a story that is only in this file, import the file on its own.',
+  'import.aventuras.forkSplitPair':
+    'In “{story}”, the branch “{branch}” begins between an action and its answer, so here the action is repeated at the start of the branch with the branch’s own answer — beside the main line’s answer rather than after it.',
+  'import.aventuras.forkEntryMissing':
+    'In “{story}”, the place the branch “{branch}” started from is missing from the database, so its turns start the session over as a line of their own.',
+  'import.aventuras.headBranchMissing':
+    '“{story}” was left on a branch the database no longer has, so the session opens at the end of the main line.',
+  'import.aventuras.entryTypeUnknown':
+    'In “{story}”, {count} entries of a kind this build does not know (“{type}”) were left out.',
+  'import.aventuras.entriesUnplaced':
+    'In “{story}”, {count} entries belong to a branch the database no longer has, so Aventuras could not show them either; they were left out.',
+  'import.aventuras.entryFieldsUnreadable':
+    'In “{story}”, {count} saved details — generation settings, or the story’s own settings — could not be read and were left out. The text of every entry was brought across.',
+  'import.aventuras.customNarratorPrompt':
+    '“{story}” has a narrator prompt of its own ({length} characters). It is written for Aventuras’ prompt layout and variables, so it was not brought across; it is still in Aventuras, to copy into a preset by hand.',
+  /**
+   * ***A prompt pack, recorded*** — [P13.9]. Packs are not imported: their
+   * templates are written against Aventuras' own variables and its own prompt
+   * layout, and the narrator's — the only ones with a counterpart here — branch
+   * on point of view, tense and reinforcement, which a preset here cannot read.
+   * So the row says what the pack held, and the warning names the templates
+   * that are somebody's, since those are what the person is leaving behind.
+   *
+   * *"Differ from the ones Aventuras ships"* rather than *"were edited"*,
+   * because that is the test (`packs.ts`): a pack imported into Aventuras reads
+   * as untouched by Aventuras' own edit flag, and a template a pack was seeded
+   * with by an older Aventuras differs without anybody having touched it — so
+   * the sentence allows for that rather than claiming an edit.
+   */
+  'import.aventuras.packRecorded':
+    'The prompt pack “{pack}”: {templates} templates, {differ} of them different from the ones Aventuras ships; {variables} custom variables and {tracked} tracked variables. Prompt packs are not imported: their templates are written for Aventuras’ own prompt layout and variables, and would not read here as they do there.',
+  'import.aventuras.packTemplatesDiffer':
+    'In “{pack}”, these differ from Aventuras’ own and were not brought across: {templates}. Each is an edit, a pack somebody shared, or text from another version of Aventuras. They are still in Aventuras; copy any you want into a preset.',
+  'import.aventuras.packTemplatesUnlisted':
+    'In “{pack}”, {count} more templates differ from Aventuras’ own and are not named here.',
+  'import.aventuras.newerSchema':
+    'This database comes from a newer Aventuras (schema version {version}; this build knows {known}). Everything this build reads was there, so it was read; anything newer was left alone.',
+  'import.aventuras.backupMetadata':
+    'An Aventuras backup, made by version {appVersion} on {createdAt}, holding {storyCount} stories.',
+
+  /**
+   * ***A vault row, read around a field*** — [P13.3]. A database row is
+   * somebody's character with one unreadable field, not an unreadable file,
+   * so both of these say what was left behind and let the rest import.
+   * *Since P13.4* a lorebook's too — with one difference the sentence has to
+   * say: an `entries` column that will not read is the book, not a field of it,
+   * so that row is refused and nothing is written, rather than a book imported
+   * empty that a re-sweep would put in place of a good one. *Since P13.5* a
+   * scenario's cast, alternate openings and metadata — where its lorebook link
+   * lives — refuse the row by the same argument.
+   */
+  'import.aventuras.columnUnreadable':
+    'The {column} column could not be read as Aventuras writes it, so it was left out. If it held a lorebook’s entries, or a scenario’s cast, openings or metadata, that row was not imported, and any copy already here was left as it was.',
+  'import.aventuras.portraitTooLarge':
+    'The portrait is larger than the {limit} MB a card can carry, so {actor} was imported without it.',
+
+  /**
+   * ***A vault tag, merged into the tag list*** — [P13.6]. Each row of
+   * Aventuras' `vault_tags` joins this account's tags by name: a new one is
+   * added, and one already here is left exactly as it is, colour included.
+   * These say which happened, and what became of the colour — Aventuras'
+   * seventeen colours land on the nearest of this library's eight swatches,
+   * and it keeps a tag list per kind of thing where this library keeps one,
+   * so a name two kinds shared is one tag with one colour. *"Anything carrying
+   * it keeps it as written"* because tags are open: an object's tag with no
+   * entry here still works, and only has no colour.
+   */
+  'import.aventuras.tagMinted':
+    'Added the tag “{tag}” from Aventuras’ {kind} tags, coloured {swatch} — the nearest of this library’s swatches to its {colour}.',
+  'import.aventuras.tagColourUnreadable':
+    'Added the tag “{tag}” from Aventuras’ {kind} tags without a colour: “{colour}” did not read as one.',
+  'import.aventuras.tagShared':
+    'Aventuras’ {kind} tag “{tag}” is the same tag here as another kind’s of that name: this library keeps one list of tags, not one per kind.',
+  'import.aventuras.tagKept':
+    '“{tag}” is already a tag here, so it was left as it is, its name and colour unchanged.',
+  'import.aventuras.tagColourDiffers':
+    'Aventuras’ {kind} tag “{tag}” would have been {swatch}; the tag here is {kept}, and keeps it. A name used by more than one kind is one tag here, with one colour.',
+  'import.aventuras.tagNameTooLong':
+    'The tag “{tag}” is longer than the {limit} characters a tag here can be, so it was not added. Anything carrying it keeps it as written.',
+  'import.aventuras.tagsFull':
+    'The tag “{tag}” was not added: this library already has {limit} tags, the most it keeps. Anything carrying it keeps it as written.',
 
   /**
    * **A chat, imported as a session** —

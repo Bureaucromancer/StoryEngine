@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ImportPreview } from '@storyengine/shared';
 
-import { api, type LibraryObject } from '../api.js';
+import { api, uploadFailure, type LibraryObject } from '../api.js';
 import { useLibrary } from '../queries.js';
 import { ImportPanel } from './ImportPanel.js';
 
@@ -588,6 +588,131 @@ describe('choosing one file', () => {
 });
 
 /**
+ * ***An archive, and a large upload*** —
+ * [P13.8](../../../../docs/design/workplan/30-p13-aventuras-import.md)'s client
+ * half. An archive or a database is looked at here from its first bytes and
+ * not sent for a preview; the word's upload shows how far it has got; and a
+ * failure with no word of ours in it reaches the person as a sentence.
+ */
+describe('an archive, and a large upload', () => {
+  const zip = () =>
+    new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3])], 'aventura-backup.zip', {
+      type: 'application/zip',
+    });
+  const database = () =>
+    new File([new TextEncoder().encode('SQLite format 3\0 and its pages')], 'aventura.db');
+  const input = (): HTMLInputElement =>
+    document.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+  it('looks at an archive without sending it, and says it imports as a folder', async () => {
+    const preview = vi.spyOn(api, 'importFilePreview');
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+
+    expect(await screen.findByText(/Everything inside would be imported\./)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^import$/i })).toBeTruthy();
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('does the same for a bare database, by its bytes and not its name', async () => {
+    const preview = vi.spyOn(api, 'importFilePreview');
+    render(mount());
+
+    await userEvent.upload(input(), database());
+
+    expect(await screen.findByText(/Everything inside would be imported\./)).toBeTruthy();
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('shows every row of an archive’s review, so a second upload reads unchanged row by row', async () => {
+    // [P13.7]: the answer's one-row summary named the first converted row, and
+    // for a re-upload of the same backup a `recorded` row for the zip — the
+    // review a sweep of the folder gives was nowhere on screen.
+    vi.spyOn(api, 'importFile').mockResolvedValue({
+      item: { source: 'aventura-backup.zip', disposition: 'recorded', notes: [] },
+      notes: [],
+      report: {
+        jobId: 'unsaved',
+        source: 'aventuras',
+        items: [
+          { source: 'aventura.db/lorebook_vault/book-1', disposition: 'unchanged', notes: [] },
+          { source: 'aventura.db/character_vault/char-1', disposition: 'unchanged', notes: [] },
+        ],
+        counts: { unchanged: 2 },
+      },
+    });
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    expect(await screen.findByText('aventura.db/lorebook_vault/book-1')).toBeTruthy();
+    expect(screen.getByText('aventura.db/character_vault/char-1')).toBeTruthy();
+    // The summary row is not the review: the file's name stays a label above
+    // it, and is not a row of what happened.
+    const rows = [...document.querySelectorAll('section[aria-label="What happened"] code')];
+    expect(rows.map((row) => row.textContent)).toEqual([
+      'aventura.db/lorebook_vault/book-1',
+      'aventura.db/character_vault/char-1',
+    ]);
+  });
+
+  it('shows how far the upload has got, and then that it is being read', async () => {
+    let report: ((progress: { sent: number; total: number }) => void) | undefined;
+    const commit = vi
+      .spyOn(api, 'importFile')
+      .mockImplementation((file, onConflict, destination, onProgress) => {
+        report = onProgress;
+        return new Promise(() => undefined);
+      });
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+    await waitFor(() => {
+      expect(commit).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      report?.({ sent: 25 * 1024 * 1024, total: 100 * 1024 * 1024 });
+    });
+    expect(await screen.findByText(/Sending… 25% of 100 MB/)).toBeTruthy();
+
+    act(() => {
+      report?.({ sent: 100 * 1024 * 1024, total: 100 * 1024 * 1024 });
+    });
+    expect(await screen.findByText(/Sent\. Reading it into your library…/)).toBeTruthy();
+  });
+
+  it('says what a dropped connection may mean, rather than that the file was bad', async () => {
+    vi.spyOn(api, 'importFile').mockRejectedValue(uploadFailure(0, null));
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toMatch(/connection was lost/);
+    });
+    // The meter is gone with the upload.
+    expect(screen.queryByText(/Sending…/)).toBeNull();
+  });
+
+  it('says a proxy’s refusal is a proxy’s', async () => {
+    vi.spyOn(api, 'importFile').mockRejectedValue(uploadFailure(413, null));
+    render(mount());
+
+    await userEvent.upload(input(), zip());
+    await userEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toMatch(/reverse proxy/);
+    });
+  });
+});
+
+/**
  * ***Answers that arrive after the question changed*** (2026-09-27).
  *
  * Every request here writes the one outcome slot when it lands, and a person
@@ -725,6 +850,48 @@ describe('answers that arrive after the question changed', () => {
 });
 
 /**
+ * ***Stories are asked for, each time*** —
+ * [P13.11](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * The server writes no session unless the request says `stories`
+ * (`SweepRequest.stories` has why), so what the panel owes is that the
+ * question reaches the request when it is ticked, and only then.
+ */
+describe('bringing Aventuras stories across', () => {
+  const empty = {
+    suggestions: [],
+    report: { jobId: 'job-s', source: 'aventuras', counts: {}, items: [] },
+  };
+
+  it('does not ask unless the box is ticked', async () => {
+    const sweep = vi.spyOn(api, 'importSweep').mockResolvedValue(empty);
+
+    render(mount());
+    const box = screen.getByRole('checkbox', { name: /aventuras stories/i });
+    expect((box as HTMLInputElement).checked).toBe(false);
+    await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/aventura');
+    await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
+
+    await waitFor(() => {
+      expect(sweep).toHaveBeenCalledWith('/somewhere/aventura', undefined, false);
+    });
+  });
+
+  it('asks when it is', async () => {
+    const sweep = vi.spyOn(api, 'importSweep').mockResolvedValue(empty);
+
+    render(mount());
+    await userEvent.click(screen.getByRole('checkbox', { name: /aventuras stories/i }));
+    await userEvent.type(screen.getByPlaceholderText(/full path/i), '/somewhere/aventura');
+    await userEvent.click(screen.getByRole('button', { name: /import folder/i }));
+
+    await waitFor(() => {
+      expect(sweep).toHaveBeenCalledWith('/somewhere/aventura', undefined, true);
+    });
+  });
+});
+
+/**
  * ***A folder with chats in it asks first*** —
  * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
@@ -802,7 +969,7 @@ describe('a folder with chats in it', () => {
     await waitFor(() => {
       expect(upload).toHaveBeenCalledTimes(1);
     });
-    const [manifest, carried, , chats] = upload.mock.calls[0] ?? [];
+    const [manifest, carried, , , chats] = upload.mock.calls[0] ?? [];
     expect(manifest).toEqual([
       'settings.json',
       'characters/Vera.png',
@@ -836,7 +1003,7 @@ describe('a folder with chats in it', () => {
       expect(upload).toHaveBeenCalledTimes(1);
     });
     expect(planned.mock.calls[1]?.[1]).toBe(true);
-    const [, carried, , chats] = upload.mock.calls[0] ?? [];
+    const [, carried, , , chats] = upload.mock.calls[0] ?? [];
     expect(carried?.map((entry) => entry.path)).toContain('chats/Vera/2026-01-01.jsonl');
     expect(chats).toBe('include');
   });

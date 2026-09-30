@@ -4,16 +4,21 @@
 import { createHash } from 'node:crypto';
 
 import {
+  ACTOR_SCHEMA,
+  LOREBOOK_SCHEMA,
+  TREATMENT_SCHEMA,
   uuidv7,
   SESSION_EXPORT_SCHEMA,
   type BranchRef,
   type ChannelEffect,
   type OutputMessage,
+  type PortableSchemaId,
   type Rendition,
   type SessionExport,
   type Turn,
 } from '@storyengine/shared';
 
+import { findById } from '../index-db/query.js';
 import { sessionByOrigin, sessionHoldingTurns } from '../index-db/sessions.js';
 import { renditionFrom, sessionAssetsRoot, writeRendition } from '../renditions/store.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
@@ -29,6 +34,7 @@ import {
   readTurns,
   reconstructAlong,
   replayChannels,
+  scopeOf,
   sessionFilePath,
   sessionRoot,
   withSessionLock,
@@ -77,6 +83,46 @@ import type { SessionFile } from './types.js';
  * arrived with its own `foreign` keeps it: the first install it came from is the
  * one that matters, and overwriting it would make a session that had travelled
  * twice claim it came from the middle.
+ *
+ * ***And a second caller*** — [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md),
+ * [P13 §0.3](../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4).
+ * [25 E4]'s *one format, not N importers* is kept by making every other
+ * source a **producer** of this format that hands its document here, so this
+ * reader is the only thing that writes an imported session. The first
+ * producer was our own backup (`backup/import.ts`); the second is Aventuras'
+ * stories, and it is the first whose document this build did not write. Four
+ * things a reader of our own exports could leave unchecked had to be checked
+ * once somebody else's converter was writing the input:
+ *
+ * - **A key to be found by again** — `SessionImportOptions.originalFilename`,
+ *   stamped as `origin.originalFilename` and indexed, so a re-import of the
+ *   same source is refused as `already-here` naming the session it made.
+ * - **A tree**, rather than a list whose order the file promised — see
+ *   {@link treeOf}.
+ * - **Links that resolve**, or a report of the ones that do not — see
+ *   `SessionImportOptions.requireLinks`.
+ * - **Turn ids a producer derives rather than mints**, which is
+ *   `producer.ts`'s, and the reason the refusal above is a refusal and not a
+ *   copy.
+ *
+ * ***And a third, which extends rather than refuses*** — the chat doors of
+ * [P14](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * (`import/chat-sessions.ts`), whose sources go on growing, so a re-import of
+ * one is a sync ([P14 §2.7]) rather than a duplicate. **The two arrived on two
+ * branches at once and found the same key**: P13.10 indexed
+ * `origin.originalFilename` so a producer's re-import could be *refused*, and
+ * P14.10a indexed the same field, at the same schema version, so a chat's
+ * could be *extended*. One column serves both (`sessionByOrigin`), and what
+ * tells them apart is the caller: `extend` is asked for by the chat doors and
+ * never inferred, so every other door — an export, a backup, a producer —
+ * keeps the refusal, now naming the session the key found.
+ *
+ * ***What the trash does to both refusals***, recorded rather than solved: a
+ * session in the trash has no index rows, so neither its turns nor its key
+ * are *here*, and an import of the same session or source is written — and
+ * restoring the trashed one afterwards gives two sessions one set of turn
+ * ids. `backup/import.ts` asks the trash by session id for its own case; an
+ * export or a producer's source has no id the trash could be asked by.
  */
 
 export interface ImportContext {
@@ -106,10 +152,71 @@ export interface SessionImportOptions {
    * export and backup doors leave this unset and keep the refusal.
    */
   extend?: boolean;
+  /**
+   * ***What the session was made from, in its source's own terms*** — a
+   * producer's idempotence key, e.g. `aventura.db/stories/<id>`
+   * ([P13 §1.5](../../../../docs/design/workplan/30-p13-aventuras-import.md#15-identity-is-the-row-not-the-file)).
+   *
+   * Stamped as the session's `origin.originalFilename` — the field [03 §8]
+   * gave `origin` from the start — and indexed (`session.origin_filename`),
+   * so an import carrying a key a session of this account already carries is
+   * refused `already-here`, with that session's id and name. **The library's
+   * rule, applied to a session**: same owner, same source, one object
+   * ([P4 §1.3]). Source-relative, never an absolute path, for the
+   * foreign-path doctrine `stampImported` states ([21 §4.1.1]).
+   *
+   * ***An option rather than a field of the format***, and the format's
+   * version does not move. The format already carries the value — `origin` is
+   * part of the session document, which the exporter writes as it is on disk,
+   * and a chat's converter writes its family's root there ([P14 §2.7]) — so a
+   * session a producer made takes its key with it when it is exported, and
+   * this reader keeps it. What was missing was a way for a producer to *say*
+   * it without writing an `origin` of its own into a document whose `origin`
+   * this reader owns. Given, it wins over the document's.
+   */
+  originalFilename?: string;
+  /**
+   * ***Refuse, rather than report, a link that resolves to nothing here.***
+   *
+   * `cast`, `lore` and `treatment` are **links** ([03 §8]) — ids resolved
+   * fresh every turn — and play already survives one that names nothing
+   * (`resolveCast`, `resolveLore`: *resolve what you can, show what you
+   * cannot, never block*, [00 §3.3]). So an export loaded on another install,
+   * whose cast lives on the install it came from, is imported and the result
+   * names what did not resolve: refusing it would refuse nearly every real
+   * session on row 10's *"loads on another one"*, and dropping the links would
+   * lose them for the day the same objects arrive by package.
+   *
+   * *A producer is the other case.* It writes the objects its session links
+   * to before it writes the session, so a link that resolves to nothing is its
+   * own defect, and a session written around it is the half-written import
+   * this reader's header exists to prevent. It passes this and is refused
+   * `missing-links` instead, before anything is written.
+   *
+   * *Asked of a new session only.* An extending import adds turns to a
+   * session whose links are already what they are, and the chat doors resolve
+   * their cast onto cards before they build the document.
+   */
+  requireLinks?: boolean;
+}
+
+/** The links a session names that resolve to nothing this account can read. */
+export interface MissingLinks {
+  cast: string[];
+  lore: string[];
+  treatment: string[];
 }
 
 export type SessionImport =
-  | { ok: true; extended?: undefined; sessionId: string; turns: number; renditions: number }
+  | {
+      ok: true;
+      extended?: undefined;
+      sessionId: string;
+      turns: number;
+      renditions: number;
+      /** Reported, not refused, unless `requireLinks` — see there. */
+      missing: MissingLinks;
+    }
   | {
       ok: true;
       extended: true;
@@ -118,7 +225,48 @@ export type SessionImport =
       appended: number;
       sync: SessionSync;
     }
-  | { ok: false; reason: 'unreadable' | 'wrong-schema' | 'no-turns' | 'already-here' };
+  | {
+      ok: false;
+      reason: 'unreadable' | 'wrong-schema' | 'no-turns' | 'broken-tree' | 'already-here';
+    }
+  | {
+      ok: false;
+      reason: 'already-here';
+      /**
+       * The session of this account an earlier import of the same source made
+       * — present only when the key found it, because a turn found by id may
+       * be another account's, and naming it would say so.
+       */
+      prior: { sessionId: string; name: string };
+    }
+  | { ok: false; reason: 'missing-links'; missing: MissingLinks };
+
+/**
+ * ***The session of this account a source already became, asked before a
+ * producer writes anything*** —
+ * [P13.12](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * {@link importSession} answers the same question, but only once it is handed
+ * a document — and a producer whose session links to library objects writes
+ * those objects *first*, so `requireLinks` holds. For a source already here
+ * that order would rewrite the objects of a session that is not going to be
+ * written again: new actors nobody's cast names, and a replaced book beside
+ * turns that never saw it. So the producer asks here, and writes nothing when
+ * the answer is a session. The same index row, under the same owner key, as
+ * the check in {@link importSession} and the chat doors' `extend` arm — one
+ * question, asked earlier, and never a second rule.
+ */
+export function priorSessionImport(
+  context: ImportContext,
+  handle: string,
+  originalFilename: string,
+): { sessionId: string; name: string } | null {
+  return sessionByOrigin(
+    context.sessions.index,
+    scopeOf(context.sessions, handle),
+    originalFilename,
+  );
+}
 
 /**
  * ***What an extending import did, counted*** — the facts `chat-sessions.ts`
@@ -235,14 +383,31 @@ async function loadSession(
   // `unknown[]` rather than `Turn[]`, for `readSessionExport`'s reason: the
   // declared element type is the claim the file makes about itself, and a
   // malformed member is exactly what a hand-edited export has.
-  const turns = (read.turns as unknown[]).filter(
+  const listed = (read.turns as unknown[]).filter(
     (candidate): candidate is Turn =>
       typeof candidate === 'object' &&
       candidate !== null &&
       typeof (candidate as { id?: unknown }).id === 'string',
   );
 
-  const originalFilename = originalFilenameOf(read.session);
+  /**
+   * ***A tree before anything else, on every path*** ([P13.10]) — including
+   * the `extend` arm below, which appends a turn only once its parent is
+   * present and so leans on parents-first order as much as a new session
+   * does. A chat's document is its whole family, every turn's parent in it,
+   * so nothing a converter builds is refused here; what is refused is what no
+   * path could write whole.
+   */
+  const turns = treeOf(listed, read.session.headTurnId);
+  if (turns === null) return { ok: false, reason: 'broken-tree' };
+
+  const owner = scopeOf(context.sessions, handle);
+  /**
+   * *The producer's word, else the document's* — a key given as an option is
+   * the source speaking now; one the document carries is where the session
+   * was last imported from, kept as `foreign` is ([P13.10], [P14.10a]).
+   */
+  const originalFilename = options.originalFilename ?? originalFilenameOf(read.session);
 
   /**
    * ***The `extend` arm*** — [P14 §2.7], [P14.10a]: a source this account
@@ -257,6 +422,26 @@ async function loadSession(
   }
 
   /**
+   * ***A source this account has already imported is refused, naming the
+   * session it made*** ([P13.10]). Asked before the turns, because it is the
+   * answer a person can act on: *already here, as Rain City*. The turn check
+   * below would refuse the same re-import whenever the producer's ids are
+   * stable (`producer.ts`); this one holds when they are not — a producer
+   * whose derivation changed between versions — and it is scoped to the
+   * account, where a turn id is one row on the install.
+   *
+   * *Reached with a key found only when `extend` was not asked for*, since
+   * {@link extendTarget} asks the same row first and extends what it finds.
+   * So for a chat door this is unreachable, and for an export or a backup of
+   * an imported chat's session it is §2.7's *"original case"* for
+   * `already-here` — a copy of what is here — told by name ([P14 §2.7]).
+   */
+  if (originalFilename !== null) {
+    const prior = sessionByOrigin(context.sessions.index, owner, originalFilename);
+    if (prior !== null) return { ok: false, reason: 'already-here', prior };
+  }
+
+  /**
    * ***A session whose turns are already here is refused*** (2026-09-27), the
    * header's correction. The copy used to be made, and the original's search
    * hits and by-id reads then went to the copy's segments at the copy's
@@ -264,6 +449,14 @@ async function loadSession(
    */
   if (sessionHoldingTurns(context.sessions.index, turnIdsOf(turns)) !== null) {
     return { ok: false, reason: 'already-here' };
+  }
+
+  const missing = missingLinks(context, owner, read.session);
+  if (
+    options.requireLinks === true &&
+    missing.cast.length + missing.lore.length + missing.treatment.length > 0
+  ) {
+    return { ok: false, reason: 'missing-links', missing };
   }
 
   const now = new Date().toISOString();
@@ -290,13 +483,14 @@ async function loadSession(
       version: exportedBy(read),
       license: null,
       /**
-       * ***The source's own name for itself, kept*** ([P14.10a]). Null until
-       * then, because the only documents were exports, which have no source
-       * file to name. A chat's document names its family's root path
-       * (`chat/build.ts`), and that is what a later import finds the session
-       * by ([P14 §2.7], `sessionByOrigin`). An export of such a session
-       * carries it too, so a backup restored elsewhere can still be synced
-       * there.
+       * ***The source's own name for itself, kept*** ([P13.10], [P14.10a]).
+       * Null until then, because the only documents were exports, which have
+       * no source file to name. A producer gives its key as an option
+       * (`aventura.db/stories/<id>`); a chat's document names its family's
+       * root path (`chat/build.ts`). Either is what a later import finds the
+       * session by (`sessionByOrigin`) — to refuse it, or, at a chat door, to
+       * extend it ([P14 §2.7]). An export of such a session carries it too, so
+       * a backup restored elsewhere is still that source's session there.
        */
       originalFilename,
       createdAt: read.session.createdAt,
@@ -315,11 +509,12 @@ async function loadSession(
   indexWrittenSession(context.sessions, handle, session);
 
   /**
-   * ***In the order the exporter wrote them, which is creation order.*** The
-   * tree is the parent links and the file order is not the tree — but appending
-   * a child before its parent would make every reader that walks forward see a
-   * turn with a dangling parent for the length of the import, and creation order
-   * is a total order in which that cannot happen.
+   * ***Parents before children, which is {@link treeOf}'s order.*** The tree
+   * is the parent links and the file order is not the tree — but appending a
+   * child before its parent would make every reader that walks forward see a
+   * turn with a dangling parent for the length of the import. ~~In the order
+   * the exporter wrote them, which is creation order~~ — this used to trust
+   * the file for that, and nothing checked it (corrected 2026-09-29, [P13.10]).
    *
    * ***Each turn names the session it is in now.*** It kept the exporter's id,
    * which went into the index beside a location in this session's segments.
@@ -349,8 +544,17 @@ async function loadSession(
    * the head off their path and revert their hides wherever the chat differs,
    * §2.7's two promises broken at once. So a restored session gets
    * {@link restoredRecord}, which assumes everything here was chosen here.
+   *
+   * ***And a producer's session gets none*** ([P13.10]). A key given as an
+   * option is a producer's, whose re-import is refused rather than synced
+   * ([P13.12]'s *the world follows the session*), so no sync will ever read
+   * a record beside it, and writing one would put a chat's bookkeeping in a
+   * session that is not a chat's. An export of that session, loaded
+   * elsewhere, carries the key in its document and gets a restored record
+   * there like any other — harmless, since only a chat door extends, and no
+   * chat's root path is an Aventuras key.
    */
-  if (originalFilename !== null) {
+  if (originalFilename !== null && options.originalFilename === undefined) {
     await writeSyncRecord(
       context.sessions,
       handle,
@@ -360,11 +564,141 @@ async function loadSession(
         : restoredRecord(read.session, turns, originalFilename),
     );
   }
-  return { ok: true, sessionId: id, turns: turns.length, renditions };
+  return { ok: true, sessionId: id, turns: turns.length, renditions, missing };
 }
 
 function turnIdsOf(turns: readonly Turn[]): string[] {
   return turns.map((turn) => turn.id);
+}
+
+/**
+ * ***The turns as a tree, parents first — or null when they are not one***
+ * ([P13.10], 2026-09-29).
+ *
+ * The append loop's comment has always said the file is in creation order and
+ * that creation order puts a parent before its child. Nothing checked either
+ * half, and a producer is a second writer that could get the first wrong in
+ * a way our own exports never showed.
+ *
+ * ***Ordered here rather than refused for being out of order***, which is the
+ * one place this departs from [P13.10]'s wording (*"parents validated to
+ * precede children"*). **Our own exporter can write a child first**: it sorts
+ * by id on the argument that a uuidv7 carries its mint time
+ * (`sessions/export.ts`), and a session played on two installs — exported
+ * from one whose clock ran ahead, imported and played on one behind — has
+ * children whose ids sort before their parents'. Refusing that would refuse
+ * our own file for a property no person could see or fix, and the order is
+ * recoverable from the parent links, which are the tree. So the order is
+ * made, stably — file order wherever file order already works — and what is
+ * refused is what no order can mend:
+ *
+ * - **a parent that names no turn in the file** — the tree missing its middle
+ *   that this reader's docstring calls worse than no session at all;
+ * - **a cycle**, which is a turn that is its own ancestor and has no place in
+ *   any order;
+ * - **a head that names no turn in the file**, which would leave the new
+ *   session pointing at nothing — a producer that took the head from the
+ *   wrong branch, say — where a head that fails to resolve reads as an empty
+ *   story.
+ *
+ * ***A repeated id is one turn, the last line of it***, which is what the
+ * segment reader does (`readTurns` keeps the last) and so what the session
+ * the file came from showed. A segment can legitimately hold a turn twice —
+ * an append the commit protocol re-ran — and a backup carries its segments
+ * as they are.
+ *
+ * *A tombstone is exempt from the parent check*, since it names a turn that
+ * was removed rather than one that is part of the story; it is carried, as
+ * the segment would carry it, and every reader skips it.
+ */
+function treeOf(listed: readonly Turn[], head: unknown): Turn[] | null {
+  const byId = new Map<string, Turn>();
+  for (const turn of listed) byId.set(turn.id, turn);
+
+  const childrenOf = new Map<string, Turn[]>();
+  const roots: Turn[] = [];
+  for (const turn of byId.values()) {
+    const parent: unknown = turn.parentTurnId;
+    if (turn.removed === true || parent === null) {
+      roots.push(turn);
+      continue;
+    }
+    if (typeof parent !== 'string' || !byId.has(parent)) return null;
+    const siblings = childrenOf.get(parent);
+    if (siblings === undefined) childrenOf.set(parent, [turn]);
+    else siblings.push(turn);
+  }
+  if (typeof head === 'string' && !byId.has(head)) return null;
+
+  /**
+   * *Depth first with an explicit stack*, because a story is a chain and a
+   * long one would overflow a recursive walk. Children are pushed in reverse
+   * so they come off in file order, which keeps an already-ordered file in
+   * its own order.
+   */
+  const ordered: Turn[] = [];
+  const stack = [...roots].reverse();
+  while (stack.length > 0) {
+    const turn = stack.pop();
+    if (turn === undefined) break;
+    ordered.push(turn);
+    const children = childrenOf.get(turn.id);
+    if (children !== undefined)
+      for (let at = children.length - 1; at >= 0; at -= 1) {
+        const child = children[at];
+        if (child !== undefined) stack.push(child);
+      }
+  }
+  // What no root reached is a cycle, or hangs from one.
+  return ordered.length === byId.size ? ordered : null;
+}
+
+/**
+ * ***The links that would resolve to nothing if this session were played
+ * here*** — see `SessionImportOptions.requireLinks` for why they are
+ * reported, and refused only when a producer asks.
+ *
+ * **The three conditions `library.read` applies, asked of the index**: a live
+ * row under the id, owned by this account or the system library, of the kind
+ * the link means. That is what `resolveCast` and `resolveLore` ask at every
+ * turn, so a link reported here is one play would miss, and one play would
+ * find is never reported. *Not by name*: a session's links are ids
+ * (`lore: string[]`), and `resolveLore` passes them with an empty name, so the
+ * name fallback never runs for them.
+ *
+ * Read from the document unknown-first, for `readSessionExport`'s reason.
+ */
+function missingLinks(context: ImportContext, owner: string, session: unknown): MissingLinks {
+  const document = session as Record<string, unknown>;
+  const cast = document['cast'];
+  const castIds: unknown[] =
+    typeof cast === 'object' && cast !== null
+      ? [
+          (cast as Record<string, unknown>)['persona'],
+          ...arrayOf((cast as Record<string, unknown>)['actors']),
+        ]
+      : [];
+
+  const missing = (ids: readonly unknown[], kind: PortableSchemaId): string[] => {
+    const out: string[] = [];
+    for (const id of ids) {
+      if (typeof id !== 'string' || id === '' || out.includes(id)) continue;
+      const row = findById(context.sessions.index, id);
+      const readable = row !== null && (row.owner === owner || row.owner === 'system');
+      if (!readable || row.schemaId !== kind) out.push(id);
+    }
+    return out;
+  };
+
+  return {
+    cast: missing(castIds, ACTOR_SCHEMA),
+    lore: missing(arrayOf(document['lore']), LOREBOOK_SCHEMA),
+    treatment: missing([document['treatment']], TREATMENT_SCHEMA),
+  };
+}
+
+function arrayOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? (value as unknown[]) : [];
 }
 
 /**
@@ -554,7 +888,7 @@ function extendTarget(
   const owner = scopeOf(context.sessions, handle);
   if (originalFilename !== null) {
     const found = sessionByOrigin(context.sessions.index, owner, originalFilename);
-    if (found !== null) return found;
+    if (found !== null) return found.sessionId;
   }
   const holding = sessionHoldingTurns(context.sessions.index, turnIdsOf(turns));
   if (holding === null) return null;
@@ -563,11 +897,6 @@ function extendTarget(
     .get(holding) as { owner: string; origin_filename: string | null } | undefined;
   if (row?.owner !== owner) return null;
   return row.origin_filename === null || row.origin_filename === originalFilename ? holding : null;
-}
-
-/** The index's owner key for an account — `SessionContext.scope`, as the store reads it. */
-function scopeOf(context: SessionContext, handle: string): string {
-  return (context.scope ?? ((each: string) => `user:${each}`))(handle);
 }
 
 /**

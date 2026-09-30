@@ -52,6 +52,7 @@ async function importFixture() {
   const outcome = await sweep({
     library: server.services.library,
     handle: 'ned',
+    tags: server.services.tags,
     files: new MemoryFileSource(sillyTavernFixture()),
   });
   if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);

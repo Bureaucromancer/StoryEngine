@@ -132,6 +132,7 @@ type Tree = Record<string, Uint8Array | string>;
 async function swept(tree: Tree): Promise<ImportItemReport[]> {
   const outcome = await sweep({
     library: server.services.library,
+    tags: server.services.tags,
     sessions: server.services.sessions,
     handle: 'ned',
     files: new MemoryFileSource(tree),
