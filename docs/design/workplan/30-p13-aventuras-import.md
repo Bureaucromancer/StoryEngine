@@ -1,13 +1,15 @@
 # 30 — P13 implementation plan
 
 **Status: merged to `main` 2026-09-29 at `7565265`, from
-`claude/epic-hypatia-p1h6my`; the phase is open. Part 1 is built — P13.1 to
-P13.9, each cited below by its commit, P13.9 closed `recorded` — and its gate is
-unwalked; Part 2 was scheduled by the person on 2026-09-29
-([§0.3](#03-how-this-sits-with-25-e4)) and is being built. P13.0 done —
-`34b3174` (the failing tests), `75c56ca` (the fix), 2026-09-28, and the fix set
-aside for main's own at the merge of 2026-09-29
-([§0.4](#04-what-the-survey-found-in-our-own-tree)).** Written 2026-09-26 on
+`claude/epic-hypatia-p1h6my`; the phase is open, and every stage is built.
+Part 1 — P13.1 to P13.9, P13.9 closed `recorded` — and Part 2 — P13.10 to
+P13.15, scheduled by the person on 2026-09-29
+([§0.3](#03-how-this-sits-with-25-e4)), P13.14 closed `recorded` — are each
+cited below by commit, as of 2026-09-30, on the branch and not yet on `main`.
+**Neither gate is walked** ([§3](#3--the-exit-gate)); a green suite closes a
+stage, not a phase. P13.0 done — `34b3174` (the failing tests), `75c56ca` (the
+fix), 2026-09-28, and the fix set aside for main's own at the merge of
+2026-09-29 ([§0.4](#04-what-the-survey-found-in-our-own-tree)).** Written 2026-09-26 on
 `claude/epic-hypatia-p1h6my`, from a survey of Aventuras at `c43da108`
 (2026-09-25). Part 1 is planned to the stage; ~~**Part 2 is headed and not
 scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives~~
@@ -51,7 +53,7 @@ four things leave the app:
 | Exit | Carries | Read here |
 |---|---|---|
 | Vault JSON, one record per file | one character, scenario or lorebook | **yes** — [P4 §1.5](16-p4-implementation.md) |
-| `.avt`, one story per file, versioned (1.10.0) | one story, all branches, images inline | no — Part 2, [P13.15](#p1315--avt-through-the-same-producer) |
+| `.avt`, one story per file, versioned (1.10.0) | one story, all branches, images inline | no — Part 2, [P13.15](#p1315--avt-through-the-same-producer-done) |
 | Full backup: a zip of a `VACUUM INTO` snapshot plus `metadata.json` | everything | **this phase** |
 | LAN sync | selected stories as `.avt`, one request each, from a running app | no — it is a phone-to-desktop feature, not an export |
 
@@ -1160,12 +1162,44 @@ chapters, one on main and one on *Tower*, are named on its row; no summary,
 keyword or boundary reaches the session or the review, and no `summaries/` is
 seeded; a second sweep writes nothing.
 
-### P13.15 — `.avt` through the same producer
+### ~~P13.15 — `.avt` through the same producer~~ Done
 
-A `.avt` is `gatherStoryData()` — every row for one story — serialised, so the
+*Done — `c6815a1`, 2026-09-30.* `import/aventuras/avt.ts` is the second row source
+P13.11 split `story-rows.ts` for. It reads a `.avt` once through `avt-json.ts`,
+a bounded one-pass reader that leaves every `imageData` and `portrait` in the
+bytes as a measured span, counts checkpoints and chapters and skips working
+state, and fills the same `AventurasStoryRows`, normalised and ordered as the
+database's statements are, so the one producer makes the same session. **The
+key is the database's**, `aventura.db/stories/<id>` from the file's `story.id`:
+Aventuras keeps its ids on export and mints new ones only on its own import, so
+a story from either source is `already-here` by the other — and a `.avt`
+imported into a second Aventuras is, in that install, a different story, as
+Aventuras itself treats it. The version is gated as Aventuras' importer reads
+it: 1.x up to the pin's 1.10.0 as is, older as far as it goes, a newer 1.x with
+a `warn` since minors have only ever added, any other major refused with a
+note and nothing written. The recognition runs before every other JSON probe,
+**which ends a `.avt` being converted as a SillyTavern lorebook** — its story
+entries imported as lore — a bug found by the stage; the file picker's
+`accept` list also gains `.avt`, which it could not be chosen without. **A
+hand-picked `.avt` brings its story without the `stories` opt-in** — one file,
+named in a preview before the word, is a request for that story, which the
+opt-in was never meant to guard — while a folder or zip of them sweeps under
+it, and the `.avt` files beside a database are `skipped`, since the database
+holds their stories. A `.avt` stays on the buffered path under
+`maxUploadMb`: sixteen bytes cannot tell it from other JSON, and the lazy reader
+is what keeps one copy. **Backdrops are what a file cannot carry**:
+`background_images` is not in `gatherStoryData()`, and the one backdrop a file
+may hold has no branch, so it is left out as Aventuras' own import leaves it.
+*Ended at:* the fixture's *Lantern Fork* from its `.avt` — built from the
+fixture database by Aventuras' own steps, at 1.10.0 and at 1.5.0 — makes the
+same session as from the database, turns, cast and their cards, lorebook and
+six illustrations, backdrops apart; either import after the other is
+`unchanged`; a 2.0.0, 0.x or non-numeric version is refused with
+`avtUnknownFormat` and writes nothing; `pnpm test:gate` and `test:fixture-pair`
+pass. ~~A `.avt` is `gatherStoryData()` — every row for one story — serialised, so the
 producer that reads a story from the database reads it from JSON with a
 different row source. Optional; worth it only if people arrive with `.avt`
-files and no database, which the LAN-sync and Android cases make plausible.
+files and no database, which the LAN-sync and Android cases make plausible.~~
 
 ### What is deliberately not in this phase
 
@@ -1184,8 +1218,10 @@ files and no database, which the LAN-sync and Android cases make plausible.
 ## 3 — The exit gate
 
 Two tiers, per [manual testing §0](05-manual-testing.md). The rows are not
-edited to match what was walked. **Part 1's gate only** — Part 2 has no gate
-until it is scheduled.
+edited to match what was walked. ~~**Part 1's gate only** — Part 2 has no gate
+until it is scheduled.~~ Part 1's gate is §3.1–§3.2; **Part 2's**, written
+2026-09-30 once it was scheduled and built and before anything of it was
+walked, is §3.3–§3.4.
 
 ### 3.1 The critical list
 
@@ -1209,6 +1245,48 @@ until it is scheduled.
 *Row 9 was added 2026-09-28 when P13.8 joined Part 1*, before anything was
 walked — extending the remainder, which is what [manual testing §0] allows, and
 not editing the critical list.
+
+### 3.3 Part 2's critical list
+
+Each row passes [manual testing §0](05-manual-testing.md)'s three clauses: it
+can falsify a claim Part 2 makes about itself; the claim compounds, because an
+imported session is played onward and everything after it is built on what the
+import made; and it is walkable with an Aventuras install, which Part 1's rows
+already assume is to hand.
+
+| # | What | Why it is critical | Check |
+|---|---|---|---|
+| 10 | A real story with at least two branches, swept with *stories* ticked, reads as it did in Aventuras on its head branch, and each other branch is reachable as a line of its own | The pairing table and the lineage rebuild are Part 2's central claim, and a wrong pairing is copied into every turn played after it | By hand, beside Aventuras |
+| 11 | That session, played one turn onward, narrates with its cast and its story lorebook bound, and the persona is the protagonist | The world stored is the world used, which the review cannot show; an imported session that plays wrong is the one a person keeps | By hand, one turn |
+| 12 | The same story brought again — the database swept a second time, then its `.avt` picked by hand — is refused as already here, naming the first session, and no second session appears | Identity across two sources; a copy with shared turn ids is [§0.4](#04-what-the-survey-found-in-our-own-tree)'s problem by another road | By hand |
+| 13 | An illustrated turn shows its picture where Aventuras drew it, and no `<pic` text anywhere in the prose | A picture is only checkable by looking, and a misplaced one is invisible to every test | By hand |
+
+### 3.4 Part 2's remainder — extends the standing list
+
+| # | What | Where |
+|---|---|---|
+| 14 | A story of several thousand entries: sweep time, peak memory, and the session list afterwards | [manual testing](05-manual-testing.md) |
+| 15 | A database from before migration 013 (no branches) and one from before 029 (branch copies guessed, §0.5) | [manual testing](05-manual-testing.md) |
+| 16 | A `.avt` exported on Android, and one written by Aventuras' sync (stamped 1.7.0) | [manual testing](05-manual-testing.md) |
+| 17 | An imported story played past its window: the chain summarises the imported turns, and nothing of Aventuras' chapters appears | [manual testing](05-manual-testing.md) |
+| 18 | An imported backdrop chosen by hand in a mode that stages backdrops | [manual testing](05-manual-testing.md) |
+
+### 3.5 What the changelog will say
+
+*Parked here, as [P12 §2.1](29-p12-implementation.md) parks its own, until the
+next tag is cut.* **Added** — *A whole Aventuras install in one import*: sweep
+its config folder by path, upload the folder, its backup zip or the bare
+`aventura.db`, and its characters, lorebooks, scenarios and tags come across,
+linked to each other; tick *stories* and its stories come across as sessions,
+branches, cast, a lorebook per story and pictures included; a single `.avt`
+brings its story. Prompt packs and chapter summaries stay in Aventuras, and the
+review names what does. **For an existing install**: a new live setting,
+`limits.maxImportUploadMb` (1024), caps an archive upload, and a reverse proxy's
+own body limit and read timeout will refuse a large one before the server sees
+it ([deploy](../../deploy.md)); the search index rebuilds once (version 12);
+`POST /import/file` answers a root with its whole `report` beside `item`; and
+`POST /sessions/import` answers `broken-tree` (422) for a tree it cannot mend.
+Nothing needs doing by hand.
 
 **Test obligations, for the stage commits.** A fixture database is built in the
 test from **hand-written DDL** — only the columns the reader selects, taken from
