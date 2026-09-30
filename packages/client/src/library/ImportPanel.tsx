@@ -140,6 +140,18 @@ const CHAT_WORDS = labels('import.chats', {
   cancel: 'Cancel',
 });
 
+/**
+ * ***What the upload limit leaves out of the library*** (2026-09-28): said
+ * before anything is sent, as the chats' share is, and with the same way out —
+ * a folder swept from the server has no limit. The files were named and not
+ * sent all along; what was new was saying so before the review, and saying
+ * *why* in it.
+ */
+const LIMIT_WORDS = labels('import.limit', {
+  one: 'One file in this folder does not fit under this server’s {limit} MB upload limit, so it will be listed and not sent. A folder swept from the server has no such limit.',
+  many: '{count} files in this folder do not fit under this server’s {limit} MB upload limit, so they will be listed and not sent. A folder swept from the server has no such limit.',
+});
+
 export const IMPORT_OPEN_KEY = 'ui.import-open';
 
 /**
@@ -218,6 +230,8 @@ type Outcome =
       chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
       limitBytes: number;
       withChats: boolean;
+      /** The library files the budget left out — asked about too (2026-09-28). */
+      overLimit: string[];
     }
   | null;
 
@@ -555,7 +569,12 @@ export function ImportPanel(): JSX.Element {
        * folder with chats in it stops here and asks, with the size on the
        * question; a folder without any goes straight on, as every folder did.
        */
-      if (plan.chats.count > 0) {
+      /**
+       * ***And so does a folder the limit will not carry whole*** (2026-09-28):
+       * the files left out are said before the upload, where a person can still
+       * sweep it from the server instead.
+       */
+      if (plan.chats.count > 0 || plan.overLimit.length > 0) {
         if (asked.current === mine) {
           setOutcome({
             kind: 'folder',
@@ -564,6 +583,7 @@ export function ImportPanel(): JSX.Element {
             chats: plan.chats,
             limitBytes: plan.limitBytes,
             withChats: false,
+            overLimit: plan.overLimit,
           });
         }
         return;
@@ -600,22 +620,22 @@ export function ImportPanel(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      const wanted = new Set(
-        withChats
-          ? (
-              await api.importDirectoryPlan(
-                inside.map(({ file, path }) => ({ path, bytes: file.size })),
-                true,
-              )
-            ).wanted
-          : outcome.wanted,
-      );
+      const plan = withChats
+        ? await api.importDirectoryPlan(
+            inside.map(({ file, path }) => ({ path, bytes: file.size })),
+            true,
+          )
+        : { wanted: outcome.wanted, overLimit: outcome.overLimit };
+      const wanted = new Set(plan.wanted);
       const result = await api.importDirectory(
         inside.map(({ path }) => path),
         inside.filter(({ path }) => wanted.has(path)),
         undefined,
         stories,
-        withChats ? 'include' : 'skip',
+        // Offered only when the folder had chats; a folder asked about only
+        // for its size takes what was carried, as every folder did.
+        outcome.chats.count > 0 ? (withChats ? 'include' : 'skip') : undefined,
+        plan.overLimit,
       );
       setOutcome({ kind: 'report', report: result.report });
       await refresh();
@@ -916,6 +936,7 @@ export function ImportPanel(): JSX.Element {
           chats={outcome.chats}
           limitBytes={outcome.limitBytes}
           withChats={outcome.withChats}
+          overLimit={outcome.overLimit.length}
           busy={busy}
           onChats={(withChats) => {
             setOutcome({ ...outcome, withChats });
@@ -960,6 +981,8 @@ function FolderChoice(props: {
   chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
   limitBytes: number;
   withChats: boolean;
+  /** How many library files the limit leaves out. */
+  overLimit: number;
   busy: boolean;
   onChats: (withChats: boolean) => void;
   onSend: () => void;
@@ -968,26 +991,39 @@ function FolderChoice(props: {
   const size = megabytes(props.chats.bytes);
   const found = props.chats.count === 1 ? CHAT_WORDS.foundOne : CHAT_WORDS.found;
   const short = props.chats.fit.count < props.chats.count;
+  const limit = String(Math.round(props.limitBytes / MEGABYTE));
 
   return (
     <section aria-label={CHAT_WORDS.title} className="flex flex-col gap-3">
       <SubsectionTitle as="h4">{CHAT_WORDS.title}</SubsectionTitle>
-      <Note>{found.replace('{count}', String(props.chats.count)).replace('{size}', size)}</Note>
-      {short ? (
+      {props.overLimit === 0 ? null : (
         <Note>
-          {CHAT_WORDS.partial
-            .replace('{fit}', String(props.chats.fit.count))
-            .replace('{count}', String(props.chats.count))
-            .replace('{limit}', String(Math.round(props.limitBytes / MEGABYTE)))}
+          {(props.overLimit === 1 ? LIMIT_WORDS.one : LIMIT_WORDS.many)
+            .replace('{count}', String(props.overLimit))
+            .replace('{limit}', limit)}
         </Note>
-      ) : null}
-      <CheckboxField
-        label={CHAT_WORDS.choose.replace('{size}', megabytes(props.chats.fit.bytes))}
-        hint={CHAT_WORDS.chooseHint}
-        checked={props.withChats}
-        disabled={props.busy}
-        onChange={props.onChats}
-      />
+      )}
+      {/* Asked only of a folder that has chats; one asked about for its size alone has none. */}
+      {props.chats.count === 0 ? null : (
+        <>
+          <Note>{found.replace('{count}', String(props.chats.count)).replace('{size}', size)}</Note>
+          {short ? (
+            <Note>
+              {CHAT_WORDS.partial
+                .replace('{fit}', String(props.chats.fit.count))
+                .replace('{count}', String(props.chats.count))
+                .replace('{limit}', limit)}
+            </Note>
+          ) : null}
+          <CheckboxField
+            label={CHAT_WORDS.choose.replace('{size}', megabytes(props.chats.fit.bytes))}
+            hint={CHAT_WORDS.chooseHint}
+            checked={props.withChats}
+            disabled={props.busy}
+            onChange={props.onChats}
+          />
+        </>
+      )}
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="compact" onClick={props.onSend} disabled={props.busy}>
           {CHAT_WORDS.send}

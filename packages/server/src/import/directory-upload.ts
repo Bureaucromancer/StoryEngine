@@ -70,6 +70,17 @@ export interface UploadPlan {
    * the store it already sends (read at [P14.10]).
    */
   chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+  /**
+   * ***The library files the budget left out*** (2026-09-28): wanted, not a
+   * chat, and not taken, because the upload limit ran out before them. A
+   * subset of `declared`, which also holds everything never wanted — and the
+   * difference is the whole point: a card too big to send and a thumbnail
+   * nobody asked for are both *named and not carried*, and only one of them is
+   * something a person needs telling about. Said before the upload, and handed
+   * back with it so the review can name them for what they are rather than
+   * reading them as unrecognised.
+   */
+  overLimit: string[];
 }
 
 /** What the person has chosen to send beyond the library. */
@@ -179,7 +190,12 @@ function topOf(path: string): string {
  * Entries are taken in the order given until `budgetBytes` is reached; anything
  * past it is declared instead. **Truncation is not silent** — a declared file is
  * still listed and still reported, so the review says what happened to it rather
- * than the file vanishing between the picker and the report.
+ * than the file vanishing between the picker and the report. ~~That was the
+ * whole of it.~~ *Corrected 2026-09-28:* listed, yes, but reported as whatever
+ * a reader makes of a name with no bytes — *not recognised*, or *could not be
+ * read* — which said something had happened and not what. `overLimit` names
+ * the budget's cuts, so the panel can say them before sending and the review
+ * can say *over the limit* after.
  *
  * ***The library is budgeted before the chats*** ([P14.8]), and both lists
  * still come back in the manifest's order. The browser lists a folder in
@@ -259,7 +275,23 @@ export function planUpload(
 
   const wanted: string[] = [];
   const declared: string[] = [];
-  for (const entry of manifest) (taken.has(entry) ? wanted : declared).push(entry.path);
+  const overLimit: string[] = [];
+  for (const entry of manifest) {
+    if (taken.has(entry)) {
+      wanted.push(entry.path);
+      continue;
+    }
+    declared.push(entry.path);
+    // Chats have their own count and their own sentence, `chats.fit`.
+    if (isWanted(kind, entry.path) && !isChat(kind, entry.path)) overLimit.push(entry.path);
+  }
 
-  return { wanted, declared, wantedBytes, limitBytes: budgetBytes, chats: { ...chats, fit } };
+  return {
+    wanted,
+    declared,
+    wantedBytes,
+    limitBytes: budgetBytes,
+    chats: { ...chats, fit },
+    overLimit,
+  };
 }

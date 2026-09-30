@@ -918,6 +918,7 @@ describe('a folder with chats in it', () => {
     chats: { count: number; bytes: number },
     wanted: string[],
     fit: { count: number; bytes: number } = chats,
+    overLimit: string[] = [],
   ) {
     return {
       verdict: 'sillytavern',
@@ -927,6 +928,7 @@ describe('a folder with chats in it', () => {
       wantedBytes: 0,
       limitBytes: 64 * 1024 * 1024,
       chats: { ...chats, fit },
+      overLimit,
     };
   }
 
@@ -1040,6 +1042,42 @@ describe('a folder with chats in it', () => {
     ).toBeTruthy();
     // The size on the choice is what the choice will send, not the total.
     expect(screen.getByRole('checkbox', { name: 'Also import the chats (1.0 MB)' })).toBeTruthy();
+  });
+
+  /**
+   * ***A folder the limit will not carry whole is asked about too***
+   * (2026-09-28). The files it leaves out were always named and not sent; the
+   * review then called them unreadable. Said before sending now, while the
+   * server-path sweep is still an option, and handed back so the review names
+   * the limit.
+   */
+  it('says before sending what the upload limit leaves out, and tells the server', async () => {
+    vi.spyOn(api, 'importDirectoryPlan').mockResolvedValue(
+      plan({ count: 0, bytes: 0 }, ['settings.json'], undefined, ['characters/Vera.png']),
+    );
+    const upload = vi.spyOn(api, 'importDirectory').mockResolvedValue(REPORT);
+    render(mount());
+
+    await chooseFolder([picked('settings.json'), picked('characters/Vera.png')]);
+
+    expect(
+      await screen.findByText(
+        /One file in this folder does not fit under this server’s 64 MB upload limit/,
+      ),
+    ).toBeTruthy();
+    expect(upload).not.toHaveBeenCalled();
+    // No chats in it, so no choice about them.
+    expect(screen.queryByRole('checkbox', { name: /also import the chats/i })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: /^import$/i }));
+
+    await waitFor(() => {
+      expect(upload).toHaveBeenCalledTimes(1);
+    });
+    const [, carried, , , chats, overLimit] = upload.mock.calls[0] ?? [];
+    expect(carried?.map((entry) => entry.path)).toEqual(['settings.json']);
+    expect(chats).toBeUndefined();
+    expect(overLimit).toEqual(['characters/Vera.png']);
   });
 
   it('says once how a re-import behaves until sync', () => {

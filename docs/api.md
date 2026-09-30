@@ -508,6 +508,12 @@ of the same backup reads `unchanged` row by row, as a second sweep of its folder
 does. `jobId` is `unsaved`: neither upload door records a job. A single file's
 answer has no `report`; its one row is the review.
 
+***When nothing in a root converted, `item` says what its rows say*** (2026-09-28):
+`unchanged` when anything in it was already here, and otherwise the first row's
+disposition. It was `recorded` whatever happened, so an archive uploaded twice
+said *read, and nowhere to put it* of a second upload whose every row said
+*already here*. The status follows it: `201` only when something converted.
+
 CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
 that says there is none.
@@ -611,6 +617,13 @@ by its first sixteen bytes and whatever it was called — where it had been
 `unrecognised` for bytes `/import/file` imports. The database is not opened to
 answer: whether it is an Aventuras database this build can read is the column
 gate's question at the commit, which can still refuse it.
+
+***A Marinara envelope is answered as the commit will answer it*** (2026-09-28):
+`importsAsFolder` for one that unpacks, and `recorded` with
+`import.file.notYetConvertible` for one this build cannot unpack yet — a chat
+preset, a settings profile, a memory recall. Every envelope was previewed as
+*everything inside would be imported*, and the commit then imported nothing of
+those.
 
 `preview` is `{ source, disposition, notes, advisories, object, reimport }`.
 `disposition` and `reimport` are **predictions**, not records — the file could
@@ -941,7 +954,7 @@ carve-out included.
 ### `POST /api/import/directory/plan`
 
 `{ entries: [{ path, bytes }], chats? }` →
-`200 { verdict, suggestions, wanted, declared, wantedBytes, limitBytes, chats }`.
+`200 { verdict, suggestions, wanted, declared, wantedBytes, limitBytes, chats, overLimit }`.
 The first half of a browser folder upload: what the folder is, and which of its
 files the importer will actually open.
 
@@ -982,6 +995,13 @@ much of the choice survives that. `limitBytes` is the limit the plan spent, so a
 client can name the number. A Marinara root reports zeros: its chats are in the
 store it already sends.
 
+***`overLimit` is what the budget left out of the library*** (2026-09-28): the
+wanted paths, chats aside, that `limits.maxUploadMb` ran out before — a subset of
+`declared`, which also holds everything never wanted. An Aventuras database and
+its log are cut together. The panel says the count before anything is sent,
+while sweeping the folder from the server, which has no such limit, is still the
+way round it, and hands the list back with the upload.
+
 ### `POST /api/import/directory`
 
 `multipart/form-data` → `200 { report }`. The folder itself.
@@ -1006,6 +1026,15 @@ left out, and is `skipped` with `import.chat.overLimit` carrying the limit. No
 field takes whatever arrived. Chat files that did arrive become sessions in a
 pass after the library's, so each resolves against the cards that came in beside
 it, and each is one row as on [`POST /api/import/file`](#post-apiimportfile).
+
+***An optional `overLimit` field names what the plan's budget left out*** — its
+`overLimit`, as JSON (2026-09-28). A path in it that the manifest names and the
+upload did not carry is a `skipped` row with `import.file.overLimit`, carrying
+the limit, where it read as *not recognised* or *could not be read*; a path that
+did arrive is left alone, so the field can describe only a file that was in fact
+not sent. And a root the limit left nothing readable of — an Aventuras folder
+whose database did not fit — is `413 too-large` naming the limit, where it was
+`422` *there is nothing readable at that path*.
 
 - `400 {"error":"no-manifest"}` — a folder upload without its manifest.
 - `413 {"error":"too-large"}` — **the whole folder** past `limits.maxUploadMb`,

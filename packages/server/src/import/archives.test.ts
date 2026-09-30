@@ -230,9 +230,10 @@ describe('a CHARX', () => {
     await upload('Vera.charx', charx);
     const again = await upload('Vera.charx', charx);
 
-    // An archive reports its converted item, or `recorded` when nothing in it
-    // converted; the note says why.
-    expect(again.body.item.disposition).toBe('recorded');
+    // An archive reports its converted item, or, when nothing in it converted,
+    // what its rows say — here that all of it is already here (2026-09-28; it
+    // was `recorded` whatever happened).
+    expect(again.body.item.disposition).toBe('unchanged');
     expect((again.body.notes as { key: string }[]).map((note) => note.key)).toContain(
       'import.object.unchanged',
     );

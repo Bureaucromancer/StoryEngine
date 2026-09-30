@@ -209,6 +209,46 @@ describe('the budget', () => {
     expect(plan.wantedBytes).toBe(20);
   });
 
+  /**
+   * ***And names what the limit left out, apart from what nobody wanted***
+   * (2026-09-28). Both are `declared`; only one is news. A card too big to
+   * send read as *not recognised* in the review, which sent people looking
+   * for a broken card rather than at the limit.
+   */
+  it('names the library files the budget left out, and nothing else', () => {
+    const plan = planUpload(
+      'sillytavern',
+      [
+        { path: 'settings.json', bytes: 10 },
+        { path: 'characters/Vera.png', bytes: 5_000 },
+        { path: 'worlds/Rain City.json', bytes: 10 },
+        { path: 'thumbnails/bg/beach.png', bytes: 10 },
+        { path: 'chats/Vera/2026-01-01.jsonl', bytes: 10 },
+      ],
+      100,
+    );
+
+    // The card the limit cut; not the thumbnail nobody wanted, nor the chat,
+    // which has its own count.
+    expect(plan.overLimit).toEqual(['characters/Vera.png']);
+    expect(plan.declared).toContain('thumbnails/bg/beach.png');
+  });
+
+  it('names a whole bundle the budget left out', () => {
+    const plan = planUpload(
+      'aventuras',
+      [
+        { path: 'aventura.db', bytes: 5_000 },
+        { path: 'aventura.db-wal', bytes: 10 },
+        { path: 'metadata.json', bytes: 10 },
+      ],
+      100,
+    );
+
+    // The database and its log, cut together; the note fitted.
+    expect(plan.overLimit).toEqual(['aventura.db', 'aventura.db-wal']);
+  });
+
   it('accounts for every entry exactly once, whatever the budget', () => {
     // The property. A file in neither list is one the review cannot mention.
     const manifest = entries(

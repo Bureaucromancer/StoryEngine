@@ -991,6 +991,8 @@ export const api = {
     wantedBytes: number;
     limitBytes: number;
     chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+    /** Library files the upload limit left out — said before sending, handed back with it. */
+    overLimit: string[];
   }> =>
     request('POST', '/api/import/directory/plan', {
       entries,
@@ -1018,12 +1020,20 @@ export const api = {
      * offered for, and takes whatever was carried.
      */
     chats?: 'include' | 'skip',
+    /**
+     * The plan's `overLimit` (2026-09-28), so the review names each file the
+     * upload limit left out as that, rather than as one that could not be read.
+     */
+    overLimit?: readonly string[],
   ): Promise<{ report: ImportReport }> => {
     const body = new FormData();
     body.append('manifest', JSON.stringify(manifest));
     if (onConflict !== undefined) body.append('onConflict', onConflict);
     if (stories === true) body.append('stories', 'true');
     if (chats !== undefined) body.append('chats', chats);
+    if (overLimit !== undefined && overLimit.length > 0) {
+      body.append('overLimit', JSON.stringify(overLimit));
+    }
     for (const { path, file } of carried) body.append(path, file, file.name);
     return requestForm('/api/import/directory', body);
   },

@@ -2139,7 +2139,7 @@ function refusedItem(candidate: ImportCandidate, refusal: string): ImportItemRep
   };
 }
 
-function countBy(items: readonly ImportItemReport[]): Record<ImportDisposition, number> {
+export function countBy(items: readonly ImportItemReport[]): Record<ImportDisposition, number> {
   const counts: Record<ImportDisposition, number> = {
     converted: 0,
     credential: 0,

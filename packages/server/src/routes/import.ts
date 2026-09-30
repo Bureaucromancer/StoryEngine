@@ -28,6 +28,7 @@ import {
   profileAsFileSource,
   readEnvelope,
   singleObjectAsFileSource,
+  type MarinaraEnvelope,
 } from '../import/marinara/envelope.js';
 import type { ConflictPolicy } from '../import/identity.js';
 import type { SourceRefusal } from '../import/source.js';
@@ -39,7 +40,13 @@ import {
   recordImport,
   recordRefusal,
 } from '../import/jobs.js';
-import { convertOne, sweep, type SweepOutcome, type SweepRequest } from '../import/sweep.js';
+import {
+  convertOne,
+  countBy,
+  sweep,
+  type SweepOutcome,
+  type SweepRequest,
+} from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
 import { LandedDatabaseSource, LandedZipSource } from '../import/landed-source.js';
 import type { FileSource } from '../import/source.js';
@@ -823,6 +830,13 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      */
     let chats = true;
     let included = false;
+    /**
+     * ***What the plan's budget left out*** (2026-09-28) — its `overLimit`,
+     * handed back. Kept only where it is true of this request: named in the
+     * manifest, and not carried. So it can only ever describe a file that was
+     * in fact not sent.
+     */
+    let overLimit: string[] = [];
 
     let carriedBytes = 0;
 
@@ -860,6 +874,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
           chats = String(part.value) !== 'skip';
           included = String(part.value) === 'include';
         }
+        if (part.fieldname === 'overLimit') overLimit = parseManifest(String(part.value));
       }
     } catch (error) {
       // Either half: busboy refusing one oversized part, or the running total
@@ -885,6 +900,10 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const notCarried = included
       ? new Set(manifest.filter((path) => !Object.hasOwn(carried, path)))
       : undefined;
+    const named = new Set(manifest);
+    const cut = new Set(
+      overLimit.filter((path) => named.has(path) && !Object.hasOwn(carried, path)),
+    );
     let outcome: SweepOutcome;
     try {
       outcome = await sweep({
@@ -908,6 +927,19 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     }
 
     if (!outcome.ok) {
+      /**
+       * ***A root the limit left unreadable says the limit*** (2026-09-28). An
+       * Aventuras folder is one database and its log, taken whole or not at
+       * all; over the limit, nothing readable arrived, and the answer was
+       * *there is nothing readable at that path* — true, and no help, since the
+       * cause was the size.
+       */
+      if (outcome.refusal === 'unreadable-root' && cut.size > 0) {
+        return reply.code(413).send({
+          error: 'too-large',
+          message: `What that folder has to send is larger than the ${String(services.config.limits.maxUploadMb)} MB upload limit, so there was nothing to read. Import it from the server’s disk instead, where there is no such limit.`,
+        });
+      }
       return reply
         .code(422)
         .send({ error: outcome.refusal, message: sweepRefusalMessage(outcome.refusal) });
@@ -916,7 +948,9 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     // No `suggestions`: a near miss names a *sibling folder* to point at, and a
     // browser upload has no path to point anywhere with. The plan step says it
     // before the upload, which is the moment a person can still act on it.
-    return reply.code(200).send({ report: outcome.report });
+    return reply.code(200).send({
+      report: overLimitReport(outcome.report, cut, services.config.limits.maxUploadMb),
+    });
   });
 
   /**
@@ -1268,7 +1302,17 @@ async function previewUpload(
     // Not JSON, which is very likely a card. The reader below decides.
   }
 
-  if (parsed !== null && readEnvelope(parsed) !== null) {
+  const envelope = parsed === null ? null : readEnvelope(parsed);
+  if (envelope !== null) {
+    /**
+     * ***What the commit will do, not more*** (2026-09-28). Every envelope was
+     * previewed as *everything inside would be imported*, and the commit then
+     * recorded the ones it cannot unpack yet and imported nothing. The same
+     * question the commit asks, asked here.
+     */
+    if (envelopeFiles(envelope) === null) {
+      return blank('recorded', [notYetConvertible(filename, envelope.type)], null);
+    }
     return blank(
       'converted',
       [{ key: 'import.file.importsAsFolder', params: { file: filename }, level: 'info' }],
@@ -1403,20 +1447,8 @@ async function importOneFile(
 
   const envelope = parsed === null || only === 'chat' ? null : readEnvelope(parsed);
   if (envelope !== null) {
-    const files =
-      envelope.type === 'marinara_profile'
-        ? profileAsFileSource(envelope.data)
-        : singleObjectAsFileSource(envelope);
-
-    if (files === null) {
-      return item('recorded', [
-        {
-          key: 'import.file.notYetConvertible',
-          params: { file: filename, kind: envelope.type },
-          level: 'info',
-        },
-      ]);
-    }
+    const files = envelopeFiles(envelope);
+    if (files === null) return item('recorded', [notYetConvertible(filename, envelope.type)]);
 
     const outcome = await sweep({
       library: services.library,
@@ -1649,10 +1681,67 @@ function landedZipLimits(services: AppServices): typeof DEFAULT_ZIP_FILE_LIMITS 
  * every row names something inside it — so there is nothing to prefer, and the
  * thing a person wants to see is what landed. Every note travels regardless.
  */
+/**
+ * The files a Marinara envelope unpacks to, or null for one this build cannot
+ * unpack yet — **one answer for the preview and the commit**, which disagreed
+ * while each asked its own question (2026-09-28).
+ */
+function envelopeFiles(envelope: MarinaraEnvelope): FileSource | null {
+  return envelope.type === 'marinara_profile'
+    ? profileAsFileSource(envelope.data)
+    : singleObjectAsFileSource(envelope);
+}
+
+function notYetConvertible(filename: string, kind: string): ImportNote {
+  return { key: 'import.file.notYetConvertible', params: { file: filename, kind }, level: 'info' };
+}
+
+/**
+ * ***A file the budget left out, named for that*** (2026-09-28). A card too big
+ * to send reached the readers as a name with no bytes, and they said what a
+ * reader says of that: *not recognised*, or *could not be read* — which sent
+ * people looking for a broken card. Each such file is `skipped` with the
+ * limit's own note, and one no reader mentioned is added, so the review
+ * accounts for it either way.
+ */
+function overLimitReport(
+  report: ImportReport,
+  cut: ReadonlySet<string>,
+  limitMb: number,
+): ImportReport {
+  if (cut.size === 0) return report;
+  const skipped = (source: string): ImportItemReport => ({
+    source,
+    disposition: 'skipped',
+    notes: [
+      { key: 'import.file.overLimit', params: { file: source, limit: limitMb }, level: 'warn' },
+    ],
+  });
+  const named = new Set<string>();
+  const items = report.items.map((item) => {
+    if (!cut.has(item.source)) return item;
+    named.add(item.source);
+    return skipped(item.source);
+  });
+  for (const path of cut) if (!named.has(path)) items.push(skipped(path));
+  return { ...report, items, counts: countBy(items) };
+}
+
+/**
+ * ***What a root's upload was, when nothing in it converted*** (2026-09-28):
+ * what its rows say. The summary was `recorded` whatever happened — *read, and
+ * nowhere to put it* — so an archive uploaded twice said so the second time,
+ * when every row in it said *already here*.
+ */
+function summaryOf(report: ImportReport): ImportItemReport['disposition'] {
+  if (report.items.some((row) => row.disposition === 'unchanged')) return 'unchanged';
+  return report.items[0]?.disposition ?? 'unrecognised';
+}
+
 function reportAsUpload(filename: string, report: ImportReport): UploadResult {
   const converted = report.items.find((row) => row.disposition === 'converted');
   return {
-    item: converted ?? { source: filename, disposition: 'recorded', notes: [] },
+    item: converted ?? { source: filename, disposition: summaryOf(report), notes: [] },
     notes: report.items.flatMap((row) => row.notes),
     report,
   };

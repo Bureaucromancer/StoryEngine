@@ -120,6 +120,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.file.notJson': '{file} is not readable as JSON.',
   'import.file.unrecognised': 'Nothing here recognised {file}.',
   'import.file.unreadable': '{file} could not be read, so nothing looked inside it.',
+  'import.file.overLimit':
+    '{file} did not fit under this server’s {limit} MB upload limit with the rest of the folder, so it was named and not sent. Import the folder from the server’s disk to bring it, or pick it on its own.',
   'import.file.badArchive': '{file} is an archive this build will not open ({refusal}).',
   'import.file.refused': '{file} could not be read ({refusal}).',
 

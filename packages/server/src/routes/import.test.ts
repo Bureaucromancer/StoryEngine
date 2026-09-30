@@ -872,6 +872,64 @@ describe('uploading a folder from the browser', () => {
     expect(sources).toContain('backups/settings_2026.json');
   });
 
+  /**
+   * ***A file the limit left out is said to be over it*** (2026-09-28). The
+   * plan names what its budget cut, the panel hands that back, and the review
+   * says it — where a card too big to send read as *could not be read*, which
+   * sent people looking for a broken card.
+   */
+  it('names a library file the upload limit left out, as over it', async () => {
+    const card = JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } });
+    const { payload, headers } = folderBody(
+      ['Vera.json', 'Kohl.json'],
+      { 'Vera.json': card },
+      // `Vera.json` did arrive, so the claim is not true of it and not taken.
+      { overLimit: JSON.stringify(['Kohl.json', 'Vera.json']) },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    const rows = response.body.report.items as {
+      source: string;
+      disposition: string;
+      notes: { key: string }[];
+    }[];
+    const kohl = rows.find((row) => row.source === 'Kohl.json');
+    expect(kohl?.disposition).toBe('skipped');
+    expect(kohl?.notes.map((note) => note.key)).toEqual(['import.file.overLimit']);
+    expect(rows.find((row) => row.source === 'Vera.json')?.disposition).toBe('converted');
+    expect(response.body.report.counts.skipped).toBe(1);
+  });
+
+  /**
+   * *An Aventuras database is taken whole or not at all*, so over the limit
+   * nothing readable arrives — and the answer said *there is nothing readable
+   * at that path*, true and no help, when the cause was the size.
+   */
+  it('says the limit, rather than that nothing was readable, when it left the database out', async () => {
+    const { payload, headers } = folderBody(
+      ['aventura.db', 'aventura.db-wal', 'metadata.json'],
+      { 'metadata.json': '{}' },
+      { overLimit: JSON.stringify(['aventura.db', 'aventura.db-wal']) },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(413);
+    expect(response.body.error).toBe('too-large');
+  });
+
   it('refuses a folder with no manifest rather than importing a fragment', async () => {
     const { payload, headers } = folderBody([], { 'settings.json': '{}' });
     const response = await server.request({
@@ -1451,6 +1509,45 @@ describe('looking at a file before importing it', () => {
     // value, which is what stops a look-before-you-commit becoming a way to read
     // somebody else's proxy password out of a preset they shared.
     expect(JSON.stringify(response.body)).not.toContain('this must never reach disk');
+  });
+
+  /**
+   * ***What the commit will do, not more*** (2026-09-28). Every Marinara
+   * envelope was previewed as *everything inside would be imported*; the
+   * commit then recorded the kinds it cannot unpack yet and imported nothing.
+   * The preview asks the commit's own question now, and the two agree.
+   */
+  it('says an envelope this build cannot unpack will be recorded, as the commit does', async () => {
+    const file = JSON.stringify({ type: 'marinara_chat_preset', version: 1, data: { name: 'x' } });
+
+    const looked = await look('chat-preset.json', file);
+    expect(looked.status).toBe(200);
+    expect(looked.body.preview.disposition).toBe('recorded');
+    expect(looked.body.preview.notes.map((note: { key: string }) => note.key)).toEqual([
+      'import.file.notYetConvertible',
+    ]);
+
+    const committed = await upload('chat-preset.json', file);
+    expect(committed.body.item.disposition).toBe(looked.body.preview.disposition);
+  });
+
+  /**
+   * *An envelope that unpacks answers with its whole review* — P13.7's
+   * `report`, until now tested only through an Aventuras archive.
+   */
+  it('answers a Marinara envelope with its whole review', async () => {
+    const committed = await upload(
+      'Vera.json',
+      JSON.stringify({
+        type: 'marinara_character',
+        version: 1,
+        data: { id: 'c1', data: JSON.stringify({ name: 'Vera Solano', description: 'Tall.' }) },
+      }),
+    );
+
+    expect(committed.status, JSON.stringify(committed.body)).toBe(201);
+    expect(committed.body.report.items.length).toBeGreaterThan(0);
+    expect(committed.body.report.counts.converted).toBeGreaterThan(0);
   });
 
   it('names an instruct template rather than shrugging at it', async () => {
