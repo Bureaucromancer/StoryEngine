@@ -12,6 +12,7 @@ import {
 
 import { producedTurnId } from '../../sessions/producer.js';
 import { DEFAULT_INPUT_KIND } from '../../turns/preview.js';
+import { stripPicTags } from './pic-tags.js';
 import { isRecord } from './shapes.js';
 import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './story-rows.js';
 
@@ -125,7 +126,39 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
  * *And at P13.13* the pictures are `pictures.ts`'s, on the same terms: this
  * file says where each entry landed ({@link StoryPlacement}) and nothing
  * more, and the renditions join the document's `renditions` beside the turns.
+ *
+ * ***The chapter summaries do not come*** — P13.14 closed `recorded`: an
+ * Aventuras chapter is a summary its model wrote over a range of entries, and
+ * the one place this engine keeps a summary of a session is the rolling
+ * chain, a content-addressed cache keyed on *this* install's summariser
+ * (`sessions/summary-chain.ts`). A foreign summary filed there would either be
+ * served as ours or never be looked up, and the turns it summarises are all
+ * here, so the chain derives its own. The reader's `storyWorldRecorded` says
+ * so on the story's row.
+ *
+ * ***And the text is the prose Aventuras showed***, not the `content` column
+ * as stored: an inline picture's `<pic …>` tag is markup Aventuras swaps for
+ * the picture and a person never reads, so it is taken out here
+ * ({@link proseOf}, `pic-tags.ts`), and `pictures.ts` anchors the picture
+ * where the tag stood.
  */
+
+/**
+ * ***An entry's text as Aventuras shows it*** — its inline `<pic …>` tags
+ * taken out (`pic-tags.ts`), since each is a placeholder for a picture and
+ * never words. Found at P13.13, fixed with P13.14.
+ *
+ * *Both halves of a turn*, as Aventuras' own history builder strips both
+ * (`NarrativeService.buildUserPrompt`): a tag in an action is rare, and would
+ * be the person pasting one, but it renders as a picture there too. `raw`
+ * falls back to the same prose, since it stands for what the person typed and
+ * nobody typed markup that was then hidden from them. `reasoning` is left as
+ * written: Aventuras never renders tags in it, and it is a record of what the
+ * model thought, markup included.
+ */
+function proseOf(content: string): string {
+  return stripPicTags(content).text;
+}
 
 /** The candidate format a story row is emitted as. */
 export const STORY_FORMAT = 'aventuras.story';
@@ -296,16 +329,16 @@ export function produceStory(rows: AventurasStoryRows, key: StoryKey): StoryProd
       turn.input = {
         actorId: null,
         kind: IMPORTED_INPUT_KIND,
-        text: pair.input.content,
+        text: proseOf(pair.input.content),
         // What the person typed, when Aventuras translated it into `content`
         // before sending it ([18 §2.3.1]'s *`original_input` as `raw`*).
-        raw: pair.input.originalInput ?? pair.input.content,
+        raw: pair.input.originalInput ?? proseOf(pair.input.content),
       };
     }
     if (pair.output !== null) {
       const { output } = pair;
       turn.output = {
-        text: output.content,
+        text: proseOf(output.content),
         ...(output.reasoning === null ? {} : { reasoning: output.reasoning }),
       };
       const cost = costOf(output.metadata);

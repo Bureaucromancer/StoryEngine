@@ -5,7 +5,9 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, type Actor, type Lorebook } from '@storyengine/shared';
 
@@ -15,6 +17,7 @@ import { pixelBytes } from '../storage/card/test-png.js';
 import {
   aventurasDatabaseBytes,
   BLANK_PAGE,
+  CHAPTER_SUMMARY_MARK,
   FIXTURE_PICTURES,
   FIXTURE_PORTRAITS,
   LANTERN_FORK,
@@ -521,9 +524,13 @@ describe('a story’s pictures', () => {
     ]) {
       expect(said.get(key), key).toMatchObject({ story: 'The Lantern Fork' });
     }
-    // The Lantern Fork has no chapters or checkpoints, and its pictures came:
-    // nothing is left behind to say.
-    expect(said.has('import.aventuras.storyWorldRecorded')).toBe(false);
+    // Its pictures came, so what is left behind is its chapters alone
+    // (P13.14's, recorded — `a story’s chapters`, below).
+    expect(said.get('import.aventuras.storyWorldRecorded')).toEqual({
+      story: 'The Lantern Fork',
+      chapters: 2,
+      checkpoints: 0,
+    });
 
     const pictures = await listed(lantern.objectId!);
     expect(pictures).toHaveLength(8);
@@ -582,5 +589,71 @@ describe('a story’s pictures', () => {
     expect(row.notes.map((note) => note.key)).not.toContain('import.aventuras.storyPictures');
     expect(await listed(sessionId)).toEqual(before.listed);
     expect((await readdir(assets)).sort()).toEqual(before.files);
+  });
+});
+
+describe('a story’s chapters', () => {
+  /**
+   * ***Recorded, and why*** — P13.14. An Aventuras chapter is a summary its
+   * own model wrote of a stretch of entries, and the one place this engine
+   * keeps a summary of a session is P8's rolling chain: a content-addressed
+   * cache under `sessions/<id>/summaries/`, each link's key the hash of *this*
+   * install's summariser and the turns it covers (`sessions/summary-chain.ts`).
+   * A foreign summary has no key it could honestly be filed under — ours
+   * would serve it as a summary we wrote, and any other would never be looked
+   * up — and every turn it summarised came across, so the chain writes its own.
+   * So the summaries stay in Aventuras, and these hold the three things that
+   * decision owes: the row says so, nothing of a summary reaches the session,
+   * and the reader never so much as selects one.
+   */
+  async function filesUnder(root: string): Promise<string[]> {
+    return (await readdir(root, { recursive: true, withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name))
+      .sort();
+  }
+
+  it('says they stayed in Aventuras, and writes none of a summary anywhere', async () => {
+    await grantFileAccess();
+    const root = await folder();
+
+    const prepare = vi.spyOn(DatabaseSync.prototype, 'prepare');
+    let statements: string[];
+    let first: Awaited<ReturnType<typeof sweepFolder>>;
+    try {
+      first = await sweepFolder(root, { stories: true });
+      statements = prepare.mock.calls.map(([sql]) => sql);
+    } finally {
+      prepare.mockRestore();
+    }
+
+    // The row: imported, with its two chapters — main's and Tower's — named
+    // as what stayed behind.
+    const lantern = storyRow(first.rows, LANTERN_FORK);
+    expect(lantern.disposition).toBe('converted');
+    expect(
+      lantern.notes.find((note) => note.key === 'import.aventuras.storyWorldRecorded')?.params,
+    ).toEqual({ story: 'The Lantern Fork', chapters: 2, checkpoints: 0 });
+
+    // Counted, and read by no statement: a summary cannot leak from a column
+    // nothing selects.
+    const touching = statements.filter((sql) => /chapters/i.test(sql));
+    expect(touching.length).toBeGreaterThan(0);
+    for (const sql of touching) expect(sql, sql).toMatch(/count\(\*\)/i);
+    expect(statements.some((sql) => /summary/i.test(sql))).toBe(false);
+
+    // Nothing of a summary in the session, and no summary store seeded.
+    const sessionRoot = server.services.sessions.layout.sessionRoot('ned', lantern.objectId!);
+    const files = await filesUnder(sessionRoot);
+    expect(files.some((path) => /[\\/]summaries[\\/]/.test(path))).toBe(false);
+    for (const path of files) {
+      expect((await readFile(path)).includes(CHAPTER_SUMMARY_MARK), path).toBe(false);
+    }
+    expect(JSON.stringify(first.rows)).not.toContain(CHAPTER_SUMMARY_MARK);
+
+    // And a second sweep writes nothing: the story is already here.
+    const second = await sweepFolder(root, { stories: true, onConflict: 'replace' });
+    expect(storyRow(second.rows, LANTERN_FORK).disposition).toBe('unchanged');
+    expect(await filesUnder(sessionRoot)).toEqual(files);
   });
 });

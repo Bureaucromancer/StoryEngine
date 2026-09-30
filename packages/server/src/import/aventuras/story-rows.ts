@@ -264,7 +264,9 @@ export interface AventurasIllustration extends AventurasPictureRow {
   /**
    * The text in the entry it belongs beside, matched case-insensitively by
    * Aventuras — or the whole `<pic …>` tag, for an image the model asked for
-   * inline. Either way a quote of the entry, which is what an anchor is.
+   * inline. Either way a quote of the entry as stored; *since P13.14* the
+   * tags are taken out of the imported text, and `pictures.ts` anchors a
+   * tag's picture on the sentence the tag followed instead.
    */
   sourceText: string | null;
   /** *"Full generation prompt"*: what Aventuras sent its image model. */

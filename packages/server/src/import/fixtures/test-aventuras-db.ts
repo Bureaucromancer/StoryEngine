@@ -200,9 +200,25 @@ const SCHEMA: Readonly<Record<string, TableSpec>> = {
       ...WORLD_VIEW,
     ],
   },
+  /**
+   * *Wider than the reader reads*, deliberately — P13.14. The reader counts a
+   * story's chapters and selects nothing else from them, and the summary and
+   * its boundaries are here so a test can show that none of it reaches the
+   * session or the review: a column the fixture lacked could not leak, and
+   * its absence would prove nothing.
+   */
   chapters: {
     since: 2,
-    columns: ['id TEXT PRIMARY KEY', 'story_id TEXT NOT NULL', 'number INTEGER'],
+    columns: [
+      'id TEXT PRIMARY KEY',
+      'story_id TEXT NOT NULL',
+      'number INTEGER',
+      'start_entry_id TEXT',
+      'end_entry_id TEXT',
+      'summary TEXT',
+      'keywords TEXT',
+      { sql: 'branch_id TEXT', since: 13 },
+    ],
   },
   checkpoints: {
     since: 2,
@@ -1415,7 +1431,16 @@ export interface FixtureTree {
   illustrations?: readonly FixtureRow[];
   /** `background_images` rows — [P13.13]. None when absent. */
   backgrounds?: readonly FixtureRow[];
+  /** `chapters` rows — [P13.14], which carries none of them. None when absent. */
+  chapters?: readonly FixtureRow[];
 }
+
+/**
+ * ***Words every fixture chapter's summary opens with*** — P13.14. A chapter
+ * summary is Aventuras' model's prose and stays in Aventuras, so a test looks
+ * for this anywhere an import wrote and must not find it.
+ */
+export const CHAPTER_SUMMARY_MARK = 'Summarised by Aventuras:';
 
 /**
  * ***The Lantern Fork's world*** —
@@ -1785,6 +1810,33 @@ export const LANTERN_FORK: FixtureTree = {
     { id: 'lf-stair', name: 'Tower Stair', parent: 'lf-tower', fork: 'lf-t1' },
   ],
   world: LANTERN_WORLD,
+  /**
+   * ***Two chapters, one on main and one on Tower*** — P13.14, which carries
+   * neither. Main's closes where the `system` entry says chapter one ends;
+   * Tower's covers the branch's own entries, as Aventuras' `branch_id` puts a
+   * chapter on the line that wrote it. Both summaries open with
+   * {@link CHAPTER_SUMMARY_MARK}, so a test can look for them anywhere.
+   */
+  chapters: [
+    {
+      id: 'lf-ch-1',
+      number: 1,
+      start_entry_id: 'lf-e1',
+      end_entry_id: 'lf-e5',
+      summary: `${CHAPTER_SUMMARY_MARK} Mara climbs the dark lighthouse to the lamp room.`,
+      keywords: ['lighthouse', 'lamp room'],
+      branch_id: null,
+    },
+    {
+      id: 'lf-ch-tower',
+      number: 2,
+      start_entry_id: 'lf-t1',
+      end_entry_id: 'lf-t3',
+      summary: `${CHAPTER_SUMMARY_MARK} The wick refuses, then burns blue.`,
+      keywords: ['wick'],
+      branch_id: 'lf-tower',
+    },
+  ],
   illustrations: [
     // The opening's: a PNG, as a data URL that says so.
     {
@@ -1956,6 +2008,82 @@ export const BLANK_PAGE: FixtureTree = {
   branches: [],
 };
 
+/**
+ * ***Inline Pictures: what Aventuras' `<pic …>` tags leave in `content`*** —
+ * found at P13.13 and fixed with P13.14. Not in {@link STORY_TREES}, so no
+ * count another test makes moves; a test that wants it asks for it.
+ *
+ * One narration holds three tags, each a case the re-anchor has: a tag on a
+ * paragraph of its own after a sentence that also occurs earlier in the entry
+ * (so the anchor has to grow to say *this* place), a tag padded into the
+ * middle of a line, and a tag first in the entry, before any prose. A fourth
+ * picture names a tag the entry does not hold. The answer after them has no
+ * tag and must come across byte for byte.
+ */
+export const INLINE_PICTURES: FixtureTree = {
+  id: '7c1d2e3f-4a5b-4c6d-8e7f-8091a2b3c4d8',
+  title: 'Inline Pictures',
+  currentBranchId: null,
+  entries: [
+    {
+      id: 'ip-e1',
+      type: 'narration',
+      position: 0,
+      branch: null,
+      content:
+        '<pic prompt="A harbour at dawn, gulls over masts" characters=""></pic>\n\n' +
+        'The tide is out. Boats lean on the mud.\n\n' +
+        'Somebody calls from the pier. The tide is out.\n\n' +
+        '<pic prompt="An empty pier at low tide, a figure waving" characters="Mara"></pic>\n\n' +
+        "A bell rings. <pic prompt='A bell reading 10 > 9 on its lip' /> Then nothing.",
+    },
+    { id: 'ip-e2', type: 'user_action', position: 1, branch: null, content: 'You walk out.' },
+    {
+      id: 'ip-e3',
+      type: 'narration',
+      position: 2,
+      branch: null,
+      content: 'The mud holds.',
+    },
+  ],
+  branches: [],
+  illustrations: [
+    {
+      id: 'ip-p-first',
+      entry_id: 'ip-e1',
+      source_text: '<pic prompt="A harbour at dawn, gulls over masts" characters=""></pic>',
+      prompt: 'A harbour at dawn, gulls over masts',
+      image_data: Buffer.from(FIXTURE_PICTURES.opening).toString('base64'),
+      created_at: CREATED + 30_000,
+    },
+    {
+      id: 'ip-p-pier',
+      entry_id: 'ip-e1',
+      source_text:
+        '<pic prompt="An empty pier at low tide, a figure waving" characters="Mara"></pic>',
+      prompt: 'An empty pier at low tide, a figure waving',
+      image_data: Buffer.from(FIXTURE_PICTURES.bay).toString('base64'),
+      created_at: CREATED + 31_000,
+    },
+    {
+      id: 'ip-p-bell',
+      entry_id: 'ip-e1',
+      source_text: "<pic prompt='A bell reading 10 > 9 on its lip' />",
+      prompt: 'A bell reading 10 > 9 on its lip',
+      image_data: Buffer.from(FIXTURE_PICTURES.lamp).toString('base64'),
+      created_at: CREATED + 32_000,
+    },
+    {
+      id: 'ip-p-elsewhere',
+      entry_id: 'ip-e1',
+      source_text: '<pic prompt="A tag this entry never held" characters=""></pic>',
+      prompt: 'A tag this entry never held',
+      image_data: Buffer.from(FIXTURE_PICTURES.tower).toString('base64'),
+      created_at: CREATED + 33_000,
+    },
+  ],
+};
+
 /** All three, in the order a test usually wants them. */
 export const STORY_TREES: readonly FixtureTree[] = [LANTERN_FORK, QUIET_HARBOUR, BLANK_PAGE];
 
@@ -1992,6 +2120,9 @@ function insertTree(db: DatabaseSync, tree: FixtureTree, at: number): void {
   }
   for (const row of tree.backgrounds ?? []) {
     insert(db, 'background_images', { ...row, story_id: tree.id });
+  }
+  for (const row of tree.chapters ?? []) {
+    insert(db, 'chapters', { created_at: base, ...row, story_id: tree.id });
   }
   tree.entries.forEach((entry, n) => {
     insert(db, 'story_entries', {
@@ -2143,6 +2274,10 @@ function storyRow(story: string, table: string, n: number): FixtureRow {
     title: `${table} ${String(n)}`,
     number: n,
     entry_id: `${story}:story_entries:${String(n)}`,
+    // A chapter's: what Aventuras' model wrote, which never leaves it (P13.14).
+    summary: `${CHAPTER_SUMMARY_MARK} ${table} ${String(n)}.`,
+    start_entry_id: `${story}:story_entries:1`,
+    end_entry_id: `${story}:story_entries:${String(n)}`,
     pool: 'character',
     pair_key: `a|b${String(n)}`,
   };

@@ -19,6 +19,7 @@ import { makeTestServer, setUpAdmin, tempRoot, type TestServer } from '../../tes
 import {
   buildAventurasDatabase,
   FIXTURE_PICTURES,
+  INLINE_PICTURES,
   LANTERN_FORK,
   STORY_TREES,
   writeAventurasBackupFolder,
@@ -222,6 +223,68 @@ describe('the plan: which turn, which id, what record', () => {
     const again = rowsOf(database());
     expect(planPictures(again, produced(again).placement, 'The Lantern Fork').planned).toEqual(
       plan.planned,
+    );
+  });
+});
+
+describe('inline pictures: the tags out of the prose, the pictures where they stood', () => {
+  /**
+   * Found at P13.13 and fixed with P13.14: Aventuras' `<pic …>` tags are
+   * placeholders its renderer swaps for the picture, so the turn text is the
+   * prose without them, and a picture whose `source_text` was its tag is
+   * anchored on the sentence the tag followed (`pic-tags.ts`).
+   */
+  function inline(): { rows: AventurasStoryRows; production: StoryProduction & { ok: true } } {
+    const db = new DatabaseSync(':memory:');
+    open.push(db);
+    buildAventurasDatabase(db, { storyTrees: [INLINE_PICTURES] });
+    const rows = readStoryRows(db, INLINE_PICTURES.id, tablesIn(db));
+    if (rows === null) throw new Error('no Inline Pictures');
+    const production = produceStory(rows, {
+      handle: 'ned',
+      origin: `aventura.db/stories/${INLINE_PICTURES.id}`,
+    });
+    if (!production.ok) throw new Error('Inline Pictures produced nothing');
+    return { rows, production };
+  }
+
+  it('carries the prose as Aventuras showed it, and an entry with no tag byte for byte', () => {
+    const { production } = inline();
+    const texts = production.document.turns.map((turn) => turn.output?.text);
+    expect(texts).toEqual([
+      'The tide is out. Boats lean on the mud.\n\n' +
+        'Somebody calls from the pier. The tide is out.\n\n' +
+        'A bell rings. Then nothing.',
+      'The mud holds.',
+    ]);
+    expect(JSON.stringify(production.document)).not.toContain('<pic');
+  });
+
+  it('anchors each picture on the sentence its tag followed, and says which cannot be placed', () => {
+    const { rows, production } = inline();
+    const plan = planPictures(rows, production.placement, INLINE_PICTURES.title);
+
+    // First in its entry: nothing before it to follow, so under the text, and
+    // no quote to have missed.
+    const first = planned(plan, 'ip-p-first');
+    expect(first.scope).toBeNull();
+    expect(first.anchorResolved).toBeUndefined();
+
+    // After a sentence that also opens the entry: the quote grows back a
+    // sentence so it names this place and not the first.
+    expect(planned(plan, 'ip-p-pier')).toMatchObject({
+      scope: { anchor: 'Somebody calls from the pier. The tide is out' },
+    });
+    expect(planned(plan, 'ip-p-pier').anchorResolved).toBeUndefined();
+
+    // Mid-line, with a `>` in its prompt — Aventuras' pattern keeps it one tag.
+    expect(planned(plan, 'ip-p-bell').scope).toEqual({ anchor: 'A bell rings' });
+
+    // A tag the entry never held is a miss like any quote's, and keeps the tag.
+    const elsewhere = planned(plan, 'ip-p-elsewhere');
+    expect(elsewhere.anchorResolved).toBe(false);
+    expect(elsewhere.scope?.anchor).toBe(
+      '<pic prompt="A tag this entry never held" characters=""></pic>',
     );
   });
 });

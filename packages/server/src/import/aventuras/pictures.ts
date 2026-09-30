@@ -14,6 +14,7 @@ import {
 import { sniff } from '../../auth/avatars.js';
 import { renditionIdFor } from '../../renditions/store.js';
 import { digest } from '../../sessions/digest.js';
+import { anchorBefore, isPicTag, stripPicTags } from './pic-tags.js';
 import type { StoryPlacement } from './story.js';
 import type {
   AventurasBackground,
@@ -118,9 +119,13 @@ import type {
  *   carries its entry's.
  * - **The anchor is Aventuras' `source_text`**, which is already what an
  *   anchor is: a quote of the entry, matched without case (Aventuras'
- *   matcher, and `anchorOffset`'s). For a picture the model asked for inline
- *   it is the whole `<pic …>` tag, which is in the imported text verbatim.
- *   `anchorResolved: false` when the quote is not in the entry at all.
+ *   matcher, and `anchorOffset`'s). ~~For a picture the model asked for inline
+ *   it is the whole `<pic …>` tag, which is in the imported text verbatim.~~
+ *   *Since P13.14* the tags are taken out of the text (`pic-tags.ts`), so a
+ *   picture the model asked for inline — whose `source_text` is the whole
+ *   `<pic …>` tag — is anchored on the sentence the tag followed, which puts it
+ *   where Aventuras drew it ({@link anchorOf}). `anchorResolved: false` when
+ *   the quote is not in the entry at all.
  * - **The id is the turn's and an ordinal** (`renditionIdFor`) — the scheme
  *   every rendition has, so a later *Illustrate* of the same turn takes the
  *   next number and adds rather than overwrites. The turn id is derived
@@ -387,8 +392,10 @@ function recordOf(
   const illustration: AventurasIllustration | null =
     source.table === 'embedded_images' ? source : null;
   const prompt = recipeOf(illustration?.prompt ?? '');
-  const anchor = illustration?.sourceText?.trim() ?? '';
-  const entryText = illustration === null ? '' : (contentOf.get(illustration.entryId) ?? '');
+  const { anchor, resolved } = anchorOf(
+    illustration?.sourceText ?? '',
+    illustration === null ? '' : (contentOf.get(illustration.entryId) ?? ''),
+  );
   const at = isoOf(source.createdAt);
 
   return {
@@ -416,10 +423,47 @@ function recordOf(
       ...prompt.fragments.map((fragment) => fragment.text),
     ]),
     ordering: 0,
-    ...(anchor !== '' && !entryText.toLowerCase().includes(anchor.toLowerCase())
-      ? { anchorResolved: false as const }
-      : {}),
+    ...(resolved ? {} : { anchorResolved: false as const }),
     foreign: { source: 'aventuras', id: source.id },
+  };
+}
+
+/**
+ * ***Where a picture sits in its turn's text*** — the anchor, and whether it
+ * is in the text at all. `content` is the entry as Aventuras stored it; the
+ * turn holds it with its `<pic …>` tags taken out (`story.ts`'s `proseOf`),
+ * and every anchor is checked against that, the text a reader resolves it in.
+ *
+ * - **A quote** — Aventuras' analysed pictures — is kept as written, matched
+ *   without case, and a miss is `anchorResolved: false`, as at P13.13.
+ * - **A tag** — a picture the model asked for inline, whose `source_text` is
+ *   the whole `<pic …>` — is anchored on the sentence before the place the tag
+ *   stood (`pic-tags.ts`'s `anchorBefore`, which says why), so the picture is
+ *   drawn where Aventuras drew it. A tag first in its entry has nothing before
+ *   it and is left unanchored, under the text, and resolved — there is no quote
+ *   to have missed. A tag the entry does not hold is a miss like any quote's,
+ *   and keeps the tag as its anchor, so the record still says what Aventuras
+ *   had.
+ */
+function anchorOf(sourceText: string, content: string): { anchor: string; resolved: boolean } {
+  const quote = sourceText.trim();
+  const stripped = stripPicTags(content);
+  if (quote === '') return { anchor: '', resolved: true };
+
+  if (isPicTag(quote)) {
+    // Aventuras finds a tag's record by the exact tag (`buildInlineImageMap`),
+    // so the exact tag first; its own matching is case-blind elsewhere, so a
+    // tag differing only in case is the same tag after that.
+    const site =
+      stripped.sites.find((one) => one.tag === quote) ??
+      stripped.sites.find((one) => one.tag.toLowerCase() === quote.toLowerCase());
+    if (site === undefined) return { anchor: quote, resolved: false };
+    return { anchor: anchorBefore(stripped.text, site.at) ?? '', resolved: true };
+  }
+
+  return {
+    anchor: quote,
+    resolved: stripped.text.toLowerCase().includes(quote.toLowerCase()),
   };
 }
 

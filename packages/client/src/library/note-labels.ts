@@ -329,8 +329,9 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * answer are one turn, Aventuras' branches are named branches, and the
    * session opens where the person left the story. These say what came, what
    * was re-read to make it a tree, and what stayed in Aventuras — ~~the
-   * world,~~ the chapters ~~and the pictures~~, which a later stage brings (the
-   * world came at P13.12, and the pictures at P13.13, below), and a narrator
+   * world,~~ the chapters ~~and the pictures~~, ~~which a later stage brings~~
+   * which P13.14 recorded rather than brought (the world came at P13.12, and
+   * the pictures at P13.13, below), and a narrator
    * prompt of the story's own, which is written for Aventuras' prompt layout
    * the way its prompt packs are (`packRecorded` says why those stay).
    *
@@ -340,8 +341,19 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    */
   'import.aventuras.storyImported':
     '“{story}” is now a session of {turns} turns, with {branches} named branches besides the main line, opening where the story was left. It was an Aventuras {mode} story, and plays here in this server’s default mode.',
+  /**
+   * ***What stayed behind, and — since P13.14 — why the chapters did.*** The
+   * key and its counts are P13.11's, so a review saved before still reads;
+   * what changed is the sentence. ~~*"Not brought across yet"*~~: the chapter
+   * summaries are not coming later. Each is Aventuras' model's summary of a
+   * stretch of the story, and this server keeps its own summaries of a long
+   * session, written by its own summariser from the turns — every one of
+   * which came across — so the story loses nothing it plays with, and a
+   * summary somebody else's model wrote is never passed off as one this
+   * server wrote. Checkpoints are the phase's *deliberately not carried*.
+   */
   'import.aventuras.storyWorldRecorded':
-    'Not brought across yet from “{story}”: {chapters} chapters and {checkpoints} checkpoints. They are still in Aventuras.',
+    'Not brought across from “{story}”: {chapters} chapter summaries and {checkpoints} checkpoints, which are still in Aventuras. The chapter summaries were written by Aventuras’ own model; every turn they summarise came across, and this server writes its own summaries of a long story from those turns.',
   /**
    * ***And its world*** — [P13.12]. The characters, places, items, story
    * beats and lorebook entries of the branch the session opens on: the

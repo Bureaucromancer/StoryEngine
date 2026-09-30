@@ -648,8 +648,9 @@ function* tableRows(held: Held): Iterable<SourceItem> {
  * ***Asked for, each story is a candidate*** (P13.11): its rows, read one
  * story at a time so a library of two hundred stories is never in memory at
  * once, for the Writer to hand to the story producer (`story.ts`). What the
- * story holds that this build does not bring — ~~its world~~, its chapters,
- * ~~its pictures~~ — rides on the candidate as `storyWorldRecorded`, so the row
+ * story holds that this build does not bring — ~~its world~~, its chapters
+ * (recorded at P13.14), ~~its pictures~~ — rides on the candidate as
+ * `storyWorldRecorded`, so the row
  * that says *imported* also says what stayed behind. *Since P13.12* the world
  * is read with the tree (`story-rows.ts`) and comes across, so it is no longer
  * in that sentence; *since P13.13* the pictures are read with it too, and
@@ -711,7 +712,12 @@ function* storyRows(
       // *and since P13.13 its pictures*, which the Writer counts on the row as
       // it carries them, and the few it cannot carry with them
       // (`aventuras/pictures.ts`). So what stays behind here is the chapters
-      // and the checkpoints, P13.14's and nobody's yet; the `images` count
+      // and the checkpoints, ~~P13.14's and nobody's yet~~ — *P13.14 closed
+      // `recorded`*: a chapter is a summary Aventuras' model wrote, and P8's
+      // chain is a cache keyed on this install's summariser, so there is no
+      // key a foreign summary could honestly be filed under, and the turns it
+      // summarised are all here for the chain to summarise itself. The count
+      // is all this reader ever selects from `chapters`. The `images` count
       // leaves this sentence and stays in `storyRecorded`, which a sweep that
       // does not ask still says.
       const { chapters, checkpoints } = tally;

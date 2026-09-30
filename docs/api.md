@@ -708,7 +708,14 @@ reasoning to `output.reasoning`; saved suggestions to `suggestions`. The
 session names no mode, and plays in the server's default mode;
 `import.aventuras.storyImported` says which mode it had in Aventuras, and
 `import.aventuras.storyWorldRecorded` counts the chapters and checkpoints
-that stayed behind (the pictures, until P13.13, below). **Since
+that stayed behind (the pictures, until P13.13, below). **The chapters stay
+behind for good** ([P13.14](design/workplan/30-p13-aventuras-import.md),
+closed `recorded`): each is a summary Aventuras' own model wrote, and a
+session's summaries here are written by this server's summariser from the
+turns, all of which come across — so no summary, keyword or boundary of a
+chapter is read, only the count, and the note says why. Every turn's text is
+the entry's with Aventuras' inline `<pic …>` tags taken out, as Aventuras
+shows it (since P13.14; the pictures they stood for are below). **Since
 [P13.12](design/workplan/30-p13-aventuras-import.md) its world comes too**:
 `characters`, `locations`, `items`, `story_beats` and `entries` are resolved
 for the branch the session opens on — a branch's edit (`overrides_id`) in
@@ -733,7 +740,12 @@ come too**, as finished renditions of the session — `ready`, with their
 bytes, and never queued as jobs: each `embedded_images` row an
 `illustration` on the turn that holds its entry, on whichever branch (a
 forked action's is on the turn of the line it was written on), anchored by
-Aventuras' `source_text`; and each branch's newest `background_images` row
+Aventuras' `source_text` — or, for a picture the model asked for inline,
+whose `source_text` is its `<pic …>` tag, on the sentence the tag followed,
+so it sits where Aventuras drew it (since P13.14; a tag first in its entry
+leaves the picture unanchored, under the text, and a tag the entry does not
+hold keeps the tag as its anchor with `anchorResolved: false`); and each
+branch's newest `background_images` row
 a `background` on the turn its line ends on, **carried and not selected**
 — the import names no mode, and the `se.backdrop` selection is a mode's —
 so it is chosen by hand in a mode that shows one. Their ids are the turn's

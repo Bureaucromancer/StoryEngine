@@ -249,12 +249,22 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
   /** P13.13: `background` renditions, on the turn each branch's line ends on; a checkpoint's stays with it. */
   background_images: 'converted',
   //
-  // The rest wait on their stage — ~~P13.13 the pictures~~, P13.14 the chapters.
-  // Recorded, and counted per story on each story's row. The derived ones —
+  // The rest wait on their stage — ~~P13.13 the pictures~~, ~~P13.14 the
+  // chapters~~. Recorded, and counted per story on each story's row. The
+  // derived ones —
   // checkpoints, snapshots, time anchors, `kept_separate` — are "recorded or
   // skipped, with a count" in the phase's own words; recorded here until their
   // stage decides which, since `skipped` says *deliberately not taken* about a
   // decision nobody has made yet.
+  /**
+   * ***P13.14: recorded, and decided*** — not waiting on a stage any more. A
+   * chapter is a summary Aventuras' model wrote of a stretch of entries; the
+   * one summary of a session this engine keeps is P8's rolling chain, a cache
+   * whose keys hash this install's summariser (`sessions/summary-chain.ts`),
+   * so a foreign summary would be served as ours or never read — and the
+   * turns it covers are all carried, so the chain writes its own. Counted per
+   * story, and `storyWorldRecorded` says why they stay in Aventuras.
+   */
   chapters: 'recorded',
   checkpoints: 'recorded',
   time_anchors: 'recorded',
