@@ -61,6 +61,18 @@ export const MIGRATIONS_TABLE = '_sqlx_migrations';
  */
 export const COPY_ON_WRITE = ['overrides_id', 'deleted'] as const;
 
+/**
+ * ***The columns every table of a story's world gained after it was made***, by
+ * the migration that added each — `branch_id` (015) and the copy-on-write pair
+ * (026, 028). The world's tables are read in full since P13.12, so these are
+ * `late` rather than optional: see the comment above the five tables.
+ */
+const WORLD_LATE: Readonly<Record<string, number>> = {
+  branch_id: 15,
+  overrides_id: 26,
+  deleted: 28,
+};
+
 /** What one table must have for a reader here to select from it. */
 export interface TableRequirement {
   /** The migration that created the table; a database older than it has no such table, rightly. */
@@ -99,8 +111,9 @@ export interface TableRequirement {
  * `src/lib/services/database.ts`), because P13.3–P13.9 port those mappers and
  * hand the converters exactly what they already take (§0.1). The story tables
  * needed only what counting them per story needs until P13.11, which reads a
- * story's own row, its entries and its branches to rebuild the tree; the
- * world's tables are still only counted, until P13.12 reads them.
+ * story's own row, its entries and its branches to rebuild the tree; and
+ * P13.12, which reads the world's five tables to resolve the head branch's
+ * cast and lore.
  *
  * **A table only counted as a whole is not here at all** — `settings`,
  * `templates`, and the three story tables the reader counts per table and not
@@ -114,8 +127,9 @@ export interface TableRequirement {
  * into the per-story counts cannot be counted ungated, which would throw out
  * of `items()` after a survey had passed.
  *
- * ***The copy-on-write columns are optional*** (`overrides_id` from 026,
- * `deleted` from 028). The per-story counts leave out a branch's edit of an
+ * ~~***The copy-on-write columns are optional***~~ *Late since P13.12*
+ * (`overrides_id` from 026, `deleted` from 028), which reads them as well as
+ * counting with them. The per-story counts leave out a branch's edit of an
  * entity and a deletion's tombstone when the columns are there to say which
  * rows those are (see the reader's `storyRows`), and count every row of a
  * database from before them — which had neither kind of row to leave out.
@@ -237,17 +251,101 @@ export const AVENTURAS_REQUIRED: Readonly<Record<string, TableRequirement>> = {
     columns: ['id', 'story_id', 'type', 'content', 'position', 'created_at', 'metadata'],
     late: { branch_id: 13, reasoning: 19, original_input: 21, suggested_actions: 27 },
   },
-  characters: { since: 1, columns: ['story_id'], optional: COPY_ON_WRITE },
-  locations: { since: 1, columns: ['story_id'], optional: COPY_ON_WRITE },
-  items: { since: 1, columns: ['story_id'], optional: COPY_ON_WRITE },
-  story_beats: { since: 1, columns: ['story_id'], optional: COPY_ON_WRITE },
+  //
+  // ***Since P13.12 the five tables of a story's world are read in full too***
+  // — the columns Aventuras' own mappers read (`mapCharacter`, `mapLocation`,
+  // `mapItem`, `mapStoryBeat`, `mapEntry`), less the translation columns (a
+  // display cache of text this does read), `lore_management_blacklisted` (an
+  // instruction to Aventuras' own lore agent, which has no counterpart) and
+  // the mention counters, which `mapEntry` itself never reads. Every column a
+  // migration added after its table is `late`, the copy-on-write pair
+  // included: they were `optional` while the reader only *counted* with them,
+  // and a database past 026 without `overrides_id` read now would resolve a
+  // branch's edit of a character as a second character — the torn reading
+  // `late` exists to refuse (`WORLD_LATE`).
+  characters: {
+    since: 1,
+    columns: [
+      'id',
+      'story_id',
+      'name',
+      'description',
+      'relationship',
+      'traits',
+      'status',
+      'metadata',
+    ],
+    late: { visual_descriptors: 11, portrait: 12, ...WORLD_LATE },
+  },
+  locations: {
+    since: 1,
+    columns: [
+      'id',
+      'story_id',
+      'name',
+      'description',
+      'visited',
+      'current',
+      'connections',
+      'metadata',
+    ],
+    late: WORLD_LATE,
+  },
+  items: {
+    since: 1,
+    columns: [
+      'id',
+      'story_id',
+      'name',
+      'description',
+      'quantity',
+      'equipped',
+      'location',
+      'metadata',
+    ],
+    late: WORLD_LATE,
+  },
+  story_beats: {
+    since: 1,
+    columns: [
+      'id',
+      'story_id',
+      'title',
+      'description',
+      'type',
+      'status',
+      'triggered_at',
+      'metadata',
+    ],
+    late: { resolved_at: 5, ...WORLD_LATE },
+  },
   chapters: { since: 2, columns: ['story_id'] },
   checkpoints: { since: 2, columns: ['story_id'] },
-  entries: { since: 3, columns: ['story_id'], optional: COPY_ON_WRITE },
+  entries: {
+    since: 3,
+    columns: [
+      'id',
+      'story_id',
+      'name',
+      'type',
+      'description',
+      'hidden_info',
+      'aliases',
+      'state',
+      'adventure_state',
+      'creative_state',
+      'injection',
+      'created_by',
+    ],
+    late: WORLD_LATE,
+  },
   embedded_images: { since: 11, columns: ['story_id'] },
   branches: {
     since: 13,
     columns: ['id', 'story_id', 'name', 'parent_branch_id', 'fork_entry_id', 'created_at'],
+    // *P13.12*: a branch that owns a complete copy of the world and needs no
+    // lineage to resolve it (`world.ts`).
+    late: { snapshot_complete: 29 },
   },
   background_images: { since: 24, columns: ['story_id'] },
 };

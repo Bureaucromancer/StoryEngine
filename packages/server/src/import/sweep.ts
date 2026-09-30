@@ -31,6 +31,7 @@ import { AVENTURAS_DATABASE, AventurasReader } from './aventuras/reader.js';
 import { convertScenario, type ConvertedScenario } from './aventuras/scenario.js';
 import { produceStory, STORY_FORMAT } from './aventuras/story.js';
 import type { AventurasStoryRows } from './aventuras/story-rows.js';
+import { produceWorld, type WorldProduction } from './aventuras/world.js';
 import { isRecord, linkedLorebookId } from './aventuras/shapes.js';
 import { VAULT_CHARACTER_FORMAT } from './aventuras/vault-character.js';
 import {
@@ -60,8 +61,9 @@ import { resolveWithin } from '../storage/paths.js';
 import type { BlobStore } from '../storage/card/envelope.js';
 import { sniff } from '../auth/avatars.js';
 import type { Logger } from '../state/commit.js';
-import { importSession } from '../sessions/import.js';
-import type { SessionContext } from '../sessions/store.js';
+import { importSession, priorSessionImport } from '../sessions/import.js';
+import { readSession, type SessionContext } from '../sessions/store.js';
+import type { SessionFile } from '../sessions/types.js';
 import type { TagStore } from '../tags/store.js';
 import { classifyRoot } from './detect.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
@@ -553,14 +555,19 @@ class Writer {
    * [P13.11](../../../../docs/design/workplan/30-p13-aventuras-import.md).
    *
    * **The producer makes the document and the reader writes it**
-   * (`aventuras/story.ts`, `sessions/import.ts`): this arm writes nothing
+   * (`aventuras/story.ts`, `sessions/import.ts`): this arm writes no session
    * itself, which is [P13 §0.3]'s whole promise about Part 2's shape. It
    * passes the story's key as `originalFilename`, so a second sweep is
    * refused `already-here` naming the session the first made; and
    * `requireLinks`, because a producer writes whatever its session links to
-   * before it writes the session — none yet, and P13.12's cast and lore will
-   * be written by this same sweep before the story is — so a link that
-   * resolves to nothing is the producer's own defect.
+   * before it writes the session — so a link that resolves to nothing is the
+   * producer's own defect.
+   *
+   * ***And since P13.12, what it links to*** — the story's world, resolved
+   * for the branch the session opens on (`aventuras/world.ts`, pure), written
+   * here as the story's cast and its lorebook through the same `store()` and
+   * `#createActor` every other import takes, and only then linked from the
+   * document as `cast` and `lore`. See {@link Writer.#storyWorld}.
    *
    * ***Already here is `unchanged`, whatever `onConflict` says*** — the
    * backup's rule for a session, for the backup's reason: a session is an
@@ -569,6 +576,19 @@ class Writer {
    * second session holding the same turn ids, which the reader refuses. A
    * story changed in Aventuras since it was brought across is therefore not
    * brought across again, and the note says so.
+   *
+   * ***The world follows the session*** (P13.12), and so it is asked first.
+   * The cast and the book are written before the session because the session
+   * must link to things that exist — which, for a story already here, would
+   * mean writing a world for a session that is not going to be written: under
+   * `replace` a character rewritten beside turns that never met the rewrite,
+   * and a character new in Aventuras since made an actor nobody's cast names.
+   * The note already promises that nothing written in Aventuras since comes
+   * across; the world keeping that promise is what makes it true. So a story
+   * already here is found by its key before anything is produced
+   * (`priorSessionImport`), nothing of its world is written, and the row names
+   * what the session here already links to — the actors and the book an
+   * earlier sweep made, unchanged because untouched.
    */
   async #aventurasStory(candidate: ImportCandidate): Promise<ImportItemReport> {
     const { source } = candidate;
@@ -578,10 +598,32 @@ class Writer {
     // write nothing, as the reader would have.
     if (stories === undefined) return { source, disposition: 'recorded', notes: [] };
 
+    const { handle } = this.#request;
     const rows = candidate.payload as AventurasStoryRows;
     const story = rows.story.title;
-    const produced = produceStory(rows, { handle: this.#request.handle, origin: source });
+    const alreadyHere: ImportNote = {
+      key: 'import.aventuras.storyAlreadyHere',
+      params: { story },
+      level: 'info',
+    };
+
+    const prior = priorSessionImport(stories, handle, source);
+    if (prior !== null) {
+      const here = await readSession(stories.sessions, handle, prior.sessionId);
+      const linked = here === null ? [] : linksOf(here);
+      return {
+        source,
+        disposition: 'unchanged',
+        objectId: prior.sessionId,
+        ...(linked.length === 0 ? {} : { alsoProduced: linked }),
+        notes: [alreadyHere],
+      };
+    }
+
+    const produced = produceStory(rows, { handle, origin: source });
     if (!produced.ok) {
+      // No session, so no world either: a cast and a book with nothing
+      // linking to them would be objects this import made for nobody.
       return {
         source,
         disposition: 'skipped',
@@ -592,7 +634,18 @@ class Writer {
       };
     }
 
-    const result = await importSession(stories, this.#request.handle, produced.document, {
+    const world = produceWorld(rows, source);
+    const stored: ImportNote[] = [];
+    const links = await this.#storyWorld(rows, world, stored);
+    const { session } = produced.document;
+    if (links.persona !== null || links.actors.length > 0) {
+      session['cast'] = { persona: links.persona, actors: links.actors };
+    }
+    if (links.lore !== null) session['lore'] = [links.lore];
+    const alsoProduced = links.written;
+    const said = [...produced.notes, ...world.notes, ...stored];
+
+    const result = await importSession(stories, handle, produced.document, {
       originalFilename: source,
       requireLinks: true,
     });
@@ -604,13 +657,15 @@ class Writer {
         source,
         disposition: 'converted',
         objectId: result.sessionId,
+        ...(alsoProduced.length === 0 ? {} : { alsoProduced }),
         notes: [
           {
             key: 'import.aventuras.storyImported',
             params: { story, turns: result.turns, branches: produced.branches, mode },
             level: 'info',
           },
-          ...produced.notes,
+          ...worldSaid(story, world, links),
+          ...said,
         ],
       };
     }
@@ -621,21 +676,93 @@ class Writer {
         // The session an earlier sweep made, when the key found it — which is
         // the answer a person can act on: it is here, and this is where.
         ...('prior' in result ? { objectId: result.prior.sessionId } : {}),
-        notes: [{ key: 'import.aventuras.storyAlreadyHere', params: { story }, level: 'info' }],
+        ...(alsoProduced.length === 0 ? {} : { alsoProduced }),
+        notes: [alreadyHere, ...stored],
       };
     }
     return {
       source,
       disposition: 'unrecognised',
+      // Written before the refusal and still in the library, so still named:
+      // a person looking for them finds the row that made them.
+      ...(alsoProduced.length === 0 ? {} : { alsoProduced }),
       notes: [
         {
           key: 'import.aventuras.storyRefused',
           params: { story, reason: result.reason },
           level: 'warn',
         },
-        ...produced.notes,
+        ...said,
       ],
     };
+  }
+
+  /**
+   * ***A story's world, into the library, before the session that links to
+   * it*** — [P13.12](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **Each object is an import of its own**, keyed under the story's
+   * ([§1.5]): an actor `aventura.db/stories/<id>/characters/<canonical id>`,
+   * the book `aventura.db/stories/<id>/lorebook`. So a story swept again after
+   * its session was deleted finds the actors and the book it made, and
+   * `identify` settles them as it settles every other import — `unchanged`
+   * when nothing moved, and under the request's policy when something did.
+   *
+   * ***The vault's roads, not a second one.*** A character goes through
+   * `#createActor`, as a vault character does, so its portrait — read from the
+   * database one character at a time, now that its actor is about to be
+   * stored, and bounded as P13.3 bounds a vault portrait — becomes the card
+   * when it is a PNG and rides beside it when it is not. The book goes through
+   * `store()`, as a vault book does.
+   *
+   * ***One that fails costs itself.*** A character or a book the library will
+   * not take is left out of the links, with the note `store()` wrote, and the
+   * session is imported without it: [21 §4.1.1]'s poisoned-file rule one
+   * level down, and the same rule `#createActor` keeps for a portrait. The
+   * link that remains resolves, so `requireLinks` still holds.
+   */
+  async #storyWorld(
+    rows: AventurasStoryRows,
+    world: WorldProduction,
+    notes: ImportNote[],
+  ): Promise<StoryLinks> {
+    const links: StoryLinks = { persona: null, actors: [], lore: null, written: [] };
+
+    for (const member of world.cast) {
+      const { actor } = member;
+      stampImported(actor, member.source);
+      // Beneath the actor's own key, as a vault character's is beneath its
+      // row's: a path no file in the root can have.
+      const key = `${member.source}/portrait`;
+      const portrait = member.hasPortrait
+        ? rows.world.portrait(member.rowId, actor.name, key, notes)
+        : null;
+      const outcome = await this.#createActor(
+        {
+          source: member.source,
+          format: STORY_FORMAT,
+          payload: null,
+          ...(portrait === null ? {} : { assets: [key], inline: new Map([[key, portrait]]) }),
+        },
+        actor,
+        notes,
+      );
+      if (outcome === 'failed') continue;
+      links.written.push(actor.id);
+      if (member.protagonist) links.persona = actor.id;
+      else links.actors.push(actor.id);
+    }
+
+    const { lorebook } = world;
+    if (lorebook !== null) {
+      stampImported(lorebook, world.lorebookSource);
+      const outcome = await this.store(lorebook, LOREBOOK_SCHEMA, notes);
+      if (outcome !== 'failed') {
+        links.lore = lorebook.id;
+        links.written.push(lorebook.id);
+      }
+    }
+    return links;
   }
 
   /**
@@ -1644,6 +1771,67 @@ class Writer {
     if (outcome === 'unchanged' || outcome === 'skipped') return 'unchanged';
     return outcome === 'failed' ? 'unrecognised' : 'converted';
   }
+}
+
+/**
+ * ***What a story's session links to, once its world is written*** — the
+ * ids `store()` settled, which are the ones the library holds (a re-import's
+ * are the earlier import's, `keep-both`'s a fresh copy's).
+ */
+interface StoryLinks {
+  /** The protagonist's actor: the session's persona. */
+  persona: string | null;
+  /** Everyone else in the cast. */
+  actors: string[];
+  /** The story's own lorebook. */
+  lore: string | null;
+  /** Every object written or settled, for the row's `alsoProduced`. */
+  written: string[];
+}
+
+/**
+ * ***What a session here already links to*** — its persona, its cast and its
+ * lore — for the row of a story found already here, which names the objects
+ * an earlier sweep made for it rather than making them again.
+ */
+function linksOf(session: SessionFile): string[] {
+  const ids = [
+    session.cast?.persona ?? null,
+    ...(session.cast?.actors ?? []),
+    ...(session.lore ?? []),
+  ];
+  return ids.filter((id): id is string => typeof id === 'string' && id !== '');
+}
+
+/**
+ * ***What came with the story, said once on its row*** — how many of the
+ * cast and of each kind of entry were linked, which is what the session has
+ * and not what Aventuras held (a character the library refused is not
+ * counted, and is named by `store()`'s own note). The persona gets a sentence
+ * of its own, because it is the one character a person plays rather than
+ * meets, and the one a person will look for.
+ */
+function worldSaid(story: string, world: WorldProduction, links: StoryLinks): ImportNote[] {
+  const notes: ImportNote[] = [];
+  const characters = (links.persona === null ? 0 : 1) + links.actors.length;
+  const { lore, locations, items, beats } =
+    links.lore === null ? { lore: 0, locations: 0, items: 0, beats: 0 } : world.counts;
+  if (characters + lore + locations + items + beats > 0) {
+    notes.push({
+      key: 'import.aventuras.storyWorld',
+      params: { story, characters, lore, locations, items, beats },
+      level: 'info',
+    });
+  }
+  const protagonist = world.cast.find((member) => member.protagonist);
+  if (links.persona !== null && protagonist !== undefined) {
+    notes.push({
+      key: 'import.aventuras.storyPersona',
+      params: { story, actor: protagonist.actor.name },
+      level: 'info',
+    });
+  }
+  return notes;
 }
 
 /**

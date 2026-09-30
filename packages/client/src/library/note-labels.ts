@@ -328,8 +328,9 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * asks for stories makes each one a session of its own: an action and its
    * answer are one turn, Aventuras' branches are named branches, and the
    * session opens where the person left the story. These say what came, what
-   * was re-read to make it a tree, and what stayed in Aventuras — the world,
-   * the chapters and the pictures, which later stages bring, and a narrator
+   * was re-read to make it a tree, and what stayed in Aventuras — ~~the
+   * world,~~ the chapters and the pictures, which later stages bring (the
+   * world came at P13.12, below), and a narrator
    * prompt of the story's own, which is written for Aventuras' prompt layout
    * the way its prompt packs are (`packRecorded` says why those stay).
    *
@@ -340,7 +341,32 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.aventuras.storyImported':
     '“{story}” is now a session of {turns} turns, with {branches} named branches besides the main line, opening where the story was left. It was an Aventuras {mode} story, and plays here in this server’s default mode.',
   'import.aventuras.storyWorldRecorded':
-    'Not brought across yet from “{story}”: {characters} characters, {locations} locations, {items} items, {beats} story beats, {lore} lorebook entries, {chapters} chapters, {checkpoints} checkpoints and {images} images. They are still in Aventuras.',
+    'Not brought across yet from “{story}”: {chapters} chapters, {checkpoints} checkpoints and {images} images. They are still in Aventuras.',
+  /**
+   * ***And its world*** — [P13.12]. The characters, places, items, story
+   * beats and lorebook entries of the branch the session opens on: the
+   * characters become the session's cast, the rest one lorebook of the
+   * story's own, each kind in a folder and tagged by what it is. Story beats
+   * are there *for now* — `storyBeatsAsLore` says so, because a person who
+   * later finds a place of their own for beats should know where these went.
+   * `worldBranchesDiffer` is the one sentence about the branches the person
+   * was not on: one session has one cast, so what those held differently
+   * stays in Aventuras, and the counts say how much.
+   *
+   * `storyWorldRecorded` keeps its key and loses the world from its sentence,
+   * so a review saved before this stage still reads — with the older counts
+   * it carried simply not named.
+   */
+  'import.aventuras.storyWorld':
+    '“{story}” came with its world: {characters} characters in its cast, and a lorebook of its own with {lore} lorebook entries, {locations} locations, {items} items and {beats} story beats, as they stood on the branch the story was left on.',
+  'import.aventuras.storyPersona':
+    '{actor} is who you played in “{story}”, so they are the session’s persona.',
+  'import.aventuras.storyBeatsAsLore':
+    '{count} story beats from “{story}” are lorebook entries for now, tagged “story-beat” with everything Aventuras kept about them, until story beats have a place of their own here.',
+  'import.aventuras.worldBranchesDiffer':
+    'In “{story}”, {branches} other branches hold a different world from the one brought across — {entities} characters, places, items, beats or entries differ in at least one of them. Only the branch the story was left on came across; the others are still in Aventuras.',
+  'import.aventuras.worldFieldsUnreadable':
+    'In “{story}”, {count} saved details of its characters, places, items, beats or entries could not be read and were left out. Everything else about them was brought across.',
   'import.aventuras.storyAlreadyHere':
     '“{story}” was brought across before and is already a session here, so it was not imported again. Anything written in it in Aventuras since then is not brought across.',
   'import.aventuras.storyEmpty':

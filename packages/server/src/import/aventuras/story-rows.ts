@@ -3,7 +3,11 @@
 
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
 
+import type { ImportNote } from '@storyengine/shared';
+
 import { columnsOf, quoted } from './schema.js';
+import { DEFAULT_MAX_PORTRAIT_BYTES, portraitOf, textLimit } from './vault-character.js';
+import { integer } from './vault-row.js';
 
 /**
  * ***One Aventuras story, as rows*** —
@@ -39,10 +43,28 @@ import { columnsOf, quoted } from './schema.js';
  * that trusted it would rebuild every story as a list of roots. The tree is
  * the branches and the positions, and that is all this reads it from.
  *
+ * - *Since P13.12*, **the story's world** — every row of `characters`,
+ *   `locations`, `items`, `story_beats` and `entries` the story has, on every
+ *   branch, with the three columns that say which view each belongs to
+ *   (`branch_id`, `overrides_id`, `deleted`), and `branches.snapshot_complete`.
+ *   *Every branch's, and not the head's alone*: which rows the head sees is a
+ *   resolution over all of them (`world.ts`), and what the other branches hold
+ *   differently is said on the review, which needs theirs too. The shapes are
+ *   `mapCharacter`'s, `mapLocation`'s, `mapItem`'s, `mapStoryBeat`'s and
+ *   `mapEntry`'s, minus what `schema.ts` says is not read.
+ *
  * *Not read at this stage:* the translation columns (a display cache of text
- * this does read), `world_state_delta` (P13.12's world), and the story's
- * retry, style-review, memory and time-tracker blobs, which are Aventuras'
- * working state rather than the story.
+ * this does read), `world_state_delta` (a per-entry diff of the world this
+ * reads whole), and the story's retry, style-review, memory and time-tracker
+ * blobs, which are Aventuras' working state rather than the story.
+ *
+ * ***A character's portrait is not in the rows*** — only its stored length.
+ * Every branch that copied the world holds its own copy of every portrait, so
+ * reading them with the rows would hold a story's whole gallery once per
+ * branch to import the head's; {@link AventurasWorld.portrait} reads one when
+ * the Writer is about to store the actor it belongs to, bounded as a vault
+ * portrait is ([P13.3]). A `.avt` reader answers the same question from its
+ * JSON.
  */
 
 /** A `stories` row, as `mapStory` returns the fields this reads. */
@@ -89,6 +111,116 @@ export interface AventurasBranch {
   /** The last entry of the parent's lineage this branch shares. */
   forkEntryId: string;
   createdAt: number;
+  /**
+   * `snapshot_complete` (029): the branch owns a complete copy of the world
+   * and needs no lineage to resolve it. `false` before 029, and for every
+   * branch made since without Aventuras' experimental lightweight branches —
+   * which is not the same as *owns only its edits*; `world.ts` says why.
+   */
+  snapshotComplete: boolean;
+}
+
+/**
+ * ***What every row of a story's world carries***, besides what it describes:
+ * which view it belongs to. `branchId` is `null` on the main line;
+ * `overridesId` names the row this one is a branch's edit of (026), and
+ * `deleted` makes it a tombstone (028). Both are `null` and `false` on a
+ * database older than their migration, which had neither kind of row.
+ */
+export interface AventurasWorldRow {
+  id: string;
+  branchId: string | null;
+  overridesId: string | null;
+  deleted: boolean;
+}
+
+/** A `characters` row, as `mapCharacter` returns the fields this reads. */
+export interface AventurasCharacter extends AventurasWorldRow {
+  name: string;
+  description: string | null;
+  /** `self` is the protagonist — the person playing; anything else is prose. */
+  relationship: string | null;
+  traits: unknown[];
+  /** Parsed and not repaired: `world.ts` repairs it as a vault row's is. */
+  visualDescriptors: unknown;
+  status: string | null;
+  metadata: unknown;
+  /** The stored portrait's length in bytes, or `null` for none — see the file header. */
+  portraitOctets: number | null;
+}
+
+/** A `locations` row. */
+export interface AventurasLocation extends AventurasWorldRow {
+  name: string;
+  description: string | null;
+  visited: boolean;
+  current: boolean;
+  /** Other locations' ids — of this branch's rows, since a copy remaps them. */
+  connections: unknown[];
+  metadata: unknown;
+}
+
+/** An `items` row. */
+export interface AventurasItem extends AventurasWorldRow {
+  name: string;
+  description: string | null;
+  quantity: number | null;
+  equipped: boolean;
+  /** `inventory`, or a location's id. */
+  location: string | null;
+  metadata: unknown;
+}
+
+/** A `story_beats` row. */
+export interface AventurasBeat extends AventurasWorldRow {
+  title: string;
+  description: string | null;
+  /** `milestone`, `quest`, `revelation`, `event` or `plot_point` at the pin. */
+  type: string | null;
+  /** `pending`, `active`, `completed` or `failed` at the pin. */
+  status: string | null;
+  triggeredAt: number | null;
+  resolvedAt: number | null;
+  metadata: unknown;
+}
+
+/** An `entries` row — the story's own lorebook, Aventuras' `Entry`. */
+export interface AventurasLoreEntry extends AventurasWorldRow {
+  name: string;
+  type: string;
+  description: string | null;
+  hiddenInfo: string | null;
+  aliases: unknown;
+  state: unknown;
+  adventureState: unknown;
+  creativeState: unknown;
+  injection: unknown;
+  createdBy: string | null;
+}
+
+/** A portrait, asked for: its bytes, or `null` with the reason in the caller's notes. */
+export type PortraitReader = (
+  characterId: string,
+  /** Named in a note that says why the portrait did not come. */
+  actor: string,
+  /** The asset key the Writer hands the bytes over under. */
+  key: string,
+  notes: ImportNote[],
+) => Uint8Array | null;
+
+/** Every row of a story's world, on every branch — [P13.12]. */
+export interface AventurasWorld {
+  characters: AventurasCharacter[];
+  locations: AventurasLocation[];
+  items: AventurasItem[];
+  beats: AventurasBeat[];
+  lore: AventurasLoreEntry[];
+  /**
+   * JSON columns of the world that did not parse — counted as the tree's are,
+   * each costing its own field (`worldFieldsUnreadable`).
+   */
+  unreadable: number;
+  portrait: PortraitReader;
 }
 
 /** Everything the producer reads of one story. */
@@ -96,6 +228,8 @@ export interface AventurasStoryRows {
   story: AventurasStory;
   entries: AventurasEntry[];
   branches: AventurasBranch[];
+  /** The story's world — [P13.12]. Empty on a database older than every table of it. */
+  world: AventurasWorld;
   /**
    * How many JSON fields did not parse — the settings blob, an entry's
    * metadata. Counted rather than refused: each costs its own field and
@@ -117,6 +251,7 @@ export function readStoryRows(
   db: DatabaseSync,
   storyId: string,
   tables: ReadonlySet<string>,
+  options: { maxPortraitBytes?: number } = {},
 ): AventurasStoryRows | null {
   let unreadable = 0;
   const json = (value: SQLOutputValue | undefined): unknown => {
@@ -188,8 +323,9 @@ export function readStoryRows(
 
   const branches: AventurasBranch[] = [];
   if (tables.has('branches')) {
+    const complete = lateColumn(columnsOf(db, 'branches'), 'snapshot_complete');
     const listed = db.prepare(
-      `select id, name, parent_branch_id, fork_entry_id, created_at ` +
+      `select id, name, parent_branch_id, fork_entry_id, created_at, ${complete} ` +
         `from ${quoted('branches')} where story_id = ? order by created_at, id`,
     );
     for (const branch of listed.iterate(storyId)) {
@@ -202,11 +338,206 @@ export function readStoryRows(
         parentBranchId: text(branch['parent_branch_id']),
         forkEntryId,
         createdAt: number(branch['created_at']) ?? 0,
+        snapshotComplete: number(branch['snapshot_complete']) === 1,
       });
     }
   }
 
-  return { story, entries, branches, unreadable };
+  const world = readWorld(db, storyId, tables, options.maxPortraitBytes);
+  return { story, entries, branches, world, unreadable };
+}
+
+/**
+ * ***The story's world, every branch of it*** — [P13.12]. One statement per
+ * table, each selecting the columns the gate checked (`schema.ts`) and the
+ * late ones as `null` where the database predates them. Integers are read as
+ * `bigint` and kept only in the safe range (`vault-row.ts`'s rule), since a
+ * `triggered_at` somebody's tool wrote is as able to throw out of a read as a
+ * vault row's.
+ *
+ * Ordered by name, then id, so the same database resolves to the same world in
+ * the same order on every run — the cast's order and the book's are what a
+ * second sweep compares.
+ */
+function readWorld(
+  db: DatabaseSync,
+  storyId: string,
+  tables: ReadonlySet<string>,
+  maxPortraitBytes = DEFAULT_MAX_PORTRAIT_BYTES,
+): AventurasWorld {
+  let unreadable = 0;
+  const json = (value: SQLOutputValue | undefined): unknown => {
+    if (typeof value !== 'string' || value === '') return undefined;
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      unreadable += 1;
+      return undefined;
+    }
+  };
+  /** A list column: `[]` for absent, and for one that is not a list, which is counted. */
+  const list = (value: SQLOutputValue | undefined): unknown[] => {
+    const parsed = json(value);
+    if (parsed === undefined) return [];
+    if (Array.isArray(parsed)) return parsed as unknown[];
+    unreadable += 1;
+    return [];
+  };
+
+  const rowsOf = (
+    table: string,
+    columns: readonly string[],
+    late: readonly string[],
+    order: string,
+    computed: readonly string[] = [],
+  ): Record<string, SQLOutputValue>[] => {
+    if (!tables.has(table)) return [];
+    const have = columnsOf(db, table);
+    const select = [
+      ...columns.map(quoted),
+      ...late.map((column) => lateColumn(have, column)),
+      ...computed,
+    ];
+    const statement = db.prepare(
+      `select ${select.join(', ')} from ${quoted(table)} where story_id = ? ` +
+        `order by ${order} collate nocase, id`,
+    );
+    statement.setReadBigInts(true);
+    return statement.all(storyId).filter((row) => text(row['id']) !== null);
+  };
+  const place = (row: Record<string, SQLOutputValue>): AventurasWorldRow => ({
+    id: text(row['id']) ?? '',
+    branchId: text(row['branch_id']),
+    overridesId: text(row['overrides_id']),
+    deleted: integer(row['deleted']) === 1,
+  });
+  const cow = ['branch_id', 'overrides_id', 'deleted'];
+
+  // The portrait's length and never the portrait: see the file header.
+  const hasPortrait = columnsOf(db, 'characters').has('portrait');
+  const characters = rowsOf(
+    'characters',
+    ['id', 'name', 'description', 'relationship', 'traits', 'status', 'metadata'],
+    ['visual_descriptors', ...cow],
+    'name',
+    [hasPortrait ? 'octet_length(portrait) as portrait_octets' : 'null as portrait_octets'],
+  ).map((row) => ({
+    ...place(row),
+    name: text(row['name']) ?? '',
+    description: text(row['description']),
+    relationship: text(row['relationship']),
+    traits: list(row['traits']),
+    visualDescriptors: json(row['visual_descriptors']),
+    status: text(row['status']),
+    metadata: json(row['metadata']),
+    portraitOctets: integer(row['portrait_octets']),
+  }));
+
+  const locations = rowsOf(
+    'locations',
+    ['id', 'name', 'description', 'visited', 'current', 'connections', 'metadata'],
+    cow,
+    'name',
+  ).map((row) => ({
+    ...place(row),
+    name: text(row['name']) ?? '',
+    description: text(row['description']),
+    visited: integer(row['visited']) === 1,
+    current: integer(row['current']) === 1,
+    connections: list(row['connections']),
+    metadata: json(row['metadata']),
+  }));
+
+  const items = rowsOf(
+    'items',
+    ['id', 'name', 'description', 'quantity', 'equipped', 'location', 'metadata'],
+    cow,
+    'name',
+  ).map((row) => ({
+    ...place(row),
+    name: text(row['name']) ?? '',
+    description: text(row['description']),
+    quantity: integer(row['quantity']),
+    equipped: integer(row['equipped']) === 1,
+    location: text(row['location']),
+    metadata: json(row['metadata']),
+  }));
+
+  const beats = rowsOf(
+    'story_beats',
+    ['id', 'title', 'description', 'type', 'status', 'triggered_at', 'metadata'],
+    ['resolved_at', ...cow],
+    'title',
+  ).map((row) => ({
+    ...place(row),
+    title: text(row['title']) ?? '',
+    description: text(row['description']),
+    type: text(row['type']),
+    status: text(row['status']),
+    triggeredAt: integer(row['triggered_at']),
+    resolvedAt: integer(row['resolved_at']),
+    metadata: json(row['metadata']),
+  }));
+
+  const lore = rowsOf(
+    'entries',
+    [
+      'id',
+      'name',
+      'type',
+      'description',
+      'hidden_info',
+      'aliases',
+      'state',
+      'adventure_state',
+      'creative_state',
+      'injection',
+      'created_by',
+    ],
+    cow,
+    'name',
+  ).map((row) => ({
+    ...place(row),
+    name: text(row['name']) ?? '',
+    type: text(row['type']) ?? '',
+    description: text(row['description']),
+    hiddenInfo: text(row['hidden_info']),
+    aliases: json(row['aliases']),
+    state: json(row['state']),
+    adventureState: json(row['adventure_state']),
+    creativeState: json(row['creative_state']),
+    injection: json(row['injection']),
+    createdBy: text(row['created_by']),
+  }));
+
+  /**
+   * One portrait, by the character's row id, asked for only when its actor is
+   * about to be stored — and asked of SQLite by length first, so one past the
+   * bound is never selected (`vault-character.ts`'s `portraitOf`).
+   */
+  const byId =
+    hasPortrait && tables.has('characters')
+      ? db.prepare(
+          'select case when octet_length(portrait) <= ? then portrait end as portrait, ' +
+            'octet_length(portrait) as portrait_octets from characters where id = ?',
+        )
+      : null;
+  byId?.setReadBigInts(true);
+  const portrait: PortraitReader = (characterId, actor, key, notes) => {
+    const row = byId?.get(textLimit(maxPortraitBytes), characterId);
+    return row === undefined ? null : portraitOf(row, actor, key, maxPortraitBytes, notes);
+  };
+
+  return {
+    characters,
+    locations,
+    items,
+    beats,
+    lore,
+    // Every column above is parsed by now, so the count is final.
+    unreadable,
+    portrait,
+  };
 }
 
 /** A late column by name when the table has it, and `null` under its name when it does not. */

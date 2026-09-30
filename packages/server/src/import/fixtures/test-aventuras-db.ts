@@ -52,7 +52,10 @@ import { makePng } from '../../storage/card/test-png.js';
  * one that is refused, no setting, a row with no id — are
  * {@link AWKWARD_SCENARIOS}; *since P13.6*, the tags — hex and grey colours,
  * one that is no colour, a name that is another's in other case, an empty
- * one, one too long, a row with no id — are {@link AWKWARD_TAGS}.
+ * one, one too long, a row with no id — are {@link AWKWARD_TAGS}; *since
+ * P13.12*, a story's world on every branch — an edit, a deletion, a row only
+ * a branch the person was not on has, and each of the five kinds — is
+ * {@link LANTERN_WORLD}, written with its tree.
  *
  * Composable on purpose: {@link buildAventurasDatabase} works on any open
  * connection, so a later stage can add its own rows before or after, and the
@@ -77,6 +80,15 @@ const COPY_ON_WRITE: readonly Column[] = [
   { sql: 'overrides_id TEXT', since: 26 },
   { sql: 'deleted INTEGER NOT NULL DEFAULT 0', since: 28 },
 ];
+
+/**
+ * ***Which view a row of a story's world belongs to*** — `branch_id` (015),
+ * then the copy-on-write pair. *Since P13.12*, which reads the world rather
+ * than counting it: every column of the five tables it selects is here, each
+ * late one on the migration that added it, so a database built before 015 has
+ * one world per story and one before 026 has no edits to resolve.
+ */
+const WORLD_VIEW: readonly Column[] = [{ sql: 'branch_id TEXT', since: 15 }, ...COPY_ON_WRITE];
 
 /**
  * **The whole schema, as far as this project reads it.** Hand-written; see
@@ -131,19 +143,62 @@ const SCHEMA: Readonly<Record<string, TableSpec>> = {
   },
   characters: {
     since: 1,
-    columns: ['id TEXT PRIMARY KEY', 'story_id TEXT NOT NULL', 'name TEXT', ...COPY_ON_WRITE],
+    columns: [
+      'id TEXT PRIMARY KEY',
+      'story_id TEXT NOT NULL',
+      'name TEXT',
+      'description TEXT',
+      'relationship TEXT',
+      'traits TEXT',
+      "status TEXT DEFAULT 'active'",
+      'metadata TEXT',
+      { sql: 'visual_descriptors TEXT', since: 11 },
+      { sql: 'portrait TEXT', since: 12 },
+      ...WORLD_VIEW,
+    ],
   },
   locations: {
     since: 1,
-    columns: ['id TEXT PRIMARY KEY', 'story_id TEXT NOT NULL', 'name TEXT', ...COPY_ON_WRITE],
+    columns: [
+      'id TEXT PRIMARY KEY',
+      'story_id TEXT NOT NULL',
+      'name TEXT',
+      'description TEXT',
+      'visited INTEGER DEFAULT 0',
+      'current INTEGER DEFAULT 0',
+      'connections TEXT',
+      'metadata TEXT',
+      ...WORLD_VIEW,
+    ],
   },
   items: {
     since: 1,
-    columns: ['id TEXT PRIMARY KEY', 'story_id TEXT NOT NULL', 'name TEXT', ...COPY_ON_WRITE],
+    columns: [
+      'id TEXT PRIMARY KEY',
+      'story_id TEXT NOT NULL',
+      'name TEXT',
+      'description TEXT',
+      'quantity INTEGER DEFAULT 1',
+      'equipped INTEGER DEFAULT 0',
+      'location TEXT',
+      'metadata TEXT',
+      ...WORLD_VIEW,
+    ],
   },
   story_beats: {
     since: 1,
-    columns: ['id TEXT PRIMARY KEY', 'story_id TEXT NOT NULL', 'title TEXT', ...COPY_ON_WRITE],
+    columns: [
+      'id TEXT PRIMARY KEY',
+      'story_id TEXT NOT NULL',
+      'title TEXT',
+      'description TEXT',
+      'type TEXT',
+      "status TEXT DEFAULT 'pending'",
+      'triggered_at INTEGER',
+      'metadata TEXT',
+      { sql: 'resolved_at INTEGER', since: 5 },
+      ...WORLD_VIEW,
+    ],
   },
   chapters: {
     since: 2,
@@ -160,7 +215,15 @@ const SCHEMA: Readonly<Record<string, TableSpec>> = {
       'story_id TEXT NOT NULL',
       'name TEXT',
       'type TEXT',
-      ...COPY_ON_WRITE,
+      'description TEXT',
+      'hidden_info TEXT',
+      'aliases TEXT',
+      'state TEXT',
+      'adventure_state TEXT',
+      'creative_state TEXT',
+      'injection TEXT',
+      "created_by TEXT DEFAULT 'user'",
+      ...WORLD_VIEW,
     ],
   },
   embedded_images: {
@@ -176,6 +239,7 @@ const SCHEMA: Readonly<Record<string, TableSpec>> = {
       'parent_branch_id TEXT',
       'fork_entry_id TEXT',
       'created_at INTEGER',
+      { sql: 'snapshot_complete INTEGER NOT NULL DEFAULT 0', since: 29 },
     ],
   },
   character_vault: {
@@ -1275,6 +1339,21 @@ export interface FixtureTreeBranch {
   name: string;
   parent: string | null;
   fork: string;
+  /** `snapshot_complete` (029): a branch that owns a whole copy of the world. */
+  snapshotComplete?: boolean;
+}
+
+/** One of the five tables of a story's world — [P13.12]. */
+export type FixtureWorldTable = 'characters' | 'locations' | 'items' | 'story_beats' | 'entries';
+
+/**
+ * ***One row of a story's world***, written with the story's id: its table,
+ * and its columns as Aventuras names them — `branch_id`, `overrides_id` and
+ * `deleted` included, which is where the case each row makes is.
+ */
+export interface FixtureWorldRow {
+  table: FixtureWorldTable;
+  row: FixtureRow;
 }
 
 export interface FixtureTree {
@@ -1285,8 +1364,242 @@ export interface FixtureTree {
   settings?: unknown;
   entries: readonly FixtureTreeEntry[];
   branches: readonly FixtureTreeBranch[];
+  /** The story's world, on every branch — [P13.12]. None when absent. */
+  world?: readonly FixtureWorldRow[];
 }
 
+/**
+ * ***The Lantern Fork's world*** —
+ * [P13.12](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * Every kind once on main, and on the branches **the cases copy-on-write
+ * resolution has**, each named where it is made. Written as Aventuras'
+ * lightweight branches (026–028) write them — edits and tombstones, not a
+ * copy — so each branch resolves through its lineage:
+ *
+ * - **Tower, the head**, *edits* the Drowned Keeper (an override) and the beat
+ *   (now completed), *deletes* the Gull (a tombstone override), and *adds*
+ *   the Blue Wick, an item of its own.
+ * - **Ferry**, not the head, edits the Lamp Room and holds a place **only it
+ *   has**, the Ferry Dock — which must not reach the session.
+ * - **Tower Stair**, Tower's child, owns nothing: it inherits Tower's world,
+ *   and Tower's tombstone *keeps* the Gull for it, which is Aventuras' own
+ *   ancestor rule (`getCharactersResolved`) and so a line that differs.
+ *
+ * Mara is `relationship: 'self'` — the protagonist, and so the persona — and
+ * carries a PNG portrait, which comes across as her card.
+ */
+export const LANTERN_WORLD: readonly FixtureWorldRow[] = [
+  {
+    table: 'characters',
+    row: {
+      id: 'lf-c-mara',
+      name: 'Mara',
+      description: 'The keeper’s daughter, back after ten years.',
+      relationship: 'self',
+      traits: ['stubborn', 'afraid of the dark'],
+      status: 'active',
+      visual_descriptors: { hair: 'salt-stiff black', eyes: 'grey' },
+      portrait: dataUrl('image/png', FIXTURE_PORTRAITS.png),
+      metadata: { age: 29 },
+      branch_id: null,
+    },
+  },
+  {
+    table: 'characters',
+    row: {
+      id: 'lf-c-keeper',
+      name: 'The Drowned Keeper',
+      description: 'A shape at the foot of the stairs.',
+      relationship: 'enemy',
+      traits: ['patient'],
+      status: 'active',
+      branch_id: null,
+    },
+  },
+  {
+    table: 'characters',
+    row: {
+      id: 'lf-c-gull',
+      name: 'Gull',
+      description: 'Follows Mara for crusts.',
+      relationship: 'companion',
+      traits: [],
+      branch_id: null,
+    },
+  },
+  {
+    table: 'locations',
+    row: {
+      id: 'lf-l-lamp',
+      name: 'Lamp Room',
+      description: 'Glass on every side, and the great lamp.',
+      visited: 1,
+      current: 1,
+      connections: ['lf-l-stair'],
+      branch_id: null,
+    },
+  },
+  {
+    table: 'locations',
+    row: {
+      id: 'lf-l-stair',
+      name: 'Stairwell',
+      description: 'Ninety-nine steps, one missing.',
+      visited: 1,
+      current: 0,
+      connections: ['lf-l-lamp'],
+      branch_id: null,
+    },
+  },
+  {
+    table: 'items',
+    row: {
+      id: 'lf-i-oil',
+      name: 'Oil Can',
+      description: 'Half full.',
+      quantity: 2,
+      equipped: 0,
+      location: 'lf-l-lamp',
+      branch_id: null,
+    },
+  },
+  {
+    table: 'items',
+    row: {
+      id: 'lf-i-matches',
+      name: 'Matches',
+      description: 'Damp.',
+      quantity: 1,
+      equipped: 1,
+      location: 'inventory',
+      branch_id: null,
+    },
+  },
+  {
+    table: 'story_beats',
+    row: {
+      id: 'lf-b-light',
+      title: 'Light the lamp',
+      description: 'The bay needs its beam before the ship comes.',
+      type: 'quest',
+      status: 'active',
+      triggered_at: 1_758_000_100_000,
+      metadata: { chapter: 1 },
+      branch_id: null,
+    },
+  },
+  {
+    table: 'entries',
+    row: {
+      id: 'lf-n-bay',
+      name: 'The Bay',
+      type: 'location',
+      description: 'Black water, and rocks like teeth.',
+      hidden_info: 'A wreck lies under the north rocks.',
+      aliases: ['the harbour mouth'],
+      injection: { mode: 'keyword', keywords: ['bay', 'water'], priority: 5 },
+      state: { type: 'location', visited: true },
+      created_by: 'ai',
+      branch_id: null,
+    },
+  },
+  {
+    table: 'entries',
+    row: {
+      id: 'lf-n-guild',
+      name: 'Lamplighters’ Guild',
+      type: 'faction',
+      description: 'They keep every light on this coast, or did.',
+      branch_id: null,
+    },
+  },
+  // ── Tower, the head ─────────────────────────────────────────────────────
+  // An override: the same character, rewritten on the branch.
+  {
+    table: 'characters',
+    row: {
+      id: 'lf-c-keeper-tower',
+      name: 'The Drowned Keeper',
+      description: 'Mara’s father, or what the sea left of him.',
+      relationship: 'family',
+      traits: ['patient', 'sorrowful'],
+      status: 'active',
+      branch_id: 'lf-tower',
+      overrides_id: 'lf-c-keeper',
+    },
+  },
+  // A deletion on a branch that inherited the row: a tombstone override.
+  {
+    table: 'characters',
+    row: {
+      id: 'lf-c-gull-tower',
+      name: 'Gull',
+      description: 'Follows Mara for crusts.',
+      relationship: 'companion',
+      traits: [],
+      branch_id: 'lf-tower',
+      overrides_id: 'lf-c-gull',
+      deleted: 1,
+    },
+  },
+  // A thing only Tower has.
+  {
+    table: 'items',
+    row: {
+      id: 'lf-i-wick',
+      name: 'Blue Wick',
+      description: 'It burns blue, and cold.',
+      quantity: 1,
+      equipped: 0,
+      location: 'lf-l-lamp',
+      branch_id: 'lf-tower',
+    },
+  },
+  // The beat, completed on Tower.
+  {
+    table: 'story_beats',
+    row: {
+      id: 'lf-b-light-tower',
+      title: 'Light the lamp',
+      description: 'The bay needs its beam before the ship comes.',
+      type: 'quest',
+      status: 'completed',
+      triggered_at: 1_758_000_100_000,
+      resolved_at: 1_758_000_200_000,
+      metadata: { chapter: 1 },
+      branch_id: 'lf-tower',
+      overrides_id: 'lf-b-light',
+    },
+  },
+  // ── Ferry, not the head ─────────────────────────────────────────────────
+  {
+    table: 'locations',
+    row: {
+      id: 'lf-l-lamp-ferry',
+      name: 'Lamp Room',
+      description: 'Dark, and nobody coming back to it.',
+      visited: 1,
+      current: 0,
+      connections: ['lf-l-stair'],
+      branch_id: 'lf-ferry',
+      overrides_id: 'lf-l-lamp',
+    },
+  },
+  // A place only a branch the person was not on has.
+  {
+    table: 'locations',
+    row: {
+      id: 'lf-l-dock',
+      name: 'Ferry Dock',
+      description: 'Where the ferry waits.',
+      visited: 1,
+      current: 1,
+      connections: [],
+      branch_id: 'lf-ferry',
+    },
+  },
+];
 /**
  * ***The Lantern Fork: every pairing case, and a tree three branches deep.***
  *
@@ -1422,6 +1735,7 @@ export const LANTERN_FORK: FixtureTree = {
     { id: 'lf-tower', name: 'Tower', parent: null, fork: 'lf-e6' },
     { id: 'lf-stair', name: 'Tower Stair', parent: 'lf-tower', fork: 'lf-t1' },
   ],
+  world: LANTERN_WORLD,
 };
 
 /**
@@ -1478,8 +1792,14 @@ function insertTree(db: DatabaseSync, tree: FixtureTree, at: number): void {
       parent_branch_id: branch.parent,
       fork_entry_id: branch.fork,
       created_at: base + 500_000 + n,
+      snapshot_complete: branch.snapshotComplete === true ? 1 : 0,
     });
   });
+  // The world, in the columns the database has: a version before 015 has no
+  // `branch_id`, so every row lands on the one world a story then had.
+  for (const { table, row } of tree.world ?? []) {
+    insert(db, table, { deleted: 0, ...row, story_id: tree.id });
+  }
   tree.entries.forEach((entry, n) => {
     insert(db, 'story_entries', {
       id: entry.id,

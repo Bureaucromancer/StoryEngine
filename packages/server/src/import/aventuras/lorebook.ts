@@ -87,10 +87,25 @@ export function convertAventurasLorebook(
  *
  * `bookName` names the book and namespaces its entries' derived ids, so it
  * must be the same on every import of the same book.
+ *
+ * ***`idSpace`, when given, namespaces the ids instead, by each row's own
+ * id*** — [P13.12](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
+ * for a story's world. A vault book's ids come from its name and each entry's,
+ * which is what a file has; so two books of one name derive the same ids,
+ * which P13.4 recorded as harmless in a book and not in a session, because
+ * `se.lore.timing` is keyed by entry id alone ([P13 §0.5]). A story's rows
+ * *have* ids — Aventuras' uuids, which survive a rename — so an entry of the
+ * story's book is `stableId('aventuras-entry', idSpace, rowId)`: the space is
+ * the story's own row key and the table (`aventura.db/stories/<id>/locations`),
+ * so no vault book, no other story and no other kind of row can derive it,
+ * and renaming a place in Aventuras keeps the entry's id — and its timing —
+ * rather than re-deriving it. A row with no id falls back to the name, in the
+ * same space.
  */
 export function convertAventurasEntries(
   input: readonly unknown[],
   bookName: string,
+  idSpace?: string,
 ): ConvertedAventurasLorebook {
   const notes: ImportNote[] = [];
   const lorebook = newLorebook(bookName);
@@ -106,11 +121,11 @@ export function convertAventurasEntries(
 
   let carriedState = 0;
   lorebook.entries = rows.map((row) => {
-    const entry = convertEntry(row, bookName);
+    const entry = convertEntry(row, bookName, idSpace);
     if (SESSION_STATE.some((key) => row[key] !== undefined && row[key] !== null)) carriedState += 1;
     return entry;
   });
-  distinctIds(lorebook.entries, 'aventuras-entry', bookName);
+  distinctIds(lorebook.entries, 'aventuras-entry', idSpace ?? bookName);
 
   notes.push(note('import.aventuras.lorebookEntries', { count: lorebook.entries.length }));
   if (carriedState > 0) {
@@ -120,7 +135,11 @@ export function convertAventurasEntries(
   return { lorebook, notes };
 }
 
-function convertEntry(row: Readonly<Record<string, unknown>>, book: string): LoreEntry {
+function convertEntry(
+  row: Readonly<Record<string, unknown>>,
+  book: string,
+  idSpace: string | undefined,
+): LoreEntry {
   const name = text(row['name']) || 'Entry';
   const entry = newLoreEntry(name);
 
@@ -133,7 +152,15 @@ function convertEntry(row: Readonly<Record<string, unknown>>, book: string): Lor
    * buys. Deriving it buys one that matters: the same file converts to the same
    * bytes, which is what makes re-import identity a comparison ([P4 §1.3]).
    */
-  entry.id = stableId('aventuras-entry', book, name);
+  const rowId = row['id'];
+  entry.id =
+    idSpace === undefined
+      ? stableId('aventuras-entry', book, name)
+      : stableId(
+          'aventuras-entry',
+          idSpace,
+          typeof rowId === 'string' && rowId !== '' ? rowId : name,
+        );
 
   entry.content = text(row['description']);
   entry.keys = keysOf(row, name);

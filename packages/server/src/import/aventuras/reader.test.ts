@@ -778,14 +778,21 @@ describe('a sweep of an Aventuras install', () => {
         images: story.rows.embedded_images + story.rows.background_images,
       });
     }
-    // The tables' own rows are rows, edits and tombstones included, so the
-    // fixture's are counted there and the difference is visible in the review.
+    // ~~The tables' own rows are rows, edits and tombstones included, so the
+    // fixture's are counted there and the difference is visible in the
+    // review.~~ *Since P13.12* the world's five tables are converted — the
+    // head branch's cast and lorebook, when a sweep asks for stories — and so,
+    // like the tree's three, have no row of their own (the loop above); the
+    // edits and tombstones still show, as what the per-story counts leave out.
     for (const table of ['characters', 'locations', 'entries'] as const) {
-      const cow = STORY_COW_ROWS.filter((extra) => extra.table === table).length;
-      expect(cow, table).toBeGreaterThan(0);
-      expect(rowCount(report.items, table), table).toBe(
-        STORIES.reduce((sum, story) => sum + story.rows[table], 0) + cow,
-      );
+      expect(
+        STORY_COW_ROWS.some((extra) => extra.table === table),
+        table,
+      ).toBe(true);
+      expect(
+        report.items.some((item) => item.source === `aventura.db/${table}`),
+        table,
+      ).toBe(false);
     }
 
     // The keys: counted as a credential, and the value nowhere.

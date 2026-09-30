@@ -212,18 +212,36 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
   /** P13.11: the tree's shape, rebuilt from `fork_entry_id`; each a named ref on the session. */
   branches: 'converted',
   //
-  // The rest are the world, and wait on its stage — P13.12 characters,
-  // locations, items, beats and lore entries; P13.13 the pictures; P13.14 the
-  // chapters. Recorded, and counted per story on each story's row. The derived
-  // ones — checkpoints, snapshots, time anchors, `kept_separate` — are
-  // "recorded or skipped, with a count" in the phase's own words; recorded
-  // here until their stage decides which, since `skipped` says *deliberately
-  // not taken* about a decision nobody has made yet.
-  characters: 'recorded',
-  locations: 'recorded',
-  items: 'recorded',
-  story_beats: 'recorded',
-  entries: 'recorded',
+  // ***P13.12: the world.*** The five tables are resolved for the branch the
+  // session opens on — copy-on-write, `overrides_id` shadowing and `deleted`
+  // hiding (`aventuras/world.ts`) — and become the story's cast and one
+  // lorebook of its own, written before the session that links to them. They
+  // are converted on the tree's terms: when a sweep asks for stories, and with
+  // no row of their own — each story's row names the actors and the book it
+  // made (`alsoProduced`) and says per kind what came. *Converted is the head
+  // branch's world*: what another branch holds differently is counted on the
+  // story's row and left in Aventuras, since one session has one cast.
+  /** P13.12: the head's characters, each an actor in the session's cast; the protagonist its persona. */
+  characters: 'converted',
+  /** P13.12: entries of the story's lorebook, tagged `location`. */
+  locations: 'converted',
+  /** P13.12: entries of the story's lorebook, tagged `item`. */
+  items: 'converted',
+  /**
+   * P13.12: entries of the story's lorebook, tagged `story-beat` — ***an
+   * interim home***, decided 2026-09-28 (§4): beats are a feature StoryEngine
+   * means to grow, and its import will read them from there.
+   */
+  story_beats: 'converted',
+  /** P13.12: the story's own lorebook, through the converter every Aventuras lorebook takes. */
+  entries: 'converted',
+  //
+  // The rest wait on their stage — P13.13 the pictures, P13.14 the chapters.
+  // Recorded, and counted per story on each story's row. The derived ones —
+  // checkpoints, snapshots, time anchors, `kept_separate` — are "recorded or
+  // skipped, with a count" in the phase's own words; recorded here until their
+  // stage decides which, since `skipped` says *deliberately not taken* about a
+  // decision nobody has made yet.
   chapters: 'recorded',
   checkpoints: 'recorded',
   embedded_images: 'recorded',

@@ -116,6 +116,11 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
  * Each adds to the document before it is returned — cast and lore as links
  * the Writer resolves (which is why the Writer already passes
  * `requireLinks`), renditions beside the turns — and none changes the tree.
+ *
+ * *As built at P13.12*: the world is a producer of its own, `world.ts`, pure
+ * like this one, and **the Writer** adds its links to this document once it
+ * has stored what they name — so this file still never learns that a cast
+ * exists, and the tree is untouched by it.
  */
 
 /** The candidate format a story row is emitted as. */

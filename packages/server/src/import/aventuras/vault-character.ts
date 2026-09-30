@@ -99,8 +99,12 @@ const DATA_URL_HEADER_ALLOWANCE = 256;
 /**
  * The longest stored portrait worth decoding: the base64 of
  * `maxPortraitBytes`, and the header allowance.
+ *
+ * *Exported at P13.12*, with {@link portraitOf}, for a story's own
+ * characters (`story-rows.ts`), whose `portrait` column is the same base64 as
+ * the vault's and is bounded the same way.
  */
-function textLimit(maxPortraitBytes: number): number {
+export function textLimit(maxPortraitBytes: number): number {
   return Math.ceil(maxPortraitBytes / 3) * 4 + DATA_URL_HEADER_ALLOWANCE;
 }
 
@@ -316,7 +320,7 @@ export function repairVisualDescriptors(data: unknown): Record<string, unknown> 
  * so when it cannot: a portrait too large to hold, or one that is not base64
  * at all — a link, which is never fetched, or a data URL that is not base64.
  */
-function portraitOf(
+export function portraitOf(
   row: Readonly<Record<string, SQLOutputValue | undefined>>,
   actor: string,
   key: string,

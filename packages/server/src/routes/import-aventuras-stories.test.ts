@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, type Actor, type Lorebook } from '@storyengine/shared';
+
+import { read } from '../library.js';
+import { pixelBytes } from '../storage/card/test-png.js';
 import {
   aventurasDatabaseBytes,
   BLANK_PAGE,
+  FIXTURE_PORTRAITS,
   LANTERN_FORK,
   QUIET_HARBOUR,
   STORIES,
@@ -16,7 +21,13 @@ import {
   writeAventurasBackupFolder,
 } from '../import/fixtures/test-aventuras-db.js';
 import { readSession, readTurns } from '../sessions/store.js';
-import { makeTestServer, setUpAdmin, tempRoot, type TestServer } from '../test-server.js';
+import {
+  makeTestServer,
+  ownObjects,
+  setUpAdmin,
+  tempRoot,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * ***Aventuras stories, through the doors*** —
@@ -50,6 +61,7 @@ interface Row {
   source: string;
   disposition: string;
   objectId?: string;
+  alsoProduced?: string[];
   notes: { key: string; params: Record<string, unknown> }[];
 }
 
@@ -290,5 +302,169 @@ describe('the other doors carry the question', () => {
     const rows = response.body.report.items as Row[];
     expect(storyRow(rows, QUIET_HARBOUR).disposition).toBe('converted');
     expect(await sessionIds()).toHaveLength(WITH_ENTRIES.length);
+  });
+});
+
+describe('a story’s world', () => {
+  /**
+   * ***P13.12*** — the head branch's characters as the session's cast and
+   * its entries, places, things and beats as one lorebook of its own, written
+   * before the session so its links hold (`requireLinks`), and named on the
+   * story's row. The resolution and the mapping are `world.test.ts`'s; these
+   * are what a person meets: the session plays with them, and a second sweep
+   * leaves every one of them as it was.
+   */
+  const LANTERN_KEY = `aventura.db/stories/${LANTERN_FORK.id}`;
+
+  async function history(kind: string, id: string): Promise<number> {
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/${kind}/${id}/history`,
+    });
+    expect(response.status).toBe(200);
+    return (response.body as { versions: unknown[] }).versions.length;
+  }
+
+  it('links the head’s cast and the story’s lorebook from the session, each keyed for re-import', async () => {
+    await grantFileAccess();
+    const { rows } = await sweepFolder(await folder(), { stories: true });
+    const lantern = storyRow(rows, LANTERN_FORK);
+    expect(lantern.disposition, JSON.stringify(lantern)).toBe('converted');
+
+    const session = await readSession(server.services.sessions, 'ned', lantern.objectId!);
+    const persona = session?.cast?.persona ?? '';
+    const actors = session?.cast?.actors ?? [];
+    const lore = session?.lore ?? [];
+    expect(actors).toHaveLength(1);
+    expect(lore).toHaveLength(1);
+    // Every object the session links is named on the row, so the review is
+    // findable from each (`alsoProduced`), and nothing else is.
+    expect([...(lantern.alsoProduced ?? [])].sort()).toEqual([persona, ...actors, ...lore].sort());
+
+    // Mara, the protagonist, is the persona, with her PNG portrait as her card.
+    const mara = read(server.services.library, 'ned', persona, ACTOR_SCHEMA);
+    expect((mara.body as Actor).name).toBe('Mara');
+    expect((mara.body as Actor).roles).toEqual(['persona']);
+    expect((mara.body as Actor).provenance.originalFilename).toBe(
+      `${LANTERN_KEY}/characters/lf-c-mara`,
+    );
+    expect(pixelBytes(new Uint8Array(await readFile(mara.path)))).toEqual(
+      pixelBytes(FIXTURE_PORTRAITS.png),
+    );
+    // The Keeper is Tower's edit of him; the Gull, deleted on Tower, is not here.
+    const keeper = read(server.services.library, 'ned', actors[0]!, ACTOR_SCHEMA).body as Actor;
+    expect(keeper.name).toBe('The Drowned Keeper');
+    expect(keeper.provenance.originalFilename).toBe(`${LANTERN_KEY}/characters/lf-c-keeper`);
+    const names = (await ownObjects(server, 'actors')).objects.map((one) => one['name']);
+    expect(names).not.toContain('Gull');
+
+    // One book, of the story's own, with every kind in it — and not Ferry's dock.
+    const book = read(server.services.library, 'ned', lore[0]!, LOREBOOK_SCHEMA).body as Lorebook;
+    expect(book.provenance.originalFilename).toBe(`${LANTERN_KEY}/lorebook`);
+    expect(book.entries.map((entry) => entry.tag).sort()).toEqual(
+      ['faction', 'item', 'item', 'item', 'location', 'location', 'location', 'story-beat'].sort(),
+    );
+    expect(JSON.stringify(book)).not.toContain('Ferry Dock');
+
+    const said = lantern.notes.map((note) => note.key);
+    expect(said).toEqual(
+      expect.arrayContaining([
+        'import.aventuras.storyImported',
+        'import.aventuras.storyWorld',
+        'import.aventuras.storyPersona',
+        'import.aventuras.storyBeatsAsLore',
+        'import.aventuras.worldBranchesDiffer',
+      ]),
+    );
+    expect(
+      lantern.notes.find((note) => note.key === 'import.aventuras.storyWorld')?.params,
+    ).toEqual({
+      story: 'The Lantern Fork',
+      characters: 2,
+      lore: 2,
+      locations: 2,
+      items: 3,
+      beats: 1,
+    });
+
+    // A story with no world links none, and says nothing of one.
+    const harbour = storyRow(rows, QUIET_HARBOUR);
+    const quiet = await readSession(server.services.sessions, 'ned', harbour.objectId!);
+    expect(quiet?.cast).toBeUndefined();
+    expect(quiet?.lore).toBeUndefined();
+    expect(harbour.alsoProduced).toBeUndefined();
+    expect(harbour.notes.map((note) => note.key)).not.toContain('import.aventuras.storyWorld');
+  });
+
+  it('leaves every actor and book as it was on a second sweep, with no new version of any', async () => {
+    await grantFileAccess();
+    const root = await folder();
+    const first = await sweepFolder(root, { stories: true });
+    const lantern = storyRow(first.rows, LANTERN_FORK);
+    const session = await readSession(server.services.sessions, 'ned', lantern.objectId!);
+    const actorIds = [session!.cast!.persona!, ...session!.cast!.actors];
+    const bookId = session!.lore![0]!;
+
+    const before = {
+      actors: await ownObjects(server, 'actors'),
+      lorebooks: await ownObjects(server, 'lorebooks'),
+      hashes: [
+        ...actorIds.map((id) => read(server.services.library, 'ned', id, ACTOR_SCHEMA).contentHash),
+        read(server.services.library, 'ned', bookId, LOREBOOK_SCHEMA).contentHash,
+      ],
+      versions: [
+        ...(await Promise.all(actorIds.map((id) => history('actors', id)))),
+        await history('lorebooks', bookId),
+      ],
+    };
+
+    // `replace`, the policy that would rewrite them if anything did.
+    const second = await sweepFolder(root, { stories: true, onConflict: 'replace' });
+    expect(second.status).toBe(200);
+    for (const story of WITH_ENTRIES) {
+      const row = storyRow(second.rows, story);
+      expect(row.disposition).toBe('unchanged');
+      // The row names what the session here already links to.
+      expect([...(row.alsoProduced ?? [])].sort()).toEqual(
+        [...(storyRow(first.rows, story).alsoProduced ?? [])].sort(),
+      );
+    }
+    expect(await ownObjects(server, 'actors')).toEqual(before.actors);
+    expect(await ownObjects(server, 'lorebooks')).toEqual(before.lorebooks);
+    expect([
+      ...actorIds.map((id) => read(server.services.library, 'ned', id, ACTOR_SCHEMA).contentHash),
+      read(server.services.library, 'ned', bookId, LOREBOOK_SCHEMA).contentHash,
+    ]).toEqual(before.hashes);
+    expect([
+      ...(await Promise.all(actorIds.map((id) => history('actors', id)))),
+      await history('lorebooks', bookId),
+    ]).toEqual(before.versions);
+  });
+
+  it('finds the world it made when a deleted session’s story is swept again, and changes none of it', async () => {
+    await grantFileAccess();
+    const root = await folder();
+    const first = await sweepFolder(root, { stories: true });
+    const lantern = storyRow(first.rows, LANTERN_FORK);
+    const deleted = await server.request({
+      method: 'DELETE',
+      url: `/api/sessions/${lantern.objectId!}`,
+    });
+    expect(deleted.status, JSON.stringify(deleted.body)).toBeLessThan(300);
+    const actorsBefore = await ownObjects(server, 'actors');
+
+    // The trash has no index row, so the key no longer finds a session
+    // ([P13 §0.5]'s trash item) — and the turn ids would; so this is the one
+    // road on which the world is written a second time, and it must settle on
+    // the objects the first sweep made rather than beside them.
+    const second = await sweepFolder(root, { stories: true });
+    const again = storyRow(second.rows, LANTERN_FORK);
+    expect([...(again.alsoProduced ?? [])].sort()).toEqual(
+      [...(lantern.alsoProduced ?? [])].sort(),
+    );
+    const keys = again.notes.map((note) => note.key);
+    expect(keys.filter((key) => key === 'import.object.unchanged')).toHaveLength(3);
+    expect(keys).not.toContain('import.object.replaced');
+    expect(await ownObjects(server, 'actors')).toEqual(actorsBefore);
   });
 });

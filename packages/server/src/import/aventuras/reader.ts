@@ -106,6 +106,12 @@ import { readStoryRows } from './story-rows.js';
  * Last of everything, after the packs: a story is the largest thing in the
  * database, and P13.12's cast will link to what the vault already wrote.
  *
+ * ***P13.12: and their worlds.*** The same candidate carries the story's
+ * characters, places, items, beats and lore entries, every branch's rows of
+ * them, which the Writer resolves for the head branch (`world.ts`) and writes
+ * as a cast and a lorebook before it hands over the session that links to
+ * them. The five tables join {@link CONVERTED_TABLES} and lose their rows.
+ *
  * ***The database is never read where it lies*** (§1.2). `survey()` takes a
  * private copy through `storage/sqlite-snapshot.ts` and opens that, read-only:
  *
@@ -195,6 +201,21 @@ export const AVENTURAS_READS = [...AVENTURAS_DATABASE_FILES, AVENTURAS_METADATA]
 export const STORY_TREE_TABLES = ['stories', 'story_entries', 'branches'] as const;
 
 /**
+ * ***The five tables of a story's world*** — [P13.12]. Read with the tree
+ * when a sweep asks for stories, resolved for the head branch (`world.ts`),
+ * and written as the story's cast and its lorebook before its session is:
+ * converted on the same terms as the tree's three, and like them with no row
+ * of their own. What each became is on the story's row.
+ */
+export const STORY_WORLD_TABLES = [
+  'characters',
+  'locations',
+  'items',
+  'story_beats',
+  'entries',
+] as const;
+
+/**
  * ***The tables whose rows this reader turns into candidates***, in the order
  * it emits them — P13.6's tags, then P13.4's lorebooks, then P13.3's
  * characters, then P13.5's scenarios: §1.7's order, complete. The order is
@@ -213,6 +234,7 @@ export const CONVERTED_TABLES = [
   CHARACTER_TABLE,
   SCENARIO_TABLE,
   ...STORY_TREE_TABLES,
+  ...STORY_WORLD_TABLES,
 ] as const;
 
 /**
@@ -401,7 +423,7 @@ export class AventurasReader implements SourceReader {
       yield* vaultScenarioItems(held.db, { database: AVENTURAS_DATABASE });
     }
     yield* packRows(held.db, { database: AVENTURAS_DATABASE, tables: held.tables });
-    yield* storyRows(held, this.#stories);
+    yield* storyRows(held, this.#stories, this.#maxPortraitBytes);
   }
 
   /**
@@ -597,11 +619,13 @@ function* tableRows(held: Held): Iterable<SourceItem> {
  * ***Asked for, each story is a candidate*** (P13.11): its rows, read one
  * story at a time so a library of two hundred stories is never in memory at
  * once, for the Writer to hand to the story producer (`story.ts`). What the
- * story holds that this stage does not bring — its world, its chapters, its
- * pictures — rides on the candidate as `storyWorldRecorded`, so the row that
- * says *imported* also says what stayed behind. A story the database lists
- * but cannot give back — gone between the list and the read — is left out,
- * which it would also be from Aventuras.
+ * story holds that this build does not bring — ~~its world~~, its chapters,
+ * its pictures — rides on the candidate as `storyWorldRecorded`, so the row
+ * that says *imported* also says what stayed behind. *Since P13.12* the world
+ * is read with the tree (`story-rows.ts`) and comes across, so it is no longer
+ * in that sentence. A story the database lists but cannot give back — gone
+ * between the list and the read — is left out, which it would also be from
+ * Aventuras.
  *
  * ***Not asked, each is the `recorded` row it was at P13.2***, saying what it
  * holds — the stage text's *"counts per story, so the review says what Part 2
@@ -612,7 +636,7 @@ function* tableRows(held: Held): Iterable<SourceItem> {
  * See {@link entitiesOnly} for the rows left out, and for the rows that are
  * still counted once per branch.
  */
-function* storyRows(held: Held, asked: boolean): Iterable<SourceItem> {
+function* storyRows(held: Held, asked: boolean, maxPortraitBytes: number): Iterable<SourceItem> {
   if (!held.tables.has('stories')) return;
 
   const tallies = new Map<string, Record<StoryCount, number>>();
@@ -645,23 +669,27 @@ function* storyRows(held: Held, asked: boolean): Iterable<SourceItem> {
     const tally = tallies.get(id) ?? emptyTally();
 
     if (asked) {
-      const rows = readStoryRows(held.db, id, held.tables);
+      const rows = readStoryRows(held.db, id, held.tables, {
+        maxPortraitBytes,
+      });
       if (rows === null) continue;
-      const { characters, locations, items, beats, lore, chapters, checkpoints, images } = tally;
-      const world: ImportNote = {
+      // *Since P13.12* the world comes with the story — its cast and its
+      // lorebook, which the Writer says on the row — so what stays behind is
+      // the chapters, the checkpoints and the pictures, P13.13's and P13.14's.
+      const { chapters, checkpoints, images } = tally;
+      const behindNote: ImportNote = {
         key: 'import.aventuras.storyWorldRecorded',
-        params: { story, characters, locations, items, beats, lore, chapters, checkpoints, images },
+        params: { story, chapters, checkpoints, images },
         level: 'info',
       };
-      const behind =
-        characters + locations + items + beats + lore + chapters + checkpoints + images;
+      const behind = chapters + checkpoints + images;
       yield {
         outcome: 'candidate',
         candidate: {
           source,
           format: STORY_FORMAT,
           payload: rows,
-          ...(behind === 0 ? {} : { notes: [world] }),
+          ...(behind === 0 ? {} : { notes: [behindNote] }),
         },
       };
       continue;
@@ -713,8 +741,9 @@ function* storyRows(held: Held, asked: boolean): Iterable<SourceItem> {
  * Counted as rows, a story whose person had edited three characters on a
  * branch and deleted ten reported thirteen more characters than it has. So
  * where the schema declares these columns (`COPY_ON_WRITE`, optional in
- * `schema.ts`) and the database has them, both kinds are left out; a database
- * from before them has neither kind of row, and every row counts.
+ * `schema.ts` until P13.12 and late since) and the database has them, both
+ * kinds are left out; a database from before them has neither kind of row,
+ * and every row counts.
  *
  * **What this does not resolve, and is not trying to.** A branch made without
  * copy-on-write — every branch before 026, and every one since made without
@@ -726,12 +755,16 @@ function* storyRows(held: Held, asked: boolean): Iterable<SourceItem> {
  * sentence says *across all its branches*, which is what this is.
  */
 function entitiesOnly(db: DatabaseSync, table: string): string {
-  const declared = AVENTURAS_REQUIRED[table]?.optional ?? [];
+  // `optional` until P13.12 and `late` since (`schema.ts`); asked of both, so
+  // the count follows whichever the gate says, and a table that declares
+  // neither is never asked for a column it was not checked for.
+  const need = AVENTURAS_REQUIRED[table];
+  const declared = new Set([...(need?.optional ?? []), ...Object.keys(need?.late ?? {})]);
   const [overrides, deleted] = COPY_ON_WRITE;
   const have = columnsOf(db, table);
   const where: string[] = [];
-  if (declared.includes(overrides) && have.has(overrides)) where.push('overrides_id is null');
-  if (declared.includes(deleted) && have.has(deleted)) where.push('coalesce(deleted, 0) = 0');
+  if (declared.has(overrides) && have.has(overrides)) where.push('overrides_id is null');
+  if (declared.has(deleted) && have.has(deleted)) where.push('coalesce(deleted, 0) = 0');
   return where.length === 0 ? '' : ` where ${where.join(' and ')}`;
 }
 

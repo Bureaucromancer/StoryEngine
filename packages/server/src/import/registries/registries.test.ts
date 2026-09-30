@@ -138,6 +138,8 @@ describe('the Aventuras registry', () => {
     // *Since P13.11* the three a story's tree is made of, converted into one
     // session per story when a sweep asks for stories — and each story still
     // a row of its own when it does not, so none has a table row either way.
+    // *Since P13.12* the five of its world, on the same terms: the head
+    // branch's cast and lorebook, named on the story's row.
     expect(converted).toEqual([
       'character_vault',
       'lorebook_vault',
@@ -146,6 +148,11 @@ describe('the Aventuras registry', () => {
       'stories',
       'story_entries',
       'branches',
+      'characters',
+      'locations',
+      'items',
+      'story_beats',
+      'entries',
     ]);
   });
 

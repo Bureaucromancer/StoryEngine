@@ -190,6 +190,33 @@ export type SessionImport =
   | { ok: false; reason: 'missing-links'; missing: MissingLinks };
 
 /**
+ * ***The session of this account a source already became, asked before a
+ * producer writes anything*** —
+ * [P13.12](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * {@link importSession} answers the same question, but only once it is handed
+ * a document — and a producer whose session links to library objects writes
+ * those objects *first*, so `requireLinks` holds. For a source already here
+ * that order would rewrite the objects of a session that is not going to be
+ * written again: new actors nobody's cast names, and a replaced book beside
+ * turns that never saw it. So the producer asks here, and writes nothing when
+ * the answer is a session. The same index row, under the same owner key, as
+ * the check in {@link importSession} — one question, asked earlier, and never
+ * a second rule.
+ */
+export function priorSessionImport(
+  context: ImportContext,
+  handle: string,
+  originalFilename: string,
+): { sessionId: string; name: string } | null {
+  return sessionImportedFrom(
+    context.sessions.index,
+    scopeOf(context.sessions, handle),
+    originalFilename,
+  );
+}
+
+/**
  * Reads a document that came from somewhere else.
  *
  * ***Defensive at every step, because the input is a file a person chose.***

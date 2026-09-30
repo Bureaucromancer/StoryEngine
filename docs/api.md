@@ -692,8 +692,8 @@ counts the rest. No preset is written. **Since
 [P13.11](design/workplan/30-p13-aventuras-import.md) its stories become sessions
 — when the request says `stories: true`, and only then.** Each story is one
 row, `aventura.db/stories/<id>`, which is also the session's
-`origin.originalFilename`; `stories`, `story_entries` and `branches` have no
-rows of their own. Asked, a story is `converted` with the new session as its
+`origin.originalFilename`; `stories`, `story_entries` and `branches` — and
+since P13.12 the five tables of a story's world — have no rows of their own. Asked, a story is `converted` with the new session as its
 `objectId` — its tree rebuilt from Aventuras' branches and positions (an action
 and its answer are one turn; an opening, a second narration in a row or a
 `system` entry is a turn with no input; an action nobody answered is a
@@ -705,10 +705,29 @@ beside *Main*, and its head on the branch the person was on. Every turn has
 story and its entries; generation metadata goes to `cost` (model, wall-clock
 time, Aventuras' own token count of the answer) and never to `request`;
 reasoning to `output.reasoning`; saved suggestions to `suggestions`. The
-session names no mode, cast or lore, and plays in the server's default mode;
+session names no mode, and plays in the server's default mode;
 `import.aventuras.storyImported` says which mode it had in Aventuras, and
-`import.aventuras.storyWorldRecorded` counts the characters, places, items,
-beats, lore entries, chapters, checkpoints and pictures that stayed behind. A
+`import.aventuras.storyWorldRecorded` counts the chapters, checkpoints and
+pictures that stayed behind. **Since
+[P13.12](design/workplan/30-p13-aventuras-import.md) its world comes too**:
+`characters`, `locations`, `items`, `story_beats` and `entries` are resolved
+for the branch the session opens on — a branch's edit (`overrides_id`) in
+place of what it edits, a deletion (`deleted`) hidden, a row only another
+branch has left out — and written before the session, which links them. Each
+character is an actor keyed `aventura.db/stories/<id>/characters/<character
+id>` (the id of the character a branch edited, so an edit is the same actor),
+mapped as a vault character is, its portrait carried as a vault portrait is;
+the protagonist (`relationship: "self"`) is the session's `cast.persona`, and
+everyone else `cast.actors`. The story's entries, places, items and beats are
+one lorebook keyed `aventura.db/stories/<id>/lorebook`, in `session.lore`:
+places, items and beats each in a folder and tagged `location`, `item` and
+`story-beat`, with Aventuras' own fields in each entry's
+`metadata.aventuras` — story beats for now, until they have a home of their
+own (`import.aventuras.storyBeatsAsLore`). Entry ids are derived from the
+story, the table and the row, so no other book shares one. These objects
+have no rows of their own: the story's row names them in `alsoProduced`, and
+`import.aventuras.storyWorld` counts them. `import.aventuras.worldBranchesDiffer`
+counts the other branches whose world differs, which stay in Aventuras. A
 story's own narrator prompt (`settings.customSystemPrompt`) is not carried,
 for the reason packs are not: `import.aventuras.customNarratorPrompt` at
 `warn` names its length. A story with no entries is `skipped`
@@ -716,7 +735,8 @@ for the reason packs are not: `import.aventuras.customNarratorPrompt` at
 `unchanged`**, whatever `onConflict` says, with the session it became as its
 `objectId` and `import.aventuras.storyAlreadyHere`: a session is never
 replaced or doubled by an import, so what was written in Aventuras since is
-not brought across. Not asked, each story is `recorded`, and its
+not brought across — its world included: nothing of it is written again, and
+the row's `alsoProduced` names what the session here already links to. Not asked, each story is `recorded`, and its
 `import.aventuras.storyRecorded` note counts what it holds. Every other
 table is `recorded`,
 `skipped` or, for `settings`, `credential` — counted and never read, since it
