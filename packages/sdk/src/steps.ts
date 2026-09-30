@@ -340,6 +340,11 @@ export interface CastEntry {
    *
    * Absent means present, which is what every mode without a reading of
    * presence gets.
+   *
+   * ***And written out — dead or departed — since 2026-09-30***, under any
+   * reading of presence: a picture that drew somebody the story killed, or a
+   * chorus line in their voice, is the story forgetting its own events. The
+   * persona is never marked.
    */
   present?: false;
 }

@@ -2,7 +2,12 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { CastEntry } from '@storyengine/sdk';
-import type { AssembledPrompt, RecordedFragment, RenditionPurpose } from '@storyengine/shared';
+import {
+  literalSpans,
+  type AssembledPrompt,
+  type RecordedFragment,
+  type RenditionPurpose,
+} from '@storyengine/shared';
 
 import { budgetFor, capPrompt, type PromptFragment } from '../providers/prompt-caps.js';
 import type { ProviderCapabilities } from '../providers/types.js';
@@ -210,6 +215,56 @@ export function assemblePrompt(
     dropped: capped.dropped,
     overCap: capped.overCap,
   };
+}
+
+/**
+ * ***Nobody's name, wherever the words came from*** (2026-09-30) — [06 §10.3]'s
+ * first rule, *"a character's name never appears in an image prompt"*, applied
+ * to the text this module did not write.
+ *
+ * {@link describeCast} keeps names out of what it builds, and the moment call
+ * is *asked* to — and a model told to describe a picture names the person in
+ * it anyway, so *Elena on the quay* reached the image model as written. So did
+ * a tracker's line in the channels fragment. Every name in the cast — the
+ * written-out and the muted too, since a moment can name anybody — becomes
+ * *someone*, whole words and any case, longest first so a full name goes
+ * before its first word. *Someone* rather than the person's descriptor: the
+ * descriptors travel in the actors fragment already, and a figure is what an
+ * image model can draw.
+ */
+export function withoutNames(text: string, cast: readonly { name: string }[]): string {
+  const names = [...new Set(cast.map((one) => one.name.trim()).filter((name) => name !== ''))].sort(
+    (left, right) => right.length - left.length,
+  );
+  let out = text;
+  for (const name of names) {
+    const spans = literalSpans(out, name, { wholeWords: true, caseSensitive: false });
+    for (const span of [...spans].reverse()) {
+      out = `${out.slice(0, span.start)}someone${out.slice(span.end)}`;
+    }
+  }
+  return out;
+}
+
+/**
+ * ***How much of the budget the moment may take*** (2026-09-30), or `null` when
+ * the image connection declares none.
+ *
+ * The moment call was told the whole budget, so a model that wrote to it left
+ * no room: the moment is `required`, and the capper gave up every other
+ * fragment — the cast's descriptors, the tone, the place — to keep it. So the
+ * rest is measured first and the moment told what is left, *never less than a
+ * third*, because a subject squeezed to a few words is a picture of nothing.
+ */
+export function roomForMoment(
+  capabilities: ProviderCapabilities,
+  rest: readonly PromptFragment[],
+  separator = ', ',
+): number | null {
+  const budget = capabilities.usefulPromptChars ?? capabilities.maxPromptChars ?? null;
+  if (budget === null) return null;
+  const used = rest.reduce((sum, fragment) => sum + fragment.text.length + separator.length, 0);
+  return Math.max(Math.floor(budget / 3), budget - used);
 }
 
 /** Which builder a purpose uses. One statement, so a caller cannot pick wrong. */

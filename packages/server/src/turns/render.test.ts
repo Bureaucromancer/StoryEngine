@@ -158,6 +158,86 @@ describe('the illustration branch', () => {
     expect(reported?.requests[0]?.prompt.text).not.toContain('Elena');
   });
 
+  /**
+   * ***Nor by a name the model or a tracker wrote*** (2026-09-30). The test above
+   * could not fail: its moment named nobody. The moment call is asked not to,
+   * and a model describing a picture names the person in it anyway — so every
+   * name in the cast becomes *someone*, in the moment and in the channels.
+   */
+  it('never sends a name the model or a tracker wrote', async () => {
+    const { host } = recordingHost({ subject: 'Elena on the quay, watching ELENA’s boat' });
+    const step = render(
+      context({
+        report: capture(),
+        channels: () => [
+          { id: 'se.location', text: 'the harbour steps' },
+          { id: 'se.track.character', text: 'Elena is waiting for news' },
+        ],
+      }),
+    );
+
+    await step.run(payload(), host);
+
+    const text = reported?.requests[0]?.prompt.text ?? '';
+    expect(text).not.toMatch(/elena/i);
+    expect(text).toContain('someone on the quay, watching someone’s boat');
+    expect(text).toContain('someone is waiting for news');
+  });
+
+  /**
+   * ***Only who is in the room*** (2026-09-30) — [06 §8.1]. The host marks a
+   * member muted, dead or departed as out of it (`CastEntry.present`); the
+   * whole cast was drawn.
+   */
+  it('does not draw somebody who is out of the room', async () => {
+    const { host } = recordingHost({ subject: 'a figure on the quay' });
+    const step = render(context({ report: capture() }));
+
+    await step.run(
+      payload({
+        cast: [
+          {
+            actorId: 'a-1',
+            name: 'Elena',
+            kind: 'actors',
+            media: [],
+            visual: { hair: 'cropped grey hair' },
+          },
+          {
+            actorId: 'a-2',
+            name: 'Marlow',
+            kind: 'actors',
+            media: [],
+            visual: { hair: 'a shaved head' },
+            present: false,
+          },
+        ],
+      }),
+      host,
+    );
+
+    const text = reported?.requests[0]?.prompt.text ?? '';
+    expect(text).toContain('cropped grey hair');
+    expect(text).not.toContain('a shaved head');
+  });
+
+  /**
+   * ***The moment is told the room the rest leaves it*** (2026-09-30). Told the
+   * whole budget, a moment that used it was all the capper could keep: it is
+   * required, and everything else went. Here the budget is 250, and the
+   * descriptor, the tone, the place and the clock take 78 of it with their
+   * separators.
+   */
+  it('leaves room for the rest of the recipe', async () => {
+    const { host, calls } = recordingHost({ subject: 'a figure on the quay' });
+    const step = render(context({ report: capture() }));
+
+    await step.run(payload(), host);
+
+    const told = (calls[0]?.candidates ?? []).find((one) => one.id === 'se.render.task')?.text;
+    expect(told).toContain('Keep it under 172 characters');
+  });
+
   it('carries no anchor rather than an empty one when the model gave none', async () => {
     const { host } = recordingHost({ subject: 'a figure on the quay' });
     const step = render(context({ report: capture() }));

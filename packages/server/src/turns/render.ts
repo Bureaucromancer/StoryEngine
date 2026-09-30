@@ -14,7 +14,10 @@ import type { AssembledPrompt, RenditionRequest, RenditionScope } from '@storyen
 import {
   assemblePrompt,
   fragmentsFor,
+  illustrationFragments,
   placeOf,
+  roomForMoment,
+  withoutNames,
   type FragmentInputs,
 } from '../renditions/assemble.js';
 import { recipeDigest } from '../renditions/digest.js';
@@ -416,7 +419,23 @@ export function render(context: RenderContext): {
         if (prose.trim() === '') {
           held ??= 'no-moment';
         } else {
-          const moment = await askForMoment(host, prose, context.image.capabilities);
+          /**
+           * ***Who is in the room, and nobody's name*** (2026-09-30) — [06 §8.1],
+           * [06 §10.3]. The whole cast was drawn, the dead and the departed and
+           * the muted with it, and a name the moment call or a tracker's line
+           * wrote reached the image model as written. The host says who is out
+           * of the room (`CastEntry.present`); every name becomes *someone*
+           * (`withoutNames`); and the moment is told the room the rest leaves it
+           * (`roomForMoment`) rather than the whole budget.
+           */
+          const everyone = input.cast ?? [];
+          const drawn = everyone.filter((member) => member.present !== false);
+          const named = channels.map((one) => ({ ...one, text: withoutNames(one.text, everyone) }));
+          const room = roomForMoment(
+            context.image.capabilities,
+            illustrationFragments({ moment: '', cast: drawn, channels: named, tone: context.tone }),
+          );
+          const moment = await askForMoment(host, prose, room);
           if (moment.subject === '') {
             /**
              * **The empty list is a real answer** — [06 §10.4]. A model saying
@@ -430,9 +449,9 @@ export function render(context: RenderContext): {
             const prompt = assemble(
               'illustration',
               context,
-              channels,
-              input.cast ?? [],
-              moment.subject,
+              named,
+              drawn,
+              withoutNames(moment.subject, everyone),
             );
             const digest = recipeDigest(context.image.binding, prompt, context.workflow);
             requests.push(
@@ -528,9 +547,9 @@ async function seedFor(host: StepHost): Promise<number> {
 async function askForMoment(
   host: StepHost,
   prose: string,
-  capabilities: ProviderCapabilities,
+  room: number | null,
 ): Promise<{ subject: string; anchor: string | null }> {
-  return readMoment((await host.call(momentCall(prose, capabilities))).object);
+  return readMoment((await host.call(momentCall(prose, room))).object);
 }
 
 /**
@@ -543,18 +562,23 @@ async function askForMoment(
  * makes this one on the turn, `performCall` makes it from `renditions/illustrate.ts`,
  * and neither can drift on the prompt, the schema or the budget.
  *
- * `capabilities` is the **image** provider's, which is what makes the budget
+ * ~~`capabilities` is the **image** provider's, which is what makes the budget
  * honest: what the model is told to write within is the room the assembler will
- * actually have, not the room the text model has.
+ * actually have, not the room the text model has.~~ *`room` since 2026-09-30*:
+ * the image provider's budget less what the rest of the prompt takes
+ * (`roomForMoment`), because the whole budget was what the moment wrote to and
+ * the capper then gave up everything else to keep it. *The schema keeps its
+ * generous bound on purpose*: tight to the room, a slightly long answer would
+ * fail it, be asked for twice more and come back as no picture — and the
+ * assembler caps the prompt whatever the model writes.
  */
 export function momentCall(
   prose: string,
-  capabilities: ProviderCapabilities,
+  room: number | null,
 ): { candidates: Candidate[]; schema: typeof MOMENT_SCHEMA } {
-  const budget = capabilities.usefulPromptChars ?? capabilities.maxPromptChars ?? null;
   return {
     candidates: [
-      block('se.render.task', 'system', MOMENT_PROMPT(budget)),
+      block('se.render.task', 'system', MOMENT_PROMPT(room)),
       block('se.render.turn', 'user', prose),
     ],
     schema: MOMENT_SCHEMA,

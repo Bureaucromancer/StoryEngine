@@ -14,7 +14,8 @@ import { gatherAssemblyInputs } from '../turns/gather.js';
 import { momentCall, readMoment, RENDER_STEP } from '../turns/render.js';
 import { castEntries } from '../turns/runner.js';
 import { fromModelCall, recordUsage } from '../usage/log.js';
-import { placeOf, toneOf } from './assemble.js';
+import { illustrationFragments, placeOf, roomForMoment, toneOf, withoutNames } from './assemble.js';
+import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
 import { requestRendition } from './manual.js';
 
 /**
@@ -153,6 +154,23 @@ export async function illustrateTurn(
     return { held: 'no-place' };
   }
 
+  /**
+   * ***Who is in the room, read as the turn reads it*** (2026-09-30) — the
+   * same `castEntries` reading the render step is handed, where this passed
+   * none and so drew the dead, the departed and the muted. The step's rules
+   * follow it here, because **Illustrate** is the same step pressed by hand.
+   */
+  const everyone = castEntries(inputs.cast, {
+    channels: inputs.channels,
+    castIsPresent: castIsPresentFor(
+      chatSettingsOf(inputs.session, inputs.mode.definition),
+      inputs.mode.definition,
+    ),
+  });
+  const drawn = everyone.filter((member) => member.present !== false);
+  const named = channels.map((one) => ({ ...one, text: withoutNames(one.text, everyone) }));
+  const tone = toneOf(inputs.lore.treatment?.treatment);
+
   let moment = '';
   let anchor: string | undefined;
   if (request.purpose === 'illustration') {
@@ -164,13 +182,16 @@ export async function illustrateTurn(
       inputs,
       roles,
       prose,
-      capabilities,
+      roomForMoment(
+        capabilities,
+        illustrationFragments({ moment: '', cast: drawn, channels: named, tone }),
+      ),
       request.signal,
       request,
     );
     if (answer === null) return { held: 'no-binding' };
     if (answer.subject === '') return { held: 'no-moment' };
-    moment = answer.subject;
+    moment = withoutNames(answer.subject, everyone);
     if (answer.anchor !== null) anchor = answer.anchor;
   }
 
@@ -181,9 +202,9 @@ export async function illustrateTurn(
     turnId: request.turnId,
     purpose: request.purpose,
     moment,
-    cast: castEntries(inputs.cast),
-    channels,
-    tone: toneOf(inputs.lore.treatment?.treatment),
+    cast: drawn,
+    channels: request.purpose === 'illustration' ? named : channels,
+    tone,
     image: {
       binding: { connectionId: image.connection.id, modelId: image.modelId },
       capabilities,
@@ -217,7 +238,8 @@ async function askForMoment(
   inputs: Awaited<ReturnType<typeof gatherAssemblyInputs>>,
   roles: Parameters<typeof resolveStepRole>[0],
   prose: string,
-  capabilities: ReturnType<typeof capabilitiesFor>,
+  /** What the moment may take of the image prompt — `roomForMoment`. */
+  room: number | null,
   signal: AbortSignal,
   /** Whose usage log the call's figures go to, and which session it was for. */
   owner: { handle: string; sessionId: string },
@@ -245,7 +267,7 @@ async function askForMoment(
           /* No event stream: nobody is watching a turn that does not exist. */
         },
       },
-      momentCall(prose, capabilities),
+      momentCall(prose, room),
       [],
     );
     await recordUsage(

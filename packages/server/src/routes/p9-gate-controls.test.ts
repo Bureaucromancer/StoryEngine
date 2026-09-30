@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { Rendition } from '@storyengine/shared';
+import { newActor, type Rendition } from '@storyengine/shared';
 
 import { FakeProvider } from '../providers/fake.js';
 import { jobForRendition, pendingRenditionJobs } from '../renditions/jobs.js';
@@ -69,12 +69,13 @@ let head: string | null = null;
  * `image` role is **unset**, which is the state [19 §5.1] leaves every install
  * in *"because there is no sensible text-model fallback for it"*.
  */
-async function boot(options: { bindImage: boolean }): Promise<void> {
+async function boot(options: { bindImage: boolean; moment?: string }): Promise<void> {
   dataDir = await mkdtemp(join(tmpdir(), 'se-p9-controls-'));
   counter = 0;
   head = null;
+  const moment = options.moment ?? MOMENT;
   fake = new FakeProvider({
-    script: [{ text: MOMENT, object: JSON.parse(MOMENT) as unknown }],
+    script: [{ text: moment, object: JSON.parse(moment) as unknown }],
     images: [{}],
     capabilities: { rendersImages: true, supportsStructuredOutput: true },
   });
@@ -392,6 +393,59 @@ describe('Illustrate, pressed by hand', () => {
     // Settled before the teardown removes the directory: the job is
     // fire-and-forget by design ([P9.2]), so a test that walked away mid-write
     // would race its own `rm` rather than assert anything.
+    await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+  });
+
+  /**
+   * ***By hand, the same rules as the step*** (2026-09-30): only who is in the
+   * room is drawn, by appearance, and nobody is named. **Illustrate** handed
+   * the step's cast no reading of presence, so it drew the dead with the
+   * living, and a name the moment call wrote went to the image model as it
+   * was written.
+   */
+  it('draws who is in the room, by appearance and never by name', async () => {
+    await boot({
+      bindImage: true,
+      moment: JSON.stringify({ subject: 'Elena and Marlow on a wet quay', anchor: 'Rain.' }),
+    });
+    const anActor = async (name: string, hair: string): Promise<string> => {
+      const actor = newActor(name);
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/library/actors',
+        payload: { ...actor, profile: { ...actor.profile, visual: { hair } } },
+      });
+      expect(created.status, JSON.stringify(created.body)).toBe(201);
+      return actor.id;
+    };
+    const elena = await anActor('Elena', 'cropped grey hair');
+    const marlow = await anActor('Marlow', 'a shaved head');
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'The quay', cast: { persona: null, actors: [elena, marlow] } },
+    });
+    sessionId = (created.body as { session: { id: string } }).session.id;
+    const killed = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent(`se.status#${marlow}`)}`,
+      payload: { value: 'dead' },
+    });
+    expect(killed.status, JSON.stringify(killed.body)).toBe(200);
+    head = (killed.body as { session: { headTurnId: string | null } }).session.headTurnId;
+    const turnId = await takeATurn();
+
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    expect(asked.status, JSON.stringify(asked.body)).toBe(202);
+
+    const [made] = await renditionsOf();
+    expect(made?.prompt.text).toContain('cropped grey hair');
+    expect(made?.prompt.text).not.toContain('a shaved head');
+    expect(made?.prompt.text).not.toMatch(/elena|marlow/i);
     await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
   });
 

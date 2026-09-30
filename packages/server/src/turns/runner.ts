@@ -113,7 +113,7 @@ import { planFor, setupPlanFor } from '../mode-registry.js';
 import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
 import { TALKATIVENESS_DEFAULT, talkativenessMap, turnSelection } from './speakers.js';
 import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
-import { readPresence } from '../sessions/cast.js';
+import { isTerminal, readPresence, readStatus } from '../sessions/cast.js';
 
 /**
  * The step loop — [P2 §2.5], [P2 §2.10], [06 §6].
@@ -3715,8 +3715,9 @@ export function castEntries(
    * ***Presence, as the collector reads it*** (2026-09-29, the [P14.5a]
    * review) — the channels and `castIsPresentFor`'s answer. Only under that
    * reading is a member marked `present: false` (muted); without it nothing is
-   * marked, as the collector's `present` filters nothing. Omitted by a caller
-   * that has no scene to be in (an illustration's cast).
+   * marked, as the collector's `present` filters nothing. ~~Omitted by a caller
+   * that has no scene to be in (an illustration's cast).~~ *An illustration
+   * passes it too since 2026-09-30*, and so does every caller: see `gone`.
    */
   presence?: {
     channels: Readonly<Record<string, { value: unknown; degraded?: unknown }>>;
@@ -3729,13 +3730,24 @@ export function castEntries(
     presence.castIsPresent &&
     member !== cast.persona &&
     !readPresence(presence.channels, member.actor.id, true);
+  /**
+   * ***Written out of the story — dead or departed — is out of the room too***
+   * (2026-09-30), under either reading of presence: [06 §8.1]'s cast is who is
+   * in the scene, and a picture that drew somebody the story killed, or a
+   * chorus line in their voice, is the story forgetting its own events. The
+   * persona is the player's, and stays.
+   */
+  const gone = (member: CastMember): boolean =>
+    presence !== undefined &&
+    member !== cast.persona &&
+    isTerminal(readStatus(presence.channels, member.actor.id));
   return everyone.map((member) => ({
     actorId: member.actor.id,
     name: member.actor.name,
     kind: 'actors',
     // Said rather than left to position ([P14.5a]) — see `CastEntry.persona`.
     ...(member === cast.persona ? { persona: true as const } : {}),
-    ...(muted(member) ? { present: false as const } : {}),
+    ...(muted(member) || gone(member) ? { present: false as const } : {}),
     media: member.actor.media.map((one) => ({
       id: one.id,
       role: one.role,
