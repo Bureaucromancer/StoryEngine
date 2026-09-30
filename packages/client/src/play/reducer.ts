@@ -71,6 +71,9 @@ export interface LiveEffect {
  * Rebuilt from the event feed alone, which is what makes it survive a
  * reconnect: a fresh attach replays every event for the job from seq 0, so
  * this reconstructs itself without needing the draft the snapshot carries.
+ * *True since 2026-09-28*: `seen` was seeded from the snapshot's cursor, which
+ * is that replay's last seq, so every frame of it was dropped as a duplicate
+ * (`applySnapshot` has the rest).
  */
 export interface LiveTurn {
   turnId: string | null;
@@ -134,11 +137,13 @@ export interface PlayState {
    *
    * ***`whole` is whether this client saw every piece.*** Deltas are not
    * durable: a reattach mid-round gets the joined text in the snapshot and
-   * then only the pieces after it — and `seen` is seeded from the snapshot's
-   * cursor, so the `call.started` frames before it do not replay either. The
-   * messages here would hold the round's tail with none of its start, so a
-   * snapshot that already had text sets `whole` false and a surface paints
-   * `text` instead: less shape, nothing lost.
+   * then only the pieces after it. The `call.started` frames before it do
+   * replay, so the messages open under their speakers' names — ~~and `seen` is
+   * seeded from the snapshot's cursor, so the `call.started` frames before it
+   * do not replay either~~ (corrected 2026-09-28, when the seeding went) — but
+   * what was said in them before this moment is in `text` and nowhere else.
+   * So a snapshot that already had text sets `whole` false and a surface
+   * paints `text` instead: less shape, nothing lost.
    */
   round: {
     messages: Readonly<Record<number, LiveMessage>>;
@@ -275,10 +280,21 @@ function applySnapshot(state: PlayState, data: unknown): PlayState {
     // checkpoint had not caught, which is what closes the reattach hole.
     text: typeof data['text'] === 'string' ? data['text'] : '',
     cursor,
-    // Seeding `seen` from the snapshot's cursor is what makes a replayed frame
-    // a no-op rather than a duplicate.
-    seen:
-      cursor === null || jobId === null ? state.seen : { ...state.seen, [jobId]: seqOf(cursor) },
+    /**
+     * ***`seen` is left as this client's own record*** (2026-09-28). ~~Seeding
+     * `seen` from the snapshot's cursor is what makes a replayed frame a no-op
+     * rather than a duplicate.~~ It made every replayed frame a no-op, the ones
+     * this client had never had included: the server sends its backlog *after*
+     * the snapshot, and the snapshot's cursor is that backlog's last seq
+     * (`attach.ts`). So a reload mid-turn dropped the whole feed and `live` was
+     * never rebuilt, and a reconnect dropped what it had missed —
+     * `turn.finished` among it, so a turn that ended in the gap showed as
+     * running until the next one began. The server already promises no
+     * overlap — its backlog starts after the cursor asked for, and what it
+     * buffered meanwhile is filtered against that backlog — so the guard needs
+     * only what this client has applied. The test that stood for the seeding
+     * gave its snapshot a cursor and no backlog, a shape the server never sends.
+     */
     /**
      * **The snapshot's `turn` is deliberately dropped** — [P3.5].
      *
@@ -318,15 +334,48 @@ function applyProgress(state: PlayState, frame: SseFrame): PlayState {
   if (seq <= (state.seen[jobId] ?? 0)) return state;
 
   const key = keyOf(frame.data);
-  const finished = key === 'turn.finished';
   const params = paramsOf(frame.data);
+  const seen = { ...state.seen, [jobId]: seq };
+  const cursor = frame.id ?? state.cursor;
+
+  /**
+   * ***An older job's frames move nothing the snapshot said*** (2026-09-28).
+   *
+   * A reconnect that spans jobs gets a snapshot naming the newest — its
+   * status, its text so far — and then the older ones' frames before the
+   * newest one's (`attach.ts` replays the cursor's job first, then every job
+   * after it). Every frame of another job used to switch to it: the older
+   * tail took `jobId` back, and `forJob` cleared the newest job's text from the
+   * snapshot; its own frames then switched again, onto an empty buffer and a
+   * status an older `turn.finished` had left at *finished* while it ran.
+   *
+   * Job ids are uuidv7 and sort in the order they were minted (`shared/ids.ts`
+   * says why that holds), so an older job is one whose id sorts first. Its
+   * frames still close the live turn they belong to — the one on screen until
+   * the next `turn.started` replaces it — and move nothing else. A newer job is
+   * followed from its first frame, whichever that is: a turn is not the only
+   * way a job ends, and one finalised before it ever ran says only
+   * `turn.finished`.
+   */
+  if (state.jobId !== null && jobId !== state.jobId && mintedBefore(jobId, state.jobId)) {
+    return { ...state, seen, cursor, live: applyToLive(state.live, key, params) };
+  }
+
+  const finished = key === 'turn.finished';
   const current = forJob(state, jobId);
   return {
     ...current,
     jobId,
-    seen: { ...state.seen, [jobId]: seq },
-    cursor: frame.id ?? state.cursor,
-    status: finished ? 'finished' : state.status === 'idle' ? 'running' : state.status,
+    seen,
+    cursor,
+    // A new job's start is running whatever the last one ended as — which
+    // `idle` alone did not cover, so a job whose frames beat its POST sat at
+    // the previous job's *finished* until the POST answered.
+    status: finished
+      ? 'finished'
+      : jobId !== state.jobId || state.status === 'idle'
+        ? 'running'
+        : state.status,
     live: applyToLive(state.live, key, params),
     round: key === 'call.started' ? openMessage(current.round, params) : current.round,
     order: key === 'speakers.picked' ? (orderOf(params) ?? current.order) : current.order,
@@ -335,6 +384,9 @@ function applyProgress(state: PlayState, frame: SseFrame): PlayState {
 
 /**
  * ***A frame of another job starts a fresh turn*** — its text, round and order.
+ * *Of a newer job*, since 2026-09-28: an older job's frames arrive after a
+ * snapshot that already names the newer one, and clearing on them took the
+ * current job's text with it (`applyProgress` says when that happens).
  *
  * A new job's frames can reach the reducer before its POST's response does
  * (`submitted`'s docstring), and until this they were applied on top of the
@@ -628,13 +680,17 @@ export function liveMessages(state: PlayState): LiveMessage[] | null {
   });
 }
 
-function statusOf(value: unknown): PlayState['status'] {
-  return value === 'committed' || value === 'abandoned' ? 'finished' : 'running';
+/**
+ * Whether one job was minted before another. Job ids are uuidv7, which sort as
+ * strings in the order they were minted — `shared/ids.ts`'s *monotonic*, the
+ * property that id was chosen for.
+ */
+function mintedBefore(a: string, b: string): boolean {
+  return a < b;
 }
 
-function seqOf(cursor: string): number {
-  const seq = Number.parseInt(cursor.slice(cursor.lastIndexOf('.') + 1), 10);
-  return Number.isInteger(seq) ? seq : 0;
+function statusOf(value: unknown): PlayState['status'] {
+  return value === 'committed' || value === 'abandoned' ? 'finished' : 'running';
 }
 
 function cursorOf(data: unknown): string | null {

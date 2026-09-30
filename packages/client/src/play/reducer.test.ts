@@ -40,6 +40,16 @@ const progress = (
   data: { jobId: 'job-1', seq, key, params: {}, at: 0 },
 });
 
+/** A `turn.finished` that says how the turn ended, as the server's does. */
+const finishedFrame = (
+  jobId: string,
+  seq: number,
+): { event: string; id: string; data: unknown } => ({
+  event: 'progress',
+  id: `${jobId}.${String(seq)}`,
+  data: { jobId, seq, key: 'turn.finished', params: { state: 'complete' }, at: 0 },
+});
+
 const delta = (text: string): { event: string; data: unknown } => ({
   event: 'delta',
   data: { jobId: 'job-1', text },
@@ -102,12 +112,124 @@ describe('reattach loses nothing and repeats nothing', () => {
     expect(reattached.cursor).toBe('job-1.4');
   });
 
-  it('seeds the duplicate guard from the snapshot cursor', () => {
-    // Without this, every frame the snapshot already accounted for would be
-    // applied a second time on reconnect.
-    const state = run(INITIAL, [snapshot({ cursor: 'job-1.7' }), progress(7), progress(8)]);
+  /**
+   * ***Replaced 2026-09-28.*** *"Seeds the duplicate guard from the snapshot
+   * cursor"* gave its snapshot a cursor and sent no backlog — a shape the
+   * server never sends: its cursor is the last seq of the backlog that
+   * follows the snapshot (`attach.ts`), so the seeding dropped every frame of
+   * it. These use the real shape, a cursor and then the frames up to it.
+   */
+  it('applies the backlog that follows a snapshot, up to the snapshot’s own cursor', () => {
+    const reloaded = run(INITIAL, [
+      snapshot({ text: 'The rain ', cursor: 'job-1.3' }),
+      progress(1, 'turn.started'),
+      progress(2, 'step.started'),
+      progress(3, 'call.started'),
+    ]);
 
-    expect(state.seen['job-1']).toBe(8);
+    expect(reloaded.seen['job-1']).toBe(3);
+    expect(reloaded.live?.state).toBe('running');
+    expect(reloaded.text).toBe('The rain ');
+    expect(reloaded.status).toBe('running');
+  });
+
+  it('finishes a turn that ended during a drop, from the frames the reconnect replays', () => {
+    const before = run(INITIAL, [snapshot(), progress(1, 'turn.started'), progress(2)]);
+    const after = run(before, [
+      snapshot({
+        job: { id: 'job-1', status: 'committed', turnId: 't', commitStep: 0 },
+        text: 'The rain had not stopped.',
+        cursor: 'job-1.4',
+      }),
+      progress(3),
+      finishedFrame('job-1', 4),
+    ]);
+
+    expect(after.live?.state).toBe('complete');
+    expect(after.status).toBe('finished');
+    expect(after.seen['job-1']).toBe(4);
+  });
+});
+
+/**
+ * ***A reconnect that spans two jobs*** (2026-09-28). The snapshot names the
+ * newer job, and the older one's tail is replayed after it and before the
+ * newer one's feed. Every frame of another job used to switch to that job, so
+ * the older tail took the newer job's text from the snapshot and left its
+ * status at the older job's *finished*.
+ */
+describe('a reconnect that spans two jobs', () => {
+  const second = (seq: number, key: string, params: Record<string, unknown> = {}) => ({
+    event: 'progress',
+    id: `job-2.${String(seq)}`,
+    data: { jobId: 'job-2', seq, key, params, at: 0 },
+  });
+  const onJobTwo = (over: Record<string, unknown>) =>
+    snapshot({ job: { id: 'job-2', status: 'running', turnId: 't2', commitStep: 0 }, ...over });
+
+  it('ends on the newer job, with the text the snapshot gave it', () => {
+    const before = run(INITIAL, [snapshot(), progress(1, 'turn.started'), progress(2)]);
+    const after = run(before, [
+      onJobTwo({ text: 'Lund looked up.', cursor: 'job-2.2' }),
+      progress(3, 'turn.finished'),
+      second(1, 'turn.started', { turnId: 't2' }),
+      second(2, 'step.started', { stepId: 'se.narrate', stage: 'generate' }),
+    ]);
+
+    expect(after.jobId).toBe('job-2');
+    expect(after.text).toBe('Lund looked up.');
+    expect(after.status).toBe('running');
+    expect(after.live?.turnId).toBe('t2');
+    expect(after.seen).toEqual({ 'job-1': 3, 'job-2': 2 });
+  });
+
+  it('closes the older turn when the newer has not started, and follows the newer', () => {
+    const before = run(INITIAL, [snapshot(), progress(1, 'turn.started'), progress(2)]);
+    const after = run(before, [
+      onJobTwo({ job: { id: 'job-2', status: 'queued', turnId: 't2', commitStep: 0 } }),
+      finishedFrame('job-1', 3),
+    ]);
+
+    expect(after.jobId).toBe('job-2');
+    expect(after.live?.state).toBe('complete');
+    expect(after.status).toBe('running');
+  });
+
+  it('ends on the newest of three, the middle one replayed whole before it', () => {
+    const third = (seq: number, key: string, params: Record<string, unknown> = {}) => ({
+      event: 'progress',
+      id: `job-3.${String(seq)}`,
+      data: { jobId: 'job-3', seq, key, params, at: 0 },
+    });
+    const before = run(INITIAL, [snapshot(), progress(1, 'turn.started'), progress(2)]);
+    const after = run(before, [
+      snapshot({
+        job: { id: 'job-3', status: 'running', turnId: 't3', commitStep: 0 },
+        text: 'The tide turned.',
+        cursor: 'job-3.1',
+      }),
+      finishedFrame('job-1', 3),
+      second(1, 'turn.started', { turnId: 't2' }),
+      finishedFrame('job-2', 2),
+      third(1, 'turn.started', { turnId: 't3' }),
+    ]);
+
+    expect(after.jobId).toBe('job-3');
+    expect(after.text).toBe('The tide turned.');
+    expect(after.status).toBe('running');
+    expect(after.live?.turnId).toBe('t3');
+  });
+
+  it('runs a new job from its start, before its POST has answered', () => {
+    const done = run(INITIAL, [
+      snapshot(),
+      progress(1, 'turn.started'),
+      progress(2, 'turn.finished'),
+    ]);
+    const next = run(done, [second(1, 'turn.started', { turnId: 't2' })]);
+
+    expect(next.jobId).toBe('job-2');
+    expect(next.status).toBe('running');
   });
 });
 
