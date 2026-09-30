@@ -102,21 +102,30 @@ export function priorImportId(
   schemaId: PortableSchemaId,
   filename: string,
 ): string | null {
-  return priorImport(context, handle, schemaId, filename)?.id ?? null;
+  return priorImportRef(context, handle, schemaId, filename)?.id ?? null;
 }
 
 /**
  * ***The object a file's earlier import is here, as a link to it*** — its id
- * and its name, which is what a `Ref` carries — or null.
+ * and its name, which is what a `Ref` carries — or null. The same lookup as
+ * {@link priorImportId}, which delegates here: one query and one rule.
  *
- * [P13.5](../../../../docs/design/workplan/30-p13-aventuras-import.md): an
- * Aventuras link to a vault lorebook whose row this sweep did not store —
- * refused for an unreadable `entries` column, which leaves the book an earlier
- * sweep made exactly as it was — still has somewhere to point, and it is that
- * book. The name comes with the id because a link carries both, the name for
- * display and for the fallback a `Ref` resolves by when an id is unknown.
+ * **Two branches wrote it at once**, and the merge kept main's name for it:
+ *
+ * - [P13.5](../../../../docs/design/workplan/30-p13-aventuras-import.md): an
+ *   Aventuras link to a vault lorebook whose row this sweep did not store —
+ *   refused for an unreadable `entries` column, which leaves the book an
+ *   earlier sweep made exactly as it was — still has somewhere to point, and
+ *   it is that book. The name comes with the id because a link carries both,
+ *   the name for display and for the fallback a `Ref` resolves by when an id
+ *   is unknown.
+ * - [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
+ *   a chat names its speakers by the card file they came from, and the
+ *   session the import writes names them back as `{ id, name }` — so the
+ *   resolver needs the name the library holds now, not the one the chat line
+ *   was written under.
  */
-export function priorImport(
+export function priorImportRef(
   context: LibraryContext,
   handle: string,
   schemaId: PortableSchemaId,

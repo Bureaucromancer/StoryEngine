@@ -9,7 +9,12 @@ cited below by commit, as of 2026-09-30, on the branch and not yet on `main`.
 **Neither gate is walked** ([§3](#3--the-exit-gate)); a green suite closes a
 stage, not a phase. P13.0 done — `34b3174` (the failing tests), `75c56ca` (the
 fix), 2026-09-28, and the fix set aside for main's own at the merge of
-2026-09-29 ([§0.4](#04-what-the-survey-found-in-our-own-tree)).** Written 2026-09-26 on
+2026-09-29 ([§0.4](#04-what-the-survey-found-in-our-own-tree)).** *Merged to `main` a
+second time, 2026-09-30, after [P14](31-p14-scene-and-session-import.md)*, which
+had indexed the same `session.origin_filename` at the same schema version 12 for
+its chat sync: one column and one lookup (`sessionByOrigin`) now serve both, so
+a producer's re-import is refused `already-here` naming the session, and a chat
+door's, which asks for `extend`, extends it. Written 2026-09-26 on
 `claude/epic-hypatia-p1h6my`, from a survey of Aventuras at `c43da108`
 (2026-09-25). Part 1 is planned to the stage; ~~**Part 2 is headed and not
 scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives~~
@@ -776,8 +781,8 @@ costs only itself. Candidates run lorebooks, characters, scenarios, and the
 Writer maps each Aventuras lorebook id to the book stored for it — written,
 unchanged, skipped or kept-both alike, so a re-sweep and a `skip` still
 resolve. **Beyond §1.7:** a link whose book this sweep refused falls back to the
-book an earlier sweep stored for that row (`identity.ts`'s `priorImport`),
-since otherwise one corrupt book would, under `replace`, unlink everything
+book an earlier sweep stored for that row (`identity.ts`'s `priorImport`,
+`priorImportRef` since the merge after P14), since otherwise one corrupt book would, under `replace`, unlink everything
 pointing at the good copy P13.4 deliberately left; a consequence is that a link
 to a row since deleted in Aventuras still resolves to the book in the library.
 `linkedLorebookMissing` fires for a row only when nothing resolves; the file
@@ -1290,7 +1295,8 @@ brings its story. Prompt packs and chapter summaries stay in Aventuras, and the
 review names what does. **For an existing install**: a new live setting,
 `limits.maxImportUploadMb` (1024), caps an archive upload, and a reverse proxy's
 own body limit and read timeout will refuse a large one before the server sees
-it ([deploy](../../deploy.md)); the search index rebuilds once (version 12);
+it ([deploy](../../deploy.md)); the search index rebuilds once (version 12,
+which [P14](31-p14-scene-and-session-import.md)'s chat sync shares);
 `POST /import/file` answers a root with its whole `report` beside `item`; and
 `POST /sessions/import` answers `broken-tree` (422) for a tree it cannot mend.
 Nothing needs doing by hand.

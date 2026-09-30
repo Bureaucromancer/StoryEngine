@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { validate } from '@storyengine/sdk';
+import type { StepCallRequest, StepCallResult, StepHost, StepInput } from '@storyengine/sdk';
 
 import { modes } from './index.js';
 import {
@@ -18,7 +19,11 @@ import {
   SCENE_MODE,
   STAGING_CHANNEL,
 } from './mode.js';
+import { ECHO_CHANNELS, ECHO_STEP } from './echo.js';
+import { EDIT_CHANNELS, EDIT_STEP } from './edit.js';
+import { PLOT_CHANNELS, PLOT_STEP } from './plot.js';
 import { STAGE_STEP } from './staging.js';
+import { TRACK_STEP, TRACKING_CHANNELS } from './tracking.js';
 import { SCENE_PRESET } from './preset.js';
 
 /**
@@ -75,7 +80,14 @@ describe('the manifest is data', () => {
   it('keeps what it runs separate from what it declares', () => {
     // [22 §3]'s split: `definition` crosses any boundary unchanged, `run` is
     // what becomes a dispatch table.
-    expect(Object.keys(SCENE_MODE.run)).toEqual([NARRATE.id, STAGE_STEP.id]);
+    expect(Object.keys(SCENE_MODE.run)).toEqual([
+      PLOT_STEP.id,
+      NARRATE.id,
+      STAGE_STEP.id,
+      TRACK_STEP.id,
+      EDIT_STEP.id,
+      ECHO_STEP.id,
+    ]);
     expect(SCENE_MODE.definition).toBe(SCENE);
   });
 });
@@ -133,20 +145,63 @@ describe('the default preset is a real portable object', () => {
     expect(priorityOf('attempt')).toBeLessThan(priorityOf('guidance') ?? 0);
   });
 
-  it('positions the player action, and nothing else is a user-role block', () => {
+  /**
+   * ~~*Nothing else is a user-role block*~~ — *and the card's post-history
+   * instructions* since [P14.3], which [P14 §1.5] places *"after the last
+   * message, user role"*. They follow the input in sequence, so they are the
+   * last thing a speaking call sends.
+   */
+  it('positions the player action, and after it only the card’s post-history instructions', () => {
     const user = SCENE_PRESET.blocks.filter((block) => block.role === 'user');
-    expect(user).toHaveLength(1);
-    expect(user[0]?.kind === 'slot' && user[0].source.of).toBe('input');
+    // The established state is a user block too since [P14.5a], and it sits in
+    // the history — before the move, not after it — so the claim holds.
+    expect(user.map((block) => block.id)).toEqual(['se.state', 'se.input', 'se.card.post-history']);
+    expect(user[0]?.placement).toEqual({ at: 'in-history', fromEnd: 0 });
+    expect(user[1]?.kind === 'slot' && user[1].source.of).toBe('input');
+    const ids = SCENE_PRESET.blocks.map((block) => block.id);
+    expect(ids.at(-1)).toBe('se.card.post-history');
   });
 
   /**
    * ***The narrator's instruction is a narration's*** (2026-09-27). It applied
    * to every kind of call, and an impersonation asks for exactly what it
    * forbids — the player's own words.
+   *
+   * ***Keyed to the voice since [P14.3]***, ~~`['narrate']`~~: `narrate` is the
+   * call kind of the embodied reply too. Neither voice is ever set on an
+   * impersonation, so the 2026-09-27 narrowing holds.
    */
-  it('keeps the narrator instruction to narration', () => {
-    const instruction = SCENE_PRESET.blocks.find((block) => block.id === 'se.instruction');
-    expect(instruction?.appliesTo).toEqual(['narrate']);
+  it('keeps the narrator instruction to narration, and the embodied one to the chat', () => {
+    const appliesTo = (id: string) =>
+      SCENE_PRESET.blocks.find((block) => block.id === id)?.appliesTo;
+    expect(appliesTo('se.instruction')).toEqual(['narrator']);
+    expect(appliesTo('se.instruction.embodied')).toEqual(['embodied']);
+    for (const id of ['se.card.system', 'se.card.depth', 'se.card.post-history']) {
+      expect(appliesTo(id), id).toEqual(['embodied']);
+    }
+  });
+
+  /**
+   * ***The card's own prompts, placed as [P14 §1.5]'s table says*** — [P14.3].
+   * The system prompt directly after the instruction, the depth prompt in the
+   * history, the post-history instructions after the move; all three `voiced`,
+   * so a per-actor call carries its speaker's and a merged call everyone's.
+   */
+  it('stacks the card’s system prompt directly after the instruction', () => {
+    const ids = SCENE_PRESET.blocks.map((block) => block.id);
+    expect(ids.indexOf('se.card.system')).toBe(ids.indexOf('se.instruction.embodied') + 1);
+    const card = (id: string) => SCENE_PRESET.blocks.find((block) => block.id === id);
+    for (const id of ['se.card.system', 'se.card.depth', 'se.card.post-history']) {
+      const block = card(id);
+      expect(block?.kind === 'slot' && block.source.of === 'actor' && block.source.scope, id).toBe(
+        'voiced',
+      );
+    }
+    expect(card('se.card.depth')?.placement).toEqual({ at: 'in-history', fromEnd: 4 });
+    const samples = card('se.samples');
+    expect(
+      samples?.kind === 'slot' && samples.source.of === 'samples' && samples.source.scope,
+    ).toBe('voiced');
   });
 
   /**
@@ -156,9 +211,13 @@ describe('the default preset is a real portable object', () => {
    * content goes in.
    */
   it('names who each persona and actor block is about', () => {
+    // The card's own prompts are the card's words, bare, and are not among
+    // these ([P14.3]): a wrapper round *"You are Vera"* would be ours.
     const named = SCENE_PRESET.blocks.filter(
       (block) =>
-        block.kind === 'slot' && (block.source.of === 'persona' || block.source.of === 'actor'),
+        block.kind === 'slot' &&
+        (block.source.of === 'persona' || block.source.of === 'actor') &&
+        !block.id.startsWith('se.card.'),
     );
 
     expect(named.map((block) => block.id)).toEqual([
@@ -255,7 +314,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     expect(NARRATE.writes).toEqual([]);
   });
 
-  it('declares its six channels, and owns every one of them', () => {
+  it('declares its channels, and owns every one of them', () => {
     // **Was "registering the mode is what enables it", asserted through the
     // engine's channel lookup** — which this package can no longer reach, and
     // should not: that a registered mode's declared channels become resolvable
@@ -274,6 +333,14 @@ describe('what Scene declares, and what the engine does with it', () => {
       STAGING_CHANNEL,
       EXPRESSION_CHANNEL,
       LOCATION_CHANNEL,
+      // The trackers, their switches, locks, hidden fields and cadence —
+      // [P14.5a]; `tracking.test.ts` holds them to their own claims.
+      ...TRACKING_CHANNELS,
+      // The secret plot, its switch, reveal and cadence — [P14.5b], `plot.test.ts`.
+      ...PLOT_CHANNELS,
+      // The editor's and the echo chamber's — [P14.5c], `edit.test.ts`, `echo.test.ts`.
+      ...EDIT_CHANNELS,
+      ...ECHO_CHANNELS,
     ]);
     expect(CLOCK_CHANNEL.id).toBe('se.clock');
     // [06 §7.2]'s background channel, declared at [P7.9]. The id is a literal
@@ -404,10 +471,10 @@ describe('what Scene declares, and what the engine does with it', () => {
     // **[P7] is where they arrive**, so two of these moved and the rest did not:
     // the line was never *stay at one* but *do not grow before the contract is
     // tested by two modes*. `presets`, `setup`, `participants` and `inputs` are
-    // still what §5 left them.
+    // still what §5 left them. ~~`participants` too~~ — [P14.3] declared Scene's
+    // group chat, and the pin on it is the declared-values test below.
     expect(SCENE.presets).toEqual([]);
     expect(SCENE.setup).toEqual({ kind: 'none' });
-    expect(SCENE.participants).toEqual({ select: 'fixed', maxActors: 1 });
     expect(SCENE.inputs).toEqual(['do']);
   });
 
@@ -419,12 +486,29 @@ describe('what Scene declares, and what the engine does with it', () => {
    * surface pointing at somebody else's channel is what `channelInPlay` refuses
    * on the server; catching it here is catching it at the declaration.
    */
-  it('contributes four surfaces, each over a channel it owns', () => {
+  it('contributes its surfaces, each over a channel it owns', () => {
     const owned = new Set(SCENE.channels.map((channel) => channel.id));
     // The fourth is the backdrop's own switch, added at [P9.4] — beside the
     // staging toggle rather than over the picture, because a control floating
-    // on a backdrop is a control competing with the thing it controls.
-    expect(SCENE.surfaces.map((one) => one.region)).toEqual(['stage', 'message', 'panel', 'panel']);
+    // on a backdrop is a control competing with the thing it controls. The
+    // rest are [P14.5a]'s: six tracker cards in the panel, and six switches
+    // and the cadence in settings — then [P14.5b]'s secret plot: its switch and
+    // cadence in settings, its reveal and its card in the panel — then
+    // [P14.5c]'s editor (five settings) and echo chamber (two settings, a card).
+    expect(SCENE.surfaces.map((one) => one.region)).toEqual([
+      'stage',
+      'message',
+      'panel',
+      'panel',
+      ...Array<string>(6).fill('panel'),
+      ...Array<string>(7).fill('settings'),
+      'settings',
+      'settings',
+      'panel',
+      'panel',
+      ...Array<string>(7).fill('settings'),
+      'panel',
+    ]);
     for (const contribution of SCENE.surfaces) {
       expect(owned.has(contribution.channelId)).toBe(true);
       // Authored content travelling with the mode, like a preset's prose — so a
@@ -460,24 +544,78 @@ describe('what Scene declares, and what the engine does with it', () => {
    * cannot take a turn.
    */
   it('implements every step it declares', () => {
-    expect(SCENE.steps.map((step) => step.id)).toEqual(['se.narrate', 'se.scene.stage']);
+    expect(SCENE.steps.map((step) => step.id)).toEqual([
+      'se.scene.plot',
+      'se.narrate',
+      'se.scene.edit',
+      'se.scene.stage',
+      'se.scene.track',
+      'se.scene.echo',
+    ]);
     for (const step of SCENE.steps) expect(typeof SCENE_MODE.run[step.id]).toBe('function');
-    // `generate` before `post`: the stager reads what the narrator wrote.
-    expect(SCENE.steps.map((step) => step.stage)).toEqual(['generate', 'post']);
+    // `pre` first — the secret plot steers this turn's reply — then `generate`
+    // before `post`: the editor first of the `post` steps ([P14.5c]), so the
+    // stager, the trackers and the echo chamber read the prose as edited.
+    expect(SCENE.steps.map((step) => step.stage)).toEqual([
+      'pre',
+      'generate',
+      'post',
+      'post',
+      'post',
+      'post',
+    ]);
   });
 
-  it('says narrator and merged, and the instruction block agrees', () => {
-    // `voice` and `dispatch` have no engine consumer at P2.6, so what keeps
-    // them from being decoration is that the prose they describe is checkable.
-    expect(SCENE.voice).toBe('narrator');
-    expect(SCENE.dispatch).toBe('merged');
+  /**
+   * ~~*Says narrator and merged, and the instruction block agrees*~~ — ***the
+   * declared values and the pack agreeing with them***, [P14.3]
+   * ([P14 §1.2]: *"Scene's declared values become `embodied`, `per-actor`,
+   * `natural`"*). The pin was always the pair, not the values: a declaration the
+   * pack contradicts is decoration. So it pins what a new session is created
+   * with, and that the pack has an instruction for that voice **and** for the
+   * narrated one a person may switch to.
+   */
+  it('declares an embodied, per-actor, natural chat, and the pack speaks both voices', () => {
+    expect(SCENE.voice).toBe('embodied');
+    expect(SCENE.dispatch).toBe('per-actor');
+    expect(SCENE.participants).toEqual({ select: 'natural', castIsPresent: true, maxActors: 32 });
 
-    const instruction = SCENE_PRESET.blocks.find((block) => block.kind === 'text');
-    const text = instruction?.kind === 'text' ? instruction.template : '';
-    // narrator: it describes rather than speaks as anybody.
-    expect(text).toContain('narrator');
-    // merged: one reply, so it must not be told to answer as one actor.
-    expect(text).not.toContain('in character');
+    const template = (id: string): string => {
+      const block = SCENE_PRESET.blocks.find((one) => one.id === id);
+      return block?.kind === 'text' ? block.template : '';
+    };
+    const embodied = template('se.instruction.embodied');
+    // Embodied: it names the speaker as the one to write — ST's main prompt in
+    // sense (`openai.js:101`) — and in a group says to write only as them
+    // (`openai.js:114`), which only a group sees.
+    expect(embodied).toContain("Write {{ char }}'s next reply");
+    expect(embodied).toContain('{{ charIfNotGroup }}');
+    // Only under `per-actor`: a merged reply may voice every member (2026-09-29).
+    expect(embodied).toMatch(
+      /\{% if charIfNotGroup != char and dispatch == 'per-actor' %\}.*write only as \{\{ char \}\}/,
+    );
+    // Narrated: it describes rather than speaks as anybody, and is the narrator
+    // instruction every earlier session was created with, word for word.
+    const narrator = template('se.instruction');
+    expect(narrator).toContain('narrator');
+    expect(narrator).not.toContain('in character');
+    expect(narrator).toBe(
+      "You are the narrator of a scene. Write what happens next in third person, past tense. Describe only what the player could perceive. Never write the player's own dialogue, thoughts or decisions, and never end by asking what they do.",
+    );
+  });
+
+  /**
+   * ***A Scene session from before P14.0 reads as what it was played as*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * and half of [P14.0]'s *Ends at*.
+   *
+   * Pinned against literals rather than against `SCENE.voice` and friends, and
+   * that is the test: those move when P14 flips Scene's declared values, and
+   * this must not move with them, or every Scene session somebody has played
+   * would be re-voiced by the flip.
+   */
+  it('keeps what a pre-P14 session was played as: narrator, merged, fixed', () => {
+    expect(SCENE.legacy).toEqual({ voice: 'narrator', dispatch: 'merged', select: 'fixed' });
   });
 });
 
@@ -553,5 +691,133 @@ describe('the pacing prose this pack ships', () => {
     }
     // And the refusal it *should* carry: the player is still mid-something.
     expect(text.toLowerCase()).toContain('player');
+  });
+});
+
+/**
+ * ***How the generate step speaks*** — [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.2]. Against a host that records what it was asked, which is all a mode
+ * can see of the engine: the loop's order, which member each call named, and
+ * what the step returned. What a speaking call *does* — the re-scoped prompt,
+ * the round, the cleanup — is the engine's, and `runner-dispatch.test.ts`
+ * proves it through a real turn.
+ */
+describe('the generate step, by voice and dispatch', () => {
+  const run = SCENE_MODE.run[NARRATE.id];
+
+  /**
+   * A host that records what it was asked. `random` and `signal` are stubbed by
+   * omission, for the reason `staging.test.ts` gives at length: the step reads
+   * neither, and `AbortSignal` is a host global this package's tsconfig
+   * deliberately does not declare.
+   */
+  function host(): { asked: StepCallRequest[]; host: StepHost } {
+    const asked: StepCallRequest[] = [];
+    return {
+      asked,
+      host: {
+        call: (request: StepCallRequest): Promise<StepCallResult> => {
+          asked.push(request);
+          const id = request.speaker;
+          return Promise.resolve({
+            callId: `c-${String(asked.length)}`,
+            text: id === undefined ? 'The rain kept on.' : `"${id} speaks."`,
+            usage: null,
+            ...(id === undefined ? {} : { speaker: { id, name: id.toUpperCase() } }),
+            ...(id === 'vera' ? { original: 'Vera: "vera speaks."' } : {}),
+          });
+        },
+      } as unknown as StepHost,
+    };
+  }
+
+  const input = (over: Partial<StepInput>): StepInput => ({
+    turnId: 't',
+    sessionId: 's',
+    parentTurnId: null,
+    channels: {},
+    history: [],
+    ...over,
+  });
+
+  it('narrates as it always has: one call, no speaker, one message', async () => {
+    const { asked, host: stub } = host();
+    const result = await run?.(input({ voice: 'narrator', speakers: ['vera', 'lund'] }), stub);
+    expect(asked).toEqual([{ stream: true }]);
+    expect(result).toEqual({ message: { text: 'The rain kept on.' } });
+  });
+
+  it('reads a host that says nothing about voice as a narrator', async () => {
+    const { asked, host: stub } = host();
+    await run?.(input({ speakers: ['vera'] }), stub);
+    expect(asked).toEqual([{ stream: true }]);
+  });
+
+  it('speaks once per member, in the selection’s order, under per-actor dispatch', async () => {
+    const { asked, host: stub } = host();
+    const result = await run?.(
+      input({ voice: 'embodied', dispatch: 'per-actor', speakers: ['lund', 'vera', 'marlow'] }),
+      stub,
+    );
+    expect(asked.map((request) => request.speaker)).toEqual(['lund', 'vera', 'marlow']);
+    expect(result).toEqual({
+      messages: [
+        { speaker: { id: 'lund', name: 'LUND' }, text: '"lund speaks."' },
+        {
+          speaker: { id: 'vera', name: 'VERA' },
+          text: '"vera speaks."',
+          original: 'Vera: "vera speaks."',
+        },
+        { speaker: { id: 'marlow', name: 'MARLOW' }, text: '"marlow speaks."' },
+      ],
+    });
+  });
+
+  it('speaks once, for the first member, under merged dispatch', async () => {
+    const { asked, host: stub } = host();
+    const result = await run?.(
+      input({ voice: 'embodied', dispatch: 'merged', speakers: ['lund', 'vera'] }),
+      stub,
+    );
+    expect(asked).toEqual([{ stream: true, speaker: 'lund' }]);
+    expect(result).toEqual({
+      messages: [{ speaker: { id: 'lund', name: 'LUND' }, text: '"lund speaks."' }],
+    });
+  });
+
+  it('makes no call and returns nothing when nobody was selected', async () => {
+    for (const dispatch of ['per-actor', 'merged'] as const) {
+      const { asked, host: stub } = host();
+      const result = await run?.(input({ voice: 'embodied', dispatch, speakers: [] }), stub);
+      expect(asked, dispatch).toEqual([]);
+      expect(result, dispatch).toEqual({});
+    }
+  });
+
+  it('makes the one merged call when an embodied session makes no selection at all', async () => {
+    // `fixed` hands no `speakers`; silence forever would be the wrong answer.
+    const { asked, host: stub } = host();
+    const result = await run?.(input({ voice: 'embodied', dispatch: 'per-actor' }), stub);
+    expect(asked).toEqual([{ stream: true }]);
+    expect(result).toEqual({ message: { text: 'The rain kept on.' } });
+  });
+
+  it('lets a failed speaking call through to the host, which decides what the round keeps', async () => {
+    const { host: stub } = host();
+    let calls = 0;
+    const failing: StepHost = {
+      ...stub,
+      call: (request) => {
+        calls += 1;
+        return calls === 2 ? Promise.reject(new Error('gone')) : stub.call(request);
+      },
+    };
+    await expect(
+      run?.(
+        input({ voice: 'embodied', dispatch: 'per-actor', speakers: ['a', 'b', 'c'] }),
+        failing,
+      ),
+    ).rejects.toThrow('gone');
+    expect(calls).toBe(2);
   });
 });

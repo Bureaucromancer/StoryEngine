@@ -274,6 +274,35 @@ export function importNotesFor(
 }
 
 /**
+ * ***The server path a session last came in from***, or null —
+ * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * *"re-sweeps the server path recorded in the ledger when the import came
+ * from one"*, [P14.10a].
+ *
+ * Only a sweep of a server path records a root: an upload names its file and
+ * nothing more ([21 §4.1.1]), and a refused sweep wrote nothing. So a row
+ * naming this session under a `finished` job is exactly *came from a path*,
+ * and the newest one is where it was last brought up to date from. Scoped by
+ * account through the join, as {@link importNotesFor} is.
+ */
+export function recordedRootFor(
+  db: DatabaseSync,
+  account: string,
+  objectId: string,
+): string | null {
+  const row = db
+    .prepare(
+      `select job.root from import_item as item
+         join import_job as job on job.id = item.job_id
+        where item.object_id = ? and job.account = ? and job.status = 'finished'
+        order by job.created_at desc, item.rowid desc
+        limit 1`,
+    )
+    .get(objectId, account) as { root: string } | undefined;
+  return row?.root ?? null;
+}
+
+/**
  * Notes are stored as JSON and read back defensively.
  *
  * A row this cannot parse is a row whose notes are lost, not a report that

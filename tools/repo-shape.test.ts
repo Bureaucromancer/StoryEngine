@@ -417,7 +417,7 @@ describe('the engine names no mode', () => {
   const ALLOWED = new Map<string, string>([
     [
       'mode-registry.ts',
-      "DEFAULT_MODE_ID — the distribution's choice of default, which is a fact about this build rather than knowledge about the mode. Pinned to the package's own spelling by mode-loader.test.ts, which imports neither side.",
+      "DEFAULT_MODE_ID — the distribution's choice of default, which is a fact about this build rather than knowledge about the mode. CHAT_IMPORT_MODE_ID — the mode a SillyTavern or Marinara chat is imported into (P14.8), kept apart from the default so that moving one does not move the other. Both pinned to the package's own spelling by mode-loader.test.ts, which imports neither side.",
     ],
     [
       'test-mode.ts',

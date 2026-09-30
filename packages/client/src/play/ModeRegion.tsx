@@ -3,8 +3,12 @@
 
 import type { JSX } from 'react';
 
-import type { ModeSurface } from '../api.js';
-import { useWriteChannel } from '../queries.js';
+import type { ModeAction, ModeSurface } from '../api.js';
+import { useRunStep, useWriteChannel } from '../queries.js';
+import { AlertNote } from '../ui/Alert.js';
+import { Button } from '../ui/Button.js';
+import { labels } from '../i18n/catalogue.js';
+import { Meter, RecordCard } from './RecordCard.js';
 
 /**
  * What a mode asked to have shown, in the region it asked for —
@@ -48,12 +52,20 @@ export function ModeRegion(props: {
    * moment this was written the other way. One read, many renderings.
    */
   surfaces: readonly ModeSurface[] | undefined;
-  region: 'hud' | 'panel' | 'message' | 'stage';
+  region: 'hud' | 'panel' | 'message' | 'stage' | 'settings';
   /**
    * Which scope key to show, for an actor-scoped channel — a sprite beside the
    * line its speaker said. Absent shows every key the region has.
    */
   scopeKey?: string | null;
+  /**
+   * ***Who a scope key is*** — [P14.5a]. A per-character card is headed by the
+   * character's name, and a name is the library's to give: the page already
+   * holds the actors, so it hands a lookup down rather than this component
+   * reading the library for every card. Absent, a scoped card is headed by its
+   * label alone.
+   */
+  nameOf?: (scopeKey: string) => string;
   className?: string;
 }): JSX.Element | null {
   const surfaces = (props.surfaces ?? []).filter(
@@ -65,7 +77,7 @@ export function ModeRegion(props: {
   if (surfaces.length === 0) return null;
 
   const rendered = surfaces
-    .map((surface) => ({ surface, node: widgetFor(surface, props.sessionId) }))
+    .map((surface) => ({ surface, node: widgetFor(surface, props.sessionId, props.nameOf) }))
     .filter((one) => one.node !== null);
 
   // Every widget in the region was a kind this build does not know. Rendering
@@ -73,11 +85,79 @@ export function ModeRegion(props: {
   // there — the same reason the filter above is not enough on its own.
   if (rendered.length === 0) return null;
 
+  /**
+   * ***Grouped by the contribution's own heading*** — `SurfaceContribution.
+   * group`, [P14.5a]. Ungrouped widgets first, as they always were; then each
+   * group under its heading, in the order its first member was declared. The
+   * heading is authored content travelling with the mode, like a label.
+   */
+  const groups = new Map<string | undefined, typeof rendered>();
+  for (const one of rendered) {
+    const held = groups.get(one.surface.group);
+    if (held === undefined) groups.set(one.surface.group, [one]);
+    else held.push(one);
+  }
+  const loose = groups.get(undefined) ?? [];
+  groups.delete(undefined);
+
   return (
     <div className={props.className ?? 'flex flex-col gap-2'}>
-      {rendered.map((one) => (
+      {loose.map((one) => (
         <div key={one.surface.key}>{one.node}</div>
       ))}
+      {[...groups].map(([group, members]) => (
+        <section key={group} aria-label={group} className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium text-ink-muted">{group}</h3>
+          {members.map((one) => (
+            <div key={one.surface.key}>{one.node}</div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+const ACTION_WORDS = labels('play.mode-actions', {
+  nothing: 'Nothing to change.',
+  failed: 'That did not run.',
+});
+
+/**
+ * ***What a person may run between turns*** — `modeActions`, [P14.5a]'s
+ * *Update trackers*. Knows no step: each button is a declared on-demand step
+ * and its declared words, sent by the server only while the step has something
+ * to do. What it writes is an engine turn under the head, which the cards
+ * above it show once the session is read again.
+ */
+export function ModeActions(props: {
+  sessionId: string;
+  actions: readonly ModeAction[] | undefined;
+  /** No run while a turn is — the route would answer `busy`. */
+  busy?: boolean;
+}): JSX.Element | null {
+  const run = useRunStep(props.sessionId);
+  if (props.actions === undefined || props.actions.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {props.actions.map((action) => (
+        <Button
+          key={action.stepId}
+          type="button"
+          size="compact"
+          disabled={run.isPending || props.busy === true}
+          onClick={() => {
+            run.mutate(action.stepId);
+          }}
+        >
+          {action.label}
+        </Button>
+      ))}
+      {run.isSuccess && run.data.turn === null ? (
+        <span className="text-sm text-ink-muted" role="status">
+          {ACTION_WORDS.nothing}
+        </span>
+      ) : null}
+      {run.isError ? <AlertNote role="alert">{ACTION_WORDS.failed}</AlertNote> : null}
     </div>
   );
 }
@@ -90,8 +170,35 @@ export function ModeRegion(props: {
  * one-line files would make the skip harder to see, and the skip is the load-
  * bearing part.
  */
-function widgetFor(surface: ModeSurface, sessionId: string): JSX.Element | null {
+function widgetFor(
+  surface: ModeSurface,
+  sessionId: string,
+  nameOf: ((scopeKey: string) => string) | undefined,
+): JSX.Element | null {
   switch (surface.kind) {
+    case 'meter':
+      return surface.meter === undefined ? null : (
+        <Meter
+          label={surface.label}
+          value={surface.meter.value}
+          min={surface.meter.min}
+          max={surface.meter.max}
+        />
+      );
+
+    case 'record':
+      return surface.record === undefined ? null : (
+        <RecordCard
+          surface={surface}
+          sessionId={sessionId}
+          heading={
+            surface.scopeKey === null || nameOf === undefined
+              ? surface.label
+              : `${surface.label}: ${nameOf(surface.scopeKey)}`
+          }
+        />
+      );
+
     case 'text':
       return surface.text === undefined ? null : (
         <p className="text-sm text-ink-muted">

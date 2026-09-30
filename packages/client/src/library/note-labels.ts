@@ -520,6 +520,248 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'The tag “{tag}” was not added: this library already has {limit} tags, the most it keeps. Anything carrying it keeps it as written.',
 
   /**
+   * **A chat, imported as a session** —
+   * [P14.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * tree builder, for both sources.
+   *
+   * [P14 §2.6] ends on *"everything else is a note, never silence"*, and these
+   * are the places where the session is not quite the chat: a speaker the
+   * library does not have, a hidden line with no exact home, a branch whose
+   * parent never arrived. `hiddenInputShown` and `hiddenDisagrees` are the ones
+   * that change what the model is sent, which is why they warn — a turn here
+   * hides whole or by reply, and a player's line is neither; and a session has
+   * one answer for whether a line is hidden where the family's chats had one
+   * each.
+   */
+  'import.chat.speakerUnresolved':
+    '“{name}” is not in this library. Their messages keep the name, and the character shows as missing.',
+  'import.chat.castCapped':
+    '{count} more characters speak in this chat than the {limit} a cast can hold. Their messages keep their names; they are not in the cast.',
+  'import.chat.hiddenKept':
+    '{count} messages were hidden from the model in the source, and are hidden here too.',
+  'import.chat.hiddenInputShown':
+    '{count} of the player’s messages were hidden in the source while the replies to them were not. A turn here hides whole or by reply, so those messages are shown to the model.',
+  'import.chat.hiddenDisagrees':
+    '{count} messages were hidden from the model in one chat of this family and shown in another. The chats share them here, so they are hidden in every branch.',
+  'import.chat.swipes':
+    '{count} swipes came in as alternatives beside the messages they belong to.',
+  'import.chat.parentMissing':
+    '“{chat}” says it was branched from {parent}, which is not in this import. It is kept here anyway, sharing whatever it has in common with the other chats.',
+  'import.chat.emptyChat': '“{chat}” has no messages, so it has no branch in this session.',
+
+  /**
+   * **One chat file, read** —
+   * [P14.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * SillyTavern JSONL parser, which also reads Marinara's per-chat export.
+   *
+   * *Every one names its chat*, because a family's notes are read together: a
+   * branch and its parent share most of their lines, and "line 7" is only
+   * useful to somebody who knows which file to open. The warnings are the ones
+   * that change what the model is sent — a line lost, a tool call it no longer
+   * sees, an attachment gone, variables a prompt read, a note placed elsewhere;
+   * the rest say what was left behind and why nothing is missing because of it.
+   */
+  'import.chat.lineUnreadable': 'Line {line} of “{chat}” could not be read, so it was left out.',
+  'import.chat.interfaceSkipped':
+    '{count} of SillyTavern’s own screens saved in “{chat}” — help pages, the welcome message and the like — were left out. They were never part of the story.',
+  'import.chat.toolCallsHidden':
+    '{count} tool-call records in “{chat}” came in as hidden narration. SillyTavern sent them to models that could call tools; a turn here has nowhere to keep a tool call, so the model no longer sees them.',
+  'import.chat.attachmentsNotCarried':
+    '{count} messages in “{chat}” had files or pictures attached. The chat file does not hold them, so the messages came in without them.',
+  'import.chat.modelsNotCarried':
+    '{count} replies in “{chat}” recorded the model that wrote them. That is not kept: a turn here records only a request this server made.',
+  'import.chat.variablesNotCarried':
+    '“{chat}” had {count} chat variables set by scripts. They are not carried, so anything in the prompt that read them reads nothing.',
+  'import.chat.noteOutsideHistory':
+    'The author’s note in “{chat}” sat beside the story string in SillyTavern, outside the chat history. Here it sits in the history, {depth} messages from the end.',
+  'import.chat.noteRole':
+    'The author’s note in “{chat}” was sent as the {role}’s message in SillyTavern. Here it is placed the way the Scene pack places notes.',
+
+  /**
+   * **A chat, found against the library and loaded as a session** —
+   * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * resolver and the doors that share it.
+   *
+   * `imported` is the row's first sentence because the disposition beside it
+   * says *Imported* and its help says *now in your library*, and a session is
+   * not in the library — so the row says where it went. The unresolved and
+   * ambiguous ones warn, since each is a character, a persona or a book the
+   * model will not be given. `alreadyHere` is only information: it is said
+   * only when a session holds every turn the chat has, so nothing was lost by
+   * not writing it twice. The three that are not a session
+   * at all — not chosen, over the upload limit, not taken by this kind of
+   * import — say why in the terms of the choice that decided it.
+   */
+  'import.chat.imported':
+    'Imported as the session “{name}”, {turns} turns long. It is in Play, with your other sessions.',
+  'import.chat.alreadyHere':
+    'Already here, and unchanged since: a session on this account was made from this chat, and it holds everything the chat has.',
+  'import.chat.sessionRefused': '“{chat}” could not be loaded as a session ({reason}).',
+  'import.chat.nameAmbiguous':
+    '{count} things in this library are called “{name}”, so the chat was linked to none of them rather than to a guess.',
+  'import.chat.personaUnresolved':
+    'The persona this chat was played as, {persona}, is not in this library, so the session has none. Your messages keep their words.',
+  'import.chat.loreUnresolved':
+    'The chat’s lorebook “{book}” is not in this library, so it is not linked to the session.',
+  'import.chat.notChosen':
+    'Chats were not chosen for this upload, so this one was named and not sent.',
+  'import.chat.overLimit':
+    'This chat did not fit under the {limit} MB upload limit with the rest of the folder, so it was named and not sent. Import it on its own, or sweep the folder from the server.',
+  'import.chat.notImportedHere':
+    'This import brings in library objects only, so the chat was read and not turned into a session.',
+
+  /**
+   * **Sync: a chat imported before, brought up to date** —
+   * [P14.10a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14 §2.7].
+   *
+   * `extended` is the row's first sentence, as `imported` is a first import's:
+   * where the chat went, and how much came. The rest are each one thing sync
+   * did or declined to do, and §2.7 asks for the second kind to be said as
+   * plainly as the first — the head kept for somebody who played on, lines the
+   * source deleted still here, a round that grew beside its earlier self.
+   * `mutesWaiting` warns, because a character the source muted is speaking
+   * here until the next message arrives to carry the mute.
+   */
+  'import.chat.extended':
+    'The session “{name}” was brought up to date from its source: {count} new turns. Nothing already in it was changed or removed.',
+  'import.chat.syncBranches':
+    '{count} new branches in the source came in as branches of the session, each named for its chat.',
+  'import.chat.roundGrew':
+    '{count} replies were added in the source to a round that was already here. Each round as it now stands is beside the round as it was imported, as another version of it.',
+  'import.chat.syncPlayedOn':
+    'You have played on in “{chat}” since it was imported, so your place in it was kept. The new messages are on the source’s branches; open a branch named for its chat to read them.',
+  'import.chat.notInSource':
+    '{count} turns imported before are no longer in the source (deleted or edited there). They are still in the session; nothing is deleted by an update.',
+  'import.chat.syncHidden':
+    '{count} turns were hidden or shown again, as they now are in the source. Anything hidden or shown here was left as you set it.',
+  'import.chat.syncSettings':
+    '{count} of the chat’s settings (reply order, voice, author’s note) were changed in the source and taken from it. Settings you changed here were kept.',
+  'import.chat.syncMutes':
+    '{count} characters were muted or unmuted, as they now are in the source, from the new messages on.',
+  'import.chat.mutesWaiting':
+    '{count} characters were muted or unmuted in the source, but no new message came with the change to carry it, so it will arrive with the next update that brings one.',
+  'import.chat.syncCast':
+    '{count} characters spoke for the first time in the new messages and were added to the session’s cast.',
+
+  /**
+   * **Families and groups** —
+   * [P14.9](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * A SillyTavern branch or checkpoint is its own file, and a family of them is
+   * one session; `inFamily` is the row of every file but the family's first,
+   * so a person scanning the review by file name finds where each chat went.
+   * The group notes say what a `groups/` file did — or, missing, did not do —
+   * for the chats beside it. `familyCycle` and `mutedUnresolved` warn: one is a
+   * guess about which chat came first, the other a character who was muted and
+   * is not now, since the session has nobody to mute. `parentNotHere` warns
+   * because a chat was left out that a whole-folder import would bring, and
+   * `groupChatsClaimed` because two groups claiming one chat means one of them
+   * was not applied. `groupRead` counts the sessions made from the group's
+   * chats; `groupSynced` those already here, which sync compared the group
+   * with ([P14.10a]).
+   */
+  'import.chat.inFamily':
+    '“{chat}” is a branch of “{family}”, and came in as a branch of that session.',
+  'import.chat.familyCycle':
+    '“{chat}” is in a loop of chats that each name another in the loop as the chat they were branched from (it names “{parent}”). “{chat}” was taken as the original.',
+  'import.chat.familySelfParent':
+    '“{chat}” names itself as the chat it was branched from, so it was taken as an original.',
+  'import.chat.parentNotHere':
+    'This chat is a branch of “{parent}”, which is in the source but was not brought in, so it was held back rather than imported as a session of its own. Import the folder whole, or sweep it from the server, to bring the family in together.',
+  'import.chat.groupRead':
+    'The group “{group}”: its {members} members, reply order and muted members were applied to {sessions} sessions made from its chats.',
+  'import.chat.groupSynced':
+    'The group “{group}” was compared with {sessions} sessions already here from an earlier import. What it changed in the source since came across where nothing here had changed it; each chat’s row says what.',
+  'import.chat.groupNoChats':
+    'The group “{group}” came without any of its chats, so there was nothing to apply its members and settings to.',
+  'import.chat.groupChatsClaimed':
+    'The group “{group}” lists chats that the group “{other}” lists too. They came in as “{other}”’s sessions, so nothing was applied from this group.',
+  'import.chat.groupLegacyFormat':
+    'The group “{group}” was saved by an older SillyTavern, with its members by name and one chat. It was read as SillyTavern reads it, matching each member by name.',
+  'import.chat.groupLegacyMetadata':
+    'The group “{group}” was saved by an older SillyTavern that kept its chats’ settings (branches, author’s notes, persona and lorebook) in the group file. A chat without its own copy had them read from there.',
+  'import.chat.groupMissing':
+    '“{chat}” is a group chat whose group file did not come with it. Its cast is whoever speaks in it, and it replies the way Scene does by default.',
+  'import.chat.groupStrategyUnknown':
+    'The group “{group}” uses a reply order this version does not know ({strategy}), so its sessions use Scene’s default.',
+  'import.chat.groupGenerationMode':
+    'The group “{group}” built its prompts in SillyTavern’s “{mode}” mode. That is recorded only: here, which character’s card a reply sees is decided by the Scene pack.',
+  'import.chat.mutedUnresolved':
+    '“{name}” was muted in the group, but is not in this library, so they could not be muted here.',
+
+  /**
+   * **A Marinara store's chats** —
+   * [P14.10](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   * Read from its tables rather than a file, so these are the things a table
+   * row keeps that a session does not: another kind of chat, rows with no chat,
+   * and the per-message and per-chat state [P14 §2.6] lists as a note. The
+   * agents' state is the one that is a stage away rather than a choice — it
+   * arrives with the tracker and director channels — and the label says so.
+   */
+  'import.chat.modeNotImported':
+    '“{chat}” is a Marinara {mode} chat. Only roleplay chats become sessions, so it is recorded here and not imported.',
+  'import.chat.orphanedMessages':
+    '{messages} messages and {swipes} swipes in the Marinara store belong to no chat it holds, so they were not imported.',
+  'import.chat.roleUnknown':
+    '{count} messages in “{chat}” have a role Marinara does not write, so they were left out.',
+  'import.chat.hiddenPerCharacter':
+    '{count} messages in “{chat}” were hidden from some characters and not others. A message here is hidden from everyone or no one, so these are shown to all of them.',
+  'import.chat.hiddenFromUserShown':
+    '{count} messages in “{chat}” were sent to the model but hidden from the chat. Here every message the model is sent is shown, so these are visible.',
+  'import.chat.rewriteOriginalsNotCarried':
+    '{count} messages in “{chat}” were rewritten by Marinara’s prose guardian. The rewritten text came in; the originals were not kept.',
+  'import.chat.summaryNotCarried':
+    '“{chat}” had a rolling summary in Marinara. The summary itself was not imported.',
+  'import.chat.summaryHiddenRestored':
+    '{count} messages in “{chat}” had been hidden by Marinara’s rolling summary. The summary did not come across, so they are visible to the model again.',
+  'import.chat.conversationStartHidden':
+    '{count} messages in “{chat}” came before its latest conversation start, so Marinara no longer sent them to the model. They are hidden here for the same reason.',
+  'import.chat.conversationStartPerCharacter':
+    '{count} messages in “{chat}” started a new conversation for some characters and not others. A conversation start here is for everyone or no one, so these were not treated as starts.',
+  'import.chat.branchLinkMissing':
+    '“{chat}” was a branch in Marinara, but the export removed its link to the chat it came from. It is a session of its own, repeating the start it shares with that chat.',
+  'import.chat.agentsNotCarried':
+    '“{chat}” ran Marinara agents this version does not import, or imports under another name (expressions, backgrounds, illustrations, summaries). Their switches were not carried.',
+
+  /**
+   * **The editor and the echo chamber** —
+   * [P14.5c](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   * Their switches and settings come; the two agents that are not built each
+   * say why, in a sentence a person can act on.
+   */
+  'import.chat.scenarioAmbiguous':
+    'The characters in “{chat}” brought different scenarios, so the session was given none.',
+  'import.chat.continuityApplies':
+    '“{chat}” ran Marinara’s continuity checker, which rewrites what it finds, so it came across doing the same.',
+  'import.chat.echoChamberDiffers':
+    '“{chat}” ran Marinara’s Echo Chamber, a live audience. Here the echo chamber has the scene’s characters react instead.',
+  'import.chat.immersiveHtmlNotBuilt':
+    '“{chat}” ran Marinara’s immersive HTML agent. It is not built here: markup a model wrote could run code in this app.',
+  'import.chat.cardEvolutionNotBuilt':
+    '“{chat}” ran Marinara’s card-evolution auditor. It is not built here: a card changed inside one story would carry it into every other.',
+
+  /**
+   * **The trackers' state** —
+   * [P14.5a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   * What came across is counted; what did not is said, each with why. The
+   * models are the one a Marinara user will look for: they are global there,
+   * so here the trackers run on the session's own model roles.
+   */
+  'import.chat.trackersCarried':
+    '{count} tracker snapshots in “{chat}” came across as the tracked state of the messages they belong to, each swipe with its own.',
+  'import.chat.trackerSnapshotsUnplaced':
+    '{count} tracker snapshots in “{chat}” name a swipe its message does not have, so they were not placed.',
+  'import.chat.trackerKeysNotCarried':
+    '{count} locked or hidden tracker fields in “{chat}” name a row or field this version does not keep, so they were not carried.',
+  'import.chat.manualTrackersPerAgent':
+    '“{chat}” set some trackers to run only when asked. Here that is one setting for every tracker: if every tracker the chat ran was set that way, they all run only when asked; otherwise those ones were left switched off, so none runs every turn where Marinara ran it only on request. Switch them on and use Update trackers to run them.',
+  'import.chat.agentModelsNotCarried':
+    '“{chat}” ran trackers on models Marinara chooses per agent, for every chat. Those were not imported: the trackers here use this session’s model roles.',
+  'import.chat.stateMemberUnresolved':
+    'Tracked state for {count} characters ({names}) came with the chat, but they are not in this session’s cast, so it was left out.',
+
+  /**
    * **The other direction, and it is new at this stage.**
    *
    * [00 §2.4]'s *"nothing is lost and re-export is possible"* was kept by

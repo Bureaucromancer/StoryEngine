@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { collectCandidates, type CollectContext, type Collected } from '../assembly/collect.js';
+import {
+  collectCandidates,
+  type CollectChat,
+  type CollectContext,
+  type Collected,
+} from '../assembly/collect.js';
+import { castIsPresentFor, chatSettingsOf, noteDue } from '../sessions/chat-settings.js';
+import { saysSomething } from './speakers.js';
 import type { Accounts } from '../auth/accounts.js';
 import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
 import type { Mode } from '@storyengine/sdk';
@@ -340,7 +347,7 @@ export function roleLayersOf(
 
 /** What the collector takes from the gather rather than from the call. */
 type FromGather =
-  'preset' | 'history' | 'persona' | 'actors' | 'channels' | 'carriers' | 'goal' | 'dials';
+  'preset' | 'history' | 'persona' | 'actors' | 'channels' | 'carriers' | 'goal' | 'dials' | 'chat';
 
 /**
  * ***The collector's input, the half this gather knows filled here once***
@@ -360,7 +367,32 @@ export function collectFor(
   inputs: AssemblyInputs,
   call: Omit<CollectContext, FromGather> & Partial<Pick<CollectContext, 'channels'>>,
 ): Collected {
+  /**
+   * ***The chat settings, read once for every caller*** — [P14.3], through
+   * `chatSettingsOf` for its reason (what absence means is not a local
+   * question). The author's note is decided here because deciding needs the
+   * whole path's input count, and the collector is handed only the window; it
+   * reaches **only a call that writes the turn's messages** (one with a
+   * `voice`), because a note steers the story's replies and a stager's or a
+   * judge's call is not one. Impersonation carries no voice and no note —
+   * SillyTavern sends its note to an impersonation too, and a person who wants
+   * that has the guidance box, which is per turn.
+   */
+  const chat = chatSettingsOf(inputs.session, inputs.mode.definition);
+  const spoken =
+    inputs.history.filter((turn) => saysSomething(turn.input)).length +
+    (saysSomething(call.input) ? 1 : 0);
+  const collectChat: CollectChat = {
+    dispatch: chat.dispatch,
+    // The mode's reading, in an embodied session only — see `castIsPresentFor`.
+    castIsPresent: castIsPresentFor(chat, inputs.mode.definition),
+    namesInHistory: chat.speakers.namesInHistory,
+    hidden: chat.hidden,
+    prompts: chat.prompts,
+    note: call.voice === undefined ? null : noteDue(chat.note, spoken),
+  };
   return collectCandidates({
+    chat: collectChat,
     preset: inputs.preset,
     history: inputs.windowed,
     persona: inputs.cast.persona,

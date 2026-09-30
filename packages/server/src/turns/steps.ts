@@ -59,7 +59,11 @@ export interface ConditionContext {
   turnsOnPath: number;
   /** Stage flags the mode has raised. Empty until P2.6 supplies a mode. */
   stages: ReadonlySet<string>;
-  /** Flags the user armed for this turn. */
+  /**
+   * Flags the user armed for this turn — ***produced at last*** ([P14.5b],
+   * [25 C17]): a submission's `push` arms `push`, which the director's step
+   * waits on (`turns/direct.ts`). Empty on every other turn.
+   */
   armed: ReadonlySet<string>;
 }
 
@@ -149,11 +153,15 @@ export function filterReads(
       attachments?: TurnAttachment[];
     };
     speakers?: readonly string[];
+    voice?: StepInput['voice'];
+    dispatch?: StepInput['dispatch'];
     setup?: Readonly<Record<string, unknown>>;
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
-    output?: { text: string };
+    output?: StepInput['output'];
     cast?: readonly CastEntry[];
+    /** A person's run between turns ([P14.5a]) — see `StepInput.onDemand`. */
+    onDemand?: true;
   },
 ): StepInput {
   /**
@@ -194,6 +202,15 @@ export function filterReads(
      * makes a payload smaller.
      */
     ...(everything.speakers === undefined ? {} : { speakers: everything.speakers }),
+    /**
+     * ***How the session speaks, unfiltered for `speakers`' reason*** —
+     * [P14.2]. The session's own settings applied to the session's own turn,
+     * which every step of its mode is entitled to; and without them a step
+     * could not decide whether to make one call or one per speaker, which is
+     * the decision [P14 §1.4] leaves to the mode.
+     */
+    ...(everything.voice === undefined ? {} : { voice: everything.voice }),
+    ...(everything.dispatch === undefined ? {} : { dispatch: everything.dispatch }),
     // Unfiltered for `speakers`' reason: the mode's own declaration, answered
     // for the mode's own session.
     ...(everything.setup === undefined ? {} : { setup: everything.setup }),
@@ -230,6 +247,9 @@ export function filterReads(
     ...(definition.reads.includes('output') && everything.output !== undefined
       ? { output: everything.output }
       : {}),
+    // Unfiltered, like `speakers`: not a read of anything, but the engine
+    // saying why the step is running at all.
+    ...(everything.onDemand === true ? { onDemand: true as const } : {}),
   };
 }
 

@@ -71,6 +71,7 @@ describe('GET /api/modes', () => {
       'displayName',
       'id',
       'inputs',
+      'openingTurn',
       'participants',
       'presetIds',
       'setup',

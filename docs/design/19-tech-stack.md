@@ -626,7 +626,10 @@ mechanical part.
   SillyTavern's macros *into* Liquid, so without a renderer a converted preset's
   `{{char}}` reaches the model as literal braces, and PLAYABLE would be testing
   prompt garbage. **What makes it a safe dependency is the fence rather than the
-  library**: rendering is block-scoped over a closed namespace of two names, so
+  library**: rendering is block-scoped over a closed namespace of ~~two names~~
+  five (*corrected 2026-09-29, at
+  [P14.2](workplan/31-p14-scene-and-session-import.md)*: `group`,
+  `charIfNotGroup` and `notChar` beside `char` and `user`), so
   the surface we depend on is `parseAndRenderSync` and nothing else. Swapping it
   would be a day's work, which is the test §6 applies to the framework.
 - **`@fastify/multipart`** for the one upload route. The first non-JSON body this

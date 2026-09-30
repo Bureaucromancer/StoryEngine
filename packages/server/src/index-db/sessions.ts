@@ -136,42 +136,46 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
 }
 
 /**
- * ***The key an imported session is found by again, or null*** —
- * [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md).
- *
- * The library's rule read off the session's own record: `source: 'import'`
- * and a filename, the two fields `findPriorImport` reads from an object's
- * `provenance` ([P4 §1.3]). **Shape-guarded**, because `readSession`
- * validates nothing past the id and a hand-edited `origin` reaches here; a
- * value that is not the shape is no key, which is what it was before this
- * column existed.
+ * `origin.originalFilename`, read as the file a person may have edited: a
+ * string or nothing, since a hand-written number here must not throw out of
+ * every write of the session. *Any origin's*, not only an `import` one's
+ * ([P13.10] first read only those): `importSession` stamps `source: 'import'`
+ * on everything it writes, so the two readings differ only for a hand edit,
+ * and this one agrees with what the importer reads out of a document.
  */
 function originFilenameOf(session: SessionFile): string | null {
-  const origin = (session as { origin?: unknown }).origin;
-  if (typeof origin !== 'object' || origin === null) return null;
-  const { source, originalFilename } = origin as Record<string, unknown>;
-  if (source !== 'import') return null;
-  return typeof originalFilename === 'string' && originalFilename !== '' ? originalFilename : null;
+  const named: unknown = session.origin?.originalFilename;
+  return typeof named === 'string' && named !== '' ? named : null;
 }
 
 /**
- * ***The session of this owner that an earlier import of this source made***,
- * or null — [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md),
- * the session half of `findPriorImport`.
+ * ***The session this account made from a source***, or null —
+ * [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md) and
+ * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * ([P14.10a]), which each needed it, on two branches at once, and each wrote
+ * it; this is the one that survived the merge. The session half of
+ * `findPriorImport`.
+ *
+ * The library's re-import rule, applied to a session: *same owner, same
+ * `originalFilename`* is the same thing (`import/identity.ts`). **Two callers
+ * ask it for two answers**: a producer's re-import (`aventura.db/stories/<id>`)
+ * is refused `already-here` naming what this finds, and a chat's (its
+ * family's root path) extends it.
  *
  * **Per owner**, as the library's rule is and for its reason: two accounts
- * importing one Aventuras database are two people with a story each, and
- * telling the second that the first already has it would say something about
- * an account it cannot see. *Archived sessions count* — archiving hides a
- * session from a list and does not remove it ([03 §10.3]), so an import that
- * made a second copy beside an archived one would be a duplicate somebody
- * finds later. A session in the trash has no row and does not count; see the
+ * importing one source are two people with a session each, and telling the
+ * second that the first already has it would say something about an account
+ * it cannot see. *Archived sessions count* — archiving hides from a list
+ * rather than removing ([03 §10.3]), and an archived chat that grew is still
+ * that chat. A session in the trash has no row and does not count; see the
  * importer's header for what that costs.
  *
- * Ordered by id so that two sessions carrying one key — which only a hand
- * copy can make — answer the same one every time.
+ * *The newest, if several*: two sessions can claim one source only when one
+ * was restored from a backup beside the other, or copied by hand, and the one
+ * somebody touched last is the likelier one to mean. The id breaks a tie, so
+ * the same one answers every time.
  */
-export function sessionImportedFrom(
+export function sessionByOrigin(
   db: DatabaseSync,
   owner: string,
   originalFilename: string,
@@ -180,7 +184,7 @@ export function sessionImportedFrom(
     .prepare(
       `select session_id, name from session
         where owner = ? and origin_filename = ?
-        order by session_id limit 1`,
+        order by updated_at desc, session_id limit 1`,
     )
     .get(owner, originalFilename) as { session_id: string; name: string } | undefined;
   return row === undefined ? null : { sessionId: row.session_id, name: row.name };
@@ -209,6 +213,9 @@ export function indexTurn(
   location: TurnLocation,
 ): void {
   inTransaction(db, () => {
+    // Asked before the upsert below answers it for good — see the delete.
+    const reindex = db.prepare('select 1 from turn where turn_id = ?').get(turn.id) !== undefined;
+
     db.prepare(
       `insert into turn (turn_id, session_id, segment, offset)
          values (?, ?, ?, ?)
@@ -218,10 +225,19 @@ export function indexTurn(
     ).run(turn.id, sessionId, location.segment, location.offset);
 
     // FTS5 has no upsert, so a reindex of the same turn is a delete and an
-    // insert. Cheap, and it keeps a re-run of the same append — which the commit
+    // insert. It keeps a re-run of the same append — which the commit
     // protocol's idempotency makes an ordinary event — from leaving two rows
     // that both match.
-    db.prepare('delete from turn_fts where turn_id = ?').run(turn.id);
+    //
+    // ***Only for a reindex*** ([P14.8]). This said the delete was cheap, and
+    // it is not: `turn_id` is an unindexed FTS column, so the delete reads
+    // every turn's text on the install, and a chat import appends thousands of
+    // turns in one request — quadratic in the chat's length, 16 s for 4,000
+    // lines when a review measured it. A turn with no `turn` row cannot have an
+    // FTS row: the two are written in this one transaction and removed together
+    // (`removeSessionRows`, the rebuild), so for a new turn the scan could only
+    // ever find nothing.
+    if (reindex) db.prepare('delete from turn_fts where turn_id = ?').run(turn.id);
 
     const text = turnText(turn);
     if (text.length > 0) {
@@ -435,6 +451,25 @@ export function sessionHoldingTurns(db: DatabaseSync, turnIds: Iterable<string>)
     if (row !== undefined) return row.session_id;
   }
   return null;
+}
+
+/**
+ * How many of these turns the index does not hold.
+ *
+ * ***The rest of the question `sessionHoldingTurns` stops asking at its first
+ * yes*** — [P14.8]. A chat import refused as `already-here` knows that *some*
+ * of its turns are on this install; whether *all* of them are is the
+ * difference between a copy of what is here, which is `unchanged`, and one
+ * the refusal would leave something out of (`import/chat-sessions.ts`). Since
+ * [P14.10a] a chat that grew extends its own session instead of being refused,
+ * so this is asked only of turns another session holds. Asked of the `turn`
+ * table alone, for the reason the function above gives.
+ */
+export function turnsNotHeld(db: DatabaseSync, turnIds: Iterable<string>): number {
+  const find = db.prepare('select 1 from turn where turn_id = ?');
+  let missing = 0;
+  for (const turnId of turnIds) if (find.get(turnId) === undefined) missing += 1;
+  return missing;
 }
 
 /**

@@ -130,6 +130,28 @@ describe('the mode registry', () => {
     // necessary.
     expect(registry.modeById(registry.DEFAULT_MODE_ID)).toBeNull();
   });
+
+  it('names the mode chats are imported into apart from the default', async () => {
+    // [P14.8]: the same string today, for a different reason — the default is
+    // a fallback and this is a mapping. Two constants, so that moving the
+    // default does not quietly move every imported chat with it.
+    const registry = await freshRegistry();
+
+    expect(registry.CHAT_IMPORT_MODE_ID).toBe('storyengine.scene');
+  });
+
+  it('refuses to serve a build that cannot play what a chat imports into', async () => {
+    // Every mode below can run, and the build still cannot take the one
+    // import a SillyTavern user arrives with: each chat would be written into
+    // a mode nothing registered, and would open under the default with a
+    // logged substitution. Said at startup instead.
+    const registry = await freshRegistry();
+    registry.registerMode(fakeMode('example.quiet'));
+
+    expect(() => {
+      registry.assertModesRunnable();
+    }).toThrow(/Chats are imported into storyengine\.scene/);
+  });
 });
 
 function step(id: string): import('@storyengine/sdk').StepDefinition {

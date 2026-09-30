@@ -22,6 +22,8 @@ import { retrieve } from '../retrieval/retrieve.js';
 import { loreReport } from '../retrieval/blocks.js';
 import { planCall, RoleUnresolved, WindowTooSmall } from './calls.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
+import { chatSettingsOf } from '../sessions/chat-settings.js';
+import { talkativenessMap, turnSelection } from './speakers.js';
 import { summaryPlanFor } from './summarise.js';
 
 /**
@@ -94,13 +96,28 @@ export interface PreviewRequest {
 }
 
 /**
- * The step a preview is about: the first that asks the prose role.
+ * The step a preview is about: the first that asks the prose role ***and
+ * writes the turn's messages***, else the first that asks the prose role.
  *
  * One function so P7's per-step surfaces have a single place to change, and so
  * the answer's `stepId` and the call it previewed cannot come apart.
+ *
+ * *Corrected 2026-09-29, at [P14.5b]*: `role` is which model a step binds,
+ * not what it writes, and every Scene step asks `prose` for [25 C15]'s reason.
+ * While the narrator was Scene's first step the two readings agreed; the
+ * secret plot's `pre` pass, declared ahead of it, is a `prose`-role call that
+ * writes an effect, and the preview measured that instead of the prompt a
+ * person is about to send. The fallback keeps a mode whose prose step
+ * contributes nothing declared previewing what it did.
  */
 export function previewStepFor(mode: Mode): StepDefinition | null {
-  return mode.definition.steps.find((step) => step.role === 'prose') ?? null;
+  return (
+    mode.definition.steps.find(
+      (step) => step.role === 'prose' && step.contributes === 'messages',
+    ) ??
+    mode.definition.steps.find((step) => step.role === 'prose') ??
+    null
+  );
 }
 
 /**
@@ -173,6 +190,63 @@ export async function previewAssembly(
       lore: NO_LORE_REPORT,
     };
   }
+
+  /**
+   * ***Whose call this is*** — [P14.3], and the answer to [P14.2]'s *"the
+   * preview still assembles one merged call"*.
+   *
+   * **The first speaker's call, as the turn would make it.** Under an embodied
+   * voice the generate step speaks as the selection's first member whatever
+   * the dispatch — every call under `per-actor`, the one call under `merged` —
+   * so the prompt a person most needs to see before sending is that one:
+   * `{{char}}` as them, their card first, their card prompts under `per-actor`.
+   * The selection is `turnSelection`'s, the runner's own question, asked with
+   * the draft as the input; a narrated session, or a room nobody is cast in,
+   * has no selection and is previewed as the narrator's one call, as the turn
+   * would be.
+   *
+   * *What it cannot promise, stated.* The policy's rolls are drawn on a fresh
+   * tape (the scan's reason below: a preview reserves nothing), so under
+   * `natural` a draft that names nobody shows **one** plausible first speaker,
+   * not the one the turn will roll — a draft that names somebody is decided by
+   * the mention and matches. `smart` shows its rule-based fallback, because a
+   * preview makes no model call. And a round's *later* speakers are not
+   * previewed at all: their prompts hold replies nobody has written yet.
+   *
+   * ***A selection of nobody is nothing assembled***: `manual` after an input,
+   * or a room whose every member is muted, makes no call, and the meter says
+   * `not-this-turn` rather than measuring a prompt nobody will send.
+   */
+  const chat = chatSettingsOf(inputs.session, inputs.mode.definition);
+  const selection =
+    chat.voice === 'embodied'
+      ? turnSelection({
+          policy: chat.speakers,
+          castIsPresent: inputs.mode.definition.participants.castIsPresent === true,
+          cast: inputs.cast,
+          channels: inputs.channels,
+          history: inputs.history,
+          hidden: chat.hidden,
+          input: request.input,
+          forced: undefined,
+          talkativeness: talkativenessMap(inputs.cast.actors, inputs.mode.definition.id),
+          draw: (() => {
+            const tape = new Rng();
+            return (purpose: string) => tape.at('se.participants', purpose);
+          })(),
+        })
+      : undefined;
+  if (selection?.speakers.length === 0) {
+    return {
+      state: 'unmeasurable',
+      headTurnId,
+      pendingInput,
+      reason: 'not-this-turn',
+      notFilled: [],
+      lore: NO_LORE_REPORT,
+    };
+  }
+  const speaker = selection?.speakers[0];
 
   /**
    * The retriever runs for a preview too, and **moves nothing** — [P5.6].
@@ -273,6 +347,11 @@ export async function previewAssembly(
     // Nothing held reads as the turn's summariser with nothing yet written:
     // absent, not an empty chain.
     ...(summary === undefined || summary.length === 0 ? {} : { summary }),
+    // The first speaker's call, or the narrator's — see `selection` above.
+    ...(speaker === undefined ? {} : { speaker }),
+    ...(step.contributes === 'messages'
+      ? { voice: speaker === undefined ? ('narrator' as const) : ('embodied' as const) }
+      : {}),
   });
 
   /**
@@ -302,8 +381,11 @@ export async function previewAssembly(
         notFilled: collected.notFilled,
         refused: lore.refused,
         picturesPresent,
+        // So the first speaker's model hint applies as the turn's would: under
+        // `per-actor` only ([P14.2], `planCall`).
+        dispatch: chat.dispatch,
       },
-      {},
+      speaker === undefined ? {} : { speaker },
       collected.candidates,
     );
 

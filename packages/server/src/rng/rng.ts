@@ -74,6 +74,8 @@ export class Rng {
   readonly #replay: Map<string, Draw>;
   readonly #tape: Tape = [];
   readonly #counters = new Map<string, number>();
+  /** `Draw.message` for the draws being made now — see {@link speaking}. */
+  #message: number | undefined;
 
   constructor(options: RngOptions = {}) {
     this.#source = options.source ?? cryptoSource;
@@ -83,6 +85,25 @@ export class Rng {
   /** Draws for one site and purpose. Indices within it are automatic. */
   at(site: string, purpose: string): SiteRng {
     return new SiteRng(this, site, purpose);
+  }
+
+  /**
+   * ***Tags the draws `task` makes with the round message they are for*** —
+   * `Draw.message`, 2026-09-29 at the [P14.4] review. **Synchronous on
+   * purpose**: the tag is this object's state while `task` runs, and a task
+   * that awaited could lend it to a draw made elsewhere meanwhile. The runner
+   * wraps a speaking call's lore retrieval, which is synchronous, and nothing
+   * else. `undefined` tags nothing, so a call that speaks for nobody passes
+   * straight through.
+   */
+  speaking<T>(message: number | undefined, task: () => T): T {
+    const before = this.#message;
+    this.#message = message;
+    try {
+      return task();
+    } finally {
+      this.#message = before;
+    }
   }
 
   /** The turn's tape, in draw order. */
@@ -132,19 +153,58 @@ export class Rng {
     // A replayed draw has to be the *same kind* of draw, or the tape is being
     // read against a different question — `d20 → 7` handed to a `pick` is the
     // positional-tape failure wearing a key.
+    // This turn's tag, never the recorded one: the tape says which of *this*
+    // turn's messages a draw was for.
+    const tag = this.#message === undefined ? {} : { message: this.#message };
     if (
       recorded?.kind === kind &&
       recorded.detail === detail &&
       (usable?.(recorded.value) ?? true)
     ) {
-      this.#tape.push({ ...recorded, replayed: true });
+      const draw: Draw = { ...recorded, replayed: true };
+      delete draw.message;
+      this.#tape.push({ ...draw, ...tag });
       return recorded.value as T;
     }
 
     const value = produce(this.#source);
-    this.#tape.push({ key, site, purpose, index, kind, detail, value, replayed: false });
+    this.#tape.push({ key, site, purpose, index, kind, detail, value, replayed: false, ...tag });
     return value;
   }
+}
+
+/**
+ * ***The tape a rewrite swipe from message `from` replays*** — 2026-09-29, at
+ * the [P14.4] review.
+ *
+ * A swipe's first speaking call is the one that writes message *k*, so keys
+ * counted from 0 across the turn line its draws up with **call 0's** in the
+ * original: message *k* was handed message 0's lore rolls, and the tape
+ * marked them `replayed`. Here the draws calls `0..k-1` made (`Draw.message`
+ * below `from`) are dropped — the swipe carries those messages and makes none
+ * of their calls — and each site's remaining draws are renumbered from 0 in
+ * the order they were made, which is the order the swipe makes them: the
+ * turn-wide draws before the round, then call *k*'s, then the rest.
+ *
+ * ***A tape with no tag at all*** was recorded before the tag existed, so which
+ * lore draw belonged to which call cannot be read off it. Its `lore.*` draws
+ * are dropped — call *k* then draws fresh, a reroll of its lore, which is
+ * honest where handing it another call's rolls was not — and every other draw
+ * is kept as it was. `from` 0 is the whole turn's tape, unchanged.
+ */
+export function swipeReplay(tape: Tape, from: number): Tape {
+  if (from <= 0) return tape;
+  const tagged = tape.some((draw) => draw.message !== undefined);
+  const kept = tape.filter((draw) =>
+    tagged ? draw.message === undefined || draw.message >= from : !draw.site.startsWith('lore.'),
+  );
+  const counters = new Map<string, number>();
+  return kept.map((draw) => {
+    const counterKey = `${draw.site}:${draw.purpose}`;
+    const index = counters.get(counterKey) ?? 0;
+    counters.set(counterKey, index + 1);
+    return { ...draw, index, key: `${counterKey}#${String(index)}` };
+  });
 }
 
 /**

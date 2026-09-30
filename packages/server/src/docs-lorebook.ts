@@ -227,10 +227,13 @@ const ENTRIES: readonly LoreEntry[] = [
       'world info',
       'chub',
       'import a card',
+      'import chats',
+      'chat history',
     ],
-    description: 'What can be imported, how, and what the import reports back.',
+    description:
+      'What can be imported, how — chats included, as sessions — and what the import reports back.',
     content:
-      "Character cards (v2 and v3, PNG or JSON), world-info books, and presets convert on the way in. Drop a file on the library's import panel, or point the sweep at a folder.\n\nWhat lands is reported per object: what it was, what it became, and anything the converter had to decide. **A file is a fact about the world rather than a malformed request**, so a file the reader does not recognise is reported rather than refused.\n\nRe-importing the same file is recognised as the same object rather than doubling it, and what a re-import does on a conflict — replace, or keep both — is a question the panel asks rather than a default it applies silently.",
+      "Character cards (v2 and v3, PNG or JSON), world-info books, and presets convert on the way in. Drop a file on the library's import panel, or point the sweep at a folder.\n\n**Chats from SillyTavern or Marinara become sessions.** A folder picked in the browser that holds chats stops and asks first, saying how many and how large, with **Also import the chats** unticked, because chats are most of a folder's size; a folder swept from the server brings its chats with it. A single `.jsonl` loads from the sessions page. Each chat arrives as a new session in Play whose cast is the matching characters in your library. Updating a session from its source comes later: until then, importing the same chat again the same way changes nothing, and the review says so when the chat has grown since.\n\nWhat lands is reported per object: what it was, what it became, and anything the converter had to decide. **A file is a fact about the world rather than a malformed request**, so a file the reader does not recognise is reported rather than refused.\n\nRe-importing the same file is recognised as the same object rather than doubling it, and what a re-import does on a conflict — replace, or keep both — is a question the panel asks rather than a default it applies silently.",
   }),
   entry({
     id: '0199c000-0000-7000-8000-00000000000d',
@@ -284,10 +287,20 @@ const ENTRIES: readonly LoreEntry[] = [
     id: '0199c000-0000-7000-8000-000000000012',
     name: 'Taking a session somewhere else',
     folderId: 'sessions',
-    keys: ['export session', 'import session', 'share a session', 'session file', 'move a session'],
-    description: 'Exporting a session to a file and loading one on another install.',
+    keys: [
+      'export session',
+      'import session',
+      'share a session',
+      'session file',
+      'move a session',
+      'jsonl',
+      'load a chat',
+      'chat file',
+    ],
+    description:
+      'Exporting a session to a file, loading one on another install, and loading a chat from SillyTavern or Marinara.',
     content:
-      "**Export this session** on the session panel writes a file with **every branch**, not only the line you are on.\n\nLoading one back is **Load an exported session** on the sessions page. It arrives as a **new session** with a new id, keeping the turn ids it came with and recording where it came from — so an export and its original can sit side by side without either pretending to be the other.\n\nIt is on the sessions page rather than in the library's import panel because a session is not a library object: it does not merge into a shelf, and what it produces is a session.",
+      "**Export this session** on the session panel writes a file with **every branch**, not only the line you are on.\n\nLoading one back is **Load a session or a chat** on the sessions page. It arrives as a **new session** with a new id, keeping the turn ids it came with and recording where it came from — so an export and its original can sit side by side without either pretending to be the other.\n\nThe same button takes a `.jsonl` chat from SillyTavern or Marinara: it arrives as a new session, with its characters found in your library. Updating a session from its source comes later; until then, loading the same chat again changes nothing, and a chat already imported with its folder arrives as a second session.\n\nAn export loads here rather than in the library's import panel because a session is not a library object: it does not merge into a shelf, and what it produces is a session. A folder's chats can also come in with the folder, through the library's import panel.",
   }),
   entry({
     id: '0199c000-0000-7000-8000-000000000013',

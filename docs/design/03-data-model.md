@@ -1567,8 +1567,13 @@ interface Turn {
 
   /** `toolCalls` is deliberately absent: no `ToolCall` type is defined anywhere
    *  in this design, and no adapter reports one distinctly. It arrives with the
-   *  first step that needs it rather than as a field nothing can fill. */
-  output: { text: string; reasoning?: string }
+   *  first step that needs it rather than as a field nothing can fill.
+   *  `messages` — P14.0, [P14 §1.1]: one per speaker, each `{ speaker: Ref |
+   *  null, text, reasoning?, carried?, original? }`, null the narrator. A turn
+   *  is still one node however many it holds, and when they are present `text`
+   *  is derived from them — their texts joined by a blank line — so every
+   *  reader of `text` keeps working. */
+  output: { text: string; reasoning?: string; messages?: OutputMessage[] }
   /** Terminal only — a turn in flight lives in the operational store ([P2 §2.10]). */
   status: "complete" | "failed" | "suspended"
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */

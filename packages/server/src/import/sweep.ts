@@ -26,6 +26,7 @@ import {
 } from '@storyengine/shared';
 
 import { convertCharacter } from './aventuras/character.js';
+import { importChats, type ChatPass } from './chat-sessions.js';
 import { convertAventurasLorebook, type ConvertedAventurasLorebook } from './aventuras/lorebook.js';
 import { AVT_FORMAT, type AvtStory } from './aventuras/avt.js';
 import { AVENTURAS_DATABASE, AventurasReader } from './aventuras/reader.js';
@@ -47,8 +48,8 @@ import {
   DEFAULT_BACKUP_CONFLICT,
   identify,
   identifyNative,
-  priorImport,
   priorImportId,
+  priorImportRef,
   scenarioStamp,
   stableId,
   stampImported,
@@ -68,6 +69,7 @@ import { readSession, type SessionContext } from '../sessions/store.js';
 import type { SessionFile } from '../sessions/types.js';
 import type { TagStore } from '../tags/store.js';
 import { classifyRoot } from './detect.js';
+import { MARINARA_CHATS_FORMAT } from './marinara/chat.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
 import { BackupReader } from './storyengine/reader.js';
@@ -76,6 +78,7 @@ import { MarinaraReader } from './marinara/reader.js';
 import type { ParseOutcome } from './parse.js';
 import { nameOf, PRESET_CONVERTERS, type PresetConverter } from './preset-converters.js';
 import { convertCard } from './sillytavern/card.js';
+import { SILLYTAVERN_CHAT_FORMAT, SILLYTAVERN_GROUP_FORMAT } from './sillytavern/chat.js';
 import { convertLorebook } from './sillytavern/lorebook.js';
 import { SillyTavernReader } from './sillytavern/reader.js';
 import type { FileSource, ImportCandidate, SourceReader, SourceRefusal } from './source.js';
@@ -241,6 +244,45 @@ export interface SweepRequest {
      */
     maxPictureBytes?: number;
   };
+  /**
+   * ***Where a chat's session is written*** —
+   * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * A sweep writes library objects through `library` and, since P14.8, sessions
+   * through this: a SillyTavern tree's chats become sessions in the same pass
+   * that brings in the cards they are with ([P14 §2.1]). **Every route passes
+   * it.** Absent is a sweep asked for library objects only — the backup
+   * import, whose sessions travel their own way, and the tests of the library
+   * half — and there each chat is reported `recorded` with a note that says
+   * this import does not take chats, so leaving it out is never silent.
+   *
+   * ***Beside `stories`, not folded into it*** — the two arrived on two
+   * branches at once (P13.11 and P14.8) and answer different questions with
+   * the same store. A chat is taken unless the person said not to; an
+   * Aventuras story only when they asked, for the reasons `stories` gives. So
+   * a door passes this always and `stories` when its request says so, and
+   * one field could not say both.
+   */
+  sessions?: SessionContext;
+  /**
+   * ***Whether chats were asked for*** — [P14.8]'s opt-in. Absent is yes,
+   * which is a server-path sweep and a zip: the person pointed at a folder and
+   * everything in it that converts, converts. The browser folder upload says
+   * `false` when the person did not choose chats, because then they were named
+   * and never sent, and each is reported `skipped` — deliberately not taken —
+   * rather than *could not be read*.
+   */
+  chats?: boolean;
+  /**
+   * ***Chats the person chose that the upload could not carry*** — [P14.8].
+   * The browser folder upload plans chats after the library, so when chats
+   * were chosen and some did not fit under `limits.maxUploadMb`, those were
+   * named and not sent. Each is reported `skipped` over the limit, which is
+   * why, rather than *could not be read*, which is what a named file with no
+   * bytes otherwise reads as. `uploadLimitMb` is the limit, for the sentence.
+   */
+  notCarried?: ReadonlySet<string>;
+  uploadLimitMb?: number;
 }
 
 export type SweepOutcome =
@@ -332,10 +374,16 @@ async function readThrough(
       ? { ...request, onConflict: DEFAULT_BACKUP_CONFLICT }
       : request,
   );
+  /** Chat files and group files, held back for the session pass below. */
+  const chats: ImportCandidate[] = [];
 
   for await (const item of reader.items()) {
     if (item.outcome === 'observed') {
       items.push(item.report);
+      continue;
+    }
+    if (isChat(item.candidate)) {
+      chats.push(item.candidate);
       continue;
     }
     items.push(await writer.write(item.candidate));
@@ -344,6 +392,29 @@ async function readThrough(
   // Treatments are created *after* the cards that named them, because
   // deduplication needs to have seen them all first (§1.10).
   items.push(...(await writer.flushTreatments()));
+
+  /**
+   * ***The session pass, after everything the chats could name*** —
+   * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * A chat names its speakers by the card files beside it, and resolution
+   * finds a card through the import stamp its own write left
+   * (`chat/resolve.ts`). So the order is the whole of the design: in one walk,
+   * a chat met before its card would resolve against a library that did not
+   * have the card yet, and a tree of cards and chats — the ordinary shape of a
+   * SillyTavern folder — would import every conversation with its characters
+   * missing. After the library loop, and after the treatments, the library is
+   * as complete as this sweep will make it.
+   *
+   * *Candidates held, not bytes*: each chat is read when the pass reaches it
+   * (`chat-sessions.ts`), so waiting for the cards costs a list of paths.
+   *
+   * *One family, one session* ([P14.9]): the pass groups a character's chats
+   * by `main_chat` into families and reads the `groups/` files beside them,
+   * which is why it is handed the whole list at once rather than one
+   * candidate at a time: a family is a question about more than one file.
+   */
+  items.push(...(await importChats(chatPassOf(request), chats)));
 
   return {
     ok: true,
@@ -376,9 +447,46 @@ export async function convertOne(
   request: SweepRequest,
   candidate: ImportCandidate,
 ): Promise<ImportItemReport[]> {
+  /**
+   * ***A chat is one file too*** — [P14.8]'s *"one file"* door. Handed to the
+   * same session pass a sweep ends with, over the request's one-file source, so
+   * an uploaded `.jsonl` becomes a session by exactly the path a swept one
+   * does, and the upload route learns nothing about chats but to pass
+   * `sessions`.
+   */
+  if (isChat(candidate)) return importChats(chatPassOf(request), [candidate]);
   const writer = new Writer(request);
   const first = await writer.write(candidate);
   return [first, ...(await writer.flushTreatments())];
+}
+
+/**
+ * A candidate for the session pass rather than the library writer — a chat file
+ * or a group's file, however the reader found it: by position in a tree
+ * (`sillytavern/reader.ts`), or by its lines in a loose folder (`upload.ts`);
+ * or, since [P14.10], a Marinara store's chat tables (`marinara/reader.ts`),
+ * which name their speakers by the character rows this sweep writes first.
+ */
+function isChat(candidate: ImportCandidate): boolean {
+  return (
+    candidate.format === SILLYTAVERN_CHAT_FORMAT ||
+    candidate.format === SILLYTAVERN_GROUP_FORMAT ||
+    candidate.format === MARINARA_CHATS_FORMAT
+  );
+}
+
+/** What the session pass needs from a sweep request. */
+function chatPassOf(request: SweepRequest): ChatPass {
+  return {
+    door:
+      request.sessions === undefined
+        ? undefined
+        : { library: request.library, sessions: request.sessions, handle: request.handle },
+    files: request.files,
+    take: request.chats ?? true,
+    ...(request.notCarried === undefined ? {} : { notCarried: request.notCarried }),
+    ...(request.uploadLimitMb === undefined ? {} : { limitMb: request.uploadLimitMb }),
+  };
 }
 
 function readerFor(kind: string, request: SweepRequest): SourceReader | null {
@@ -757,6 +865,9 @@ class Writer {
       // Aventuras' word on its way into the ledger, so clamped; at the pin it
       // is one of two short ones.
       const mode = produced.mode.slice(0, 64);
+      // `appended` only on the chat doors' `extend` arm, which a producer
+      // never asks for; read so the type says so.
+      const turns = result.extended === true ? result.appended : result.turns;
       return {
         source,
         disposition: 'converted',
@@ -765,7 +876,7 @@ class Writer {
         notes: [
           {
             key: 'import.aventuras.storyImported',
-            params: { story, turns: result.turns, branches: produced.branches, mode },
+            params: { story, turns, branches: produced.branches, mode },
             level: 'info',
           },
           ...worldSaid(story, world, links),
@@ -1771,7 +1882,7 @@ class Writer {
     if (settled !== undefined) return { ...settled };
 
     const { library, handle } = this.#request;
-    const earlier = priorImport(
+    const earlier = priorImportRef(
       library,
       handle,
       LOREBOOK_SCHEMA,

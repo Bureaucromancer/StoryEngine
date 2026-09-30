@@ -710,3 +710,83 @@ describe('saving the configuration as a setup', () => {
     expect((await screen.findByRole('status')).textContent).toContain('Rain City');
   });
 });
+
+/**
+ * ***Creation picks characters, and each member's opening*** — [P14 §1.8],
+ * [P14.5]. Before this the form picked a persona only, so every session it
+ * made had an empty cast; a chat with nobody in it is a narrator talking to an
+ * empty room.
+ */
+describe('picking the characters', () => {
+  const CHAT_MODE = {
+    ...plainMode(),
+    voice: 'embodied',
+    dispatch: 'per-actor',
+    participants: { select: 'natural', castIsPresent: true, maxActors: 32 },
+    openingTurn: true,
+  };
+
+  function withOpenings(id: string, name: string, openings: { id: string; label: string }[]) {
+    return {
+      ...libraryObject(id, name, 'storyengine.actor.1'),
+      object: {
+        openings: {
+          written: openings.map((one) => ({ ...one, text: `${one.label} text` })),
+          seeds: [],
+          primaryWrittenId: openings[0]?.id ?? null,
+          primarySeedId: null,
+        },
+      },
+    };
+  }
+
+  beforeEach(() => {
+    listModes.mockResolvedValue({ modes: [CHAT_MODE], defaultModeId: SCENE });
+    listLibrary.mockImplementation((kind: string) =>
+      Promise.resolve({
+        objects:
+          kind === 'actors'
+            ? [
+                withOpenings('actor-vera', 'Vera', [
+                  { id: 'open-1', label: 'At the door' },
+                  { id: 'open-2', label: 'In the rain' },
+                ]),
+                withOpenings('actor-lund', 'Lund', [{ id: 'open-3', label: 'Nods' }]),
+              ]
+            : [],
+      }),
+    );
+  });
+
+  it('seats the characters picked, and sends only an opening somebody changed', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Vera' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Lund' }));
+    // Lund has one opening, so there is nothing to choose.
+    expect(screen.queryByRole('combobox', { name: 'How Lund opens' })).toBeNull();
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'How Vera opens' }),
+      'open-2',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cast: { persona: null, actors: ['actor-vera', 'actor-lund'] },
+          openings: { 'actor-vera': 'open-2' },
+        }),
+      );
+    });
+  });
+
+  it('offers no characters for a mode that seats one', async () => {
+    listModes.mockResolvedValue({ modes: [plainMode()], defaultModeId: SCENE });
+    renderPage();
+    await screen.findByRole('button', { name: 'Start' });
+    await waitFor(() => {
+      expect(listModes).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole('group', { name: 'Characters' })).toBeNull();
+  });
+});

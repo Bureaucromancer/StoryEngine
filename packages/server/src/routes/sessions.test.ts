@@ -20,7 +20,14 @@ import { DOCS_LOREBOOK_ID } from '../docs-lorebook.js';
 import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
-import { GENERATING_MODE, GENERATING_MODE_ID, SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
+import {
+  GENERATING_MODE,
+  GENERATING_MODE_ID,
+  SETUP_MODE,
+  SETUP_MODE_ID,
+  TEST_MODE,
+  TEST_MODE_ID,
+} from '../test-mode.js';
 import { Layout, userOwner } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
@@ -971,7 +978,10 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
+    // gains a block — 23 since the secret plot's slot ([P14.5b]), 22 since
+    // the established-state slot ([P14.5a]), 21
+    // since the embodied instruction and the card's three
+    // prompt slots ([P14.3]), 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
     // from the goal slot ([06 §7.3.3]'s *always injected*, [P7.6]), 15 from the
     // second lore slot ([P6B.1], the phase every `after_char` entry was being
     // dropped for), 14 from the previous-attempt slot ([06 §5.1]), 13 from the
@@ -982,11 +992,42 @@ describe('a session with a cast assembles the whole preset', () => {
     // an absolute count of a shipped object is a number that changes whenever
     // anything ships — the lesson [P7B.0]'s scan-count assertion learned. So the
     // block below names the slot instead, which is the claim that survives.
-    expect(created.body.session.preset.blocks).toHaveLength(17);
+    expect(created.body.session.preset.blocks).toHaveLength(23);
     expect(created.body.session.preset.blocks.map((block: { id: string }) => block.id)).toContain(
       'se.summary',
     );
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
+  });
+
+  /**
+   * ***Voice, dispatch and the speaker policy are written down at creation*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.0].
+   *
+   * Read off the file rather than the reply, because what matters is what a
+   * later build reads: a session with none of the three is taken for one made
+   * before P14.0 and read as the mode's *legacy* values, so a session made now
+   * has to carry what it was made with — or the stage that changes Scene's
+   * declared values would re-voice it.
+   */
+  it('writes the mode’s declared voice, dispatch and speakers onto the session', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Says how it plays' },
+    });
+    expect(created.status).toBe(201);
+
+    const definition = defaultMode().definition;
+    const file = await sessionFileOf(created.body.session.id as string);
+    expect(file.voice).toBe(definition.voice);
+    expect(file.dispatch).toBe(definition.dispatch);
+    expect(file.speakers).toEqual({
+      policy: definition.participants.select,
+      allowSelfResponses: false,
+      namesInHistory: 'groups',
+      maxPerRound: 3,
+    });
   });
 
   it('refuses a mode nobody has heard of at creation', async () => {
@@ -1003,11 +1044,13 @@ describe('a session with a cast assembles the whole preset', () => {
 
   it('refuses more actors than the mode seats', async () => {
     // The first real consumer of `ParticipantPolicy`, which was a declaration
-    // nothing read. Scene seats one.
+    // nothing read. ~~Scene seats one.~~ Scene seats 32 since [P14.3] — the
+    // cast body's own ceiling — so the test mode, which seats one, asks.
+    registerMode(TEST_MODE);
     const refused = await server.request({
       method: 'POST',
       url: '/api/sessions',
-      payload: { name: 'x', cast: { persona: null, actors: ['a', 'b'] } },
+      payload: { name: 'x', mode: TEST_MODE_ID, cast: { persona: null, actors: ['a', 'b'] } },
     });
     expect(refused.status).toBe(422);
     expect(refused.body.error).toBe('too-many-actors');

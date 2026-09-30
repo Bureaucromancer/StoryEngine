@@ -129,6 +129,29 @@ export interface SessionContext {
    * test. `app.ts` answers it from the operational store's `activeJob`.
    */
   busy?: (sessionId: string) => boolean;
+  /**
+   * ***A session arrived by import*** — [P14.11], [18 §7.5]'s cliff.
+   *
+   * `importSession` calls it after a first import and after every sync that
+   * extended one, and `app.ts` answers it by warming the head path's summary
+   * chain in the background, so the first turn played after importing a long
+   * chat does not derive every link inside itself. **On the store's context
+   * rather than the importer's**, because four doors import — the route, the
+   * chat sweep and upload, and a backup restore — and each hands over this
+   * context and nothing else; a hook on any narrower one would be a door that
+   * forgot it. *Called and not awaited*: the import's answer does not wait on
+   * a model. Optional, and absent means nothing warms, which is every
+   * store-only test.
+   */
+  imported?: (handle: string, sessionId: string) => void;
+  /**
+   * ***Stop deriving into a session that is going*** — [P14.11]. Awaited by
+   * `deleteSession` under the session's lock and before the folder moves,
+   * because a warm's link written after the move would make
+   * `sessions/<id>/summaries/` again beside the trashed one — the collision
+   * the busy refusal above exists to prevent for a turn's commit.
+   */
+  deleting?: (sessionId: string) => Promise<void>;
 }
 
 /**
@@ -323,6 +346,22 @@ export interface NewSession {
    * where the library is read.
    */
   goals?: Goal[];
+  /**
+   * ***How the session plays as a chat, written down at creation*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.0].
+   *
+   * Taken from the mode's declared values at the route (`chatSettingsAtCreation`),
+   * because the route is where the mode is resolved. **Written explicitly even
+   * though absence would read the same today**, and that is the point: absence
+   * on a session made before P14.0 means *what the mode used to declare*
+   * (`ModeDefinition.legacy`), so a session made now has to say what it was made
+   * with or it would be read as one of those — and re-voiced by the stage that
+   * changes what the mode declares.
+   */
+  voice?: SessionFile['voice'];
+  dispatch?: SessionFile['dispatch'];
+  speakers?: SessionFile['speakers'];
 }
 
 export async function createSession(
@@ -353,6 +392,9 @@ export async function createSession(
     ...(spec.goals === undefined || spec.goals.length === 0 ? {} : { goals: spec.goals }),
     ...(spec.treatment === undefined ? {} : { treatment: spec.treatment }),
     ...(spec.lore === undefined ? {} : { lore: spec.lore }),
+    ...(spec.voice === undefined ? {} : { voice: spec.voice }),
+    ...(spec.dispatch === undefined ? {} : { dispatch: spec.dispatch }),
+    ...(spec.speakers === undefined ? {} : { speakers: spec.speakers }),
   };
 
   const root = sessionRoot(context.layout, handle, session.id);
@@ -625,6 +667,9 @@ export async function deleteSession(
     if (context.busy?.(sessionId) === true) return { kind: 'busy' };
     const session = await readSession(context, handle, sessionId);
     if (session === null) return { kind: 'no-session' };
+    // A summary warm stopped and waited for, before there is no folder to
+    // write into — see `SessionContext.deleting`.
+    await context.deleting?.(sessionId);
 
     const root = sessionRoot(context.layout, handle, sessionId);
     await context.layout.assertReal(root);
@@ -720,6 +765,12 @@ export async function advanceHead(
   handle: string,
   sessionId: string,
   turn: Turn,
+  /**
+   * ***The turn's hide entry, written with the head*** — `CommitExtras.hidden`,
+   * 2026-09-29 at the [P14.4] review: what a swipe, a continue or an edit
+   * carries from the turn it names. Absent leaves `session.hidden` as it is.
+   */
+  hidden?: true | readonly number[],
 ): Promise<SessionFile | null> {
   const session = await readSession(context, handle, sessionId);
   if (session === null) return null;
@@ -761,6 +812,9 @@ export async function advanceHead(
     updatedAt: new Date().toISOString(),
     headTurnId: turn.id,
     channels: applyEffects(atParent, turn.effects),
+    ...(hidden === undefined || (hidden !== true && hidden.length === 0)
+      ? {}
+      : { hidden: { ...session.hidden, [turn.id]: hidden === true ? true : [...hidden] } }),
   };
   await writeJsonAtomic(sessionFilePath(context.layout, handle, sessionId), next);
   indexSession(context.index, scopeOf(context, handle), next);
@@ -913,7 +967,15 @@ export async function moveHead(
   context: SessionContext,
   handle: string,
   sessionId: string,
-  turnId: string,
+  /**
+   * ***`null` is the root*** — the session before its first turn, [P14.4].
+   * [P14 §1.6]'s *Delete* is *"the head moves to the parent"*, and the parent
+   * of a first turn is nobody: without this, the one message a chat opens on
+   * (the greeting, §1.7) was the one message nobody could delete. Every turn
+   * stays where it was, a root nobody is on, and `resume` from the root goes
+   * forward when there is exactly one root to go to.
+   */
+  turnId: string | null,
   options: { resume?: boolean } = {},
 ): Promise<MoveHeadOutcome> {
   return withSessionLock(sessionId, async () => {
@@ -926,9 +988,18 @@ export async function moveHead(
     const turns = await readTurns(context, handle, sessionId);
     // Scoped to this session by the read itself, so a bare turn id from another
     // one cannot move this head — the same boundary `GET /turns/:turnId` keeps.
-    if (!turns.has(turnId)) return { kind: 'no-turn' };
+    if (turnId !== null && !turns.has(turnId)) return { kind: 'no-turn' };
 
-    const target = options.resume === true ? resumeFrom(session, turns, turnId) : turnId;
+    const roots = childrenByParent(turns).get(null) ?? [];
+    const only = roots.length === 1 ? (roots[0]?.id ?? null) : null;
+    const target =
+      options.resume !== true
+        ? turnId
+        : turnId !== null
+          ? resumeFrom(session, turns, turnId)
+          : only === null
+            ? null
+            : resumeFrom(session, turns, only);
     const path = walkPath(turns, target);
 
     /**
@@ -1940,8 +2011,12 @@ export async function addSessionGoal(
  * whole object either way, and whether it came from the library or from the
  * panel's own fields is not a distinction this layer can see or needs to.
  *
- * ***A field on the session and not a channel***, which §1.1 leans and P7.3
- * decided the same way for voice and dispatch.
+ * ***A field on the session and not a channel***, which §1.1 leans ~~and P7.3
+ * decided the same way for voice and dispatch~~. *Corrected 2026-09-29: P7.3
+ * decided nothing about them* — it deferred voice and dispatch to P7.9, whose
+ * record never mentions them, and no session field existed until [P14.0] added
+ * both, the same way and for this reason
+ * ([P14 §0.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
  * [06 §4](../../../../docs/design/06-modes-and-turn-pipeline.md)'s channels are
  * story state — things a turn changes and a rewind restores. A pack is
  * configuration: the runner reads it, no step writes it, and a rewind that

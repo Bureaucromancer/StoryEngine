@@ -79,6 +79,7 @@ export async function advanceCommit(
   job: Job,
   turn: Turn,
   now: number = Date.now(),
+  extras: CommitExtras = {},
 ): Promise<Job> {
   /**
    * **The draft must be the turn this job reserved.**
@@ -132,7 +133,7 @@ export async function advanceCommit(
       // sets rather than advances and recomputes the channel map from the
       // turn's effects, so a head that already names this turn is the state
       // this step produces.
-      await advanceHead(context.sessions, job.account, job.sessionId, turn);
+      await advanceHead(context.sessions, job.account, job.sessionId, turn, extras.hidden);
       return setStep(context, job, 3, 'finalising', now);
     }
 
@@ -171,14 +172,29 @@ export async function advanceCommit(
   }
 }
 
+/**
+ * ***What the head move writes beside the turn*** — added 2026-09-29, at the
+ * [P14.4] review. `hidden` is the new turn's `session.hidden` entry, which a
+ * swipe, a continue or an edit carries from the turn it names
+ * (`TurnPayload.hidden`); written by `advanceHead` in the same session write
+ * as the head, under the lock this protocol already holds.
+ *
+ * *Not on the draft*, so startup recovery commits without it — see
+ * `TurnPayload.hidden` for why that is accepted.
+ */
+export interface CommitExtras {
+  hidden?: true | readonly number[];
+}
+
 /** Runs the protocol to completion from wherever the job currently is. */
 export async function finaliseTurn(
   context: CommitContext,
   jobId: string,
   turn: Turn,
   now: number = Date.now(),
+  extras: CommitExtras = {},
 ): Promise<Job> {
-  return withSessionLock(turn.sessionId, () => finaliseLocked(context, jobId, turn, now));
+  return withSessionLock(turn.sessionId, () => finaliseLocked(context, jobId, turn, now, extras));
 }
 
 async function finaliseLocked(
@@ -186,12 +202,13 @@ async function finaliseLocked(
   jobId: string,
   turn: Turn,
   now: number,
+  extras: CommitExtras,
 ): Promise<Job> {
   let job = readJob(context.db, jobId);
   if (!job) throw new Error(`No job with id ${jobId}.`);
 
   while (job.commitStep < COMMIT_STEPS) {
-    job = await advanceCommit(context, job, turn, now);
+    job = await advanceCommit(context, job, turn, now, extras);
   }
   return job;
 }

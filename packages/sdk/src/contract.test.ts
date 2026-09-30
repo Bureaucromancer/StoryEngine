@@ -4,9 +4,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  joinMessageTexts,
   PRESET_SCHEMA,
   type Candidate,
   type EffectProposal,
+  type OutputMessage,
   type StepDefinition,
   type StepHost,
   type StepImplementation,
@@ -141,6 +143,16 @@ describe('a mode can be written against the SDK alone', () => {
       { kind: 'text', label: 'Time' },
       { kind: 'image', label: 'Behind you' },
       { kind: 'toggle', label: 'Show the scene' },
+      // [P14.5a]'s two, and the record is the one with a payload of its own:
+      // field names from a closed vocabulary and two channel ids, never markup.
+      { kind: 'meter', label: 'Health', max: 10 },
+      {
+        kind: 'record',
+        label: 'The world',
+        fields: [{ key: 'location', label: 'Location', show: 'line' }],
+        locks: 'se.track.locks',
+        hidden: 'se.track.hidden',
+      },
     ];
 
     for (const widget of arms) {
@@ -149,6 +161,13 @@ describe('a mode can be written against the SDK alone', () => {
       // Not `html`, and not anything that would smuggle one in.
       for (const banned of ['html', 'dangerouslySetInnerHTML', 'component', 'render', 'script']) {
         expect(keys, `${widget.kind} carries ${banned}`).not.toContain(banned);
+      }
+      // A record's fields are data too — and `show` is from a closed set, so
+      // nothing there can name a component either.
+      if (widget.kind === 'record') {
+        for (const field of widget.fields) {
+          expect(Object.keys(field).sort()).toEqual(['key', 'label', 'show']);
+        }
       }
     }
   });
@@ -168,6 +187,92 @@ describe('a mode can be written against the SDK alone', () => {
 
     expect(Object.keys(contribution).sort()).toEqual(['channelId', 'region', 'widget']);
     expect(structuredClone(contribution)).toEqual(contribution);
+  });
+
+  /**
+   * ***A step that voices several speakers, from this package alone*** —
+   * [P14.0](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * `OutputMessage` is a record type and lives in `shared`, so what this
+   * asserts is that the re-export carries it: a mode author writing a group
+   * round names the type and the derivation through one import, and the result
+   * still clones, because it crosses the same hop the rest of `StepResult` does.
+   */
+  it('returns several attributed messages, and the text they derive to', () => {
+    const messages: OutputMessage[] = [
+      { speaker: null, text: 'Rain on the tin roof.' },
+      { speaker: { id: 'actor-marlow', name: 'Marlow' }, text: '"You came."' },
+    ];
+    const result: StepResult = { messages };
+
+    expect(structuredClone(result)).toEqual(result);
+    expect(joinMessageTexts(messages)).toBe('Rain on the tin roof.\n\n"You came."');
+  });
+
+  /**
+   * ***A round, fanned out from this package alone*** — [P14.2]. The session's
+   * voice and dispatch arrive on the input, a speaking call names its member,
+   * and the result carries back who spoke and, when cleanup changed the reply,
+   * what the model said — everything a step needs to write the turn's
+   * `messages` without declaring `cast` to learn a name.
+   */
+  it('speaks for each selected member in turn, from the input and the results alone', async () => {
+    const asked: (string | undefined)[] = [];
+    const host: StepHost = {
+      call: (request) => {
+        asked.push(request.speaker);
+        const name = request.speaker === 'actor-vera' ? 'Vera' : 'Lund';
+        return Promise.resolve({
+          callId: `call-${String(asked.length)}`,
+          text: `"${name} speaks."`,
+          usage: null,
+          ...(request.speaker === undefined ? {} : { speaker: { id: request.speaker, name } }),
+          ...(name === 'Vera' ? { original: `Vera: "${name} speaks."` } : {}),
+        });
+      },
+      random: {
+        at: () => {
+          throw new Error('a round draws nothing; its order is the selection');
+        },
+      },
+      signal: new AbortController().signal,
+    };
+    const round: StepImplementation = async (input, stepHost) => {
+      if (input.voice !== 'embodied' || input.dispatch !== 'per-actor') return {};
+      const messages: OutputMessage[] = [];
+      for (const speaker of input.speakers ?? []) {
+        const result = await stepHost.call({ stream: true, speaker });
+        if (result.speaker === undefined) continue;
+        messages.push({
+          speaker: result.speaker,
+          text: result.text,
+          ...(result.original === undefined ? {} : { original: result.original }),
+        });
+      }
+      return { messages };
+    };
+    const input: StepInput = {
+      turnId: 't',
+      sessionId: 's',
+      parentTurnId: null,
+      speakers: ['actor-vera', 'actor-lund'],
+      voice: 'embodied',
+      dispatch: 'per-actor',
+      channels: {},
+    };
+
+    const result = await round(input, host);
+
+    expect(asked).toEqual(['actor-vera', 'actor-lund']);
+    expect(result.messages).toEqual([
+      {
+        speaker: { id: 'actor-vera', name: 'Vera' },
+        text: '"Vera speaks."',
+        original: 'Vera: "Vera speaks."',
+      },
+      { speaker: { id: 'actor-lund', name: 'Lund' }, text: '"Lund speaks."' },
+    ]);
+    expect(structuredClone(result)).toEqual(result);
   });
 
   it('hands over the portable schemas too, so a mode needs one import', () => {

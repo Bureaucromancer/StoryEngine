@@ -949,6 +949,11 @@ Design notes:
 
 ### 7.2 Scene — **1.0**
 
+*Built out to this section at [P14](workplan/31-p14-scene-and-session-import.md)
+(planned 2026-09-28). What shipped until then was
+[P2 §2.4](workplan/08-p2-implementation.md)'s single-actor, narrator-voiced
+minimum; P14 §0.6 records the gap and §1 closes it.*
+
 The SillyTavern/Marinara RP shape: staged scene, optional background and sprites,
 optional HUD, one or more actors present.
 

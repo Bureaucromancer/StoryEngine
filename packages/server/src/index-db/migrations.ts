@@ -82,18 +82,23 @@ import type { DatabaseSync } from 'node:sqlite';
  * only ([25 E15]), because search is read by a person. Turns written before
  * pictures index exactly as they did; the bump is for the ones written since.
  *
- * **12 adds `session.origin_filename`** (2026-09-29, [P13.10]) — the key a
- * session producer's re-import is found by, which is a session's
- * `origin.originalFilename` as the library's is an object's
- * `provenance.originalFilename`. 6's shape and 6's argument: a new column, and
- * an index left at 11 would not have it, so the first `indexSession` after an
- * upgrade would fail on an insert naming a column the table does not have —
- * every session write on the install, not only an import. *Why a column when
- * the library's own key is read out of `body` with `json_extract`*
+ * **12 adds `session.origin_filename`** (2026-09-29, [P13.10] and [P14.10a])
+ * — `origin.originalFilename`, the key an imported session is found by again,
+ * as the library's is an object's `provenance.originalFilename`. **Two
+ * branches added it at once, at this one version, with the same column and the
+ * same index**, and the merge kept one: a producer's re-import (an Aventuras
+ * story, `aventura.db/stories/<id>`) is refused `already-here` by it, and a
+ * chat's (its family's root path, [P14 §2.7]) extends the session it finds.
+ * 6's shape and 9's argument, both: a new column, so an index left at 11 would
+ * fail the first `indexSession` on an insert naming a column the table does
+ * not have — every session write on the install, not only an import — and a
+ * column over files that have not changed, so without the rebuild every
+ * session imported before the upgrade would have it empty, and its source
+ * would come in a second time instead of being found. *Why a column when the
+ * library's own key is read out of `body` with `json_extract`*
  * (`findPriorImport`): a session row caches no body, so there is nothing to
  * extract from, and the alternative — opening every `session.json` an account
- * holds to answer *is this story here* — is the walk this index exists to
- * replace.
+ * holds to answer *is this here* — is the walk this index exists to replace.
  */
 export const INDEX_SCHEMA_VERSION = 12;
 
@@ -237,11 +242,12 @@ create table session (
   archived      integer not null default 0,
   updated_at    text not null,
   -- Where an imported session came from, in its source's own terms —
-  -- \`origin.originalFilename\`, e.g. \`aventura.db/stories/<id>\` ([P13.10]).
-  -- Null for every session made here, and for an import that named no source.
-  -- A producer's re-import is found by it, per owner, as a library object's is
-  -- by its provenance ([P4 §1.3]); derived from \`session.json\` like every
-  -- other column here, so a rebuild writes it back.
+  -- \`origin.originalFilename\`: a producer's key, e.g.
+  -- \`aventura.db/stories/<id>\` ([P13.10]), or a chat family's root path
+  -- ([P14 §2.7]). Null for every session made here, and for an import that
+  -- named no source. A re-import is found by it, per owner, as a library
+  -- object's is by its provenance ([P4 §1.3]); derived from \`session.json\`
+  -- like every other column here, so a rebuild writes it back.
   origin_filename text
 ) strict;
 

@@ -14,7 +14,13 @@ import { renderTemplate } from './template.js';
  * quietly becomes a second assembler.
  */
 
-const CONTEXT = { char: 'Vera Solano', user: 'The Inspector' };
+const CONTEXT = {
+  char: 'Vera Solano',
+  user: 'The Inspector',
+  group: 'Vera Solano, Lund',
+  charIfNotGroup: 'Vera Solano, Lund',
+  notChar: 'The Inspector, Lund',
+};
 
 describe('rendering a block template', () => {
   it('interpolates the participants by name', () => {
