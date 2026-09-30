@@ -778,3 +778,23 @@ export function assetPath(
     return null;
   }
 }
+
+/**
+ * ***Whether a rendition's pixels are here*** (2026-09-30) — `ready`, with an
+ * asset, and the file on disk. A record says what was made; only the disk says
+ * what is still there, and [25 E3]'s emptied `assets/` is the ordinary case
+ * where the two part: *"deleting one leaves `asset: null` and a picture that
+ * can be made again"*. The one reading for the list, which presents such a
+ * record as having no pixels, and the retry, which refuses to overwrite pixels
+ * that are.
+ */
+export async function hasPixels(
+  layout: Layout,
+  handle: string,
+  sessionId: string,
+  rendition: Rendition,
+): Promise<boolean> {
+  if (rendition.state !== 'ready') return false;
+  const path = assetPath(layout, handle, sessionId, rendition);
+  return path !== null && (await fileExists(path));
+}

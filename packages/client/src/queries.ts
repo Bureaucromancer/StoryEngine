@@ -792,7 +792,13 @@ export function useRetryRendition(
   const client = useQueryClient();
   return useMutation({
     mutationFn: (renditionId: string) => retryRendition(sessionId, renditionId),
-    onSuccess: () => {
+    /**
+     * ***Settled, not only succeeded*** (2026-09-30). A retry is refused over
+     * pixels that are here (`409 has-pixels`), which is what a press from a
+     * stale view meets — and the stale view is what the set, read again,
+     * corrects.
+     */
+    onSettled: () => {
       void client.invalidateQueries({ queryKey: renditionsKey(sessionId) });
     },
   });

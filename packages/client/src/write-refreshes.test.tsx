@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const setSessionPreset = vi.fn();
+const retryRendition = vi.fn();
 const updateAccount = vi.fn();
 const writeConfig = vi.fn();
 const updateMe = vi.fn();
@@ -28,6 +29,7 @@ vi.mock('./api.js', async (importOriginal) => {
   return {
     ...actual,
     setSessionPreset: (...a: unknown[]) => setSessionPreset(...a) as unknown,
+    retryRendition: (...a: unknown[]) => retryRendition(...a) as unknown,
     api: { ...actual.api, updateMe: (...a: unknown[]) => updateMe(...a) as unknown },
     adminApi: {
       ...actual.adminApi,
@@ -37,8 +39,16 @@ vi.mock('./api.js', async (importOriginal) => {
   };
 });
 
-const { previewKey, useSetSessionPreset, useUpdateAccount, useUpdateMe, useWriteConfig } =
-  await import('./queries.js');
+const {
+  previewKey,
+  renditionsKey,
+  useRetryRendition,
+  useSetSessionPreset,
+  useUpdateAccount,
+  useUpdateMe,
+  useWriteConfig,
+} = await import('./queries.js');
+const { ApiError } = await import('./api.js');
 
 let client: QueryClient;
 
@@ -123,5 +133,23 @@ describe('a profile save', () => {
     await result.current.mutateAsync({ displayName: 'Ned Carlson' });
 
     expect(invalidated(['admin', 'accounts'])).toBe(true);
+  });
+});
+
+/**
+ * ***A retry refused reads the pictures again*** (2026-09-30). A retry is
+ * refused over pixels that are there (`409 has-pixels`), and what presses one
+ * is a stale view — a second tab, a frame gone astray — which the set, read
+ * again, corrects. It was read again only on success.
+ */
+describe('a retry the server refused', () => {
+  it('reads the pictures again', async () => {
+    retryRendition.mockRejectedValue(new ApiError(409, 'has-pixels', 'That picture is here.'));
+    client.setQueryData(renditionsKey('s-1'), { renditions: [], selection: {} });
+    const { result } = renderHook(() => useRetryRendition('s-1'), { wrapper });
+
+    await expect(result.current.mutateAsync('r-1')).rejects.toThrow();
+
+    expect(invalidated(renditionsKey('s-1'))).toBe(true);
   });
 });

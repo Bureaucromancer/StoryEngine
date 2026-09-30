@@ -77,7 +77,7 @@ import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
-import { assetPath } from '../renditions/worker.js';
+import { assetPath, hasPixels } from '../renditions/worker.js';
 import { fileExists, readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeActions, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
@@ -2432,15 +2432,35 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!(await mine(services, request, reply))) return;
+      /**
+       * ***A read, not a reconcile*** (2026-09-30) — `readMine`, the preview's
+       * door, for the preview's reason: this is asked whenever a picture
+       * arrives or the stream comes back, and a full reconcile each time took
+       * the session's lock and could append a turn under a page that was only
+       * looking. The one read also carries the selection, which was a second.
+       */
+      const session = await readMine(services, request, reply);
+      if (!session) return;
 
       const { sessionId } = request.params as { sessionId: string };
-      const all = await readRenditions(services.sessions.layout, account.handle, sessionId);
-      const session = await readSession(services.sessions, account.handle, sessionId);
-      return reply.send({
-        renditions: [...all.values()],
-        selection: session?.renditionSelection ?? {},
-      });
+      const { layout } = services.sessions;
+      const all = await readRenditions(layout, account.handle, sessionId);
+      /**
+       * ***Ready with no file is no pixels*** (2026-09-30) — [25 E3], and the
+       * answer the client already renders as *cleared, try again*. The record
+       * went out as it was, `ready` with an asset, so the page drew a broken
+       * image where the design promised a picture that can be made again.
+       */
+      const renditions = await Promise.all(
+        [...all.values()].map(async (one) =>
+          one.state === 'ready' &&
+          one.asset !== null &&
+          !(await hasPixels(layout, account.handle, sessionId, one))
+            ? { ...one, asset: null }
+            : one,
+        ),
+      );
+      return reply.send({ renditions, selection: session.renditionSelection ?? {} });
     },
   );
 
@@ -2466,7 +2486,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!(await mine(services, request, reply))) return;
+      // A read, not a reconcile (2026-09-30): a reconcile here could move the
+      // head under the composer the picture is being attached in.
+      if (!(await readMine(services, request, reply))) return;
 
       const { sessionId } = request.params as { sessionId: string };
       const part = await readOnePart(request, reply, services);
@@ -2534,7 +2556,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!(await mine(services, request, reply))) return;
+      // Bytes, read on every render of a turn that has a picture: a read, not
+      // a reconcile (2026-09-30).
+      if (!(await readMine(services, request, reply))) return;
 
       const { sessionId, digest } = request.params as { sessionId: string; digest: string };
       const held = isDigest(digest)
@@ -2575,7 +2599,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!(await mine(services, request, reply))) return;
+      // Bytes, read on every render of a picture: a read, not a reconcile
+      // (2026-09-30).
+      if (!(await readMine(services, request, reply))) return;
 
       const { sessionId, renditionId } = request.params as {
         sessionId: string;
@@ -2604,8 +2630,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
          * **A record that says `ready` and a file that is gone.** Which is not a
          * bug to guard against but the state [25 E3] describes: somebody emptied
          * `assets/`, and *"deleting one leaves `asset: null` and a picture that
-         * can be made again"*. A 404 is what the placeholder renders from, and
-         * the recipe on the record is what the retry runs.
+         * can be made again"*. ~~A 404 is what the placeholder renders from~~ —
+         * it was not: the page drew a broken image. *Since 2026-09-30 the list
+         * says so first* (`asset: null`), and the placeholder renders from that;
+         * this 404 is for a page that read the list before the file went. The
+         * recipe on the record is what the retry runs.
          */
         return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
       }
@@ -2805,6 +2834,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (held === null) {
         return reply.code(404).send({ error: 'no-rendition', message: 'No such rendition.' });
       }
+      /**
+       * ***Never over pixels that are here*** (2026-09-30) — [06 §10.7]'s
+       * *"regeneration must never be a destructive act on something the user
+       * liked"*. A retry runs the record again under the same file name, so
+       * pressed from a stale view — a second tab, a frame that went astray — it
+       * overwrote a finished picture, and a failed run left a failure where the
+       * picture had been; P13.13's imported pictures, drawn by a model this
+       * install does not have, could not be made again at all. Another picture
+       * of the turn is **Illustrate** again, which makes a sibling.
+       */
+      if (await hasPixels(services.sessions.layout, account.handle, sessionId, held)) {
+        return reply.code(409).send({
+          error: 'has-pixels',
+          message: 'That picture is here. Illustrate the turn again to make another beside it.',
+        });
+      }
 
       const again = await services.retryRendition(account.handle, sessionId, held);
       // `202`, like the illustrate route one up and for the same reason: what
@@ -2929,7 +2974,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const account = await requireAccount(request, reply);
       if (!account) return;
 
-      const session = await mine(services, request, reply);
+      // One turn, read by the workbench as a person looks through a story: a
+      // read, not a reconcile (2026-09-30), for the renditions list's reason.
+      const session = await readMine(services, request, reply);
       if (!session) return;
 
       const { turnId } = request.params as { turnId: string };

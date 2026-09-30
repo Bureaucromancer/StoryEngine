@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -11,6 +11,8 @@ import { newActor, type Rendition } from '@storyengine/shared';
 import { FakeProvider } from '../providers/fake.js';
 import { jobForRendition, pendingRenditionJobs } from '../renditions/jobs.js';
 import { readRenditions, writeRendition } from '../renditions/store.js';
+import { assetPath } from '../renditions/worker.js';
+import { readTurns } from '../sessions/store.js';
 import { Layout } from '../storage/layout.js';
 import {
   eventually,
@@ -573,5 +575,123 @@ describe('the recipe outlives the pixels', () => {
      * picture had been paid for twice — which is what the column is for.
      */
     expect(jobForRendition(server.services.state.db, sessionId, made.id)?.attempt).toBe(2);
+  });
+});
+
+/**
+ * ***What the list says, what a retry may do, and what a look may not***
+ * (2026-09-30) — audit S2: an evicted picture listed as one, a retry that
+ * never overwrites pixels that are there, and the picture reads off the
+ * session reconcile.
+ */
+describe('the pictures on disk', () => {
+  /** A finished illustration, its job settled, its file on disk. */
+  async function aPicture(): Promise<Rendition> {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    expect(asked.status).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+    await eventually(() =>
+      Promise.resolve(pendingRenditionJobs(server.services.state.db, sessionId).length === 0),
+    );
+    const [made] = await renditionsOf();
+    if (made === undefined) throw new Error('the picture never landed');
+    return made;
+  }
+
+  function fileOf(made: Rendition): string {
+    const path = assetPath(server.services.sessions.layout, 'ned', sessionId, made);
+    if (path === null) throw new Error('a ready picture has a file');
+    return path;
+  }
+
+  async function listed(): Promise<Rendition[]> {
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/renditions`,
+    });
+    return (read.body as { renditions: Rendition[] }).renditions;
+  }
+
+  /**
+   * ***A picture whose file was deleted is listed as one with no pixels*** —
+   * [25 E3]'s *"a picture that can be made again"*, which the page renders as
+   * a placeholder with a retry. It went out as stored, and the page drew a
+   * broken image.
+   */
+  it('lists a picture whose file is gone as one with no pixels, and runs it again', async () => {
+    const made = await aPicture();
+    expect((await listed())[0]?.asset).not.toBeNull();
+
+    await unlink(fileOf(made));
+    const [shown] = await listed();
+    expect(shown?.state).toBe('ready');
+    expect(shown?.asset).toBeNull();
+
+    const again = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/renditions/${made.id}/retry`,
+      payload: {},
+    });
+    expect(again.status).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+  });
+
+  /**
+   * ***Never over pixels that are here*** — [06 §10.7]. A retry runs the record
+   * again under the same file name, so pressed from a stale view it overwrote
+   * a finished picture.
+   */
+  it('refuses to run a picture again while its pixels are there', async () => {
+    const made = await aPicture();
+    const images = fake.images.length;
+    const bytes = await readFile(fileOf(made));
+
+    const again = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/renditions/${made.id}/retry`,
+      payload: {},
+    });
+
+    expect(again.status).toBe(409);
+    expect((again.body as { error: string }).error).toBe('has-pixels');
+    await settled(server);
+    expect(fake.images).toHaveLength(images);
+    expect(await readFile(fileOf(made))).toEqual(bytes);
+  });
+
+  /**
+   * ***A look is not a reconcile*** — `readMine`, the preview's door. These are
+   * read whenever a picture is drawn or arrives, and a reconcile each time took
+   * the session's lock and could append a divergence turn under a page that
+   * was only looking. The session read still reconciles, which is what shows
+   * the hand edit was there to find.
+   */
+  it('serves the pictures without reconciling a hand edit', async () => {
+    const made = await aPicture();
+    const file = join(dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    stored['channels'] = { 'se.clock': { version: 1, value: { day: 9, hour: 9, minute: 9 } } };
+    await writeFile(file, JSON.stringify(stored, null, 2));
+    const count = async (): Promise<number> =>
+      (await readTurns(server.services.sessions, 'ned', sessionId)).size;
+    const before = await count();
+
+    const looks = [
+      `/api/sessions/${sessionId}/renditions`,
+      `/api/sessions/${sessionId}/renditions/${made.id}/asset`,
+      `/api/sessions/${sessionId}/turns/${made.turnId}`,
+      `/api/sessions/${sessionId}/attachments/sha256:${'0'.repeat(64)}`,
+    ];
+    for (const url of looks) await server.request({ method: 'GET', url });
+    expect(await count()).toBe(before);
+
+    await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(await count()).toBe(before + 1);
   });
 });

@@ -370,10 +370,11 @@ describe('a failed rendition is a placeholder, never a failed turn', () => {
       url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(failed?.id ?? '')}/asset`,
     });
 
-    // Which is what the placeholder renders from. [10 §2.3]: *"the temptation
-    // this feature brings is a placeholder where the picture would go"* — and a
-    // 404 is how the client knows to render one deliberately rather than by an
-    // `<img>` failing.
+    // ~~Which is what the placeholder renders from.~~ It was not (2026-09-30):
+    // the placeholder renders from the list's `asset: null`, which says so of
+    // an evicted picture too since then. [10 §2.3]: *"the temptation this
+    // feature brings is a placeholder where the picture would go"* — and this
+    // 404 is for a page that read the list before the file went.
     expect(asset.status).toBe(404);
   });
 });

@@ -1232,6 +1232,14 @@ put the set and the choice on two cache entries that expire independently — th
 reader would then watch a picture they did not choose for as long as the stale
 half survived.
 
+**A `ready` record whose file is gone is listed with `asset: null`** (2026-09-30)
+— [25 E3](design/25-open-questions.md)'s evicted picture, *"a picture that can
+be made again"*, which a client renders as a placeholder with a retry. It went
+out as stored, so a page drew a broken image. **A read, not a reconcile**: this
+route, the asset and the attachment routes and `GET …/turns/:turnId` read the
+session as the preview does, since they are asked whenever something is looked
+at and a reconcile could append a turn under the page that asked.
+
 ### `GET /sessions/:sessionId/renditions/:renditionId/asset`
 
 The pixels, in the shape `/library/:kind/:id/media/:mediaId` above already uses:
@@ -1241,9 +1249,12 @@ buffer. The client cache-busts with `?v=<digest>` as it does for media.
 **`404` for a rendition with no `asset`**, which is three different states and
 one answer: still pending, failed, or **evicted**. That last one is
 [25 E3](design/25-open-questions.md)'s whole point — *"deleting one leaves
-`asset: null` and a picture that can be made again"* — so a 404 here is what the
+`asset: null` and a picture that can be made again"* — ~~so a 404 here is what the
 client renders a regenerable placeholder from, rather than an `<img>` quietly
-failing.
+failing~~. *Corrected 2026-09-30:* the client drew the `<img>` and it failed
+quietly. The list says `asset: null` for an evicted picture since, and the
+placeholder renders from that; a 404 here is for a page that read the list
+before the file went.
 
 ### `POST /sessions/:sessionId/turns/:turnId/illustrate`
 
@@ -1305,6 +1316,12 @@ answer.
 **`202` with the record set back to `pending`**, like the illustrate route above
 and for the same reason: the pixels arrive on the stream, and a `200` would read
 as *here is your picture*.
+
+**`409 has-pixels` when the picture is there** (2026-09-30) — `ready` with its
+file on disk. A retry runs the record again under the same file name, so from a
+stale view it overwrote a finished picture ([06 §10.7]: regeneration is *"never
+a destructive act on something the user liked"*). Another picture of the turn is
+the illustrate route, which makes a sibling.
 
 ---
 

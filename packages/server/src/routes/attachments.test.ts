@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 
@@ -12,6 +12,7 @@ import type { AssembledBlock, AssembledPreview, Turn, TurnAttachment } from '@st
 
 import { FakeProvider } from '../providers/fake.js';
 import { UNSENT_GRACE_MS } from '../sessions/attachments.js';
+import { readTurns } from '../sessions/store.js';
 import { listEntryNames, touchFile, writeFileBytes } from '../storage/files.js';
 import { Layout } from '../storage/layout.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -316,6 +317,25 @@ function wordsSent(turn: Turn): string {
 }
 
 describe('putting a picture in a session', () => {
+  /**
+   * ***An upload moves no head*** (2026-09-30). The route went through the
+   * session reconcile, which appends a divergence turn when the file was edited
+   * by hand — so attaching a picture could move the head under the composer it
+   * was being attached in, and the move that followed was refused as out of
+   * date. It reads the session as the preview does now.
+   */
+  it('reconciles nothing, so attaching cannot move the head', async () => {
+    const file = join(new Layout(server.dataDir).sessionRoot('ned', sessionId), 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    stored['channels'] = { 'se.clock': { version: 1, value: { day: 9, hour: 9, minute: 9 } } };
+    await writeFile(file, JSON.stringify(stored, null, 2));
+    const before = (await readTurns(server.services.sessions, 'ned', sessionId)).size;
+
+    expect((await attach()).status).toBe(201);
+
+    expect((await readTurns(server.services.sessions, 'ned', sessionId)).size).toBe(before);
+  });
+
   it('stores a picture by its content, and serves it back', async () => {
     const { status, digest } = await attach();
     expect(status).toBe(201);
