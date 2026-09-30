@@ -36,8 +36,16 @@ export function isLibraryKind(value: unknown): value is LibraryKind {
   return typeof value === 'string' && (LIBRARY_KINDS as readonly string[]).includes(value);
 }
 
-/** The folder a schema id's objects live in, or null for a kind this build does not know. */
+/**
+ * The folder a schema id's objects live in, or null for a kind this build does
+ * not know.
+ *
+ * *Own keys only* (2026-09-27): the id is a string the server sent, and read
+ * through the prototype `constructor` named a function rather than nothing. The
+ * search links and the Used-by words both take it from a response.
+ */
 export function kindOfSchema(schemaId: string): LibraryKind | null {
+  if (!Object.hasOwn(LIBRARY_DIRECTORIES, schemaId)) return null;
   return (LIBRARY_DIRECTORIES as Record<string, LibraryKind>)[schemaId] ?? null;
 }
 
@@ -1433,8 +1441,22 @@ export interface ActiveJob {
   commitStep: number;
 }
 
-export function listSessions(): Promise<{ sessions: SessionSummary[] }> {
-  return request('GET', '/api/sessions');
+/**
+ * The account's sessions — the live ones, or with `archived` every one.
+ *
+ * ***The archived ones were unreachable*** (2026-09-27). The route has taken
+ * `?archived=true` all along and nothing asked for it, so a session archived
+ * from its own page could only be found again by its address, and a memory
+ * remembered from one named it *a session you have deleted*. Archiving is
+ * restorable by design ([03 §10.3]); a list that could not show it was not.
+ */
+export function listSessions(options?: {
+  archived?: boolean;
+}): Promise<{ sessions: SessionSummary[] }> {
+  return request(
+    'GET',
+    options?.archived === true ? '/api/sessions?archived=true' : '/api/sessions',
+  );
 }
 
 export function createSession(input: NewSession): Promise<{

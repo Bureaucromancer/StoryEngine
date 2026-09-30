@@ -471,13 +471,18 @@ function LorebookBody(props: {
    * [08 §2], [P8.5].
    *
    * **Read here rather than in the view**, which is pure and tested without a
-   * query client. The same key `SessionsPage` holds, so this is a cache hit for
-   * anybody who has looked at their sessions; and `enabled` keeps an authored
-   * book from fetching a list it has no use for.
+   * query client; and `enabled` keeps an authored book from fetching a list it
+   * has no use for.
+   *
+   * ***With the archived ones*** (2026-09-27): this read the live list, so a
+   * memory from a session that was only archived said *a session you have
+   * deleted*. Its own key rather than `SessionsPage`'s, whose list must not
+   * grow archived rows because this page asked; `['sessions']` invalidations
+   * still reach it by prefix.
    */
   const sessions = useQuery({
-    queryKey: ['sessions'],
-    queryFn: listSessions,
+    queryKey: ['sessions', 'with-archived'],
+    queryFn: () => listSessions({ archived: true }),
     enabled: provenanceSourceOf(object) === 'session',
   });
 

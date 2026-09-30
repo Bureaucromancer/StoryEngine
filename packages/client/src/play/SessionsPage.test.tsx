@@ -493,6 +493,42 @@ describe('renaming a session from the list', () => {
 });
 
 /**
+ * ***An archived session can be found again*** (2026-09-27). Archiving is
+ * restorable, and the control that restores it is on the session's own page —
+ * which nothing linked to once it had left this list. The server has always
+ * answered `?archived=true`; nothing asked.
+ */
+describe('archived sessions', () => {
+  it('are left out until asked for, then listed and marked as archived', async () => {
+    listSessions.mockImplementation((options?: { archived?: boolean }) =>
+      Promise.resolve({
+        sessions:
+          options?.archived === true
+            ? [
+                aSession('s-1', 'Rain City'),
+                { ...aSession('s-2', 'The dry year'), archivedAt: '2026-09-20T00:00:00Z' },
+              ]
+            : [aSession('s-1', 'Rain City')],
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'Rain City' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'The dry year' })).toBeNull();
+    expect(screen.queryByText('Archived')).toBeNull();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show archived sessions' }));
+
+    const archived = await screen.findByRole('link', { name: 'The dry year' });
+    // The marker sits on the archived row, and only there.
+    expect(archived.closest('li')?.textContent).toContain('Archived');
+    expect(
+      screen.getByRole('link', { name: 'Rain City' }).closest('li')?.textContent,
+    ).not.toContain('Archived');
+  });
+});
+
+/**
  * **The wizard, rendered from a declaration this build has never heard of** —
  * [06 §7.3], [P7.4], and the stage's exit line as a test.
  *

@@ -68,7 +68,7 @@ export function useAssistantSession(enabled: boolean): {
   const client = useQueryClient();
   const sessions = useQuery({
     queryKey: ['sessions'],
-    queryFn: listSessions,
+    queryFn: () => listSessions(),
     enabled,
   });
 

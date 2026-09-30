@@ -224,7 +224,19 @@ export function SessionsPage(): React.JSX.Element {
     others: { sessionId: string; name: string }[];
   } | null>(null);
 
-  const sessions = useQuery({ queryKey: ['sessions'], queryFn: listSessions });
+  /**
+   * ***The archived ones, when asked for*** (2026-09-27). Archiving is
+   * restorable by design ([03 §10.3]), and un-archiving is a control on the
+   * session's own page — which nothing linked to once the session had left this
+   * list, so the one way back was its address. Off by default, because an
+   * archive is what a person put out of the way; its own key, so the default
+   * list is never the one that grew.
+   */
+  const [showArchived, setShowArchived] = useState(false);
+  const sessions = useQuery({
+    queryKey: showArchived ? ['sessions', 'with-archived'] : ['sessions'],
+    queryFn: () => listSessions(showArchived ? { archived: true } : undefined),
+  });
   const modes = useQuery({ queryKey: ['modes'], queryFn: listModes });
   const books = useLibrary('lorebooks');
   const treatments = useLibrary('treatments');
@@ -685,6 +697,12 @@ export function SessionsPage(): React.JSX.Element {
         <Note>No sessions of this kind.</Note>
       ) : null}
 
+      <CheckboxField
+        label="Show archived sessions"
+        checked={showArchived}
+        onChange={setShowArchived}
+      />
+
       <ul className="flex flex-col gap-2" aria-label="Sessions">
         {listed.map((session) => (
           <li key={session.id} className="flex items-center gap-2">
@@ -698,6 +716,7 @@ export function SessionsPage(): React.JSX.Element {
               {sessionLabel(session.name)}
             </Link>
             <RenameSession sessionId={session.id} name={session.name} />
+            {session.archivedAt === undefined ? null : <Fine>Archived</Fine>}
           </li>
         ))}
       </ul>

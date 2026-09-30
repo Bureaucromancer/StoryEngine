@@ -12,6 +12,7 @@ import {
   isLibraryKind,
   kindOfSchema,
   LIBRARY_KINDS,
+  listSessions,
   renameSession,
   setSessionLore,
   uploadFailure,
@@ -339,6 +340,39 @@ describe('ids in addresses', () => {
   });
 });
 
+/**
+ * ***The archived sessions, asked for*** (2026-09-27). The route has answered
+ * `?archived=true` since sessions could be archived, and no call sent it — so
+ * an archived session could not be listed, and a memory from one read as
+ * deleted. The live list stays the bare address, which is the key every
+ * existing caller's cache is under.
+ */
+describe('the session list', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the archived ones only when told to', async () => {
+    const seen: string[] = [];
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', (url: string) => {
+      seen.push(url);
+      return Promise.resolve(
+        new Response('{"sessions":[]}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+
+    await listSessions();
+    await listSessions({ archived: false });
+    await listSessions({ archived: true });
+
+    expect(seen).toEqual(['/api/sessions', '/api/sessions', '/api/sessions?archived=true']);
+  });
+});
+
 describe('cookieValue', () => {
   it('finds a cookie among several', () => {
     expect(cookieValue('se_session=abc; se_csrf=deadbeef; other=1', 'se_csrf')).toBe('deadbeef');
@@ -379,6 +413,9 @@ describe('library kinds', () => {
   it('maps a schema id to its folder', () => {
     expect(kindOfSchema('storyengine.actor/1')).toBe('actors');
     expect(kindOfSchema('storyengine.mystery/9')).toBeNull();
+    // A server's string, never read through the prototype (2026-09-27): this
+    // was the `Object` constructor rather than nothing.
+    expect(kindOfSchema('constructor')).toBeNull();
   });
 });
 

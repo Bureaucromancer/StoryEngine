@@ -29,6 +29,7 @@ const readObject = vi.fn();
 const deleteObject = vi.fn();
 const createObject = vi.fn();
 const authState = vi.fn();
+const listSessions = vi.fn();
 const navigate = vi.fn();
 
 const ACTOR_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
@@ -40,6 +41,7 @@ let search: { slug?: string; source?: 'user' | 'system' } = {};
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
   api: {
     readObject: (...a: unknown[]) => readObject(...a) as unknown,
     deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
@@ -102,6 +104,7 @@ beforeEach(() => {
   deleteObject.mockResolvedValue(undefined);
   createObject.mockResolvedValue({ id: COPY_ID, slug: 'vera-kohl-2', contentHash: 'sha256:def' });
   authState.mockResolvedValue({ account: { handle: 'ned', locale: null } });
+  listSessions.mockResolvedValue({ sessions: [] });
 });
 
 function renderPage(): void {
@@ -576,6 +579,52 @@ describe('a lorebook on the detail route', () => {
     await screen.findByRole('heading', { name: 'Ardent' });
     expect(screen.getByRole('link', { name: 'Harbour' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+  });
+
+  /**
+   * ***A memory remembered from an archived session names it*** (2026-09-27).
+   * The page read the live list of sessions, so an origin that had only been
+   * archived — restorable, one control away on its own page — read *a session
+   * you have deleted*, of a session nobody had deleted.
+   */
+  it('names the session a memory came from when that session is archived', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    listSessions.mockImplementation((options?: { archived?: boolean }) =>
+      Promise.resolve({
+        sessions:
+          options?.archived === true
+            ? [
+                {
+                  id: 's-dry',
+                  name: 'The dry year',
+                  createdAt: '2026-09-08T00:00:00Z',
+                  updatedAt: '2026-09-20T00:00:00Z',
+                  headTurnId: null,
+                  archivedAt: '2026-09-20T00:00:00Z',
+                },
+              ]
+            : [],
+      }),
+    );
+    readObject.mockResolvedValue(
+      lorebook({
+        provenance: { source: 'session' },
+        entries: [
+          {
+            id: 'e-1',
+            name: 'Harbour',
+            content: 'Cranes.',
+            keys: [],
+            enabled: true,
+            metadata: { 'se.memory': { sessionId: 's-dry', at: null } },
+          },
+        ],
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'The dry year' })).toBeTruthy();
+    expect(screen.queryByText('a session you have deleted')).toBeNull();
   });
 
   it('falls back to the field list when the file is not a book, rather than failing', async () => {
