@@ -18,6 +18,7 @@ import { planUpload, type ManifestEntry } from '../import/directory-upload.js';
 import { MemoryFileSource } from '../import/memory-source.js';
 import { nearMiss } from '../import/near-miss.js';
 import { previewOne } from '../import/preview.js';
+import { SILLYTAVERN_CHAT_FORMAT } from '../import/sillytavern/chat.js';
 import { readUpload } from '../import/upload.js';
 import { FORWARDED_SAMPLER_PARAMS } from '../providers/forwarded-params.js';
 import {
@@ -31,11 +32,13 @@ import {
   importNotesFor,
   listImports,
   readImport,
+  recordedRootFor,
   recordImport,
   recordRefusal,
 } from '../import/jobs.js';
 import { convertOne, sweep } from '../import/sweep.js';
 import { ZipFileSource } from '../import/zip-source.js';
+import { readSession } from '../sessions/store.js';
 import { looksLikeZip } from '../storage/zip.js';
 import {
   openLocalSource,
@@ -268,6 +271,16 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      */
     const into = destination(part.field('destination'));
 
+    /**
+     * ***`kind: chat` — the file must be a chat, or nothing is written*** —
+     * [P14.8]. Play's *Import session* sends a `.jsonl` here and opens the
+     * row's `objectId` as a session. Without this, a `.jsonl` that was really a
+     * card or a lorebook went into the library through the door the person
+     * used to load a conversation, and Play then navigated to a library id as
+     * though it were a session. Read ahead of the file, as the two above are.
+     */
+    const only = part.field('kind') === 'chat' ? 'chat' : undefined;
+
     const result = await importOneFile(
       services,
       account.handle,
@@ -275,6 +288,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       part.bytes,
       onConflict,
       into,
+      only,
     );
     return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
   });
@@ -375,6 +389,8 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
 
     const outcome = await sweep({
       library: services.library,
+      // Chats become sessions in the same sweep ([P14.8]), after the cards.
+      sessions: services.sessions,
       handle: account.handle,
       files: opened.source,
       ...(body.onConflict === undefined ? {} : { onConflict: body.onConflict }),
@@ -425,6 +441,111 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       suggestions: await adviseOn(services, body.root, opened.source),
     });
   });
+
+  /**
+   * ***Update from source*** —
+   * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.10a]: Play's session menu, on a session made from a chat.
+   *
+   * *"Re-sweeps the server path recorded in the ledger when the import came
+   * from one"* — and a sweep of it is the whole mechanism: the chat pass finds
+   * the session by its source and extends it (`importSession`'s `extend`
+   * arm), and every other chat in the folder is brought up to date by the same
+   * pass, as §2.7 says a re-run sweep does. **`onConflict: skip`**, because the
+   * person asked to update a conversation, and replacing a card they edited
+   * here with the source's would be an answer to a question they did not ask;
+   * the review says which objects differ, and a sweep from the import panel is
+   * still there to take them.
+   *
+   * ***Nothing recorded is a `409` that says so***, and the client offers the
+   * file picker instead — *a browser cannot reopen a path* — for a chat that
+   * came in as one file. The recorded root is never sent back: it is this
+   * install's knowledge of somebody's disk ([21 §4.1.1]), and the client has
+   * no use for it.
+   *
+   * Answers the sweep's report, with its job id, and the row that names this
+   * session — `converted` when it grew, `unchanged` when it did not.
+   */
+  app.post(
+    '/import/sessions/:sessionId/update',
+    { schema: { params: Type.Object({ sessionId: Type.String() }) } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const session = await readSession(services.sessions, account.handle, sessionId);
+      if (session === null) {
+        return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+      }
+      const originalFilename = session.origin?.originalFilename ?? null;
+      if (typeof originalFilename !== 'string' || originalFilename === '') {
+        return reply.code(422).send({
+          error: 'no-source',
+          message: 'This session was not made from a chat, so it has no source to update from.',
+        });
+      }
+
+      const root = recordedRootFor(services.state.db, account.handle, sessionId);
+      if (root === null) {
+        return reply.code(409).send({
+          error: 'no-recorded-source',
+          message: 'This session did not come from a folder on the server. Choose the file again.',
+        });
+      }
+      if (account.capabilities.fileAccess === 'none') {
+        return reply.code(403).send({
+          error: 'no-file-access',
+          message: 'This account may not point the server at a directory.',
+        });
+      }
+
+      const opened = await openLocalSource(root, services.layout.dataRoot);
+      if (!opened.ok) {
+        recordRefusal(services.state.db, {
+          account: account.handle,
+          root,
+          refusal: opened.refusal,
+          at: Date.now(),
+        });
+        return reply
+          .code(422)
+          .send({ error: opened.refusal, message: refusalMessage(opened.refusal) });
+      }
+      const outcome = await sweep({
+        library: services.library,
+        sessions: services.sessions,
+        handle: account.handle,
+        files: opened.source,
+        onConflict: 'skip',
+      });
+      if (!outcome.ok) {
+        recordRefusal(services.state.db, {
+          account: account.handle,
+          root,
+          refusal: outcome.refusal,
+          at: Date.now(),
+        });
+        return reply
+          .code(422)
+          .send({ error: outcome.refusal, message: sweepRefusalMessage(outcome.refusal) });
+      }
+      const jobId = recordImport(services.state.db, {
+        account: account.handle,
+        root,
+        source: outcome.report.source,
+        items: outcome.report.items,
+        at: Date.now(),
+      });
+      // The family's root chat's row, which carries what the sync said; a
+      // branch's row names the same session and says only whose branch it is.
+      const item =
+        outcome.report.items.find(
+          (one) => one.objectId === sessionId && one.source === originalFilename,
+        ) ?? outcome.report.items.find((one) => one.objectId === sessionId);
+      return reply.code(200).send({ report: { ...outcome.report, jobId }, item: item ?? null });
+    },
+  );
 
   /**
    * What a folder is, without importing anything from it.
@@ -496,7 +617,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const body = request.body as { entries: ManifestEntry[] };
+    const body = request.body as { entries: ManifestEntry[]; chats?: boolean };
     const files = new MemoryFileSource(
       {},
       body.entries.map((entry) => entry.path),
@@ -509,10 +630,19 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         .send({ error: classified.refusal, message: sweepRefusalMessage(classified.refusal) });
     }
 
+    /**
+     * ***Chats only when asked for*** — [P14.8]. They are most of a
+     * SillyTavern tree's bytes, so the first plan leaves them out and says what
+     * they would cost (`chats`); the panel offers the choice with that number
+     * on it, and asks again with `chats: true` when it is taken. Asked again
+     * rather than worked out in the browser, so the budget is spent by the one
+     * function that spends it.
+     */
     const plan = planUpload(
       classified.kind,
       body.entries,
       services.config.limits.maxUploadMb * MEGABYTE,
+      { chats: body.chats === true },
     );
 
     // The same advice the sweep gives, from the same module — a folder picked in
@@ -544,6 +674,21 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     const carried: Record<string, Uint8Array> = {};
     let manifest: string[] = [];
     let onConflict: ConflictPolicy | undefined;
+    /**
+     * ***Whether the person chose chats*** — [P14.8]. `skip` says they did not,
+     * and the chats they were offered were named in the manifest and never
+     * sent: each is then `skipped` in the review, which is true, rather than
+     * *could not be read*, which is what a named-and-unsent file otherwise
+     * reads as. Anything else — `include`, or no field at all — takes what
+     * arrived, which is every folder the choice was never offered for.
+     *
+     * `include` is kept apart from absent for one sentence: a chat named and
+     * not sent under `include` was chosen and left out by the plan's budget,
+     * so it is *over the limit*. Absent, nobody chose anything, and the reason
+     * a named file has no bytes is not this route's to guess.
+     */
+    let chats = true;
+    let included = false;
 
     let carriedBytes = 0;
 
@@ -576,6 +721,10 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
         }
         if (part.fieldname === 'manifest') manifest = parseManifest(String(part.value));
         if (part.fieldname === 'onConflict') onConflict = String(part.value) as ConflictPolicy;
+        if (part.fieldname === 'chats') {
+          chats = String(part.value) !== 'skip';
+          included = String(part.value) === 'include';
+        }
       }
     } catch (error) {
       // Either half: busboy refusing one oversized part, or the running total
@@ -598,10 +747,18 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     }
 
     const files = new MemoryFileSource(carried, manifest);
+    const notCarried = included
+      ? new Set(manifest.filter((path) => !Object.hasOwn(carried, path)))
+      : undefined;
     const outcome = await sweep({
       library: services.library,
+      sessions: services.sessions,
       handle: account.handle,
       files,
+      chats,
+      ...(notCarried === undefined
+        ? {}
+        : { notCarried, uploadLimitMb: services.config.limits.maxUploadMb }),
       ...(onConflict === undefined ? {} : { onConflict }),
     });
 
@@ -710,6 +867,8 @@ const ManifestBody = Type.Object(
       ),
       { maxItems: 50_000 },
     ),
+    /** Plan the chats in as well — [P14.8]'s opt-in, asked for by the panel. */
+    chats: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -913,6 +1072,7 @@ async function importOneFile(
   bytes: Uint8Array,
   onConflict?: ConflictPolicy,
   into?: ImportDestination,
+  only?: 'chat',
 ): Promise<UploadResult> {
   const item = (
     disposition: ImportItemReport['disposition'],
@@ -924,6 +1084,23 @@ async function importOneFile(
     item: { source: filename, disposition, notes, ...(objectId ? { objectId } : {}) },
     notes,
   });
+
+  /**
+   * ***A chat, or `unrecognised` before anything is tried*** — [P14.8]'s
+   * `kind: chat`. Asked first, so neither the archive arm nor the envelope arm
+   * below can sweep a zip or a Marinara profile into the library on the way
+   * to answering a door that only ever wanted a conversation. A file that is
+   * one falls through to the one-item reader below, which reads it the same
+   * way again and hands it to the session pass.
+   */
+  if (only === 'chat') {
+    const read = readUpload(filename, bytes);
+    if (read.outcome !== 'candidate' || read.candidate.format !== SILLYTAVERN_CHAT_FORMAT) {
+      return item('unrecognised', [
+        { key: 'import.file.unrecognised', params: { file: filename }, level: 'warn' },
+      ]);
+    }
+  }
 
   /**
    * **An archive is a root, so it is swept rather than read as an item**
@@ -939,7 +1116,7 @@ async function importOneFile(
    * Tried before JSON because a zip is never JSON, and `looksLikeZip` is a
    * four-byte signature rather than a parse.
    */
-  if (looksLikeZip(bytes)) {
+  if (only !== 'chat' && looksLikeZip(bytes)) {
     const opened = ZipFileSource.open(bytes);
     if (!opened.ok) {
       return item('unrecognised', [
@@ -953,6 +1130,7 @@ async function importOneFile(
 
     const outcome = await sweep({
       library: services.library,
+      sessions: services.sessions,
       handle,
       files: opened.source,
       // What a CHARX is identified by: the file the person sent, rather than
@@ -987,7 +1165,7 @@ async function importOneFile(
     // reader below is what decides.
   }
 
-  const envelope = parsed === null ? null : readEnvelope(parsed);
+  const envelope = parsed === null || only === 'chat' ? null : readEnvelope(parsed);
   if (envelope !== null) {
     const files =
       envelope.type === 'marinara_profile'
@@ -1006,6 +1184,7 @@ async function importOneFile(
 
     const outcome = await sweep({
       library: services.library,
+      sessions: services.sessions,
       handle,
       files,
       ...(onConflict === undefined ? {} : { onConflict }),
@@ -1032,6 +1211,14 @@ async function importOneFile(
   const reports = await convertOne(
     {
       library: services.library,
+      /**
+       * *A chat is one file too* ([P14.8]): `readUpload` knows one by its
+       * lines, and `convertOne` hands it to the sweep's session pass, which
+       * answers with the new session's id as the row's `objectId`. This route
+       * learns nothing else about chats — Play's *Import session* sends a
+       * `.jsonl` here and opens that id.
+       */
+      sessions: services.sessions,
       handle,
       files: new MemoryFileSource({ [filename]: bytes }),
       ...(onConflict === undefined ? {} : { onConflict }),

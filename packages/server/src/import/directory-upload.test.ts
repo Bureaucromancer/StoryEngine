@@ -187,3 +187,93 @@ describe('a path that is named but not carried', () => {
     expect(listed.sort()).toEqual(['a.json', 'b.json']);
   });
 });
+
+/**
+ * ***Chats, only when chosen*** —
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * They are most of a SillyTavern tree's bytes, so the plan leaves them out
+ * and says what they would add; asked again with the choice made, it puts
+ * them in — after the library, so choosing them can never cost a card.
+ */
+describe('the chats in a SillyTavern tree', () => {
+  const TREE: ManifestEntry[] = [
+    { path: 'chats/Vera/2026-01-01.jsonl', bytes: 400 },
+    { path: 'settings.json', bytes: 10 },
+    { path: 'characters/Vera.png', bytes: 10 },
+    { path: 'group chats/1700.jsonl', bytes: 300 },
+    { path: 'groups/1700.json', bytes: 20 },
+  ];
+
+  it('leaves them out, and says how many and how large', () => {
+    const plan = planUpload('sillytavern', TREE, HUGE);
+
+    expect(plan.wanted).toEqual(['settings.json', 'characters/Vera.png']);
+    // Two chats — the group's own file is not one — and every byte the choice
+    // would send, the group file included, since that is what the limit counts.
+    expect(plan.chats).toEqual({ count: 2, bytes: 720, fit: { count: 2, bytes: 720 } });
+  });
+
+  it('carries them when chosen, in the manifest’s order', () => {
+    const plan = planUpload('sillytavern', TREE, HUGE, { chats: true });
+
+    expect(plan.wanted).toEqual(TREE.map((entry) => entry.path));
+    expect(plan.declared).toEqual([]);
+    expect(plan.wantedBytes).toBe(740);
+  });
+
+  it('spends the budget on the library first, so a long chat listed early cannot push out a card', () => {
+    const plan = planUpload('sillytavern', TREE, 100, { chats: true });
+
+    expect(plan.wanted).toEqual(['settings.json', 'characters/Vera.png', 'groups/1700.json']);
+    expect(plan.declared).toEqual(['chats/Vera/2026-01-01.jsonl', 'group chats/1700.jsonl']);
+  });
+
+  it('says before the choice how much of it the limit will carry', () => {
+    // The same budget, asked without the choice: 80 bytes left after the
+    // library, so the group's file fits and neither chat does — which the
+    // panel has to say before the person agrees to send "the chats".
+    const plan = planUpload('sillytavern', TREE, 100);
+
+    expect(plan.chats.fit).toEqual({ count: 0, bytes: 20 });
+    expect(plan.limitBytes).toBe(100);
+    // Asking changes nothing that was sent.
+    expect(plan.wanted).toEqual(['settings.json', 'characters/Vera.png']);
+  });
+
+  it('offers no choice for a root whose chats are not files of their own', () => {
+    expect(planUpload('marinara', entries('storage/tables/chats.json'), HUGE).chats).toEqual({
+      count: 0,
+      bytes: 0,
+      fit: { count: 0, bytes: 0 },
+    });
+  });
+});
+
+/**
+ * ***A loose folder's chats are opt-in too*** — [P14.8] says the browser
+ * upload makes chats opt-in, not a SillyTavern tree's upload. A loose root has
+ * nothing but names to go on before a byte moves, and a `.jsonl` name is
+ * enough to ask; what each file is, the content probe decides once it is sent.
+ */
+describe('the chats in a loose folder', () => {
+  const LOOSE: ManifestEntry[] = [
+    { path: 'Vera.png', bytes: 10 },
+    { path: 'exports/Vera - 2026-01-01.jsonl', bytes: 400 },
+  ];
+
+  it('are counted and held back, like a tree’s', () => {
+    const plan = planUpload('loose-files', LOOSE, HUGE);
+
+    expect(plan.wanted).toEqual(['Vera.png']);
+    expect(plan.declared).toEqual(['exports/Vera - 2026-01-01.jsonl']);
+    expect(plan.chats).toEqual({ count: 1, bytes: 400, fit: { count: 1, bytes: 400 } });
+  });
+
+  it('are carried when chosen', () => {
+    const plan = planUpload('loose-files', LOOSE, HUGE, { chats: true });
+
+    expect(plan.wanted).toEqual(['Vera.png', 'exports/Vera - 2026-01-01.jsonl']);
+    expect(plan.wantedBytes).toBe(410);
+  });
+});

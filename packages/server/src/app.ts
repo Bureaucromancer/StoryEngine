@@ -53,6 +53,9 @@ import { registerTagRoutes } from './routes/tags.js';
 import { registerMyConnectionRoutes } from './routes/connections.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
+import { registerChatRoutes } from './routes/chat.js';
+import { registerOnDemandRoutes } from './routes/on-demand.js';
+import { registerGestureRoutes } from './routes/gestures.js';
 import { listSessions, type SessionContext, sessionFilePath } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
@@ -81,6 +84,7 @@ import { activeJob, type JobContext } from './state/jobs.js';
 import { NotificationBus } from './notifications/bus.js';
 import { route as routeNotification, type Occurrence } from './notifications/router.js';
 import { TurnStream } from './stream/bus.js';
+import { SummaryWarmer } from './turns/warm-summaries.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
 import { type OperationalPrune, startOperationalPrune } from './state/prune.js';
@@ -210,6 +214,16 @@ export interface AppServices {
    * before the listener accepts anything.
    */
   recoverRenditions: () => Promise<{ interrupted: number; marked: number }>;
+  /**
+   * ***The summary chain's background warm*** — [P14.11], [18 §7.5].
+   *
+   * Asked by `sessions.imported` after every import, cancelled by
+   * `sessions.deleting`, and stopped by `disposeServices` after the runner
+   * and before the stores close — it reads the index through the gather and
+   * writes link files, so it is stopped where the renditions are drained and
+   * for their reason.
+   */
+  summaryWarm: SummaryWarmer;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
@@ -892,6 +906,27 @@ async function assembleWithState(
     },
   });
 
+  /**
+   * ***The warm, and the two hooks that reach it from the store*** —
+   * [P14.11]. Assigned onto the session context rather than written into its
+   * literal, because the warm needs the providers and the bus and the context
+   * is declared before either — and a closure over a later `const` is the
+   * temporal-dead-zone hazard the config note above already refused once.
+   */
+  const summaryWarm = new SummaryWarmer({
+    sessions,
+    accounts,
+    providers,
+    config,
+    report: (warm) => {
+      bus.summaries(warm);
+    },
+  });
+  sessions.imported = (handle, sessionId) => {
+    summaryWarm.request(handle, sessionId);
+  };
+  sessions.deleting = (sessionId) => summaryWarm.cancel(sessionId);
+
   built = {
     config,
     // And the baseline separately, for the same reason in the other direction:
@@ -912,6 +947,7 @@ async function assembleWithState(
     retryRendition: (account, sessionId, record) =>
       retryRendition(renditions, account, sessionId, record),
     recoverRenditions: () => recoverRenditions(renditions),
+    summaryWarm,
     commit,
     providers,
     streams: new Set<() => void>(),
@@ -1087,6 +1123,9 @@ export async function disposeServices(services: AppServices): Promise<void> {
    * a closed handle rather than preventing them.
    */
   await services.drainRenditions();
+  // The warm reads the index and writes link files, so it stops before either
+  // store closes; what it had not derived, the next turn will ([P14.11]).
+  await services.summaryWarm.stop();
   services.stopUpdateCheck();
   services.backupSchedule?.stop();
   for (const close of services.streams) close();
@@ -1265,6 +1304,7 @@ export async function buildApp(
   // The two daily passes, which said nothing about what they took or skipped.
   services.trash.setLogger(app.log);
   services.prune.setLogger(app.log);
+  services.summaryWarm.setLogger(app.log);
   services.capture?.setLogger(app.log);
   services.commit.log = app.log;
   services.bus.onListenerError = (error: unknown) => {
@@ -1527,6 +1567,12 @@ export async function buildApp(
       registerImportRoutes(api, services);
       registerSearchRoutes(api, services);
       registerSessionRoutes(api, services);
+      // Hide and unhide — P14 §1.6's one gesture that is not a turn ([P14.4]).
+      registerGestureRoutes(api, services);
+      // A chat's settings — voice, dispatch, who replies, the note ([P14.5]).
+      registerChatRoutes(api, services);
+      // A mode's on-demand step between turns — Update trackers ([P14.5a]).
+      registerOnDemandRoutes(api, services);
 
       /**
        * **The admin half, encapsulated** — [P2A §2.4](../../../docs/design/workplan/09-p2a-configuration-surface.md).

@@ -55,6 +55,21 @@ export interface RetrieveContext {
   history: readonly Turn[];
   /** The pending message, which is the newest thing to scan and is not in history yet. */
   input?: { text: string; attachments?: readonly TurnAttachment[] };
+  /**
+   * ***This turn's earlier speakers' replies***, oldest first — newer than the
+   * pending input, and in no history yet because the turn holding them has not
+   * been committed. [P14.2] review, 2026-09-29.
+   *
+   * **A later speaker's lore sees what the earlier ones said**, as it does in
+   * SillyTavern: `generateGroupWrapper` runs each member's `Generate` in turn
+   * (`group-chats.js:1051`), and each builds `chatForWI` from the chat the
+   * previous reply was just saved into (`script.js:4565`). The collector has
+   * been handed the round since P14.2 and put it in the prompt; a scan that did
+   * not read it would activate lore for a conversation one reply behind the
+   * one the model is shown. Absent or empty on every call that is not a later
+   * speaker's.
+   */
+  round?: readonly string[];
   channels: Readonly<Record<string, ChannelState>>;
   persona: { actor: CastMember['actor'] } | null;
   actors: readonly { actor: CastMember['actor'] }[];
@@ -201,7 +216,11 @@ function messagesToScan(context: RetrieveContext): string[] {
     .filter((text): text is string => typeof text === 'string' && text.length > 0);
 
   const pending = context.input === undefined ? undefined : scanText(context.input);
-  return pending === undefined || pending.length === 0 ? past : [pending, ...past];
+  // The round is newer than the input it answers, so it goes first, newest
+  // first — which makes the previous speaker's reply the `latestMessage` the
+  // shelf and the outlets read, as `chatForWI[0]` is the last saved message.
+  const said = [...(context.round ?? [])].reverse().filter((text) => text.length > 0);
+  return [...said, ...(pending === undefined || pending.length === 0 ? [] : [pending]), ...past];
 }
 
 /**

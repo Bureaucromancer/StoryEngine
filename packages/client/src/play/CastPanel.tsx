@@ -1,15 +1,46 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 
-import type { CastRow } from '../api.js';
-import { useLibrary, useSession, useWriteChannel } from '../queries.js';
-import { Alert } from '../ui/Alert.js';
+import type { CastRow, ChatSettings, LibraryObject } from '../api.js';
+import { labels } from '../i18n/catalogue.js';
+import { useLibrary, useSaveObject, useSession, useSetCast, useWriteChannel } from '../queries.js';
+import { Alert, AlertNote } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
+import { disclosure } from '../ui/classes.js';
 import { Fine } from '../ui/Text.js';
+import { CardPrompts } from './CardPrompts.js';
 import { castBadge, isTerminalBadge, partyBadge } from './castBadge.js';
+import { canSpeak, talkativenessOf, withTalkativeness } from './chat.js';
+import { Portrait } from './Portrait.js';
+
+/**
+ * The panel's words, through the catalogue ([P11.8]). The status options below
+ * predate it and stay inline, as the panel's other P7 words do.
+ */
+const WORDS = labels('play.cast', {
+  label: 'Cast',
+  inScene: 'In the scene',
+  muted: 'Muted',
+  speak: 'Speak',
+  remove: 'Remove from the cast',
+  add: 'Add to the cast',
+  addLabel: 'Somebody to add',
+  addNobody: 'Choose a character',
+  talkativeness: 'How readily they join in',
+  talkativenessHint: 'This is the character’s own, so every chat they are in changes with it.',
+  // §1.3 `natural` step 3: at 0 a member still speaks when named, and is
+  // the one picked when nobody else would answer — never *only* when named.
+  never: 'Rarely: when named, or if nobody else can',
+  always: 'Whenever they can',
+  cardPrompts: 'Card prompts',
+  castFailed: 'The cast could not be changed.',
+});
+
+/** The steps a talkativeness select offers: SillyTavern's slider, in tenths. */
+const TENTHS = Array.from({ length: 11 }, (_, at) => at / 10);
 
 /**
  * The cast panel — [10 §13.2](../../../../docs/design/10-ui-surfaces.md),
@@ -44,33 +75,153 @@ import { castBadge, isTerminalBadge, partyBadge } from './castBadge.js';
  * *Two badges rather than one, because* here *and* with you *are different
  * questions and a cast member can be either without the other — `castBadge`
  * derives the first from presence and status, `partyBadge` says the second.*
+ *
+ * ***And since [P14.5], the chat's own four*** —
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
+ * *"the cast panel gains add and remove, over `PUT /sessions/:id/cast`, which
+ * exists and has no client; mute (presence); talkativeness; speak."* Plus the
+ * card's prompt switches, which §1.5 puts here *"because that is where a
+ * person looks when one character misbehaves"*.
+ *
+ * - **Mute is presence**, relabelled rather than re-plumbed. Under a chat's
+ *   `castIsPresent` a member nobody touched is present and `false` is
+ *   muted ([P14 §1.3]) — so in an embodied chat the one checkbox reads
+ *   *Muted* and writes the same channel *In the scene* always did.
+ * - **Talkativeness is the card's, not the session's**, and the control says
+ *   so. [P14 §1.3] puts it at `actor.modeData[mode].talkativeness` —
+ *   *"participation, not prompt"* — which is where SillyTavern keeps it too
+ *   and where an import writes it. A per-session value would be a second
+ *   answer the runner does not read. So changing it here edits the card in
+ *   the library, through the ordinary save, and every chat that card is in
+ *   hears it.
+ * - **Speak is force-talk with no input** — *let them talk*, aimed. It
+ *   reaches a muted member, as SillyTavern's does, and never the dead or the
+ *   persona (`canSpeak`).
+ * - **Add and remove send the roster whole**, persona included, which is the
+ *   route's shape.
  */
-export function CastPanel(props: { sessionId: string }): JSX.Element | null {
+export function CastPanel(props: {
+  sessionId: string;
+  /** Force-talk with no input — the page's, because a turn is the page's to start. */
+  onSpeak?: (actorId: string) => void;
+  /** Whether a turn is running, so *speak* waits for it. */
+  busy?: boolean;
+}): JSX.Element | null {
   const session = useSession(props.sessionId);
   const rows = session.data?.cast ?? [];
+  const chat = session.data?.chat;
+  const roster = session.data?.session.cast;
+  const modeId = session.data?.session.mode?.id;
 
-  if (rows.length === 0) return null;
+  // A chat renders even with nobody in it, because the control that seats
+  // somebody is inside. Anything else keeps the old rule: no cast, no panel.
+  if (rows.length === 0 && chat === undefined) return null;
 
   return (
-    <section className="flex flex-col gap-2" aria-label="Cast">
+    <section className="flex flex-col gap-2" aria-label={WORDS.label}>
       {rows.map((row) => (
-        <CastMember key={row.actorId} sessionId={props.sessionId} row={row} />
+        <CastMember
+          key={row.actorId}
+          sessionId={props.sessionId}
+          row={row}
+          chat={chat}
+          roster={roster}
+          modeId={modeId}
+          busy={props.busy ?? false}
+          {...(props.onSpeak === undefined ? {} : { onSpeak: props.onSpeak })}
+        />
       ))}
+      {chat === undefined ? null : <AddMember sessionId={props.sessionId} roster={roster} />}
     </section>
   );
 }
 
-function CastMember(props: { sessionId: string; row: CastRow }): JSX.Element {
-  const { row } = props;
+/**
+ * ***Seating somebody*** — a library card, not yet in the roster. The persona
+ * is offered too: somebody who wants to play alongside their own character is
+ * making a choice this panel has no business refusing, and the route takes it.
+ */
+function AddMember(props: {
+  sessionId: string;
+  roster: { persona: string | null; actors: string[] } | undefined;
+}): JSX.Element {
+  const actors = useLibrary('actors');
+  const cast = useSetCast(props.sessionId);
+  const [chosen, setChosen] = useState('');
+  const seated = new Set(props.roster?.actors ?? []);
+  const offered = (actors.data?.objects ?? []).filter((one) => !seated.has(one.id));
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1 text-sm text-ink-muted">
+          <span className="sr-only">{WORDS.addLabel}</span>
+          <select
+            className="rounded-control border border-line bg-surface p-1 text-ink"
+            value={chosen}
+            onChange={(event) => {
+              setChosen(event.target.value);
+            }}
+          >
+            <option value="">{WORDS.addNobody}</option>
+            {offered.map((one) => (
+              <option key={one.id} value={one.id}>
+                {one.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button
+          type="button"
+          size="compact"
+          disabled={chosen === '' || cast.isPending}
+          onClick={() => {
+            cast.mutate(
+              {
+                persona: props.roster?.persona ?? null,
+                actors: [...(props.roster?.actors ?? []), chosen],
+              },
+              {
+                onSuccess: () => {
+                  setChosen('');
+                },
+              },
+            );
+          }}
+        >
+          {WORDS.add}
+        </Button>
+      </div>
+      {cast.isError ? <AlertNote role="alert">{WORDS.castFailed}</AlertNote> : null}
+    </div>
+  );
+}
+
+function CastMember(props: {
+  sessionId: string;
+  row: CastRow;
+  chat?: ChatSettings | undefined;
+  roster?: { persona: string | null; actors: string[] } | undefined;
+  modeId?: string | undefined;
+  busy?: boolean;
+  onSpeak?: (actorId: string) => void;
+}): JSX.Element {
+  const { row, chat } = props;
   const actors = useLibrary('actors');
   const write = useWriteChannel(props.sessionId);
+  const cast = useSetCast(props.sessionId);
 
   // The card's name if the library has it, the id if it does not — a cast entry
   // is a link resolved fresh every turn ([03 §8]), so an actor deleted from the
   // library is a dangling reference the panel shows rather than hides ([00 §3.3]).
-  const name =
-    (actors.data?.objects ?? []).find((one) => one.id === row.actorId)?.name ?? row.actorId;
+  const card = (actors.data?.objects ?? []).find((one) => one.id === row.actorId);
+  const name = card?.name ?? row.actorId;
   const party = partyBadge(row.party);
+  const embodied = chat?.voice === 'embodied';
+  const seated =
+    props.roster !== undefined &&
+    props.roster.actors.includes(row.actorId) &&
+    row.actorId !== props.roster.persona;
 
   function set(channelId: string, value: unknown): void {
     write.mutate({ key: `${channelId}#${row.actorId}`, value });
@@ -79,6 +230,7 @@ function CastMember(props: { sessionId: string; row: CastRow }): JSX.Element {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
+        {chat === undefined ? null : <Portrait actor={card} name={name} />}
         <span className="text-ink">{name}</span>
         <Badge tone={isTerminalBadge(row.status) ? 'danger' : 'neutral'}>{castBadge(row)}</Badge>
         {party === null ? null : <Badge tone="neutral">{party}</Badge>}
@@ -126,15 +278,17 @@ function CastMember(props: { sessionId: string; row: CastRow }): JSX.Element {
 
       <div className="flex flex-wrap gap-2">
         <label className="flex items-center gap-1 text-sm text-ink-muted">
+          {/* In a chat, presence `false` is a mute ([P14 §1.3]), and the box
+              says so the right way up: ticked means *muted*. */}
           <input
             type="checkbox"
-            checked={row.presence}
+            checked={embodied ? !row.presence : row.presence}
             disabled={write.isPending}
             onChange={(event) => {
-              set('se.presence', event.target.checked);
+              set('se.presence', embodied ? !event.target.checked : event.target.checked);
             }}
           />
-          In the scene
+          {embodied ? WORDS.muted : WORDS.inScene}
         </label>
         <label className="flex items-center gap-1 text-sm text-ink-muted">
           <span className="sr-only">{`Status for ${name}`}</span>
@@ -154,7 +308,113 @@ function CastMember(props: { sessionId: string; row: CastRow }): JSX.Element {
             <option value="departed">Departed</option>
           </select>
         </label>
+        {/* Embodied only, as the card prompts are: a narrator speaks for
+            nobody, so aiming a turn at one member would change nothing. */}
+        {props.onSpeak !== undefined && embodied && canSpeak(row, props.roster) ? (
+          <Button
+            type="button"
+            size="compact"
+            disabled={props.busy === true}
+            onClick={() => {
+              props.onSpeak?.(row.actorId);
+            }}
+          >
+            {WORDS.speak}
+          </Button>
+        ) : null}
+        {seated && chat !== undefined ? (
+          <Button
+            type="button"
+            size="compact"
+            variant="quiet"
+            disabled={cast.isPending}
+            onClick={() => {
+              cast.mutate({
+                persona: props.roster?.persona ?? null,
+                actors: (props.roster?.actors ?? []).filter((id) => id !== row.actorId),
+              });
+            }}
+          >
+            {WORDS.remove}
+          </Button>
+        ) : null}
       </div>
+
+      {seated &&
+      chat !== undefined &&
+      embodied &&
+      card !== undefined &&
+      props.modeId !== undefined ? (
+        <Talkativeness card={card} modeId={props.modeId} />
+      ) : null}
+
+      {seated && chat !== undefined && embodied ? (
+        <details>
+          <summary className={`${disclosure.quiet} text-sm`}>{WORDS.cardPrompts}</summary>
+          <div className="mt-1">
+            <CardPrompts
+              sessionId={props.sessionId}
+              actorId={row.actorId}
+              name={name}
+              chat={chat}
+            />
+          </div>
+        </details>
+      ) : null}
+      {cast.isError ? <AlertNote role="alert">{WORDS.castFailed}</AlertNote> : null}
+    </div>
+  );
+}
+
+/**
+ * ***How readily a member joins a `natural` round*** — SillyTavern's slider, in
+ * tenths, written to the card ([P14 §1.3]; see the panel's docstring on why the
+ * card and not the session). A percentage in the reader's own number format,
+ * with the two ends named, since *0%* and *100%* are the two values whose
+ * meaning is not a chance.
+ */
+function Talkativeness(props: { card: LibraryObject; modeId: string }): JSX.Element {
+  const save = useSaveObject();
+  const value = talkativenessOf(props.card.object, props.modeId);
+  const percent = new Intl.NumberFormat(undefined, { style: 'percent' });
+  const labelOf = (tenth: number): string =>
+    tenth === 0 ? WORDS.never : tenth === 1 ? WORDS.always : percent.format(tenth);
+
+  /**
+   * ***The hint is visible text, not a tooltip.*** That changing it here
+   * changes it in every chat the card is in is the one thing a person must know
+   * before touching it, and a `title` reaches neither a touch screen nor a
+   * keyboard.
+   */
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+        {WORDS.talkativeness}
+        <select
+          className="rounded-control border border-line bg-surface p-1 text-ink"
+          value={String(Math.round(value * 10) / 10)}
+          disabled={save.isPending}
+          onChange={(event) => {
+            save.mutate({
+              kind: 'actors',
+              id: props.card.id,
+              object: withTalkativeness(
+                props.card.object,
+                props.modeId,
+                Number(event.target.value),
+              ),
+              contentHash: props.card.contentHash,
+            });
+          }}
+        >
+          {TENTHS.map((tenth) => (
+            <option key={tenth} value={String(tenth)}>
+              {labelOf(tenth)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Fine>{WORDS.talkativenessHint}</Fine>
     </div>
   );
 }

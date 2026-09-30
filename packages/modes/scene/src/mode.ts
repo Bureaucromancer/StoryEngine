@@ -6,14 +6,19 @@ import type {
   ChannelDefinition,
   Mode,
   ModeDefinition,
+  OutputMessage,
   StepDefinition,
   StepHost,
   StepInput,
   StepResult,
 } from '@storyengine/sdk';
 
+import { ECHO_CHANNELS, ECHO_STEP, ECHO_SURFACES, echo } from './echo.js';
+import { EDIT_CHANNELS, EDIT_STEP, EDIT_SURFACES, edit } from './edit.js';
+import { PLOT_CHANNELS, PLOT_STEP, PLOT_SURFACES, plot } from './plot.js';
 import { SCENE_PRESET } from './preset.js';
 import { STAGE_STEP, stage } from './staging.js';
+import { TRACK_STEP, TRACKING_CHANNELS, TRACKING_SURFACES, track } from './tracking.js';
 
 /**
  * Scene — the P2 mode, and it is **allowed to be embarrassingly small**.
@@ -413,32 +418,157 @@ export const NARRATE: StepDefinition = {
  * The step does not assemble, does not choose a model, and does not know what a
  * Scene is. It asks; the runner resolves the role from the definition and
  * assembles with the purpose the definition implies.
+ *
+ * ***It asks in one of three ways since [P14.2]***, and the session says which
+ * — `voice` and `dispatch` as `StepInput` hands them over, the session's own
+ * values rather than the ones declared below
+ * ([P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [§1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)):
+ *
+ * - **Narrator** — exactly what this step always did: one merged call, spoken by
+ *   nobody in particular, and one `message`. Who the policy selected does not
+ *   change it; a narrator speaks for the scene, not for a member — and
+ *   `dispatch` does not change it either; [06 §3]'s *narrator + per-actor* cell
+ *   is not built (P14.2 as-built). *Absent* reads as narrator, because that is
+ *   what a host that hands no voice played.
+ * - **Embodied, per-actor** — one **speaking call** per selected member, in the
+ *   order `speakers` gives, each awaited before the next: the host shows each
+ *   call the replies before it, streams each into a message of its own and
+ *   cleans it, so the loop's only job is the order. The order *is* the
+ *   selection's, which is what makes a rewrite replay the same round — the
+ *   policy's draws are on the tape, and this loop adds none. The turn's
+ *   `messages` are the calls' results, speaker and all — *a reply cleanup cut
+ *   to nothing included*, deliberately (2026-09-29, the [P14.2] review): it
+ *   stays as an empty message under the speaker's name so its `original` stays
+ *   on the record, and `output.text` leaves it out, since it said nothing.
+ * - **Embodied, merged** — Marinara's merged mode: **one** speaking call, for
+ *   the first selected member. Every present card is still in its prompt, the
+ *   first speaker's first, and the reply may voice several members; nothing
+ *   splits it and nothing cuts it, because a merged reply that stopped at the
+ *   second member's line would not be merged. One message, under the first
+ *   speaker's name — and the model is the scene's, not theirs: [06 §3] consults
+ *   a card's hint only under `per-actor`, so the host resolves a merged speaking
+ *   call with none.
+ *
+ * ***An empty `speakers` in an embodied voice is nobody speaking, and the step
+ * makes no call*** — `manual` after an input ([P14 §1.3]: *"nobody replies to
+ * an input"*), or a round the policy gave nobody. It returns nothing, which is
+ * what an absent output has always meant on the record: the turn is the
+ * player's input and no reply. *Absent `speakers` is different* — a session
+ * playing `fixed`, which makes no selection at all — and an embodied session
+ * with no selection makes the one merged call nobody in particular speaks,
+ * rather than falling silent for good.
+ *
+ * *If a speaking call fails*, the loop lets it go: a failure on the first is
+ * the step's own `abort`, and a failure after another member has spoken is a
+ * partial round the host keeps. The step has nothing to add to either, which
+ * is why it catches nothing.
  */
-async function narrate(_input: StepInput, host: StepHost): Promise<StepResult> {
-  const result = await host.call({ stream: true });
-  return { message: { text: result.text } };
+async function narrate(input: StepInput, host: StepHost): Promise<StepResult> {
+  if (input.voice !== 'embodied' || input.speakers === undefined) {
+    const result = await host.call({ stream: true });
+    return { message: { text: result.text } };
+  }
+
+  const speakers = input.dispatch === 'per-actor' ? input.speakers : input.speakers.slice(0, 1);
+  const messages: OutputMessage[] = [];
+  for (const speaker of speakers) {
+    const result = await host.call({ stream: true, speaker });
+    messages.push({
+      // The host names the speaker as the record will; a host too old to
+      // say is answered with the id, which is at least who it was.
+      speaker: result.speaker ?? { id: speaker, name: speaker },
+      text: result.text,
+      ...(result.original === undefined ? {} : { original: result.original }),
+    });
+  }
+  return messages.length === 0 ? {} : { messages };
 }
 
 export const SCENE: ModeDefinition = {
   id: SCENE_ID,
   version: '1.0.0',
   displayName: 'Scene',
-  voice: 'narrator',
-  dispatch: 'merged',
+  /**
+   * ***A chat among embodied characters, since [P14.3]*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
+   * *"Scene's declared values become `embodied`, `per-actor`, `natural`."*
+   * ~~`voice: 'narrator'`, `dispatch: 'merged'`~~ until then.
+   *
+   * **What a new session is created with, and nothing more.** Creation writes
+   * these into the session (`chatSettingsAtCreation`), a session's own values
+   * win over them, and a session written before [P14.0] reads `legacy` below —
+   * so the flip re-voices nobody's saved game. *Narrated is one control away*
+   * (`voice: 'narrator'` on the session), and the pack serves both voices
+   * (`preset.ts`). In a single-character chat `per-actor` and `merged` are the
+   * same single call.
+   */
+  voice: 'embodied',
+  dispatch: 'per-actor',
+  /**
+   * ***What a Scene session written before [P14.0] was played as*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * ~~**The same three values declared above, and written down before they
+   * move.**~~ *They moved at [P14.3]*, and this is what keeps them from moving
+   * anybody: every Scene session made before P14.0 carries none of the three
+   * fields, absence meant these, and `chatSettingsOf` reads such a session
+   * through this rather than through the values above (pinned against the real
+   * Scene in `sessions/chat-settings.test.ts`). Such a session also holds its
+   * own copy of the pack it was created with, narrator instruction and all
+   * (`SessionFile.preset`).
+   */
+  legacy: { voice: 'narrator', dispatch: 'merged', select: 'fixed' },
+  /**
+   * ***A chat opens on its cast's greetings*** — [P14 §1.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.4]: a new Scene session is written an opening turn from each
+   * member's written openings, as SillyTavern opens a chat on `first_mes`.
+   */
+  openingTurn: true,
   /**
    * Empty by fact rather than by omission. [06 §1] names presets for Adventure;
    * Scene has no second way to be configured, and minting `scene.default` would
    * create a permanent content identifier for a distinction nothing makes.
    */
   presets: [],
-  participants: { select: 'fixed', maxActors: 1 },
+  /**
+   * ***Who replies: SillyTavern's natural order over a cast that is all here***
+   * — [P14 §1.2], [P14 §1.3], declared at [P14.3] (~~`{ select: 'fixed',
+   * maxActors: 1 }`~~ until then).
+   *
+   * - `natural` — mentions, then talkativeness rolls, then somebody: ST's
+   *   default group strategy, and the session's to change.
+   * - `castIsPresent` — a declared member nobody has said anything about is in
+   *   the scene, and presence `false` is **muted**: ST's `disabled_members`,
+   *   the cast panel's checkbox. A muted member is not picked, and their cards
+   *   leave every call they are not speaking on.
+   * - `maxActors: 32` — the cast route's own ceiling (`CastBody.actors`), a
+   *   bound on a request body rather than a claim about groups; neither source
+   *   caps a group.
+   */
+  participants: { select: 'natural', castIsPresent: true, maxActors: 32 },
   assembly: { defaultPreset: SCENE_PRESET, historyWindow: 20 },
   /**
    * **Two, and the second is [06 §7.2]'s** — [P7.12]. `NARRATE` first because
    * `generate` precedes `post`; the runner runs a stage's steps in declaration
    * order, and the stager reads what the narrator wrote.
    */
-  steps: [NARRATE, STAGE_STEP],
+  /**
+   * ***Three since [P14.5a]***: the trackers after the stager, both `post`
+   * and both reading what the narrator wrote. After, because staging is the
+   * cheaper question and neither reads the other.
+   */
+  /**
+   * ***Four since [P14.5b]***: the secret plot's pass first, because it is
+   * `pre` — an arc it writes steers this turn's reply, and the runner puts the
+   * engine's director after it so a push reads the fresh arc.
+   *
+   * ***Six since [P14.5c]***: the editor straight after the narrator, first
+   * among the `post` steps, so everything after it — the stager, the
+   * trackers, the engine's own passes — reads the prose the turn is written
+   * with; and the echo chamber last of Scene's, reacting to that prose.
+   */
+  steps: [PLOT_STEP, NARRATE, EDIT_STEP, STAGE_STEP, TRACK_STEP, ECHO_STEP],
   /**
    * ~~**A declaration the engine does not yet consult**~~ — **consulted since
    * [P7.0]**: `registerMode` installs a mode's declared channels, so this array
@@ -454,6 +584,25 @@ export const SCENE: ModeDefinition = {
     STAGING_CHANNEL,
     EXPRESSION_CHANNEL,
     LOCATION_CHANNEL,
+    /**
+     * ***The six trackers, their switches, the locks, the hidden fields and
+     * the cadence*** — [P14 §1.9.2], [P14.5a]; `tracking.ts` argues each.
+     *
+     * *`se.location` stays beside `se.track.world`'s `location`*, and the two
+     * are not the same fact told twice by accident: `se.location` is the
+     * **place** the stager names for the backdrop to diff ([06 §10.1a] — a
+     * place, never a moment), written every staged turn whether or not any
+     * tracker is on; the world tracker's is part of what the story has
+     * established, written only when a person switched it on. Folding one into
+     * the other would make the backdrop depend on a tracker, or a tracker on
+     * staging. Recorded rather than resolved.
+     */
+    ...TRACKING_CHANNELS,
+    // The secret plot, its switch, its reveal and its cadence — [P14.5b], `plot.ts`.
+    ...PLOT_CHANNELS,
+    // The editor's switches, rules and hold; the echo chamber — [P14.5c].
+    ...EDIT_CHANNELS,
+    ...ECHO_CHANNELS,
   ],
   /**
    * One kind, matching what the wire already defaults to — so nothing that
@@ -520,6 +669,13 @@ export const SCENE: ModeDefinition = {
       channelId: BACKDROP_ON_CHANNEL.id,
       widget: { kind: 'toggle', label: 'Stage a backdrop' },
     },
+    // The trackers' cards and their switches — [P14.5a], see `tracking.ts`.
+    ...TRACKING_SURFACES,
+    // The secret plot's switch, cadence, reveal and card — [P14.5b], `plot.ts`.
+    ...PLOT_SURFACES,
+    // The editor's and the echo chamber's settings, and the chorus's panel — [P14.5c].
+    ...EDIT_SURFACES,
+    ...ECHO_SURFACES,
   ],
   /**
    * ***What Scene wants of pictures before anybody says otherwise*** —
@@ -546,5 +702,12 @@ export const SCENE: ModeDefinition = {
 
 export const SCENE_MODE: Mode = {
   definition: SCENE,
-  run: { [NARRATE.id]: narrate, [STAGE_STEP.id]: stage },
+  run: {
+    [PLOT_STEP.id]: plot,
+    [NARRATE.id]: narrate,
+    [STAGE_STEP.id]: stage,
+    [TRACK_STEP.id]: track,
+    [EDIT_STEP.id]: edit,
+    [ECHO_STEP.id]: echo,
+  },
 };

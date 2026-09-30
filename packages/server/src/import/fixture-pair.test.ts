@@ -119,7 +119,9 @@ describe('a card and a preset imported from one directory agree', () => {
       url: `/api/sessions/${sessionId}/turns`,
       payload: {
         idempotencyKey: 'fixture-pair-1',
-        headTurnId: null,
+        // Since P14.4 a Scene session whose cast has written openings starts
+        // on its opening turn, so the head is that turn rather than null.
+        headTurnId: created.body.session.headTurnId ?? null,
         // Names one of the imported book's keys, so the turn's own prompt is
         // where the lorebook half of the pair is proved. See below.
         input: { actorId: null, kind: 'do', text: 'She knocks at the docks.' },

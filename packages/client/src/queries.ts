@@ -37,10 +37,15 @@ import {
   retryRendition,
   selectRendition,
   type Rendition,
+  setChatSettings,
   setMemoryConfig,
   setSessionArchived,
+  setSessionCast,
+  setTurnHidden,
+  type ChatPatch,
   setSessionLore,
   setSessionPreset,
+  runSessionStep,
   writeSessionChannel,
   type Account,
   type AccountPatch,
@@ -880,6 +885,79 @@ export function useSetSessionLore(
 }
 
 /**
+ * ***A chat's settings, its roster and its hide map*** — [P14 §1.8], [P14.5].
+ *
+ * Three writes to the session file, and each refreshes what `useWriteChannel`
+ * refreshes and for its reason: the entry Play and the workbench read is
+ * stale, and a preview assembled over the old settings is an answer about a
+ * prompt that no longer exists. *The transcript is refreshed by a hide too* —
+ * the ghost is drawn from the session's map, but the siblings a hide rides
+ * onto are the transcript's.
+ */
+export function useSetChatSettings(
+  sessionId: string,
+): UseMutationResult<Awaited<ReturnType<typeof setChatSettings>>, Error, ChatPatch> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: ChatPatch) => setChatSettings(sessionId, patch),
+    /**
+     * ***Pending until the refetched settings are in the cache.*** A card's
+     * prompt switch sends the member's whole entry computed from the cached
+     * `chat`, so a second toggle made before the refetch lands would be computed
+     * from the stale one and undo the first. Returning the invalidation keeps
+     * `isPending` — and the controls it disables — true until it has.
+     */
+    onSuccess: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+export function useSetCast(
+  sessionId: string,
+): UseMutationResult<
+  Awaited<ReturnType<typeof setSessionCast>>,
+  Error,
+  { persona: string | null; actors: string[] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (cast: { persona: string | null; actors: string[] }) =>
+      setSessionCast(sessionId, cast),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+export function useSetHidden(
+  sessionId: string,
+): UseMutationResult<
+  Awaited<ReturnType<typeof setTurnHidden>>,
+  Error,
+  { turnId: string; hidden: boolean | number[] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (write: { turnId: string; hidden: boolean | number[] }) =>
+      setTurnHidden(sessionId, write.turnId, write.hidden),
+    /**
+     * ***Pending until the refetched hide entries are in the cache***, for
+     * `useSetChatSettings`' reason: a hide sends the turn's whole entry
+     * (`hideSent`) computed from the cached session, so two quick hides on one
+     * turn would otherwise each write their own index and the second erase the
+     * first.
+     */
+    onSuccess: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+/**
  * Recovering one degraded channel — [06 §4.2], [P7.1].
  *
  * **Invalidates the session and resets the preview**, the same two keys
@@ -890,6 +968,26 @@ export function useSetSessionLore(
  * *No `onError` special-casing, because a refusal is not an error*: the route
  * answers 200 with an unapplied effect, and the caller decides what to say.
  */
+/**
+ * ***Update trackers*** — a declared on-demand step, run between turns
+ * ([P14.5a]). It writes an engine turn under the head — the shape a channel
+ * write writes, and no transcript row — so it refreshes what a channel write
+ * refreshes. *Pending until the refetch lands*, as the chat settings' write
+ * is: the button stays disabled until the cards show what it wrote.
+ */
+export function useRunStep(
+  sessionId: string,
+): UseMutationResult<Awaited<ReturnType<typeof runSessionStep>>, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (stepId: string) => runSessionStep(sessionId, stepId),
+    onSuccess: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
 export function useWriteChannel(
   sessionId: string,
 ): UseMutationResult<
@@ -899,13 +997,31 @@ export function useWriteChannel(
 > {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: channelWriteKey(sessionId),
     mutationFn: (write: { key: string; value: unknown }) =>
       writeSessionChannel(sessionId, write.key, write.value),
+    /**
+     * ***The refetch is part of the write*** (2026-09-29, the [P14.5a] review):
+     * returned, so `isPending` — and `useIsMutating` over
+     * {@link channelWriteKey} — lasts until the session read holds the value
+     * just written. A control that re-enabled before that would build its next
+     * write from the value the person saw *before* this one, and the second
+     * write would quietly undo the first: a lock toggled twice fast, or a Save
+     * over a tracker the model updated meanwhile.
+     */
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
+}
+
+/**
+ * The key every channel write for a session shares, so a card can wait for
+ * any of them — a lock set is one value that several cards write.
+ */
+export function channelWriteKey(sessionId: string): readonly unknown[] {
+  return ['channel-write', sessionId];
 }
 
 /**
@@ -1031,7 +1147,7 @@ export function useRenameSession(
 
 export function useTranscript(
   sessionId: string,
-): UseQueryResult<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
+): UseQueryResult<Awaited<ReturnType<typeof readTranscript>>> {
   return useQuery({
     queryKey: ['transcript', sessionId],
     queryFn: () => readTranscript(sessionId),

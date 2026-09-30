@@ -445,7 +445,8 @@ converted, `200 { item, notes }` when it did not.
 `item` is one row of the import review's vocabulary — `{ source, disposition,
 notes, objectId? }` — where `source` is the filename **as it arrived**, never a
 path ([21 §4.1.1](design/21-internal-contracts.md)). `disposition` is
-`converted`, `recorded` or `unrecognised`, and the middle one is the interesting
+`converted`, `recorded` or `unrecognised` — or `unchanged`, for a re-upload of
+what is already here — and `recorded` is the interesting
 answer: a PNG card today is a file this build converts at **P4.2**, so it is
 reported as *not yet* rather than refused as broken. Answering `4xx` would tell
 somebody their file is wrong when the truth is that the build is unfinished.
@@ -487,6 +488,29 @@ a kind name — setting prose, a cast and an opening in one file. `treatment` is
 the default and is what StoryEngine calls the unconflated version of that;
 `lorebook` is for a scenario whose setting prose is really a setting bible, and
 it costs the opening messages, which a lorebook has nowhere to hold.
+
+**A chat file becomes a session** —
+[P14.8](design/workplan/31-p14-scene-and-session-import.md). A SillyTavern chat,
+or Marinara's per-chat export of the same format, is JSON Lines, and it is
+recognised by its **content**, never its `.jsonl` name: two object lines, a
+header carrying `chat_metadata`, or — an old group chat holding only its
+greeting — one message line. It is read, its characters and persona are found in
+the account's library, and it is loaded as a new session in Play: `201` with
+`disposition: converted`, the new **session's** id as `item.objectId`, and an
+`import.chat.imported` note first. A chat a session here already holds entirely
+answers `200` `unchanged` with `import.chat.alreadyHere`. One whose beginning a
+session holds and which has grown in its source since answers `recorded` with
+`import.chat.grownSince`, counting the turns left out: updating a session from
+its source is [P14.10a](design/workplan/31-p14-scene-and-session-import.md)'s,
+and until then a grown chat is neither unchanged nor a second copy.
+
+**An optional `kind` field, `chat`, makes this door take a chat and nothing
+else.** A file that is not one answers `unrecognised` with
+`import.file.unrecognised` and nothing is written — the archive and envelope arms
+are not tried. It follows the before-the-file rule. Play's *Import session* sends
+a `.jsonl` here with `kind: chat` and opens the returned id; without the field, a
+`.jsonl` that was really a card would land in the library from a control that
+promised a session.
 
 ### `POST /api/import/file/preview`
 
@@ -631,7 +655,8 @@ carve-out included.
 
 ### `POST /api/import/directory/plan`
 
-`{ entries: [{ path, bytes }] }` → `200 { verdict, suggestions, wanted, declared, wantedBytes }`.
+`{ entries: [{ path, bytes }], chats? }` →
+`200 { verdict, suggestions, wanted, declared, wantedBytes, limitBytes, chats }`.
 The first half of a browser folder upload: what the folder is, and which of its
 files the importer will actually open.
 
@@ -651,6 +676,27 @@ path to point anywhere with, so acting on the advice means picking again.
 `wanted` is the paths to upload; `declared` is the rest. `422` for the same
 classification refusals as the sweep.
 
+**Chats are opt-in** —
+[P14.8](design/workplan/31-p14-scene-and-session-import.md). They are most of a
+SillyTavern tree's bytes, and a person who picked their data folder to bring in
+their cards has not thereby asked to send years of conversation. So `wanted`
+leaves them out unless the body says `chats: true`, and `chats` says what
+choosing them would add — reported whether or not they were chosen, because the
+point is to say it before the choice:
+
+- `count` — the `.jsonl` files under `chats/` and `group chats/`, or anywhere in
+  a loose folder;
+- `bytes` — everything the choice would send, `groups/*.json` included, since
+  that is what the limit counts;
+- `fit: { count, bytes }` — the same two numbers for what would actually go.
+
+`chats: true` makes the plan again with chats in `wanted`, **the library budgeted
+first**: chats spend only what the library leaves of `limits.maxUploadMb`, so one
+long conversation that sorts early can never push a card out, and `fit` is how
+much of the choice survives that. `limitBytes` is the limit the plan spent, so a
+client can name the number. A Marinara root reports zeros: its chats are in the
+store it already sends.
+
 ### `POST /api/import/directory`
 
 `multipart/form-data` → `200 { report }`. The folder itself.
@@ -664,6 +710,15 @@ an `onConflict` field is optional and means what it does on the sweep.
 bytes are *declared*: listed, reported, and never read. That is what keeps
 *nothing is silently dropped* true across a transport that deliberately does not
 carry everything.
+
+**An optional `chats` field says what the person chose**, when the plan offered
+chats. `skip`: they declined, and each chat named in the manifest and not sent is
+a `skipped` row with `import.chat.notChosen` — not declared, not unreadable.
+`include`: they chose them, so a chat named and not sent is one the plan's budget
+left out, and is `skipped` with `import.chat.overLimit` carrying the limit. No
+field takes whatever arrived. Chat files that did arrive become sessions in a
+pass after the library's, so each resolves against the cards that came in beside
+it, and each is one row as on [`POST /api/import/file`](#post-apiimportfile).
 
 - `400 {"error":"no-manifest"}` — a folder upload without its manifest.
 - `413 {"error":"too-large"}` — **the whole folder** past `limits.maxUploadMb`,
@@ -1094,12 +1149,18 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
       "inputs": ["do"],
       "presetIds": [],
       "setup": { "kind": "none" },
-      "surfaces": []
+      "surfaces": [],
+      "openingTurn": false
     }
   ],
   "defaultModeId": "storyengine.scene"
 }
 ```
+
+`openingTurn` (added at [P14.5](design/workplan/31-p14-scene-and-session-import.md))
+says whether a new session opens on its cast's written greetings, so a creation
+form offers each member's opening only for a mode that writes one — the
+creation body's `openings` is read by no other.
 
 **What this install can play.** Added at P7.4, and until then nothing could tell
 a client which modes exist — the session form offered *the mode's own preset* and
@@ -1542,8 +1603,8 @@ decision and a selector able to widen its own gate is not a dial.
 
 ### `GET /api/sessions/:sessionId`
 
-`{ session, activeJob | null, health, hud, surfaces, cast, hooks, goals, dials,
-inputs, suggesting }`. The job travels with the
+`{ session, activeJob | null, health, hud, surfaces, actions, cast, chat?, hooks,
+goals, dials, inputs, suggesting }`. The job travels with the
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
 
@@ -1592,6 +1653,26 @@ this is every placement a mode asked for. A `kind` or a `region` a client does
 not know is **skipped**, which is what keeps both vocabularies additive — and
 there is deliberately no `html` anywhere in either ([10 §8]).
 
+*Since P14.5a* ([P14 §1.9.2](design/workplan/31-p14-scene-and-session-import.md)):
+a fifth region, `settings` (the session's settings, where Scene's tracker
+switches go), and an optional `group` — the heading a contribution is drawn
+under. Two more arms: `meter: { value, min, max }`, a stat bar, and
+`record: { value, fields, locks, hidden }` — **the value itself**, raw JSON,
+because a record is edited field by field and the edit is the whole value
+written back through `PUT …/channels/:key`. `fields` is `[{ key, label, show }]`
+from a closed set (`line`, `number`, `flag`, `lines`, `pairs`, `map`, `items`,
+`meters`, `checklists`; `key: ''` is the value itself); `locks` and `hidden` are
+`{ key, paths }` — the set channel and its field paths, each
+`<channel key>/<JSON Pointer>` with a list row named by its `name` — or `null`.
+A channel whose `state.enabledBy` switch is off has no surface; an
+actor-scoped record is one per **present member but the persona**, whether or
+not the channel holds a value for them yet.
+
+`actions` is what a person may run between turns — `[{ stepId, label }]`, the
+mode's declared on-demand steps, each listed only while a channel it writes is
+switched on (Scene's *Update trackers*). Each is run by
+`POST …/steps/:stepId/run` below.
+
 `inputs` is the kinds this session's mode accepts ([06 §1], [06 §9]) — Scene
 sends `['do']`, Freeform `['do','say','think','story']`. It is the same list
 `POST /turns` refuses against, so a client that renders a selector from it cannot
@@ -1628,6 +1709,16 @@ session's roster and everyone the channels name, which is the same set the
 prompt is assembled around. All three are reconstructed at the
 session's head, so they are the state a panel should be showing rather than a
 summary of the file.
+
+`chat` is how the session plays as a chat
+([P14 §1.2](design/workplan/31-p14-scene-and-session-import.md), added at
+[P14.5]): `{ voice, dispatch, speakers: { policy, allowSelfResponses,
+namesInHistory, maxPerRound }, note | null, hidden, prompts: { instruction,
+cards } }`, **the effective settings** as the server's one reader resolves them
+— so a Scene session written before P14 shows the narrated, merged, `fixed`
+values its turns actually get, not Scene's declared ones. **Absent for a mode
+that does not play as a chat** (one that does not declare `castIsPresent`),
+which is `dials`' rule.
 
 A session that is not there and one that is not yours are the **same 404**. The
 path is the owner ([09 §4.3](design/09-server-multiuser-deployment.md)), and
@@ -1668,9 +1759,42 @@ logged*** (2026-09-27): every failure used to be *not an address in the trash*,
 including a rename the disk refused. The second of two restores of one entry at
 once is the `404` or `409` a moment's later look would give.
 
+### `PUT /api/sessions/:sessionId/chat`
+
+`{ voice?, dispatch?, speakers?: { policy?, allowSelfResponses?, namesInHistory?,
+maxPerRound? }, note?: { text, depth, every } | null, prompts?: { instruction?,
+cards?: { [actorId]: boolean | parts[] } } }` → `200 { session, chat }`, the
+second being the effective settings after the write. Added at
+[P14.5](design/workplan/31-p14-scene-and-session-import.md); at least one member
+is required, and the vocabularies are closed (`400` otherwise).
+
+***Writing any of voice, dispatch and speakers writes all three.*** A session
+carrying none of them was written before P14 and reads as its mode's legacy
+values; writing `dispatch` alone would make it modern and let its absent
+`voice` fall to the mode's declared one, re-voicing a saved game. So the route
+reads the effective three first and puts all of them on the file, the request
+laid over. `speakers` merges member by member. `note: null` — or a note with no
+text — removes it, and `every: 0` switches it off with its text kept.
+`prompts.cards` merges per card: `true` or `[]` is *send everything* (no entry),
+`false` skips every part, and a list of `system`, `post-history`, `depth` skips
+those. `instruction: true` sends the pack's instruction (no entry).
+
+`422 not-a-chat` for a session whose mode does not play as one — the same test
+the read uses to send `chat`. Not refused while a turn runs, as a hide is not:
+the running turn read its settings before it started.
+
+### `PUT /api/sessions/:sessionId/turns/:turnId/hidden`
+
+`{ hidden: true | false | number[] }` → `200 { session }` —
+[P14 §1.6](design/workplan/31-p14-scene-and-session-import.md)'s hide, built at
+[P14.4]. **A set, not a toggle**: `true` hides the turn whole, input included;
+a list hides those message indices; `false` or `[]` unhides. `404 no-such-turn`
+for a turn this session does not have, `422 no-such-message` for an index past
+its messages. History skips what is hidden, and the transcript ghosts it.
+
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
-`{ turns, siblings }` — the path from the head, **oldest first**, not every turn
+`{ turns, siblings, swipes }` — the path from the head, **oldest first**, not every turn
 in the file. A session is a tree, and a transcript is one walk of it.
 
 `siblings` maps a turn on that path to every child of its parent, in creation
@@ -1679,6 +1803,20 @@ selected path only ([07 §6](design/07-branching.md)), so this is how an
 alternative is reachable at all — a swipe is a sibling nobody named, and without
 this it would be on disk and invisible. A map of every turn to its lone self
 would grow with the transcript and say nothing.
+
+`swipes` (added at [P14.5](design/workplan/31-p14-scene-and-session-import.md))
+says, for each of those nodes, **where its siblings are drawn**:
+`{ messages, turn }`. `messages[k]` is the ordered alternatives on message *k*'s
+counter — [P14 §1.6]'s *"swipes surface on the message, not the turn"* — the
+turn itself among them, or `[]` when there is only one. The counter is built
+from the siblings that answer the same move and say the same messages `0..k-1`,
+one alternative per distinct message *k* (by speaker and text), ordered by the
+first-created sibling saying it and named by the viewing turn where it says that
+line, so it reads the same from whichever member is on screen. `messages` has
+one more entry than the turn has messages: the alternatives that say everything
+this turn says and then go on, drawn on its last message. `turn` is the turn and
+the siblings that answer a different move (an edited input, another thing typed
+from the same place), which a client keeps on the turn; `[]` when there are none.
 
 ### `POST /api/sessions/:sessionId/attachments` · `GET /api/sessions/:sessionId/attachments/:digest`
 
@@ -1731,7 +1869,7 @@ that caption with a placeholder where the picture would be.
   rewriteOf?: string, redoOf?: string,
   input: { text, actorId?, kind?, attachments?: [{ digest, caption? }],
            attachmentsOf?: string },
-  guidance? }
+  guidance?, speakers?: string[], push?: "natural"|"random" }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
@@ -1818,6 +1956,42 @@ continuable on a model that does not.
 field this server did not know got a `200` and was silently dropped from the
 turn; a closed object answers `400`, which a client can act on.
 
+**`speakers` is force-talk**
+([P14 §1.3](design/workplan/31-p14-scene-and-session-import.md), P14.1):
+actor ids, in the order they should reply, and **it overrides the session's
+speaker policy** — SillyTavern's member *speak* button and `/trigger`,
+Marinara's `forCharacterId`. It reaches a **muted** member, which is what it is
+for, and nobody else the policy would not: the persona is **`422
+speaker-is-persona`**, an id outside the session's cast **`422
+speaker-not-in-cast`**, and somebody dead or departed **`422
+speaker-written-out`**, each carrying the refused `speaker`. Status is checked
+at the node the turn attaches to — `parentTurnId` when sent, else the head — so
+a branch from before a character died may still name them. At least one id and
+no repeats (`400` otherwise), at most 32.
+
+**A forced turn records who was named, and a rewrite keeps them.** The list is
+on the turn as `input.speakers` — the request, in the order asked, not who
+replied, which the output's messages say. A `rewriteOf` submission without
+`speakers` is forced to the redone turn's `input.speakers`, read from this
+server's record for the reason the tape is; a name that no longer passes the
+checks above when the turn runs is dropped rather than refused. `speakers`
+sent beside `rewriteOf` wins over the record. A reroll keeps nothing and plays
+the session's policy; a client that wants the same member again sends
+`speakers` again.
+
+**`push` is Push story**
+([P14 §1.9.3](design/workplan/31-p14-scene-and-session-import.md), P14.5b):
+the narrative director armed for this one turn — `natural` moves the story on
+through what it already has, `random` brings in something plausible nobody saw
+coming. It runs `se.scene.direct` before the reply, one small call whose
+direction reaches the guidance slot (as `se.guidance.direction`, a `step`
+producer); when that call fails, the session's pack's own push text for the
+flavour stands in. Any other value is `400`, and beside `authored` it is `422
+conflicting-gesture`. **A rewrite or a guided redo keeps it**: a `rewriteOf`
+or `redoOf` submission without `push` is pushed as the redone turn was, read
+off that turn's director outcome; `push` sent beside either wins. A plain
+reroll names no turn, so a client redoing a pushed turn sends `push` itself.
+
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
 ([06 §5.1](design/06-modes-and-turn-pipeline.md)): typed into the action it lands in history
@@ -1850,6 +2024,47 @@ none* are deliberately different answers: a record that merged them would make a
 correctly-quiet session indistinguishable from a broken one. **Absent means the
 selector did not run**, which is every session with no pool — never *it ran and
 had nothing to say*.
+
+**A `se.speakers.smart` outcome in `turn.steps` says who smart order picked and
+why** ([P14 §1.3a](design/workplan/31-p14-scene-and-session-import.md), P14.1).
+The step runs only on a turn of a `smart` session that no rule settled — nobody
+forced, nobody named, more than one member who may reply — so most turns of such
+a session have no such outcome. When it is there it carries `speakers: { by,
+picked }`: `picked` is `[{ id, name, because? }]` in the order they reply, and
+`by` is `model` (the call answered usably), `fallback` (it did not, and the
+rule-based pick drawn on the turn's tape played instead) or `rewrite` (a
+`rewriteOf` submission, which keeps the redone turn's speakers and makes no
+call). **A fallback is a `failed` outcome under `failure: "warn"`**, whose
+`error` says why and whose `speakers` says who spoke instead; the turn itself
+completes. `because` is the model's one line for that member and is absent on a
+fallback or a rewrite, where nobody was asked.
+
+**A `se.scene.direct` outcome in `turn.steps` says what a push directed**
+([P14 §1.9.3](design/workplan/31-p14-scene-and-session-import.md), P14.5b),
+present only on a pushed turn. It carries `direction: { push, by, text? }`:
+`by` is `model` when the director answered and `fallback` when the pack's fixed
+text stood in — a `failed` outcome under `failure: "warn"`, whose `error` says
+why; the turn completes. `text` is the words the guidance slot carried, absent
+only when the call failed and the pack ships no push text, so the turn ran
+undirected.
+
+**An outcome with `revisions` says what an editor did to the turn's messages**
+([P14 §1.9.4](design/workplan/31-p14-scene-and-session-import.md), P14.5c) —
+Scene's `se.scene.edit`, or any step whose mode declares `revises`. It is
+`[{ index, edited?, changes?, notices? }]`, one row per message the editor had
+something to say about, by the message's index in `output.messages` (a turn with
+no `messages` is one message, index `0`). `edited: true` means the message's
+text was replaced **before the turn was written**: `output.text` and the
+message's `text` are the edited words, and the message's `original` is what the
+model wrote (or what cleanup kept of it, when cleanup had already written one).
+`changes` is the editor's account of what it changed. `notices` is what it found
+and left alone — continuity findings, `{ issue, quote?, fix? }` — and one with
+both `quote` and `fix` is applied by the edit gesture (`editOf` with the
+message's text, `quote` replaced by `fix`), which writes a sibling. **Absent**
+when the editor is off, needed no edit and found nothing, or failed; a failed
+editor is a `failed` outcome under `failure: "warn"` and the turn keeps the
+unedited reply. While the editor runs with its hold on, the round's `delta`
+frames arrive only once the edit is in.
 
 `turn.spans` is what the engine understood about the turn's text — [06 §8.2],
 [03 §8](design/03-data-model.md), [10 §13.1](design/10-ui-surfaces.md). Each span
@@ -2096,6 +2311,36 @@ Refusals, each a class the client words:
   and never the prompt.
 - `503 cancelled` — the server stopped the call before it answered.
 
+### `POST /api/sessions/:sessionId/steps/:stepId/run`
+
+No body. Runs one of the session's mode's **on-demand steps** between turns —
+Scene's is `se.scene.track`, *Update trackers*
+([P14 §1.9.2](design/workplan/31-p14-scene-and-session-import.md), P14.5a). →
+`200 { session, turn, health, hud, surfaces }` when it changed something, or
+`200 { turn: null, callId }` when it had nothing to change (no tracker on, or a
+call that found the scene as it was).
+
+**What it writes is an engine turn**, the shape a channel write takes: a child
+of the head, no tape, no `steps`, carrying the step's call in `request` and its
+effects. So it is on the current branch only, undone by the ordinary undo, and
+not a story turn: it moves no cadence and is no transcript row. The step sees
+the last story turn's move and reply, and the channels at the head, so edits
+made since then are what it starts from.
+
+Refusals:
+
+- `404 no-such-step` — the session's mode declares no on-demand step by that id.
+  Only a `post` step that writes effects can be one.
+- `409 busy`, carrying the active `job` — a turn is in flight.
+- `409 moved` — the head moved while the call ran; nothing was written. The
+  call's spend is in the usage log.
+- `422 role-unbound` · `422 role-dangling` · `422 window-too-small`.
+- `502 provider-failed` — with `class` and `remedy`, as impersonation's; the log
+  line is `on-demand.failed`.
+- `502 step-failed` — the endpoint answered and the step could not use the
+  answer (a shape it did not ask for). The log line is `on-demand.step-failed`.
+- `503 cancelled` — the server stopped the call. The client leaving cancels it.
+
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 
 `202`, or `409 finished` if the turn is already over. Cancelling **commits a
@@ -2111,7 +2356,7 @@ make it silently never have happened.
 event: snapshot     { sessionId, job, turn, text, cursor }   once, at open
 id: <jobId>.<seq>
 event: progress     { jobId, seq, key, params, at }          durable, sequenced
-event: delta        { jobId, text }                          ephemeral — no id
+event: delta        { jobId, text, message? }                ephemeral — no id
 event: overflow     { cursor }                               then the stream ends
 event: error        { error }                                a class, never a message
 : keepalive
@@ -2125,7 +2370,7 @@ bad `Last-Event-ID` cannot brick a reconnect.
 `progress` keys are [09 §3.3](design/09-server-multiuser-deployment.md)'s vocabulary:
 `turn.started`, `step.started`, `step.skipped`, `step.failed`, `step.finished`,
 `call.started`, `call.streaming`, `call.finished`, `effect.applied`,
-`turn.finished`. They are **structural** — the client renders them — and carry a
+`speakers.picked`, `turn.finished`. They are **structural** — the client renders them — and carry a
 failure *class*, never a provider's words.
 
 `effect.applied` carries `{ channelId, accepted, reason }`, where `reason` names
@@ -2137,6 +2382,31 @@ the record cannot disagree about *why* something was refused.
 **Deltas are not durable and carry no id.** A reattach may see coalesced text
 rather than every delta that painted it live, which [P2 §2.10](design/workplan/08-p2-implementation.md)
 states as the trade; the snapshot's `text` is what makes that lossless.
+
+**`message` is which of the turn's messages a delta belongs to** — added at
+[P14.2](design/workplan/31-p14-scene-and-session-import.md), for a round under
+`per-actor` dispatch, where each speaker's call streams into a message of its
+own. It is the index into the turn's `output.messages`, and `call.started` and
+`call.streaming` carry the same `message` in their `params` — and since
+[P14.5], `call.started` carries the message's `speaker` too, `{ id, name }`, so
+a client can name the bubble as it opens. It is **absent**
+on a narrator's text and on the blank line the server sends between two
+speakers, so a client that appends every delta's `text` to one string — every
+client written before it — still ends with the turn's `output.text`, and a
+client that paints messages separately skips the deltas without one while a
+round is streaming. A reply is cleaned when its call completes, so the
+committed message can be shorter than what streamed; the draft and the turn
+say what was kept.
+
+**`speakers.picked` is the round's order** — `{ speakers: [{ id, name }], by }`,
+added at [P14.5] for [P14 §1.3a](design/workplan/31-p14-scene-and-session-import.md)'s
+*"while a round streams, the who-speaks-next control shows the picked order"*
+(Marinara's `response_queue`). Sent once per turn, when the selection is final:
+`by` is `rules` when the policy drew it, `forced` when the submission named
+the speaker (force-talk), `rewrite` for a swipe, a continue or a rewrite that
+kept the redone turn's speakers, and `model`, `fallback` or `rewrite` from the
+smart order's step. Not sent for a narrator's
+turn or a room nobody is cast in, because an empty queue is not an order.
 
 The stream authenticates by cookie and requires no CSRF header, because that is
 what `EventSource` can do — it sends cookies and cannot set headers. Nothing may

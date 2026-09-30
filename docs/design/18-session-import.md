@@ -7,6 +7,11 @@ this document is the survey that condition needs in order to be checkable rather
 than merely stated. Where it disagrees with an existing note it says so and does
 not quietly correct either side.
 
+**Revisited 2026-09-28, at [§7](#7-revisited-2026-09-28--the-condition-is-met-and-what-is-left-is-ours).**
+§6's condition has been met — P11.10 shipped the format, its writer and its
+reader — and three of §4's four gaps are closed. §1–§6 are kept as written;
+§7 is the verdict as it now stands.
+
 It sits here rather than in [01](01-source-survey.md) because the source survey
 answers *what these codebases do* and this answers *what it would cost us*, and
 because §3 is addressed to a phase — [P11](workplan/28-p11-implementation.md) —
@@ -483,3 +488,188 @@ than a completeness one… the case reopens for that one shape only."* E4's revi
 supplies exactly that argument, and P7's own §1.10 was written before it. Whoever
 holds P7's revisit should read the two together rather than either alone — which
 is why §0's corrections reach that section too.
+
+---
+
+## 7. Revisited 2026-09-28 — the condition is met, and what is left is ours
+
+**§6's sequencing was a condition, not a date, and it has been satisfied.**
+[P11.10](workplan/28-p11-implementation.md) shipped the format and its writer
+(`packages/server/src/sessions/export.ts`, `storyengine.session-export/1`), and
+on 2026-09-17 the reader arrived beside it (`sessions/import.ts`,
+`POST /sessions/import`, `play/ImportSession.tsx`), which the backup import now
+calls too. *"A reader for a format with no writer"* no longer describes a
+converter aimed at it. This section re-reads §1–§5 against the code as it stands
+and says what a SillyTavern or Marinara importer would cost **now**. It still
+schedules nothing: [25 E4](25-open-questions.md)'s *"not a commitment"* is
+untouched, and whether to build one is a person's decision.
+
+*Sources are still the pins in the table at the top.* Upstream was not
+re-checked for this pass — the container it was written in could not reach it —
+and one claim below (§7.3's SillyTavern branches) is from knowledge of the
+product rather than from the pinned tree, and is marked where it appears.
+*(Later the same day, both pins were fetched and read for
+[P14 §0](workplan/31-p14-scene-and-session-import.md); the corrections are made below, struck through where they
+replace what this section first said.)*
+
+### 7.1 What moved since the survey
+
+| Survey item | Then | Now |
+|---|---|---|
+| §1, §6 — the target does not exist | Blocking | **Met.** Writer and reader both shipped at P11.10 |
+| §3.1 — no fabricated instrumentation | Obligation | Honoured: `input`, `output`, `request`, `cost`, `steps` optional on `Turn`, and the round-trip test carries a turn with five absent fields |
+| §3.2 — a foreign id has somewhere to go | Obligation | `Turn.foreign: { source, id }`, and `Rendition.foreign` |
+| §3.3 — siblings survive | Obligation | `readTurns`, not `walkPath`; asserted over a branched fixture |
+| §4.1 — no provenance on Session or Turn | Urgent | `SessionFile.origin?: Provenance`, both optional, as §4.1 asked |
+| §4.2 — the sweep cannot persist a session | Gap | **Sidestepped rather than closed** — see §7.2 |
+| §4.3 — imported swipes invisible | Gap | Closed at [P6](workplan/18-p6-implementation.md): `branchRefs`, `lastSelectedChild`, sibling navigation |
+| §4.4 — `LoreScope` has no chat arm | Open | **Still open**: two arms, so chat-bound books still import `global` |
+
+Three of four model gaps are closed and the fourth is a scope edge, not a
+blocker. **The plumbing §5 said was "most of a session importer" is now all of
+the write half.**
+
+### 7.2 The shape: foreign → `SessionExport` → `importSession`
+
+**A converter should emit a `SessionExport` document and hand it to the reader
+that already exists**, rather than adding a session arm to the sweep's
+`Writer`. Three reasons, in order of weight:
+
+1. **It is the only session write path that has been built for foreign turns.**
+   `importSession` already mints the session id, stamps `origin`, marks every
+   turn `foreign`, refuses a collision (`already-here`), indexes the session and
+   carries renditions. §4.2's library-shaped `Writer` would need all of that
+   re-derived beside a lock that is not reentrant.
+2. **It is [25 E4](25-open-questions.md)'s posture taken literally.** The
+   converter is a pure function from somebody else's file to *our* documented
+   format; the thing this project maintains is the format. A converter that
+   rots breaks one pure function and its fixture pair — never the session store.
+   Whether the converters live in this repository or outside it becomes a
+   packaging question rather than an architectural one, because their output
+   is a file a person could produce by other means.
+3. **It makes the format prove it is a target.** Until something other than
+   `exportSession` writes one, *"designed with import in mind"* is asserted by
+   three tests of our own records. A SillyTavern chat is the first document
+   that was not.
+
+The converters would sit where the library converters sit
+(`import/sillytavern/chat.ts`, `import/marinara/chat.ts`), take no I/O, and be
+tested as fixture pairs in the project `pnpm test:fixture-pair` already runs.
+
+### 7.3 The mapping, which is simpler than §2.3 feared
+
+**A `Turn` with optional `input` and optional `output` makes the message-to-turn
+mapping total without merging anything.** §2.3 called the conversion *"a
+pairing pass… not one-to-one"*, which is true of its size and not of its
+difficulty:
+
+- a user message followed by a character message → one turn, `input` + `output`;
+- the greeting, or any character message not preceded by a user message → an
+  output-only turn (the first one a root);
+- a user message not followed by a character message → an input-only turn.
+
+`isStoryTurn` counts all three and `collect.ts` renders whichever halves exist,
+so each lands in the prompt in the role it had. *The record allows the last
+two; how the play surface draws an input-only turn has not been walked.*
+
+**SillyTavern.** Swipes become sibling turns under the same parent, carrying
+the same `input` and one `swipes[i]` each — ~~§2.1's warning stands, `mes` is the
+active swipe's copy and is dropped~~ *(corrected: `mes` is authoritative and
+`swipes[swipe_id]` is the copy that goes stale after an edit, so the active
+sibling takes `mes` — [P14 §0](workplan/31-p14-scene-and-session-import.md), §0.3)*. `swipe_id` sets `lastSelectedChild` at that
+parent and the head follows the active path, so the imported session opens where
+the chat was. `extra.reasoning` lands in `output.reasoning` rather than nowhere.
+Hidden messages (`is_system` on a character or user line) and narrator lines
+have no exact home: reported, and imported as story text only if a person says
+so. **Group chats** are the real loss: `Turn.output` has no speaker, so a
+character's `name` survives only as text in the output — acceptable for a
+narrator-mode session, lossy for anything that later wants attribution.
+*P14 §1.1 answers this with an additive `Turn.output.messages`, one attributed message each — [25 C11](25-open-questions.md)'s one node, several messages.*
+
+~~*From knowledge of the product, not verified against the pin:*~~
+*Verified at the pin* (`bookmarks.js:186`, `:253`), and with one addition: the
+branch copies the parent's whole `chat_metadata`, so `integrity` is shared by a
+family rather than owned by a chat (P14 §0.2). SillyTavern's
+**branches and checkpoints are copied chats too** — a new file whose
+`chat_metadata.main_chat` names the chat it forked from, with the fork message
+marked in the parent. If that holds at the pin, §2.2's family reconstruction
+applies to SillyTavern as well, which is worth checking before anyone writes a
+single-file converter and discovers it cannot be widened into a family one.
+
+**Marinara.** `messages` joined to `message_swipes` on `messageId`, ordered by
+`index`, active by `activeSwipeIndex`; swipes map exactly as above. **Better
+than SillyTavern in two places**: `characterId` gives each message a speaker,
+which can populate `input.actorId` and at least name the voice in a group; and
+§2.2's branch family rebuilds our tree exactly — join on
+`branchParentMessageId`, keep the prefix once. Scoped to `mode: "roleplay"` as
+§2.2 says; `game` and `conversation` stay out.
+
+### 7.4 Identity, and two consequences of reusing the reader
+
+**Mint ids that are uuidv7-shaped**, with the timestamp from the message's
+send date (monotonic-adjusted, since SillyTavern's `send_date` has been three
+different formats over its life) and the random bits from a hash of *(source
+chat identity, position in the family, content)*. The first half is not
+cosmetic: `exportSession` sorts turns by id on the stated ground that uuidv7
+sorts by mint time, and `importSession` appends them in file order. A
+content-hash id — `stableId`'s `im-…` shape — satisfies neither, so an imported
+session **re-exported** would list children before parents. The second half is
+what makes a branch family's shared prefix collapse for free: identical position
+and content, identical id.
+
+**Two consequences of `already-here`, one good and one to state up front.**
+Re-importing the same chat is refused with a 409, which is re-import
+idempotence without any machinery — the thing §2.1 said SillyTavern had
+nothing to key on. But the same check means **a chat that has grown since it
+was imported cannot be imported again**: its prefix is already here. That makes
+this a one-shot migration, not a sync, and the import surface should say so
+rather than let the 409 say it.
+
+### 7.5 What is genuinely new work
+
+- **The converters.** SillyTavern, single-character, with swipes: small — a few
+  hundred lines with the fixture pair. Marinara roleplay with branch families:
+  medium, because §2.2's whole-family pass has to see every chat before it
+  writes one. Group chats on either: small extra code, a product decision about
+  attribution first.
+- **Cast, mode and preset.** `session.cast.actors` are library ids the converter
+  cannot know. Either the import resolves them (the chat's folder name against
+  imported actors' `provenance.originalFilename`, which the card import already
+  stamps) or the session arrives with an empty cast and the session-settings
+  panel fills it. The second is free and honest; the first is what people will
+  expect. Mode: ~~`freeform` for one character, `scene` for a group~~
+  ~~*(corrected: Scene is `maxActors: 1`, so the reverse — Scene for one
+  character, Freeform, `maxActors: 6`, for a group; P14 §1.7)*~~
+  *(re-corrected the same day: **Scene for both.** The cap was P2's minimum, not
+  the design — [06 §7.2](06-modes-and-turn-pipeline.md) specifies Scene as the
+  SillyTavern/Marinara shape with "one or more actors present" — and P14's
+  Part A builds Scene out to it, so an import lands in a mode that plays the
+  way the chat did; [P14 §0.6](workplan/31-p14-scene-and-session-import.md))*.
+- **The summary chain's first turn is a cliff.** `ensureChain` is lazy and
+  sequential by design (link *n* is `f(link(n-1), units)`), and nothing is
+  derived until somebody asks. An imported 2,000-turn chat at the default
+  `span: 20` asks for ~99 summariser calls, one after another, **inside the
+  first turn played after import**. Either a post-import job warms the chain or
+  the first turn says why it is slow. The memory extractor, which reads the turns
+  since it last ran, has the same shape and was not checked.
+- **Transport.** `POST /sessions/import` takes a `SessionExport` body; the
+  client either converts before posting or the route learns to detect `.jsonl`.
+  The folder-upload plan excludes `chats/` today (§2.1), which is the right
+  default until a person opts in per chat.
+
+### 7.6 Verdict, revised
+
+**Feasible now, and no longer sequenced behind anything.** The format exists,
+its reader is built and tested against foreign-shaped turns, and branching is
+navigable. What remains is two pure converters, a cast-linking decision, and a
+warm-up for the summary chain — none of which changes a persisted shape, so none
+of it costs more by waiting.
+
+If it is built, the order that follows from the above is **SillyTavern
+single-character first** (the most deployed source, the simplest file, and the
+first test of the format by a document we did not write), **Marinara roleplay
+second** (better fidelity, transport already done, but the family pass is the
+larger piece), **group chats last** (a product question before a code one).
+[25 E4](25-open-questions.md)'s objection is answered by §7.2's shape rather
+than by effort: what this project would own is the format and a pure function
+per source, which is the maintenance E4 said it would accept.

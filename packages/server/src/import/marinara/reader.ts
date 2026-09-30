@@ -6,6 +6,7 @@ import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengi
 import { marinaraPreflight } from '../detect.js';
 import { ownEntry } from '../parse.js';
 import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
+import { MARINARA_CHATS_FORMAT } from './chat.js';
 import type {
   FileSource,
   ImportCandidate,
@@ -57,6 +58,7 @@ export class MarinaraReader implements SourceReader {
     yield* this.#presets();
     yield* this.#actors('characters', 'marinara.character');
     yield* this.#actors('personas', 'marinara.persona');
+    yield* this.#chats();
   }
 
   /**
@@ -112,10 +114,16 @@ export class MarinaraReader implements SourceReader {
     if (flat !== null) {
       rows.push(...parseRows(flat));
     } else {
-      // Sharded: every file under the table's directory is a slice of the same
-      // table, and `orphaned-rows.json` is one of them.
+      // Sharded: every shard under the table's directory is a slice of the same
+      // table, and `orphaned-rows.json` is one of them. *Only the primaries*,
+      // though: Marinara keeps a `.json.bak` beside each shard, and a write in
+      // flight or a quarantined read leaves `.tmp-*`, `.corrupt-*` and
+      // `.pre-shard` copies — each the same rows again, so reading them is every
+      // message and swipe twice, and a single-swipe reply with a phantom second
+      // swipe of itself. A primary is `<key>.json` with no leading dot.
       for await (const path of this.#files.list()) {
         if (!path.startsWith(`${TABLES}${table}/`)) continue;
+        if (!/^[^.][^/]*\.json$/.test(path.slice(`${TABLES}${table}/`.length))) continue;
         const bytes = await this.#files.read(path);
         if (bytes !== null) rows.push(...parseRows(bytes));
       }
@@ -173,6 +181,48 @@ export class MarinaraReader implements SourceReader {
         },
       });
     }
+  }
+
+  /**
+   * ***The chats, as one candidate*** —
+   * [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * **One candidate for the three tables, not one per chat**, because what a
+   * chat *is* here is a question about more than one row: a branch is a
+   * family's, and its family is found across every chat the store holds
+   * (`families.ts`). The sweep sets it aside with SillyTavern's chat files
+   * (`sweep.ts`, `isChat`) until every character and persona above is written,
+   * so the lines resolve against the library this same sweep made; the session
+   * pass (`chat-sessions.ts`) then answers **one row per chat**, keyed
+   * `storage/tables/chats.json#<id>`, in place of the per-shard rows the
+   * message tables used to be reported as.
+   *
+   * *Every chat, not only roleplay*: which chats become sessions is the
+   * parser's to say (`chat.ts`), and a conversation or game chat still gets its
+   * row. The character and persona rows travel for their names — a message
+   * names its speaker by id alone. Held in memory as `#rows` already holds
+   * them: the store reader's one cache, loaded once.
+   */
+  async *#chats(): AsyncIterable<SourceItem> {
+    const chats = await this.#rows('chats');
+    const messages = await this.#rows('messages');
+    const swipes = await this.#rows('message_swipes');
+    if (chats.length === 0 && messages.length === 0) return;
+    yield candidate({
+      source: `${TABLES}chats.json`,
+      format: MARINARA_CHATS_FORMAT,
+      payload: {
+        chats,
+        messages,
+        swipes,
+        characters: await this.#rows('characters'),
+        personas: await this.#rows('personas'),
+        // The trackers' state per message and swipe — [P14 §2.6], [P14.5a].
+        snapshots: await this.#rows('game_state_snapshots'),
+        // The director's secret plot per chat — [P14 §2.6], [P14.5b].
+        memory: await this.#rows('agent_memory'),
+      },
+    });
   }
 
   /**

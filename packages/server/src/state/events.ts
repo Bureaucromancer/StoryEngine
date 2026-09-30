@@ -37,6 +37,7 @@ export type ProgressKey =
   | 'step.failed'
   | 'step.skipped'
   | 'effect.applied'
+  | 'speakers.picked'
   | 'turn.finished'
   | 'job.progress';
 
@@ -50,6 +51,7 @@ const KEYS: ReadonlySet<string> = new Set<ProgressKey>([
   'step.failed',
   'step.skipped',
   'effect.applied',
+  'speakers.picked',
   'turn.finished',
   'job.progress',
 ]);
@@ -110,14 +112,73 @@ export const stepFailed = (
   params: { stepId, error, willRetry, ...(remedy === undefined ? {} : { remedy }) },
 });
 
-export const callStarted = (stepId: string, role: ModelRole, model: string): EventDraft => ({
+/**
+ * ***`message` is which of the turn's messages a speaking call is writing*** —
+ * [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * point 4, added at [P14.2]: *"Progress events gain `message: n`."*
+ *
+ * The index into the turn's `output.messages`, the same number the draft's
+ * messages and the `delta` frames carry, so a surface painting a round knows
+ * which bubble a call is filling from the durable events alone. **Absent on a
+ * call that speaks for nobody**, which is every call before P14.2 and every
+ * narrator's still: a consumer that never heard of it reads these events
+ * exactly as it did.
+ */
+/**
+ * ***`speaker` is who that message is by*** — added at [P14.5], so a surface
+ * painting the round can put a name and a portrait on the bubble as it opens
+ * rather than when the turn lands. A `Ref`, as the message's own `speaker` is,
+ * and sent only beside `message`: it is that message's author and nothing else.
+ */
+export const callStarted = (
+  stepId: string,
+  role: ModelRole,
+  model: string,
+  message?: number,
+  speaker?: { id: string; name: string },
+): EventDraft => ({
   key: 'call.started',
-  params: { stepId, role, model },
+  params: {
+    stepId,
+    role,
+    model,
+    ...(message === undefined ? {} : { message }),
+    ...(message === undefined || speaker === undefined
+      ? {}
+      : { speaker: { id: speaker.id, name: speaker.name } }),
+  },
 });
 
-export const callStreaming = (stepId: string, tokens: number): EventDraft => ({
+/**
+ * ***Who this round is for, in order, once it is settled*** —
+ * [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * point 8, added at [P14.5]: *"while a round streams, the who-speaks-next
+ * control shows the picked order, which is Marinara's `response_queue` event."*
+ *
+ * **Sent when the selection is final, and once**: straight after the rules
+ * settle a turn, or when `se.speakers.smart` reports — by the model, by the
+ * rules' fallback, or kept by a rewrite. `by` says which, so a surface can say
+ * *the model picked* only when it did: `forced` when the submission named the
+ * speaker (force-talk — *Speak*, *who speaks next*), `rewrite` for a swipe, a
+ * continue or a rewrite that kept the redone turn's speakers, and `rules` only
+ * for what the policy itself drew. *Structural like every other key*: ids
+ * and the names they had, never a sentence.
+ *
+ * *Not sent for a turn nobody was selected for* — a narrator's merged call, a
+ * room nobody is cast in — because an empty queue is not an order.
+ */
+export const speakersPicked = (
+  speakers: readonly { id: string; name: string }[],
+  by: 'rules' | 'forced' | 'model' | 'fallback' | 'rewrite',
+): EventDraft => ({
+  key: 'speakers.picked',
+  params: { speakers: speakers.map((one) => ({ id: one.id, name: one.name })), by },
+});
+
+/** `message` as on {@link callStarted}. `tokens` counts that message's text alone. */
+export const callStreaming = (stepId: string, tokens: number, message?: number): EventDraft => ({
   key: 'call.streaming',
-  params: { stepId, tokens },
+  params: { stepId, tokens, ...(message === undefined ? {} : { message }) },
 });
 
 export const callFinished = (

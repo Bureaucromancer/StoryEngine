@@ -10,10 +10,16 @@ import type { Turn } from './types.js';
  * ***What counts as a turn of the story*** (2026-09-27).
  *
  * Every turn-count gate — `notBefore.turn`, the hook dial's cadence, cooldown
- * and patience, a step's `everyNTurns`, the speaker rotation, lore `delay` —
- * reads this one answer, so each of its three clauses is pinned on its own:
+ * and patience, a step's `everyNTurns`, ~~the speaker rotation,~~ lore `delay`
+ * — reads this one answer, so each of its three clauses is pinned on its own:
  * the tests in the gates' files would all still pass on a predicate that
  * dropped the one clause none of their fixtures happens to lean on.
+ *
+ * *Corrected 2026-09-29, at [P14.1]*: `list` no longer rotates, and no speaker
+ * arm reads the path's depth. The smart order's roster does read
+ * `isStoryTurn`, to tell the model how many rounds ago each member last spoke
+ * (`turns/smart-speakers.ts`), but that is a line in a prompt rather than a
+ * gate, so it is not pinned here.
  */
 
 function bare(over: Partial<Turn> = {}): Turn {

@@ -61,6 +61,54 @@ export const CONVENTIONAL_SECTION_IDS = {
   background: 'se.background',
 } as const;
 
+/**
+ * ***A card's own prompt fields, as sections*** — [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * added at [P14.3]. Keyed by the part a session may switch off
+ * (`SessionFile.prompts.cards`), valued by the section id the importer writes
+ * and the Scene pack places.
+ *
+ * **Sections, and so still the preset's to place** — which is how
+ * [00 §2.4](../../../../docs/design/00-stance.md) holds while a card's
+ * `system_prompt` finally reaches a prompt: a card cannot rewrite assembly, it
+ * can only carry text a pack chooses to position, and a pack that leaves these
+ * unplaced sends none of them. They lived in `compat` with a *"this card wants
+ * to override prompts"* warning until now, because nothing placed them.
+ *
+ * *Kept apart from {@link CONVENTIONAL_SECTION_IDS}*: those four are what an
+ * editor offers every character and a generator fills; these are the imported
+ * card's instructions to a model, and a character written here has none.
+ */
+export const CARD_PROMPT_SECTION_IDS = {
+  /** `system_prompt` — placed directly after the pack's instruction. */
+  system: 'se.card.system',
+  /** `post_history_instructions` — placed after the last message, as the user. */
+  'post-history': 'se.card.post-history',
+  /** `extensions.depth_prompt` — placed at its own depth and role ({@link SectionPlacement}). */
+  depth: 'se.card.depth',
+} as const;
+
+/**
+ * ***Where a section asks to sit in the history, and as whom*** — [P14.3], for
+ * a card's `extensions.depth_prompt`, which carries its own `depth` and `role`
+ * (default 4, `system`).
+ *
+ * **The section's, not the block's**, because the depth is the card author's:
+ * two cards in one scene can ask for two depths, and one pack block places
+ * both. The collector honours it on any actor-sourced block that reaches the
+ * section, the way a lore entry's own `position` overrides the slot it comes
+ * through. Optional and additive: every section written before this has none,
+ * and sits where its block puts it.
+ */
+export const SectionPlacement = Type.Object(
+  {
+    /** Counted from the newest message, as a preset's `in-history` placement is. */
+    fromEnd: Type.Integer({ minimum: 0 }),
+    role: Type.Union([Type.Literal('system'), Type.Literal('user'), Type.Literal('assistant')]),
+  },
+  { title: 'SectionPlacement' },
+);
+export type SectionPlacement = Static<typeof SectionPlacement>;
+
 /** The `se.` section-id namespace is reserved ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). */
 export const RESERVED_SECTION_PREFIX = 'se.';
 
@@ -78,6 +126,8 @@ export const Section = Type.Object(
       Type.Literal('on-demand'),
       Type.Literal('reference-only'),
     ]),
+    /** See {@link SectionPlacement}. Absent is wherever the block that reaches it sits. */
+    placement: Type.Optional(SectionPlacement),
   },
   { title: 'Section' },
 );
@@ -156,10 +206,13 @@ export const Actor = Type.Object(
     $id: `https://storyengine.dev/schemas/${ACTOR_SCHEMA.replace('/', '.')}.json`,
     title: 'Actor',
     description:
-      'A character. Deliberately absent: system_prompt, ' +
+      'A character. Deliberately absent as fields: system_prompt, ' +
       'post_history_instructions, depth_prompt, talkativeness and scenario. ' +
       'Prompt assembly is owned by the preset and the mode, not by the ' +
-      'description of a person. mes_example is no longer among them: it lands ' +
+      'description of a person. Since P14.3 the three prompt fields arrive as ' +
+      'sections (se.card.system, se.card.post-history, se.card.depth) that a ' +
+      'preset places or does not, and talkativeness in modeData, so the rule ' +
+      'holds. mes_example is no longer among them: it lands ' +
       'in writingSamples, which a preset slot still positions and budgets, so ' +
       'the rule holds and only the container changed. Per-session numbers live ' +
       'in channels and must never appear here.',

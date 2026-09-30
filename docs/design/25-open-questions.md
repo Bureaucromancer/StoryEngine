@@ -934,6 +934,35 @@ worse with every mode that gets another. **Decide with the second instance**, or
 when a phase is measuring turn cost, since (c)'s price is paid in the record
 rather than in tokens. *[06 §6, 22 §4.1]*
 
+*`armed` has a producer since 2026-09-29*
+([P14.5b](workplan/31-p14-scene-and-session-import.md)): a submission's
+`push` (Push story) puts `push` in the turn's armed set, and the engine's
+director step, `se.scene.direct`, is `{ when: 'armed', flag: 'push' }`. The
+runner still plans that step only on a pushed turn (the suggester's rule) and
+evaluates its condition as the belt, so the arm is exercised by a real flag
+rather than only by `steps.test.ts`. **It does not answer this question**: the
+flag is a person's, per turn, and what C17 asks for is a mode keeping its own
+step out on a *session* setting. The same stage adds the **third** instance of
+the dead row — Scene's secret-plot pass (`se.scene.plot`, `pre`), off by
+default, reading one switch and returning — beside the stager and the trackers,
+and `runner.test.ts` and `recovery.test.ts` now read the narrator's outcome by
+id rather than by position because a `pre` step moved it off `steps[0]`. (a)
+is still the answer that adds no vocabulary; the count is now three steps, and
+"decide with the second instance" is past due.
+
+*Five since [P14.5c](workplan/31-p14-scene-and-session-import.md)*: the editor
+(`se.scene.edit`, `post`, off until style or continuity is switched on) and the
+echo chamber (`se.scene.echo`, `post`, off) are two more, so every Scene turn now
+carries five `ok` rows that read a switch and return. The editor's switches are
+also read by the engine — `StepDefinition.revises.enabledBy`, for *hold for
+rewrite*, which has to know before the prose streams whether an edit is coming —
+which is (a)'s shape arriving by the side door: a mode naming, declaratively,
+the channels that decide whether its step does anything. Generalising that
+field to every step (skip the step, write no row, when none of its switches is
+on) would close this question with no new arm; it was not done here because
+the skip changes what the record says about every existing turn shape, and
+that is a decision for this question rather than for a stage.
+
 **C18. Three `post` steps make three calls over the same prose. — OPEN, noted
 rather than solved** (2026-09-13, [P7.12](workplan/23-p7-implementation.md)). The
 goal judge asks *was the goal met*, the suggester asks *what could they do next*,
@@ -1218,6 +1247,11 @@ this entry declines. [P12.8](workplan/29-p12-implementation.md)'s
 `backup/import.ts` is already the first producer. Aventuras' stories are headed
 as P13's Part 2 on this reading and **not scheduled**, so *"still not a
 commitment"* above is unchanged.
+
+*Revisited 2026-09-28, at [18 §7](18-session-import.md).* The condition is met:
+P11.10 shipped the format with a writer and a reader, so a converter aimed at it
+is no longer a reader for a format with no writer. Still not a commitment — §7
+prices what is left and proposes an order, and schedules nothing.
 
 Distinct from **card, lorebook and preset import**, which is committed and early
 ([work plan](workplan/01-work-plan.md) P4). That is a bounded, well-understood surface against

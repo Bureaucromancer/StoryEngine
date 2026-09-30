@@ -122,9 +122,12 @@ create form named one.
 records P4's amendment and keeps *"browsing, previewing, switching
 mid-session"* — pack selection, never block editing — and no stage from P7.0
 to P7.9 carries even that. P7.2 is the cast panel. P7.3, on branch `p7`, carries
-voice and dispatch as session fields, the session and step overrides of
+~~voice and dispatch as session fields,~~ the session and step overrides of
 [19 §5.1](../19-tech-stack.md), and the role-binding editor; not the pack, not
-`params`. P7's §4 does not list an editor as out of scope, so it is neither in
+`params`. *Corrected 2026-09-29: P7.3 deferred voice and dispatch to P7.9, whose
+record never mentions them; they became session fields at
+[P14.0](31-p14-scene-and-session-import.md) ([P14 §0.6](31-p14-scene-and-session-import.md)).*
+P7's §4 does not list an editor as out of scope, so it is neither in
 nor deliberately out. **P8 through P11 do not build one either**: P9, P10 and
 P11 never use the word *preset*, and P8's one use is an import marker. The only
 sentence in the corpus that names an owner is P6B §5's, in a
@@ -193,13 +196,16 @@ path around either. §2 is one stage per absence, in dependency order.
 ### 0.3 What P7 took since, and what this phase collects conditionally
 
 **Taken by P7 on branch `p7`, and not this phase's** — checked so the revisit
-does not find them twice: voice and dispatch as optional session fields, the
+does not find them twice: ~~voice and dispatch as optional session fields,~~ the
 session and step model overrides, and the role-binding editor (P7.3); the
 input-kind selector and R11's suggested actions (P7.9); the guidance one-click
 refill of [25 C14](../25-open-questions.md) (*"lands in this phase unless
 somebody moves it"*, P7 §0.1); the setup wizard and the `setups/` kind's writer
 (P7.4); and the two false deferrals P7 §0.1a struck — the context-window surface
-and the advisory marker — which were already built.
+and the advisory marker — which were already built. *Corrected 2026-09-29: voice
+and dispatch were not taken. P7.3 deferred them to P7.9, whose record never
+mentions them, and no session field existed until [P14.0](31-p14-scene-and-session-import.md)
+added both ([P14 §0.6](31-p14-scene-and-session-import.md)).*
 
 **P7's, until P7 closes without them — then this phase's without a second
 routing.** Each is something P7's document calls its own and no P7 stage carries
@@ -300,9 +306,15 @@ A pack is configuration: the runner reads it, no step writes it, and a rewind
 that silently restored an older pack would surprise more people than one that
 does not. The cost, stated: **rewinding past a switch does not un-switch**, and
 the workbench has to say which pack each turn used rather than let the reader
-assume the current one. The revisit confirms this against what P7.3 did with
+assume the current one. ~~The revisit confirms this against what P7.3 did with
 voice and dispatch, which are the same shape of question — *session field whose
-absence means the mode's value* — and were decided the same way.
+absence means the mode's value* — and were decided the same way.~~ *Corrected
+2026-09-29: P7.3 did nothing with voice and dispatch; it deferred them to P7.9,
+whose record never mentions them ([P14 §0.6](31-p14-scene-and-session-import.md)).
+They are the same shape of question, and [P14.0](31-p14-scene-and-session-import.md)
+answered it the same way — session fields — with one refinement this lean did not
+need: absence means the mode's `legacy` value for a session written before the
+fields existed, because Scene's declared values move in P14.*
 
 **Editing the session's own copy in place is the same operation as switching
 to a pack of one.** Once the copy is addressable through the settings panel,

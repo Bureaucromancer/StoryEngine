@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ***What a running session is prompted with, and the two verbs it never had***
@@ -29,6 +29,7 @@ const SESSION_ID = 'session-1';
 const setSessionPreset = vi.fn();
 const setSessionArchived = vi.fn();
 const deleteSession = vi.fn();
+const importChatFile = vi.fn();
 const navigate = vi.fn();
 
 let session: Record<string, unknown> = {};
@@ -40,6 +41,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   setSessionPreset: (...a: unknown[]) => setSessionPreset(...a) as unknown,
   setSessionArchived: (...a: unknown[]) => setSessionArchived(...a) as unknown,
   deleteSession: (...a: unknown[]) => deleteSession(...a) as unknown,
+  importChatFile: (...a: unknown[]) => importChatFile(...a) as unknown,
   readSession: () => Promise.resolve({ session }),
   readTranscript: () => Promise.resolve({ turns }),
   api: { listLibrary: () => Promise.resolve({ objects: [] }) },
@@ -326,6 +328,105 @@ describe('editing one block of the pack', () => {
 
     expect(await screen.findByText(/positions something the engine supplies/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Save this block' })).toBeNull();
+  });
+});
+
+/**
+ * ***Update from source*** — [P14 §2.7], [P14.10a].
+ *
+ * The session menu's verb on a session made from a chat, and its two doors:
+ * the server sweeps the folder the ledger recorded, or, for a chat that came as
+ * one file, says so and the panel offers the picker for that same file. What an
+ * update does and does not do is said beside the button, before it is pressed.
+ */
+describe('update from source', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const answer = (status: number, body: unknown): void => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      ),
+    );
+  };
+  const fromChat = (originalFilename: string): void => {
+    session = { ...session, origin: { source: 'import', originalFilename } };
+  };
+
+  it('is offered only on a session made from a chat', async () => {
+    renderPanel();
+    await open();
+
+    expect(screen.queryByRole('button', { name: 'Update from source' })).toBeNull();
+  });
+
+  it('says what it does and does not do, and what the sweep brought', async () => {
+    fromChat('chats/Vera/Vera - 2026.jsonl');
+    answer(200, {
+      item: {
+        source: 'chats/Vera/Vera - 2026.jsonl',
+        disposition: 'converted',
+        objectId: SESSION_ID,
+        notes: [{ key: 'import.chat.extended', params: { name: 'Vera', count: 3 }, level: 'info' }],
+      },
+    });
+    renderPanel();
+    const user = await open();
+
+    expect(screen.getByText(/Nothing in this session is deleted or rewritten/)).toBeTruthy();
+    expect(screen.getByText(/your place is kept/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Update from source' }));
+
+    expect(await screen.findByText(/brought up to date from its source: 3 new turns/)).toBeTruthy();
+  });
+
+  it('offers the same file again when the chat came as one, and refuses another', async () => {
+    fromChat('Vera.jsonl');
+    answer(409, { error: 'no-recorded-source', message: 'Choose the file again.' });
+    importChatFile.mockResolvedValue({
+      item: {
+        source: 'Vera.jsonl',
+        disposition: 'unchanged',
+        objectId: SESSION_ID,
+        notes: [{ key: 'import.chat.alreadyHere', params: {}, level: 'info' }],
+      },
+      notes: [],
+    });
+    renderPanel();
+    const user = await open();
+
+    await user.click(screen.getByRole('button', { name: 'Update from source' }));
+    expect(await screen.findByRole('button', { name: 'Choose Vera.jsonl' })).toBeTruthy();
+
+    const input = document.querySelector<HTMLInputElement>('input[accept=".jsonl"]');
+    if (input === null) throw new Error('no picker');
+    await user.upload(input, new File(['{}'], 'Maris.jsonl'));
+    expect(await screen.findByText(/That is not “Vera.jsonl”/)).toBeTruthy();
+    expect(importChatFile).not.toHaveBeenCalled();
+
+    await user.upload(input, new File(['{}'], 'Vera.jsonl'));
+    expect(await screen.findByText(/Nothing new/)).toBeTruthy();
+    expect(importChatFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a chat that came with its folder back to the folder', async () => {
+    fromChat('chats/Vera/Vera - 2026.jsonl');
+    answer(409, { error: 'no-recorded-source', message: 'Choose the file again.' });
+    renderPanel();
+    const user = await open();
+
+    await user.click(screen.getByRole('button', { name: 'Update from source' }));
+
+    expect(await screen.findByText(/Import that folder again/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Choose/ })).toBeNull();
   });
 });
 

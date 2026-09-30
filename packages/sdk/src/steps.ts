@@ -7,8 +7,11 @@ import type {
   ChannelState,
   EffectOp,
   GenerationParams,
+  MessageRevision,
   ModelCall,
   ModelRole,
+  OutputMessage,
+  Ref,
   StepStage,
   TokenUsage,
   Turn,
@@ -84,6 +87,60 @@ export interface StepDefinition {
   failure: 'abort' | 'warn' | 'ignore';
   /** The role its call asks for, or null when it makes none. */
   role: ModelRole | null;
+  /**
+   * ***A person may run this step between turns*** —
+   * [P14 §1.9.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * *Update trackers*, declared at [P14.5a].
+   *
+   * **A declaration rather than a route that runs whatever it is named**, for
+   * the reason `confirm` is one on a channel: the alternative is engine code
+   * naming a mode's step, or a door through which a client could run the
+   * narrator outside a turn and have its prose land nowhere. Only a `post` step
+   * that contributes nothing but effects can mean anything run on its own —
+   * the engine refuses the declaration on anything else rather than guessing
+   * what a detached narrator call would be for.
+   *
+   * *What running it writes is an engine turn*, the shape a person's channel
+   * edit already writes: the step's call and its effects on a child of the
+   * head, with no `steps` record, so it is not a story turn and moves no
+   * cadence. The step is told it was asked for through
+   * {@link StepInput.onDemand}, which is how one declared `when` can mean *on
+   * a cadence, and also whenever somebody presses the button*.
+   *
+   * Absent is *never on demand*, which is every step written before this.
+   *
+   * ***`{ label }` rather than `true`*** — changed at [P14.5a]'s client half.
+   * A control that runs the step has to say something, and what it says is
+   * authored content that travels with the mode, as a widget's label does:
+   * *Update trackers* is Scene's sentence, and a host that minted the words
+   * from the step's id would be the engine naming a mode's feature.
+   */
+  onDemand?: { label: string };
+  /**
+   * ***This step may revise the turn's messages before the turn is written***
+   * — [P14 §1.9.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * editor, declared at [P14.5c].
+   *
+   * **A declaration, because what it permits is the one thing no step could
+   * do before**: change what an earlier step said. A `post` step has always
+   * been handed the output to read; only a step declaring this may answer with
+   * {@link StepResult.revisions}, and only in the `post` stage, since a
+   * revision of prose nobody has written yet is nothing. The engine refuses a
+   * revision from any other step as that step's failure.
+   *
+   * - `enabledBy` — the boolean channels that switch it on, **any of which**
+   *   will do (an editor for style and one for continuity are one call). The
+   *   step still reads its own switches; this is for the engine, which has to
+   *   know *before the prose streams* whether an edit is coming.
+   * - `hold` — a boolean channel: while it is on (and the step is), the
+   *   engine streams none of the round until the step has answered, so a
+   *   person never reads a sentence the editor then takes back — Marinara's
+   *   *hold for rewrite*. Absent is never held.
+   *
+   * *The step names channels; the engine reads switches.* Neither says which
+   * mode's editor this is, which is the rule every declaration here keeps.
+   */
+  revises?: { enabledBy: readonly string[]; hold?: string };
 }
 
 /**
@@ -255,6 +312,36 @@ export interface CastEntry {
     accessories?: string;
     distinguishing?: string;
   };
+  /**
+   * ***This entry is the player's own character*** — added at [P14.5a].
+   *
+   * `castEntries` has put the persona first in this list since [P7.12]
+   * (*"the persona is an actor too"*), and nothing could tell it from the
+   * others: position is a convention a step would be trusting, and a session
+   * with no persona puts somebody else first. The trackers are the first step
+   * that has to know, because *the persona* and *each present character* are
+   * two trackers with two shapes ([P14 §1.9.2]), and a character tracker that
+   * tracked the player too would be the same person described twice.
+   *
+   * Absent means an ordinary member of the cast.
+   */
+  persona?: true;
+  /**
+   * ***This member is muted*** — out of the room by the mode's own reading of
+   * presence, added 2026-09-29 (the [P14.5a] review).
+   *
+   * The cards and the tracker panel have left a muted member out since
+   * [P14.3], but the character tracker asked about everyone in this list, so a
+   * call a turn went on somebody the player had taken out of the scene —
+   * Marinara's character tracker follows only the characters present. The
+   * host says it here, from the one reading the collector and the panel use,
+   * rather than handing a step the presence channel: a step that read
+   * `se.presence` would be the engine's reading of presence written twice.
+   *
+   * Absent means present, which is what every mode without a reading of
+   * presence gets.
+   */
+  present?: false;
 }
 
 export interface StepInput {
@@ -275,9 +362,13 @@ export interface StepInput {
    *
    * Actor ids, in the order the policy chose them, over whoever presence and
    * status say is available. A step that makes one merged call can ignore it; a
-   * step that speaks for somebody passes one of these as
+   * ~~step that speaks for somebody passes one of these as
    * `StepCallRequest.actorId`, which is how an actor reaches `resolveRole`'s
-   * last layer.
+   * last layer.~~ step that speaks for somebody passes one of these as
+   * `StepCallRequest.speaker` (*corrected 2026-09-29, at [P14.2]*), which
+   * implies the `actorId` that reaches `resolveRole`'s last layer under
+   * `per-actor` dispatch. Scene's embodied `merged` call does not ignore the
+   * list either: it speaks as the first entry, one call for the scene.
    *
    * **Not filtered by `reads`, and the exception is principled.** [22 §3.1]'s
    * payload filter is about *sources* — a channel, the history, the output —
@@ -286,11 +377,60 @@ export interface StepInput {
    * it by construction, the same way `input` is. A `reads: ['speakers']` would
    * be a fourth pseudo-source in a set [06 §6] names as two.
    *
-   * **Empty is a real answer**, and `manual` is where it happens: nobody was
-   * named, so nobody in particular is speaking. It is not the same as absent,
-   * which is a turn whose mode declares `fixed` and makes no selection at all.
+   * **Empty is a real answer**, and `manual` is where it happens: ~~nobody was
+   * named~~ the player sent an input and nobody was asked to reply
+   * (*corrected 2026-09-29, at [P14.1]*), so nobody in particular is speaking.
+   * It is not the same as absent, which is a turn whose ~~mode declares~~
+   * **session plays** `fixed` and makes no selection at all.
+   *
+   * *The session's policy, not the mode's, since [P14.1]*: the mode's
+   * `participants.select` is what a session is created with, and a session
+   * may say otherwise ([P14 §1.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
+   * **And a force-talk submission overrides both**, so a turn can carry
+   * speakers under `fixed` too — the one case where somebody asked by name.
+   *
+   * ***Under `smart`, possibly a model's answer*** ([P14 §1.3a]). When no rule
+   * settles the turn, an engine step runs first and asks; every step after it
+   * is handed that answer, and a step never sees the rule-based pick it
+   * replaced. A mode reads this the same way whichever produced it — which is
+   * the point: who chose is on the record, and what to do with the choice is
+   * the mode's.
    */
   speakers?: readonly string[];
+  /**
+   * ***How the session speaks*** — [06 §3](../../../docs/design/06-modes-and-turn-pipeline.md)'s
+   * two axes as this session plays them, [P14 §1.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * handed to steps at [P14.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * - `voice` is **who the prose is in**: `narrator`, a voice outside the scene
+   *   describing it, or `embodied`, the characters speaking as themselves.
+   * - `dispatch` is **how many calls a round takes**: `merged` is one reply for
+   *   everybody who speaks, and `per-actor` is one speaking call per member in
+   *   `speakers`, in that order, each seeing the replies before it
+   *   ({@link StepCallRequest.speaker}).
+   *
+   * ***The session's values, not the mode's*** — the ones the server resolves
+   * from the session file (a field the session carries wins, a session written
+   * before these fields existed reads the mode's `legacy`, and otherwise the
+   * mode's declaration). A step that read its own `ModeDefinition` instead would
+   * be right until somebody changed a session's settings and then wrong about
+   * every turn after, which is the failure `legacy` exists to prevent one level
+   * up.
+   *
+   * **What to do with them is the mode's**, which is the whole point of handing
+   * them over rather than acting on them: the engine owns what a speaking call
+   * *is* — whose card comes first, what the next speaker is shown, how a reply
+   * is cleaned — and the step owns whether to make one call or several. A mode
+   * with no voice of its own ignores both.
+   *
+   * **Not filtered by `reads`**, for `speakers`' reason: the session's own
+   * settings applied to the session's own turn, which every step of the mode is
+   * entitled to. *Optional*, so a host that predates them — a test double, an
+   * older engine — hands none, and a step reads their absence as its mode's own
+   * declared values, which is what such a host played.
+   */
+  voice?: 'narrator' | 'embodied';
+  dispatch?: 'merged' | 'per-actor';
   /**
    * ***Who is in the scene, and what they look like*** — declared by
    * `reads: ['cast']`, added at
@@ -375,8 +515,29 @@ export interface StepInput {
    * not in this list, which is the list the host's history window counts too.
    */
   transcript?: readonly TranscriptTurn[];
-  /** Present only when `reads` includes `output`. */
-  output?: { text: string };
+  /**
+   * Present only when `reads` includes `output`.
+   *
+   * ***`messages` since [P14.5c]***: the turn's output as its messages, each
+   * with its speaker — present when the output has them, which is a round
+   * under `per-actor` dispatch or a swipe's carried lines — so a step that
+   * revises (see {@link StepDefinition.revises}) can answer about one message
+   * at a time. Absent, the output is one message, index `0`. *Carried*
+   * messages are marked (`OutputMessage.carried`): they are an earlier turn's
+   * work, and the engine refuses a revision of one.
+   */
+  output?: { text: string; messages?: readonly OutputMessage[] };
+  /**
+   * ***A person asked for this run*** — {@link StepDefinition.onDemand},
+   * [P14.5a].
+   *
+   * Present only on a run nobody's turn made: the step's declared `when`, and
+   * any cadence or manual switch it reads for itself, answer *should I run
+   * this turn*, and a person pressing *Update trackers* has already answered
+   * it. `output` is then the last story turn's, and `transcript` the path up to
+   * it — what the step saw when that turn committed.
+   */
+  onDemand?: true;
 }
 
 /**
@@ -411,7 +572,53 @@ export interface TranscriptTurn {
 export interface StepResult {
   candidates?: Candidate[];
   effects?: EffectProposal[];
+  /** The turn's output, spoken by nobody in particular — the narrator's one reply. */
   message?: { text: string; reasoning?: string };
+  /**
+   * ***The turn's output as several messages, each with its speaker*** —
+   * [P14 §1.1](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.0](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * **For a step that voices several speakers**: a group round under `per-actor`
+   * dispatch, one message per member who replied, or a narrator paragraph beside
+   * embodied lines. It lands as `Turn.output.messages`, and **the runner derives
+   * `output.text` from it** — a step never writes the joined text itself, because
+   * a step that did could write one that disagrees with its own messages, and
+   * `text` is what every older reader believes.
+   *
+   * ***One or the other, never both.*** `message` is the one-speaker case and
+   * stays so that every step written before this compiles and behaves as it
+   * did. A result carrying both is refused as the step's failure, under its own
+   * `failure` policy, because the two are rival answers to *what did this turn
+   * say* and nothing in the result says which the author meant. Silently
+   * preferring one would turn an author's mistake into a transcript missing
+   * whatever the other held.
+   *
+   * *An empty list is a step that spoke for nobody* — a `manual` round with
+   * nobody named — and sets no output, which is what an absent output has always
+   * meant on the record.
+   */
+  messages?: OutputMessage[];
+  /**
+   * ***What this step changed in the turn's messages, and what it noticed*** —
+   * [P14 §1.9.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5c]. Only from a `post` step declaring
+   * {@link StepDefinition.revises}.
+   *
+   * One entry per message the step has something to say about, by its index
+   * in `output.messages` (or `0` for a turn of one message). A `text` replaces
+   * the message's text **before the turn is written**, so the turn's authored
+   * bytes are the edited ones; the engine keeps what it replaced as the
+   * message's `original` — unless cleanup already kept the model's own reply
+   * there, which is the older and truer original. `changes` and `notices` land
+   * on the step's outcome (`StepOutcome.revisions`), never in the prose.
+   *
+   * ***Refused as the step's failure***, under its own policy, when it names a
+   * message the turn does not have or one that was carried, or brings an empty
+   * `text`: an editor that answered with nothing has not edited, and blanking
+   * a message is not a revision.
+   */
+  revisions?: readonly MessageRevision[];
 }
 
 export interface StepCallRequest {
@@ -433,13 +640,77 @@ export interface StepCallRequest {
    * could pass one the card does not carry. Passing an *id* keeps the card the
    * only source.
    *
-   * **Absent is a merged call**, which is what `dispatch: 'merged'` means and
+   * ~~**Absent is a merged call**, which is what `dispatch: 'merged'` means and
    * what every shipped step does: one reply for the scene, spoken by nobody in
-   * particular, resolved with no hint. `per-actor` dispatch is a mode fanning
+   * particular, resolved with no hint.~~ *Corrected 2026-09-29, at [P14.2]*: a
+   * call with neither `actorId` nor `speaker` is the narrator's or an embodied
+   * merged call with nobody selected, and resolves with no hint. Scene's
+   * speaking calls pass `speaker` — its embodied `merged` one too, for the
+   * first selected member — which implies this field under `per-actor`
+   * dispatch only: a merged speaking call still resolves with no hint, since
+   * [06 §3] consults one only under `per-actor`. ~~`per-actor` dispatch is a mode fanning
    * this out — the mode half is [P7.9]'s, since no shipped mode declares it, but
-   * the engine half is here and works for a single call just as well.
+   * the engine half is here and works for a single call just as well.~~
+   * *Corrected 2026-09-29, at [P14.2]*: [P7.9] never built the mode half, and a
+   * model hint was never enough to fan a round out with — the call also has to
+   * be *assembled* for the member and its reply attributed to them. That is
+   * {@link StepCallRequest.speaker}, which implies this field; `actorId` stays
+   * for a call that wants an actor's model preference and nothing else.
    */
   actorId?: string;
+  /**
+   * ***The member this call speaks as*** — [P14 §1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * built at [P14.2]. An actor id from the scene's cast; never the persona,
+   * whose words are the player's.
+   *
+   * **A speaking call is `actorId` and three things more**, and each is the
+   * engine's rather than the step's:
+   *
+   * 1. ***It re-scopes assembly.*** `{{char}}` is the speaker; `{{group}}`,
+   *    `{{charIfNotGroup}}` and `{{notChar}}` are named from them; the speaker's
+   *    card comes first among the cast's, and a block scoped `speaker` or
+   *    `others` narrows to them or away from them. Every other present card
+   *    stays ([00 §2.10]'s *"the assembler is multi-actor from the start"*).
+   * 2. ***It sees the round so far.*** The messages earlier speaking calls wrote
+   *    this turn follow the input, in order, as the model's own lines — the
+   *    second speaker answers the first.
+   * 3. ***Its reply is the runner's.*** While it streams, it fills a new message
+   *    on the turn's output, attributed to the speaker, and the live events
+   *    carry that message's index. When it completes under the session's
+   *    `per-actor` dispatch, a leading `Name:` is stripped and the text is cut
+   *    where another member's line, or the persona's, begins (ST's
+   *    `trimWrongNames`), as both sources clean a group
+   *    reply; the result's `text` is the cleaned reply, and `original` says it
+   *    was cleaned. Under `merged` the one reply may voice several members,
+   *    so nothing is cut.
+   *
+   * *And under `per-actor` dispatch the model role resolves for the speaker*
+   * exactly as `actorId` does — a speaking call implies that `actorId`, and one
+   * that names a different `actorId` beside it is refused rather than guessed
+   * at. Under `merged` the speaker's hint is not consulted ([06 §3]: a hint
+   * applies only under `per-actor`; 2026-09-29, [P14.2] review), since the one
+   * reply is the scene's whoever it is attributed to. *A speaking call
+   * that brings its own `candidates`* is assembled from those alone, as any
+   * call that brings them is: points 1 and 2 are the preset's collection, and
+   * the preset is not consulted. Point 3 still holds.
+   *
+   * **One speaking call at a time.** A round is ordered — each call is shown the
+   * ones before it — so a step that started a second while the first was still
+   * streaming would be asking for two messages at one position, and the runner
+   * refuses it. A step fans out with a loop, not with `Promise.all`.
+   *
+   * ***A round can lose a speaker and keep the rest.*** If a speaking call
+   * fails after another speaking call of the same step finished, and the step
+   * lets the failure propagate, the turn commits with the messages it has and
+   * the step's outcome names who was lost: a declared `abort` is handled as a
+   * `warn`, because a group round that loses its third speaker is a turn with
+   * two messages rather than a lost turn. The first speaking call failing is an
+   * ordinary failure under the step's own policy.
+   *
+   * Absent is every call that is not a member speaking: a narrator's merged
+   * reply, a judge, a summary.
+   */
+  speaker?: string;
   params?: GenerationParams;
   /** Omitted means everything accumulated so far. */
   candidates?: readonly Candidate[];
@@ -465,6 +736,26 @@ export interface StepCallResult {
    * report, and every step written before this compiles unchanged.
    */
   outcome?: ModelCall['outcome'];
+  /**
+   * ***Who a speaking call spoke for, as the record names them*** — [P14.2].
+   * The id the step passed and the name the card carries now, which is the
+   * `Ref` the turn's message holds; so a step that builds its own `messages`
+   * from its results writes the same speaker the runner streamed, without
+   * declaring `cast` to find a name. Absent on a call with no `speaker`.
+   */
+  speaker?: Ref;
+  /**
+   * ***The reply as the model returned it, when cleanup changed it*** —
+   * [P14 §1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+   * point 3, [P14.2].
+   *
+   * **Its presence is how a step knows `text` was cleaned**, and it is what the
+   * step passes on as `OutputMessage.original` — the one place the unmodified
+   * reply survives, because a call's record keeps the prompt and never the
+   * answer. Absent when cleanup left the reply alone, and on every call that is
+   * not a speaking one.
+   */
+  original?: string;
 }
 
 /**

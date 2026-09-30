@@ -15,7 +15,7 @@ import {
   sessionJobsFrom,
 } from '../state/jobs.js';
 import type { JobContext } from '../state/jobs.js';
-import type { TurnStream } from './bus.js';
+import type { SummaryWarm, TurnStream } from './bus.js';
 
 /**
  * Snapshot plus cursor, with no gap between them —
@@ -67,7 +67,12 @@ export interface Snapshot {
 export type StreamFrame =
   | { kind: 'snapshot'; snapshot: Snapshot }
   | { kind: 'progress'; jobId: string; event: ProgressEvent }
-  | { kind: 'delta'; jobId: string; text: string }
+  /**
+   * `message` — the turn's message a speaking call's text belongs to, [P14.2].
+   * Absent on a narrator's text and on the separator between two messages; see
+   * `TurnStream.delta`.
+   */
+  | { kind: 'delta'; jobId: string; text: string; message?: number }
   /**
    * A picture arrived, failed, or changed — [P9.2].
    *
@@ -85,7 +90,12 @@ export type StreamFrame =
    * That is the property `progress` cannot have — an event is a delta against a
    * draft — and it is why this kind needs neither a sequence nor a cursor.
    */
-  | { kind: 'rendition'; rendition: Rendition };
+  | { kind: 'rendition'; rendition: Rendition }
+  /**
+   * The summary chain's warm moved — [P14.11]. Whole state, applied by
+   * replacement, so it needs no cursor either; see `SummaryWarm`.
+   */
+  | { kind: 'summaries'; warm: SummaryWarm };
 
 export interface Attachment {
   snapshot: Snapshot;
@@ -136,13 +146,23 @@ export function attachToSession(
         else buffered.push(frame);
       }
     },
-    onDelta: (jobId, text) => {
-      const frame: StreamFrame = { kind: 'delta', jobId, text };
+    onDelta: (jobId, text, message) => {
+      const frame: StreamFrame = {
+        kind: 'delta',
+        jobId,
+        text,
+        ...(message === undefined ? {} : { message }),
+      };
       if (live) deliver(frame);
       else buffered.push(frame);
     },
     onRendition: (rendition) => {
       const frame: StreamFrame = { kind: 'rendition', rendition };
+      if (live) deliver(frame);
+      else buffered.push(frame);
+    },
+    onSummaries: (warm) => {
+      const frame: StreamFrame = { kind: 'summaries', warm };
       if (live) deliver(frame);
       else buffered.push(frame);
     },
