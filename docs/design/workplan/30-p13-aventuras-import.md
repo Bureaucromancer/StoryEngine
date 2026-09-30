@@ -330,6 +330,15 @@ which a rebuild or a correction recovers without anything having been lost.
   main up to the parent's fork. The rebuild follows
   [18 §2.3.1](../18-session-import.md)'s rule; recorded in `story.ts`. Nothing
   at the pin writes a `system` entry, so those arrive only in older data.
+- **Which Aventuras branches are copies is a guess before migration 029** —
+  found at P13.12. With `snapshot_complete` unset, a branch counts as its own
+  copy when it owns rows none of which is an edit or tombstone; that is wrong
+  for a lightweight branch (026–028) that only added rows, and for an unplayed
+  default branch that owns nothing. Recorded in `world.ts`.
+- **A story imported before its world was stored never gains it** — found at
+  P13.12. The world follows the session, and a session already here is left as
+  it is, so a story imported at P13.11 keeps an empty cast on a re-sweep.
+  Development data only; no release carried P13.11.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -1013,9 +1022,44 @@ set before the reader sees it so `foreignise` keeps it; metadata into `cost`,
 `output.reasoning`; `suggested_actions` into `suggestions`; branches into
 `branchRefs`; the head from `stories.current_branch_id`.~~
 
-### P13.12 — World state
+### ~~P13.12 — World state~~ Done
 
-Copy-on-write resolution for the head branch — `overrides_id` shadows,
+*Done — `6bc1a32`, 2026-09-30.* `import/aventuras/world.ts`, pure like
+`story.ts`, resolves the story's world for the head branch as Aventuras' own
+`get*Resolved` does — by canonical id (`overrides_id ?? id`), a tombstone
+hiding its row on the head and keeping it for the lines below it, and a
+`snapshot_complete` branch, or one that owns rows none of which is an edit,
+read as its own copy, since otherwise Aventuras' default copied branches would
+put every character in the cast twice. `story-rows.ts` reads every branch's
+rows of the five tables, each late column gated; a portrait is read only when
+its actor is about to be stored, and bounded as P13.3 bounds one. The Writer
+stores the characters as actors through the vault's own converter and
+`#createActor`, keyed `aventura.db/stories/<id>/characters/<canonical id>` so a
+branch's edit is the same actor, the protagonist as the persona; and the
+story's entries, locations, items and story beats as one lorebook keyed
+`…/lorebook`, each kind tagged three ways for three readers — `LoreEntry.tag`
+(`location`, `item`, `story-beat`), a folder of its own for the person in the
+editor, and `metadata.aventuras.table` for a place told apart from an
+`entries` row of type `location` — with the kind's own fields in
+`metadata.aventuras`. **Story beats are lore for now**, and said to be in the
+code, the registry, the label and the review
+(`import.aventuras.storyBeatsAsLore`): their type, status and times ride in
+metadata so the beats feature this project means to build reads them from here
+rather than reversing anything. Entry ids come from the story, the table and
+the row, so [§0.5](#05-found-in-passing-and-not-fixed-here)'s timing item is
+not made worse, and a renamed row keeps its timing. The Writer then links
+`cast` and `lore` and hands the document to `importSession` under
+`requireLinks`. The actors and the book have no rows of their own — they are
+named on the story's row (`alsoProduced`, `storyWorld`), as a scenario's npcs
+and a card's book already are — and `worldBranchesDiffer` counts the other
+branches whose world differs, which stay in Aventuras. **The world follows the
+session:** a story already here is found by its key before anything is
+produced, and nothing of its world is written — writing first would, under
+`replace`, change actors beside turns that never saw the change, and orphan
+characters added since. *Ended at:* the fixture's *Lantern Fork* imports with
+Mara as persona, her PNG portrait as the card, the Keeper as *Tower* edited
+him, no Gull, and a book of eight entries without *Ferry*'s dock; a second
+sweep is all `unchanged`, with no new version of any actor or book. ~~Copy-on-write resolution for the head branch — `overrides_id` shadows,
 `deleted` hides — then characters into cast actors and the story's `entries`
 into one per-story lorebook in `session.lore`. What another branch holds
 differently is recorded. ~~Locations, items and story beats per
@@ -1023,7 +1067,7 @@ differently is recorded. ~~Locations, items and story beats per
 that lorebook, tagged by kind** — decided 2026-09-28. For story beats this is an
 interim home and recorded as one: they are a feature StoryEngine means to grow
 in its own right, and when it does, a beat imported as lore is what that
-feature's own import will read from, not something it has to reverse.
+feature's own import will read from, not something it has to reverse.~~
 
 ### P13.13 — Images as renditions
 
@@ -1114,7 +1158,7 @@ refuse); WAL with un-checkpointed frames; and zipped through
    or `recorded` until a channel wants them? The first imports something usable
    and the second imports nothing wrong.~~ **Lore entries, tagged by kind**, story
    beats included and marked as their interim home —
-   [P13.12](#p1312--world-state).
+   [P13.12](#p1312--world-state-done).
 
 ---
 
