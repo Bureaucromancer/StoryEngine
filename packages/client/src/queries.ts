@@ -399,6 +399,10 @@ export function useUpdateMe(): UseMutationResult<
       // the header keeps the old name until a reload — the exact "did that
       // work?" moment gate step 2 is written to catch.
       void client.invalidateQueries({ queryKey: ['auth', 'state'] });
+      // And an admin's own row in the account list says the same name and the
+      // same gallery choice (2026-09-28). For anyone else there is no such
+      // entry, and invalidating nothing asks nothing.
+      void client.invalidateQueries({ queryKey: ['admin', 'accounts'] });
     },
   });
 }
@@ -449,9 +453,11 @@ export function useGallery(): UseQueryResult<{ accounts: GalleryEntry[] }> {
 /**
  * Setting or clearing your own face — [12 §5.2].
  *
- * Both invalidate `auth/state` as well as the gallery, because the signed-in
- * surfaces render the same face and a save that only refreshed the sign-in
- * screen would leave the person looking at their old one.
+ * Both invalidate ~~`auth/state`~~ `['me']` as well as the gallery, because
+ * the signed-in surfaces render the same face and a save that only refreshed
+ * the sign-in screen would leave the person looking at their old one.
+ * (Corrected 2026-09-28: an `Account` carries no face, so the auth state was
+ * never the one to refresh, and the code never did.)
  */
 export function useUploadAvatar(): UseMutationResult<{ avatar: string }, Error, File> {
   const client = useQueryClient();
@@ -646,20 +652,6 @@ export function useSession(
 }
 
 /**
- * Point a session at a treatment and a set of books — [P6B.0].
- *
- * **The three keys a head move refreshes, for the same reason it refreshes
- * them**: the session file changed, so the entry Play and the workbench both
- * read is stale, and the preview is an answer about a prompt whose contents
- * just moved. The preview is *reset* rather than invalidated because it has no
- * `queryFn` of its own ([P3.4]) — invalidating an entry nothing can refetch
- * leaves the old number on screen, which after attaching a book is a meter
- * confidently reporting a prompt that no longer exists.
- *
- * The transcript is deliberately not in the set: turns already taken are what
- * they were, and retrieval changes the *next* one.
- */
-/**
  * The three session verbs that had routes and no controls — [P7B.2].
  *
  * All three invalidate `['sessions']` as well as the session's own entry: the
@@ -711,7 +703,10 @@ export function useSetSessionPreset(
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       // The pack decides what the next turn assembles from, so a composed
       // preview built over the old one is stale the moment this lands.
-      void client.invalidateQueries({ queryKey: ['preview', sessionId] });
+      // ***Reset, as `useSetSessionLore`'s is*** (2026-09-28): the preview has
+      // no `queryFn`, so invalidating it refetched nothing and the meter went
+      // on reporting the old pack's budget — the longer reply reserved, not.
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
     },
   });
 }
@@ -891,6 +886,20 @@ export function useDeleteSession(sessionId: string): UseMutationResult<void, Err
   });
 }
 
+/**
+ * Point a session at a treatment and a set of books — [P6B.0].
+ *
+ * **The three keys a head move refreshes, for the same reason it refreshes
+ * them**: the session file changed, so the entry Play and the workbench both
+ * read is stale, and the preview is an answer about a prompt whose contents
+ * just moved. The preview is *reset* rather than invalidated because it has no
+ * `queryFn` of its own ([P3.4]) — invalidating an entry nothing can refetch
+ * leaves the old number on screen, which after attaching a book is a meter
+ * confidently reporting a prompt that no longer exists.
+ *
+ * The transcript is deliberately not in the set: turns already taken are what
+ * they were, and retrieval changes the *next* one.
+ */
 export function useSetSessionLore(
   sessionId: string,
 ): UseMutationResult<
@@ -1332,7 +1341,25 @@ export function useUpdateAccount(): UseMutationResult<
     // can be refused (the last-admin guard), and showing it as taken while the
     // server is about to say no is the failure the editor's unpolled base
     // exists to avoid.
-    onSuccess: () => client.invalidateQueries({ queryKey: ['admin', 'accounts'] }),
+    /**
+     * ***Your own row refreshes you*** (2026-09-28). The settings page, the
+     * shell and the You form decide what to show from the auth state and
+     * `['me']`, and an admin ticking *May schedule automatic backups* on their
+     * own row saw no schedule form until a reload. Asked first, so a demotion
+     * or a disable of yourself — which leaves nothing admin on the page — does
+     * not then ask the admin list again, to be refused.
+     */
+    onSuccess: async (_answer, input) => {
+      const self = client.getQueryData<AuthState>(['auth', 'state'])?.account?.handle;
+      if (input.handle === self) {
+        await Promise.all([
+          client.invalidateQueries({ queryKey: ['auth', 'state'] }),
+          client.invalidateQueries({ queryKey: ['me'] }),
+        ]);
+        if (input.patch.role === 'user' || input.patch.enabled === false) return;
+      }
+      await client.invalidateQueries({ queryKey: ['admin', 'accounts'] });
+    },
   });
 }
 
@@ -1613,6 +1640,11 @@ export function useWriteConfig(): UseMutationResult<
       // The banner is above the outlet on every page, so it has to hear about
       // this without the settings page telling it directly.
       void client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+      // The auth state carries two live keys, `auth.loginScreen` and
+      // `auth.minPasswordLength` (2026-09-28): switching the install to the
+      // gallery left the You form without its gallery toggle, and every row
+      // saying nobody is shown to anybody, until a reload.
+      void client.invalidateQueries({ queryKey: ['auth', 'state'] });
     },
   });
 }
