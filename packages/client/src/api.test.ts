@@ -20,6 +20,76 @@ import {
 } from './api.js';
 import { formatTimestamp, timestampsOf } from './format.js';
 
+/**
+ * ***A file, and what its answer said*** (2026-09-28) — gap round A5.4. The
+ * detail page's links now fetch, and what they read is here: the notes arrive
+ * as base64 of UTF-8, which `atob` alone would hand back as latin-1.
+ */
+describe('taking a file', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function answer(response: Response): string[] {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      urls.push(url);
+      return Promise.resolve(response);
+    });
+    return urls;
+  }
+
+  it('reads the name, the notes in their own characters, and the missing count', async () => {
+    const notes = [
+      { key: 'export.card.noCastMember', params: { treatment: 'Café' }, level: 'info' },
+    ];
+    const urls = answer(
+      new Response('{}', {
+        status: 200,
+        headers: {
+          'content-disposition': 'attachment; filename="Cafe.json"',
+          'x-storyengine-export-notes': Buffer.from(JSON.stringify(notes)).toString('base64'),
+          'x-storyengine-missing': '3',
+        },
+      }),
+    );
+
+    const file = await api.takeFile('/api/library/treatments/t1/export/sillytavern.card');
+
+    expect(urls).toEqual(['/api/library/treatments/t1/export/sillytavern.card']);
+    expect(file.fileName).toBe('Cafe.json');
+    expect(file.notes).toEqual(notes);
+    expect(file.missing).toBe(3);
+    expect(await file.blob.text()).toBe('{}');
+  });
+
+  it('is a refusal, by its class, when the route refuses', async () => {
+    answer(
+      new Response(JSON.stringify({ error: 'not-exportable', message: 'no' }), { status: 422 }),
+    );
+
+    const failure = await api.takeFile('/api/library/actors/a1/download').catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(ApiError);
+    expect((failure as ApiError).code).toBe('not-exportable');
+  });
+
+  it('reads a notes header that will not decode as no notes, not as a failure', async () => {
+    answer(
+      new Response('{}', {
+        status: 200,
+        headers: { 'x-storyengine-export-notes': '%%not-base64' },
+      }),
+    );
+
+    const file = await api.takeFile('/api/library/actors/a1/download');
+
+    expect(file.notes).toEqual([]);
+    expect(file.missing).toBe(0);
+    expect(file.fileName).toBeNull();
+  });
+});
+
 describe('the 412 parse', () => {
   // Through a stubbed fetch on a GET path — request() reads document.cookie
   // for state-changing methods, and this environment has no document.

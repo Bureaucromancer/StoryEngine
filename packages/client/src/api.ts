@@ -8,6 +8,7 @@ import {
   SETUP_SCHEMA,
   TREATMENT_SCHEMA,
   type ImportDestination,
+  type ImportNote,
   type ImportPreview,
   type NearMissOffer,
   type Turn as TurnRecord,
@@ -314,31 +315,38 @@ async function request<T>(
 
   const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
-  if (!response.ok) {
-    const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
-    const message =
-      typeof payload?.['message'] === 'string'
-        ? payload['message']
-        : `The server answered with status ${String(response.status)}.`;
-    const current =
-      code === 'stale' && typeof payload?.['current'] === 'object' && payload['current'] !== null
-        ? payload['current']
-        : undefined;
-    const contentHash =
-      typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
-    // Every element checked, not just the array: this reaches the screen, and a
-    // body carrying `issues: [{...}]` would render `[object Object]` at somebody
-    // who is already being told they got something wrong.
-    const issues =
-      Array.isArray(payload?.['issues']) &&
-      payload['issues'].every((one) => typeof one === 'string')
-        ? payload['issues']
-        : undefined;
-    const remedy = typeof payload?.['remedy'] === 'string' ? payload['remedy'] : undefined;
-    throw new ApiError(response.status, code, message, current, contentHash, issues, remedy);
-  }
+  if (!response.ok) throw refusalFrom(response.status, payload);
 
   return payload as T;
+}
+
+/**
+ * ***A refusal's body, read once*** (2026-09-28): what `request` always did,
+ * lifted out when a third reader arrived (`api.takeFile`) — the form upload had
+ * already copied the first two lines of it, and a copy is where the next field
+ * gets read by one of them and not the others.
+ */
+function refusalFrom(status: number, payload: Record<string, unknown> | null): ApiError {
+  const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
+  const message =
+    typeof payload?.['message'] === 'string'
+      ? payload['message']
+      : `The server answered with status ${String(status)}.`;
+  const current =
+    code === 'stale' && typeof payload?.['current'] === 'object' && payload['current'] !== null
+      ? payload['current']
+      : undefined;
+  const contentHash =
+    typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
+  // Every element checked, not just the array: this reaches the screen, and a
+  // body carrying `issues: [{...}]` would render `[object Object]` at somebody
+  // who is already being told they got something wrong.
+  const issues =
+    Array.isArray(payload?.['issues']) && payload['issues'].every((one) => typeof one === 'string')
+      ? payload['issues']
+      : undefined;
+  const remedy = typeof payload?.['remedy'] === 'string' ? payload['remedy'] : undefined;
+  return new ApiError(status, code, message, current, contentHash, issues, remedy);
 }
 
 /**
@@ -357,14 +365,7 @@ async function requestForm<T>(url: string, body: FormData): Promise<T> {
   const response = await fetch(url, { method: 'POST', headers, body });
   const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
-  if (!response.ok) {
-    const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
-    const message =
-      typeof payload?.['message'] === 'string'
-        ? payload['message']
-        : `The server answered with status ${String(response.status)}.`;
-    throw new ApiError(response.status, code, message);
-  }
+  if (!response.ok) throw refusalFrom(response.status, payload);
   return payload as T;
 }
 
@@ -570,6 +571,60 @@ function objectUrl(kind: LibraryKind, id: string): string {
 
 function versionUrl(kind: LibraryKind, id: string, versionId: string): string {
   return `${objectUrl(kind, id)}/history/${encodeURIComponent(versionId)}`;
+}
+
+/** What `api.takeFile` hands back: the file, and what its answer said about it. */
+export interface TakenFile {
+  blob: Blob;
+  /** The name `content-disposition` gave it, or null when it gave none. */
+  fileName: string | null;
+  /** What an export left out — empty for a download, which converts nothing. */
+  notes: Pick<ImportNote, 'key' | 'params'>[];
+  /** How many objects a package names and its file does not carry. */
+  missing: number;
+}
+
+/**
+ * The name in a `content-disposition`, which the server writes as
+ * `attachment; filename="…"` from an ASCII slug (`downloadName`), so the quoted
+ * form is the only one it needs to read.
+ */
+function fileNameOf(disposition: string | null): string | null {
+  return /filename="([^"]+)"/.exec(disposition ?? '')?.[1] ?? null;
+}
+
+/**
+ * `x-storyengine-export-notes`: base64 of the UTF-8 JSON of the notes — base64
+ * because a header is latin-1 and a note's params carry whatever an object is
+ * called (`encodeNotes` on the server says so). `atob` alone would hand back
+ * the UTF-8 bytes as latin-1 characters, so *Café* would arrive as *CafÃ©*.
+ *
+ * A header that will not read is no notes rather than a failure: the file has
+ * arrived by then, and it is the file somebody asked for.
+ */
+function exportNotesOf(header: string | null): Pick<ImportNote, 'key' | 'params'>[] {
+  if (header === null || header === '') return [];
+  try {
+    const bytes = Uint8Array.from(atob(header), (char) => char.charCodeAt(0));
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (note: unknown): note is Pick<ImportNote, 'key' | 'params'> =>
+        typeof note === 'object' &&
+        note !== null &&
+        typeof (note as { key?: unknown }).key === 'string' &&
+        typeof (note as { params?: unknown }).params === 'object' &&
+        (note as { params?: unknown }).params !== null,
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** `x-storyengine-missing`, a count; anything that is not one is none. */
+function missingCountOf(header: string | null): number {
+  const count = Number(header ?? '0');
+  return Number.isInteger(count) && count > 0 ? count : 0;
 }
 
 export const api = {
@@ -871,6 +926,37 @@ export const api = {
    */
   deleteObject: (kind: LibraryKind, id: string, contentHash: string): Promise<undefined> =>
     request('DELETE', objectUrl(kind, id), undefined, { 'if-match': contentHash }),
+
+  /**
+   * ***A file from a download or export route, and what its answer said***
+   * (2026-09-28) — gap round A5.4.
+   *
+   * The detail page's links were plain anchors, on the reasoning the backups
+   * give below — a `fetch` rebuilds what the browser already does — and for
+   * these routes it does not hold, because the answer says things the page
+   * has to read. An export names what it left out in
+   * `x-storyengine-export-notes`; a package counts the objects it could not
+   * include in `x-storyengine-missing`; and a refusal is a JSON body, which a
+   * browser following a link saves as the file. None of the three reached
+   * anybody.
+   *
+   * The caller names the address, so the literal stays at the link it
+   * belongs to — `route-callers.test.ts` reads it there. A GET, so no CSRF
+   * token; same-origin, so the cookie rides as on every other read.
+   */
+  takeFile: async (url: string): Promise<TakenFile> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      throw refusalFrom(response.status, payload);
+    }
+    return {
+      blob: await response.blob(),
+      fileName: fileNameOf(response.headers.get('content-disposition')),
+      notes: exportNotesOf(response.headers.get('x-storyengine-export-notes')),
+      missing: missingCountOf(response.headers.get('x-storyengine-missing')),
+    };
+  },
 
   /**
    * What that file *would* become, with nothing written ([10 §5], as amended).
@@ -3011,6 +3097,9 @@ export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
  * `<a download>` at the route — a `fetch` would have to rebuild what the
  * browser already does, and the route sends a `content-disposition`. The
  * address still appears in the component, so the scan reaches it.
+ *
+ * *The library's downloads are the exception* (2026-09-28): their answers
+ * carry headers the page must read, and `api.takeFile` says which.
  */
 export interface BackupRecord {
   id: string;

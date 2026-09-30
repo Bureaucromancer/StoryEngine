@@ -9,6 +9,7 @@ import encodeChunks from 'png-chunks-encode';
 import {
   ACTOR_SCHEMA,
   isKnownSchema,
+  mediaRowsIn,
   type PortableSchemaId,
   schemaIdOf,
   uuidv7,
@@ -34,7 +35,7 @@ import {
 } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
-import { mediaRowsIn, readAsset } from './library/assets.js';
+import { readAsset } from './library/assets.js';
 import type { BlobStore } from './storage/card/envelope.js';
 import { moveTree, readFileBytes } from './storage/files.js';
 import { KeyedQueue } from './storage/keyed-queue.js';

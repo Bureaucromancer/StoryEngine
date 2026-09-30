@@ -78,6 +78,10 @@ export * from './schema/banners.js';
 // governs. Beside the factories rather than in `schema/`: it reads the schema
 // and adds no field to it, and both halves of P5 must compute it the same way.
 export * from './lore.js';
+// Every picture row anywhere in an object — shared because the server keeps and
+// serves what it finds and the detail page says how many a download leaves
+// behind, and three counts of one thing must be one count.
+export * from './media-rows.js';
 // Where an entry's surface forms turn up in another entry's prose. Here for the
 // same reason `lore.ts` is, doubled: the book page renders it and [11 §6]'s
 // falsification script counts it, and an instrument that measured a different

@@ -20,7 +20,7 @@ import {
 import { create, readCardPixels } from '../library.js';
 
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
-import { mediaRowsIn, SWEEP_GRACE_MS } from './assets.js';
+import { SWEEP_GRACE_MS } from './assets.js';
 
 /**
  * ***[10 §11.2b](../../../../docs/design/10-ui-surfaces.md)'s image slots, and
@@ -600,21 +600,5 @@ describe('an assets folder that is a link', () => {
     });
     expect(stored.status).toBe(422);
     expect(await readdir(moved)).not.toContain('assets');
-  });
-});
-
-describe('finding the rows', () => {
-  it('walks both levels and ignores anything that is not a row', () => {
-    const rows = mediaRowsIn({
-      media: [{ id: 'a', ref: 'assets/a.png' }, 'nonsense', null],
-      entries: [{ media: [{ id: 'b', ref: 'assets/b.png' }] }, { media: 'not an array' }],
-    });
-    expect(rows.map((one) => one.id)).toEqual(['a', 'b']);
-  });
-
-  it('stops rather than looping on a cycle', () => {
-    const looped: Record<string, unknown> = { media: [{ id: 'a', ref: 'assets/a.png' }] };
-    looped['self'] = looped;
-    expect(mediaRowsIn(looped).map((one) => one.id)).toEqual(['a']);
   });
 });

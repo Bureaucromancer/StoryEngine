@@ -2819,6 +2819,12 @@ obvious answers are worse — dropping exports a package that quietly is not the
 one somebody made, refusing makes a stale reference unfixable except by
 hand-editing a file.
 
+*Corrected 2026-09-28.* ~~**reported**~~ — to a header nothing read. The file
+carries only what resolved, and the count of what did not travelled in
+`x-storyengine-missing`, which the detail page's plain link handed to the
+browser with the rest of the answer. The page fetches the export now and says
+the count under the link.
+
 *Neither export carries pixels.* An asset is content-addressed bytes and inlining
 them would be a hundred megabytes of base64 for a feature whose value is the
 story — which is [P9 §1.1]'s *"the recipe travels and the pixels do not"*,

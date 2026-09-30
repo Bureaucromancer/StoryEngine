@@ -1013,12 +1013,20 @@ does not keep it.
   actor, whose fold shows its JSON reading of the card. And a folder kind's
   pictures live in `assets/` beside its JSON, so for a lorebook's gallery and
   its entries' strips *nothing lost* holds of the object and not of its
-  pictures, which a download leaves behind.
+  pictures, which a download leaves behind — and the page says how many,
+  under the link.
 - **Export as…** are **writers**, built from a shared table of formats. A writer
   loses something by definition; what it must do is *say* what, in the same
   `{ key, params }` vocabulary the import review uses — because an export leaves
   no record behind, and the surface offering the download is the only place
   anybody will ever be told.
+
+  *Corrected 2026-09-28.* ~~the surface offering the download is the only place
+  anybody will ever be told~~ — and it told nobody. The rows were plain links,
+  so the answer went to the browser: the notes travelled in a header nothing
+  read, and a refused download was its JSON body, saved as the file. A plain
+  click fetches the address now, saves the file, and says under the link what
+  it left out, or why it could not be had.
 
 **One rule the table carries and the surface renders: whether the format
 round-trips.** Aventuras exports a `VaultScenario` and its own scenario import

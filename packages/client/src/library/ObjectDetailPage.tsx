@@ -2,26 +2,28 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { getRouteApi, Link } from '@tanstack/react-router';
-import { useState, type JSX, type ReactNode } from 'react';
+import { useState, type JSX, type MouseEvent, type ReactNode } from 'react';
 
-import { exportFormatsFor, type Lorebook } from '@storyengine/shared';
+import { exportFormatsFor, mediaRowsIn, type Lorebook } from '@storyengine/shared';
 
 import {
+  api,
   ApiError,
   isLibraryKind,
   type LibraryKind,
   type LibraryObject,
   type ObjectAddress,
+  type TakenFile,
 } from '../api.js';
 import { formatTimestamp, timestampsOf } from '../format.js';
 import { useAuthState, useLibraryObject, useObjectImportNotes } from '../queries.js';
-import { Alert } from '../ui/Alert.js';
+import { Alert, AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import type { ObjectSearch } from '../router.js';
 import { link, page } from '../ui/classes.js';
 import { MetadataRow } from '../ui/MetadataRow.js';
-import { Note, SectionTitle } from '../ui/Text.js';
-import { useQuery } from '@tanstack/react-query';
+import { Fine, Note, SectionTitle } from '../ui/Text.js';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { listSessions } from '../api.js';
 import { AsStored } from './AsStored.js';
@@ -35,6 +37,7 @@ import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 import { labels } from '../i18n/catalogue.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
+import { sentence } from './note-labels.js';
 
 /**
  * The detail view. Read-only at this stage — editing is P1.7, and keeping the
@@ -245,28 +248,6 @@ function ObjectView(props: {
       */}
       <UsedByPanel kind={kind} id={object.id} />
 
-      {/*
-        ***A bundle that travels*** — [04 §9](../../../../docs/design/04-schemas.md),
-        [P11 §1.9], [P11.10]. [P7B.6](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
-        shipped the package editor with *"the honest limit"* written beside it —
-        *the editor lands able to make and describe a bundle and not to send
-        one* — and this is the send. **A plain anchor, because it is a file.**
-
-        *Not on a shadowed copy* (2026-09-27): the route takes an id and
-        nothing narrower, so from this copy's page it would bundle the winner —
-        a different package, under this one's heading. Read-only addresses stop
-        at single objects; a bundle resolves what it names by id anyway.
-      */}
-      {kind === 'packages' && !object.shadowed ? (
-        <a
-          href={`/api/library/packages/${encodeURIComponent(object.id)}/export`}
-          className={link.inline}
-          download
-        >
-          Export this package
-        </a>
-      ) : null}
-
       <TakeItWithYou kind={kind} object={object} />
 
       <AsStored value={object.object} />
@@ -343,6 +324,18 @@ function ObjectView(props: {
  *
  * **Plain anchors**, on the package export's reasoning directly above: these are
  * files, and a file is what a link is for.
+ *
+ * ***Still anchors, and a plain click is fetched*** (2026-09-28) — gap round
+ * A5.4. A link hands the answer to the browser, and these answers say things
+ * the page has to: an export names what it left out
+ * (`x-storyengine-export-notes`), a package counts what it could not include
+ * (`x-storyengine-missing`), and a refusal is a JSON body the browser saved as
+ * the file. The seven export sentences in `note-labels.ts` had never rendered,
+ * and a failed download looked like a successful one. So a plain click fetches
+ * the same address (`api.takeFile` says why that is not the backups' case),
+ * saves what came back, and says under the link what the answer said. A
+ * modified click stays the browser's — a new tab, a saved link — and the
+ * address stays on the element, where a person copying it expects it.
  */
 function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX.Element {
   const { kind, object } = props;
@@ -361,8 +354,68 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
     ? `?source=${object.source}&slug=${encodeURIComponent(object.slug)}`
     : '';
 
+  /**
+   * One request at a time, and its answer shown under the link it came from —
+   * `key` says which, so the address itself is never repeated to compare.
+   */
+  const take = useMutation({
+    mutationFn: (what: { key: string; href: string }) => api.takeFile(what.href),
+    onSuccess: saveFile,
+  });
+  const follow =
+    (key: string) =>
+    (event: MouseEvent<HTMLAnchorElement>): void => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      if (take.isPending) return;
+      take.mutate({ key, href: event.currentTarget.getAttribute('href') ?? '' });
+    };
+  const answer = (key: string): JSX.Element | null =>
+    take.variables?.key === key ? (
+      <TakeAnswer pending={take.isPending} failure={take.error} file={take.data} />
+    ) : null;
+  /**
+   * ***What a download leaves behind*** (2026-09-28) — gap round A5.5. An actor
+   * downloads as its card, which carries every picture; every other kind is its
+   * JSON, which names its pictures and leaves their bytes in the folder beside
+   * it. The rows stay in the file, because the same library reads them back;
+   * the sentence is so that nobody sends one somewhere else expecting them.
+   */
+  const pictures = kind === 'actors' ? 0 : mediaRowsIn(object.object).length;
+
   return (
     <section aria-label="Take it with you" className="flex flex-col gap-1">
+      {/*
+        ***A bundle that travels*** — [04 §9](../../../../docs/design/04-schemas.md),
+        [P11 §1.9], [P11.10]. [P7B.6](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
+        shipped the package editor with *"the honest limit"* written beside it —
+        *the editor lands able to make and describe a bundle and not to send
+        one* — and this is the send. **A plain anchor, because it is a file.**
+
+        *Not on a shadowed copy* (2026-09-27): the route takes an id and
+        nothing narrower, so from this copy's page it would bundle the winner —
+        a different package, under this one's heading. Read-only addresses stop
+        at single objects; a bundle resolves what it names by id anyway.
+
+        *In this section since 2026-09-28*, where the other two doors are, so
+        the one answer the page is showing is under the one link it belongs to.
+      */}
+      {kind === 'packages' && !object.shadowed ? (
+        <span className="flex flex-col">
+          <a
+            href={`/api/library/packages/${id}/export`}
+            className={link.inline}
+            onClick={follow('package')}
+            download
+          >
+            Export this package
+          </a>
+          {answer('package')}
+        </span>
+      ) : null}
+
       {/*
         **Each address written out whole rather than built from a shared stem**,
         which looks redundant and is not: `route-callers.test.ts` scans this
@@ -371,15 +424,27 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
         constants. A stem factored out here is two routes that read as orphaned.
         The copy's address is appended after the literal for the same reason.
       */}
-      <a href={`/api/library/${kind}/${id}/download` + at} className={link.inline} download>
-        {downloadLabel(kind)}
-      </a>
+      <span className="flex flex-col">
+        <a
+          href={`/api/library/${kind}/${id}/download` + at}
+          className={link.inline}
+          onClick={follow('download')}
+          download
+        >
+          {downloadLabel(kind)}
+        </a>
+        {pictures === 0 ? null : (
+          <span className="text-xs text-ink-subtle">{picturesStayLine(pictures)}</span>
+        )}
+        {answer('download')}
+      </span>
 
       {formats.map((format) => (
         <span key={format.id} className="flex flex-col">
           <a
             href={`/api/library/${kind}/${id}/export/${format.id}` + at}
             className={link.inline}
+            onClick={follow(format.id)}
             download
           >
             {exportLabel(format.label)}
@@ -387,10 +452,88 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
           {format.roundTrips ? null : (
             <span className="text-xs text-ink-subtle">{archivalNote(format.label)}</span>
           )}
+          {answer(format.id)}
         </span>
       ))}
     </section>
   );
+}
+
+/**
+ * What came back, saved — [EntryTravel](../editor/EntryTravel.tsx)'s way, an
+ * object URL clicked and revoked, under the name the route gave it.
+ */
+function saveFile(file: TakenFile): void {
+  const url = URL.createObjectURL(file.blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = file.fileName ?? '';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+const TAKE_WORDS = labels('library.take', {
+  preparing: 'Preparing the file…',
+  gone: 'That is not here any more, so there was nothing to download.',
+  notExportable:
+    'This file no longer matches its own kind, so it cannot be written out in another format.',
+  unreachable: 'The server could not be reached, so nothing was downloaded.',
+  failed: 'That could not be downloaded.',
+});
+
+/**
+ * What one link's answer said: why it failed, or what the file does not carry.
+ * Nothing at all for a file that carries everything, which is most of them.
+ */
+function TakeAnswer(props: {
+  pending: boolean;
+  failure: Error | null;
+  file: TakenFile | undefined;
+}): JSX.Element | null {
+  if (props.pending) return <Fine>{TAKE_WORDS.preparing}</Fine>;
+  if (props.failure !== null) {
+    return <AlertNote role="alert">{takeFailureLine(props.failure)}</AlertNote>;
+  }
+  if (props.file === undefined) return null;
+  const lines = [
+    ...props.file.notes.map((note) => sentence(note)),
+    ...(props.file.missing === 0 ? [] : [missingLine(props.file.missing)]),
+  ];
+  if (lines.length === 0) return null;
+  return (
+    <ul role="status" className="flex flex-col gap-1 text-xs text-ink-subtle">
+      {lines.map((line, index) => (
+        <li key={index}>{line}</li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * By the class the server sends, not its English — the rule `errorCode`'s
+ * docstring states. Anything that is not a refusal never reached the server.
+ */
+function takeFailureLine(failure: unknown): string {
+  if (!(failure instanceof ApiError)) return TAKE_WORDS.unreachable;
+  if (failure.code === 'not-found') return TAKE_WORDS.gone;
+  if (failure.code === 'not-exportable') return TAKE_WORDS.notExportable;
+  return TAKE_WORDS.failed;
+}
+
+/**
+ * `x-storyengine-missing`, said — [P11.10]'s *reported, not dropped*, which the
+ * header was and nothing read.
+ */
+function missingLine(count: number): string {
+  return count === 1
+    ? '1 object this package names is not in your library, so the file does not carry it.'
+    : `${String(count)} objects this package names are not in your library, so the file does not carry them.`;
+}
+
+function picturesStayLine(count: number): string {
+  return count === 1
+    ? 'Its picture stays behind: the file names it and does not carry it.'
+    : `Its ${String(count)} pictures stay behind: the file names them and does not carry them.`;
 }
 
 /**

@@ -1134,7 +1134,10 @@ not belong inside the document. Base64 because a header is latin-1 and a note's
 params carry whatever an object is called. Every writer loses something and each
 one names what: a treatment's cast narrowed to a card's one character, a
 lorebook's folder gates flattened, a linked lorebook a scenario has nowhere to
-hold.
+hold. **The detail page reads it** (2026-09-28): its links used to hand the
+answer to the browser, so no note had ever been shown, and a refusal's JSON
+body was saved as the file. A plain click now fetches the same address, saves
+what came back, and says each note, or the refusal, under the link.
 
 Formats at this stage: `aventuras.scenario` and `sillytavern.card` from a
 Treatment, `aventuras.character` from an Actor, `aventuras.lorebook` from a
@@ -1145,6 +1148,22 @@ archival while the card is the one that travels. It round-trips into *this*
 build, which is what `export/writers.test.ts` asserts and the first real exercise
 [00 §2.4](design/00-stance.md)'s *nothing is lost and re-export is possible* has
 had.
+
+### `GET /api/library/packages/:id/export`
+
+**A package with the objects it names, as a `.sepack`** → `200`,
+`application/json`, as `<package name>.sepack.json`. The contents are resolved
+and carried whole, so the file works on an install that has none of them.
+
+**What it could not include is counted in `x-storyengine-missing`**: an id the
+package names and the library no longer has is left out of the file, and the
+header says how many — *reported, not dropped*, in a header for the notes'
+reason above. The detail page says the count under its *Export this package*
+link; before 2026-09-28 nothing read it.
+
+The id alone: no `?source=&slug=`, so the page offers this only on the copy
+an id resolves to. `404 {"error":"not-found"}` for a package that is not
+there.
 
 ### `GET /api/library/:kind/:id/avatar`
 
