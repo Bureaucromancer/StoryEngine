@@ -524,6 +524,8 @@ export interface ImportFileResult {
    * ([P13.7]). Absent for a single file, whose one row is the review.
    */
   report?: ImportReport;
+  /** The recorded upload (2026-09-28), which *Earlier imports* can open again. */
+  jobId: string;
 }
 
 export interface Credentials {
@@ -1025,9 +1027,12 @@ export const api = {
      * upload limit left out as that, rather than as one that could not be read.
      */
     overLimit?: readonly string[],
+    /** The picked folder's name, which the recorded import is listed under (2026-09-28). */
+    folder?: string,
   ): Promise<{ report: ImportReport }> => {
     const body = new FormData();
     body.append('manifest', JSON.stringify(manifest));
+    if (folder !== undefined && folder !== '') body.append('folder', folder);
     if (onConflict !== undefined) body.append('onConflict', onConflict);
     if (stories === true) body.append('stories', 'true');
     if (chats !== undefined) body.append('chats', chats);

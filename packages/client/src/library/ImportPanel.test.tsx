@@ -483,6 +483,7 @@ describe('choosing one file', () => {
     const commit = vi.spyOn(api, 'importFile').mockResolvedValue({
       item: { source: 'Harbour.json', disposition: 'converted', notes: [] },
       notes: [],
+      jobId: 'job-1',
     });
     render(mount());
 
@@ -555,6 +556,7 @@ describe('choosing one file', () => {
     const commit = vi.spyOn(api, 'importFile').mockResolvedValue({
       item: { source: 'Harbour.json', disposition: 'converted', notes: [] },
       notes: [],
+      jobId: 'job-1',
     });
     render(mount());
 
@@ -632,8 +634,9 @@ describe('an archive, and a large upload', () => {
     vi.spyOn(api, 'importFile').mockResolvedValue({
       item: { source: 'aventura-backup.zip', disposition: 'recorded', notes: [] },
       notes: [],
+      jobId: 'job-2',
       report: {
-        jobId: 'unsaved',
+        jobId: 'job-2',
         source: 'aventuras',
         items: [
           { source: 'aventura.db/lorebook_vault/book-1', disposition: 'unchanged', notes: [] },
@@ -1023,6 +1026,7 @@ describe('a folder with chats in it', () => {
       expect(upload).toHaveBeenCalledTimes(1);
     });
     expect(screen.queryByRole('checkbox', { name: /also import the chats/i })).toBeNull();
+    expect(upload.mock.calls[0]?.[6]).toBe('default-user');
   });
 
   it('says, before the choice, how many chats the upload limit will carry', async () => {
@@ -1074,10 +1078,12 @@ describe('a folder with chats in it', () => {
     await waitFor(() => {
       expect(upload).toHaveBeenCalledTimes(1);
     });
-    const [, carried, , , chats, overLimit] = upload.mock.calls[0] ?? [];
+    const [, carried, , , chats, overLimit, folder] = upload.mock.calls[0] ?? [];
     expect(carried?.map((entry) => entry.path)).toEqual(['settings.json']);
     expect(chats).toBeUndefined();
     expect(overLimit).toEqual(['characters/Vera.png']);
+    // The picked folder's name, which the recorded import is listed under.
+    expect(folder).toBe('default-user');
   });
 
   it('says once how a re-import behaves until sync', () => {

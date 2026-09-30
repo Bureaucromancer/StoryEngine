@@ -393,6 +393,45 @@ describe('the session list', () => {
   });
 });
 
+/**
+ * ***What a folder upload carries besides its files*** (2026-09-28): the
+ * picked folder's name, which the recorded import is listed under, and the
+ * plan's `overLimit`, which the review names. The panel's own tests stop at
+ * this call, so the form it builds is checked here.
+ */
+describe('a folder upload', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends the folder’s name and what the limit left out', async () => {
+    let sent: FormData | undefined;
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', (_url: string, init: { body?: unknown }) => {
+      sent = init.body as FormData;
+      return Promise.resolve(
+        new Response('{"report":{}}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+
+    await api.importDirectory(
+      ['a.json', 'big.png'],
+      [],
+      undefined,
+      undefined,
+      undefined,
+      ['big.png'],
+      'default-user',
+    );
+
+    expect(sent?.get('folder')).toBe('default-user');
+    expect(sent?.get('overLimit')).toBe(JSON.stringify(['big.png']));
+  });
+});
+
 describe('cookieValue', () => {
   it('finds a cookie among several', () => {
     expect(cookieValue('se_session=abc; se_csrf=deadbeef; other=1', 'se_csrf')).toBe('deadbeef');

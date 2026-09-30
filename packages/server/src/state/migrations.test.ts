@@ -192,6 +192,28 @@ describe('the operational store upgrades without losing anything', () => {
     db.close();
   });
 
+  /**
+   * ***How an import arrived*** — the step of 2026-09-28. Every job written
+   * before it was a sweep of a server path, so that is what it says of them,
+   * and *Update from source* goes on finding the roots it could reopen.
+   */
+  it('says every import recorded before it came in by a path', () => {
+    const before = STATE_SCHEMA_VERSION - 1;
+    const db = storeAtVersion(before);
+    db.prepare(
+      `insert into import_job (id, account, root, source, status, created_at, updated_at, finished_at)
+       values ('job-1', 'ned', '/srv/st', 'sillytavern', 'finished', 1, 1, 1)`,
+    ).run();
+
+    expect(migrateState(db)).toEqual({ from: before, to: STATE_SCHEMA_VERSION });
+    const row = db.prepare(`select transport from import_job where id = 'job-1'`).get() as {
+      transport: string;
+    };
+    expect(row.transport).toBe('path');
+
+    db.close();
+  });
+
   it('is a no-op on a store already at the current version', () => {
     const db = storeAtVersion(STATE_SCHEMA_VERSION);
 

@@ -530,6 +530,23 @@ create unique index rendition_job_live on rendition_job(session_id, rendition_id
 drop index rendition_job_attempt;
 create unique index rendition_job_attempt on rendition_job(session_id, rendition_id, attempt);
 `,
+
+  /**
+   * ***How an import arrived*** (2026-09-28): `path`, a sweep of the server's
+   * own disk, or `upload`, a file or a folder a browser sent.
+   *
+   * Uploads were never recorded, so an object brought in by one had no import
+   * notes on its page and the review could not be opened again. Recording
+   * them meets the one reader that relied on their absence: *Update from
+   * source* re-sweeps the root a session last came in from, and treated every
+   * recorded root as a path it could reopen. An upload's root is the name of
+   * what was sent — nothing a sweep can open — so the reader asks for
+   * `path` rows, and every row written before this step is one, which is why
+   * that is the default.
+   */
+  `
+alter table import_job add column transport text not null default 'path';
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;

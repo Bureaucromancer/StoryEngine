@@ -505,8 +505,18 @@ Marinara envelope is swept as a root, and its answer is `{ item, notes, report }
 note), and `report` is the sweep's `{ jobId, source, items, counts }` row by row,
 exactly as `/import/sweep` and `/import/directory` answer — so a second upload
 of the same backup reads `unchanged` row by row, as a second sweep of its folder
-does. `jobId` is `unsaved`: neither upload door records a job. A single file's
+does. ~~`jobId` is `unsaved`: neither upload door records a job.~~ A single file's
 answer has no `report`; its one row is the review.
+
+***An upload is recorded*** (2026-09-28), as a sweep is, and the answer carries
+its `jobId` — beside `item` for one file, and in `report` for a root — so the
+review opens again from `GET /api/import/jobs` and the object's page shows what
+the import said about it. Uploads were never recorded, so neither worked for
+anything a browser sent. The job's `root` is the file's name, and the job is
+marked an upload, so *Update from source*
+(`POST /api/import/sessions/:sessionId/update`) never mistakes a file name for a
+path it can open again: a session from an uploaded chat still answers
+`409 no-recorded-source`, and the client offers the file picker.
 
 ***When nothing in a root converted, `item` says what its rows say*** (2026-09-28):
 `unchanged` when anything in it was already here, and otherwise the first row's
@@ -1026,6 +1036,10 @@ left out, and is `skipped` with `import.chat.overLimit` carrying the limit. No
 field takes whatever arrived. Chat files that did arrive become sessions in a
 pass after the library's, so each resolves against the cards that came in beside
 it, and each is one row as on [`POST /api/import/file`](#post-apiimportfile).
+
+***An optional `folder` field names the picked folder*** (2026-09-28), and the
+upload is recorded under it — as an upload, like the single-file door's — with
+the report's `jobId` its address; a refused one is recorded as refused.
 
 ***An optional `overLimit` field names what the plan's budget left out*** — its
 `overLimit`, as JSON (2026-09-28). A path in it that the manifest names and the

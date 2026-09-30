@@ -115,6 +115,35 @@ async function upload(filename: string, contents: string) {
 }
 
 describe('uploading one preset', () => {
+  /**
+   * ***Recorded, as a sweep is*** (2026-09-28). Neither upload door recorded
+   * anything, so an object brought in by one had no import notes on its page
+   * and its review ended with the panel. Marked an upload, so *Update from
+   * source* never tries to reopen a file name as a path — the chat test below
+   * holds that half.
+   */
+  it('is recorded, so its review opens again and the object says what it said', async () => {
+    const response = await upload('Harbour.json', JSON.stringify(PRESET));
+    const jobId = response.body.jobId as string;
+    expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
+
+    const listed = await server.request({ method: 'GET', url: '/api/import/jobs' });
+    expect(
+      (listed.body.jobs as { id: string; root: string }[]).find((job) => job.id === jobId),
+    ).toMatchObject({ root: 'Harbour.json', status: 'finished' });
+    const opened = await server.request({ method: 'GET', url: `/api/import/jobs/${jobId}` });
+    expect((opened.body.report.items as { source: string }[]).map((item) => item.source)).toEqual([
+      'Harbour.json',
+    ]);
+
+    const objectId = String(response.body.item.objectId);
+    const notes = await server.request({
+      method: 'GET',
+      url: `/api/import/objects/${objectId}/notes`,
+    });
+    expect((notes.body.notes as { jobId: string }[]).map((row) => row.jobId)).toContain(jobId);
+  });
+
   it('converts it, stores it, and names it from the filename', async () => {
     const response = await upload('Harbour.json', JSON.stringify(PRESET));
 
@@ -928,6 +957,29 @@ describe('uploading a folder from the browser', () => {
 
     expect(response.status, JSON.stringify(response.body)).toBe(413);
     expect(response.body.error).toBe('too-large');
+  });
+
+  it('is recorded under the folder’s own name', async () => {
+    const card = JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } });
+    const { payload, headers } = folderBody(
+      ['Vera.json'],
+      { 'Vera.json': card },
+      { folder: 'default-user' },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    const jobId = response.body.report.jobId as string;
+    expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
+    const listed = await server.request({ method: 'GET', url: '/api/import/jobs' });
+    expect(
+      (listed.body.jobs as { id: string; root: string }[]).find((job) => job.id === jobId)?.root,
+    ).toBe('default-user');
   });
 
   it('refuses a folder with no manifest rather than importing a fragment', async () => {

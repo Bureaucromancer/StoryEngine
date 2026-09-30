@@ -226,6 +226,8 @@ type Outcome =
   | {
       kind: 'folder';
       inside: { file: File; path: string }[];
+      /** The picked folder's name, for the recorded import. */
+      folder: string;
       wanted: string[];
       chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
       limitBytes: number;
@@ -511,7 +513,9 @@ export function ImportPanel(): JSX.Element {
       setOutcome({
         kind: 'report',
         report: result.report ?? {
-          jobId: 'file',
+          // The server's record of it, since 2026-09-28, rather than a
+          // placeholder that named nothing.
+          jobId: result.jobId,
           source: outcome.file.name,
           items: [result.item],
           counts: { [result.item.disposition]: 1 },
@@ -551,6 +555,8 @@ export function ImportPanel(): JSX.Element {
       file,
       path: file.webkitRelativePath.split('/').slice(1).join('/'),
     }));
+    // The folder's own name, which the recorded import is listed under.
+    const folder = picked[0]?.webkitRelativePath.split('/')[0] ?? '';
 
     latest.current += 1;
     const mine = ++asked.current;
@@ -579,6 +585,7 @@ export function ImportPanel(): JSX.Element {
           setOutcome({
             kind: 'folder',
             inside,
+            folder,
             wanted: plan.wanted,
             chats: plan.chats,
             limitBytes: plan.limitBytes,
@@ -595,6 +602,9 @@ export function ImportPanel(): JSX.Element {
         inside.filter(({ path }) => wanted.has(path)),
         undefined,
         stories,
+        undefined,
+        undefined,
+        folder,
       );
       if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
       await refresh();
@@ -636,6 +646,7 @@ export function ImportPanel(): JSX.Element {
         // for its size takes what was carried, as every folder did.
         outcome.chats.count > 0 ? (withChats ? 'include' : 'skip') : undefined,
         plan.overLimit,
+        outcome.folder,
       );
       setOutcome({ kind: 'report', report: result.report });
       await refresh();

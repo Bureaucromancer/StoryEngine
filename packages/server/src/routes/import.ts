@@ -101,10 +101,17 @@ interface UploadResult {
    * give, could not be read through this door at all, where the sweep and the
    * folder upload both give it row by row. The report is carried beside the
    * summary rather than instead of it so a client that reads only `item` goes
-   * on working; its `jobId` is `unsaved`, as the folder upload's is, since
-   * neither upload door records a job.
+   * on working. ~~its `jobId` is `unsaved`, as the folder upload's is, since
+   * neither upload door records a job.~~ *Both doors record one since
+   * 2026-09-28*, and the report carries its id.
    */
   report?: ImportReport;
+  /**
+   * ***The recorded upload's id*** (2026-09-28), for a single file as for a
+   * root, so the review can be opened again from *Earlier imports* and the
+   * object's page can say what the import said about it.
+   */
+  jobId?: string;
 }
 
 const MEGABYTE = 1024 * 1024;
@@ -414,7 +421,29 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       throw failure.error;
     }
     if (result === null) throw new Error('An import finished with neither a result nor a failure.');
-    return reply.code(result.item.disposition === 'converted' ? 201 : 200).send(result);
+
+    /**
+     * ***An upload is recorded like a sweep*** (2026-09-28), marked as an
+     * upload. Neither upload door recorded anything, so an object brought in
+     * by one had no import notes on its page, and its review ended with the
+     * panel. The root is the name of what was sent; `transport: 'upload'` is
+     * what keeps *Update from source* from trying to reopen it as a path.
+     */
+    const report = result.report;
+    const jobId = recordImport(services.state.db, {
+      account: account.handle,
+      root: part.filename,
+      // One file on its own is the walker's plain mode: taken one at a time.
+      source: report?.source ?? 'loose-files',
+      items: report?.items ?? [result.item],
+      at: Date.now(),
+      transport: 'upload',
+    });
+    return reply.code(result.item.disposition === 'converted' ? 201 : 200).send({
+      ...result,
+      jobId,
+      ...(report === undefined ? {} : { report: { ...report, jobId } }),
+    });
   });
 
   /**
@@ -837,6 +866,8 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
      * in fact not sent.
      */
     let overLimit: string[] = [];
+    /** The picked folder's own name, for the ledger's root — its last segment only. */
+    let folder = '';
 
     let carriedBytes = 0;
 
@@ -875,6 +906,9 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
           included = String(part.value) === 'include';
         }
         if (part.fieldname === 'overLimit') overLimit = parseManifest(String(part.value));
+        if (part.fieldname === 'folder') {
+          folder = (String(part.value).split('/').pop() ?? '').slice(0, 200);
+        }
       }
     } catch (error) {
       // Either half: busboy refusing one oversized part, or the running total
@@ -926,7 +960,16 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
       throw error;
     }
 
+    const root = folder === '' ? 'Uploaded folder' : folder;
     if (!outcome.ok) {
+      // A refused upload is recorded too, as a refused sweep is (2026-09-28).
+      recordRefusal(services.state.db, {
+        account: account.handle,
+        root,
+        refusal: outcome.refusal,
+        at: Date.now(),
+        transport: 'upload',
+      });
       /**
        * ***A root the limit left unreadable says the limit*** (2026-09-28). An
        * Aventuras folder is one database and its log, taken whole or not at
@@ -948,9 +991,16 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     // No `suggestions`: a near miss names a *sibling folder* to point at, and a
     // browser upload has no path to point anywhere with. The plan step says it
     // before the upload, which is the moment a person can still act on it.
-    return reply.code(200).send({
-      report: overLimitReport(outcome.report, cut, services.config.limits.maxUploadMb),
+    const report = overLimitReport(outcome.report, cut, services.config.limits.maxUploadMb);
+    const jobId = recordImport(services.state.db, {
+      account: account.handle,
+      root,
+      source: report.source,
+      items: report.items,
+      at: Date.now(),
+      transport: 'upload',
     });
+    return reply.code(200).send({ report: { ...report, jobId } });
   });
 
   /**

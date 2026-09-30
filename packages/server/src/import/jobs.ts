@@ -73,6 +73,15 @@ export interface RecordedJob {
  * every item names its file relative to this row, so the report can be shown,
  * logged and pasted into an issue without becoming a map of somebody's disk.
  */
+/**
+ * ***How an import arrived*** (2026-09-28): a sweep of the server's disk, whose
+ * `root` a later sweep can open again, or an upload, whose `root` is only the
+ * name of what the browser sent. Recorded so {@link recordedRootFor} can tell
+ * them apart — uploads were never recorded before, and that reader relied on
+ * it.
+ */
+export type ImportTransport = 'path' | 'upload';
+
 export function recordImport(
   db: DatabaseSync,
   input: {
@@ -81,6 +90,8 @@ export function recordImport(
     source: string;
     items: readonly ImportItemReport[];
     at: number;
+    /** `path` unless said: every recorder before 2026-09-28 was a server-path sweep. */
+    transport?: ImportTransport;
   },
 ): string {
   const id = uuidv7();
@@ -88,9 +99,18 @@ export function recordImport(
   db.exec('begin immediate');
   try {
     db.prepare(
-      `insert into import_job (id, account, root, source, status, created_at, updated_at, finished_at)
-       values (?, ?, ?, ?, 'finished', ?, ?, ?)`,
-    ).run(id, input.account, input.root, input.source, input.at, input.at, input.at);
+      `insert into import_job (id, account, root, source, status, created_at, updated_at, finished_at, transport)
+       values (?, ?, ?, ?, 'finished', ?, ?, ?, ?)`,
+    ).run(
+      id,
+      input.account,
+      input.root,
+      input.source,
+      input.at,
+      input.at,
+      input.at,
+      input.transport ?? 'path',
+    );
 
     const item = db.prepare(
       `insert into import_item (job_id, seq, source, disposition, object_id, notes)
@@ -133,13 +153,28 @@ export function recordImport(
  */
 export function recordRefusal(
   db: DatabaseSync,
-  input: { account: string; root: string; refusal: string; at: number },
+  input: {
+    account: string;
+    root: string;
+    refusal: string;
+    at: number;
+    transport?: ImportTransport;
+  },
 ): string {
   const id = uuidv7();
   db.prepare(
-    `insert into import_job (id, account, root, source, status, created_at, updated_at, finished_at)
-     values (?, ?, ?, ?, 'refused', ?, ?, ?)`,
-  ).run(id, input.account, input.root, input.refusal, input.at, input.at, input.at);
+    `insert into import_job (id, account, root, source, status, created_at, updated_at, finished_at, transport)
+     values (?, ?, ?, ?, 'refused', ?, ?, ?, ?)`,
+  ).run(
+    id,
+    input.account,
+    input.root,
+    input.refusal,
+    input.at,
+    input.at,
+    input.at,
+    input.transport ?? 'path',
+  );
   return id;
 }
 
@@ -279,11 +314,15 @@ export function importNotesFor(
  * *"re-sweeps the server path recorded in the ledger when the import came
  * from one"*, [P14.10a].
  *
- * Only a sweep of a server path records a root: an upload names its file and
+ * ~~Only a sweep of a server path records a root: an upload names its file and
  * nothing more ([21 §4.1.1]), and a refused sweep wrote nothing. So a row
- * naming this session under a `finished` job is exactly *came from a path*,
- * and the newest one is where it was last brought up to date from. Scoped by
- * account through the join, as {@link importNotesFor} is.
+ * naming this session under a `finished` job is exactly *came from a path*,~~
+ * ***Uploads are recorded since 2026-09-28***, with the name of what was sent
+ * as their root — which no sweep can open — so this asks for `path` rows by
+ * name: a row naming this session under a `finished` sweep of a path is
+ * exactly *came from a path*, and the newest one is where it was last brought
+ * up to date from. Scoped by account through the join, as
+ * {@link importNotesFor} is.
  */
 export function recordedRootFor(
   db: DatabaseSync,
@@ -295,6 +334,7 @@ export function recordedRootFor(
       `select job.root from import_item as item
          join import_job as job on job.id = item.job_id
         where item.object_id = ? and job.account = ? and job.status = 'finished'
+          and job.transport = 'path'
         order by job.created_at desc, item.rowid desc
         limit 1`,
     )
