@@ -274,6 +274,20 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
     },
   });
 
+  /**
+   * ***Stopping, until a new process answers*** (2026-09-28). `restore.isSuccess`
+   * outlived the restart it reported, so on the tab that asked, a restore that
+   * failed as it started kept saying *The server is stopping* and hid *Call it
+   * off* — the one control that state needs, on an install whose premise is
+   * that nobody has a shell. It holds until the server has answered since the
+   * press, and while that answer says it is still draining: the old process
+   * wrote the marker before it began to drain, so it reports the restore as
+   * pending too, and that is not yet a failure to call off.
+   */
+  const stopping =
+    restore.isSuccess &&
+    (notices.dataUpdatedAt <= restore.submittedAt || notices.data?.draining === true);
+
   if (props.rows.length === 0) return null;
 
   const held = manifest.data?.manifest;
@@ -308,7 +322,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
        * cannot leave, on an install whose whole premise is that nobody has a
        * shell.
        */}
-      {notices.data?.restorePending === true && !restore.isSuccess ? (
+      {notices.data?.restorePending === true && !stopping ? (
         <div className="flex flex-wrap items-center gap-3 rounded-panel bg-warn-surface p-3">
           <p className="text-sm text-warn-ink">
             A restore is waiting for the next start. If it has already been tried and failed, it
@@ -362,7 +376,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
             <Button
               type="button"
               variant="dangerOutline"
-              disabled={chosen === '' || held === undefined || restore.isPending}
+              disabled={chosen === '' || held === undefined || restore.isPending || stopping}
               onClick={() => {
                 setConfirming(true);
               }}
@@ -378,7 +392,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
           {restoreFailure(restore.error)}
         </p>
       ) : null}
-      {restore.isSuccess ? (
+      {stopping ? (
         <p role="status" className="text-warn-ink">
           The server is stopping. It will restore this archive as it starts again, and the page will
           come back on its own.

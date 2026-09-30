@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -75,13 +75,13 @@ const MANIFEST = {
   omitted: [],
 };
 
-function supervised(canRestart: boolean, restorePending = false): void {
+function supervised(canRestart: boolean, restorePending = false, draining = false): void {
   notices.mockResolvedValue({
     pendingRestart: [],
     canRestart,
     supervision: canRestart ? 'declared' : 'none',
     interrupts: { mine: 0, others: 0 },
-    draining: false,
+    draining,
     restorePending,
     updates: {
       state: 'disabled',
@@ -102,13 +102,28 @@ beforeEach(() => {
   supervised(true);
 });
 
-function renderPanel(): void {
+function renderPanel(): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <AdminBackups />
     </QueryClientProvider>,
   );
+  return client;
+}
+
+/**
+ * The notices asked again, as the page does when the server comes back — a
+ * few milliseconds on, so the answer is plainly later than the press.
+ */
+async function askedAgain(client: QueryClient): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+    // The cache tells its observers on a timer of its own; waited out here, so
+    // an assertion that nothing changed reads the page the answer left.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
 }
 
 /** Picks the archive, and waits for the manifest the confirmation is built on. */
@@ -187,6 +202,34 @@ describe('restoring the install', () => {
     await waitFor(() => {
       expect(cancelRestore).toHaveBeenCalledTimes(1);
     });
+  });
+
+  /**
+   * ***A restore that failed as it started, seen from the tab that asked***
+   * (2026-09-28). The press's success outlived the restart it reported, so
+   * this tab kept saying *The server is stopping* and hid *Call it off* — the
+   * one way out of a failed restore on an install with no shell.
+   */
+  it('offers Call it off on the tab that asked, once a new process has the marker', async () => {
+    const user = userEvent.setup();
+    const client = renderPanel();
+    await chooseArchive(user);
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    await user.type(screen.getByLabelText('Type restore to confirm'), 'restore');
+    await user.click(screen.getByRole('button', { name: 'Stop the server and restore' }));
+    expect(await screen.findByText(/The server is stopping/)).toBeTruthy();
+
+    // The old process, still draining with its marker written: not a failure.
+    supervised(true, true, true);
+    await askedAgain(client);
+    expect(screen.queryByRole('button', { name: 'Call it off' })).toBeNull();
+    expect(screen.getByText(/The server is stopping/)).toBeTruthy();
+
+    // A new process that found the marker and refused it.
+    supervised(true, true);
+    await askedAgain(client);
+    expect(await screen.findByRole('button', { name: 'Call it off' })).toBeTruthy();
+    expect(screen.queryByText(/The server is stopping/)).toBeNull();
   });
 
   it('says nothing about a pending restore when there is none', async () => {

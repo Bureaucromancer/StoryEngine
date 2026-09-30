@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,6 +23,7 @@ import { markSessionEnded } from './auth/session-ended.js';
 
 const authState = vi.fn();
 const notices = vi.fn();
+const restart = vi.fn();
 const readPrefs = vi.fn();
 const patchPrefs = vi.fn();
 
@@ -36,7 +37,10 @@ vi.mock('./api.js', async (importOriginal) => ({
     // context argument, and the tests assert on what would go over the wire.
     patchPrefs: (patch: Record<string, unknown>) => patchPrefs(patch) as unknown,
   },
-  adminApi: { notices: (...a: unknown[]) => notices(...a) as unknown },
+  adminApi: {
+    notices: (...a: unknown[]) => notices(...a) as unknown,
+    restart: (...a: unknown[]) => restart(...a) as unknown,
+  },
 }));
 
 // The stub keeps `to` as `href` so a navigation test can assert *where* an
@@ -172,6 +176,40 @@ describe('the restart banner', () => {
     const banner = await screen.findByRole('status');
     expect(banner.textContent).toContain('does not restart itself');
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull();
+  });
+
+  /**
+   * ***A restart that came back*** (2026-09-28). The press's success belonged
+   * to the page, which the restart never reloaded, so the banner went on
+   * reading it: a restart key saved afterwards brought back *Restarting…* with
+   * no button. The server's own answer, once there is one since the press, is
+   * what it reads now.
+   */
+  it('offers Restart now again once the server has answered since the last one', async () => {
+    const supervised = {
+      pendingRestart: ['log.format'],
+      canRestart: true,
+      draining: false,
+      interrupts: { mine: 0, others: 0 },
+    };
+    notices.mockResolvedValue(supervised);
+    restart.mockResolvedValue({ draining: true });
+    const client = renderShell('admin');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Restart now' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Restart now' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Restart now' })).toBeNull();
+    });
+
+    // The new process: another key saved since, and nothing draining. A few
+    // milliseconds on, so the answer is plainly later than the press.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+    });
+    expect(await screen.findByRole('button', { name: 'Restart now' })).toBeTruthy();
   });
 
   it('is not there when nothing is pending', async () => {

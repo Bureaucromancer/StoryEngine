@@ -1654,6 +1654,11 @@ export function useNotices(enabled: boolean): UseQueryResult<{
  * the last thing this process sends: the drain runs behind it and then the
  * process exits, so a refetch would race a socket that is closing. What updates
  * the surface is the reconnection — the page comes back and asks again.
+ *
+ * *And what it asks has to outrank this answer* (2026-09-28). The notices
+ * came back and the mutation's success did not go anywhere, so the banner
+ * went on reading it; `RestartBanner` now takes it as *draining* only until
+ * the notices have been answered since it was sent.
  */
 export function useRestart(): UseMutationResult<{ draining: boolean }, Error, void> {
   return useMutation({ mutationFn: () => adminApi.restart() });

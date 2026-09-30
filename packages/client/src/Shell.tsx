@@ -394,7 +394,16 @@ function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
   const pending = notices.data?.pendingRestart ?? [];
   if (!isAdmin || pending.length === 0) return null;
 
-  const draining = notices.data?.draining === true || restart.isSuccess;
+  /**
+   * ***A 202 says a drain has begun only until the server has answered since***
+   * (2026-09-28). `restart.isSuccess` outlived the restart it reported — the
+   * mutation's result belongs to the page, and the page was never reloaded —
+   * so a restart key saved later brought the banner back as *Restarting…*
+   * with no button, until a reload. After the first answer the server has
+   * given since the press, its own `draining` is the truth.
+   */
+  const accepted = restart.isSuccess && notices.dataUpdatedAt <= restart.submittedAt;
+  const draining = notices.data?.draining === true || accepted;
   const canRestart = notices.data?.canRestart === true;
   const interrupts = notices.data?.interrupts ?? { mine: 0, others: 0 };
 
