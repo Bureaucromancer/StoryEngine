@@ -154,8 +154,8 @@ export function illustrationFragments(inputs: FragmentInputs): PromptFragment[] 
 export function backdropFragments(inputs: FragmentInputs): PromptFragment[] {
   const fragments: PromptFragment[] = [];
 
-  const place = inputs.channels.find((channel) => channel.id.endsWith('.location'));
-  if (place !== undefined && place.text.trim() !== '') {
+  const place = placeOf(inputs.channels);
+  if (place !== undefined) {
     fragments.push({
       id: 'place',
       text: place.text.trim(),
@@ -267,6 +267,20 @@ function describeOne(entry: CastEntry): string {
 }
 
 /**
+ * ***The place a backdrop would be of, or nothing*** — the one reading of *which
+ * channel is the place* ({@link pushChannels} says why it is by name), shared
+ * since 2026-09-30 with the two callers that hold a backdrop that has none:
+ * the render step and **Set the scene**. A backdrop prompt with no place is a
+ * prompt for a mood, and paying for one is what they now decline to do.
+ */
+export function placeOf(
+  channels: readonly { id: string; text: string }[],
+): { id: string; text: string } | undefined {
+  const place = channels.find((channel) => channel.id.endsWith('.location'));
+  return place === undefined || place.text.trim() === '' ? undefined : place;
+}
+
+/**
  * Channel state as fragments — the place first, then whatever else a mode tracks.
  *
  * **`se.location` is lifted out by name and nothing else is**, which is the one
@@ -287,8 +301,8 @@ function pushChannels(
   otherRank: number,
   placeRequired = false,
 ): void {
-  const place = channels.find((channel) => channel.id.endsWith('.location'));
-  if (place !== undefined && place.text.trim() !== '') {
+  const place = placeOf(channels);
+  if (place !== undefined) {
     fragments.push({
       id: 'place',
       text: place.text.trim(),

@@ -14,7 +14,7 @@ import { gatherAssemblyInputs } from '../turns/gather.js';
 import { momentCall, readMoment, RENDER_STEP } from '../turns/render.js';
 import { castEntries } from '../turns/runner.js';
 import { fromModelCall, recordUsage } from '../usage/log.js';
-import { toneOf } from './assemble.js';
+import { placeOf, toneOf } from './assemble.js';
 import { requestRendition } from './manual.js';
 
 /**
@@ -93,9 +93,11 @@ export interface IllustrateRequest {
  * `no-moment` mean here exactly what they mean on `RenderReport.held`, so a
  * client rendering a reason does not need two tables. `no-turn` is this path's
  * own, because a route can be asked about a turn that does not exist and a step
- * cannot.
+ * cannot. `no-place` joined both on 2026-09-30: **Set the scene** where the
+ * story has named no place was a picture of the tone alone, and a button that
+ * pays for a mood is one that says why it did not instead.
  */
-export type IllustrateRefusal = 'no-binding' | 'no-moment' | 'no-turn';
+export type IllustrateRefusal = 'no-binding' | 'no-moment' | 'no-turn' | 'no-place';
 
 export async function illustrateTurn(
   context: IllustrateContext,
@@ -146,6 +148,11 @@ export async function illustrateTurn(
    * and a place has no moment."* So the refusal above is the only thing that can
    * stop it, and the assembly below is handed an empty moment and an empty cast.
    */
+  const channels = renderedChannels(inputs.channels);
+  if (request.purpose === 'background' && placeOf(channels) === undefined) {
+    return { held: 'no-place' };
+  }
+
   let moment = '';
   let anchor: string | undefined;
   if (request.purpose === 'illustration') {
@@ -175,7 +182,7 @@ export async function illustrateTurn(
     purpose: request.purpose,
     moment,
     cast: castEntries(inputs.cast),
-    channels: renderedChannels(inputs.channels),
+    channels,
     tone: toneOf(inputs.lore.treatment?.treatment),
     image: {
       binding: { connectionId: image.connection.id, modelId: image.modelId },

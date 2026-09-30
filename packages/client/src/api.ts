@@ -2387,7 +2387,7 @@ export function illustrateTurn(
   sessionId: string,
   turnId: string,
   purpose: 'illustration' | 'background',
-): Promise<{ rendition?: RenditionRecord; held?: 'no-binding' | 'no-moment' }> {
+): Promise<{ rendition?: RenditionRecord; held?: 'no-binding' | 'no-moment' | 'no-place' }> {
   return request(
     'POST',
     `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/illustrate`,

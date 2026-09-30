@@ -71,7 +71,7 @@ function context(over: Partial<RenderContext> = {}): RenderContext {
       capabilities: CAPS,
     },
     tone: 'cold and salt-bitten',
-    channels: [
+    channels: () => [
       { id: 'se.location', text: 'the harbour steps' },
       { id: 'se.clock', text: 'just before dawn' },
     ],
@@ -299,6 +299,61 @@ describe('the backdrop branch', () => {
     // Nothing to show yet: the worker selects it when it lands.
     expect(reported?.reused).toBeUndefined();
     expect(reported?.held).toBe('place-unchanged');
+  });
+
+  /**
+   * ***A backdrop with no place is held rather than paid for*** (2026-09-30).
+   * Its recipe is the place and the tone, and with no place it was the tone
+   * alone: a picture of a mood, which every later turn then reused, since the
+   * recipe never changed.
+   */
+  it('holds a backdrop with no place rather than paying for a mood', async () => {
+    const asked: string[] = [];
+    const { host } = recordingHost({ subject: 'never asked for' });
+    const step = render(
+      context({
+        illustration: 'off',
+        backdrop: true,
+        channels: () => [{ id: 'se.clock', text: 'just before dawn' }],
+        reusable: (digest) => {
+          asked.push(digest);
+          return null;
+        },
+        report: capture(),
+      }),
+    );
+
+    await step.run(payload(), host);
+
+    expect(reported?.requests).toEqual([]);
+    expect(reported?.held).toBe('no-place');
+    // Not even looked up: there is no recipe worth keying.
+    expect(asked).toEqual([]);
+  });
+
+  /**
+   * ***The place this turn moved to, not the one it left*** (2026-09-30). The
+   * channels were rendered when the plan was built, before the stager wrote
+   * the place, so every move reached the backdrop a turn late. Read when the
+   * step runs.
+   */
+  it('reads the channels when it runs, not when it was planned', async () => {
+    let place = 'the office';
+    const { host } = recordingHost({ subject: 'never asked for' });
+    const step = render(
+      context({
+        illustration: 'off',
+        backdrop: true,
+        channels: () => [{ id: 'se.location', text: place }],
+        report: capture(),
+      }),
+    );
+
+    // The stager moves the scene after the plan was built, before this runs.
+    place = 'the quay';
+    await step.run(payload(), host);
+
+    expect(reported?.requests[0]?.prompt.text).toContain('the quay');
   });
 
   it('asks the reuse question with the digest it would have dispatched', async () => {

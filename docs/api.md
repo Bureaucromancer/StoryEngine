@@ -1262,9 +1262,14 @@ stalls on either is unusable"* — moved from the turn to a button.
 
 **A refusal is a `200` with a class, not a `4xx`.** `{ held: "no-binding" }` when
 nothing is bound to the `image` role, which is the ordinary state of every
-install ([19 §5.1](design/19-tech-stack.md)), and `{ held: "no-moment" }` when
-the turn has no prose or the moment call declined. Both are answers to *can you
-make a picture*, not failed requests. A turn that does not exist is a `404`.
+install ([19 §5.1](design/19-tech-stack.md)), `{ held: "no-moment" }` when
+the turn has no prose or the moment call declined, and — since 2026-09-30 —
+`{ held: "no-place" }` for **Set the scene** where the story has named no place:
+a backdrop's recipe is the place and the tone, and without the place it was a
+picture of a mood. All three are answers to *can you make a picture*, not
+failed requests. A turn that does not exist is a `404`. The same classes name
+why a turn's own render step asked for nothing, on the turn record's
+`renditions.held`.
 
 **A client that disconnects before the answer is written cancels the moment
 call**, and nothing is recorded, because the `pending` record is written only

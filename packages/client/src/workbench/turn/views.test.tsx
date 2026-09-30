@@ -425,4 +425,16 @@ describe('the pictures a turn was the subject of', () => {
     const pictures = screen.getByRole('region', { name: 'Pictures' });
     expect(within(pictures).getByText(/no moment worth a picture/)).toBeTruthy();
   });
+
+  /**
+   * ***A backdrop held for want of a place*** (2026-09-30) — the class the step
+   * reports instead of paying for a picture of a mood, in words.
+   */
+  it('says when a backdrop was held because the story named no place', () => {
+    const turn = { ...richTurn(), renditions: { requested: [], held: 'no-place' as const } };
+    render(<TurnSubject turn={turn} locale="en" />);
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText(/has not said where this is yet/)).toBeTruthy();
+  });
 });

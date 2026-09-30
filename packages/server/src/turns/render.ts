@@ -11,7 +11,12 @@ import type {
 } from '@storyengine/sdk';
 import type { AssembledPrompt, RenditionRequest, RenditionScope } from '@storyengine/shared';
 
-import { assemblePrompt, fragmentsFor, type FragmentInputs } from '../renditions/assemble.js';
+import {
+  assemblePrompt,
+  fragmentsFor,
+  placeOf,
+  type FragmentInputs,
+} from '../renditions/assemble.js';
 import { recipeDigest } from '../renditions/digest.js';
 import { initialValue } from '../sessions/channels.js';
 import type { Binding, ProviderCapabilities } from '../providers/types.js';
@@ -165,7 +170,10 @@ export const RENDER_STEP: StepDefinition = {
    * **`post`, per [06 §10.3]**, and both halves want it. The moment is a reading
    * of prose that has to exist first, and the place is a reading of channel
    * state this turn has already moved — a `pre` backdrop would describe the room
-   * you were leaving.
+   * you were leaving. ***Which it did anyway until 2026-09-30***: the channels
+   * were rendered when the plan was built, before any step ran, so the place a
+   * stager moved this turn reached the next turn's backdrop. They are read when
+   * the step runs now (`RenderContext.channels`).
    */
   stage: 'post',
   /**
@@ -240,8 +248,12 @@ export interface RenderReport {
   binding: { connectionId: string; modelId: string };
   /** A backdrop resolved to one already paid for — [P9 §1.7]'s money row. */
   reused?: { renditionId: string; digest: string };
-  /** Why nothing was asked for. Absent when something was. */
-  held?: 'place-unchanged' | 'no-moment' | 'no-binding';
+  /**
+   * Why nothing was asked for. Absent when something was. `no-place` since
+   * 2026-09-30: a backdrop with no place to be of is not asked for — see the
+   * background branch.
+   */
+  held?: 'place-unchanged' | 'no-moment' | 'no-binding' | 'no-place';
 }
 
 export interface RenderContext {
@@ -265,8 +277,16 @@ export interface RenderContext {
   image: { binding: Binding; capabilities: ProviderCapabilities };
   /** The treatment's tone, read by the runner along with everything else lore. */
   tone: string | null;
-  /** Rendered channel values the two rankings draw on, in the mode's order. */
-  channels: readonly { id: string; text: string }[];
+  /**
+   * Rendered channel values the two rankings draw on, in the mode's order.
+   *
+   * ***A thunk, read when the step runs*** (2026-09-30), `reusable`'s shape for
+   * `reusable`'s reason: the value is not known when the plan is built. A list
+   * rendered then was the state before this turn's steps, so the place the
+   * stager wrote this turn — and a tracker's write — were a turn late in
+   * every backdrop and illustration.
+   */
+  channels: () => readonly { id: string; text: string }[];
   /**
    * Generation parameters for the image call, minus the seed.
    *
@@ -365,8 +385,19 @@ export function render(context: RenderContext): {
        * whose only rendition turns out to be a reused backdrop — which is the
        * bill §1.7's digest exists to keep down, spent one level up.
        */
-      if (context.backdrop) {
-        const prompt = assemble('background', context, [], '');
+      /**
+       * ***A backdrop with no place is held*** (2026-09-30). Its recipe is the
+       * place and the tone, and with no place it was the tone alone — a
+       * picture of a mood, paid for and then reused by every later turn,
+       * since the recipe never changed. Every first turn of a session whose
+       * story names no place yet reached it, and so did every turn of one
+       * where nothing writes the place.
+       */
+      const channels = context.channels();
+      if (context.backdrop && placeOf(channels) === undefined) {
+        held = 'no-place';
+      } else if (context.backdrop) {
+        const prompt = assemble('background', context, channels, [], '');
         const digest = recipeDigest(context.image.binding, prompt, context.workflow);
         const already = context.reusable(digest);
         if (already === 'in-flight') {
@@ -396,7 +427,13 @@ export function render(context: RenderContext): {
              */
             held ??= 'no-moment';
           } else {
-            const prompt = assemble('illustration', context, input.cast ?? [], moment.subject);
+            const prompt = assemble(
+              'illustration',
+              context,
+              channels,
+              input.cast ?? [],
+              moment.subject,
+            );
             const digest = recipeDigest(context.image.binding, prompt, context.workflow);
             requests.push(
               request('illustration', prompt, digest, moment.anchor, await seedFor(host), context),
@@ -431,13 +468,14 @@ export function render(context: RenderContext): {
 function assemble(
   purpose: 'illustration' | 'background',
   context: RenderContext,
+  channels: readonly { id: string; text: string }[],
   cast: FragmentInputs['cast'],
   moment: string,
 ): AssembledPrompt {
   const inputs: FragmentInputs = {
     moment,
     cast: purpose === 'background' ? [] : cast,
-    channels: context.channels,
+    channels,
     tone: context.tone,
   };
   return assemblePrompt(fragmentsFor(purpose, inputs), context.image.capabilities);

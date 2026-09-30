@@ -489,7 +489,7 @@ export interface RenditionReport {
    * are different facts, and the hook selector's `nothing-eligible` draws the
    * same line for the same reason.
    */
-  held?: 'place-unchanged' | 'no-moment' | 'no-binding';
+  held?: 'place-unchanged' | 'no-moment' | 'no-binding' | 'no-place';
 }
 
 /**

@@ -1686,7 +1686,13 @@ export class TurnRunner {
                   ),
                 },
                 tone: toneOf(inputs.lore.treatment?.treatment),
-                channels: renderedChannels(running),
+                /**
+                 * ***Read when the step runs***, the `reusable` thunk's shape
+                 * (2026-09-30): `running` moves as this turn's steps write, and
+                 * a list rendered here was the state before any of them — the
+                 * place the stager moves, a turn late in every backdrop.
+                 */
+                channels: () => renderedChannels(running),
                 /**
                  * **Empty at 1.0, and a field rather than a later migration.**
                  * What an endpoint wants beyond a prompt is per-connection

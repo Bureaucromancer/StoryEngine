@@ -173,6 +173,13 @@ async function stage(): Promise<{ selected: string | null; drawn: string | null 
   };
 }
 
+/** The session's first real turn — the one after the channel writes. */
+async function firstTurnOf(): Promise<string> {
+  const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+  const all = (turns.body as { turns: { id: string; output?: { text: string } | null }[] }).turns;
+  return all.find((turn) => (turn.output?.text ?? '') !== '')?.id ?? '';
+}
+
 function assetOf(renditionId: string): string {
   return `/api/sessions/${sessionId}/renditions/${renditionId}/asset`;
 }
@@ -386,6 +393,24 @@ describe('the place, with only the backdrop on', () => {
     const channels = (read.body as { session: { channels: Record<string, { value: unknown }> } })
       .session.channels;
     expect(channels['se.location']?.value).toBe('the taproom');
+  });
+
+  /**
+   * ***And drawn in the same turn*** (2026-09-30). The render step read the
+   * channels as they were when the plan was built, before the stager wrote
+   * the place: the first turn's backdrop was a mood, and every move after it
+   * reached the backdrop a turn late.
+   */
+  it('is this turn’s backdrop, not the next one’s', async () => {
+    await takeATurn();
+    await eventually(async () => {
+      const all = await renditionsOf();
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
+
+    const [drawn] = await renditionsOf();
+    expect(drawn?.turnId).toBe(await firstTurnOf());
+    expect(drawn?.prompt.text).toContain('the taproom');
   });
 });
 

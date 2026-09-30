@@ -368,6 +368,13 @@ describe('Illustrate, pressed by hand', () => {
    */
   it('makes no moment call for Set the scene', async () => {
     await boot({ bindImage: true });
+    // A place to draw — since 2026-09-30 a backdrop of no place is refused.
+    const placed = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.location`,
+      payload: { value: 'the taproom' },
+    });
+    head = (placed.body as { session: { headTurnId: string | null } }).session.headTurnId;
     const turnId = await takeATurn();
     const before = fake.requests.length;
 
@@ -386,6 +393,28 @@ describe('Illustrate, pressed by hand', () => {
     // fire-and-forget by design ([P9.2]), so a test that walked away mid-write
     // would race its own `rm` rather than assert anything.
     await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+  });
+
+  /**
+   * ***Where the story has named no place, it says so*** (2026-09-30). The
+   * recipe is the place and the tone, so with no place the button paid for a
+   * picture of the tone alone. It answers with the class instead, as it does
+   * for no binding, and makes nothing.
+   */
+  it('refuses Set the scene where the story has named no place', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'background' },
+    });
+
+    expect(asked.status).toBe(200);
+    expect(asked.body).toEqual({ held: 'no-place' });
+    expect(await renditionsOf()).toEqual([]);
+    expect(fake.images).toHaveLength(0);
   });
 });
 

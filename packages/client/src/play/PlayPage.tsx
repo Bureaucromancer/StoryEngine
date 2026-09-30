@@ -111,10 +111,15 @@ const PREVIEW_DEBOUNCE_MS = 400;
  * server does not know the reader's language, so what travels is something a
  * client can render.
  */
-const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = labels('play.rendition.held-here', {
-  'no-binding': 'Nothing is set up to make pictures yet.',
-  'no-moment': 'There was nothing here worth a picture.',
-});
+const HELD_WORDS: Record<'no-binding' | 'no-moment' | 'no-place', string> = labels(
+  'play.rendition.held-here',
+  {
+    'no-binding': 'Nothing is set up to make pictures yet.',
+    'no-moment': 'There was nothing here worth a picture.',
+    // 2026-09-30: a backdrop of no place would be a picture of a mood.
+    'no-place': 'The story has not said where this is yet, so there is no place to draw.',
+  },
+);
 
 /**
  * The play surface — a deliberately thin chat view
