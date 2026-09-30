@@ -1019,6 +1019,7 @@ export function PlayPage({
           rather than narration. Renders nothing for a session with no cast. */}
       <CastPanel
         sessionId={sessionId}
+        locale={locale}
         busy={running || gesture.isPending || send.isPending}
         onSpeak={(actorId) => {
           // *Speak* is force-talk with no input — let them talk, aimed.

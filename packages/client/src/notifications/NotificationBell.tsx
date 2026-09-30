@@ -27,7 +27,11 @@ import type { NotificationsState } from './useNotifications.js';
  * the role is `dialog` rather than `alertdialog`.
  */
 
-export function NotificationBell(props: { state: NotificationsState }): JSX.Element {
+export function NotificationBell(props: {
+  state: NotificationsState;
+  /** The reader's, for each row's date. */
+  locale: string | undefined;
+}): JSX.Element {
   const [open, setOpen] = useState(false);
   const { list, markRead } = props.state;
 
@@ -145,7 +149,9 @@ export function NotificationBell(props: { state: NotificationsState }): JSX.Elem
                         {said.body === '' ? null : (
                           <p className="text-sm text-ink-muted">{said.body}</p>
                         )}
-                        <p className="text-xs text-ink-subtle">{formatEpochMs(one.updatedAt)}</p>
+                        <p className="text-xs text-ink-subtle">
+                          {formatEpochMs(one.updatedAt, props.locale)}
+                        </p>
                       </div>
                       {one.readAt === null ? (
                         <Button

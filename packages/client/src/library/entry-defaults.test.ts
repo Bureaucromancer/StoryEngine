@@ -78,7 +78,9 @@ describe('what is not at its default', () => {
 describe('the summary a closed section carries', () => {
   it('reproduces the design’s numeric example exactly', () => {
     // [10 §11.2d]: "*Timing (sticky 4)*".
-    expect(groupSummary(group('Timing', entry()), entry({ sticky: 4 }))).toBe('Timing (sticky 4)');
+    expect(groupSummary(group('Timing', entry()), entry({ sticky: 4 }), 'en-US')).toBe(
+      'Timing (sticky 4)',
+    );
   });
 
   it('names all three where the design’s other example counted them', () => {
@@ -89,42 +91,57 @@ describe('the summary a closed section carries', () => {
       groupSummary(
         group('Matching', entry()),
         entry({ keys: ['harbour'], matchWholeWords: false, useRegex: true }),
+        'en-US',
       ),
     ).toBe('Matching (keys 1, match whole words off, use regex)');
   });
 
   it('says so when nothing inside has moved, rather than falling silent', () => {
-    expect(groupSummary(group('Recursion', entry()), entry())).toBe('Recursion (all at default)');
-  });
-
-  it('names a boolean that is on without repeating that it is on', () => {
-    expect(groupSummary(group('Recursion', entry()), entry({ preventRecursion: true }))).toBe(
-      'Recursion (prevent recursion)',
+    expect(groupSummary(group('Recursion', entry()), entry(), 'en-US')).toBe(
+      'Recursion (all at default)',
     );
   });
 
+  it('names a boolean that is on without repeating that it is on', () => {
+    expect(
+      groupSummary(group('Recursion', entry()), entry({ preventRecursion: true }), 'en-US'),
+    ).toBe('Recursion (prevent recursion)');
+  });
+
   it('counts a list as a value rather than as a plural', () => {
-    expect(groupSummary(group('Matching', entry()), entry({ keys: ['a', 'b'] }))).toBe(
+    expect(groupSummary(group('Matching', entry()), entry({ keys: ['a', 'b'] }), 'en-US')).toBe(
       'Matching (keys 2)',
     );
   });
 
   it('lowercases only the label’s first letter, so the schema’s words survive', () => {
-    expect(groupSummary(group('Matching', entry()), entry({ matchWholeWords: false }))).toBe(
-      'Matching (match whole words off)',
-    );
+    expect(
+      groupSummary(group('Matching', entry()), entry({ matchWholeWords: false }), 'en-US'),
+    ).toBe('Matching (match whole words off)');
   });
 
   it('shows a short string and withholds one long enough to swamp the line', () => {
-    expect(groupSummary(group('Placement', entry()), entry({ outletName: 'aside' }))).toBe(
+    expect(groupSummary(group('Placement', entry()), entry({ outletName: 'aside' }), 'en-US')).toBe(
       'Placement (outlet name aside)',
     );
     expect(
       groupSummary(
         group('Placement', entry()),
         entry({ outletName: 'a name pasted out of somebody else’s file' }),
+        'en-US',
       ),
     ).toBe('Placement (outlet name set)');
+  });
+
+  /**
+   * ***A count in the reader's format*** (2026-09-28): the summary was built
+   * with no locale and wrote the browser's grouping under an account set to
+   * German's.
+   */
+  it('writes a number in the reader’s format', () => {
+    expect(groupSummary(group('Timing', entry()), entry({ sticky: 1200 }), 'de-DE')).toBe(
+      'Timing (sticky 1.200)',
+    );
   });
 
   it('has nothing to say about the head group, which is never collapsed', () => {
@@ -132,6 +149,6 @@ describe('the summary a closed section carries', () => {
       (candidate) => candidate.title === null,
     );
     expect(head).toBeDefined();
-    expect(groupSummary(head!, entry())).toBe('');
+    expect(groupSummary(head!, entry(), 'en-US')).toBe('');
   });
 });

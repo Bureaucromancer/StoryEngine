@@ -50,18 +50,18 @@ import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
  */
 
 /** Whole sentences, one per state, as the sentence-assembly rule requires. */
-function archiveLabel(record: BackupRecord): string {
-  const when = formatTimestamp(new Date(record.takenAt).toISOString());
+function archiveLabel(record: BackupRecord, locale: string | undefined): string {
+  const when = formatTimestamp(new Date(record.takenAt).toISOString(), locale);
   const what = record.contents === 'full' ? 'everything' : 'work only';
   return record.handle === null ? `${when} — the install, ${what}` : `${when} — ${what}`;
 }
 
-function takenLine(manifest: BackupManifest): string {
+function takenLine(manifest: BackupManifest, locale: string | undefined): string {
   const by =
     manifest.takenBy.version === null
       ? 'a build that did not record its version'
       : `version ${manifest.takenBy.version}`;
-  return `Taken ${formatTimestamp(manifest.takenBy.at)} by ${by}.`;
+  return `Taken ${formatTimestamp(manifest.takenBy.at, locale)} by ${by}.`;
 }
 
 function holdsLine(manifest: BackupManifest): string {
@@ -140,6 +140,8 @@ function failureLine(error: unknown): string {
 export function ImportBackup(props: {
   scope: 'account' | 'install';
   rows: readonly BackupRecord[];
+  /** The reader's, for when each archive was taken. */
+  locale: string | undefined;
 }): JSX.Element | null {
   const client = useQueryClient();
   const install = props.scope === 'install';
@@ -208,7 +210,7 @@ export function ImportBackup(props: {
         value={chosen}
         options={[
           ['', 'Choose one…'],
-          ...props.rows.map((row) => [row.id, archiveLabel(row)] as const),
+          ...props.rows.map((row) => [row.id, archiveLabel(row, props.locale)] as const),
         ]}
         onChange={(value) => {
           setChosen(value);
@@ -227,7 +229,7 @@ export function ImportBackup(props: {
       ) : (
         <Panel variant="inset">
           <div className="flex flex-col gap-1">
-            <Fine>{takenLine(held)}</Fine>
+            <Fine>{takenLine(held, props.locale)}</Fine>
             <Fine>{holdsLine(held)}</Fine>
             <Fine>{credentialsLine(held)}</Fine>
             {/*

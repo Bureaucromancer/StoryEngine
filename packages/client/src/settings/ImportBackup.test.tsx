@@ -44,6 +44,7 @@ vi.mock('../api.js', async (importOriginal) => ({
 
 const { ApiError } = await import('../api.js');
 const { ImportBackup } = await import('./ImportBackup.js');
+const { formatTimestamp } = await import('../format.js');
 
 const ID = '0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60';
 
@@ -86,11 +87,15 @@ beforeEach(() => {
   importInstall.mockResolvedValue(RESULT);
 });
 
-function renderFlow(scope: 'account' | 'install', rows = [ROW]): void {
+function renderFlow(
+  scope: 'account' | 'install',
+  rows = [ROW],
+  locale: string | undefined = 'en-US',
+): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <ImportBackup scope={scope} rows={rows} />
+      <ImportBackup scope={scope} rows={rows} locale={locale} />
     </QueryClientProvider>,
   );
 }
@@ -262,5 +267,29 @@ describe('importing from a backup', () => {
     });
     // The sentence is the catalogue's, composed from the class the server sent.
     expect(screen.getByText(/preferences were not brought across/i)).toBeTruthy();
+  });
+});
+
+/**
+ * ***Each archive's date, in the account's format*** (2026-09-28) — the picker
+ * was handed no locale and wrote the browser's.
+ */
+describe('the dates', () => {
+  it('are written in the account’s format', () => {
+    renderFlow('account', [ROW], 'de-DE');
+    const german = formatTimestamp(new Date(ROW.takenAt).toISOString(), 'de-DE');
+    expect(german).not.toBe(formatTimestamp(new Date(ROW.takenAt).toISOString(), 'en-US'));
+    const options = [...screen.getByLabelText<HTMLSelectElement>('Which backup').options];
+    expect(options.some((one) => one.text.includes(german))).toBe(true);
+  });
+
+  it('writes the chosen archive’s own date in it too', async () => {
+    const user = userEvent.setup();
+    renderFlow('account', [ROW], 'de-DE');
+    await choose(user);
+
+    const german = formatTimestamp(MANIFEST.takenBy.at, 'de-DE');
+    expect(german).not.toBe(formatTimestamp(MANIFEST.takenBy.at, 'en-US'));
+    expect(screen.getByText((text) => text.startsWith(`Taken ${german} by`))).toBeTruthy();
   });
 });

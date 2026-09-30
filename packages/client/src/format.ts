@@ -11,6 +11,15 @@
  * `locale` is the account's, when there is one; `undefined` falls back to the
  * browser's. Passing it explicitly rather than reading a global keeps these
  * pure, which is also what makes them testable under Node.
+ *
+ * ***Required, and allowed to be `undefined`*** (2026-09-28) — the
+ * *required and nullable rather than optional* rule `LorebookView` states. It
+ * was optional, so a caller that forgot it compiled and wrote the browser's
+ * dates and numbers under an account set to another language's: about
+ * twenty-five did, the backup and trash lists, the notification list, the lore
+ * report's token counts and the book page among them. Required, the compiler
+ * names each one, and `undefined` is still there to say *the browser's* on
+ * purpose.
  */
 
 /** A portable object's `provenance` timestamps, when it has any. */
@@ -37,14 +46,14 @@ export function timestampsOf(object: Record<string, unknown>): Timestamps {
  * An unparsable input comes back unchanged: the value is still information, and
  * a blank or a crash would hide it.
  */
-export function formatTimestamp(iso: string, locale?: string): string {
+export function formatTimestamp(iso: string, locale: string | undefined): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return formatterFor(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 /** Epoch milliseconds (the account's `createdAt`) as a readable date. */
-export function formatEpochMs(epochMs: number, locale?: string): string {
+export function formatEpochMs(epochMs: number, locale: string | undefined): string {
   return formatterFor(locale, { dateStyle: 'medium' }).format(new Date(epochMs));
 }
 
@@ -96,7 +105,7 @@ function formatterFor(locale: string | undefined, options: Intl.DateTimeFormatOp
  * blank would hide it. `Temporal.PlainDate` is what this eventually becomes —
  * it is exactly this type — but it is not in the client's baseline yet.
  */
-export function formatCalendarDate(date: string, locale?: string): string {
+export function formatCalendarDate(date: string, locale: string | undefined): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (match === null) return date;
   const year = Number(match[1]);
@@ -125,7 +134,7 @@ export function formatCalendarDate(date: string, locale?: string): string {
  * reads fine; `128000` does not, and the context windows this app renders are
  * the second kind.
  */
-export function formatCount(count: number, locale?: string): string {
+export function formatCount(count: number, locale: string | undefined): string {
   return numberFormatterFor(locale, {}).format(count);
 }
 
@@ -141,7 +150,7 @@ export function formatCount(count: number, locale?: string): string {
  * price in its own unit (OpenRouter's credits are one), and `Intl` refuses a
  * code it does not know; the number still reads, followed by what it is in.
  */
-export function formatMoney(amount: number, currency: string, locale?: string): string {
+export function formatMoney(amount: number, currency: string, locale: string | undefined): string {
   if (/^[A-Z]{3}$/.test(currency)) {
     try {
       return new Intl.NumberFormat(locale, {
@@ -163,7 +172,7 @@ export function formatMoney(amount: number, currency: string, locale?: string): 
  * minutes to one decimal above — a 59-second model call reads as `59 s`,
  * not `59029`.
  */
-export function formatDuration(ms: number, locale?: string): string {
+export function formatDuration(ms: number, locale: string | undefined): string {
   if (ms < 1000) {
     return numberFormatterFor(locale, {
       style: 'unit',
@@ -183,6 +192,17 @@ export function formatDuration(ms: number, locale?: string): string {
     unit: 'minute',
     maximumFractionDigits: 1,
   }).format(ms / 60_000);
+}
+
+/**
+ * A fraction as a percentage in the reader's format — *40 %* in French, *40%*
+ * in English. Here since 2026-09-28: the cast panel built its own formatter
+ * with `undefined` for a locale, the one number in the client that took the
+ * browser's format whatever the account said, and one no required parameter
+ * could catch, since it never called this file.
+ */
+export function formatPercent(fraction: number, locale: string | undefined): string {
+  return numberFormatterFor(locale, { style: 'percent' }).format(fraction);
 }
 
 /** The same fallback-not-throw stance as `formatterFor`, for the same P2A reason. */

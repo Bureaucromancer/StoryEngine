@@ -52,6 +52,7 @@ vi.mock('../api.js', async (importOriginal) => ({
 
 const { ApiError } = await import('../api.js');
 const { Backups } = await import('./Backups.js');
+const { formatTimestamp } = await import('../format.js');
 
 const ONE = {
   id: '0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60',
@@ -75,11 +76,11 @@ beforeEach(() => {
   });
 });
 
-function renderPanel(capable = false): void {
+function renderPanel(capable = false, locale: string | undefined = 'en-US'): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <Backups capable={capable} />
+      <Backups capable={capable} locale={locale} />
     </QueryClientProvider>,
   );
 }
@@ -192,5 +193,18 @@ describe('Backups', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Back up now' }));
     expect(await screen.findByText('That backup could not be taken.')).toBeTruthy();
+  });
+});
+
+/**
+ * ***When each backup was taken, in the account's format*** (2026-09-28) — the
+ * panel was handed no locale and wrote the browser's.
+ */
+describe('the dates', () => {
+  it('are written in the account’s format', async () => {
+    renderPanel(false, 'de-DE');
+    const german = formatTimestamp(new Date(ONE.takenAt).toISOString(), 'de-DE');
+    expect(german).not.toBe(formatTimestamp(new Date(ONE.takenAt).toISOString(), 'en-US'));
+    expect(await screen.findByText(`Taken ${german}.`)).toBeTruthy();
   });
 });

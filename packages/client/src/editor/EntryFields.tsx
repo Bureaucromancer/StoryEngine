@@ -85,6 +85,8 @@ function openerOf(group: FieldGroup): string {
 export function EntryFields(props: {
   entry: LoreEntry;
   onPatch: (patch: Partial<LoreEntry>) => void;
+  /** The reader's, for the counts in a closed group's heading. */
+  locale: string | undefined;
   /**
    * ***The entry's picture strip*** — [10 §11.2b], passed in rather than built
    * here.
@@ -163,7 +165,9 @@ export function EntryFields(props: {
              * below rather than beside the title.
              */}
             <summary className={disclosure.quiet}>
-              <SubsectionTitle as="h4">{groupSummary(group, props.entry)}</SubsectionTitle>
+              <SubsectionTitle as="h4">
+                {groupSummary(group, props.entry, props.locale)}
+              </SubsectionTitle>
             </summary>
             {group.note === undefined ? null : <Fine className="mt-1">{group.note}</Fine>}
             <div className="mt-3">

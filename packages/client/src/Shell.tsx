@@ -174,7 +174,7 @@ export function Shell(): JSX.Element {
               >
                 Assistant
               </Button>
-              <NotificationBell state={notifications} />
+              <NotificationBell state={notifications} locale={account.locale ?? undefined} />
               {/* One entry, which is all [P2A §3] asks for. */}
               <Link to="/settings" className="text-sm text-ink-muted hover:underline">
                 Settings

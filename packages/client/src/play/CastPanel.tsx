@@ -4,6 +4,7 @@
 import { useState, type JSX } from 'react';
 
 import type { CastRow, ChatSettings, LibraryObject } from '../api.js';
+import { formatPercent } from '../format.js';
 import { labels } from '../i18n/catalogue.js';
 import { useLibrary, useSaveObject, useSession, useSetCast, useWriteChannel } from '../queries.js';
 import { Alert, AlertNote } from '../ui/Alert.js';
@@ -102,6 +103,8 @@ const TENTHS = Array.from({ length: 11 }, (_, at) => at / 10);
  */
 export function CastPanel(props: {
   sessionId: string;
+  /** The reader's, for the talkativeness percentages. */
+  locale: string | undefined;
   /** Force-talk with no input — the page's, because a turn is the page's to start. */
   onSpeak?: (actorId: string) => void;
   /** Whether a turn is running, so *speak* waits for it. */
@@ -123,6 +126,7 @@ export function CastPanel(props: {
         <CastMember
           key={row.actorId}
           sessionId={props.sessionId}
+          locale={props.locale}
           row={row}
           chat={chat}
           roster={roster}
@@ -199,6 +203,7 @@ function AddMember(props: {
 
 function CastMember(props: {
   sessionId: string;
+  locale: string | undefined;
   row: CastRow;
   chat?: ChatSettings | undefined;
   roster?: { persona: string | null; actors: string[] } | undefined;
@@ -345,7 +350,7 @@ function CastMember(props: {
       embodied &&
       card !== undefined &&
       props.modeId !== undefined ? (
-        <Talkativeness card={card} modeId={props.modeId} />
+        <Talkativeness card={card} modeId={props.modeId} locale={props.locale} />
       ) : null}
 
       {seated && chat !== undefined && embodied ? (
@@ -373,12 +378,15 @@ function CastMember(props: {
  * with the two ends named, since *0%* and *100%* are the two values whose
  * meaning is not a chance.
  */
-function Talkativeness(props: { card: LibraryObject; modeId: string }): JSX.Element {
+function Talkativeness(props: {
+  card: LibraryObject;
+  modeId: string;
+  locale: string | undefined;
+}): JSX.Element {
   const save = useSaveObject();
   const value = talkativenessOf(props.card.object, props.modeId);
-  const percent = new Intl.NumberFormat(undefined, { style: 'percent' });
   const labelOf = (tenth: number): string =>
-    tenth === 0 ? WORDS.never : tenth === 1 ? WORDS.always : percent.format(tenth);
+    tenth === 0 ? WORDS.never : tenth === 1 ? WORDS.always : formatPercent(tenth, props.locale);
 
   /**
    * ***The hint is visible text, not a tooltip.*** That changing it here

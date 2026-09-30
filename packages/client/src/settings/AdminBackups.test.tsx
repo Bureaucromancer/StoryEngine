@@ -51,6 +51,7 @@ vi.mock('../api.js', async (importOriginal) => ({
 
 const { ApiError } = await import('../api.js');
 const { AdminBackups } = await import('./AdminBackups.js');
+const { formatTimestamp } = await import('../format.js');
 
 const ID = '0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60';
 
@@ -102,11 +103,11 @@ beforeEach(() => {
   supervised(true);
 });
 
-function renderPanel(): QueryClient {
+function renderPanel(locale: string | undefined = 'en-US'): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <AdminBackups />
+      <AdminBackups locale={locale} />
     </QueryClientProvider>,
   );
   return client;
@@ -277,5 +278,36 @@ describe('taking an install backup', () => {
     expect(
       await screen.findByText('There was not enough room on the disk for that backup.'),
     ).toBeTruthy();
+  });
+});
+
+/**
+ * ***When each install backup was taken, in the account's format***
+ * (2026-09-28) — the panel was handed no locale and wrote the browser's.
+ */
+describe('the dates', () => {
+  it('are written in the account’s format', async () => {
+    renderPanel('de-DE');
+    const german = formatTimestamp(new Date(ROW.takenAt).toISOString(), 'de-DE');
+    expect(german).not.toBe(formatTimestamp(new Date(ROW.takenAt).toISOString(), 'en-US'));
+    expect(await screen.findByText(`Taken ${german}.`)).toBeTruthy();
+  });
+
+  it('writes the restore’s own dates in it too', async () => {
+    const user = userEvent.setup();
+    renderPanel('de-DE');
+    const taken = formatTimestamp(new Date(ROW.takenAt).toISOString(), 'de-DE');
+    const archived = formatTimestamp(MANIFEST.takenBy.at, 'de-DE');
+    expect(archived).not.toBe(formatTimestamp(MANIFEST.takenBy.at, 'en-US'));
+
+    const picker = await screen.findByLabelText('Which archive to become');
+    const offered = [...(picker as HTMLSelectElement).options].map((one) => one.text);
+    expect(offered.some((text) => text.startsWith(`${taken} — `))).toBe(true);
+
+    await chooseArchive(user);
+    expect(screen.getByText((text) => text.startsWith(`Taken ${archived} by`))).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    expect(screen.getByText((text) => text.endsWith(`taken ${archived}.`))).toBeTruthy();
   });
 });

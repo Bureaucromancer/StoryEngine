@@ -552,6 +552,7 @@ function Editor(props: EditorProps): JSX.Element {
 
           <EntryFields
             entry={selected}
+            locale={locale}
             onPatch={(patch) => {
               edit((current) => withEntry(current, selected.id, patch));
             }}

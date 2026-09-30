@@ -79,7 +79,7 @@ export function PreviewSubject({
             the failure that made the numbers unmeasurable — and an
             unconfigured install is exactly where somebody is asking why their
             world is not appearing. */}
-        <LoreReportView lore={preview.lore} />
+        <LoreReportView lore={preview.lore} locale={locale} />
       </div>
     );
   }
@@ -98,7 +98,7 @@ export function PreviewSubject({
        * *what is in the prompt*, then *what is not and why*, which is the order
        * somebody arrives at the question in.
        */}
-      <LoreReportView lore={preview.lore} />
+      <LoreReportView lore={preview.lore} locale={locale} />
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
         <MetadataRow label="Step">

@@ -39,6 +39,7 @@ vi.mock('../api.js', async (importOriginal) => {
 });
 
 const { CastPanel } = await import('./CastPanel.js');
+const { formatPercent } = await import('../format.js');
 
 const SESSION_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
 
@@ -115,11 +116,11 @@ beforeEach(() => {
 
 const onSpeak = vi.fn();
 
-function renderPanel(): void {
+function renderPanel(locale: string | undefined = 'en-US'): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <CastPanel sessionId={SESSION_ID} onSpeak={onSpeak} />
+      <CastPanel sessionId={SESSION_ID} locale={locale} onSpeak={onSpeak} />
     </QueryClientProvider>,
   );
 }
@@ -213,5 +214,20 @@ describe('the cast panel in a chat', () => {
     expect(screen.queryByRole('button', { name: 'Speak' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add to the cast' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'In the scene' })).toBeTruthy();
+  });
+});
+
+/**
+ * ***A percentage in the account's format*** (2026-09-28). The panel built its
+ * own formatter with no locale, so it wrote the browser's *30%* under an account
+ * set to French, whose percentage is *30 %*.
+ */
+describe('the talkativeness percentages', () => {
+  it('are written in the account’s format', async () => {
+    renderPanel('fr-FR');
+    const select = await screen.findByRole('combobox', { name: /How readily they join in/ });
+    const labels = [...(select as HTMLSelectElement).options].map((one) => one.text);
+    expect(labels).toContain(formatPercent(0.3, 'fr-FR'));
+    expect(labels).not.toContain(formatPercent(0.3, 'en-US'));
   });
 });

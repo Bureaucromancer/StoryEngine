@@ -78,7 +78,7 @@ function renderPanel() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <CastPanel sessionId={SESSION_ID} />
+      <CastPanel sessionId={SESSION_ID} locale="en-US" />
     </QueryClientProvider>,
   );
 }

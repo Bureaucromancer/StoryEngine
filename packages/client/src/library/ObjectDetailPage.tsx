@@ -679,7 +679,7 @@ function LorebookBody(props: {
         book={book}
         focused={search.entry ?? null}
         {...(sessions.data === undefined ? {} : { sessions: sessions.data.sessions })}
-        {...(props.locale === undefined ? {} : { locale: props.locale })}
+        locale={props.locale}
         linkToEntry={(entryId, children) => (
           /**
            * **Every link on this page is built here**, which is the same

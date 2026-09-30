@@ -28,6 +28,7 @@ vi.mock('../api.js', async (importOriginal) => ({
 
 const { ApiError } = await import('../api.js');
 const { Trash } = await import('./Trash.js');
+const { formatTimestamp } = await import('../format.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -45,11 +46,11 @@ beforeEach(() => {
   });
 });
 
-function renderPanel(): void {
+function renderPanel(locale: string | undefined = 'en-US'): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <Trash />
+      <Trash locale={locale} />
     </QueryClientProvider>,
   );
 }
@@ -75,5 +76,32 @@ describe('putting something back', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Put it back' }));
 
     expect(await screen.findByText('That could not be put back.')).toBeTruthy();
+  });
+});
+
+/**
+ * ***Dates in the account's format*** (2026-09-28). The panel was handed no
+ * locale, so it wrote when a thing was deleted in the browser's format whatever
+ * the account's *Language and formats* said.
+ */
+describe('the dates', () => {
+  it('are written in the account’s format', async () => {
+    const deletedAt = Date.UTC(2026, 8, 3, 14, 5);
+    readTrash.mockResolvedValue({
+      entries: [
+        {
+          id: 'lorebooks/rain-city',
+          kind: 'lorebooks',
+          name: 'Rain City',
+          deletedAt,
+          expiresAt: null,
+        },
+      ],
+      retentionDays: 30,
+    });
+    renderPanel('de-DE');
+    const german = formatTimestamp(new Date(deletedAt).toISOString(), 'de-DE');
+    expect(german).not.toBe(formatTimestamp(new Date(deletedAt).toISOString(), 'en-US'));
+    expect(await screen.findByText((text) => text.includes(german))).toBeTruthy();
   });
 });

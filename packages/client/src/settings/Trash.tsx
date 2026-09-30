@@ -27,7 +27,10 @@ import { Fine, Note, SectionTitle } from '../ui/Text.js';
  * is not a library object. *It is also not a browsing view*: nobody goes to the
  * trash to look around, they go because they want one thing back.
  */
-export function Trash(): JSX.Element {
+export function Trash(props: {
+  /** The reader's, for when each thing was deleted and when it goes. */
+  locale: string | undefined;
+}): JSX.Element {
   const client = useQueryClient();
   const trash = useQuery({ queryKey: ['trash'], queryFn: readTrash });
   const restore = useMutation({
@@ -64,7 +67,7 @@ export function Trash(): JSX.Element {
             >
               <span className="text-ink">{entry.name}</span>
               <Fine>{entry.kind}</Fine>
-              <Fine>{whenLine(entry)}</Fine>
+              <Fine>{whenLine(entry, props.locale)}</Fine>
               <Button
                 type="button"
                 className="ms-auto"
@@ -105,11 +108,11 @@ function windowLine(days: number | undefined): string {
  * and the sweep will never take it — so the honest line is that it stays, which
  * is also the useful one.
  */
-function whenLine(entry: TrashEntry): string {
+function whenLine(entry: TrashEntry, locale: string | undefined): string {
   if (entry.deletedAt === 0) return 'Put here by hand; it will not be removed.';
-  const deleted = formatTimestamp(new Date(entry.deletedAt).toISOString());
+  const deleted = formatTimestamp(new Date(entry.deletedAt).toISOString(), locale);
   if (entry.expiresAt === null) return `Deleted ${deleted}.`;
-  return `Deleted ${deleted}; removed after ${formatTimestamp(new Date(entry.expiresAt).toISOString())}.`;
+  return `Deleted ${deleted}; removed after ${formatTimestamp(new Date(entry.expiresAt).toISOString(), locale)}.`;
 }
 
 /**

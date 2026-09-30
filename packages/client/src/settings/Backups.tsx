@@ -61,8 +61,8 @@ function contentsLine(contents: 'full' | 'redacted'): string {
     : 'Your work, without your provider keys.';
 }
 
-function whenLine(record: BackupRecord): string {
-  return `Taken ${formatTimestamp(new Date(record.takenAt).toISOString())}.`;
+function whenLine(record: BackupRecord, locale: string | undefined): string {
+  return `Taken ${formatTimestamp(new Date(record.takenAt).toISOString(), locale)}.`;
 }
 
 function scheduleHint(settings: BackupSettings): string {
@@ -94,7 +94,11 @@ export function takeFailure(error: unknown): string {
     : 'That backup could not be taken.';
 }
 
-export function Backups(props: { capable: boolean }): JSX.Element {
+export function Backups(props: {
+  capable: boolean;
+  /** The reader's, for every date the panel writes. */
+  locale: string | undefined;
+}): JSX.Element {
   const client = useQueryClient();
   const listing = useQuery({ queryKey: ['backups', 'me'], queryFn: backupApi.readMine });
   const [contents, setContents] = useState<'full' | 'redacted'>('full');
@@ -172,7 +176,7 @@ export function Backups(props: { capable: boolean }): JSX.Element {
                 key={row.id}
                 className="flex flex-wrap items-center gap-3 rounded-panel border border-line p-3"
               >
-                <span className="text-ink">{whenLine(row)}</span>
+                <span className="text-ink">{whenLine(row, props.locale)}</span>
                 <Fine>{contentsLine(row.contents)}</Fine>
                 <Fine>{megabytes(row.bytes)}</Fine>
                 <a
@@ -246,7 +250,7 @@ export function Backups(props: { capable: boolean }): JSX.Element {
        * under a flow for a bad day is the wrong way round. It renders nothing
        * at all when there is nothing to import from.
        */}
-      <ImportBackup scope="account" rows={rows} />
+      <ImportBackup scope="account" rows={rows} locale={props.locale} />
     </section>
   );
 }
