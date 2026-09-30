@@ -2086,6 +2086,87 @@ describe('pictures on a move', () => {
 });
 
 /**
+ * ***The session, read again when a backdrop lands*** (2026-09-30). A backdrop
+ * that lands is a selection too — a node on the session, which moves its head
+ * and what its stage draws — and nothing asked for the session again: the
+ * stage stayed empty until a refocus, and the next move went out with the old
+ * head and was refused as out of date. Counted per frame, because a held
+ * backdrop's frame comes a second time once it is showing.
+ */
+describe('a backdrop that lands', () => {
+  function landed(over: Record<string, unknown> = {}) {
+    return {
+      schema: 'storyengine.rendition/1',
+      id: 'turn-1.b',
+      sessionId: SESSION.id,
+      turnId: 'turn-1',
+      createdAt: '2026-08-18T10:00:00.000Z',
+      kind: 'image',
+      purpose: 'background',
+      scope: null,
+      state: 'ready',
+      prompt: {
+        fragments: [],
+        separator: ', ',
+        budget: { maxChars: null, usefulChars: null },
+        text: 'a taproom',
+        kept: [],
+        dropped: [],
+        overCap: false,
+      },
+      asset: { path: 'assets/turn-1.b.png', mime: 'image/png', bytes: 4, digest: 'd1' },
+      provenance: {
+        at: null,
+        binding: { connectionId: 'c-1', modelId: 'sd' },
+        answeredAs: null,
+        seed: 7,
+        workflow: {},
+      },
+      error: null,
+      digest: 'recipe-b',
+      ordering: 0,
+      ...over,
+    };
+  }
+
+  it('reads the session again, each time one is said to be ready', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    const before = readSession.mock.calls.length;
+
+    act(() => {
+      handlers.onFrame({ event: 'rendition', data: landed() });
+    });
+    await waitFor(() => {
+      expect(readSession).toHaveBeenCalledTimes(before + 1);
+    });
+
+    // The same backdrop again: held for a turn, and sent once it is showing.
+    act(() => {
+      handlers.onFrame({ event: 'rendition', data: landed() });
+    });
+    await waitFor(() => {
+      expect(readSession).toHaveBeenCalledTimes(before + 2);
+    });
+  });
+
+  it('leaves the session alone for a picture of a turn, or one still being made', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    const before = readSession.mock.calls.length;
+
+    await act(async () => {
+      handlers.onFrame({ event: 'rendition', data: landed({ purpose: 'illustration' }) });
+      handlers.onFrame({ event: 'rendition', data: landed({ id: 'turn-1.c', state: 'pending' }) });
+      // The cache tells its observers on a timer of its own.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(readSession).toHaveBeenCalledTimes(before);
+  });
+});
+
+/**
  * ***A picture that came out while the stream was down*** (2026-09-28). The
  * stream's record of a picture outranks the query, and nothing re-sent the set
  * when the stream came back: a failure the page had been told of stayed on

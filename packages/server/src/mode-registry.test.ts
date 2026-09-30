@@ -262,6 +262,7 @@ describe('a mode’s contributed surfaces', () => {
         },
       },
       'example.quiet',
+      's-1',
     );
 
     expect(surfaces).toHaveLength(1);
@@ -270,18 +271,25 @@ describe('a mode’s contributed surfaces', () => {
   });
 
   /**
-   * ***`null` for the rendition arm is not a gap*** — nothing generates a
+   * ~~***`null` for the rendition arm is not a gap*** — nothing generates a
    * picture until [P9], and the arm exists so the channel's schema does not have
-   * to change under live sessions when something does ([06 §10.1a]).
+   * to change under live sessions when something does ([06 §10.1a]).~~
+   *
+   * ***A generated backdrop at its session's address*** (2026-09-30). [P9]
+   * generates one, and this test went on pinning the nothing — which is what
+   * both routes still drew, since neither handed over the session a rendition
+   * lives in. The session is required now, and this is what it buys.
    */
-  it('shows nothing for a generated backdrop, because nothing generates one yet', async () => {
+  it('resolves a generated backdrop to its session’s asset route', async () => {
     const registry = await withBackdrop();
     const surfaces = registry.modeSurfaces(
       { 'example.backdrop': { version: 1, value: { from: 'rendition', renditionId: 'r-1' } } },
       'example.quiet',
+      's-1',
     );
 
-    expect(surfaces).toEqual([]);
+    expect(surfaces).toHaveLength(1);
+    expect(surfaces[0]?.image?.url).toBe('/api/sessions/s-1/renditions/r-1/asset');
   });
 
   /**
@@ -291,7 +299,7 @@ describe('a mode’s contributed surfaces', () => {
    */
   it('shows nothing at all when the channel is unset', async () => {
     const registry = await withBackdrop();
-    expect(registry.modeSurfaces({}, 'example.quiet')).toEqual([]);
+    expect(registry.modeSurfaces({}, 'example.quiet', 's-1')).toEqual([]);
   });
 
   /**
@@ -309,6 +317,7 @@ describe('a mode’s contributed surfaces', () => {
         },
       },
       'example.loud',
+      's-1',
     );
 
     expect(surfaces).toEqual([]);
@@ -345,6 +354,7 @@ describe('a mode’s contributed surfaces', () => {
         },
       },
       'example.quiet',
+      's-1',
     );
 
     expect(surfaces).toEqual([]);

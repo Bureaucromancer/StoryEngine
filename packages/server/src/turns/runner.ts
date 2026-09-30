@@ -92,8 +92,13 @@ import {
 import { toneOf } from '../renditions/assemble.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import { RENDITION_SCHEMA, type Rendition } from '@storyengine/shared';
-import { readRenditions, renditionIdFor, reusableBackdrop } from '../renditions/store.js';
-import { selectedBackdrop } from '../renditions/backdrop.js';
+import {
+  backdropInFlight,
+  readRenditions,
+  renditionIdFor,
+  reusableBackdrop,
+} from '../renditions/store.js';
+import { SE_BACKDROP, selectedBackdrop } from '../renditions/backdrop.js';
 import { summarise, summaryPlanFor, type SummariseReport } from './summarise.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
@@ -1716,7 +1721,8 @@ export class TurnRunner {
                     digest,
                     selectedBackdrop(running),
                   );
-                  return already === null ? null : { renditionId: already.id };
+                  if (already !== null) return { renditionId: already.id };
+                  return backdropInFlight(renditionsHeld, digest) ? 'in-flight' : null;
                 },
                 report: (report) => {
                   renditions.report = report;
@@ -2939,6 +2945,39 @@ export class TurnRunner {
         },
         running,
         supersededProposal(effects, SE_CLOCK),
+      );
+      effects.push(effect);
+    }
+
+    /**
+     * ***A backdrop the render step reused is the one showing*** (2026-09-30).
+     *
+     * [P9 §1.7]'s money row: walking back into a place already drawn dispatches
+     * nothing, and the step records which rendition it resolved to. Nothing then
+     * pointed the backdrop at it, so the room left behind stayed on the stage —
+     * and a backdrop held for this turn gave way to the reused one
+     * (`asksForItsOwnBackdrop`), so on a turn that reused one the newer picture
+     * went and the reused one never showed.
+     *
+     * **Written in the turn rather than after it**, because unlike a picture
+     * that arrives later this one is known before the commit: an engine effect
+     * beside the clock's, so the backdrop and the place that asked for it land,
+     * and rewind, together, and no second node moves the head after
+     * `turn.finished` has told a page where it is. Only when it is not already
+     * showing, since *the place has not changed* resolves to the selected one.
+     */
+    const reused = renditions.report?.reused;
+    if (!aborted && reused !== undefined && reused.renditionId !== selectedBackdrop(running)) {
+      const effect = acceptEffect(
+        job.turnId,
+        {
+          channelId: SE_BACKDROP,
+          scopeKey: null,
+          op: { type: 'set', path: '/' },
+          after: { from: 'rendition', renditionId: reused.renditionId },
+          proposedBy: { kind: 'engine' },
+        },
+        running,
       );
       effects.push(effect);
     }

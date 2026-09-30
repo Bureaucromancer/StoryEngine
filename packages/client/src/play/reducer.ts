@@ -140,6 +140,20 @@ export interface PlayState {
    */
   attached: number;
   /**
+   * ***How many times a backdrop has been reported ready*** (2026-09-30).
+   *
+   * A backdrop that lands is a selection too — a node on the session, which
+   * moves its head and what its stage draws — and the page reads both from the
+   * session query, which nothing asked again: the stage stayed empty until a
+   * refocus, and the composer sent the head it had and was refused as out of
+   * date. A count rather than the ids, because the server sends a held
+   * backdrop's frame a second time once it is showing (after `turn.finished`
+   * has sent the page to read a head the selection then moved), and a second
+   * frame for a known id is exactly the one that must be heard. `PlayPage`
+   * reads the session again whenever it moves.
+   */
+  backdrops: number;
+  /**
    * ***The round, message by message, as it streams*** — [P14 §1.8], [P14.5].
    *
    * Under `per-actor` dispatch each speaker's call streams into a message of
@@ -193,6 +207,7 @@ export const INITIAL: PlayState = {
   live: null,
   renditions: {},
   attached: 0,
+  backdrops: 0,
   round: FRESH_ROUND,
   order: null,
   error: null,
@@ -649,7 +664,12 @@ function applyRendition(state: PlayState, data: unknown): PlayState {
   }
   if (data['purpose'] !== 'illustration' && data['purpose'] !== 'background') return state;
 
-  return { ...state, renditions: { ...state.renditions, [id]: data as unknown as Rendition } };
+  const landed = data['purpose'] === 'background' && data['state'] === 'ready';
+  return {
+    ...state,
+    renditions: { ...state.renditions, [id]: data as unknown as Rendition },
+    backdrops: landed ? state.backdrops + 1 : state.backdrops,
+  };
 }
 
 function applyDelta(state: PlayState, data: unknown): PlayState {

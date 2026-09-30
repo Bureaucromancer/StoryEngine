@@ -1610,7 +1610,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * appends to the strip; the other three regions have nowhere else to come
        * from.
        */
-      surfaces: modeSurfaces(session.channels, modeId, null, {
+      surfaces: modeSurfaces(session.channels, modeId, session.id, {
         actors: presentMembers(cast, session.cast?.persona ?? null),
       }),
       /**
@@ -2243,7 +2243,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
         hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
-        surfaces: modeSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
+        surfaces: modeSurfaces(
+          outcome.session.channels,
+          session.mode?.id ?? DEFAULT_MODE_ID,
+          sessionId,
+        ),
       });
     },
   );

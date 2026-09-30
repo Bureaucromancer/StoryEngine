@@ -301,7 +301,9 @@ export function renditionsOfTurn(all: ReadonlyMap<string, Rendition>, turnId: st
  *
  * *Only `ready` renditions count.* A pending one is a job already in flight and
  * a failed one is a placeholder; reusing either would either double-dispatch or
- * show nothing, and both read on screen as the feature being broken.
+ * show nothing, and both read on screen as the feature being broken. *A pending
+ * one is not a reason to ask again, either* (2026-09-30): {@link backdropInFlight}
+ * answers that, and the render step asks it second.
  */
 export function reusableBackdrop(
   all: ReadonlyMap<string, Rendition>,
@@ -326,6 +328,28 @@ export function reusableBackdrop(
    * would make regenerating a backdrop look like it had done nothing.
    */
   return matches.sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+}
+
+/**
+ * ***Whether a backdrop for this recipe is already being made*** (2026-09-30) —
+ * the half of the money row {@link reusableBackdrop} leaves out.
+ *
+ * Ready-only is right for *what to show*, and was taken for *whether to ask*:
+ * a turn taken while its place's backdrop was still pending found nothing
+ * ready and asked for another of the same place. The worker selects the
+ * pending one when it lands, so the answer to *a second one?* is no.
+ */
+export function backdropInFlight(all: ReadonlyMap<string, Rendition>, digest: string): boolean {
+  for (const rendition of all.values()) {
+    if (
+      rendition.purpose === 'background' &&
+      rendition.state === 'pending' &&
+      rendition.digest === digest
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Enough of an {@link AssembledPrompt} to be re-runnable. */

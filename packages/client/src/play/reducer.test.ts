@@ -615,3 +615,30 @@ describe('the pictures across an attach', () => {
     expect(state.renditions['t-1.0']?.state).toBe('pending');
   });
 });
+
+/**
+ * ***A backdrop reported ready is counted, every time*** (2026-09-30) — the
+ * count `PlayPage` reads the session again on. Every time rather than once per
+ * id, because the server sends a held backdrop's frame again once it is
+ * showing, and that second frame is the one the page must hear.
+ */
+describe('a backdrop that lands', () => {
+  const frame = (over: Record<string, unknown>) => ({
+    kind: 'frame' as const,
+    frame: {
+      event: 'rendition',
+      data: { id: 'r-1', turnId: 't-1', purpose: 'background', state: 'ready', ...over },
+    },
+  });
+
+  it('is counted each time it is said to be ready, and nothing else is', () => {
+    let state = reduce(INITIAL, frame({}));
+    state = reduce(state, frame({}));
+    expect(state.backdrops).toBe(2);
+
+    state = reduce(state, frame({ purpose: 'illustration' }));
+    state = reduce(state, frame({ id: 'r-2', state: 'pending' }));
+    state = reduce(state, frame({ id: 'r-2', state: 'failed' }));
+    expect(state.backdrops).toBe(2);
+  });
+});

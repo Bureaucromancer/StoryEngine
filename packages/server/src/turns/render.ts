@@ -281,8 +281,15 @@ export interface RenderContext {
    * A thunk rather than a value, which is `ExtractContext.subjects`' shape and
    * its reason: the digest is not known until the fragments are assembled, which
    * happens inside `run`. A context built eagerly would have to guess.
+   *
+   * ***Or `'in-flight'`, when one is being made*** (2026-09-30). Only a ready
+   * one could answer, so every turn taken while a place's first backdrop was
+   * still being drawn asked for another of the same place — and, being a
+   * background of its own, it made the first give way when that one landed:
+   * paid for twice, and the first never shown. A slow image model and a quick
+   * narrator make that most turns of a new place.
    */
-  reusable: (digest: string) => { renditionId: string } | null;
+  reusable: (digest: string) => { renditionId: string } | 'in-flight' | null;
   report: (report: RenderReport) => void;
 }
 
@@ -362,7 +369,10 @@ export function render(context: RenderContext): {
         const prompt = assemble('background', context, [], '');
         const digest = recipeDigest(context.image.binding, prompt, context.workflow);
         const already = context.reusable(digest);
-        if (already !== null) {
+        if (already === 'in-flight') {
+          // Asked for already, and selected by the worker when it lands.
+          held = 'place-unchanged';
+        } else if (already !== null) {
           reused = { renditionId: already.renditionId, digest };
           held = 'place-unchanged';
         } else {

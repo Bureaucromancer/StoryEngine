@@ -71,6 +71,7 @@ import {
 } from './renditions/worker.js';
 import type { Rendition } from '@storyengine/shared';
 import { DeferredBackdrops, offerBackdrop, showHeldBackdrop } from './renditions/backdrop.js';
+import { readRendition } from './renditions/store.js';
 import { installBuiltIns } from './mode-loader.js';
 import { assertModesRunnable } from './mode-registry.js';
 import {
@@ -918,7 +919,12 @@ async function assembleWithState(
      */
     library,
     committed: async (job, turn) => {
-      await showHeldBackdrop(sessions, deferredBackdrops, job.sessionId, turn);
+      const shown = await showHeldBackdrop(sessions, deferredBackdrops, job.sessionId, turn);
+      if (shown === null) return;
+      // The frame a landing backdrop sends, again, now that it is showing: the
+      // page read the head at `turn.finished`, before this moved it.
+      const record = await readRendition(layout, shown.account, job.sessionId, shown.renditionId);
+      if (record !== null) bus.rendition(job.sessionId, record);
     },
   });
 

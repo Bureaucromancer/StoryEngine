@@ -2769,6 +2769,8 @@ event: snapshot     { sessionId, job, turn, text, cursor }   once, at open
 id: <jobId>.<seq>
 event: progress     { jobId, seq, key, params, at }          durable, sequenced
 event: delta        { jobId, text, message? }                ephemeral — no id
+event: rendition    { …the rendition record }                ephemeral — no id
+event: summaries    { sessionId, state, links, missing, derived }   ephemeral — no id
 event: overflow     { cursor }                               then the stream ends
 event: error        { error }                                a class, never a message
 : keepalive
@@ -2794,6 +2796,21 @@ the record cannot disagree about *why* something was refused.
 **Deltas are not durable and carry no id.** A reattach may see coalesced text
 rather than every delta that painted it live, which [P2 §2.10](design/workplan/08-p2-implementation.md)
 states as the trade; the snapshot's `text` is what makes that lossless.
+
+**`rendition` carries a picture's whole record** whenever its state moves —
+`pending`, then `ready` or `failed` —
+[P9.2](design/workplan/26-p9-implementation.md). It has no id and takes no part
+in the backlog; a client applies it by upsert on the record's `id` and reads
+`GET /sessions/:id/renditions` again after a reconnect, since a frame sent while
+the stream was down reached nobody. **A `ready` background means the backdrop
+moved** (2026-09-30): the worker selects it before the frame goes, so the
+session's head and its `stage` surface have changed, and a client reads the
+session again. One that lands while a turn is being written is held and
+selected on top of that turn once it commits — after `turn.finished` — and its
+frame is sent a second time then, so count them rather than dedupe by id.
+**`summaries`** is the summary warm's whole state
+([P14.11](design/workplan/31-p14-scene-and-session-import.md)); a client may
+ignore it and lose only a progress line.
 
 **`message` is which of the turn's messages a delta belongs to** — added at
 [P14.2](design/workplan/31-p14-scene-and-session-import.md), for a round under

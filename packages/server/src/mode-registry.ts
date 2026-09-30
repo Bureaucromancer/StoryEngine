@@ -478,12 +478,19 @@ export function modeSurfaces(
    *
    * **Needed only by the backdrop**, and only since a backdrop can name a
    * rendition: a library object is addressed by kind and id, and a rendition
-   * lives in a session directory. Nullable so a caller with no session in hand
+   * lives in a session directory. ~~Nullable so a caller with no session in hand
    * gets what this function always returned — a picture for the authored arm and
    * nothing for the generated one, which is the state every build before [P9]
-   * was in.
+   * was in.~~
+   *
+   * ***Required*** (2026-09-30). Nullable with a default, it let the two routes
+   * that answer with a session's surfaces go on passing none — the read passed
+   * an explicit `null`, and the channel write's reply left it out — so a
+   * generated backdrop, paid for and selected, was drawn on no page: the
+   * rendition arm below answers nothing without a session. Every caller has
+   * the session in hand, and a required string is how the compiler says so.
    */
-  sessionId: string | null = null,
+  sessionId: string,
   /** Who an actor-scoped record is about — see {@link SurfaceMembers}. */
   members?: SurfaceMembers,
 ): ModeSurface[] {

@@ -61,11 +61,18 @@ let fake: FakeProvider;
 let head: string | null = null;
 let counter = 0;
 
-async function boot(): Promise<void> {
+/** Stalls, for a picture that has to land while the next turn is written. */
+async function boot(stalls: { replyMs?: number; imageMs?: number } = {}): Promise<void> {
   dataDir = await mkdtemp(join(tmpdir(), 'se-p9-sel-'));
   fake = new FakeProvider({
-    script: [{ text: 'The room was dim.', object: { subject: 'a dim room', anchor: 'The room' } }],
-    images: [{}],
+    script: [
+      {
+        text: 'The room was dim.',
+        object: { subject: 'a dim room', anchor: 'The room' },
+        ...(stalls.replyMs === undefined ? {} : { stallMs: stalls.replyMs }),
+      },
+    ],
+    images: [stalls.imageMs === undefined ? {} : { stallMs: stalls.imageMs }],
     capabilities: { rendersImages: true, supportsStructuredOutput: true },
   });
   server = await makeTestServer({ dataDir, providers: () => fake });
@@ -119,6 +126,46 @@ async function write(key: string, value: unknown): Promise<void> {
 async function readHead(): Promise<string | null> {
   const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
   return (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
+}
+
+/** A turn submitted and committed, with what it dispatched left running. */
+async function submitATurn(): Promise<string> {
+  const before = head;
+  const submitted = await server.request({
+    method: 'POST',
+    url: `/api/sessions/${sessionId}/turns`,
+    payload: {
+      idempotencyKey: `k-${String(counter++)}`,
+      headTurnId: before,
+      input: { text: 'Walk on.' },
+    },
+  });
+  expect(submitted.status).toBe(202);
+  await eventually(async () => {
+    const now = await readHead();
+    return now !== null && now !== before;
+  });
+  await server.services.runner.settle();
+  head = await readHead();
+  return head ?? '';
+}
+
+/** What the session read says the backdrop is, and what the stage draws. */
+async function stage(): Promise<{ selected: string | null; drawn: string | null }> {
+  const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+  const body = read.body as {
+    session: { channels: Record<string, { value: unknown }> };
+    surfaces: { region: string; image?: { url: string } }[];
+  };
+  const value = body.session.channels['se.backdrop']?.value as { renditionId?: string } | undefined;
+  return {
+    selected: value?.renditionId ?? null,
+    drawn: body.surfaces.find((one) => one.region === 'stage')?.image?.url ?? null,
+  };
+}
+
+function assetOf(renditionId: string): string {
+  return `/api/sessions/${sessionId}/renditions/${renditionId}/asset`;
 }
 
 async function takeATurn(): Promise<string> {
@@ -198,6 +245,43 @@ describe('a place already rendered dispatches no job', () => {
     expect(fake.images).toHaveLength(2);
   });
 
+  /**
+   * ***And the place you come back to is the one on the stage*** (2026-09-30).
+   * The step recorded which backdrop it reused and nothing pointed the channel
+   * at it, so the cellar stayed behind the taproom's prose. Written in the
+   * turn that reused it, and drawn: the session read draws a generated
+   * backdrop now, where it drew nothing, having no session to address it by.
+   */
+  it('shows the returning place’s own backdrop, drawn from the session read', async () => {
+    const ready = async (): Promise<void> => {
+      await eventually(async () => {
+        const all = await renditionsOf();
+        return all.length > 0 && all.every((one) => one.state === 'ready');
+      });
+    };
+
+    await write('se.location', 'the taproom');
+    await takeATurn();
+    await ready();
+    const taproom = (await renditionsOf())[0]?.id ?? '';
+    expect(await stage()).toEqual({ selected: taproom, drawn: assetOf(taproom) });
+
+    await write('se.location', 'the cellar');
+    await takeATurn();
+    await ready();
+    const cellar = (await renditionsOf()).find((one) => one.id !== taproom)?.id ?? '';
+    expect(await stage()).toEqual({ selected: cellar, drawn: assetOf(cellar) });
+
+    await write('se.location', 'the taproom');
+    const returned = await takeATurn();
+    expect(await stage()).toEqual({ selected: taproom, drawn: assetOf(taproom) });
+    // In the turn that walked back, not a node after it.
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    const walkedBack = (
+      turns.body as { turns: { id: string; effects: { channelId: string }[] }[] }
+    ).turns.find((turn) => turn.id === returned);
+    expect(walkedBack?.effects.some((one) => one.channelId === 'se.backdrop')).toBe(true);
+  });
   it('comes back to the backdrop you chose rather than the oldest', async () => {
     /**
      * §10.1a's clause, at the level it is decided. A manual regenerate adds a
@@ -270,6 +354,68 @@ describe('a place already rendered dispatches no job', () => {
     expect(backdropEffects.length).toBeGreaterThan(0);
     // **Ordinary, never escaped** — the amendment [P9 §0.3] made to §1.7.
     expect(backdropEffects.every((one) => one.scope === 'session')).toBe(true);
+  });
+});
+
+/**
+ * ***A backdrop that lands while the next turn is being written*** (2026-09-30).
+ *
+ * Two things went wrong at once. The next turn found the place's backdrop
+ * pending rather than ready and asked for another of the same place, which
+ * made the first give way when it landed: paid for twice, and the first never
+ * shown. And a backdrop held for a turn is selected after that turn's
+ * `turn.finished`, which sends a page to read the head, so the page kept the
+ * turn as its head and its next submission was refused as out of date — the
+ * frame that says the backdrop moved had gone out while the turn was running.
+ */
+describe('a backdrop that lands while the next turn is written', () => {
+  beforeEach(async () => {
+    await boot({ replyMs: 1500, imageMs: 800 });
+    await write('se.backdrop.on', true);
+    await write('se.location', 'the taproom');
+  });
+
+  it('is paid for once, shown on top of that turn, and told after it', async () => {
+    const heard: string[] = [];
+    const unsubscribe = server.services.bus.subscribe(sessionId, {
+      onEvents: (_jobId, events) => {
+        for (const event of events) if (event.key === 'turn.finished') heard.push('finished');
+      },
+      onDelta: () => undefined,
+      onRendition: (rendition) => {
+        heard.push(`rendition ${rendition.state}`);
+      },
+    });
+
+    try {
+      const first = await submitATurn();
+      const drawn = (await renditionsOf())[0];
+      expect(drawn?.state).toBe('pending');
+
+      await takeATurn();
+
+      expect(fake.images).toHaveLength(1);
+      expect(heard.lastIndexOf('rendition ready')).toBeGreaterThan(heard.lastIndexOf('finished'));
+      const shown = await stage();
+      expect(shown.selected).toBe(drawn?.id);
+      // A node of its own on top of the second turn, which sits on the first.
+      const turns = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+      const byId = new Map(
+        (
+          turns.body as {
+            turns: { id: string; parentTurnId: string | null; effects: { channelId: string }[] }[];
+          }
+        ).turns.map((turn) => [turn.id, turn]),
+      );
+      const selection = byId.get(head ?? '');
+      expect(selection?.effects.map((one) => one.channelId)).toEqual(['se.backdrop']);
+      expect(byId.get(selection?.parentTurnId ?? '')?.parentTurnId).toBe(first);
+    } finally {
+      unsubscribe();
+    }
   });
 });
 

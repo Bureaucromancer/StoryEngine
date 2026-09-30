@@ -139,7 +139,8 @@ export class DeferredBackdrops {
 
 /**
  * A finished backdrop, shown now or held for the turn in flight — what the
- * worker calls when a background lands.
+ * worker calls when a background lands. Whether it is showing now is the
+ * answer: `false` when it was held, or when the session has gone.
  */
 export async function offerBackdrop(
   sessions: SessionContext,
@@ -147,28 +148,36 @@ export async function offerBackdrop(
   account: string,
   sessionId: string,
   renditionId: string,
-): Promise<void> {
+): Promise<boolean> {
   const outcome = await selectBackdrop(sessions, account, sessionId, renditionId, {
     kind: 'engine',
   });
   if (outcome.kind === 'busy') held.hold(sessionId, account, renditionId);
+  return outcome.kind === 'written';
 }
 
 /**
  * What the runner calls once a turn has committed: the backdrop held for it,
  * shown on top of it, unless the turn asked for one of its own. If yet another
  * turn is already under way, it is held for that one instead.
+ *
+ * ***Says what it showed*** (2026-09-30), because a page has to be told: the
+ * selection is a node appended after `turn.finished` has already sent the
+ * page to read the head, so without a word the page kept the turn as its head
+ * and the next thing it sent was refused as out of date. The caller sends the
+ * rendition's frame again, which is the page's sign that the backdrop moved.
  */
 export async function showHeldBackdrop(
   sessions: SessionContext,
   held: DeferredBackdrops,
   sessionId: string,
   turn: Turn,
-): Promise<void> {
+): Promise<{ account: string; renditionId: string } | null> {
   const one = held.take(sessionId);
-  if (one === undefined) return;
-  if (await asksForItsOwnBackdrop(sessions.layout, one.account, sessionId, turn)) return;
-  await offerBackdrop(sessions, held, one.account, sessionId, one.renditionId);
+  if (one === undefined) return null;
+  if (await asksForItsOwnBackdrop(sessions.layout, one.account, sessionId, turn)) return null;
+  const shown = await offerBackdrop(sessions, held, one.account, sessionId, one.renditionId);
+  return shown ? one : null;
 }
 
 /**

@@ -277,6 +277,30 @@ describe('the backdrop branch', () => {
     expect(reported?.held).toBe('place-unchanged');
   });
 
+  /**
+   * ***Nor while the place's backdrop is being made*** (2026-09-30). Only a
+   * ready one answered, so a turn taken while the first was being drawn asked
+   * for a second of the same place — and that one made the first give way.
+   */
+  it('asks for nothing while the place’s backdrop is still being made', async () => {
+    const { host } = recordingHost({ subject: 'never asked for' });
+    const step = render(
+      context({
+        illustration: 'off',
+        backdrop: true,
+        reusable: () => 'in-flight',
+        report: capture(),
+      }),
+    );
+
+    await step.run(payload(), host);
+
+    expect(reported?.requests).toEqual([]);
+    // Nothing to show yet: the worker selects it when it lands.
+    expect(reported?.reused).toBeUndefined();
+    expect(reported?.held).toBe('place-unchanged');
+  });
+
   it('asks the reuse question with the digest it would have dispatched', async () => {
     // The lookup and the dispatch have to be keyed on the same string, or the
     // reuse check is a lookup for a picture nobody would have made.

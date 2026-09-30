@@ -947,6 +947,16 @@ export function PlayPage({
   }, [state.attached, sessionId, queryClient]);
 
   /**
+   * ***The session, read again when a backdrop lands*** (2026-09-30) — see
+   * `PlayState.backdrops`. The head and the stage are the session's, and the
+   * composer, a redo and every gesture send the head this query holds.
+   */
+  useEffect(() => {
+    if (state.backdrops === 0) return;
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+  }, [state.backdrops, sessionId, queryClient]);
+
+  /**
    * The turn being taken, mirrored where the panel can read it — [P3.5].
    *
    * The dock is this page's sibling in the shell, so the cache is the only
