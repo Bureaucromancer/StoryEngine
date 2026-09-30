@@ -339,7 +339,14 @@ which a rebuild or a correction recovers without anything having been lost.
   P13.12. The world follows the session, and a session already here is left as
   it is, so a story imported at P13.11 keeps an empty cast on a re-sweep.
   Development data only; no release carried P13.11.
-- **Aventuras' inline `<pic …>` tags reach imported prose verbatim** — found
+- ~~**Aventuras' inline `<pic …>` tags reach imported prose verbatim**~~
+  *Fixed with P13.14, `45a9439`: `pic-tags.ts` ports Aventuras' own `PIC_TAG`, so
+  turn text is the entry with its tags taken out, as Aventuras shows it, and an
+  inline picture is anchored on the sentence its tag followed, grown back until
+  unique, so it sits where Aventuras drew it; a tag first in its entry leaves
+  the picture unanchored, under the text. An inline tag with no picture row is
+  stripped silently, and its prompt is lost.* **Aventuras' inline `<pic …>`
+  tags reached imported prose verbatim** — found
   at P13.13. Aventuras strips them when it renders; P13.11's producer carries
   `content` raw, so a story with inline pictures shows the literal tags in its
   turns here. The picture still resolves, since the tag is its anchor;
@@ -348,6 +355,14 @@ which a rebuild or a correction recovers without anything having been lost.
   `saveBackground` updates a branch's row, so two imports either side of a
   change would carry different bytes under one rendition id. Moot while a story
   already here is never re-imported.
+- **The client's `anchorOffset` misses a sentence ending in dialogue** — found
+  at P13.14. `/[.!?](\s|$)/` does not end a sentence at `…"Go."` or an
+  ellipsis, so any anchor whose sentence ends in a quotation puts its picture a
+  sentence or a paragraph late. Client-wide; recorded in `pic-tags.ts`.
+- **Aventuras shows a branch main-line chapters written after it forked** —
+  found at P13.14: `currentBranchChapters` keeps every chapter whose
+  `branch_id` is null, whatever the fork point. Whoever reopens chapters
+  inherits it.
 - **Copies made before main's fix keep the original's turn ids on disk.** Main's
   index rework decides what a rebuild makes of them; the repair is to delete the
   copy, since main now refuses the import that made it. No release carried
@@ -1110,11 +1125,40 @@ sweep writes nothing. ~~`embedded_images` as `illustration`, `background_images`
 (`session-export.ts:86`), so the producer writes the bytes through
 `renditions/store.ts` itself.~~
 
-### P13.14 — Chapters
+### ~~P13.14 — Chapters~~ Done, recorded
 
-Aventuras' chapter summaries onto [P8](25-p8-implementation.md)'s memory
+*Done — `45a9439`, 2026-09-30, and closed `recorded`, which the stage allowed.* The
+mapping came first. An Aventuras chapter is a summary its own model wrote over
+`start_entry_id..end_entry_id` on one `branch_id`, with keywords, characters,
+locations, plot threads, tone and story time for its retrieval, and Aventuras
+drops the entries it covers from the visible context. **Its P8 counterpart is
+the rolling chain, not a memory book**, and the chain cannot hold it honestly: a
+link is a content-addressed cache over fixed, depth-anchored spans, keyed on the
+*resolved* summariser, and `readSummary` treats the key as the only assertion of
+what the bytes summarise — filed under our key, a foreign summary would be
+served as ours; under any other, the chain would never ask for it. `SummaryLink`
+has no provenance field, and a chapter's range would almost never line up with a
+link. Memory books are refused on [P8](25-p8-implementation.md)'s own grounds —
+cross-session, `'session'` meaning *this account's play*, facts rather than
+summaries, and *an imported library arrives with no memories, ever*. The export
+format carries no summaries, since they are derived. **Nothing a story plays
+with is lost:** every turn comes across, and the chain summarises them itself
+once the session outgrows its window. Chapter summaries as lore tagged
+`chapter`, as beats went, was considered and refused on the same ground, and
+because keyword retrieval would put them in prompts beside the chain's own.
+**What was built instead:** chapters stay `recorded`, counted per story, and
+`storyWorldRecorded` says why the summaries stay in Aventuras; the reader
+selects nothing from `chapters` but a count, which a statement-watching test
+holds. *What would reopen this* is a change in P8, not the importer: a link
+whose identity is a turn range with a `foreign` origin, served over that range
+and marked as not ours until the chain's own link replaces it, with provenance
+on `SummaryLink`. *Beyond the stage:* Aventuras' inline `<pic …>` tags now leave
+imported prose (below, §0.5). ~~Aventuras' chapter summaries onto [P8](25-p8-implementation.md)'s memory
 channel, or recorded. The question is whether a summary somebody else's model
-wrote is a memory this engine should trust, and it is P8's to answer.
+wrote is a memory this engine should trust, and it is P8's to answer.~~ *Ended at:* the *Lantern Fork*'s two
+chapters, one on main and one on *Tower*, are named on its row; no summary,
+keyword or boundary reaches the session or the review, and no `summaries/` is
+seeded; a second sweep writes nothing.
 
 ### P13.15 — `.avt` through the same producer
 
