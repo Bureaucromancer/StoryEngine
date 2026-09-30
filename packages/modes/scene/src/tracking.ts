@@ -17,8 +17,8 @@ import type {
 
 /**
  * ***Marinara's trackers, as Scene's channels and one step*** —
- * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5a].
+ * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5a].
  *
  * [06 §6] said it before this phase did: *"Marinara's agents … are all steps
  * under this definition, differing only in stage and cadence"*, and [06 §4]
@@ -31,7 +31,7 @@ import type {
  * ***What the story has established, as a model reading it reports*** — and
  * that is the line between this file and Campaign's library. No arithmetic, no
  * rules: a sword is in the inventory because the prose said the player picked
- * it up. [P13 §1.9.2]'s correction (2026-09-29) is the other half: these are
+ * it up. [P14 §1.9.2]'s correction (2026-09-29) is the other half: these are
  * the subjects' channels and 5.0 **inherits** them, changing the update policy
  * of the ones it makes mechanical. That is why the ids are the subjects'
  * (`se.track.inventory`) rather than a roleplay flavour of them.
@@ -55,7 +55,7 @@ const OWNER = 'storyengine.scene';
 
 /**
  * ***The switches, and why they are channels*** — the representation
- * [P13 §1.9.6] leaves to the build: *"switches in the session's settings"*.
+ * [P14 §1.9.6] leaves to the build: *"switches in the session's settings"*.
  *
  * **User-only channels, not a `session.trackers` field**, for four reasons that
  * each settle it:
@@ -70,7 +70,7 @@ const OWNER = 'storyengine.scene';
  * 3. *A switch is then branch-correct and undoable for nothing*: switching the
  *    inventory on is a `user` effect on an engine turn, written through the
  *    `PUT /sessions/:id/channels/:key` every channel already has.
- * 4. *An import has somewhere to put Marinara's settings* ([P13 §2.6]:
+ * 4. *An import has somewhere to put Marinara's settings* ([P14 §2.6]:
  *    `activeAgentIds`, `manualTrackers`): effects on the root turn, like every
  *    other piece of imported channel state, rather than a second write path.
  *
@@ -154,7 +154,7 @@ const CHARACTER_SCHEMA = {
     outfit: LINE,
     thoughts: LINE,
     /**
-     * ***A field map, and the beholder folds in here*** — [P13 §1.9.5]:
+     * ***A field map, and the beholder folds in here*** — [P14 §1.9.5]:
      * worn, holding, wounds as fields rather than a seventh channel, *"without
      * a second per-actor tracker to keep in step with the first"*. Our choice,
      * not Marinara's.
@@ -197,7 +197,7 @@ const QUESTS_SCHEMA = list({
 /**
  * Three groups, each replaced whole when named and kept when not — Marinara's
  * inventory tracker. *Persona-stats' own `InventoryItem`s fold into
- * `inventory`* ([P13 §1.9.2]'s table), so there is one place a sword can be.
+ * `inventory`* ([P14 §1.9.2]'s table), so there is one place a sword can be.
  */
 const INVENTORY_SCHEMA = {
   type: 'object',
@@ -251,7 +251,7 @@ function tracker(
       /**
        * ***`model-proposed`***: a judgement about prose, which a model makes and
        * `refuse()` admits from a step — and a person's edit is admitted too, so
-       * *Marinara's manual override is simply the latest effect* ([P13 §1.9.2]).
+       * *Marinara's manual override is simply the latest effect* ([P14 §1.9.2]).
        */
       update: 'model-proposed',
       visibility: 'player',
@@ -357,7 +357,7 @@ export const CUSTOM = tracker('se.track.custom', 'custom', {
 export const TRACKERS: readonly Tracker[] = [WORLD, CHARACTER, PERSONA, QUESTS, INVENTORY, CUSTOM];
 
 /**
- * ***Fields the model may not change*** — [P13 §1.9.2]'s locks.
+ * ***Fields the model may not change*** — [P14 §1.9.2]'s locks.
  *
  * A set of **field paths**: a channel key, then a JSON Pointer into its value
  * (`se.track.world/location`, `se.track.character#<actorId>/mood`). A row in
@@ -382,7 +382,7 @@ export const LOCKS: ChannelDefinition = {
 };
 
 /**
- * ***Fields the player would rather not see*** — [P13 §1.9.2]: *"the
+ * ***Fields the player would rather not see*** — [P14 §1.9.2]: *"the
  * channel's `visibility`, extended to a field list the same way"* as the locks.
  *
  * **Hidden from the reader, not from the narrator.** A character's thoughts
@@ -391,7 +391,7 @@ export const LOCKS: ChannelDefinition = {
  *
  * ~~and that is Marinara's meaning too: its `hiddenTrackerFields` are read only
  * by its HUD components. The engine reads nothing here; the tracker panel
- * does.~~ *Corrected 2026-09-29* (the [P13.5a] review): Marinara also strips
+ * does.~~ *Corrected 2026-09-29* (the [P14.5a] review): Marinara also strips
  * hidden character fields from the **tracker agents'** own context —
  * `compactGameStateForAgentContext` (`agent-executor.ts:345-411`, used at
  * `:2252` and `:2628`) deletes a hidden `mood`, `appearance`, `outfit` or
@@ -408,7 +408,7 @@ export const HIDDEN: ChannelDefinition = { ...LOCKS, id: 'se.track.hidden' };
 
 /**
  * ***When the step runs*** — Marinara's `runInterval` and `manualTrackers`
- * ([P13 §1.9.2]'s *cadence and manual mode*), one session setting.
+ * ([P14 §1.9.2]'s *cadence and manual mode*), one session setting.
  *
  * *A channel for the switches' reasons*, and one channel rather than two
  * because the two are one answer to *when*: every *n*th story turn, or only
@@ -445,9 +445,9 @@ export const TRACKING_CHANNELS: readonly ChannelDefinition[] = [
 
 /**
  * ***Where the trackers are shown, and where they are switched*** — the
- * client half of [P13.5a]: [P13 §1.9.2]'s *"a tracker panel: world, each
+ * client half of [P14.5a]: [P14 §1.9.2]'s *"a tracker panel: world, each
  * present character, the persona, quests with checkable objectives,
- * inventory, custom fields, with lock and hide per field"*, and [P13 §1.9.6]'s
+ * inventory, custom fields, with lock and hide per field"*, and [P14 §1.9.6]'s
  * switches *"in the session's settings, grouped under Agents"*.
  *
  * ***Declared, as every surface is***, so the host draws a tracker card
@@ -583,7 +583,7 @@ export const TRACK_STEP: StepDefinition = {
   failure: 'warn',
   /** `prose`, for [25 C15]'s reason, and `stepRoles` binds a cheaper model here. */
   role: 'prose',
-  /** *Update trackers* — the one on-demand step in this phase ([P13 §1.9.2]). */
+  /** *Update trackers* — the one on-demand step in this phase ([P14 §1.9.2]). */
   onDemand: { label: 'Update trackers' },
 };
 

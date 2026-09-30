@@ -120,7 +120,7 @@ export interface CollectContext {
   hookGuidance?: string;
   /**
    * ***A push's direction, for the same slot*** — [06 §5.1]'s *"or a step such
-   * as a Narrative Director push"*, [P13 §1.9.3], [P13.5b]: the words
+   * as a Narrative Director push"*, [P14 §1.9.3], [P14.5b]: the words
    * `se.scene.direct` wrote, or the pack's fixed push text when its call
    * failed. Handed in by the runner for `hookGuidance`'s reason; absent on
    * every turn nobody pushed.
@@ -196,15 +196,15 @@ export interface CollectContext {
    */
   carriers?: SampleCarriers;
   /**
-   * ***The member this call speaks as*** — an actor id, [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
-   * point 1, [P13.2]. `StepCallRequest.speaker`, handed through by the runner.
+   * ***The member this call speaks as*** — an actor id, [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+   * point 1, [P14.2]. `StepCallRequest.speaker`, handed through by the runner.
    *
    * **What it changes is who the prompt is *for*, never who is *in* it.**
    * `{{char}}` becomes the speaker, and the three group names are counted from
    * them ({@link namesAbout}); the speaker's card comes first in every actor
    * block, and a block's `scope` narrows to them or away from them
    * ({@link castFor}). Every other present card stays — ~~muted ones too until
-   * [P13.3] reads presence~~ and since [P13.3] a muted one does not, under a
+   * [P14.3] reads presence~~ and since [P14.3] a muted one does not, under a
    * mode that declares `castIsPresent` (see {@link present}) —
    * [00 §2.10]'s *"the assembler is multi-actor from the start"*, which is
    * exactly what SillyTavern's card-swapping is the opposite of.
@@ -216,7 +216,7 @@ export interface CollectContext {
   speaker?: string;
   /**
    * ***What this turn has already said*** — the messages earlier speaking calls
-   * wrote, in order, [P13 §1.4] point 2, [P13.2].
+   * wrote, in order, [P14 §1.4] point 2, [P14.2].
    *
    * **Handed in by the runner, which owns them while they stream**, for the
    * reason `attempt` is: a step handed the text could re-emit it as anything.
@@ -231,7 +231,7 @@ export interface CollectContext {
   /**
    * ***Round indices this call does not show*** — carried messages the person
    * hid on the turn a swipe or a continue names (`TurnPayload.hidden`), added
-   * 2026-09-29 at the [P13.4] review. `session.hidden` is keyed by turn and
+   * 2026-09-29 at the [P14.4] review. `session.hidden` is keyed by turn and
    * the round's turn is not written yet, so the runner hands the entry in
    * here, and {@link roundCandidates} skips those indices as
    * {@link visibleMessages} skips a past turn's. *Absent or empty hides
@@ -239,8 +239,8 @@ export interface CollectContext {
    */
   roundHidden?: readonly number[];
   /**
-   * ***This call continues the round's last message*** — [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
-   * *Continue*, [P13.4]. The runner sets it on the one speaking call a
+   * ***This call continues the round's last message*** — [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * *Continue*, [P14.4]. The runner sets it on the one speaking call a
    * `continueOf` turn makes, whose `round` ends on the message being continued.
    *
    * **Two things change, and nothing else.** That last round entry becomes
@@ -254,13 +254,13 @@ export interface CollectContext {
   continuing?: true;
   /**
    * ***The voice this call writes the turn in*** — a third thing `appliesTo`
-   * matches, beside the call kind and the input kind, [P13.3].
+   * matches, beside the call kind and the input kind, [P14.3].
    *
    * **Set only on a call that writes the turn's messages**, by the caller that
    * knows it is one (the runner, for a step that `contributes: 'messages'`;
    * the preview, for the prose step it previews), and there it is
    * **`embodied` on a speaking call and `narrator` on one that speaks for
-   * nobody.** That is the P13.2 as-built rule read from the other side:
+   * nobody.** That is the P14.2 as-built rule read from the other side:
    * *everything a speaking call does is an embodied reply's*, and a call with
    * no speaker speaks for the scene — a narrator session's one merged call, and
    * an embodied session's when nobody was selected (a `fixed` policy, or a
@@ -268,7 +268,7 @@ export interface CollectContext {
    * answered in the voice of *"the character"*.
    *
    * ***Why a match key rather than a template variable.*** Scene's pack serves
-   * both voices ([P13 §1.2]'s *"narrator stays one control away"*): the
+   * both voices ([P14 §1.2]'s *"narrator stays one control away"*): the
    * narrator's instruction applies to `narrator`, the embodied instruction and
    * the card's own prompts to `embodied`, and everything else to both. That is
    * [13 §8.3]'s *"a different instruction block per kind with no new
@@ -280,9 +280,9 @@ export interface CollectContext {
   voice?: 'narrator' | 'embodied';
   /**
    * ***How this session plays as a chat, for assembly*** — the collector's
-   * slice of `chatSettingsOf`, [P13.3]. Filled by `collectFor` for every
+   * slice of `chatSettingsOf`, [P14.3]. Filled by `collectFor` for every
    * caller. *Absent* is a caller outside a session (a test, a tool), which
-   * assembles as every pack did before P13.3 except that a turn carrying
+   * assembles as every pack did before P14.3 except that a turn carrying
    * `output.messages` is still one entry per message, named under the
    * `groups` default.
    */
@@ -290,7 +290,7 @@ export interface CollectContext {
 }
 
 /**
- * ***What the collector reads of a session's chat settings*** — [P13.3].
+ * ***What the collector reads of a session's chat settings*** — [P14.3].
  *
  * - `dispatch` decides the `voiced` scope: the speaker under `per-actor`, the
  *   room under `merged`.
@@ -338,7 +338,7 @@ export function collectCandidates(context: CollectContext): Collected {
   /**
    * ***Where the player's move and the round landed in `sequence`*** — the
    * tail of the chat that engine and card depths count over (see
-   * {@link Injected.frame}), 2026-09-29, at the [P13.3] review.
+   * {@link Injected.frame}), 2026-09-29, at the [P14.3] review.
    */
   const inputAt: number[] = [];
   const roundAt: number[] = [];
@@ -357,18 +357,18 @@ export function collectCandidates(context: CollectContext): Collected {
     block.appliesTo.length === 0 ||
     block.appliesTo.includes(context.callKind) ||
     (context.inputKind !== undefined && block.appliesTo.includes(context.inputKind)) ||
-    // The voice, a third match key since [P13.3] — see `CollectContext.voice`.
+    // The voice, a third match key since [P14.3] — see `CollectContext.voice`.
     (context.voice !== undefined && block.appliesTo.includes(context.voice));
   /**
    * ***The round so far, placed once*** — see {@link roundCandidates}.
    * ~~Placed at the first input slot the pack declares, whatever became of
-   * that slot~~ *Corrected 2026-09-29, at the [P13.2] review*: placed after the
+   * that slot~~ *Corrected 2026-09-29, at the [P14.2] review*: placed after the
    * input slot that applies to this turn, or the first input slot when none
    * does. A pack with a slot per input kind — Freeform's `se.input.do` and
    * `se.input.say`, each followed by its instruction — has its *first* slot
    * skipped on a `say` turn, and a round placed there showed a later speaker
    * the earlier replies *before* the move they answer. The fallback is for a
-   * turn with no input ([P13 §1.3]'s *let them talk*), where no kind-filtered
+   * turn with no input ([P14 §1.3]'s *let them talk*), where no kind-filtered
    * slot applies: it emits nothing there, and the round still belongs where
    * the input would have been.
    */
@@ -401,7 +401,7 @@ export function collectCandidates(context: CollectContext): Collected {
       continue;
     }
     /**
-     * ***The pack's instruction, switched off by the chat*** — [P13 §1.5]'s
+     * ***The pack's instruction, switched off by the chat*** — [P14 §1.5]'s
      * `prompts.instruction: false`, which sends a card's system prompt alone:
      * SillyTavern's `prefer_character_prompt`, one toggle away.
      * `isInstructionBlock` says which blocks are the instruction. Reported as
@@ -419,7 +419,7 @@ export function collectCandidates(context: CollectContext): Collected {
     }
 
     /**
-     * ***A section that carries its own depth goes there*** — [P13.3], for a
+     * ***A section that carries its own depth goes there*** — [P14.3], for a
      * card's `extensions.depth_prompt` (`se.card.depth`), whose depth and role
      * are the card author's. Lore's precedent below, for lore's reason: two
      * cards in one scene can ask for two depths and one block places both.
@@ -495,7 +495,7 @@ export function collectCandidates(context: CollectContext): Collected {
    * after the input where there is one, and in any case after everything the
    * pack said, which is the only place a reply-in-progress can go in a prompt
    * that did not say where the player speaks. (~~Scene's and Freeform's both
-   * end on it~~ — corrected 2026-09-29, at the [P13.2] review.)
+   * end on it~~ — corrected 2026-09-29, at the [P14.2] review.)
    */
   if (!roundPlaced) pushRound();
 
@@ -551,7 +551,7 @@ export const CONTINUE_NUDGE =
   '[Continue your last message without repeating its original content.]';
 
 /**
- * ***The line a continue ends on*** — [P13 §1.6], [P13.4]; see
+ * ***The line a continue ends on*** — [P14 §1.6], [P14.4]; see
  * {@link CollectContext.continuing}.
  *
  * **Last, after the splice, and right after the message it continues**,
@@ -562,7 +562,7 @@ export const CONTINUE_NUDGE =
  * a depth-0 author's note, card depth prompt or depth-0 lore sits *before* the
  * continued message, and a depth *k* is counted over the chat including it.
  * ~~Pushed after the splice alone, so a depth-0 run sits before the nudge~~ —
- * corrected 2026-09-29, at the [P13.4] review: that put a depth-0 run between
+ * corrected 2026-09-29, at the [P14.4] review: that put a depth-0 run between
  * the continued message and the nudge, which is not where ST puts it. A reply
  * that must begin where the old one ended should be asked for last.
  * `system`, as ST sends it. **Required**, because a continue whose nudge the
@@ -593,7 +593,7 @@ interface Injected {
   order: number;
   candidates: Candidate[];
   /**
-   * ***What `fromEnd` counts over*** — added 2026-09-29, at the [P13.3] review.
+   * ***What `fromEnd` counts over*** — added 2026-09-29, at the [P14.3] review.
    *
    * - **`history`**, the default: the history slot's run, as a pack's
    *   in-history block and a lore entry's `at_depth` always counted. Unchanged,
@@ -604,7 +604,7 @@ interface Injected {
    *   counts a depth over: its chat holds the user's newest message, and a
    *   group member's reply is saved into it before the next member assembles
    *   (`group-chats.js:1051-1076`). For the author's note and a card's depth
-   *   prompt, the two placements [P13.3] brought that are ST's own. ~~Counted
+   *   prompt, the two placements [P14.3] brought that are ST's own. ~~Counted
    *   from the end of the history run~~ they landed one entry deeper than ST's
    *   on a first speaker and 1 + the round's length deeper on a later one, and
    *   a depth-0 note sat before the move it was steering rather than after it.
@@ -613,8 +613,8 @@ interface Injected {
 }
 
 /**
- * ***The author's note*** — `session.note`, [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * placed at [P13.3]: SillyTavern's `note_prompt` at `note_depth`
+ * ***The author's note*** — `session.note`, [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * placed at [P14.3]: SillyTavern's `note_prompt` at `note_depth`
  * (`authors-note.js:324-392`), in the system role that is its default.
  *
  * **Engine-placed, like the round**, and the record says so with its own
@@ -663,7 +663,7 @@ function chatPriority(context: CollectContext): number {
 
 /**
  * ***Whether an attributed line carries its speaker's name*** —
- * `speakers.namesInHistory`, [P13 §1.5], SillyTavern's `names_behavior`
+ * `speakers.namesInHistory`, [P14 §1.5], SillyTavern's `names_behavior`
  * (`openai.js:586-606`).
  *
  * `always` and `never` say what they mean. **`groups`**, the default, names
@@ -693,8 +693,8 @@ function namesOn(context: CollectContext): boolean {
 }
 
 /**
- * ***A turn's messages that history may show*** — [P13.3]'s hidden filter,
- * `session.hidden` ([P13 §1.6]): a turn hidden whole shows nothing, and a
+ * ***A turn's messages that history may show*** — [P14.3]'s hidden filter,
+ * `session.hidden` ([P14 §1.6]): a turn hidden whole shows nothing, and a
  * hidden index hides that message. *By `outputMessagesOf`'s numbering*, so a
  * turn with only `text` is one message at index 0, which is how
  * `turns/speakers.ts`' `chatSoFar` reads the same map.
@@ -727,7 +727,7 @@ function cardPartOf(sectionId: string | undefined): CardPromptPart | undefined {
 }
 
 /**
- * Whether the chat switched this card's `part` off — [P13 §1.5]'s
+ * Whether the chat switched this card's `part` off — [P14 §1.5]'s
  * `prompts.cards[actorId]`: `false` is every part, a list is those parts.
  */
 function cardPartOff(context: CollectContext, actorId: string, part: CardPromptPart): boolean {
@@ -775,8 +775,8 @@ function isInputSlot(block: PresetBlock | undefined): boolean {
 }
 
 /**
- * ***The round so far, as the model's own lines*** — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
- * point 2, [P13.2].
+ * ***The round so far, as the model's own lines*** — [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * point 2, [P14.2].
  *
  * **The second speaker answers the first**, as both sources run a group round:
  * SillyTavern's `generateGroupWrapper` awaits each member's `Generate` in turn
@@ -797,7 +797,7 @@ function isInputSlot(block: PresetBlock | undefined): boolean {
  * **`assistant`, each its own entry**, because each is a reply the model gave.
  * The renderer may still merge two adjacent ones for an endpoint that asks it
  * to; the block table keeps them apart either way. ~~*Unnamed for now*~~
- * ***Named since [P13.3]***: names-in-history (`speakers.namesInHistory`,
+ * ***Named since [P14.3]***: names-in-history (`speakers.namesInHistory`,
  * ST's `openai.js:586`) prefixes `Name: ` on attributed lines once two or more
  * speakers are in the window, and it prefixes these exactly as it prefixes a
  * past turn's — which is why they are handed in as `OutputMessage`s, speaker
@@ -811,7 +811,7 @@ function isInputSlot(block: PresetBlock | undefined): boolean {
  * history arm makes, and for its reason. Never `required`: a round longer than
  * the window is a round the budgeter must be allowed to shorten.
  * ~~the input slot's priority plus the message's position~~ — *corrected
- * 2026-09-29, at the [P13.2] review*: priced from the input slot, the round
+ * 2026-09-29, at the [P14.2] review*: priced from the input slot, the round
  * outranked every block in the pack, so under pressure the budgeter dropped
  * the instruction and the speaker's own card before an earlier reply. Chat is
  * what SillyTavern trims before card fields (`populateChatHistory` fills what
@@ -823,7 +823,7 @@ function roundCandidates(context: CollectContext): Candidate[] {
   const round = context.round ?? [];
   if (round.length === 0) return [];
   const base = chatPriority(context);
-  // Named as the past turns are, and by the same count ([P13.3]) — the round
+  // Named as the past turns are, and by the same count ([P14.3]) — the round
   // is the newest chat, so a window that names its speakers names these too.
   const named = namesOn(context);
   const hidden = context.roundHidden ?? [];
@@ -925,7 +925,7 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
 
     /**
      * ~~No producer at this phase.~~ The producer has been the channel's own
-     * `render` since [P7.1]; what [P13.5b] adds is the one empty that is a
+     * `render` since [P7.1]; what [P14.5b] adds is the one empty that is a
      * person's doing — a channel whose switch is off (`enabledBy`) — which is
      * `disabled`'s sentence. Every other empty keeps the old answer, which the
      * record has carried for five phases and nothing here needs to move.
@@ -966,7 +966,7 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
 
     /**
      * ***A scope that left nobody is the block saying *not this call****
-     * ([P13.2]) — `speaker` on a call that speaks for nobody, `others` in a cast
+     * ([P14.2]) — `speaker` on a call that speaks for nobody, `others` in a cast
      * of one. That is `not-applicable`'s sentence rather than `empty-source`'s:
      * the cast has cards, and this block was not for any of them this time.
      * Checked only where a scope was written, so an unscoped block over an
@@ -976,7 +976,7 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
       if (block.source.scope !== undefined && outOfScope(block.source.scope, context)) {
         return 'not-applicable';
       }
-      // A card prompt every in-scope member's chat switched off ([P13.3]) was
+      // A card prompt every in-scope member's chat switched off ([P14.3]) was
       // turned off by a person, which is `disabled`'s sentence.
       const part = 'sectionId' in block.source ? cardPartOf(block.source.sectionId) : undefined;
       const scoped = castFor(block.source.scope, context);
@@ -1009,7 +1009,7 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
      * [P5.9] asks for exactly this and asks for it deliberately: *the test that
      * currently pins the split is the one that has to change*.
      *
-     * *The [P13.2] scope check below applies to the actor carrier alone*: a
+     * *The [P14.2] scope check below applies to the actor carrier alone*: a
      * Treatment or a Lorebook has no cast to scope, and a scope that left
      * nobody returns `not-applicable` for the reason given at `case 'actor':`.
      */
@@ -1023,7 +1023,7 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
       }
       return 'empty-source';
     /**
-     * ***`state` is `empty-source` from the first line*** ([P13.5a]), for the
+     * ***`state` is `empty-source` from the first line*** ([P14.5a]), for the
      * dials' reason: the producer arrived with the arm. An empty state block is
      * a session with no tracker switched on, or trackers with nothing in them
      * yet — both of them *waiting on the story*, never on the engine.
@@ -1138,7 +1138,7 @@ function splice(
  *
  * `char` is ~~the first cast actor, which is what SillyTavern's `{{char}}` means
  * in a one-character chat and the only reading available until party arrives at
- * P7~~ ***the speaker, on a call that speaks for somebody*** ([P13.2]), and the
+ * P7~~ ***the speaker, on a call that speaks for somebody*** ([P14.2]), and the
  * first cast actor otherwise — which is what SillyTavern's `{{char}}` means in a
  * one-character chat, and what a narrator's merged call has always read. `user`
  * falls back to a neutral word rather than to an empty string, because a
@@ -1150,11 +1150,11 @@ function renderContextOf(context: CollectContext): RenderContext {
   const names = namesAbout(context, speaking ?? context.actors[0]);
   /**
    * ***`notChar` on a call that speaks for nobody is the persona alone***
-   * (2026-09-29, the [P13.2] review). Counted from `actors[0]` it named the
+   * (2026-09-29, the [P14.2] review). Counted from `actors[0]` it named the
    * persona and every member but the first — on a narrator's merged call,
    * where `actors[0]` is not speaking either, so the list was an accident of
    * roster order. And it reached such calls: the importer keeps an ST
-   * preset's `{{notChar}}` as written, which rendered empty before P13.2 and
+   * preset's `{{notChar}}` as written, which rendered empty before P14.2 and
    * would have rendered that list after. The persona is SillyTavern's solo-chat
    * meaning, and the one person a narrator must never write for.
    */
@@ -1162,7 +1162,7 @@ function renderContextOf(context: CollectContext): RenderContext {
 }
 
 /**
- * ***The namespace with `char` as one member*** — [P13.2]'s three group names
+ * ***The namespace with `char` as one member*** — [P14.2]'s three group names
  * counted from whoever `char` is, so that `{{char}}` and `{{notChar}}` can never
  * name the same person. The call's namespace is this about its speaker; the
  * actor arm renders each candidate's wrapper with this about the actor the
@@ -1198,11 +1198,11 @@ function speakerOf(context: CollectContext): CollectContext['actors'][number] | 
 }
 
 /**
- * ***Whose cards a block takes, and in what order*** — [P13 §1.4] point 1,
- * [P13.2].
+ * ***Whose cards a block takes, and in what order*** — [P14 §1.4] point 1,
+ * [P14.2].
  *
  * **The speaker first, then everyone else in cast order**, on a call that
- * speaks for somebody — [P13 §1.4]'s *"the speaker's comes first"*, so the
+ * speaks for somebody — [P14 §1.4]'s *"the speaker's comes first"*, so the
  * model reads the card it is about to write as before the ones it is writing
  * *to*. *That is ours rather than SillyTavern's*: §1.4 calls this ST's `APPEND`
  * without its string-joining, and `APPEND` joins every member's fields in
@@ -1211,16 +1211,16 @@ function speakerOf(context: CollectContext): CollectContext['actors'][number] | 
  * ~~Every card stays here, muted ones too, which is [00 §2.10]~~; only the
  * order is new. On a call that speaks for nobody, cast order, as it always was.
  *
- * *Corrected 2026-09-29, at the [P13.2] review*: muted members' cards stay
+ * *Corrected 2026-09-29, at the [P14.2] review*: muted members' cards stay
  * because the collector reads no presence, not because anything decided they
- * should. Scene declares no `castIsPresent` until [P13.3], so *muted* cannot
+ * should. Scene declares no `castIsPresent` until [P14.3], so *muted* cannot
  * yet be told from *no presence value*, and the cards follow the roster as
- * they have since [P7.3]. That departs from [P13 §1.4]'s *"every present
+ * they have since [P7.3]. That departs from [P14 §1.4]'s *"every present
  * card"*, from ST's `collectField` (`group-chats.js:549-554`) and from
  * Marinara's `resolveActiveCharacterIds` (`generate-route-utils.ts:1029-1043`),
  * all of which leave a muted member out; [00 §2.10] is the reason for keeping
- * the *other* members' cards, not the muted ones. ~~Open for [P13.3].~~
- * *Decided at [P13.3], 2026-09-29*: Scene declares `castIsPresent`, and a muted
+ * the *other* members' cards, not the muted ones. ~~Open for [P14.3].~~
+ * *Decided at [P14.3], 2026-09-29*: Scene declares `castIsPresent`, and a muted
  * member's cards leave every call but their own — see {@link present}.
  *
  * `scope` narrows it, and {@link ActorScope} states the rule: the two scopes
@@ -1232,7 +1232,7 @@ function castFor(scope: ActorScope | undefined, context: CollectContext): Collec
   const rest = present(context).filter((member) => member !== speaking);
   if (scope === 'speaker') return speaking === undefined ? [] : [speaking];
   if (scope === 'others') return rest;
-  // Whoever this call writes as ([P13.3]): the speaker alone under per-actor
+  // Whoever this call writes as ([P14.3]): the speaker alone under per-actor
   // dispatch, the room otherwise — see `ActorScope`.
   if (scope === 'voiced' && speaking !== undefined && context.chat?.dispatch === 'per-actor') {
     return [speaking];
@@ -1242,18 +1242,18 @@ function castFor(scope: ActorScope | undefined, context: CollectContext): Collec
 
 /**
  * ***The cast whose cards a call carries: everyone but the muted*** — the
- * decision [P13.2]'s review left open, taken at [P13.3].
+ * decision [P14.2]'s review left open, taken at [P14.3].
  *
  * Under the mode's `castIsPresent` a member whose presence is `false` is
- * **muted** ([P13 §1.3]), and a muted member's cards leave the prompt — as
+ * **muted** ([P14 §1.3]), and a muted member's cards leave the prompt — as
  * SillyTavern's `collectField` leaves out a disabled member
  * (`group-chats.js:549-554`) and Marinara's `resolveActiveCharacterIds` an
- * inactive one (`generate-route-utils.ts:1029-1043`). That is [P13 §1.4]'s
+ * inactive one (`generate-route-utils.ts:1029-1043`). That is [P14 §1.4]'s
  * *"every **present** card"* as written; [00 §2.10]'s multi-actor argument is
  * about the room, and a muted member is somebody the player took out of it.
  *
  * *The speaker stays even when muted*, which is ST's `characterId !== index`
- * exemption: force-talk reaches a muted member ([P13 §1.3]), and a call that
+ * exemption: force-talk reaches a muted member ([P14 §1.3]), and a call that
  * speaks as somebody without their card would be writing a stranger.
  *
  * *Without `castIsPresent` nothing is filtered*, because there `false` means
@@ -1328,10 +1328,10 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
     case 'actor':
       // One candidate per actor, so the budgeter can drop one and keep another.
       // Each named for the actor it is about, so a wrapper can say whose it is.
-      // Whose, and in what order, is `castFor`'s — the speaker's first ([P13.2]).
+      // Whose, and in what order, is `castFor`'s — the speaker's first ([P14.2]).
       //
       // ***A card's own prompt, when the chat has not switched it off***
-      // ([P13.3], `prompts.cards`), and ***in the role its section asks for***
+      // ([P14.3], `prompts.cards`), and ***in the role its section asks for***
       // when it asks — a depth prompt's author picks `system`, `user` or
       // `assistant`, and the collector's loop moves it to its depth.
       return castFor(source.scope, context).flatMap((member) => {
@@ -1389,8 +1389,8 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       ];
 
       /**
-       * ***A turn speaks in messages since [P13.0], and history says so since
-       * [P13.3]*** — [P13 §1.5]'s names in history and [P13 §1.6]'s hide.
+       * ***A turn speaks in messages since [P14.0], and history says so since
+       * [P14.3]*** — [P14 §1.5]'s names in history and [P14 §1.6]'s hide.
        *
        * - A turn **hidden whole** gives nothing, its input included; a hidden
        *   index drops that message ({@link visibleMessages}).
@@ -1477,6 +1477,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
               `${block.id}.${turn.id}.attachment.${attachment.id}`,
               false,
               names,
+              turnBlock.wrapper,
             ),
           );
           return [...words, ...pictures];
@@ -1526,7 +1527,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * carried the bare block id since P2 and it is in saved records.
        */
       /**
-       * ***And the third, a push*** ([P13.5b]) — the same arm, under its own
+       * ***And the third, a push*** ([P14.5b]) — the same arm, under its own
        * suffix, for the hook's reasons: the director is a step, which step is
        * answerable from its outcome's `direction`, and absent is *nobody
        * pushed*. After the hook, so a person's box, then the authored beat,
@@ -1588,6 +1589,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
             `${block.id}.attachment.${attachment.id}`,
             true,
             names,
+            undefined,
           ),
         ),
       ];
@@ -1752,7 +1754,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
      * get no text and no error, and have nothing to read about why.
      */
     /**
-     * ***What the story has established, once*** — [P13 §1.9.2], [P13.5a].
+     * ***What the story has established, once*** — [P14 §1.9.2], [P14.5a].
      * See {@link establishedState}; the heading sentence is the pack's
      * `wrapper`, because the words a prompt says are a pack's to choose.
      */
@@ -1941,11 +1943,19 @@ function wrap(wrapper: string, text: string, names: RenderContext): string {
 /**
  * One picture as a candidate — [25 E15], R1.
  *
- * ***Its text is the picture as words***, wrapped as its slot wraps everything
- * else, because that is what goes whenever the pixels do not; `sentText` is the
- * same wrapper around what goes beside them when they do. Never empty, so the
- * empty rule never drops a picture, and never advisory — a picture a person
- * showed is part of the story, not a steer.
+ * ***Its text is the picture as words***, because that is what goes whenever
+ * the pixels do not; `sentText` is what goes beside them when they do. Never
+ * empty, so the empty rule never drops a picture, and never advisory — a
+ * picture a person showed is part of the story, not a steer.
+ *
+ * ***Never framed by the move's kind*** (2026-09-27). The input slot's wrapper
+ * is the kind's — Freeform's `say` is *the player's character says: "…"* — and
+ * a picture is not speech, nor thought, nor narration: framed that way it went
+ * out as `says: "[Picture: the harbour]"`, and a turn later, through the
+ * history slot, bare. Now it is bare as the move being made and wears only
+ * the history slot's own wrapper in history, as every history block does, so
+ * the same picture reads the same on both sides of its turn. Its words already
+ * say what it is.
  */
 function emitPicture(
   block: PresetBlock,
@@ -1954,10 +1964,12 @@ function emitPicture(
   id: string,
   current: boolean,
   names: RenderContext,
+  /** The history slot's wrapper, in history; nothing, as the move being made. */
+  wrapper: string | undefined,
 ): Candidate {
   const texts = pictureTexts(attachment);
   const framed = (text: string): string =>
-    block.kind === 'slot' && block.wrapper !== undefined ? wrap(block.wrapper, text, names) : text;
+    wrapper === undefined ? text : wrap(wrapper, text, names);
   const required = current && block.kind === 'slot' && block.source.of === 'input';
   return {
     id,
@@ -2066,7 +2078,7 @@ function channelText(channelId: string, context: CollectContext): string {
   const definition = channelDefinition(channelId);
   if (definition === null) return '';
   /**
-   * ***Switched off is silent*** — `ChannelDefinition.enabledBy`, [P13.5b]: a
+   * ***Switched off is silent*** — `ChannelDefinition.enabledBy`, [P14.5b]: a
    * secret plot a person switched off stops steering the narrator from the next
    * call, and its value stays on the tree for when it is switched back on. The
    * established-state block's rule, for a slot that names one channel.
@@ -2078,8 +2090,8 @@ function channelText(channelId: string, context: CollectContext): string {
 
 /**
  * ***Every tracker that is on, every key of it, as one text*** —
- * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.5a].
+ * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5a].
  *
  * **Declared rather than listed**: the channels are whichever carry
  * `EstablishedState`, so the engine renders Scene's trackers without naming
@@ -2174,7 +2186,7 @@ const CARD_PROMPT_IDS: ReadonlySet<string> = new Set<string>(
  * The persona's `always` sections, joined — what the persona slot says about
  * the player's character.
  *
- * ***Less the card's own prompts*** (2026-09-29, the [P13.3] review). The card
+ * ***Less the card's own prompts*** (2026-09-29, the [P14.3] review). The card
  * importer writes `se.card.system`, `se.card.post-history` and `se.card.depth`
  * as `always` sections, so an imported card taken as the persona had its
  * *"You are Vera…"*, its post-history instructions and its depth prompt sent
@@ -2286,7 +2298,7 @@ function carriersOf(
 ): SampleCarrier[] {
   if (kind === 'actor') {
     // The speaker's samples first, and `scope` narrowing to them or away from
-    // them — `castFor`, for the actor arm's reason ([P13.2]).
+    // them — `castFor`, for the actor arm's reason ([P14.2]).
     return castFor(scope, context).map(({ actor, contentHash }) => ({
       id: actor.id,
       contentHash,

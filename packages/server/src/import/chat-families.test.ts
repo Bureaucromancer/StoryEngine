@@ -20,7 +20,7 @@ import { sweep } from './sweep.js';
 
 /**
  * ***SillyTavern families and groups, swept*** —
- * [P13.9](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.9](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The stage's *Ends at*, as a person would find it: a character folder holding
  * a chat, a branch, a branch of the branch and a checkpoint is **one** session

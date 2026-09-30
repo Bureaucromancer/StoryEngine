@@ -11,6 +11,7 @@ import type {
   TranscriptTurn,
 } from '@storyengine/sdk';
 
+import { quoted } from '../assembly/pictures.js';
 import { storyDepth } from '../sessions/depth.js';
 import { ensureChain, type Summariser } from '../sessions/summaries.js';
 import {
@@ -232,7 +233,7 @@ export function summarise(context: SummariseContext): {
 }
 
 /**
- * `transcript` to the chain's own shape — [P8.1], and since [P13.11] the warm's
+ * `transcript` to the chain's own shape — [P8.1], and since [P14.11] the warm's
  * too (`turns/warm-summaries.ts`).
  *
  * ***Shared rather than restated, because the warm is only worth anything if
@@ -296,7 +297,7 @@ export function summaryCandidates(
  * has words*, because some local endpoints never report why they stopped, and
  * refusing those would refuse every summary they write.
  *
- * *A function since [P13.11]*, so the warm keeps what the step keeps: a warm
+ * *A function since [P14.11]*, so the warm keeps what the step keeps: a warm
  * that wrote a cut-off link would hand every turn after it the cut.
  */
 export function keptSummary(result: { text: string; outcome?: ModelCall['outcome'] }): string {
@@ -320,15 +321,12 @@ export function keptSummary(result: { text: string; outcome?: ModelCall['outcome
  * able to invalidate a chain, and it cannot when the two do not share a field.
  *
  * The player's line is quoted and the reply is not, so a model can tell an
- * instruction from narration without being told which is which.
+ * instruction from narration without being told which is which — **every line
+ * of it** ({@link quoted}), or a picture's stand-in reads as the reply.
  */
 function renderUnits(units: readonly SummaryUnit[]): string {
   return units
-    .map((unit) =>
-      [unit.said === '' ? '' : `> ${unit.said}`, unit.replied]
-        .filter((line) => line !== '')
-        .join('\n'),
-    )
+    .map((unit) => [quoted(unit.said), unit.replied].filter((line) => line !== '').join('\n'))
     .filter((turn) => turn !== '')
     .join('\n\n');
 }

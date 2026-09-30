@@ -28,8 +28,8 @@ import { filterReads, type EffectProposal, type TurnStep } from './steps.js';
 
 /**
  * ***A step a person runs between turns*** —
- * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * *Update trackers*, built at [P13.5a].
+ * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * *Update trackers*, built at [P14.5a].
  *
  * §1.9.2 says what it is in one sentence: *"It writes an **engine turn**
  * carrying the step's call and its effects, exactly as a person's channel edit

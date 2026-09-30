@@ -18,7 +18,7 @@ import { CHAT_DIRECTORIES, SILLYTAVERN_DISPOSITIONS } from './registries/sillyta
  * **The whole folder is named; only some of it is sent.** A SillyTavern user
  * directory is thirty directories and most of them are chats, backups,
  * thumbnails and vectors — material the importer reports and never opens, or,
- * for the chats since [P13.8], opens only when the person asks. So the
+ * for the chats since [P14.8], opens only when the person asks. So the
  * client sends a *manifest* of every relative path, this decides which of them
  * the reader will actually read, and the client uploads only those. The rest
  * arrive as `declared` paths on {@link MemoryFileSource}: listed, reported, and
@@ -53,7 +53,7 @@ export interface UploadPlan {
   /** The limit `wantedBytes` was spent against, so a client can name the number. */
   limitBytes: number;
   /**
-   * ***What choosing chats would add*** — [P13.8], counted whether or not they
+   * ***What choosing chats would add*** — [P14.8], counted whether or not they
    * were chosen, because the point is to say it *before* the choice.
    *
    * - **`count`**: the chat files — `.jsonl` under `chats/` and `group chats/`,
@@ -66,14 +66,14 @@ export interface UploadPlan {
    *   chats has to say so before it is made, not in 172 rows after.
    *
    * Zero for a Marinara root, where no choice is offered: it keeps its chats in
-   * the store it already sends (read at [P13.10]).
+   * the store it already sends (read at [P14.10]).
    */
   chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
 }
 
 /** What the person has chosen to send beyond the library. */
 export interface UploadChoices {
-  /** Chats, group chats and group files — [P13.8]. Off unless chosen. */
+  /** Chats, group chats and group files — [P14.8]. Off unless chosen. */
   chats?: boolean;
 }
 
@@ -117,11 +117,11 @@ function isWanted(kind: ImportSourceKind, path: string): boolean {
 
 /**
  * ***Whether a path is one the chat choice governs*** — a SillyTavern tree's
- * `chats/`, `group chats/` and `groups/` ([P13.8], `CHAT_DIRECTORIES`). Every
+ * `chats/`, `group chats/` and `groups/` ([P14.8], `CHAT_DIRECTORIES`). Every
  * one of them is `converted` now, so {@link isWanted} says yes to them; this is
  * what holds them back until the person says yes too.
  *
- * ***And a loose folder's `.jsonl` files***, because [P13.8] makes chats
+ * ***And a loose folder's `.jsonl` files***, because [P14.8] makes chats
  * opt-in in the browser upload, not opt-in in a SillyTavern tree. A loose root
  * is probed by content and has no positions to route by, so the name is all
  * there is to go on before a byte moves — and it is enough to *ask*: the
@@ -149,7 +149,7 @@ function topOf(path: string): string {
  * still listed and still reported, so the review says what happened to it rather
  * than the file vanishing between the picker and the report.
  *
- * ***The library is budgeted before the chats*** ([P13.8]), and both lists
+ * ***The library is budgeted before the chats*** ([P14.8]), and both lists
  * still come back in the manifest's order. The browser lists a folder in
  * whatever order its file system does, so a first-come budget with chats in it
  * would let one long conversation that happened to sort early push the cards

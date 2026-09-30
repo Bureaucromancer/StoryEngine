@@ -11,8 +11,8 @@ import { saysSomething } from './speakers.js';
 
 /**
  * ***Push story*** — the narrative director's push, as an engine step —
- * [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5b].
+ * [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5b].
  *
  * Marinara's director *push* runs only when the player arms it for one turn,
  * *natural* or *random* (`generate.routes.ts:942-945`, `:3819-3826`; its client

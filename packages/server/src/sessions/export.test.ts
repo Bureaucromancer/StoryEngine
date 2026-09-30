@@ -172,12 +172,12 @@ describe('a session, exported whole', () => {
   });
 
   /**
-   * ***What [P13.0] added travels, because nothing had to be told about it*** —
-   * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * ***What [P14.0] added travels, because nothing had to be told about it*** —
+   * [P14 §1.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * The export spreads the document and writes each turn as it is on disk, and
-   * this is the test that the spread is doing that job for the fields P13 grew:
+   * this is the test that the spread is doing that job for the fields P14 grew:
    * attributed messages on a turn — a narrator one keeping its `original`, a
    * carried one — and every chat setting on the session. The falsifying mutation is a serialiser that
    * restates the shape, which would drop whichever of these it was written

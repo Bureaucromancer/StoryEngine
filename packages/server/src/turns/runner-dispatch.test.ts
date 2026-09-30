@@ -40,8 +40,8 @@ import { TurnRunner } from './runner.js';
 
 /**
  * ***Per-actor dispatch, run through the pipeline*** —
- * [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * A file of its own rather than more of `runner.test.ts`, which is past four
  * thousand lines and about everything; what is here is one mechanism — a call
@@ -193,12 +193,12 @@ function wire(at: number): { role: string; content: string }[] {
  * ***A narrator session is not touched by any of this*** — the byte-for-byte
  * half of the stage's proof.
  *
- * **The snapshot was taken before P13.2 changed a line**, against the build
+ * **The snapshot was taken before P14.2 changed a line**, against the build
  * that had no speaking call, no in-turn history and no new names in the
  * template namespace — and it is inline so a reader sees the prompt rather
  * than a hash of it. A Scene session with the persona and two cast members,
  * one turn of history and a second turn asked for: every slot the stock pack
- * positions that has anything to say says it. What P13.2 added can only
+ * positions that has anything to say says it. What P14.2 added can only
  * reach a call that names a speaker, and this session never names one; if
  * any of it leaked into the merged call, this is the assertion that goes red.
  */
@@ -254,7 +254,7 @@ describe('a narrator session', () => {
 /**
  * A Scene session played as a chat — the session's own voice, dispatch and
  * policy written explicitly, which is what creation does and what overrides
- * Scene's still-narrator declaration until [P13.3] flips it.
+ * Scene's still-narrator declaration until [P14.3] flips it.
  *
  * Scene does not declare `castIsPresent` yet, so a member is eligible when the
  * story says they are here: presence is written for each, as a cast panel
@@ -316,7 +316,7 @@ describe('a per-actor round', () => {
   const REPLIES = ['"You came." Vera did not look up.', '"I owe you nothing."', '"Aye."'] as const;
 
   /**
-   * ***What P13.2 ends at***: *"a three-member `list` round produces three
+   * ***What P14.2 ends at***: *"a three-member `list` round produces three
    * messages, and the third prompt holds the first two replies."*
    */
   it('makes one call per member, each shown the replies before it', async () => {
@@ -335,7 +335,7 @@ describe('a per-actor round', () => {
     expect(afterInput(0, 'Well?')).toBe('');
     // The second is shown the first reply after the input, as the model's own.
     expect(afterInput(1, 'Well?')).toBe(`assistant: ${REPLIES[0]}`);
-    // The third is shown both, in order — each named since [P13.3], because
+    // The third is shown both, in order — each named since [P14.3], because
     // with two speakers in the window `namesInHistory: 'groups'` names them.
     expect(afterInput(2, 'Well?')).toBe(`assistant: Vera: ${REPLIES[0]}\n\nMarlow: ${REPLIES[1]}`);
     // And the record names each as a round block, which message and whose.
@@ -464,7 +464,7 @@ describe('a per-actor round', () => {
     ]);
     // The next speaker is shown what the transcript shows, never the words
     // cleanup took out — Lund is not shown a line written for him.
-    // Named, as the round is once two have spoken ([P13.3]).
+    // Named, as the round is once two have spoken ([P14.3]).
     expect(afterInput(2, 'Well?')).toBe(
       'assistant: Vera: "You came."\n\nMarlow: "I owe you nothing."',
     );
@@ -472,7 +472,7 @@ describe('a per-actor round', () => {
   });
 
   /**
-   * ***The live cell follows the settled text*** (2026-09-29, the [P13.2]
+   * ***The live cell follows the settled text*** (2026-09-29, the [P14.2]
    * review) — attach prefers it to the draft, so a client reattaching after
    * Marlow settled must not be shown the lines cleanup took out.
    */
@@ -509,7 +509,7 @@ describe('a per-actor round', () => {
 
   /**
    * ***A reply cleaned to nothing is kept, and says nothing*** (2026-09-29, the
-   * [P13.2] review) — on the record under the speaker's name with the model's
+   * [P14.2] review) — on the record under the speaker's name with the model's
    * words as `original`, out of `output.text` and out of the next prompt.
    */
   it('keeps a reply cleanup emptied as an empty message, and joins around it', async () => {
@@ -543,7 +543,7 @@ describe('a per-actor round', () => {
   });
 
   /**
-   * ***A later speaker's lore sees the round*** (2026-09-29, the [P13.2]
+   * ***A later speaker's lore sees the round*** (2026-09-29, the [P14.2]
    * review) — as SillyTavern re-scans each member's generation over the chat
    * holding the previous reply.
    */
@@ -570,7 +570,7 @@ describe('a per-actor round', () => {
 });
 
 /**
- * ***A round that loses a speaker keeps the others*** — [P13 §1.4]'s last
+ * ***A round that loses a speaker keeps the others*** — [P14 §1.4]'s last
  * paragraph: *"a group round that loses its third speaker to a timeout is a
  * turn with two messages, not a lost turn."*
  */
@@ -608,7 +608,7 @@ describe('a partial round', () => {
   });
 
   /**
-   * ***The kept speakers' lore settles*** (2026-09-29, the [P13.2] review) —
+   * ***The kept speakers' lore settles*** (2026-09-29, the [P14.2] review) —
    * the turn commits complete, and an entry that reached a kept reply's prompt
    * starts its cooldown as it would had the step finished.
    */
@@ -704,7 +704,7 @@ describe('the other two ways Scene speaks', () => {
    * ***A merged call is the scene's, and a card's hint does not choose its
    * model*** — [06 §3] consults a hint *only under `per-actor`*. The call
    * speaks as Vera for its prompt and its attribution; her card asking for a
-   * cheaper model is not asking on everybody's behalf ([P13.2] review).
+   * cheaper model is not asking on everybody's behalf ([P14.2] review).
    */
   it('resolves a merged call with no hint, though it speaks as a member', async () => {
     makeRunner([{ text: '"You came."' }]);
@@ -724,7 +724,7 @@ describe('the other two ways Scene speaks', () => {
   /**
    * ***Narrator voice ignores `dispatch`*** — per-actor written explicitly, so
    * the combination this pins is visible rather than inherited from `chat`'s
-   * default: [06 §3]'s *narrator + per-actor* cell is not built (P13.2
+   * default: [06 §3]'s *narrator + per-actor* cell is not built (P14.2
    * as-built).
    */
   it('makes one call with no speaker in narrator voice, whoever was selected', async () => {
@@ -742,7 +742,7 @@ describe('the other two ways Scene speaks', () => {
 
   /**
    * ***Nobody speaks, and no call is made*** — `manual` after an input
-   * ([P13 §1.3]: *"nobody replies to an input"*). The turn is the player's
+   * ([P14 §1.3]: *"nobody replies to an input"*). The turn is the player's
    * move and no reply, which is what an absent output has always meant.
    */
   it('makes no call and records the input alone when nobody was asked to reply', async () => {

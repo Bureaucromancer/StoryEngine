@@ -5,8 +5,8 @@ import type { OutputMessage, Turn } from './turn.js';
 
 /**
  * ***A turn's output as messages, and as the text every older reader reads*** —
- * [P13 §1.1](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §1.1](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.0](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **Beside the turn record and not part of it**, which is `remedy.ts`'s
  * arrangement and for the same reason: `turn.ts` is pure types by its own
@@ -15,7 +15,7 @@ import type { OutputMessage, Turn } from './turn.js';
  * ***Why a module for three small functions.*** `Turn.output.text` became
  * *derived* when `messages` arrived, and a derived value is only as good as the
  * agreement between everything that derives it. The runner derives it when a
- * step returns messages; P13's later stages derive it again — a hand-authored
+ * step returns messages; P14's later stages derive it again — a hand-authored
  * edit, a swipe that carries messages from its sibling, a SillyTavern group
  * round converted on import — and the client derives the other direction when
  * it renders a transcript that predates the field. **One function per
@@ -30,7 +30,7 @@ import type { OutputMessage, Turn } from './turn.js';
  * that knows nothing of messages shows a group round as the paragraphs it is,
  * rather than as one run-on block.
  *
- * ***Exported since [P13.2], for the one writer that cannot go through the two
+ * ***Exported since [P14.2], for the one writer that cannot go through the two
  * functions below***: the runner's live stream, which paints a round a delta at
  * a time and has to put this between two speakers' deltas for a reader that
  * appends them to one text — so the streamed text and the `text` derived here
@@ -48,7 +48,7 @@ export const BETWEEN_MESSAGES = '\n\n';
  */
 export function joinMessageTexts(messages: readonly OutputMessage[]): string {
   /**
-   * ***An empty message is nobody speaking*** (2026-09-29, the [P13.2] review),
+   * ***An empty message is nobody speaking*** (2026-09-29, the [P14.2] review),
    * and is left out of the join. A per-actor reply cleanup cut to nothing — one
    * that opened as another member — stays on the record with its words as
    * `original`, but it said nothing, and joining it put a doubled blank line in
@@ -98,7 +98,7 @@ export function outputFromMessages(
  * - **`messages`, when the turn has them.** They are the record; `text` is a
  *   projection of them for readers that do not know this function.
  * - **One narrator message, when it has only `text`** — every turn written
- *   before [P13.0], and every turn a merged narrator call still writes. That is
+ *   before [P14.0], and every turn a merged narrator call still writes. That is
  *   not a guess about who spoke: `speaker: null` *is* the narrator, and a
  *   single merged reply spoken by nobody in particular is exactly what
  *   `StepCallRequest.actorId`'s absence has always meant.

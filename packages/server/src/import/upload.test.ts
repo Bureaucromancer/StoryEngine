@@ -234,7 +234,7 @@ describe('the probe is not over-eager', () => {
 
 /**
  * ***A chat file, known by its lines*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * SillyTavern's chat is JSON Lines, so it fails the document parse this file
  * starts with, and until this stage it came back *nothing here recognised

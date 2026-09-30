@@ -8,8 +8,8 @@ import { Fine } from '../ui/Text.js';
 
 /**
  * ***The composer's chat controls*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5]: *"sending an empty box is let them talk; a who-speaks-next
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5]: *"sending an empty box is let them talk; a who-speaks-next
  * control forces a member; Impersonate stays"* — and auto-mode beside them,
  * because it is the same gesture on a timer.
  *
@@ -19,7 +19,7 @@ import { Fine } from '../ui/Text.js';
  * `forCharacterId` are both a single press. The page clears it when the turn is
  * sent.
  *
- * ***While a round streams it shows the order*** — [P13 §1.3a] point 8,
+ * ***While a round streams it shows the order*** — [P14 §1.3a] point 8,
  * Marinara's `response_queue`: who is replying, in order, and whether a model
  * chose them. The select is disabled then anyway, so the line takes its place
  * rather than sitting beside a control nobody can use.
@@ -102,7 +102,7 @@ export function WhoSpeaksNext(props: {
 }
 
 /**
- * ***Push story*** — [P13 §1.9.3], [P13.5b]: Marinara's director push, armed
+ * ***Push story*** — [P14 §1.9.3], [P14.5b]: Marinara's director push, armed
  * for the next turn only. *Naturally* moves the story on through what it has;
  * *with a surprise* brings in something plausible nobody saw coming. One-shot,
  * like who speaks next: the page clears it when the turn is sent.
@@ -172,7 +172,7 @@ export function AutoMode(props: {
   );
 }
 
-/** What an empty send would get when nobody can answer — [P13.4]'s note to this stage. */
+/** What an empty send would get when nobody can answer — [P14.4]'s note to this stage. */
 export function NobodyWouldReply(): JSX.Element {
   return <Fine>{WORDS.nobody}</Fine>;
 }

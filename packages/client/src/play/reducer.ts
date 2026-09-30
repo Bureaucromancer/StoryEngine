@@ -122,7 +122,7 @@ export interface PlayState {
    */
   renditions: Readonly<Record<string, Rendition>>;
   /**
-   * ***The round, message by message, as it streams*** — [P13 §1.8], [P13.5].
+   * ***The round, message by message, as it streams*** — [P14 §1.8], [P14.5].
    *
    * Under `per-actor` dispatch each speaker's call streams into a message of
    * its own: `call.started` says which message and whose (`message`,
@@ -145,7 +145,7 @@ export interface PlayState {
     whole: boolean;
   };
   /**
-   * ***Who this round is for, in order*** — `speakers.picked`, [P13 §1.3a]
+   * ***Who this round is for, in order*** — `speakers.picked`, [P14 §1.3a]
    * point 8: the *who speaks next* control shows it while the round streams.
    * `by` says whether a model chose (`model`), the rules did (`rules`), a
    * smart call fell back to them (`fallback`), or a rewrite kept the pick
@@ -350,7 +350,7 @@ function forJob(state: PlayState, jobId: string): PlayState {
 }
 
 /**
- * A speaking call opening its message — [P13.5]. *Opened, not overwritten*: a
+ * A speaking call opening its message — [P14.5]. *Opened, not overwritten*: a
  * continue's call writes into a message that already has text, and a retried
  * call re-announces the one it is retrying.
  */
@@ -590,7 +590,7 @@ function applyDelta(state: PlayState, data: unknown): PlayState {
    */
   const index = data['message'];
   /**
-   * ***A piece with an index is also that message's*** — [P13.2]'s `message`
+   * ***A piece with an index is also that message's*** — [P14.2]'s `message`
    * on the frame. The blank line between two speakers comes without one, so it
    * lands in `text` alone, which is exactly where it belongs.
    */
@@ -613,7 +613,7 @@ function applyDelta(state: PlayState, data: unknown): PlayState {
 /**
  * ***The round as bubbles, when this client can draw it so*** — in message
  * order, or null when it cannot: nothing indexed has arrived (a narrator's
- * turn, a server older than [P13.2]) or a reattach cost it the round's start
+ * turn, a server older than [P14.2]) or a reattach cost it the round's start
  * (`round.whole`). Null means *paint `text`*.
  */
 export function liveMessages(state: PlayState): LiveMessage[] | null {

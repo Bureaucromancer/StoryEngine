@@ -15,7 +15,7 @@ import type { CastMember } from './cast.js';
  * Who talks this turn — [06 §7.2](../../../../docs/design/06-modes-and-turn-pipeline.md)'s
  * taxonomy, built at [P7.3](../../../../docs/design/workplan/23-p7-implementation.md)
  * and ***corrected to what its names mean at
- * [P13.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)***,
+ * [P14.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)***,
  * 2026-09-29.
  *
  * **The policy selects speakers**, which is 06 §7.2's own correction to the
@@ -26,11 +26,11 @@ import type { CastMember } from './cast.js';
  * *for*. That difference is why widening `select` is not a cast migration — the
  * roster is `cast.actors` and stays one ([P7 §1.6], corrected at P7.3).
  *
- * ***What P13.1 changed, and why it could change it freely.*** P7.3 took ST's
+ * ***What P14.1 changed, and why it could change it freely.*** P7.3 took ST's
  * four names and wrote four different behaviours under them: `list` rotated
  * one speaker, `pooled` drew from everybody, `natural` scanned prose and could
  * answer nobody, and `manual` answered whoever the input named
- * ([P13 §0.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+ * ([P14 §0.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
  * tabulates the four). Nothing played any of them — Freeform's one narrate step
  * ignores `speakers`, and under the old eligibility rule nobody was ever
  * eligible anyway — so correcting them changes nothing anybody has played. Each
@@ -50,7 +50,7 @@ import type { CastMember } from './cast.js';
  * rather than the generator~~ taking a **site-bound opener** — the site fixed
  * by the runner, the purpose chosen per draw — keeps this a function of its
  * arguments, which is what lets every arm be tested against a table with the
- * rolls stubbed rather than against a turn. *Corrected at P13.1*: one site was
+ * rolls stubbed rather than against a turn. *Corrected at P14.1*: one site was
  * enough while `pooled` made the only draw, and it is not enough for `natural`,
  * whose rolls have to be keyed by the member they are for (see
  * {@link naturalOrder}).
@@ -59,7 +59,7 @@ import type { CastMember } from './cast.js';
 /**
  * ***ST's `talkativeness_default`*** (`public/script.js:548`), which is what a
  * member with no talkativeness of their own rolls against. Exported because
- * the importer that carries ST's per-card value across ([P13.9]) should agree
+ * the importer that carries ST's per-card value across ([P14.9]) should agree
  * with this about what *unset* means.
  */
 export const TALKATIVENESS_DEFAULT = 0.5;
@@ -81,9 +81,9 @@ export type SpeakerDraws = Pick<SiteRng, 'float' | 'weightedPick'>;
 export interface SpeakerInputs {
   /**
    * ***The session's policy***, which is `chatSettingsOf(...).speakers.policy`
-   * — [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * — [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
-   * ~~The mode's `ParticipantPolicy`~~ *until [P13.1]*: the mode's declared
+   * ~~The mode's `ParticipantPolicy`~~ *until [P14.1]*: the mode's declared
    * `select` is now what a session is **created** with, and a session may say
    * otherwise. Only the arm travels, because the rest of the mode's policy —
    * `maxActors`, `castIsPresent` — is about the mode rather than the session.
@@ -92,7 +92,7 @@ export interface SpeakerInputs {
   /**
    * The mode's `participants.castIsPresent`: whether a cast member with no
    * presence value is in the scene, and presence `false` is *muted* rather than
-   * *elsewhere* ([P13 §1.3]).
+   * *elsewhere* ([P14 §1.3]).
    */
   castIsPresent: boolean;
   /**
@@ -106,7 +106,7 @@ export interface SpeakerInputs {
   persona: string | null;
   channels: Readonly<Record<string, { value: unknown }>>;
   /**
-   * ***Force-talk*** — a submission's `speakers`, [P13 §1.3], ST's member
+   * ***Force-talk*** — a submission's `speakers`, [P14 §1.3], ST's member
    * *speak* button and `/trigger`, Marinara's `forCharacterId`.
    *
    * **Present overrides every policy**, `fixed` included (`group-chats.js:1006`
@@ -151,7 +151,7 @@ export interface SpeakerInputs {
    * **Required, and that is the lesson of the arm it replaced.** It was optional
    * while `pooled` made the only draw, and a `pooled` handed no tape answered
    * nobody — which is an arm that silently does nothing, the failure
-   * [P13 §1.3a] refuses by name. Every arm that chooses at random now has a tape
+   * [P14 §1.3a] refuses by name. Every arm that chooses at random now has a tape
    * to choose on or does not compile.
    */
   draw: (purpose: string) => SpeakerDraws;
@@ -168,7 +168,7 @@ export interface SpeakerSelection {
    */
   speakers: string[];
   /**
-   * ***`smart`, and only when no rule decided*** — [P13 §1.3a]'s fourth row.
+   * ***`smart`, and only when no rule decided*** — [P14 §1.3a]'s fourth row.
    *
    * Present means *the engine step `se.speakers.smart` should ask a model to
    * choose among `eligible`*, and `speakers` beside it is then **the fallback**:
@@ -189,7 +189,7 @@ export interface SpeakerSelection {
  *   impersonation, which is its own gesture (`turns/impersonate.ts`).
  * - `not-in-cast` — nobody this session plays with.
  * - `written-out` — dead or departed. Force-talk reaches the **muted**, as ST's
- *   does, and never the dead ([P13 §1.3]).
+ *   does, and never the dead ([P14 §1.3]).
  */
 export type ForceRefusal = 'persona' | 'not-in-cast' | 'written-out';
 
@@ -241,7 +241,7 @@ function isPresent(
   actorId: string,
   castIsPresent: boolean,
 ): boolean {
-  // The one reader since [P13.3], shared with the cast panel and the collector.
+  // The one reader since [P14.3], shared with the cast panel and the collector.
   return readPresence(channels, actorId, castIsPresent);
 }
 
@@ -314,15 +314,15 @@ export function selectSpeakers(inputs: SpeakerInputs): SpeakerSelection {
        *
        * ~~Each in turn, rotating on the path's depth. One speaker, because a
        * list that answered with all of them in a rotated order would be `fixed`
-       * with extra steps.~~ *Corrected 2026-09-29, at [P13.1]* — that was P7.3's
-       * reading of the name and not ST's behaviour ([P13 §0.7]): ST's LIST is
+       * with extra steps.~~ *Corrected 2026-09-29, at [P14.1]* — that was P7.3's
+       * reading of the name and not ST's behaviour ([P14 §0.7]): ST's LIST is
        * the whole group answering in turn within one round, and no member is
        * banned, not even the one who just spoke.
        *
        * **The same set `fixed` answers, and the difference is not nothing.**
        * `fixed` is never handed to a step at all (`selectsSpeakers`), because it
        * is a mode saying *I make no selection*; `list` is a selection, handed on
-       * in order, and under `per-actor` dispatch ([P13.2]) it is one call per
+       * in order, and under `per-actor` dispatch ([P14.2]) it is one call per
        * member with each seeing the replies before it. *The rotation's receipt
        * — "it jumps when the pool's size changes" — went with the rotation.*
        */
@@ -335,12 +335,12 @@ export function selectSpeakers(inputs: SpeakerInputs): SpeakerSelection {
        * `:1033-1041` that sends the player's message as it is.
        *
        * ~~Whoever the player named, and nobody otherwise.~~ *Corrected at
-       * [P13.1]*: ST's MANUAL reads no name off the input — replies are asked
+       * [P14.1]*: ST's MANUAL reads no name off the input — replies are asked
        * for by force-talk, which overrides this arm before it is reached. The
        * one random member on a turn with no input is ST's
        * (`shuffle(enabledMembers).slice(0, 1)`), and it is kept over Marinara's
        * *do nothing* because a *let them talk* that silently does nothing is the
-       * failure [P13 §1.3a] refuses for `smart` too.
+       * failure [P14 §1.3a] refuses for `smart` too.
        */
       if (inputs.hasInput || pool.length === 0) return { speakers: [] };
       return { speakers: [uniformly(pool, inputs.draw('speaker'))] };
@@ -360,7 +360,7 @@ export function selectSpeakers(inputs: SpeakerInputs): SpeakerSelection {
  * ***One member, preferring whoever has not had a say*** — `activatePooledOrder`
  * (`group-chats.js:1197-1231`).
  *
- * ~~One at random, from all eligible.~~ *Corrected at [P13.1]*: ST's POOLED is
+ * ~~One at random, from all eligible.~~ *Corrected at [P14.1]*: ST's POOLED is
  * a queue without the bookkeeping. On a turn with no input it draws from those
  * who have not spoken since the player last did, so a round of *let them talk*
  * works through the room before anybody repeats; when everybody has, it draws
@@ -395,25 +395,25 @@ function pooledOrder(inputs: SpeakerInputs, pool: readonly string[]): string[] {
 /**
  * ***Whoever is named, then whoever feels like it, then somebody*** —
  * `activateNaturalOrder` (`group-chats.js:1242-1316`), NATURAL, and the arm
- * [P13 §1.3] makes a chat's default.
+ * [P14 §1.3] makes a chat's default.
  *
- * *Scene declares it at [P13.3], and the design gives two dates: this follows
- * the stage list.* [P13 §1.2]'s P13.0 correction says Scene declares
- * `select: 'fixed'` *"until P13.1 changes it"*, and §1.3 has Scene declaring
- * `castIsPresent`; §3 puts Scene's declared values in P13.3 instead, where
+ * *Scene declares it at [P14.3], and the design gives two dates: this follows
+ * the stage list.* [P14 §1.2]'s P14.0 correction says Scene declares
+ * `select: 'fixed'` *"until P14.1 changes it"*, and §1.3 has Scene declaring
+ * `castIsPresent`; §3 puts Scene's declared values in P14.3 instead, where
  * `mode.test.ts`'s pin moves to `embodied`, `per-actor` and `natural`
- * together. So P13.1 builds the arms and the SDK's `castIsPresent`, and leaves
+ * together. So P14.1 builds the arms and the SDK's `castIsPresent`, and leaves
  * Scene at `{ select: 'fixed', maxActors: 1 }` with no `castIsPresent`. Neither
- * of Scene's steps reads `speakers` today — per-actor dispatch ([P13.2]) is
+ * of Scene's steps reads `speakers` today — per-actor dispatch ([P14.2]) is
  * what will — so declaring `natural` sooner would only put draws on the tape
  * that decide nothing. The design note is not edited here: CLAUDE.md asks for
  * the disagreement to be named, not settled silently in either direction.
- * *Done at [P13.3], 2026-09-29*: Scene declares `natural`, `castIsPresent` and
+ * *Done at [P14.3], 2026-09-29*: Scene declares `natural`, `castIsPresent` and
  * 32 seats, with `per-actor` dispatch reading the selection.
  *
  * ~~Whoever the scene just addressed — the last prose and the input scanned
  * for names, and nobody found is nobody.~~ *Corrected 2026-09-29, at
- * [P13.1]*: that was the first of ST's three steps, standing alone. In order:
+ * [P14.1]*: that was the first of ST's three steps, standing alone. In order:
  *
  * 1. **Mentions.** Every eligible member one of whose name's words is a word of
  *    the activation text, in the order the **words** appear — for each word,
@@ -444,7 +444,7 @@ function pooledOrder(inputs: SpeakerInputs, pool: readonly string[]): string[] {
  * **Words are Unicode letters and digits, where ST's are ASCII — a deliberate
  * difference.** `extractAllWords` (`utils.js:1357`) matches `\b\w+\b` without
  * the `u` flag, so a word ends at its first letter outside ASCII. *Measured
- * against the source, that is not quite [P13 §1.3]'s "a name like Zoë never
+ * against the source, that is not quite [P14 §1.3]'s "a name like Zoë never
  * matches"*: *Zoë* is the word *zo*, so she **is** found by *Zoë* — and also by
  * *Zo* and by *Zoé*; *Renée* is *ren* and a lone *e*, found by any sentence
  * with a stray *e* in it; and a name in Cyrillic, Greek or CJK has no words at
@@ -491,7 +491,7 @@ function naturalOrder(inputs: SpeakerInputs, pool: readonly string[]): string[] 
 
 /**
  * ***Rules first, and most turns never make the call*** —
- * [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * first table, which is the whole of what `smart` decides without a model.
  *
  * | Situation | Answer |
@@ -511,7 +511,7 @@ function naturalOrder(inputs: SpeakerInputs, pool: readonly string[]): string[] 
  * already holds, so the fallback is as replayable as any other arm. The step
  * that asks is `se.speakers.smart` (`turns/smart-speakers.ts`), which the
  * runner plans exactly when `ask` is present; ~~until it lands the runner plays
- * the fallback~~ *it landed with the rest of [P13.1]*, and the fallback is now
+ * the fallback~~ *it landed with the rest of [P14.1]*, and the fallback is now
  * what plays only when the call does not work out.
  *
  * *Force-talk and rewrite are both upstream of this.* Force-talk never reaches
@@ -588,7 +588,7 @@ function talkativenessIn(inputs: SpeakerInputs, actorId: string): number {
 
 /**
  * ***An actor's talkativeness in a mode*** — `actor.modeData[modeId].talkativeness`,
- * [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **In `modeData` because it is participation, not prompt.** The card schema
  * refuses `talkativeness` as a top-level field under *"prompt assembly is owned
@@ -652,7 +652,7 @@ function unique(ids: readonly string[]): string[] {
  * `fixed` does not, and the distinction reaches a step as *absent* rather than
  * as a list: a mode that declares no strategy should not hand its steps a
  * speaker set that looks like one it chose. *The session's policy since
- * [P13.1]*, so it takes the arm rather than the mode's whole policy.
+ * [P14.1]*, so it takes the arm rather than the mode's whole policy.
  */
 export function selectsSpeakers(policy: ParticipantPolicy['select']): boolean {
   return policy !== 'fixed';
@@ -662,7 +662,7 @@ export function selectsSpeakers(policy: ParticipantPolicy['select']): boolean {
  * Whether a move says anything — ST's `userInput?.length` (`group-chats.js:993`),
  * with a picture counting as saying something.
  *
- * *An empty input is no input*, which is ST's reading and the one [P13 §1.6]
+ * *An empty input is no input*, which is ST's reading and the one [P14 §1.6]
  * builds *let them talk* on: an empty send is a round the player did not
  * start, and the arms treat it that way.
  */
@@ -690,18 +690,18 @@ export interface ChatSoFar {
 
 /**
  * The path read as a chat: a turn is its input, if it said anything, then its
- * output's messages ([P13 §1.1]), and the last of those on the path is ST's
+ * output's messages ([P14 §1.1]), and the last of those on the path is ST's
  * last message.
  *
  * - **Messages come from `outputMessagesOf`**, so a turn written before
- *   [P13.0] is one narrator message — and the narrator is nobody: a legacy
+ *   [P14.0] is one narrator message — and the narrator is nobody: a legacy
  *   output has no speaker to ban and none to count as having spoken.
  * - **A message with no text is not a message.** A failed turn with an empty
  *   output, or a hand edit that wrote nothing, is bookkeeping rather than
  *   something said — the rule `lastProse` kept before this replaced it, and
  *   the reason the last *turn* and the last *message* differ.
  * - **Hidden follows ST in each place ST reads it** (`session.hidden`,
- *   [P13 §1.6]): a hidden message is still the last message, its author is
+ *   [P14 §1.6]): a hidden message is still the last message, its author is
  *   still who spoke last, its text is not the activation text, it does not
  *   count as having spoken (`:1208`'s `is_system` skip), and a hidden input
  *   still ends `pooled`'s scan back (`:1204` breaks on `is_user` before it
@@ -768,7 +768,7 @@ export function lastSpeakerOf(soFar: ChatSoFar): string | null {
 }
 
 /**
- * ***Each member's talkativeness, by id, as this mode reads it*** — [P13.3],
+ * ***Each member's talkativeness, by id, as this mode reads it*** — [P14.3],
  * lifted out of the runner so the preview reads the same numbers.
  *
  * *Read through the mode's id*, never a literal: talkativeness is how a mode
@@ -786,16 +786,16 @@ export function talkativenessMap(
 
 /**
  * ***Who speaks this turn, or no selection at all*** — the runner's question,
- * asked in one place since [P13.3] so that the preview (`turns/preview.ts`)
- * asks it the same way ([P13 §1.4]: a preview under `per-actor` shows what the
+ * asked in one place since [P14.3] so that the preview (`turns/preview.ts`)
+ * asks it the same way ([P14 §1.4]: a preview under `per-actor` shows what the
  * first speaker's call would see, and it cannot unless it knows who that is).
  *
  * **`undefined` is no selection, and there are now two ways to have none.**
  *
  * - *The session's policy selects nobody by construction* — `fixed`, which is
- *   what a pre-P13 Scene session reads as — and nobody forced anybody.
+ *   what a pre-P14 Scene session reads as — and nobody forced anybody.
  * - ***The room has nobody in it to select***: no cast member but the
- *   persona, and nobody forced. Added at [P13.3] with Scene's flip to an
+ *   persona, and nobody forced. Added at [P14.3] with Scene's flip to an
  *   embodied chat, because an empty `speakers` in an embodied voice is
  *   *nobody replies* — right for `manual` after an input, and for a room whose
  *   every member is muted, which is ST's behaviour — and wrong for a scene

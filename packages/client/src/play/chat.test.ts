@@ -18,7 +18,7 @@ import {
 } from './chat.js';
 
 /**
- * The chat surface's arithmetic — [P13 §1.8], [P13.5]. Each of these is a
+ * The chat surface's arithmetic — [P14 §1.8], [P14.5]. Each of these is a
  * decision a component would otherwise make inline and a DOM test would pin
  * only by accident.
  */

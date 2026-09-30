@@ -399,9 +399,9 @@ export const TEST_MODE: Mode = {
  * non-`fixed` mode *running* and a deterministic arm makes that one assertion
  * instead of two: ~~the rotation is a function of the path, so the test says
  * which actor and not merely that there was one.~~ *Corrected 2026-09-29, at
- * [P13.1]*: `list` no longer rotates — it is every eligible member, once each,
+ * [P14.1]*: `list` no longer rotates — it is every eligible member, once each,
  * in cast order
- * ([P13 §0.7](../../../docs/design/workplan/30-p13-scene-and-session-import.md))
+ * ([P14 §0.7](../../../docs/design/workplan/31-p14-scene-and-session-import.md))
  * — and it is still the one arm with no draw, so the test can name exactly who
  * was handed to the step. `pooled`'s draw and its replay are proved where they
  * are cheap to prove, in `speakers.test.ts`, against a tape rather than against

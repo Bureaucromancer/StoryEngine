@@ -6,7 +6,7 @@ import { digest } from '../../sessions/digest.js';
 /**
  * ***Turn identity: a trie over (account, family, parent, content), printed as
  * uuidv7*** —
- * [P13 §2.4](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §2.4](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * ```
  * id = uuidv7Shaped( time, H(account, familyKey, parentKey, input, messages) )
@@ -19,7 +19,7 @@ import { digest } from '../../sessions/digest.js';
  *   prefix produce the same keys for it, so the prefix collapses into one path
  *   and each branch forks exactly where it diverged — *including a branch copy
  *   that was edited before its fork point*, which a position-based scheme would
- *   graft on at the wrong node. [P13 §0.1]'s family reconstruction is not an
+ *   graft on at the wrong node. [P14 §0.1]'s family reconstruction is not an
  *   algorithm anywhere; it is this.
  * - **The account is in the hash.** `sessionHoldingTurns` looks turn ids up
  *   across the whole index (`index-db/sessions.ts:368`). Without the account, a
@@ -31,11 +31,11 @@ import { digest } from '../../sessions/digest.js';
  * - **Deterministic**, so importing an unchanged chat again finds every turn
  *   already present, and a chat grown by whole new rounds finds all but those.
  *   ***A chat that grew inside its last round is a new sibling, by decision***
- *   ([P13.10a], 2026-09-29). A reply to what was a trailing player's line, a
+ *   ([P14.10a], 2026-09-29). A reply to what was a trailing player's line, a
  *   further reply or narrator line with no new `gen_id` (single chats,
  *   Marinara), a greeting followed by an empty send — each changes the last
  *   round's content, so its key, so the old round is not found, and the round
- *   as it now stands is appended beside it. [P13 §2.7] offered two ways out;
+ *   as it now stands is appended beside it. [P14 §2.7] offered two ways out;
  *   keying a round on its opening instead would have let replies extend a
  *   turn in place, which is a turn rewritten — the one thing sync promises
  *   never to do — and would have given one id to two contents, the property
@@ -56,7 +56,7 @@ import { digest } from '../../sessions/digest.js';
 const SCHEME = 'storyengine.import.chat/1';
 
 /**
- * What a node's key is computed over: this stage's reading of [P13 §2.4]'s
+ * What a node's key is computed over: this stage's reading of [P14 §2.4]'s
  * `messages`, which is each message as its speaker key (or the narrator) and
  * its text, and nothing else of it.
  *
@@ -82,7 +82,7 @@ const SCHEME = 'storyengine.import.chat/1';
  *     words twice. So the marker is presentation, taken from the node's first
  *     placement — the root chat's, when the root has the node — as its time is.
  *   - *Reasoning* is what a model thought, not what the chat says.
- *   - *Hiding* is mutable session state that [P13 §2.7] merges on every
+ *   - *Hiding* is mutable session state that [P14 §2.7] merges on every
  *     import. If an unhide changed a key, a sync would fork the session over a
  *     ghost icon.
  */
@@ -122,7 +122,7 @@ export function nodeKey(
  * ***A chat's branch ref, named for the chat and not for where it ends.*** The
  * key is the account, the family and the chat's own id, so a chat that grew
  * since the last import keeps its ref's id while the ref moves — which is what
- * lets [P13 §2.7]'s merge tell *the same ref, further on* from *a new branch*.
+ * lets [P14 §2.7]'s merge tell *the same ref, further on* from *a new branch*.
  */
 export function refKey(account: string, familyKey: string, chatId: string): string {
   return digest(['ref', SCHEME, account, familyKey, chatId]);
@@ -139,7 +139,7 @@ export function sessionKey(account: string, familyKey: string): string {
 }
 
 /**
- * ***An effect the source's own state writes on a turn*** — [P13.9]'s muted
+ * ***An effect the source's own state writes on a turn*** — [P14.9]'s muted
  * members, one `se.presence` per member on an opening turn (`build.ts`).
  *
  * Over the turn's **key**, the channel and the member's **foreign** key, and
@@ -174,7 +174,7 @@ export function readableTime(at: number | null | undefined): number | null {
 
 /**
  * ***A node's time: its own, forced strictly above its parent's*** —
- * [P13 §2.4]'s *"the send time, forced strictly above the parent's: both
+ * [P14 §2.4]'s *"the send time, forced strictly above the parent's: both
  * sources hold send times that repeat or run backwards"*.
  *
  * - With a parent: `max(own, parent + 1)`, or `parent + 1` when the source did

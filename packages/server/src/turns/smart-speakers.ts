@@ -18,8 +18,8 @@ import { saysSomething } from './speakers.js';
 
 /**
  * ***Smart order*** — a model asked who replies, when no rule has already said —
- * [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * Marinara's `smart` order (`generate.routes.ts:5306-5456`) is the best answer
  * either source has to *"who would actually speak now?"*, and the only arm whose
@@ -43,7 +43,7 @@ import { saysSomething } from './speakers.js';
  *
  * ***Most turns never get here, and that is the design rather than an
  * optimisation.*** `selectSpeakers`' `smart` arm answers force-talk, a mention
- * and a room of one without a model ([P13 §1.3a]'s first table), and only a
+ * and a room of one without a model ([P14 §1.3a]'s first table), and only a
  * turn none of those settles is handed to this step — with `natural`'s pick
  * already drawn on the tape as what it lands on if the call does not work out.
  * In a three-person scene where the player addresses somebody by name, that is
@@ -627,7 +627,7 @@ function block(id: string, role: 'system' | 'user', text: string): Candidate {
  * when no message names anybody — and that second source is this file's
  * addition, for a case §1.3a does not reach. A narrator-voiced session speaks
  * in one message by nobody in particular, and so does every merged turn written
- * before [P13.2]'s per-actor dispatch; read from its messages alone, a rewrite
+ * before [P14.2]'s per-actor dispatch; read from its messages alone, a rewrite
  * of such a turn keeps nobody, and a pick a person watched the workbench make
  * would be quietly replaced by the tape's. The outcome is the record of who the
  * turn was for, even where the prose did not attribute itself.

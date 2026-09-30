@@ -23,7 +23,7 @@ const GATE = 'packages/server/src/index-db/rebuild-property.test.ts';
 const FIXTURE_PAIR = [
   'packages/server/src/import/fixture-pair.test.ts',
   /**
-   * ***A list since [P13.12]***, which gave the gate its chat half. A chat
+   * ***A list since [P14.12]***, which gave the gate its chat half. A chat
    * importer, a card importer and the Scene pack meet the way a card and a
    * preset do, and can disagree the same silent way — a speaker resolved to
    * a card whose prompts the pack never reaches, a history that loses its

@@ -89,8 +89,8 @@ export interface StepDefinition {
   role: ModelRole | null;
   /**
    * ***A person may run this step between turns*** —
-   * [P13 §1.9.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
-   * *Update trackers*, declared at [P13.5a].
+   * [P14 §1.9.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * *Update trackers*, declared at [P14.5a].
    *
    * **A declaration rather than a route that runs whatever it is named**, for
    * the reason `confirm` is one on a channel: the alternative is engine code
@@ -109,7 +109,7 @@ export interface StepDefinition {
    *
    * Absent is *never on demand*, which is every step written before this.
    *
-   * ***`{ label }` rather than `true`*** — changed at [P13.5a]'s client half.
+   * ***`{ label }` rather than `true`*** — changed at [P14.5a]'s client half.
    * A control that runs the step has to say something, and what it says is
    * authored content that travels with the mode, as a widget's label does:
    * *Update trackers* is Scene's sentence, and a host that minted the words
@@ -118,8 +118,8 @@ export interface StepDefinition {
   onDemand?: { label: string };
   /**
    * ***This step may revise the turn's messages before the turn is written***
-   * — [P13 §1.9.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
-   * editor, declared at [P13.5c].
+   * — [P14 §1.9.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * editor, declared at [P14.5c].
    *
    * **A declaration, because what it permits is the one thing no step could
    * do before**: change what an earlier step said. A `post` step has always
@@ -313,14 +313,14 @@ export interface CastEntry {
     distinguishing?: string;
   };
   /**
-   * ***This entry is the player's own character*** — added at [P13.5a].
+   * ***This entry is the player's own character*** — added at [P14.5a].
    *
    * `castEntries` has put the persona first in this list since [P7.12]
    * (*"the persona is an actor too"*), and nothing could tell it from the
    * others: position is a convention a step would be trusting, and a session
    * with no persona puts somebody else first. The trackers are the first step
    * that has to know, because *the persona* and *each present character* are
-   * two trackers with two shapes ([P13 §1.9.2]), and a character tracker that
+   * two trackers with two shapes ([P14 §1.9.2]), and a character tracker that
    * tracked the player too would be the same person described twice.
    *
    * Absent means an ordinary member of the cast.
@@ -328,10 +328,10 @@ export interface CastEntry {
   persona?: true;
   /**
    * ***This member is muted*** — out of the room by the mode's own reading of
-   * presence, added 2026-09-29 (the [P13.5a] review).
+   * presence, added 2026-09-29 (the [P14.5a] review).
    *
    * The cards and the tracker panel have left a muted member out since
-   * [P13.3], but the character tracker asked about everyone in this list, so a
+   * [P14.3], but the character tracker asked about everyone in this list, so a
    * call a turn went on somebody the player had taken out of the scene —
    * Marinara's character tracker follows only the characters present. The
    * host says it here, from the one reading the collector and the panel use,
@@ -365,7 +365,7 @@ export interface StepInput {
    * ~~step that speaks for somebody passes one of these as
    * `StepCallRequest.actorId`, which is how an actor reaches `resolveRole`'s
    * last layer.~~ step that speaks for somebody passes one of these as
-   * `StepCallRequest.speaker` (*corrected 2026-09-29, at [P13.2]*), which
+   * `StepCallRequest.speaker` (*corrected 2026-09-29, at [P14.2]*), which
    * implies the `actorId` that reaches `resolveRole`'s last layer under
    * `per-actor` dispatch. Scene's embodied `merged` call does not ignore the
    * list either: it speaks as the first entry, one call for the scene.
@@ -379,17 +379,17 @@ export interface StepInput {
    *
    * **Empty is a real answer**, and `manual` is where it happens: ~~nobody was
    * named~~ the player sent an input and nobody was asked to reply
-   * (*corrected 2026-09-29, at [P13.1]*), so nobody in particular is speaking.
+   * (*corrected 2026-09-29, at [P14.1]*), so nobody in particular is speaking.
    * It is not the same as absent, which is a turn whose ~~mode declares~~
    * **session plays** `fixed` and makes no selection at all.
    *
-   * *The session's policy, not the mode's, since [P13.1]*: the mode's
+   * *The session's policy, not the mode's, since [P14.1]*: the mode's
    * `participants.select` is what a session is created with, and a session
-   * may say otherwise ([P13 §1.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+   * may say otherwise ([P14 §1.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
    * **And a force-talk submission overrides both**, so a turn can carry
    * speakers under `fixed` too — the one case where somebody asked by name.
    *
-   * ***Under `smart`, possibly a model's answer*** ([P13 §1.3a]). When no rule
+   * ***Under `smart`, possibly a model's answer*** ([P14 §1.3a]). When no rule
    * settles the turn, an engine step runs first and asks; every step after it
    * is handed that answer, and a step never sees the rule-based pick it
    * replaced. A mode reads this the same way whichever produced it — which is
@@ -399,8 +399,8 @@ export interface StepInput {
   speakers?: readonly string[];
   /**
    * ***How the session speaks*** — [06 §3](../../../docs/design/06-modes-and-turn-pipeline.md)'s
-   * two axes as this session plays them, [P13 §1.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * handed to steps at [P13.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * two axes as this session plays them, [P14 §1.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * handed to steps at [P14.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * - `voice` is **who the prose is in**: `narrator`, a voice outside the scene
    *   describing it, or `embodied`, the characters speaking as themselves.
@@ -518,7 +518,7 @@ export interface StepInput {
   /**
    * Present only when `reads` includes `output`.
    *
-   * ***`messages` since [P13.5c]***: the turn's output as its messages, each
+   * ***`messages` since [P14.5c]***: the turn's output as its messages, each
    * with its speaker — present when the output has them, which is a round
    * under `per-actor` dispatch or a swipe's carried lines — so a step that
    * revises (see {@link StepDefinition.revises}) can answer about one message
@@ -529,7 +529,7 @@ export interface StepInput {
   output?: { text: string; messages?: readonly OutputMessage[] };
   /**
    * ***A person asked for this run*** — {@link StepDefinition.onDemand},
-   * [P13.5a].
+   * [P14.5a].
    *
    * Present only on a run nobody's turn made: the step's declared `when`, and
    * any cadence or manual switch it reads for itself, answer *should I run
@@ -576,8 +576,8 @@ export interface StepResult {
   message?: { text: string; reasoning?: string };
   /**
    * ***The turn's output as several messages, each with its speaker*** —
-   * [P13 §1.1](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14 §1.1](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.0](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * **For a step that voices several speakers**: a group round under `per-actor`
    * dispatch, one message per member who replied, or a narrator paragraph beside
@@ -601,8 +601,8 @@ export interface StepResult {
   messages?: OutputMessage[];
   /**
    * ***What this step changed in the turn's messages, and what it noticed*** —
-   * [P13 §1.9.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.5c]. Only from a `post` step declaring
+   * [P14 §1.9.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5c]. Only from a `post` step declaring
    * {@link StepDefinition.revises}.
    *
    * One entry per message the step has something to say about, by its index
@@ -642,7 +642,7 @@ export interface StepCallRequest {
    *
    * ~~**Absent is a merged call**, which is what `dispatch: 'merged'` means and
    * what every shipped step does: one reply for the scene, spoken by nobody in
-   * particular, resolved with no hint.~~ *Corrected 2026-09-29, at [P13.2]*: a
+   * particular, resolved with no hint.~~ *Corrected 2026-09-29, at [P14.2]*: a
    * call with neither `actorId` nor `speaker` is the narrator's or an embodied
    * merged call with nobody selected, and resolves with no hint. Scene's
    * speaking calls pass `speaker` — its embodied `merged` one too, for the
@@ -651,7 +651,7 @@ export interface StepCallRequest {
    * [06 §3] consults one only under `per-actor`. ~~`per-actor` dispatch is a mode fanning
    * this out — the mode half is [P7.9]'s, since no shipped mode declares it, but
    * the engine half is here and works for a single call just as well.~~
-   * *Corrected 2026-09-29, at [P13.2]*: [P7.9] never built the mode half, and a
+   * *Corrected 2026-09-29, at [P14.2]*: [P7.9] never built the mode half, and a
    * model hint was never enough to fan a round out with — the call also has to
    * be *assembled* for the member and its reply attributed to them. That is
    * {@link StepCallRequest.speaker}, which implies this field; `actorId` stays
@@ -659,8 +659,8 @@ export interface StepCallRequest {
    */
   actorId?: string;
   /**
-   * ***The member this call speaks as*** — [P13 §1.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * built at [P13.2]. An actor id from the scene's cast; never the persona,
+   * ***The member this call speaks as*** — [P14 §1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * built at [P14.2]. An actor id from the scene's cast; never the persona,
    * whose words are the player's.
    *
    * **A speaking call is `actorId` and three things more**, and each is the
@@ -688,7 +688,7 @@ export interface StepCallRequest {
    * exactly as `actorId` does — a speaking call implies that `actorId`, and one
    * that names a different `actorId` beside it is refused rather than guessed
    * at. Under `merged` the speaker's hint is not consulted ([06 §3]: a hint
-   * applies only under `per-actor`; 2026-09-29, [P13.2] review), since the one
+   * applies only under `per-actor`; 2026-09-29, [P14.2] review), since the one
    * reply is the scene's whoever it is attributed to. *A speaking call
    * that brings its own `candidates`* is assembled from those alone, as any
    * call that brings them is: points 1 and 2 are the preset's collection, and
@@ -737,7 +737,7 @@ export interface StepCallResult {
    */
   outcome?: ModelCall['outcome'];
   /**
-   * ***Who a speaking call spoke for, as the record names them*** — [P13.2].
+   * ***Who a speaking call spoke for, as the record names them*** — [P14.2].
    * The id the step passed and the name the card carries now, which is the
    * `Ref` the turn's message holds; so a step that builds its own `messages`
    * from its results writes the same speaker the runner streamed, without
@@ -746,8 +746,8 @@ export interface StepCallResult {
   speaker?: Ref;
   /**
    * ***The reply as the model returned it, when cleanup changed it*** —
-   * [P13 §1.4](../../../docs/design/workplan/30-p13-scene-and-session-import.md)
-   * point 3, [P13.2].
+   * [P14 §1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+   * point 3, [P14.2].
    *
    * **Its presence is how a step knows `text` was cleaned**, and it is what the
    * step passes on as `OutputMessage.original` — the one place the unmodified

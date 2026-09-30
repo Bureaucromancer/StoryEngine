@@ -349,7 +349,7 @@ describe('the party', () => {
 });
 
 /**
- * ***Presence as the mode reads it*** — [P13.3], closing what [P13.1] flagged:
+ * ***Presence as the mode reads it*** — [P14.3], closing what [P14.1] flagged:
  * the panel read presence as `true`-only while the speaker policy read it
  * through `castIsPresent`, so a Scene member nobody had muted spoke every turn
  * and showed on the panel as absent.
@@ -367,7 +367,7 @@ describe('the cast panel under castIsPresent', () => {
   });
 
   /**
-   * ***The quarantine's reset is not a mute*** (2026-09-29, the [P13.3]
+   * ***The quarantine's reset is not a mute*** (2026-09-29, the [P14.3]
    * review). It writes the channel's `init: false`, which under this reading
    * is *muted* — so a member whose presence a hand edit had mangled left every
    * call, a decision nobody made. The `degraded` marker the reset carries is

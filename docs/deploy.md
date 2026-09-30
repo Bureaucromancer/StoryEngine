@@ -484,8 +484,8 @@ A session is never replaced, whatever the clash policy says. One that is still
 here, one in the trash (restore it from there), and one an earlier import
 already brought back are all left alone, so importing the same backup twice
 brings each session back once. Pictures come with what they belong to: an
-actor's portrait and expressions, a book's gallery, and a session's
-illustrations and backdrops.
+actor's portrait and expressions, a book's gallery, a session's illustrations
+and backdrops, and the pictures players attached to their moves.
 
 **Restore** is **Settings → Administration → Backups → Restore this install**,
 and it is only offered where something will start the server again — compose's

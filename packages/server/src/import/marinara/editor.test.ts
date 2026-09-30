@@ -17,8 +17,8 @@ import { sweep } from '../sweep.js';
 import { SCENE_EDITOR, editorSwitches } from './editor.js';
 
 /**
- * ***Marinara's editor and echo chamber, imported*** — [P13 §2.6]'s second
- * table and [§1.9.6], built at [P13.5c].
+ * ***Marinara's editor and echo chamber, imported*** — [P14 §2.6]'s second
+ * table and [§1.9.6], built at [P14.5c].
  *
  * 1. **The spellings are Scene's**, pinned to the registry, and every value
  *    built is one the registered schema admits.

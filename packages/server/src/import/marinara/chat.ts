@@ -17,10 +17,10 @@ import { snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
 
 /**
  * ***Marinara's chats, read from its tables*** —
- * [P13.10](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §0.3](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §2.2](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §2.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §0.3](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §2.2](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §2.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **The same thing SillyTavern's parser says, from a different shape.** A
  * SillyTavern chat is one file of lines; a Marinara chat is a `chats` row, the
@@ -28,7 +28,7 @@ import { snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
  * point back at those — three tables joined by id, as the store reader
  * (`reader.ts`) hands them over, flat or sharded. This module does the join and
  * says what each chat *is* in the builder's source-neutral terms
- * (`chat/types.ts`), so the one builder ([P13.6]) decides what a round is for
+ * (`chat/types.ts`), so the one builder ([P14.6]) decides what a round is for
  * both sources. `families.ts` beside it says which chats are one family.
  *
  * ***Pure***: rows in, chats and notes out. No file is read here, and nothing
@@ -47,13 +47,13 @@ import { snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
  *
  * ~~***Not in this stage***, and deliberately: `game_state_snapshots` onto
  * tracker effects, `agent_memory`'s secret plot, and the chat's agent switches
- * ([P13 §2.6]'s second table).~~ ***The trackers came at [P13.5a]***, with the
+ * ([P14 §2.6]'s second table).~~ ***The trackers came at [P14.5a]***, with the
  * channels they needed: each message and swipe carries the state its
  * snapshot established (`ChatMessage.state`, `ChatSwipe.state`, read by
  * `trackers.ts`), the builder writes it as effects on the turn holding it, and
  * the chat's tracker switches travel as {@link MarinaraChat.state}.
- * ~~`agent_memory`'s secret plot still waits on [P13.5b]'s channel~~ — it
- * came at [P13.5b] (`plot.ts`, {@link MarinaraChat.plot}); a chat running
+ * ~~`agent_memory`'s secret plot still waits on [P14.5b]'s channel~~ — it
+ * came at [P14.5b] (`plot.ts`, {@link MarinaraChat.plot}); a chat running
  * agents that are neither trackers nor the director still says so
  * (`import.chat.agentsNotCarried`).
  */
@@ -61,7 +61,7 @@ import { snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
 /** The candidate format the store reader hands the session pass (`reader.ts`). */
 export const MARINARA_CHATS_FORMAT = 'marinara.chats';
 
-/** Where the reader stamps a persona — [P13 §2.5]'s `storage/tables/personas.json#<chat.personaId>`. */
+/** Where the reader stamps a persona — [P14 §2.5]'s `storage/tables/personas.json#<chat.personaId>`. */
 const PERSONAS = 'storage/tables/personas.json#';
 
 type Row = Readonly<Record<string, unknown>>;
@@ -81,12 +81,12 @@ export interface MarinaraTables {
   personas?: readonly Row[];
   /**
    * `game_state_snapshots` — the trackers' state per message and swipe
-   * ([P13.5a]). Absent is a store that never ran them.
+   * ([P14.5a]). Absent is a store that never ran them.
    */
   snapshots?: readonly Row[];
   /**
    * `agent_memory` — the director's secret plot, `overarchingArc` per chat
-   * ([P13.5b], `plot.ts`). Absent is a store whose director kept none.
+   * ([P14.5b], `plot.ts`). Absent is a store whose director kept none.
    */
   memory?: readonly Row[];
 }
@@ -104,9 +104,9 @@ export interface MarinaraTables {
  * - **`title`**: the thread's own `name`, which the family's session is called.
  * - **`branchOf`**: `metadata.branchParentChatId`, raw.
  * - **`members`**: `characterIds`, in the chat's order, each with a name —
- *   the roster ([P13 §2.5]).
+ *   the roster ([P14 §2.5]).
  * - **`persona`**: `personaId` as the key the reader stamps a persona with.
- * - **`settings`**: [P13 §2.6]'s group rows, for a chat of more than one member.
+ * - **`settings`**: [P14 §2.6]'s group rows, for a chat of more than one member.
  * - **`metadata`**: the row's `metadata`, parsed — kept so the session pass can
  *   read the root's group rows against a family's whole roster, which a branch
  *   that added a member makes larger than the root's own (`chat-sessions.ts`).
@@ -126,14 +126,14 @@ export interface MarinaraChat {
   notes: ImportNote[];
   /**
    * ***The chat's tracker switches*** — `activeAgentIds` and `manualTrackers`
-   * as `se.track.*` values ([P13.5a], `trackers.ts`), for the family's
+   * as `se.track.*` values ([P14.5a], `trackers.ts`), for the family's
    * opening turns. The session pass takes the root's, as it takes the root's
    * group settings.
    */
   state: ChatStateValue[];
   /**
    * ***The chat's secret plot, as of its head*** — `agent_memory`'s
-   * `overarchingArc` as `se.plot.secret` ([P13.5b], `plot.ts`). The session
+   * `overarchingArc` as `se.plot.secret` ([P14.5b], `plot.ts`). The session
    * pass takes the root's and the builder writes it on the head turn.
    */
   plot: ChatStateValue[];
@@ -160,7 +160,7 @@ export interface MarinaraChats {
  * ***The tables, joined*** — every chat row, each roleplay chat with its
  * messages in Marinara's order and each message with its swipes.
  *
- * **Only `roleplay` becomes a session** ([P13 §2.6]: *"Marinara `conversation`
+ * **Only `roleplay` becomes a session** ([P14 §2.6]: *"Marinara `conversation`
  * and `game` chats stay recorded; Part B imports `roleplay`"*). A conversation
  * is a messenger thread with schedules, calls and reactions, and a game has an
  * engine state a Scene has no place for; importing either as a Scene would be
@@ -526,7 +526,7 @@ function noteSnapshots(
 }
 
 /**
- * ***A reply's alternatives*** — [P13 §2.3], and [P13 §0.3]'s rule read from
+ * ***A reply's alternatives*** — [P14 §2.3], and [P14 §0.3]'s rule read from
  * Marinara's side.
  *
  * **`messages.content` is the active swipe's current text; its swipe row is
@@ -590,7 +590,7 @@ function indexOf(row: Row): number {
 }
 
 /**
- * ***A group's settings*** — [P13 §2.6]'s three Marinara rows and its muted
+ * ***A group's settings*** — [P14 §2.6]'s three Marinara rows and its muted
  * members, read as Marinara reads them at generation, which is what the chat
  * actually did:
  *
@@ -649,7 +649,7 @@ function roleOf(value: unknown): ChatMessage['role'] | undefined {
     case 'assistant':
       return 'character';
     /**
-     * *Both are narration* — [P13 §2.2]'s *"Marinara `role: 'narrator' |
+     * *Both are narration* — [P14 §2.2]'s *"Marinara `role: 'narrator' |
      * 'system'`"*: Marinara sends each as the `system` role, unattributed.
      */
     case 'system':
@@ -662,7 +662,7 @@ function roleOf(value: unknown): ChatMessage['role'] | undefined {
 
 /**
  * ***What the lines had that a session does not keep***, each a count and a
- * note naming the chat — [P13 §2.6]'s *"everything else is a note, never
+ * note naming the chat — [P14 §2.6]'s *"everything else is a note, never
  * silence"*.
  */
 function noteCounts(
@@ -705,7 +705,7 @@ function noteCounts(
   }
   /**
    * *Hidden from some characters and not others* — Marinara's
-   * `hiddenFromAICharacterIds` ([P13 §0.5]). A turn here is hidden or not,
+   * `hiddenFromAICharacterIds` ([P14 §0.5]). A turn here is hidden or not,
    * for every speaker, so these lines are shown to all of them, and the note
    * says so because it changes what some character's call is sent.
    */
@@ -728,7 +728,7 @@ function noteCounts(
     });
   }
   /**
-   * *The prose guardian's rewrites* — [P13 §2.6]: *"nothing to carry: the
+   * *The prose guardian's rewrites* — [P14 §2.6]: *"nothing to carry: the
    * imported text is the edited one, and the original is noted"*.
    */
   if (counts.rewritten > 0) {
@@ -768,9 +768,9 @@ function noteCounts(
 
 /**
  * ***What the chat's metadata keeps that this stage does not bring*** — the
- * rolling summary ([P13 §2.6]'s *"Marinara rolling summaries"*, a note).
+ * rolling summary ([P14 §2.6]'s *"Marinara rolling summaries"*, a note).
  * ~~And the agents: switches, trackers and the secret plot, which wait on
- * [P13.5a]'s channels.~~ The trackers' switches came at [P13.5a]
+ * [P14.5a]'s channels.~~ The trackers' switches came at [P14.5a]
  * (`trackers.ts`, which also notes the agents that are still to come).
  */
 function noteChatState(
@@ -791,7 +791,7 @@ function noteChatState(
       level: 'info',
     });
   }
-  // The agents' switches are `trackers.ts`'s now ([P13.5a]), and so is the
+  // The agents' switches are `trackers.ts`'s now ([P14.5a]), and so is the
   // note about the agents that are not trackers.
 }
 

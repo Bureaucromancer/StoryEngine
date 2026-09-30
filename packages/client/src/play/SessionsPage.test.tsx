@@ -712,8 +712,8 @@ describe('saving the configuration as a setup', () => {
 });
 
 /**
- * ***Creation picks characters, and each member's opening*** — [P13 §1.8],
- * [P13.5]. Before this the form picked a persona only, so every session it
+ * ***Creation picks characters, and each member's opening*** — [P14 §1.8],
+ * [P14.5]. Before this the form picked a persona only, so every session it
  * made had an empty cast; a chat with nobody in it is a narrator talking to an
  * empty room.
  */

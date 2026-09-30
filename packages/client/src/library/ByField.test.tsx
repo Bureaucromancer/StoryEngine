@@ -134,7 +134,7 @@ describe('an object rendered field by field', () => {
       fieldValue(section.parentElement ?? section, 'Body'),
     );
 
-    // Each section's *body*, not the whole section: since P13.3 a section has
+    // Each section's *body*, not the whole section: since P14.3 a section has
     // an optional `placement` (a card's depth prompt), which is genuinely
     // absent on these four and rightly reads "Not set".
     expect(bodies.length).toBeGreaterThan(0);

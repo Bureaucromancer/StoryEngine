@@ -10,8 +10,8 @@ import { CARD_PARTS, cardSwitch, skippedParts } from './chat.js';
 
 /**
  * ***A card's own prompt fields, one switch each*** —
- * [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5]: *"Both toggles live in the session-settings panel, and the
+ * [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5]: *"Both toggles live in the session-settings panel, and the
  * card toggles also appear on each member's cast row, because that is where a
  * person looks when one character misbehaves."* So this renders in both, and
  * is one component so the two cannot disagree about what a switch writes.

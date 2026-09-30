@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAutoMode } from './useAutoMode.js';
 
 /**
- * Auto-mode's clock — [P13 §1.8], [P13.5]. Fake timers and a probe, as
+ * Auto-mode's clock — [P14 §1.8], [P14.5]. Fake timers and a probe, as
  * `useDebouncedInput.test.tsx` pins its debounce and for its reason: the
  * boundary is a statement about milliseconds, and a real-timer test of it is a
  * flaky one.

@@ -389,11 +389,11 @@ describe('what a newer build wrote', () => {
 });
 
 /**
- * ***A chat, and everything [P13.0] added to the record, from one install to
+ * ***A chat, and everything [P14.0] added to the record, from one install to
  * another*** —
- * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * and P13.0's own *Ends at*: *"a turn with three attributed messages and a
+ * [P14 §1.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * and P14.0's own *Ends at*: *"a turn with three attributed messages and a
  * hidden index exports and imports unchanged."*
  *
  * **Unchanged by `importSession`'s own rules**, which are the only changes an
@@ -438,7 +438,7 @@ describe('a chat that travels', () => {
     /**
      * *Written into the file*, as a hand edit or the settings panel would: the
      * routes that set these arrive with the stages that give them behaviour
-     * ([P13.4]'s hide routes, [P13.5]'s panel), and what this proves is the
+     * ([P14.4]'s hide routes, [P14.5]'s panel), and what this proves is the
      * record, not a route.
      */
     const settings = {

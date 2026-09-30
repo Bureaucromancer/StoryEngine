@@ -147,13 +147,13 @@ describe('the default preset is a real portable object', () => {
 
   /**
    * ~~*Nothing else is a user-role block*~~ — *and the card's post-history
-   * instructions* since [P13.3], which [P13 §1.5] places *"after the last
+   * instructions* since [P14.3], which [P14 §1.5] places *"after the last
    * message, user role"*. They follow the input in sequence, so they are the
    * last thing a speaking call sends.
    */
   it('positions the player action, and after it only the card’s post-history instructions', () => {
     const user = SCENE_PRESET.blocks.filter((block) => block.role === 'user');
-    // The established state is a user block too since [P13.5a], and it sits in
+    // The established state is a user block too since [P14.5a], and it sits in
     // the history — before the move, not after it — so the claim holds.
     expect(user.map((block) => block.id)).toEqual(['se.state', 'se.input', 'se.card.post-history']);
     expect(user[0]?.placement).toEqual({ at: 'in-history', fromEnd: 0 });
@@ -167,7 +167,7 @@ describe('the default preset is a real portable object', () => {
    * to every kind of call, and an impersonation asks for exactly what it
    * forbids — the player's own words.
    *
-   * ***Keyed to the voice since [P13.3]***, ~~`['narrate']`~~: `narrate` is the
+   * ***Keyed to the voice since [P14.3]***, ~~`['narrate']`~~: `narrate` is the
    * call kind of the embodied reply too. Neither voice is ever set on an
    * impersonation, so the 2026-09-27 narrowing holds.
    */
@@ -182,7 +182,7 @@ describe('the default preset is a real portable object', () => {
   });
 
   /**
-   * ***The card's own prompts, placed as [P13 §1.5]'s table says*** — [P13.3].
+   * ***The card's own prompts, placed as [P14 §1.5]'s table says*** — [P14.3].
    * The system prompt directly after the instruction, the depth prompt in the
    * history, the post-history instructions after the move; all three `voiced`,
    * so a per-actor call carries its speaker's and a merged call everyone's.
@@ -212,7 +212,7 @@ describe('the default preset is a real portable object', () => {
    */
   it('names who each persona and actor block is about', () => {
     // The card's own prompts are the card's words, bare, and are not among
-    // these ([P13.3]): a wrapper round *"You are Vera"* would be ours.
+    // these ([P14.3]): a wrapper round *"You are Vera"* would be ours.
     const named = SCENE_PRESET.blocks.filter(
       (block) =>
         block.kind === 'slot' &&
@@ -334,11 +334,11 @@ describe('what Scene declares, and what the engine does with it', () => {
       EXPRESSION_CHANNEL,
       LOCATION_CHANNEL,
       // The trackers, their switches, locks, hidden fields and cadence —
-      // [P13.5a]; `tracking.test.ts` holds them to their own claims.
+      // [P14.5a]; `tracking.test.ts` holds them to their own claims.
       ...TRACKING_CHANNELS,
-      // The secret plot, its switch, reveal and cadence — [P13.5b], `plot.test.ts`.
+      // The secret plot, its switch, reveal and cadence — [P14.5b], `plot.test.ts`.
       ...PLOT_CHANNELS,
-      // The editor's and the echo chamber's — [P13.5c], `edit.test.ts`, `echo.test.ts`.
+      // The editor's and the echo chamber's — [P14.5c], `edit.test.ts`, `echo.test.ts`.
       ...EDIT_CHANNELS,
       ...ECHO_CHANNELS,
     ]);
@@ -471,7 +471,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     // **[P7] is where they arrive**, so two of these moved and the rest did not:
     // the line was never *stay at one* but *do not grow before the contract is
     // tested by two modes*. `presets`, `setup`, `participants` and `inputs` are
-    // still what §5 left them. ~~`participants` too~~ — [P13.3] declared Scene's
+    // still what §5 left them. ~~`participants` too~~ — [P14.3] declared Scene's
     // group chat, and the pin on it is the declared-values test below.
     expect(SCENE.presets).toEqual([]);
     expect(SCENE.setup).toEqual({ kind: 'none' });
@@ -491,10 +491,10 @@ describe('what Scene declares, and what the engine does with it', () => {
     // The fourth is the backdrop's own switch, added at [P9.4] — beside the
     // staging toggle rather than over the picture, because a control floating
     // on a backdrop is a control competing with the thing it controls. The
-    // rest are [P13.5a]'s: six tracker cards in the panel, and six switches
-    // and the cadence in settings — then [P13.5b]'s secret plot: its switch and
+    // rest are [P14.5a]'s: six tracker cards in the panel, and six switches
+    // and the cadence in settings — then [P14.5b]'s secret plot: its switch and
     // cadence in settings, its reveal and its card in the panel — then
-    // [P13.5c]'s editor (five settings) and echo chamber (two settings, a card).
+    // [P14.5c]'s editor (five settings) and echo chamber (two settings, a card).
     expect(SCENE.surfaces.map((one) => one.region)).toEqual([
       'stage',
       'message',
@@ -554,7 +554,7 @@ describe('what Scene declares, and what the engine does with it', () => {
     ]);
     for (const step of SCENE.steps) expect(typeof SCENE_MODE.run[step.id]).toBe('function');
     // `pre` first — the secret plot steers this turn's reply — then `generate`
-    // before `post`: the editor first of the `post` steps ([P13.5c]), so the
+    // before `post`: the editor first of the `post` steps ([P14.5c]), so the
     // stager, the trackers and the echo chamber read the prose as edited.
     expect(SCENE.steps.map((step) => step.stage)).toEqual([
       'pre',
@@ -568,8 +568,8 @@ describe('what Scene declares, and what the engine does with it', () => {
 
   /**
    * ~~*Says narrator and merged, and the instruction block agrees*~~ — ***the
-   * declared values and the pack agreeing with them***, [P13.3]
-   * ([P13 §1.2]: *"Scene's declared values become `embodied`, `per-actor`,
+   * declared values and the pack agreeing with them***, [P14.3]
+   * ([P14 §1.2]: *"Scene's declared values become `embodied`, `per-actor`,
    * `natural`"*). The pin was always the pair, not the values: a declaration the
    * pack contradicts is decoration. So it pins what a new session is created
    * with, and that the pack has an instruction for that voice **and** for the
@@ -605,16 +605,16 @@ describe('what Scene declares, and what the engine does with it', () => {
   });
 
   /**
-   * ***A Scene session from before P13.0 reads as what it was played as*** —
-   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * and half of [P13.0]'s *Ends at*.
+   * ***A Scene session from before P14.0 reads as what it was played as*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * and half of [P14.0]'s *Ends at*.
    *
    * Pinned against literals rather than against `SCENE.voice` and friends, and
-   * that is the test: those move when P13 flips Scene's declared values, and
+   * that is the test: those move when P14 flips Scene's declared values, and
    * this must not move with them, or every Scene session somebody has played
    * would be re-voiced by the flip.
    */
-  it('keeps what a pre-P13 session was played as: narrator, merged, fixed', () => {
+  it('keeps what a pre-P14 session was played as: narrator, merged, fixed', () => {
     expect(SCENE.legacy).toEqual({ voice: 'narrator', dispatch: 'merged', select: 'fixed' });
   });
 });
@@ -695,8 +695,8 @@ describe('the pacing prose this pack ships', () => {
 });
 
 /**
- * ***How the generate step speaks*** — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.2]. Against a host that records what it was asked, which is all a mode
+ * ***How the generate step speaks*** — [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.2]. Against a host that records what it was asked, which is all a mode
  * can see of the engine: the loop's order, which member each call named, and
  * what the step returned. What a speaking call *does* — the re-scoped prompt,
  * the round, the cleanup — is the engine's, and `runner-dispatch.test.ts`

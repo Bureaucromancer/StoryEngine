@@ -16,14 +16,14 @@ import {
 } from './chat-settings.js';
 
 /**
- * ***What a session plays as, and what a session from before P13.0 still
+ * ***What a session plays as, and what a session from before P14.0 still
  * plays as*** —
- * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.0].
+ * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.0].
  *
  * The case that costs somebody their story is the second: a mode whose
  * declared values moved, and a session written before they did. So the fixture
- * mode below has **already moved** — it declares P13's Scene values and
+ * mode below has **already moved** — it declares P14's Scene values and
  * carries the old ones as `legacy` — which is the only arrangement in which
  * reading the wrong one shows up as a wrong answer rather than the same one.
  */
@@ -104,11 +104,11 @@ describe('which values a session reads', () => {
   });
 
   /**
-   * ***The Scene that ships, and the other half of P13.0's *Ends at*.*** Read
+   * ***The Scene that ships, and the other half of P14.0's *Ends at*.*** Read
    * through the registry rather than a fixture, so it is the mode a real
    * session resolves.
    */
-  describe('a Scene session from before P13.0', () => {
+  describe('a Scene session from before P14.0', () => {
     beforeAll(async () => {
       await installBuiltIns();
     });
@@ -127,10 +127,10 @@ describe('which values a session reads', () => {
     });
 
     /**
-     * ***Now that the values moved*** — [P13.3] flipped Scene to an embodied,
+     * ***Now that the values moved*** — [P14.3] flipped Scene to an embodied,
      * per-actor, natural chat, and this is the flip's whole safety argument
      * run against the mode that ships: an old file is still narrated, a file
-     * made between P13.0 and the flip keeps the narrator values creation wrote
+     * made between P14.0 and the flip keeps the narrator values creation wrote
      * into it, and only a session made from now on is a chat.
      */
     it('keeps every earlier session narrated after Scene became a chat', () => {
@@ -158,7 +158,7 @@ describe('which values a session reads', () => {
 });
 
 /**
- * ***When the author's note is placed*** — `noteDue`, [P13.3], transcribed
+ * ***When the author's note is placed*** — `noteDue`, [P14.3], transcribed
  * from SillyTavern's `setFloatingPrompt` (`authors-note.js:324-392`): the count
  * is the player's messages including the one being answered.
  */
@@ -189,7 +189,7 @@ describe('a session made now', () => {
   /**
    * *The declared values, never the legacy ones*: those describe old files, and
    * a session made today is not one. Written explicitly, which is what makes
-   * *none of the three* mean *made before P13.0*.
+   * *none of the three* mean *made before P14.0*.
    */
   it('is created with the mode’s declared values, all three written down', () => {
     expect(chatSettingsAtCreation(MOVED)).toEqual({
@@ -265,10 +265,10 @@ describe('a file somebody edited by hand', () => {
   });
 
   /**
-   * ***`smart` is a policy a session may hold since [P13.1]***, which built
+   * ***`smart` is a policy a session may hold since [P14.1]***, which built
    * its arm — before that a file naming it fell to the default, because a
    * vocabulary with no implementation behind it would have been a promise the
-   * record could not keep. `fixed` stays readable beside it: a pre-P13 Scene
+   * record could not keep. `fixed` stays readable beside it: a pre-P14 Scene
    * session reads as `fixed`, and one written down says so.
    */
   it('reads smart order, and still reads fixed', () => {
@@ -295,7 +295,7 @@ describe('a file somebody edited by hand', () => {
 
   /**
    * ***An interval of 0 or less is SillyTavern's "disabled"*** —
-   * `note_interval <= 0`, *"0 = Disable, 1 = Always"* — and [P13 §2.6] copies
+   * `note_interval <= 0`, *"0 = Disable, 1 = Always"* — and [P14 §2.6] copies
    * it across as it is. The falsifying mutation is the old reading, which took
    * it for malformed and put the note on every input: the opposite of what it
    * says. Switched off, not dropped: the text is still there to switch back on.

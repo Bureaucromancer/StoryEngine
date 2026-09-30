@@ -15,8 +15,8 @@ import { readSession } from '../sessions/store.js';
 
 /**
  * ***`PUT /sessions/:id/chat`*** — the session-settings half of
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5]. `setChatSettings` carries the argument for what a write
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5]. `setChatSettings` carries the argument for what a write
  * does; this is the shape of the request and the one refusal it can meet.
  *
  * ***Every member optional, at least one sent*** — `SessionPatch`'s posture: a

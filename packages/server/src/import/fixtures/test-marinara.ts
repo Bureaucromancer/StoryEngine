@@ -158,7 +158,7 @@ const LOREBOOK_ENTRIES = [
 
 /**
  * ***The chats*** —
- * [P13.10](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * Rows in the stored shape (`db/schema/chats.ts` at the pin): `characterIds`,
  * `metadata` and every `extra` as JSON **text**, a `message_swipes` row for
@@ -169,7 +169,7 @@ const LOREBOOK_ENTRIES = [
  * What each chat is here to prove:
  * - **`chat_1`**, a single-character roleplay whose third message was swiped
  *   and then **edited**: its message row holds the edit, and the active swipe's
- *   own row still holds the text from before it ([P13 §0.3], `setActiveSwipe`
+ *   own row still holds the text from before it ([P14 §0.3], `setActiveSwipe`
  *   only syncs the row when switching away). One narrator line is hidden from
  *   the model (`hiddenFromAI`).
  * - **`chat_2`**, a **branch** of `chat_1` (`branchParentChatId`), copied as
@@ -178,7 +178,7 @@ const LOREBOOK_ENTRIES = [
  *   then played differently. One session with the prefix once, two refs.
  * - **`chat_group`**, a three-member roleplay played individually with manual
  *   order and names in history; its third member is inactive, as is a member
- *   no longer in the chat, whom nothing may mute ([P13 §2.6]). Its user line
+ *   no longer in the chat, whom nothing may mute ([P14 §2.6]). Its user line
  *   is a **conversation start**, so the two replies before it were never sent
  *   again and come in hidden. Its rolling summary (`hideSummarisedMessages`)
  *   hid one later reply, which comes in visible because the summary does not;
@@ -187,7 +187,7 @@ const LOREBOOK_ENTRIES = [
  * - An orphaned message in `orphaned-rows.json`, counted and not imported.
  * - A `.json.bak` beside a message shard and a swipe shard, as Marinara keeps
  *   one beside every shard: the same rows again, which must not double them.
- * - *Since [P13.5a]*, `chat_1` runs three trackers manually and its messages
+ * - *Since [P14.5a]*, `chat_1` runs three trackers manually and its messages
  *   carry tracker snapshots — see {@link SNAPSHOTS}.
  */
 const at = (minute: number): string => new Date(Date.UTC(2026, 7, 2, 21, minute)).toISOString();
@@ -359,7 +359,7 @@ function chatRow(
 }
 
 /**
- * ***The trackers' state*** — [P13.5a], [P13 §2.6]'s *"`game_state_snapshots`
+ * ***The trackers' state*** — [P14.5a], [P14 §2.6]'s *"`game_state_snapshots`
  * row for a message's swipe"*.
  *
  * Rows in the stored shape (`db/schema/game-state.ts`): every list and object
@@ -482,10 +482,10 @@ const CHATS = [
     'roleplay',
     ['char_vera'],
     {
-      // Three trackers on, and only when asked — [P13.5a]; and the director
-      // keeping a secret plot, revisited every ten messages — [P13.5b]; and the
+      // Three trackers on, and only when asked — [P14.5a]; and the director
+      // keeping a secret plot, revisited every ten messages — [P14.5b]; and the
       // prose guardian with its own banned words, not holding, the echo
-      // chamber, and immersive HTML, which is not built — [P13.5c].
+      // chamber, and immersive HTML, which is not built — [P14.5c].
       enableAgents: true,
       activeAgentIds: [
         'world-state',
@@ -540,7 +540,7 @@ const CHATS = [
 ];
 
 /**
- * ***The director's memory*** — [P13.5b], [P13 §2.6]'s *"`agent_memory`
+ * ***The director's memory*** — [P14.5b], [P14 §2.6]'s *"`agent_memory`
  * `overarchingArc` → `se.plot.secret` on the root chat's head turn"*. The
  * arc is JSON text, as `setMemory` stores it; the branch's own arc does not
  * come (the session opens on the root's head), and a row of the director's
@@ -657,7 +657,7 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
     ]),
     '.encryption-key': 'not a real key, and not one that should be read either',
 
-    // The chats ([P13.10]): the chat rows flat, and the messages and swipes in
+    // The chats ([P14.10]): the chat rows flat, and the messages and swipes in
     // the sharded layout, one shard per chat — which proves the reader handles
     // both — each with a `.bak` beside one shard, plus the shard of rows
     // Marinara could not place.
@@ -672,9 +672,9 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
     'storage/tables/messages/chat_2.json': json(BRANCH.messages),
     'storage/tables/messages/chat_group.json': json(GROUP.messages),
     'storage/tables/messages/chat_dm.json': json(DM.messages),
-    // The trackers' state ([P13.5a]), flat.
+    // The trackers' state ([P14.5a]), flat.
     'storage/tables/game_state_snapshots.json': json(SNAPSHOTS),
-    // The director's secret plot ([P13.5b]), flat.
+    // The director's secret plot ([P14.5b]), flat.
     'storage/tables/agent_memory.json': json(AGENT_MEMORY),
     'storage/tables/messages/orphaned-rows.json': json([
       {

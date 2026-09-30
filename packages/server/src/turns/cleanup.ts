@@ -3,8 +3,8 @@
 
 /**
  * ***A group reply, cleaned as both sources clean one*** —
- * [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
- * point 3, built at [P13.2].
+ * [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * point 3, built at [P14.2].
  *
  * A model asked to write one member's reply in a group does two things often
  * enough that both sources ship a remedy for each: it **labels the reply with
@@ -36,7 +36,7 @@
  * the text is cut at the first line that opens with another member's name
  * followed by a colon, and then the speaker's own label goes from the start
  * of every line — ST's per-line strip, taken whole (~~the speaker's own
- * leading label~~, *corrected 2026-09-29, at the [P13.2] review*: only the
+ * leading label~~, *corrected 2026-09-29, at the [P14.2] review*: only the
  * first line's went, and a reply written as a script kept `Vera:` on every
  * line after it). The cut runs first, so a reply that opens `Vera: Lund:`
  * keeps Lund's name as words Vera said, where stripping first would have cut

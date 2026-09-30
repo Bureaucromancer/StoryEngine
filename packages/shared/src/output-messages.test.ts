@@ -8,8 +8,8 @@ import type { OutputMessage } from './turn.js';
 
 /**
  * ***`text` is derived, and both directions agree*** —
- * [P13 §1.1](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §1.1](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.0](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * What these hold to account is the promise §1.1 makes to every reader that
  * predates `messages`: search, the summary chain, the memory extractor and an
@@ -41,7 +41,7 @@ describe('joinMessageTexts', () => {
   });
 
   it('leaves out a message that said nothing, so no blank line doubles', () => {
-    // A per-actor reply cleanup cut to nothing ([P13.2] review, 2026-09-29).
+    // A per-actor reply cleanup cut to nothing ([P14.2] review, 2026-09-29).
     expect(
       joinMessageTexts([
         { speaker: null, text: 'A' },
@@ -67,7 +67,7 @@ describe('outputFromMessages', () => {
   });
 
   /**
-   * ***`original` is kept and never joined*** — [P13 §1.1]. It is what the
+   * ***`original` is kept and never joined*** — [P14 §1.1]. It is what the
    * model returned before cleanup or the editor changed it, and `text` is what
    * the transcript shows; a derivation that joined `original` would put the
    * unedited reply back into everything that reads `text`.
@@ -106,7 +106,7 @@ describe('outputMessagesOf', () => {
   });
 
   /**
-   * ***Every turn written before P13.0 reads as one narrator message*** — and
+   * ***Every turn written before P14.0 reads as one narrator message*** — and
    * `null` is an answer rather than a gap: a merged reply spoken by nobody in
    * particular is what the narrator is.
    */
@@ -124,11 +124,11 @@ describe('outputMessagesOf', () => {
   });
 
   /**
-   * ***The two directions are inverses on the case they share.*** A pre-P13
+   * ***The two directions are inverses on the case they share.*** A pre-P14
    * turn read as messages and written back out is the turn it was, which is
    * what lets a later writer handle every turn one way.
    */
-  it('round-trips a pre-P13 output through messages unchanged', () => {
+  it('round-trips a pre-P14 output through messages unchanged', () => {
     for (const output of [{ text: 'Plain.' }, { text: 'Plain.', reasoning: 'Why.' }]) {
       const { messages, ...derived } = outputFromMessages(outputMessagesOf(output));
       expect(derived).toEqual(output);

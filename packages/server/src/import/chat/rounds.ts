@@ -5,8 +5,8 @@ import type { ChatMessage } from './types.js';
 
 /**
  * ***A round is a turn*** —
- * [P13 §2.2](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * which follows [P13 §1.1](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+ * [P14 §2.2](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * which follows [P14 §1.1](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
  * exactly, *"so an import is a session Part A could have produced"*.
  *
  * A turn here is one node however many messages it emits
@@ -35,7 +35,7 @@ import type { ChatMessage } from './types.js';
  *
  * ***Nothing is dropped, hidden lines included.*** A hidden line is placed like
  * any other and the builder hides it afterwards. That is forced by
- * [P13 §2.7] as much as chosen: hiding is mutable session state there, and an
+ * [P14 §2.7] as much as chosen: hiding is mutable session state there, and an
  * *unhide* in SillyTavern has to arrive on the next import as a changed flag on
  * the same turn. If hiding moved round boundaries, an unhide would change the
  * rounds, and so the turn ids, and a sync would fork the session over a ghost

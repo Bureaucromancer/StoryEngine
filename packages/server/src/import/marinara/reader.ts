@@ -185,7 +185,7 @@ export class MarinaraReader implements SourceReader {
 
   /**
    * ***The chats, as one candidate*** —
-   * [P13.10](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * **One candidate for the three tables, not one per chat**, because what a
    * chat *is* here is a question about more than one row: a branch is a
@@ -217,9 +217,9 @@ export class MarinaraReader implements SourceReader {
         swipes,
         characters: await this.#rows('characters'),
         personas: await this.#rows('personas'),
-        // The trackers' state per message and swipe — [P13 §2.6], [P13.5a].
+        // The trackers' state per message and swipe — [P14 §2.6], [P14.5a].
         snapshots: await this.#rows('game_state_snapshots'),
-        // The director's secret plot per chat — [P13 §2.6], [P13.5b].
+        // The director's secret plot per chat — [P14 §2.6], [P14.5b].
         memory: await this.#rows('agent_memory'),
       },
     });

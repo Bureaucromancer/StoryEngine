@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://storyengine.dev/schemas/storyengine.actor.1.json",
   "title": "Actor",
-  "description": "A character. Deliberately absent as fields: system_prompt, post_history_instructions, depth_prompt, talkativeness and scenario. Prompt assembly is owned by the preset and the mode, not by the description of a person. Since P13.3 the three prompt fields arrive as sections (se.card.system, se.card.post-history, se.card.depth) that a preset places or does not, and talkativeness in modeData, so the rule holds. mes_example is no longer among them: it lands in writingSamples, which a preset slot still positions and budgets, so the rule holds and only the container changed. Per-session numbers live in channels and must never appear here.",
+  "description": "A character. Deliberately absent as fields: system_prompt, post_history_instructions, depth_prompt, talkativeness and scenario. Prompt assembly is owned by the preset and the mode, not by the description of a person. Since P14.3 the three prompt fields arrive as sections (se.card.system, se.card.post-history, se.card.depth) that a preset places or does not, and talkativeness in modeData, so the rule holds. mes_example is no longer among them: it lands in writingSamples, which a preset slot still positions and budgets, so the rule holds and only the container changed. Per-session numbers live in channels and must never appear here.",
   "type": "object",
   "required": [
     "schema",

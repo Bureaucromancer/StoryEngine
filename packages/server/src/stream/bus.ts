@@ -32,7 +32,7 @@ export interface Listener {
   onEvents(jobId: string, events: readonly ProgressEvent[]): void;
   /**
    * `message` is the turn's message a speaking call's text belongs to —
-   * [P13.2]; see {@link TurnStream.delta}. Absent for everything else.
+   * [P14.2]; see {@link TurnStream.delta}. Absent for everything else.
    */
   onDelta(jobId: string, text: string, message?: number): void;
   /**
@@ -55,7 +55,7 @@ export interface Listener {
    */
   onRendition(rendition: Rendition): void;
   /**
-   * The summary chain's warm moved — [P13.11], [18 §7.5]'s cliff.
+   * The summary chain's warm moved — [P14.11], [18 §7.5]'s cliff.
    *
    * ***Optional, and that is the one listener method that is.*** A warm is
    * news a surface may show — *the story so far is being read* — and nothing a
@@ -67,7 +67,7 @@ export interface Listener {
 }
 
 /**
- * ***Where a session's summary warm is***, whole — [P13.11].
+ * ***Where a session's summary warm is***, whole — [P14.11].
  *
  * **Counts rather than a delta, for the rendition frame's reason**: a warm has
  * no sequence and no draft, so each frame is the whole state and a listener
@@ -175,7 +175,7 @@ export class TurnStream implements EventSink {
   }
 
   /**
-   * Tells a session's watchers where its summary warm is — [P13.11]. Nothing
+   * Tells a session's watchers where its summary warm is — [P14.11]. Nothing
    * is accumulated, for `rendition`'s reason: the frame is the whole state.
    */
   summaries(warm: SummaryWarm): void {
@@ -187,15 +187,15 @@ export class TurnStream implements EventSink {
   /**
    * One piece of streamed text.
    *
-   * ***`message` since [P13.2]***: the index into the turn's `output.messages`
+   * ***`message` since [P14.2]***: the index into the turn's `output.messages`
    * that a speaking call is filling, so a surface that paints a round as
    * separate messages knows which one a piece belongs to. **Absent on text that
    * belongs only to the turn's joined text** — a narrator's reply, which is not
    * a message of its own until it lands, and the blank line the runner sends
    * between two speakers so that a reader appending every piece to one string
-   * (this class's `#live`, and every client written before P13.2) builds ~~the
+   * (this class's `#live`, and every client written before P14.2) builds ~~the
    * same `output.text` the turn will commit~~ the turn's `output.text` up to
-   * cleanup (*corrected 2026-09-29, at the [P13.2] review*): a speaker's reply
+   * cleanup (*corrected 2026-09-29, at the [P14.2] review*): a speaker's reply
    * can settle shorter than it streamed, and the joined pieces keep what was
    * cut. `#live` is put right by {@link TurnStream.rebase} when that happens; a
    * client already appending keeps the raw text until the turn lands. A
@@ -211,7 +211,7 @@ export class TurnStream implements EventSink {
 
   /**
    * ***Replaces a job's accumulated text with the round's settled text*** —
-   * [P13.2] review, 2026-09-29.
+   * [P14.2] review, 2026-09-29.
    *
    * The live cell is what a reattaching client's snapshot is built from, and
    * attach prefers it to the draft. Once cleanup has shortened a speaker's

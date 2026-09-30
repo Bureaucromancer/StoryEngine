@@ -79,7 +79,7 @@ describe('loading the built-in modes', () => {
   });
 
   it('registers the mode chats are imported into, the second literal the registry holds', () => {
-    // [P13.8]: `CHAT_IMPORT_MODE_ID` is a literal for `DEFAULT_MODE_ID`'s
+    // [P14.8]: `CHAT_IMPORT_MODE_ID` is a literal for `DEFAULT_MODE_ID`'s
     // reason — the engine may not import the mode's own constant — so it needs
     // the same meeting place to be held to a mode that exists. Checked against
     // the real packages rather than a fake, which is the whole of what this

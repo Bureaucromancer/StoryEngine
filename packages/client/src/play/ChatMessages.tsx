@@ -16,8 +16,8 @@ import { Portrait } from './Portrait.js';
 
 /**
  * ***A turn, drawn as the chat it is*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5].
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5].
  *
  * *"The transcript is a chat. For each message: the speaker's portrait and
  * name, and the persona's for the input; the reasoning, collapsed; the swipe
@@ -26,14 +26,14 @@ import { Portrait } from './Portrait.js';
  * That list is this component, row for row.
  *
  * **For every turn of a chat**, `output.messages` or not. A turn written
- * before P13 — or a narrated one — arrives as one narrator message
+ * before P14 — or a narrated one — arrives as one narrator message
  * (`outputMessagesOf`), drawn as narration: no portrait and no name, because
  * giving a paragraph by nobody a bubble would be claiming a shape the record
  * does not have. It is drawn here rather than as `TurnView`'s prose all the
  * same, because hide, edit, branch and delete are the chat's gestures on every
  * line of it, and a narrator-voice chat is nothing but such turns.
  *
- * ***Every gesture is a sibling, and that is [P13 §1.6]'s design rather than a
+ * ***Every gesture is a sibling, and that is [P14 §1.6]'s design rather than a
  * limitation.*** An edit is a turn written by hand beside this one; a continue
  * and a swipe are siblings carrying what they did not redo; a branch at a
  * message is an edit that stops there. The original stays on the tree, and the
@@ -73,7 +73,7 @@ const WORDS = labels('play.chat', {
 /**
  * ***What the model wrote, a click away*** — shared with the prose view, where
  * a narrated turn the editor changed keeps `output.original` rather than
- * becoming a message ([P13.5c]).
+ * becoming a message ([P14.5c]).
  */
 export function EditedOriginal({ text }: { text: string }) {
   return (
@@ -93,7 +93,7 @@ export interface ChatGestures {
   /** Hide or unhide one message (`index`), or the whole exchange (`null`). */
   onHide: (turn: TurnRecord, hide: boolean, index: number | null) => void;
   onBranch: (turn: TurnRecord, index: number) => void;
-  /** [P13 §1.6]'s *Delete*: the head moves to the turn's parent. */
+  /** [P14 §1.6]'s *Delete*: the head moves to the turn's parent. */
   onDelete: (turn: TurnRecord) => void;
   /**
    * A line's edit box opened (`true`) or closed. **Stable across renders** —
@@ -265,7 +265,7 @@ function MessageLine(props: {
   head: boolean;
   narrated: boolean;
   counters: string[][];
-  /** What an editor found in this line and left for a person ([P13.5c]). */
+  /** What an editor found in this line and left for a person ([P14.5c]). */
   notices: RevisionNotice[];
   busy: boolean;
   gestures: ChatGestures;
@@ -315,7 +315,7 @@ function MessageLine(props: {
           <p className="whitespace-pre-wrap text-sm text-ink-subtle">{message.reasoning}</p>
         </details>
       )}
-      {/* ***Edited, and the original a click away*** — [P13 §1.9.4]: the
+      {/* ***Edited, and the original a click away*** — [P14 §1.9.4]: the
           editor's rewrite (or cleanup's trim) is the line; what the model
           wrote is `original`, offered, never shown in its place. */}
       {message.original === undefined ? null : <EditedOriginal text={message.original} />}
@@ -420,7 +420,7 @@ function MessageLine(props: {
             {WORDS.branch}
           </Button>
         )}
-        {/* ***Delete, once per turn, on its last line*** — [P13 §1.6]: the head
+        {/* ***Delete, once per turn, on its last line*** — [P14 §1.6]: the head
             moves to the turn's parent and the turn stays as a sibling nobody is
             on, so it is the whole exchange that goes, not one message. */}
         {props.last ? (
@@ -451,7 +451,7 @@ function MessageLine(props: {
 }
 
 /**
- * ***The swipe counter, on the message it belongs to*** — [P13 §1.6]. A count
+ * ***The swipe counter, on the message it belongs to*** — [P14 §1.6]. A count
  * and two steps, which is what SillyTavern draws there; naming a line stays on
  * the turn's own strip, because a name is about a node, not a message.
  */

@@ -16,8 +16,8 @@ import type {
 /**
  * ***The echo chamber*** — side reactions from the other characters, shown
  * beside the chat —
- * [P13 §1.9.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5c].
+ * [P14 §1.9.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5c].
  *
  * *"Built as a panel fed by a cadence step, since it never touches the
  * story."* So: a `post` step writing one channel, `se.echo`, which **no prompt

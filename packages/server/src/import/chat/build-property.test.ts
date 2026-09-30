@@ -26,7 +26,7 @@ import type {
 
 /**
  * ***The tree builder's proof obligation*** —
- * [P13.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+ * [P14.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
  * *"a set of property tests over generated families, because hand-written
  * fixtures are linear."*
  *
@@ -38,20 +38,20 @@ import type {
  * generated — a root chat and up to three branches, each a prefix of an earlier
  * chat (the root or another branch) plus rounds of its own, which is what
  * SillyTavern's `createBranch` and Marinara's branch copy both write
- * ([P13 §0.1]) — and the claims are asserted over all of them:
+ * ([P14 §0.1]) — and the claims are asserted over all of them:
  *
  * - (a) **shared prefixes collapse**: two chats sharing *k* rounds share
  *   exactly *k* nodes, and fork after them;
  * - (b) **parents precede children in id order**, which is what makes
  *   `importSession`'s append-in-file-order safe;
  * - (c) **the same input gives byte-identical output**;
- * - (d) **two accounts produce disjoint ids** ([P13 §2.4]'s *already-here*);
+ * - (d) **two accounts produce disjoint ids** ([P14 §2.4]'s *already-here*);
  * - (e) **the head's path is the root chat**, one turn per round;
  * - (f) **a built document loads through the real `importSession`**, and the
  *   loaded session's head walks back to a root;
  * - (g) **which swipe is showing moves no id**: a chat's last message switched
  *   to another of its swipes, as SillyTavern switches it, gives the same turns
- *   — the one thing [P13 §2.7]'s sync has to survive most often, since it is
+ *   — the one thing [P14 §2.7]'s sync has to survive most often, since it is
  *   what a person does between two imports.
  *
  * ***The generator keeps round boundaries knowable***, because (e) is only a

@@ -36,10 +36,10 @@ import type { Preset } from '@storyengine/sdk';
  * goes through — which is the assertion that caught `SlotSource` missing the
  * `guidance` arm that [06 §5.1] requires a preset to be able to position.
  *
- * ***One pack, two voices — [P13.3]***
- * ([P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+ * ***One pack, two voices — [P14.3]***
+ * ([P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
  * Scene became an embodied chat and kept narration one control away
- * ([P13 §1.2]), so this pack has to write both, and it does it with the one
+ * ([P14 §1.2]), so this pack has to write both, and it does it with the one
  * mechanism a pack already had for *"a different instruction per kind"*:
  * `appliesTo`. The collector matches a block against the call's **voice** as
  * well as its call kind and input kind — `narrator` on a call that speaks for
@@ -52,11 +52,11 @@ import type { Preset } from '@storyengine/sdk';
  *   told *"you are Vera"*;
  * - everything else — the persona, the cards' sections, the lore, the samples,
  *   the history, the goal and guidance — is both voices', and the card blocks
- *   come **speaker first** on a speaking call ([P13.2]'s `castFor`).
+ *   come **speaker first** on a speaking call ([P14.2]'s `castFor`).
  *
- * ***The pre-P13 narrator pack is not lost, and needs no second constant.***
+ * ***The pre-P14 narrator pack is not lost, and needs no second constant.***
  * Every session carries its own copy of the pack it was created with
- * (`SessionFile.preset`), so a pre-P13 session's copy still says
+ * (`SessionFile.preset`), so a pre-P14 session's copy still says
  * `appliesTo: ['narrate']` on its one instruction, and `presetOf` adds only the
  * blocks it lacks — each of which applies to `embodied` alone, or to both
  * voices as its existing siblings do. The narrator's words themselves are
@@ -81,7 +81,7 @@ export const SCENE_PRESET: Preset = {
      * session keeps the pack it was created with, so older sessions still
      * carry the wide one; the impersonation instruction answers for those.
      *
-     * ***The narrated voice's, since [P13.3]*** — `appliesTo: ['narrator']`,
+     * ***The narrated voice's, since [P14.3]*** — `appliesTo: ['narrator']`,
      * ~~`['narrate']`~~. Scene's pack serves both voices, and says which block
      * is whose through the collector's third match key, the call's voice
      * (`CollectContext.voice`): `narrator` on a call that speaks for nobody,
@@ -93,7 +93,7 @@ export const SCENE_PRESET: Preset = {
      * ***Sessions made before this keep `['narrate']`*** — the pack is a copy,
      * and a copy follows the shipped pack in what it adds, not in what it
      * changes (`presetOf`). Those sessions are narrated (`legacy`, or the
-     * narrator values P13.0 wrote at creation), and there the two keys pick the
+     * narrator values P14.0 wrote at creation), and there the two keys pick the
      * same calls. One of them switched to `embodied` by hand would get this
      * instruction beside the embodied one, and *Switch to the mode's own* is
      * the repair — said here because it is the one way the old key shows.
@@ -115,14 +115,14 @@ export const SCENE_PRESET: Preset = {
         "You are the narrator of a scene. Write what happens next in third person, past tense. Describe only what the player could perceive. Never write the player's own dialogue, thoughts or decisions, and never end by asking what they do.",
     },
     /**
-     * ***The embodied chat's instruction*** — [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * [P13.3].
+     * ***The embodied chat's instruction*** — [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.3].
      *
      * **The sense of SillyTavern's default main prompt, in our words**:
      * *"Write {{char}}'s next reply in a fictional chat between
      * {{charIfNotGroup}} and {{user}}"* (`openai.js:101`). It **names the
      * speaker as the one to write** — `{{ char }}` is the speaker on a speaking
-     * call ([P13.2]), so under `per-actor` each call names its own member.
+     * call ([P14.2]), so under `per-actor` each call names its own member.
      *
      * ***And in a group, the group nudge*** — ST's *"[Write the next reply only
      * as {{char}}.]"* (`openai.js:114`) and Marinara's *"Respond ONLY as"*
@@ -133,9 +133,9 @@ export const SCENE_PRESET: Preset = {
      * then every other member, muted ones included, because a muted member is
      * still somebody the reply must not speak as (`assembly/template.ts`).
      *
-     * ***Under `per-actor` dispatch only*** (2026-09-29, the [P13.3] review).
+     * ***Under `per-actor` dispatch only*** (2026-09-29, the [P14.3] review).
      * ~~In a group~~ — a `merged` call is one reply that may voice every member
-     * ([P13 §1.4], `mode.ts`), and telling it to write only as its first
+     * ([P14 §1.4], `mode.ts`), and telling it to write only as its first
      * speaker and leave the rest to speak for themselves asked for the one
      * thing merged dispatch is not. The names cannot tell the two calls apart,
      * so the template reads the session's `dispatch`, the one setting in its
@@ -165,7 +165,7 @@ export const SCENE_PRESET: Preset = {
     },
     /**
      * ***The card's own system prompt, stacked after the instruction*** —
-     * [P13 §1.5]'s table: *"directly after the pack's instruction: the more
+     * [P14 §1.5]'s table: *"directly after the pack's instruction: the more
      * specific voice speaks last among the system blocks"*.
      *
      * **Stacked rather than replacing**, which is §1.5's decision against ST's
@@ -456,7 +456,7 @@ export const SCENE_PRESET: Preset = {
       omitWhenEmpty: true,
       kind: 'slot',
       /**
-       * ***`voiced`, since [P13.3]*** — [P13 §1.5]'s *"example dialogue… scoped
+       * ***`voiced`, since [P14.3]*** — [P14 §1.5]'s *"example dialogue… scoped
        * to the speaker"*. Under `per-actor` an example of how Lund talks is no
        * help writing Vera; under `merged`, and to a narrator, every present
        * member's examples are, as before. `speaker` would have starved the
@@ -470,8 +470,8 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
-     * ***The secret plot*** — [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * added at [P13.5b]: *"it reaches the narrator through a channel slot
+     * ***The secret plot*** — [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5b]: *"it reaches the narrator through a channel slot
      * placed with the system blocks"*. Marinara puts its *Secret plot* system
      * message just before the first chat message
      * (`appendSecretPlotSystemMessage`); here that is the last of the system
@@ -563,8 +563,8 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
-     * ***What the story has established, once*** — [P13 §1.9.2], added at
-     * [P13.5a]: every tracker a person switched on, each present character's
+     * ***What the story has established, once*** — [P14 §1.9.2], added at
+     * [P14.5a]: every tracker a person switched on, each present character's
      * included, as one block.
      *
      * **Before the history's last message, as Marinara counts it** —
@@ -607,7 +607,7 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
-     * ***The card's depth prompt, at its own depth*** — [P13 §1.5]'s table: a
+     * ***The card's depth prompt, at its own depth*** — [P14 §1.5]'s table: a
      * card's `extensions.depth_prompt`, *"at its declared depth and role
      * (default 4, `system`)"*.
      *
@@ -764,7 +764,7 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
-     * ***The card's post-history instructions, last*** — [P13 §1.5]'s table:
+     * ***The card's post-history instructions, last*** — [P14 §1.5]'s table:
      * *"in history at depth 0, user role, after the last message"*. ST sends
      * them after the chat; Marinara at depth 0 as the user
      * (`macro-context.ts:806`).
@@ -906,7 +906,7 @@ export const SCENE_PRESET: Preset = {
     },
   ],
   /**
-   * ***What a push says when the director could not be asked*** — [P13.5b],
+   * ***What a push says when the director could not be asked*** — [P14.5b],
    * `Preset.pushDirections`. Marinara's two fixed directives
    * (`generate.routes.ts:5754-5763`), in this pack's words: the scene has
    * stalled, so move it on — through what it already has, or through

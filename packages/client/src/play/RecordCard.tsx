@@ -15,8 +15,8 @@ import { disclosure } from '../ui/classes.js';
 
 /**
  * ***A structured value, read and edited field by field*** — the `record`
- * widget arm, [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5a]. Scene's tracker cards are its first consumers; it knows
+ * widget arm, [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5a]. Scene's tracker cards are its first consumers; it knows
  * none of them.
  *
  * ***It reads a declaration, not a schema.*** Each field names a property and
@@ -30,7 +30,7 @@ import { disclosure } from '../ui/classes.js';
  * value, changed where the person changed it, through `PUT /sessions/:id/
  * channels/:key` — an engine turn with a `user` effect, which is what makes a
  * correction branch-correct and undoable, and what makes *Marinara's manual
- * override simply the latest effect* ([P13 §1.9.2]). A lock or a hide is the
+ * override simply the latest effect* ([P14 §1.9.2]). A lock or a hide is the
  * same write to the set the widget names. So the card gains no authority: the
  * channel's schema and `update` policy still decide, and a refused value is
  * said beside the card rather than swallowed.
@@ -38,7 +38,7 @@ import { disclosure } from '../ui/classes.js';
  * **Held locally while editing, written on Save**, as the author's note is:
  * a tracker is several fields of one value, and a write per keystroke would be
  * an engine turn per keystroke, each undoable on its own. *A checkbox on an
- * objective writes at once* — ticking a box is the whole edit, and [P13 §1.9.2]
+ * objective writes at once* — ticking a box is the whole edit, and [P14 §1.9.2]
  * asks for *"quests with checkable objectives"*, not for a form around them.
  *
  * ***Hidden is the reader's, not the narrator's*** (`se.track.hidden`'s
@@ -789,7 +789,7 @@ const COLUMN_WORDS: Readonly<Record<string, string>> = {
 /**
  * Named rows — a name and one or two more columns — with add and remove.
  * *Which names exist is the person's to say*, which is the custom tracker's
- * whole contract ([P13 §1.9.2]: *"whose names a person defines"*).
+ * whole contract ([P14 §1.9.2]: *"whose names a person defines"*).
  */
 function Rows(props: {
   rows: Json[];

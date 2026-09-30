@@ -54,19 +54,19 @@ import type { FileSource, ImportCandidate } from './source.js';
 
 /**
  * ***The doors a chat comes in by, and the one path they share*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §2.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §2.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * §2.1 names four ways in — a folder sweep, a zip, a Marinara profile, one
  * uploaded `.jsonl` — and one way out: *foreign → `SessionExport` →
  * `importSession`*. This is the middle of that sentence for SillyTavern's chat
  * file, and every door calls it rather than doing it again:
  *
- * 1. **Parse** (`sillytavern/chat.ts`, P13.7) — the bytes into a chat, what its
+ * 1. **Parse** (`sillytavern/chat.ts`, P14.7) — the bytes into a chat, what its
  *    header says, and what was lost reading it.
  * 2. **Resolve** (`chat/resolve.ts`) — the chat's names against this account's
  *    library, through {@link libraryLookup}.
- * 3. **Build** (`chat/build.ts`, P13.6) — one family into one session document.
+ * 3. **Build** (`chat/build.ts`, P14.6) — one family into one session document.
  * 4. **Load** (`sessions/import.ts`) — the document into a new session, by the
  *    same reader that loads another install's export, which is §2.1's whole
  *    argument: a second writer of sessions would be a second opinion about what
@@ -76,15 +76,15 @@ import type { FileSource, ImportCandidate } from './source.js';
  * cards and chats reads as one list: `converted` with the new session's id and
  * everything the four steps noted; `converted` too, naming the session it
  * extended, when the family was imported before and has grown or changed in
- * its source since ([P13 §2.7], [P13.10a], {@link syncRow}); `unchanged` when
+ * its source since ([P14 §2.7], [P14.10a], {@link syncRow}); `unchanged` when
  * it has not; `unrecognised` with the reason when the file will not read.
  * One chat that will not load is one row, and the sweep goes on around it —
  * the poisoned-file rule ([21 §4.1.1]) applied to conversations.
  *
- * ***A family is one session*** ([P13 §2.5], [P13.9]). A sweep groups a
+ * ***A family is one session*** ([P14 §2.5], [P14.9]). A sweep groups a
  * character folder's chats — and `group chats/`, by each group's list — by
  * `main_chat` into families (`sillytavern/families.ts`), keyed by the root
- * chat's bare path ([P13 §2.7]'s `originalFilename`, `chat/types.ts`), and
+ * chat's bare path ([P14 §2.7]'s `originalFilename`, `chat/types.ts`), and
  * builds each family as one session whose shared prefix exists once. A group
  * chat's roster, reply strategy, self-responses and muted members come from
  * `groups/<id>.json` beside it. A chat arriving alone, through
@@ -122,14 +122,14 @@ export function libraryLookup(context: LibraryContext, handle: string): ChatLibr
  * `path` is the file's place in its source — `chats/Vera/Vera - 2024.jsonl`
  * under a swept tree, the bare file name for an upload — and is the chat's
  * identity three times over: the parser reads whose chat it is from it, the
- * family is keyed by it, and every turn id hashes it ([P13 §2.4]). So the same
+ * family is keyed by it, and every turn id hashes it ([P14 §2.4]). So the same
  * file must arrive under the same path to be recognised as already here, and a
  * tree swept after its chats were uploaded one by one is a different family.
  * That is the frozen form of `ChatFamily.key`, not a choice made here.
  *
  * *A file on its own is a family on its own.* Its `main_chat`, if it has one,
  * names a chat that did not come with it, so it is a root with its parent
- * missing ([P13 §2.5]) and the builder says so; a group chat's `groups/<id>.json`
+ * missing ([P14 §2.5]) and the builder says so; a group chat's `groups/<id>.json`
  * did not come either, so it plays on Scene's defaults with its roster read off
  * its lines, and a note says that too. {@link importChats} is where a folder's
  * chats find each other.
@@ -170,7 +170,7 @@ export async function importChatFile(
       {
         family,
         hints: hintsOf([meta]),
-        // *The header's say about how the chat is played* ([P13 §2.6]) — for
+        // *The header's say about how the chat is played* ([P14 §2.6]) — for
         // one file, its author's note, and for a Marinara export its group's
         // settings as the profile path reads them.
         settings: {
@@ -185,10 +185,10 @@ export async function importChatFile(
 }
 
 /**
- * ***A Marinara export's group settings*** — [P13 §0.4]: the per-chat export is
+ * ***A Marinara export's group settings*** — [P14 §0.4]: the per-chat export is
  * SillyTavern JSONL with the chat's metadata under
  * `chat_metadata.marinara_metadata`, which the parser carries unread so that
- * [P13.10] maps it once (`sillytavern/chat.ts`). This is that once: the same
+ * [P14.10] maps it once (`sillytavern/chat.ts`). This is that once: the same
  * {@link marinaraGroupSettings} the profile path uses.
  *
  * *The members are whoever spoke*, in the order they first did, because the
@@ -292,7 +292,7 @@ async function loadFamily(
     resolved.resolution,
     // The account's handle is hashed into every turn id, so two people
     // importing one chat get disjoint sessions and neither learns the other
-    // has it ([P13 §2.4]).
+    // has it ([P14 §2.4]).
     { account: door.handle, now: new Date().toISOString(), modeId: CHAT_IMPORT_MODE_ID },
     input.settings,
   );
@@ -316,8 +316,8 @@ async function loadFamily(
   const notes: ImportNote[] = [...input.notes, ...resolved.notes, ...building];
 
   /**
-   * ***The card's scenario, linked*** — found at [P13.12] (*"an imported chat
-   * session sends no scenario"*), fixed at [P13.5c]. SillyTavern sends a
+   * ***The card's scenario, linked*** — found at [P14.12] (*"an imported chat
+   * session sends no scenario"*), fixed at [P14.5c]. SillyTavern sends a
    * character's `scenario` on every turn of its chats; the sweep turns that
    * text into a Treatment, and until this the chat door linked none, so
    * `se.treatment` was `empty-source` on every imported chat. Written on the
@@ -338,7 +338,7 @@ async function loadFamily(
   try {
     const result = await importSession({ sessions: door.sessions }, door.handle, built.document, {
       // A chat is a source that goes on changing, so a second import of it
-      // extends the session the first one made ([P13 §2.7], [P13.10a]).
+      // extends the session the first one made ([P14 §2.7], [P14.10a]).
       extend: true,
     });
     if (result.ok && result.extended === true) {
@@ -362,7 +362,7 @@ async function loadFamily(
      * ***Already here, and not this chat's to extend.*** With `extend` asked
      * for, `importSession` refuses only when the turns are held by a session
      * it would not extend — another source's, or one it could not read. Until
-     * [P13.10a] this was every re-import, and a chat grown since was
+     * [P14.10a] this was every re-import, and a chat grown since was
      * `recorded` with its new turns left out; now a grown chat extends its
      * session and never reaches here. What does is a copy of turns that are
      * already somewhere: `unchanged` when every one is, the refusal otherwise.
@@ -454,7 +454,7 @@ function scenarioTreatmentOf(
 }
 
 /**
- * ***A re-import, as the review's row*** — [P13 §2.7], [P13.10a].
+ * ***A re-import, as the review's row*** — [P14 §2.7], [P14.10a].
  *
  * `appended: 0` with nothing else carried across is `unchanged`: the same
  * chat, as it was. Anything written — a turn, a ref, an unhidden line, a
@@ -551,7 +551,7 @@ export interface ChatPass {
  *    bytes; then each chat file is read and parsed once for what grouping
  *    needs — its name, its `main_chat`, when it began ({@link ChatHeading}) —
  *    and let go.
- * 2. *Families* (`sillytavern/families.ts`, [P13.9]): the headings grouped by
+ * 2. *Families* (`sillytavern/families.ts`, [P14.9]): the headings grouped by
  *    `main_chat` within their folder, and each group chat's family matched to
  *    its group.
  * 3. *Sessions*: each family's files read again, in the family's order, and
@@ -581,14 +581,14 @@ export interface ChatPass {
  *   nothing to apply its roster and settings to;
  * - **a branch whose parent was not read** (`skipped`) — the parent is in the
  *   source but over the limit or refused, and the branch waits for it rather
- *   than coming in under ids it would not have beside it ([P13 §2.4]).
+ *   than coming in under ids it would not have beside it ([P14 §2.4]).
  */
 export async function importChats(
   pass: ChatPass,
   everything: readonly ImportCandidate[],
 ): Promise<ImportItemReport[]> {
   /**
-   * *A Marinara store's chats are one candidate of their own* ([P13.10]), read
+   * *A Marinara store's chats are one candidate of their own* ([P14.10]), read
    * by their own pass below and answered after SillyTavern's. One sweep holds
    * one source, so in practice the two lists never both have something in them.
    */
@@ -698,7 +698,7 @@ export async function importChats(
   }
   /**
    * *Two families of one group are named apart.* A group's family is named
-   * after the group ([P13 §2.5]), which is what the person called it; a group
+   * after the group ([P14 §2.5]), which is what the person called it; a group
    * that started over — a new chat, not a branch — is a second family of the
    * same group, and two sessions both called the group's name would be one name
    * for two things in Play's list. Such a family is named by its chat too.
@@ -866,7 +866,7 @@ function rosterOf(
 }
 
 /**
- * ***How the family is played*** ([P13 §2.6]): the root chat's author's note,
+ * ***How the family is played*** ([P14 §2.6]): the root chat's author's note,
  * and a group's strategy, self-responses and muted members from its file.
  */
 function settingsOf(meta: SillyTavernChatMeta, group: SillyTavernGroup | null): ChatSettings {
@@ -890,7 +890,7 @@ function settingsOf(meta: SillyTavernChatMeta, group: SillyTavernGroup | null): 
  *
  * ***It says applied only of what was.*** Members and settings go into a
  * new session when it is written, and into a session already here through
- * [P13.10a]'s sync, which takes what the source changed since the last import
+ * [P14.10a]'s sync, which takes what the source changed since the last import
  * and keeps what was changed here ({@link syncRow}). So `groupRead` counts the
  * sessions made, and `groupSynced` the sessions already here that the group
  * was compared with — each of whose own rows says what, if anything, came
@@ -971,19 +971,19 @@ function groupRow(
 }
 
 // ---------------------------------------------------------------------------
-// Marinara — [P13.10]
+// Marinara — [P14.10]
 // ---------------------------------------------------------------------------
 
 /**
  * ***A Marinara store's chats, as sessions*** —
- * [P13.10](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.10](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The same three steps as SillyTavern's pass over a different first one: the
  * store reader has already read the tables, so there is nothing to read twice
  * and nothing to hold back; `marinara/chat.ts` joins them into chats,
  * `marinara/families.ts` groups the roleplay chats by `branchParentChatId`, and
  * each family is resolved, built and loaded by {@link loadFamily} — the one
- * path every door shares ([P13 §2.1]).
+ * path every door shares ([P14 §2.1]).
  *
  * ***A row per chat***, `storage/tables/chats.json#<id>`, which is what the
  * review had instead a row per message shard before this stage:
@@ -991,7 +991,7 @@ function groupRow(
  *   building it said, and each branch's row says whose branch it is and points
  *   at the same session, as SillyTavern's do;
  * - a **conversation** or **game** chat is `recorded`, with a note that says why
- *   ([P13 §2.6]);
+ *   ([P14 §2.6]);
  * - **messages whose chat is not in the store** are one `skipped` row for the
  *   table, counted — they have no chat to be lines of.
  *
@@ -1083,7 +1083,7 @@ async function importMarinaraChats(
         family,
         hints: persona === undefined ? {} : { persona },
         // The root's, as SillyTavern's pass takes the root's: the session opens
-        // on the root chat's head ([P13 §2.5]), so it opens as that chat played.
+        // on the root chat's head ([P14 §2.5]), so it opens as that chat played.
         // *Read against the family's roster*, though, not the root's members: a
         // solo root whose branch became a group is a group session, and it
         // plays as Marinara plays a group whose metadata never said otherwise —
@@ -1091,9 +1091,9 @@ async function importMarinaraChats(
         settings: {
           ...(roster.length > 1 ? marinaraGroupSettings(root.chat.metadata, roster) : {}),
           // The root's tracker switches, for its group settings' reason —
-          // [P13 §2.6], [P13.5a]. Written on the opening turns.
+          // [P14 §2.6], [P14.5a]. Written on the opening turns.
           ...(root.chat.state.length === 0 ? {} : { state: root.chat.state }),
-          // The root's secret plot, on the head the session opens at — [P13.5b].
+          // The root's secret plot, on the head the session opens at — [P14.5b].
           ...(root.chat.plot.length === 0 ? {} : { headState: root.chat.plot }),
         },
         notes: [...plan.chats.flatMap(({ chat }) => chat.notes), ...plan.notes],

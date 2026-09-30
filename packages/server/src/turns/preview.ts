@@ -102,7 +102,7 @@ export interface PreviewRequest {
  * One function so P7's per-step surfaces have a single place to change, and so
  * the answer's `stepId` and the call it previewed cannot come apart.
  *
- * *Corrected 2026-09-29, at [P13.5b]*: `role` is which model a step binds,
+ * *Corrected 2026-09-29, at [P14.5b]*: `role` is which model a step binds,
  * not what it writes, and every Scene step asks `prose` for [25 C15]'s reason.
  * While the narrator was Scene's first step the two readings agreed; the
  * secret plot's `pre` pass, declared ahead of it, is a `prose`-role call that
@@ -119,6 +119,12 @@ export function previewStepFor(mode: Mode): StepDefinition | null {
     null
   );
 }
+
+/**
+ * The kind a move is when it does not say — the one default a submission and
+ * its preview share, so they cannot drift apart.
+ */
+export const DEFAULT_INPUT_KIND = 'do';
 
 export async function previewAssembly(
   context: PreviewContext,
@@ -186,7 +192,7 @@ export async function previewAssembly(
   }
 
   /**
-   * ***Whose call this is*** — [P13.3], and the answer to [P13.2]'s *"the
+   * ***Whose call this is*** — [P14.3], and the answer to [P14.2]'s *"the
    * preview still assembles one merged call"*.
    *
    * **The first speaker's call, as the turn would make it.** Under an embodied
@@ -327,7 +333,14 @@ export async function previewAssembly(
 
   const collected = collectFor(inputs, {
     callKind: step.callKind,
-    ...(request.input?.kind === undefined ? {} : { inputKind: request.input.kind }),
+    /**
+     * ***The kind a submission would get*** (2026-09-27). Absent, this left the
+     * collector with no kind at all, and a pack whose input slots are all
+     * per-kind — Freeform's are — then previewed a prompt with neither the
+     * draft's words nor its pictures, while the turn defaulted to `do` and
+     * sent both.
+     */
+    ...(request.input === undefined ? {} : { inputKind: request.input.kind ?? DEFAULT_INPUT_KIND }),
     lore: lore.blocks,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
@@ -369,7 +382,7 @@ export async function previewAssembly(
         refused: lore.refused,
         picturesPresent,
         // So the first speaker's model hint applies as the turn's would: under
-        // `per-actor` only ([P13.2], `planCall`).
+        // `per-actor` only ([P14.2], `planCall`).
         dispatch: chat.dispatch,
       },
       speaker === undefined ? {} : { speaker },

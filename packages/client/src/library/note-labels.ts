@@ -143,6 +143,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    */
   'import.backup.tagsMerged': 'Brought {added} tags across and kept {kept} that were already here.',
   'import.backup.sessions': 'Brought {imported} sessions across, and left {skipped}.',
+  'import.backup.picturesNotStored':
+    '{count} pictures on players’ moves could not be written here. Their moves keep their captions.',
   'import.backup.connectionsTaken':
     'Brought {added} connections across and kept {kept} that were already here.',
   'import.backup.connectionsNotTaken':
@@ -268,13 +270,15 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.aventuras.lorebookEntries': 'Read as an Aventuras lorebook: {count} entries.',
   'import.aventuras.entryStateRecorded':
     '{count} entries carried tracked state from a story in progress. It is kept as it was and nothing reads it here.',
+  'import.aventuras.repeatedNpcNames':
+    '{count} characters in this scenario shared a name with an earlier one. Each was kept as its own actor.',
 
   /**
    * **A chat, imported as a session** —
-   * [P13.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * [P14.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
    * tree builder, for both sources.
    *
-   * [P13 §2.6] ends on *"everything else is a note, never silence"*, and these
+   * [P14 §2.6] ends on *"everything else is a note, never silence"*, and these
    * are the places where the session is not quite the chat: a speaker the
    * library does not have, a hidden line with no exact home, a branch whose
    * parent never arrived. `hiddenInputShown` and `hiddenDisagrees` are the ones
@@ -301,7 +305,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * **One chat file, read** —
-   * [P13.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * [P14.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
    * SillyTavern JSONL parser, which also reads Marinara's per-chat export.
    *
    * *Every one names its chat*, because a family's notes are read together: a
@@ -329,7 +333,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * **A chat, found against the library and loaded as a session** —
-   * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+   * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
    * resolver and the doors that share it.
    *
    * `imported` is the row's first sentence because the disposition beside it
@@ -362,8 +366,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * **Sync: a chat imported before, brought up to date** —
-   * [P13.10a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13 §2.7].
+   * [P14.10a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14 §2.7].
    *
    * `extended` is the row's first sentence, as `imported` is a first import's:
    * where the chat went, and how much came. The rest are each one thing sync
@@ -396,7 +400,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * **Families and groups** —
-   * [P13.9](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14.9](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * A SillyTavern branch or checkpoint is its own file, and a family of them is
    * one session; `inFamily` is the row of every file but the family's first,
@@ -409,7 +413,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * `groupChatsClaimed` because two groups claiming one chat means one of them
    * was not applied. `groupRead` counts the sessions made from the group's
    * chats; `groupSynced` those already here, which sync compared the group
-   * with ([P13.10a]).
+   * with ([P14.10a]).
    */
   'import.chat.inFamily':
     '“{chat}” is a branch of “{family}”, and came in as a branch of that session.',
@@ -442,10 +446,10 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * **A Marinara store's chats** —
-   * [P13.10](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14.10](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    * Read from its tables rather than a file, so these are the things a table
    * row keeps that a session does not: another kind of chat, rows with no chat,
-   * and the per-message and per-chat state [P13 §2.6] lists as a note. The
+   * and the per-message and per-chat state [P14 §2.6] lists as a note. The
    * agents' state is the one that is a stage away rather than a choice — it
    * arrives with the tracker and director channels — and the label says so.
    */
@@ -476,7 +480,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * **The editor and the echo chamber** —
-   * [P13.5c](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14.5c](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    * Their switches and settings come; the two agents that are not built each
    * say why, in a sentence a person can act on.
    */
@@ -493,7 +497,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
 
   /**
    * **The trackers' state** —
-   * [P13.5a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14.5a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    * What came across is counted; what did not is said, each with why. The
    * models are the one a Marinara user will look for: they are global there,
    * so here the trackers run on the session's own model roles.

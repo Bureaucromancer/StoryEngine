@@ -2857,6 +2857,12 @@ pixels only when the source carries them), where they were counted and dropped.
 The tests behind row 10 now use a second test server, where they used the same
 one.
 
+*Reproduced independently the next day by [P13 §0.4](30-p13-aventuras-import.md)*,
+which fixed it by re-minting the turn ids instead; that fix was set aside for
+this one when the two branches met, 2026-09-29. P13 §0.4 keeps its account of
+the mechanism — including the Illustrate that re-rendered the original's
+picture — because it was found from a different door.
+
 ### P11.11 — Backup and restore
 
 ***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:

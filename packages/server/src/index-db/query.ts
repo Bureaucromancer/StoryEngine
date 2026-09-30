@@ -223,7 +223,7 @@ export function findByName(
 
 /**
  * ***Every live object of one kind in one library called exactly this*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * name fallback, where a chat names a speaker the library has no import stamp
  * for.
  *
@@ -231,7 +231,7 @@ export function findByName(
  * {@link findByName} rather than a variation on it. That function answers a
  * `Ref` whose id went stale, where the reference was already made and the
  * question is only which copy to follow — so the unshadowed winner is right.
- * Here nothing has been referenced yet, and [P13 §2.5] asks for a **unique**
+ * Here nothing has been referenced yet, and [P14 §2.5] asks for a **unique**
  * match: two characters called *Vera* is no match at all, because choosing one
  * would be the import inventing an answer. So the caller counts, and this has
  * to hand it everything to count.

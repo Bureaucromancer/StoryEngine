@@ -25,7 +25,7 @@ import { sweep } from './sweep.js';
 
 /**
  * ***The fixture pair, for chats*** —
- * [P13.12](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.12](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * `fixture-pair.test.ts` exists because a card importer and a preset importer
  * convert opposite ends of one format and can each be right while disagreeing,
@@ -52,7 +52,7 @@ import { sweep } from './sweep.js';
  *
  * *The cards are the fixtures' own, given prompts.* The shared trees' cards
  * carry no `system_prompt`, `post_history_instructions` or depth prompt —
- * they were written at P4, before [P13.3] gave those fields a destination —
+ * they were written at P4, before [P14.3] gave those fields a destination —
  * so a pair test over them could not tell *the sections are unreachable* from
  * *there was nothing to place*. They are overridden here rather than in the
  * shared trees, whose cards other tests count and compare.
@@ -107,7 +107,7 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 /**
- * The three prompt fields [P13.3] routes into sections, each saying `{{char}}`
+ * The three prompt fields [P14.3] routes into sections, each saying `{{char}}`
  * as a card does — so the assertion also sees the card's own name written in.
  */
 function cardPrompts(name: string): Record<string, unknown> {
@@ -230,15 +230,15 @@ function leadingCard(blocks: readonly AssembledBlock[]): string | undefined {
  * background — and a card with none of them is honestly empty there, not a
  * conversion that missed. What a V2 card and a chat do carry is named here:
  * the persona the chat was locked to, the description and personality, the
- * three [P13.3] prompt sections, the history the chat became, and the input.
+ * three [P14.3] prompt sections, the history the chat became, and the input.
  *
  * ~~***Not `se.treatment`, and that is a gap rather than a reading.*** The
  * sweep turns a card's `scenario` into a treatment, and the chat door links
  * none to the session it builds, so the slot is empty on every imported chat
  * while SillyTavern sends the scenario every turn. Nothing in the plan says
- * which is right; the P13.12 as-built note records it, and naming it here would
+ * which is right; the P14.12 as-built note records it, and naming it here would
  * make this gate red over a decision nobody has taken.~~ ***`se.treatment`
- * since [P13.5c]***, which took the decision: the session pass links the
+ * since [P14.5c]***, which took the decision: the session pass links the
  * treatment the sweep made from the cast's card scenario, as SillyTavern sends
  * it, so the slot is fed and this gate says so.
  */
@@ -305,7 +305,7 @@ function assertThePairMeets(
   }
 
   // **The card's prompt sections fill — the speaker's, and only theirs**:
-  // `voiced` scopes them to the speaker under per-actor ([P13.3]). Written in
+  // `voiced` scopes them to the speaker under per-actor ([P14.3]). Written in
   // the card's own name, and post-history last of all.
   const system = blocks.find((block) => block.id === `se.card.system.${expected.speaker}`);
   expect(system?.text).toBe(
@@ -375,10 +375,10 @@ const jsonl = (lines: readonly Line[]): string =>
 const at = (minute: number): string => new Date(Date.UTC(2026, 0, 2, 20, minute)).toISOString();
 
 /**
- * A card with the corpus card's words and [P13.3]'s three prompts. Vera's
+ * A card with the corpus card's words and [P14.3]'s three prompts. Vera's
  * `scenario` is kept, so the sweep makes the treatment it always has — which
- * ~~the session it imports then does not link (the P13.12 as-built note)~~ the
- * session it imports links, since [P13.5c].
+ * ~~the session it imports then does not link (the P14.12 as-built note)~~ the
+ * session it imports links, since [P14.5c].
  */
 function stCard(name: string, description: string, personality: string, scenario = ''): Uint8Array {
   return withChunks(makePng(), [
@@ -584,7 +584,7 @@ const CHATS = 'storage/tables/chats.json#';
 const CHARACTERS = 'storage/tables/characters.json';
 
 /**
- * The corpus's character rows with [P13.3]'s prompts in each card — the
+ * The corpus's character rows with [P14.3]'s prompts in each card — the
  * double-encoded `data` column read, extended and written back, as the store
  * keeps it.
  */

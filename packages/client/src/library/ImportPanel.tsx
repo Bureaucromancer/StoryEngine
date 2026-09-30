@@ -92,27 +92,30 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   marinara: 'A Marinara data folder. Ready to import.',
   'marinara-archive': 'A Marinara profile archive. Ready to import.',
   'marinara-envelope': 'A Marinara export file. Ready to import.',
+  charx: 'An unpacked CHARX character card. Ready to import.',
+  'storyengine-backup':
+    'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
   'loose-files':
     'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
 });
 
 /**
  * ***What chats brought to this panel*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * - **`intro`** replaces the panel's opening line, which named cards, lorebooks
  *   and presets and would otherwise go on describing an import that now also
  *   makes sessions.
  * - **`copy`** stands where the stage's one sentence goes, and **is not that
- *   sentence yet**. [P13.8] asks the surface to say once what an update from
- *   source does and does not do ([P13 §2.7]); there is no update to describe
- *   until [P13.10a]'s sync, and a sentence about one would be false today. So
+ *   sentence yet**. [P14.8] asks the surface to say once what an update from
+ *   source does and does not do ([P14 §2.7]); there is no update to describe
+ *   until [P14.10a]'s sync, and a sentence about one would be false today. So
  *   this says what is true of this build instead: a chat is a new session;
  *   updating it comes later; the same chat imported again the same way changes
  *   nothing, and the review says so when it has grown since; and the same chat
  *   by two doors is two sessions, because a folder keys a chat by its place in
  *   the folder and a lone upload by its bare file name. The departure is
- *   recorded in the stage's report and proposed as a note under P13.8 in the
+ *   recorded in the stage's report and proposed as a note under P14.8 in the
  *   phase document, which is where it is settled. Once, and here, rather than
  *   on every row — each row that meets it already says so in its own note.
  * - The rest are the folder upload's one question — *also send the chats?* —
@@ -198,7 +201,7 @@ type Outcome =
   | { kind: 'report'; report: ImportReport }
   /**
    * ***A picked folder with chats in it, waiting for the one question*** —
-   * [P13.8]. The plan came back without them and said what they would add;
+   * [P14.8]. The plan came back without them and said what they would add;
    * nothing has been sent, and nothing is until the person answers.
    *
    * `wanted` is that first plan's list, which is exactly what goes if chats
@@ -508,7 +511,7 @@ export function ImportPanel(): JSX.Element {
       setChecked({ ok: true, verdict: plan.verdict, suggestions: plan.suggestions });
 
       /**
-       * ***Chats wait for a word*** — [P13.8]. They are most of a SillyTavern
+       * ***Chats wait for a word*** — [P14.8]. They are most of a SillyTavern
        * tree's bytes, and a person who picked their data folder to bring in
        * their cards has not thereby asked to send years of conversation. So a
        * folder with chats in it stops here and asks, with the size on the
@@ -862,7 +865,7 @@ export function ImportPanel(): JSX.Element {
 const MEGABYTE = 1024 * 1024;
 
 /**
- * ***The folder upload's one question*** — [P13.8].
+ * ***The folder upload's one question*** — [P14.8].
  *
  * **In the flow, like the preview, and for the preview's reasons**: a pending
  * decision is a block below the controls rather than a dialog over them, and it

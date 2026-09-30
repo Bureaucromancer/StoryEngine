@@ -1371,7 +1371,10 @@ fixed:
 rendition by its id alone, and a rendition id is its turn's, which session
 import keeps — so two sessions on one install can hold the same ids.
 `STEPS[7]` adds `session_id` to each index and every lookup takes the pair
-([21 §7](../21-internal-contracts.md)).
+([21 §7](../21-internal-contracts.md)). *A data directory opened by the picture
+branch before it merged* numbered its own steps 6 and 7 differently and must be
+reset (`pnpm reset-data`, or `tools/reset-data.mjs`); only that branch's own
+builds could have made one, and no release did.
 
 ***And the half this stage's own notes described, which nothing did.*** Boot
 recovery abandoned live job rows and logged a count, and the record stayed

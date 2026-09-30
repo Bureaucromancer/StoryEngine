@@ -130,7 +130,7 @@ export interface SessionContext {
    */
   busy?: (sessionId: string) => boolean;
   /**
-   * ***A session arrived by import*** — [P13.11], [18 §7.5]'s cliff.
+   * ***A session arrived by import*** — [P14.11], [18 §7.5]'s cliff.
    *
    * `importSession` calls it after a first import and after every sync that
    * extended one, and `app.ts` answers it by warming the head path's summary
@@ -145,7 +145,7 @@ export interface SessionContext {
    */
   imported?: (handle: string, sessionId: string) => void;
   /**
-   * ***Stop deriving into a session that is going*** — [P13.11]. Awaited by
+   * ***Stop deriving into a session that is going*** — [P14.11]. Awaited by
    * `deleteSession` under the session's lock and before the folder moves,
    * because a warm's link written after the move would make
    * `sessions/<id>/summaries/` again beside the trashed one — the collision
@@ -341,13 +341,13 @@ export interface NewSession {
   goals?: Goal[];
   /**
    * ***How the session plays as a chat, written down at creation*** —
-   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13.0].
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.0].
    *
    * Taken from the mode's declared values at the route (`chatSettingsAtCreation`),
    * because the route is where the mode is resolved. **Written explicitly even
    * though absence would read the same today**, and that is the point: absence
-   * on a session made before P13.0 means *what the mode used to declare*
+   * on a session made before P14.0 means *what the mode used to declare*
    * (`ModeDefinition.legacy`), so a session made now has to say what it was made
    * with or it would be read as one of those — and re-voiced by the stage that
    * changes what the mode declares.
@@ -760,7 +760,7 @@ export async function advanceHead(
   turn: Turn,
   /**
    * ***The turn's hide entry, written with the head*** — `CommitExtras.hidden`,
-   * 2026-09-29 at the [P13.4] review: what a swipe, a continue or an edit
+   * 2026-09-29 at the [P14.4] review: what a swipe, a continue or an edit
    * carries from the turn it names. Absent leaves `session.hidden` as it is.
    */
   hidden?: true | readonly number[],
@@ -961,8 +961,8 @@ export async function moveHead(
   handle: string,
   sessionId: string,
   /**
-   * ***`null` is the root*** — the session before its first turn, [P13.4].
-   * [P13 §1.6]'s *Delete* is *"the head moves to the parent"*, and the parent
+   * ***`null` is the root*** — the session before its first turn, [P14.4].
+   * [P14 §1.6]'s *Delete* is *"the head moves to the parent"*, and the parent
    * of a first turn is nobody: without this, the one message a chat opens on
    * (the greeting, §1.7) was the one message nobody could delete. Every turn
    * stays where it was, a root nobody is on, and `resume` from the root goes
@@ -2007,9 +2007,9 @@ export async function addSessionGoal(
  * ***A field on the session and not a channel***, which §1.1 leans ~~and P7.3
  * decided the same way for voice and dispatch~~. *Corrected 2026-09-29: P7.3
  * decided nothing about them* — it deferred voice and dispatch to P7.9, whose
- * record never mentions them, and no session field existed until [P13.0] added
+ * record never mentions them, and no session field existed until [P14.0] added
  * both, the same way and for this reason
- * ([P13 §0.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+ * ([P14 §0.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
  * [06 §4](../../../../docs/design/06-modes-and-turn-pipeline.md)'s channels are
  * story state — things a turn changes and a rewind restores. A pack is
  * configuration: the runner reads it, no step writes it, and a rewind that

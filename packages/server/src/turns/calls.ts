@@ -173,7 +173,7 @@ export interface CallContext {
   cast?: { persona: CastMember | null; actors: readonly CastMember[] };
   /**
    * ***The session's dispatch, so a speaking call knows whether its speaker's
-   * hint applies*** — [P13.2], [06 §3].
+   * hint applies*** — [P14.2], [06 §3].
    *
    * 06 §3 consults an actor's `modelHint` *only under `per-actor`*: a merged
    * reply is the scene's, whoever it is attributed to, and a card asking for a
@@ -433,12 +433,12 @@ export function planCall(
    * `sessionOverride: undefined` is not the same as not passing it.
    */
   /**
-   * ***A speaking call resolves for its speaker*** — [P13.2]. `speaker` implies
+   * ***A speaking call resolves for its speaker*** — [P14.2]. `speaker` implies
    * the `actorId` P7.3 built for exactly this layer, so the member a call speaks
    * as is the member whose card's hint applies. The runner has already refused
    * a request naming two different actors, so at most one of these is a choice.
    *
-   * *Under `per-actor` only* (2026-09-29, [P13.2] review): 06 §3 consults a
+   * *Under `per-actor` only* (2026-09-29, [P14.2] review): 06 §3 consults a
    * hint only there, so a merged speaking call — Scene's embodied `merged`
    * reply, attributed to its first member but voicing the scene — resolves
    * with no hint, as every merged call did before it. An explicit `actorId` is
@@ -511,7 +511,7 @@ export function planCall(
     });
     return withheld === null ? { ...candidate, text: candidate.image.sentText } : candidate;
   });
-  const assembled = assemble({
+  const packed = assemble({
     candidates: needsPrompting(request.schema, provider.capabilities.supportsStructuredOutput)
       ? [...asked, schemaInstruction(request.schema)]
       : asked,
@@ -525,6 +525,22 @@ export function planCall(
       ? { refused: context.refused }
       : {}),
   });
+  /**
+   * ***A picture the budget dropped went neither way*** — decided before the
+   * budget ran, so said again after it, whatever it said before. The
+   * collector's pictures on the move being made are required and cannot be
+   * dropped; a step's own candidate can be, and so can a picture in history.
+   * Left as it was, the record said *Picture sent* over a block that never left,
+   * or *as words* over one whose words did not go either.
+   */
+  const assembled = {
+    ...packed,
+    blocks: packed.blocks.map((block) =>
+      block.image !== undefined && !block.included
+        ? { ...block, image: { ...block.image, sent: false, withheld: 'budget' as const } }
+        : block,
+    ),
+  };
   // A step that supplied its own candidates never consulted the preset, so
   // the not-filled list honestly empties rather than describing a collection
   // this call did not use ([P3.0] §7.5).
@@ -554,9 +570,13 @@ export function planCall(
  * The send rule, one picture at a time — [25 E15]. Null means *send the
  * pixels*; anything else is the reason the block records for not sending them.
  *
- * Ordered so the reason is the most fundamental one that applies: a kind this
- * build does not send is that before it is anything else, and a picture from
- * an earlier turn is outside the window whatever the model can see.
+ * ***When several reasons apply, the record names the one that choosing
+ * another model cannot fix*** — so the model comes last. A kind this build does
+ * not send, a picture from an earlier turn, a slot whose message cannot carry a
+ * picture and bytes that are not here would each still hold the picture back on
+ * a model that sees; *this model is not marked as seeing pictures* is the one
+ * reason a person answers in settings, and it is only true as the whole answer
+ * when nothing else is in the way.
  */
 function withheldBecause(
   candidate: Candidate,
@@ -568,10 +588,10 @@ function withheldBecause(
   if (image.kind !== 'image') return 'unknown-kind';
   if (!image.current) return 'outside-window';
   if (candidate.role !== 'user') return 'not-user-role';
-  if (!seesImages(resolution.connection, resolution.modelId)) return 'model-text-only';
   if (image.digest === null || image.mime === null || present?.has(image.digest) !== true) {
     return 'missing-bytes';
   }
+  if (!seesImages(resolution.connection, resolution.modelId)) return 'model-text-only';
   return null;
 }
 
@@ -595,6 +615,10 @@ function picturesIn(messages: readonly RenderedMessage[]): Set<string> {
  * goes with its words, which is the answer the check would have given a moment
  * earlier. A call that failed instead would be the one way a picture could stop
  * a story.
+ *
+ * *A loader says a picture is missing by answering null* — and the runner's
+ * answers null for a file it can see and cannot read, too, having said so in
+ * the log: an unreadable picture is as absent from the wire as a deleted one.
  */
 async function planWithPictures(
   context: CallContext,

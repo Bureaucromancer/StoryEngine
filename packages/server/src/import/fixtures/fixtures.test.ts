@@ -63,7 +63,7 @@ describe('the SillyTavern fixture', () => {
   });
 
   it('holds a chat that reads as one, with a greeting, a swipe and both sides speaking', () => {
-    // [P13.8]: the sweep turns this into a session, and a session test is only
+    // [P14.8]: the sweep turns this into a session, and a session test is only
     // as good as the chat under it. A prop that no longer parsed — or that lost
     // its player's line, or its swipes — would leave the end-to-end sweep test
     // passing over a session with nothing in it worth checking.

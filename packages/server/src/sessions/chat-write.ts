@@ -16,26 +16,26 @@ import type { CardPromptPart, SessionFile } from './types.js';
 
 /**
  * ***Changing how a session plays as a chat*** —
- * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [§1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md) and
- * [§1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [§1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md) and
+ * [§1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * *"session settings gain voice, dispatch, policy, self-responses, names in
- * history and the author's note"*, built at [P13.5].
+ * history and the author's note"*, built at [P14.5].
  *
- * P13.0 gave the session its chat fields and one reader, `chatSettingsOf`; P13.3
- * and P13.4 built everything that reads them. Nothing wrote them after creation
+ * P14.0 gave the session its chat fields and one reader, `chatSettingsOf`; P14.3
+ * and P14.4 built everything that reads them. Nothing wrote them after creation
  * but an import, so the settings a person was promised had no door. This is the
  * door, and it is shaped by the reader's one hard rule.
  *
  * ***Writing one of voice, dispatch and speakers writes all three.*** Absence
  * is not one thing (`chatSettingsOf`, rule 2): a session carrying none of the
- * three was written before P13.0 and reads as the mode's `legacy` values —
+ * three was written before P14.0 and reads as the mode's `legacy` values —
  * Scene's narrator/merged/fixed. A write that set only `dispatch` on such a
  * session would move it into the modern era, and its absent `voice` would then
  * fall to the mode's *declared* value, `embodied`: a person ticking one box
  * would re-voice a whole saved game. So the write reads the effective three
  * first and puts every one of them on the file, with the requested change laid
- * over — the same explicitness creation has had since P13.0, reached late.
+ * over — the same explicitness creation has had since P14.0, reached late.
  *
  * *The other fields are independent* and are written only when sent:
  *
@@ -45,7 +45,7 @@ import type { CardPromptPart, SessionFile } from './types.js';
  *   what the reader already takes it to mean.
  * - **`prompts`** — merged per key, so a cast row that toggles one card sends
  *   that card alone. `instruction: true` and a card's `true` or empty list are
- *   *send everything*, which the file spells as no entry ([P13 §1.5]'s
+ *   *send everything*, which the file spells as no entry ([P14 §1.5]'s
  *   *"absent means send everything"*); `false` and a list of parts are what is
  *   skipped.
  *

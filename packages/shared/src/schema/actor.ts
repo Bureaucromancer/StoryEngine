@@ -62,8 +62,8 @@ export const CONVENTIONAL_SECTION_IDS = {
 } as const;
 
 /**
- * ***A card's own prompt fields, as sections*** — [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * added at [P13.3]. Keyed by the part a session may switch off
+ * ***A card's own prompt fields, as sections*** — [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * added at [P14.3]. Keyed by the part a session may switch off
  * (`SessionFile.prompts.cards`), valued by the section id the importer writes
  * and the Scene pack places.
  *
@@ -88,7 +88,7 @@ export const CARD_PROMPT_SECTION_IDS = {
 } as const;
 
 /**
- * ***Where a section asks to sit in the history, and as whom*** — [P13.3], for
+ * ***Where a section asks to sit in the history, and as whom*** — [P14.3], for
  * a card's `extensions.depth_prompt`, which carries its own `depth` and `role`
  * (default 4, `system`).
  *
@@ -209,7 +209,7 @@ export const Actor = Type.Object(
       'A character. Deliberately absent as fields: system_prompt, ' +
       'post_history_instructions, depth_prompt, talkativeness and scenario. ' +
       'Prompt assembly is owned by the preset and the mode, not by the ' +
-      'description of a person. Since P13.3 the three prompt fields arrive as ' +
+      'description of a person. Since P14.3 the three prompt fields arrive as ' +
       'sections (se.card.system, se.card.post-history, se.card.depth) that a ' +
       'preset places or does not, and talkativeness in modeData, so the rule ' +
       'holds. mes_example is no longer among them: it lands ' +

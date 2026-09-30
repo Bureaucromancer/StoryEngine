@@ -7,17 +7,17 @@ import type { CardPromptPart, SessionFile } from './types.js';
 
 /**
  * ***How a session plays as a chat, read out of whatever is in the file*** —
- * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * added at [P13.0].
+ * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * added at [P14.0].
  *
  * **The one reader of the chat fields**, and there has to be exactly one,
  * because what a missing field means is not a local question. `voice`,
  * `dispatch` and `speakers` default to the mode's values — but *which* values
  * depends on when the file was written, and only a function that sees all three
  * at once can tell. A caller reading `session.voice ?? mode.voice` would be
- * right today and would silently re-voice every pre-P13 Scene session on the
+ * right today and would silently re-voice every pre-P14 Scene session on the
  * day Scene's declared values change, which is the failure `ModeDefinition.legacy`
  * exists to prevent.
  *
@@ -26,13 +26,13 @@ import type { CardPromptPart, SessionFile } from './types.js';
  * 1. **A field present on the session wins.** It is a setting somebody chose,
  *    or one creation wrote down from the mode on the day the session was made.
  * 2. **A session with none of the three reads the mode's `legacy`**, when the
- *    mode declares one. From P13.0 on, creation writes all three explicitly,
+ *    mode declares one. From P14.0 on, creation writes all three explicitly,
  *    so *none of them* is precisely the set of sessions written before — and
  *    they keep what they were played with.
  * 3. **Otherwise the mode's declared values**: `voice`, `dispatch` and
  *    `participants.select`.
  *
- * *Presence means the key is there*, not that its value is usable. A pre-P13
+ * *Presence means the key is there*, not that its value is usable. A pre-P14
  * file has none of these keys at all; a file carrying a misspelt `voice` was
  * written or edited since, and is read as a modern session with one field that
  * falls to its default. Deciding the era from whether a value *parsed* would
@@ -73,8 +73,8 @@ export interface ChatSettings {
  * - `allowSelfResponses: false` — SillyTavern's own default: the member who
  *   just spoke is not picked again unless a person allows it.
  * - `namesInHistory: 'groups'` — a name prefix once two or more speakers are in
- *   the window, which is SillyTavern's default names behaviour ([P13 §1.5]).
- * - `maxPerRound: 3` — [P13 §1.2]'s default for how many a `smart` pick may
+ *   the window, which is SillyTavern's default names behaviour ([P14 §1.5]).
+ * - `maxPerRound: 3` — [P14 §1.2]'s default for how many a `smart` pick may
  *   choose.
  */
 export const SPEAKER_DEFAULTS: Omit<SpeakerSettings, 'policy'> = {
@@ -85,7 +85,7 @@ export const SPEAKER_DEFAULTS: Omit<SpeakerSettings, 'policy'> = {
 
 /**
  * Where an author's note sits and how often, when a note says only its text.
- * Depth 4 is the default [P13 §1.5] gives a card's own depth prompt, so the two
+ * Depth 4 is the default [P14 §1.5] gives a card's own depth prompt, so the two
  * kinds of depth-placed text agree unless somebody says otherwise; every 1 is
  * *every input*, the only reading of a missing interval under which a note is
  * ever seen.
@@ -112,7 +112,7 @@ const CARD_PROMPT_PARTS: readonly CardPromptPart[] = ['system', 'post-history', 
  * **Written rather than left absent, and that is rule 2 above made safe.** A
  * session created now keeps the voice it was created with when a later stage
  * changes what the mode declares — and it is the reason *none of the three*
- * can mean *written before P13.0*. The legacy values are deliberately not
+ * can mean *written before P14.0*. The legacy values are deliberately not
  * consulted: they describe old files, and a new session is not one.
  */
 export function chatSettingsAtCreation(
@@ -157,16 +157,16 @@ export function chatSettingsOf(session: unknown, mode: ModeDefinition): ChatSett
 /**
  * ***Whether this session reads an untouched member as present*** — the
  * mode's `participants.castIsPresent`, **in an embodied session only**
- * (2026-09-29, the [P13.3] review).
+ * (2026-09-29, the [P14.3] review).
  *
  * `castIsPresent` is a statement about how the mode's *chat* reads presence:
  * a group whose members are all here until somebody mutes one. A narrated
  * session is not that chat. Its presence channel still means what it meant
- * before P13.3 — *in this room or not*, `init: false`, written by the model
+ * before P14.3 — *in this room or not*, `init: false`, written by the model
  * as people walk in and out — and [P7.3] decided that a member who is not in
  * the room keeps their card in the narrator's call. Read through the mode
- * alone, every narrated Scene session — `legacy`, and the ones P13.0 created
- * with explicit narrator values — changed under it at P13.3: a member the
+ * alone, every narrated Scene session — `legacy`, and the ones P14.0 created
+ * with explicit narrator values — changed under it at P14.3: a member the
  * story had walked out lost every card from the one merged call, and every
  * member nobody had touched moved from *Elsewhere* to *Here* on the panel.
  * Tying the reading to the voice keeps those sessions' prompts byte-identical,
@@ -183,11 +183,11 @@ export function castIsPresentFor(chat: Pick<ChatSettings, 'voice'>, mode: ModeDe
 /**
  * ***Whether a mode plays its cast as a chat*** — the test the session read
  * route uses to send the chat settings and the settings route uses to accept
- * them ([P13.5]).
+ * them ([P14.5]).
  *
  * **`castIsPresent`, not the voice**, because the voice is a setting the chat
  * owns: a Scene session switched to the narrator is still a chat that can be
- * switched back, and *"narrator stays one control away"* ([P13 §1.2]) needs
+ * switched back, and *"narrator stays one control away"* ([P14 §1.2]) needs
  * the control to survive being used. The assistant is embodied and not a chat
  * — one card, `fixed`, nobody to choose between — and Freeform narrates a
  * cast it never seats as speakers; neither declares that an untouched member is
@@ -227,7 +227,7 @@ function speakersOf(value: unknown, select: SpeakerSettings['policy']): SpeakerS
  * ***An interval of 0 or less is a note switched off, and reads as
  * `every: 0`.*** That is SillyTavern's meaning — `setFloatingPrompt` inserts
  * nothing when `note_interval <= 0` (`authors-note.js:351`), and the field is
- * labelled *"0 = Disable, 1 = Always"* — and [P13 §2.6] maps `note_interval`
+ * labelled *"0 = Disable, 1 = Always"* — and [P14 §2.6] maps `note_interval`
  * straight onto `every`. Read as malformed, it fell to the default of 1, so a
  * converter copying the value across and a person typing 0 to silence the note
  * both got a note on **every** input: the opposite of what either asked for.
@@ -235,7 +235,7 @@ function speakersOf(value: unknown, select: SpeakerSettings['policy']): SpeakerS
  * *Switched off rather than dropped*, because switching a note off is not
  * deleting it: the text survives, so a settings panel built on this reader
  * still shows the note, and saving it cannot write over what was kept. The
- * renderer ([P13.3]) places no note whose `every` is 0. Any other interval that
+ * renderer ([P14.3]) places no note whose `every` is 0. Any other interval that
  * is not a whole number — missing, fractional, a string — is still the default.
  */
 function noteOf(value: unknown): ChatSettings['note'] {
@@ -277,7 +277,7 @@ function hiddenOf(value: unknown): ChatSettings['hidden'] {
 
 /**
  * What the chat has switched off. **Only `false` switches anything off**, which
- * is [P13 §1.5]'s *absent means send everything* applied to a malformed value
+ * is [P14 §1.5]'s *absent means send everything* applied to a malformed value
  * as well as to a missing one: a toggle nobody can read is a toggle nobody set.
  */
 function promptsOf(value: unknown): ChatSettings['prompts'] {
@@ -317,8 +317,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * ***Whether the author's note is placed on this input*** — [P13 §1.5],
- * [P13.3]: SillyTavern's `setFloatingPrompt` (`authors-note.js:324-392`), to
+ * ***Whether the author's note is placed on this input*** — [P14 §1.5],
+ * [P14.3]: SillyTavern's `setFloatingPrompt` (`authors-note.js:324-392`), to
  * its letter.
  *
  * `inputs` is how many of the player's messages the chat holds **counting the

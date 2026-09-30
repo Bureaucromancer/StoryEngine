@@ -23,7 +23,7 @@ import {
 
 /**
  * ***The summary chain, derived before anybody asks for it*** —
- * [P13.11](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P14.11](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
  * [18 §7.5](../../../../docs/design/18-session-import.md)'s cliff.
  *
  * `ensureChain` is lazy and sequential by design — link *n* is

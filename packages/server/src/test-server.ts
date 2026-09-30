@@ -628,7 +628,7 @@ export async function eventually(
 export async function settled(server: TestServer): Promise<void> {
   await server.services.runner.settle();
   await server.services.drainRenditions();
-  // And an import's summary warm ([P13.11]), which no turn set off but which
+  // And an import's summary warm ([P14.11]), which no turn set off but which
   // writes into the same session and calls the same provider.
   await server.services.summaryWarm.idle();
 }

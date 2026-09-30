@@ -514,7 +514,7 @@ describe('writing samples on the preview', () => {
 });
 
 /**
- * ***A chat's preview, and [P13.3]'s *Ends at**** — a preview of an imported
+ * ***A chat's preview, and [P14.3]'s *Ends at**** — a preview of an imported
  * SillyTavern card's session shows the card's system prompt stacked after the
  * pack's instruction and its post-history instructions last, and a second
  * preview with that card's prompts switched off shows neither. Through the
@@ -568,7 +568,7 @@ describe('a chat’s preview', () => {
       text: 'Stay as Vera.',
     });
 
-    // Switched off for this card — the session field P13.5's panel will write.
+    // Switched off for this card — the session field P14.5's panel will write.
     const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
     const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
     await writeFile(file, JSON.stringify({ ...session, prompts: { cards: { [vera]: false } } }));
@@ -580,7 +580,7 @@ describe('a chat’s preview', () => {
   });
 
   it('previews the first speaker’s call under per-actor dispatch, not one merged call', async () => {
-    // [P13.2] left the preview assembling one merged call. The mention decides
+    // [P14.2] left the preview assembling one merged call. The mention decides
     // `natural`'s first speaker, so the preview can say whose call it shows.
     await bindProse();
     const vera = await imported({ name: 'Vera', description: 'A fence.' });

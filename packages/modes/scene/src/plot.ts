@@ -17,8 +17,8 @@ import type {
 /**
  * ***The secret plot*** — the narrative director's hidden arc, as a Scene
  * channel and one step —
- * [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5b].
+ * [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5b].
  *
  * [06 §7.3]: *"Hidden GM state (… the Narrative Director's Secret Plot) is a
  * channel with `visibility: "hidden"` and a reveal affordance."* Marinara keeps
@@ -45,7 +45,7 @@ export const SE_SCENE_PLOT = 'se.scene.plot';
 const OWNER = 'storyengine.scene';
 
 /**
- * ***Whether this session keeps a secret plot*** — [P13 §1.9.6]'s switch under
+ * ***Whether this session keeps a secret plot*** — [P14 §1.9.6]'s switch under
  * *Agents*, Marinara's `narrativeDirectorSecretPlotEnabled`. User-only for the
  * trackers' reasons (`tracking.ts`, `toggle`): a model call every few turns is
  * the person's to spend, and a switch that is a channel is branch-correct and
@@ -172,7 +172,7 @@ const AGENTS = 'Agents';
 const DIRECTOR = 'Director';
 
 /**
- * ***Where it is switched, and where it is shown*** — [P13 §1.9.6]'s *Agents*
+ * ***Where it is switched, and where it is shown*** — [P14 §1.9.6]'s *Agents*
  * group for the switch and the cadence, beside the trackers'; the reveal and
  * the revealed arc in the panel, under their own heading, because reading the
  * plot is reading the story rather than configuring it. The arc's card is

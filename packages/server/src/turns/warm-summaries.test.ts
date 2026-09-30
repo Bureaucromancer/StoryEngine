@@ -31,7 +31,7 @@ import { SUMMARISE_PROMPT } from './summarise.js';
 
 /**
  * ***The first turn after a long import*** —
- * [P13.11](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P14.11](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
  * [18 §7.5](../../../../docs/design/18-session-import.md)'s cliff.
  *
  * *Ends at: a long fixture's first previewed turn derives zero links.* So the

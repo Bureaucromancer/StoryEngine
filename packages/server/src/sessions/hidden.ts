@@ -15,14 +15,14 @@ import {
 import type { SessionFile } from './types.js';
 
 /**
- * ***Hide and unhide*** — [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * last mutable gesture, built at [P13.4]: SillyTavern's `is_system` and
+ * ***Hide and unhide*** — [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * last mutable gesture, built at [P14.4]: SillyTavern's `is_system` and
  * Marinara's `hiddenFromAI`, as `session.hidden`.
  *
  * **What one turn's entry becomes**: `true` hides the turn whole — its input
  * and every message — and a list hides those message indices, by
  * `outputMessagesOf`'s numbering, which is how the history filter reads them
- * (`assembly/collect.ts`, `visibleMessages`; P13.3). `false` or an empty list
+ * (`assembly/collect.ts`, `visibleMessages`; P14.3). `false` or an empty list
  * clears the entry, which is unhiding: *no entry* and *an empty list* already
  * read the same (`chatSettingsOf`'s `hiddenOf`), so the file keeps only the
  * first.

@@ -14,8 +14,8 @@ import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../t
 
 /**
  * ***Scene's trackers, through the server*** —
- * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.5a]'s *ends at*: *"with world, character and inventory switched on, a
+ * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5a]'s *ends at*: *"with world, character and inventory switched on, a
  * turn whose prose moves a character to the docks and hands the player a key
  * proposes all three; a locked location stays put; a swipe of that turn has
  * its own tracker state; the next prompt shows the established state once."*
@@ -314,7 +314,7 @@ describe('a muted member', () => {
 });
 
 describe('the tree', () => {
-  /** ***P13.5a's third claim***: *"a swipe of that turn has its own tracker state"*. */
+  /** ***P14.5a's third claim***: *"a swipe of that turn has its own tracker state"*. */
   it('gives a swipe its own tracker state, and the next prompt the state of its line', async () => {
     const { sessionId } = await aScene();
     await switchOn(sessionId, 'world');
@@ -456,7 +456,7 @@ describe('manual mode, and Update trackers', () => {
 });
 
 /**
- * ***What the tracker panel reads*** — the client half of [P13.5a]. The panel
+ * ***What the tracker panel reads*** — the client half of [P14.5a]. The panel
  * knows no tracker: it draws the `record` surfaces the session read hands it,
  * and offers the actions it lists. So the claims are about that read — a card
  * only for a tracker that is on, a character card per present member but the
@@ -491,7 +491,7 @@ describe('what the tracker panel reads', () => {
     const { surfaces, actions } = await read(sessionId);
     expect(surfaces.filter((one) => one.kind === 'record' && one.region === 'panel')).toEqual([]);
     expect(actions).toEqual([]);
-    // The trackers' six — the secret plot's switch beside them is [P13.5b]'s.
+    // The trackers' six — the secret plot's switch beside them is [P14.5b]'s.
     const switches = surfaces.filter(
       (one) =>
         one.region === 'settings' && one.kind === 'toggle' && one.channelId.startsWith('se.track.'),

@@ -5,11 +5,20 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_CONFIG } from '../config.js';
 import { TEST_MODE } from '../test-mode.js';
+import { pictureTexts } from '../assembly/pictures.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import type { Connection } from '../providers/connections.js';
-import type { Provider } from '../providers/types.js';
-import type { Candidate } from '../assembly/types.js';
-import { planCall, RoleUnresolved, WindowTooSmall, type PlanContext } from './calls.js';
+import { FakeProvider } from '../providers/fake.js';
+import type { Provider, RenderedMessage } from '../providers/types.js';
+import type { Candidate, CandidateImage } from '../assembly/types.js';
+import {
+  performCall,
+  planCall,
+  RoleUnresolved,
+  WindowTooSmall,
+  type CallContext,
+  type PlanContext,
+} from './calls.js';
 
 /**
  * The seam a preview stops at — [P3.4], [P3 §1.6].
@@ -485,5 +494,410 @@ describe('asking for a shape in words', () => {
     const { call } = planWith(false);
 
     expect(call.blocks.find((block) => block.id === 'se.schema')?.included).toBe(true);
+  });
+});
+
+/**
+ * ***Pixels or words, decided per call*** — [25 E15], R1's send rule.
+ *
+ * `planCall` holds the model the call resolved to, and is the only place that
+ * does, so it is the only place the rule can be decided without tying a session
+ * to a model that sees. Each test below pins one arm of `withheldBecause`, the
+ * precedence between them, or one of the two things decided *around* it: the
+ * re-plan when bytes vanish between the presence check and the read, and the
+ * budget that can still drop a picture the rule said to send.
+ *
+ * *One connection serves a model that sees and one that does not*, which is the
+ * case the per-model `imageModels` exists for — and the only fixture in which a
+ * test can tell *the resolved model* from *the connection* or *the binding*.
+ */
+describe('a picture on the move, sent or held', () => {
+  const DIGEST = `sha256:${'c'.repeat(64)}`;
+  const PIXELS = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7]);
+  const PICTURE_ID = 'se.input.attachment.0';
+  /** Derived, not spelled, so a change to the words is `pictures.test.ts`'s to catch. */
+  const TEXTS = pictureTexts({ caption: 'a lantern' });
+  const SEEING: Connection = {
+    ...CONNECTION,
+    models: ['fake-hi', 'fake-text'],
+    imageModels: ['fake-hi'],
+  };
+
+  /**
+   * The collector's shape for a picture on the move being made — `emitPicture`
+   * in `assembly/collect.ts`: required, user-role, current, its text the held
+   * words and its `sentText` the words that accompany the pixels.
+   */
+  function picture(over: Partial<Candidate> = {}, image: Partial<CandidateImage> = {}): Candidate {
+    return {
+      id: PICTURE_ID,
+      source: { kind: 'input', part: 'attachment', attachmentId: '0' },
+      reason: 'input',
+      role: 'user',
+      text: TEXTS.held,
+      required: true,
+      image: {
+        attachmentId: '0',
+        kind: 'image',
+        digest: DIGEST,
+        mime: 'image/png',
+        sentText: TEXTS.sent,
+        current: true,
+        ...image,
+      },
+      ...over,
+    };
+  }
+
+  /** A context whose narrator is bound to `modelId` on the connection that serves both. */
+  function seeing(modelId: 'fake-hi' | 'fake-text', over: Partial<PlanContext> = {}): PlanContext {
+    return context({
+      usable: [SEEING],
+      bindings: { prose: { connectionId: SEEING.id, modelId } },
+      picturesPresent: new Set([DIGEST]),
+      ...over,
+    });
+  }
+
+  function calling(fake: FakeProvider, over: Partial<CallContext> = {}): CallContext {
+    return {
+      ...seeing('fake-hi', { providers: () => fake }),
+      signal: new AbortController().signal,
+      onCallAssembled: () => undefined,
+      onProgress: () => undefined,
+      ...over,
+    };
+  }
+
+  /**
+   * A loader that answers `answer` — and **fails loudly on the fourth ask**.
+   *
+   * `planWithPictures` loops until every wanted picture loaded, and each turn
+   * of that loop awaits only an already-settled promise. A regression that
+   * re-planned without forgetting the missing digest would therefore spin in
+   * microtasks forever, starving the timer that would have timed the test out,
+   * and hang the worker rather than fail. Rejecting after a few asks turns that
+   * hang into an ordinary failed call.
+   */
+  function loader(answer: { bytes: Uint8Array; mime: string } | null) {
+    let asked = 0;
+    return vi.fn((digest: string): Promise<{ bytes: Uint8Array; mime: string } | null> => {
+      asked += 1;
+      if (asked > 3) {
+        return Promise.reject(new Error(`asked for ${digest} ${String(asked)} times`));
+      }
+      return Promise.resolve(answer);
+    });
+  }
+
+  function blockOf<T extends { id: string }>(blocks: readonly T[] | undefined): T | undefined {
+    return blocks?.find((block) => block.id === PICTURE_ID);
+  }
+
+  function hasParts(messages: readonly RenderedMessage[]): boolean {
+    return messages.some((message) => message.parts !== undefined);
+  }
+
+  /**
+   * ***Bytes that vanish between the check and the read are words, not a
+   * failed turn.*** The presence set says the picture is here and the model
+   * sees, so the first plan sends it; the read answers null (a sweep, a hand
+   * edit, a file the runner could not open), and the plan is asked again
+   * without that digest.
+   *
+   * Falsified by: failing the call instead of re-planning; re-planning with the
+   * same `present` set (the loop — caught by the loader, see {@link loader});
+   * sending the first plan's messages with no bytes behind them (the request
+   * would carry `parts` and the record would say `sent`); or re-reading the
+   * picture once the re-plan no longer wants it (called twice).
+   */
+  it('re-plans a picture whose bytes could not be read, and sends its words', async () => {
+    const fake = new FakeProvider();
+    const loadPicture = loader(null);
+
+    const outcome = await performCall(calling(fake, { loadPicture }), {}, [
+      ...CANDIDATES,
+      picture(),
+    ]);
+
+    expect(blockOf(outcome.call.blocks)).toMatchObject({
+      included: true,
+      text: TEXTS.held,
+      image: {
+        attachmentId: '0',
+        digest: DIGEST,
+        mime: 'image/png',
+        sent: false,
+        withheld: 'missing-bytes',
+      },
+    });
+    const sent = fake.requests.at(-1);
+    expect(sent?.images).toEqual([]);
+    expect(hasParts(sent?.messages ?? [])).toBe(false);
+    const words = (sent?.messages ?? []).map((message) => message.content).join('\n');
+    expect(words).toContain(TEXTS.held);
+    expect(words).not.toContain(TEXTS.sent);
+    // The record is the re-plan, not the first plan: what it says was sent is
+    // what the provider was handed.
+    expect(outcome.call.messages).toEqual(sent?.messages);
+
+    expect(loadPicture).toHaveBeenCalledTimes(1);
+    expect(loadPicture).toHaveBeenCalledWith(DIGEST);
+  });
+
+  /**
+   * The ordinary path, and the other half of the re-plan above: a picture on
+   * the move, a model that sees, bytes that load. The block says `sent`, its
+   * text becomes the words that go *beside* the pixels, the rendered message
+   * grows parts with the picture after the words that introduce it, and the
+   * provider is handed the bytes by digest.
+   *
+   * Falsified by: keeping the held words on a sent picture (`not shown` beside
+   * a picture that is shown); not handing `images` to the provider; or the
+   * budget rewrite firing on an included block.
+   */
+  it('sends a picture on the move to a model that sees, with the words beside it', async () => {
+    const fake = new FakeProvider();
+    const loadPicture = loader({ bytes: PIXELS, mime: 'image/png' });
+
+    const outcome = await performCall(calling(fake, { loadPicture }), {}, [
+      ...CANDIDATES,
+      picture(),
+    ]);
+
+    const block = blockOf(outcome.call.blocks);
+    expect(block).toMatchObject({ included: true, text: TEXTS.sent });
+    expect(block).toHaveProperty('image', {
+      attachmentId: '0',
+      digest: DIGEST,
+      mime: 'image/png',
+      sent: true,
+    });
+
+    const sent = fake.requests.at(-1);
+    expect(sent?.images).toEqual([DIGEST]);
+    const user = sent?.messages.find((message) => message.role === 'user');
+    expect(user?.parts).toEqual([
+      { kind: 'text', text: `She opened the door.\n\n${TEXTS.sent}` },
+      { kind: 'image', blockId: PICTURE_ID, digest: DIGEST, mime: 'image/png' },
+    ]);
+    // `content` stays the whole text rendering, which the frozen contract
+    // promises whether or not parts exist.
+    expect(user?.content).toBe(`She opened the door.\n\n${TEXTS.sent}`);
+    expect(loadPicture).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * ***Only a user message can carry a picture.*** A system or assistant block
+   * that stands for one goes as its words, even on a model that sees with the
+   * bytes in hand — `render` does not look at roles, so without this arm a
+   * system message would grow `parts`, and the adapter would then drop the
+   * picture in silence (it builds array content for user messages only) while
+   * the record said *sent*.
+   *
+   * Falsified by: removing the role check, or moving it after the model check
+   * (a model that sees would then send).
+   */
+  it.each(['system', 'assistant'] as const)(
+    'holds a picture in the %s role, whatever the model',
+    (role) => {
+      const { call } = planCall(seeing('fake-hi'), {}, [...CANDIDATES, picture({ role })]);
+
+      const block = blockOf(call.blocks);
+      expect(block).toMatchObject({
+        text: TEXTS.held,
+        image: { sent: false, withheld: 'not-user-role' },
+      });
+      expect(hasParts(call.messages)).toBe(false);
+    },
+  );
+
+  /**
+   * ***A kind this build does not send is words*** — and a step can hand one
+   * over through its own candidates, which is the path this uses: the collector
+   * only ever emits what the store accepted, but `request.candidates` is a
+   * published contract any step may fill.
+   *
+   * Falsified by: dropping the kind check, so a `video` attachment would be
+   * rendered as an image part and handed to an endpoint as `image_url`.
+   */
+  it('holds a picture of a kind it does not send', () => {
+    const { call } = planCall(
+      seeing('fake-hi'),
+      { candidates: [...CANDIDATES, picture({}, { kind: 'video' })] },
+      [],
+    );
+
+    expect(blockOf(call.blocks)).toMatchObject({
+      text: TEXTS.held,
+      image: { sent: false, withheld: 'unknown-kind' },
+    });
+    expect(hasParts(call.messages)).toBe(false);
+  });
+
+  /**
+   * ***The model is the last reason, never the first*** — `withheldBecause`'s
+   * docstring and [21]'s `ImageWithheld`. On a text-only model every one of
+   * these is *also* true of the model, and the record must name the reason
+   * that choosing another model would not fix; *this model is not marked as
+   * seeing pictures* is the one a person answers in settings, and it is only
+   * the whole answer when nothing else is in the way.
+   *
+   * Falsified by: moving the `seesImages` check earlier than any of the four —
+   * the row for the reason it overtook then reads `model-text-only`.
+   */
+  it.each([
+    {
+      reason: 'unknown-kind',
+      candidate: picture({}, { kind: 'video' }),
+      present: new Set([DIGEST]),
+    },
+    {
+      reason: 'outside-window',
+      candidate: picture({ required: false }, { current: false }),
+      present: new Set([DIGEST]),
+    },
+    {
+      reason: 'not-user-role',
+      candidate: picture({ role: 'system' }),
+      present: new Set([DIGEST]),
+    },
+    { reason: 'missing-bytes', candidate: picture(), present: new Set<string>() },
+  ])(
+    'names $reason before the model on a model that does not see',
+    ({ reason, candidate, present }) => {
+      const { call } = planCall(seeing('fake-text', { picturesPresent: present }), {}, [
+        ...CANDIDATES,
+        candidate,
+      ]);
+
+      expect(blockOf(call.blocks)?.image).toMatchObject({ sent: false, withheld: reason });
+    },
+  );
+
+  /**
+   * ***The model that decides is the one the call resolved to***, after every
+   * layer — [19 §5.1]'s session and step overrides included. That is the
+   * property that keeps a session from being tied to a model that sees: the
+   * binding says *sees*, the session's override says *does not*, and the call
+   * goes as words; the other way round, it goes as pixels.
+   *
+   * Falsified by: reading `seesImages` against the account binding's model, or
+   * against the connection as a whole (it serves a model that sees, so a
+   * connection-wide answer would send to `fake-text`).
+   */
+  it('asks the model the overrides resolved to, not the binding under them', () => {
+    const narrate = TEST_MODE.definition.steps[0];
+    if (narrate === undefined) throw new Error('the test mode declares no steps');
+    const textOnly = { connectionId: SEEING.id, modelId: 'fake-text' };
+    const sees = { connectionId: SEEING.id, modelId: 'fake-hi' };
+
+    const bySession = planCall(seeing('fake-hi', { sessionRoles: { prose: textOnly } }), {}, [
+      ...CANDIDATES,
+      picture(),
+    ]);
+    expect(bySession.call.resolved.modelId).toBe('fake-text');
+    expect(blockOf(bySession.call.blocks)?.image).toMatchObject({
+      sent: false,
+      withheld: 'model-text-only',
+    });
+
+    const byStep = planCall(seeing('fake-hi', { stepRoles: { [narrate.id]: textOnly } }), {}, [
+      ...CANDIDATES,
+      picture(),
+    ]);
+    expect(blockOf(byStep.call.blocks)?.image).toMatchObject({
+      sent: false,
+      withheld: 'model-text-only',
+    });
+
+    const upward = planCall(seeing('fake-text', { sessionRoles: { prose: sees } }), {}, [
+      ...CANDIDATES,
+      picture(),
+    ]);
+    expect(blockOf(upward.call.blocks)?.image).toEqual({
+      attachmentId: '0',
+      digest: DIGEST,
+      mime: 'image/png',
+      sent: true,
+    });
+  });
+
+  /**
+   * ***A picture the budget dropped was not sent*** — decided before the
+   * budget ran, so said again after it. A step's own picture candidate need not
+   * be required, and a window with one token beside the reply cannot fit it:
+   * the send rule said *send*, the budgeter said *no room*, and the record
+   * must say `budget` rather than *Picture sent* over a block that never left.
+   *
+   * The contrast is the collector's own picture on the move, which is required
+   * and so never meets this reason under the same window.
+   *
+   * Falsified by: removing the post-assembly rewrite (`sent: true` on an
+   * excluded block); or loading bytes for a picture no message carries.
+   */
+  it('says a picture the budget dropped was not sent, and never loads it', async () => {
+    const fake = new FakeProvider();
+    const loadPicture = loader({ bytes: PIXELS, mime: 'image/png' });
+    const cramped = {
+      preset: {
+        params: {},
+        budget: { contextShare: 1, maxContextTokens: 801, reserveOutputTokens: 800 },
+      },
+    };
+
+    const outcome = await performCall(
+      calling(fake, { ...cramped, loadPicture }),
+      { candidates: [...CANDIDATES, picture({ required: false })] },
+      [],
+    );
+
+    const block = blockOf(outcome.call.blocks);
+    expect(block?.included).toBe(false);
+    expect(block?.image).toEqual({
+      attachmentId: '0',
+      digest: DIGEST,
+      mime: 'image/png',
+      sent: false,
+      withheld: 'budget',
+    });
+    expect(fake.requests.at(-1)?.images).toEqual([]);
+    expect(hasParts(fake.requests.at(-1)?.messages ?? [])).toBe(false);
+    expect(loadPicture).not.toHaveBeenCalled();
+
+    const required = planCall(seeing('fake-hi', cramped), {}, [...CANDIDATES, picture()]);
+    expect(blockOf(required.call.blocks)).toMatchObject({
+      included: true,
+      image: { sent: true },
+    });
+  });
+
+  /**
+   * ***Dropped is `budget` whatever it would have been*** — a picture from an
+   * earlier turn (`outside-window`) or one on a text-only model
+   * (`model-text-only`) that the budgeter leaves out sent neither its pixels
+   * nor its words, and a record that kept the earlier reason showed *Picture as
+   * words* on a row where no words went. The mutation is rewriting only the
+   * blocks that would have been sent.
+   */
+  it.each([
+    ['from an earlier turn', 'fake-hi', { current: false }],
+    ['on a model that does not see', 'fake-text', {}],
+  ] as const)('says budget for a dropped picture %s', (_, model, image) => {
+    const cramped = {
+      preset: {
+        params: {},
+        budget: { contextShare: 1, maxContextTokens: 801, reserveOutputTokens: 800 },
+      },
+    };
+    const plan = planCall(
+      seeing(model, cramped),
+      { candidates: [...CANDIDATES, picture({ required: false }, image)] },
+      [],
+    );
+    expect(blockOf(plan.call.blocks)).toMatchObject({
+      included: false,
+      image: { sent: false, withheld: 'budget' },
+    });
   });
 });

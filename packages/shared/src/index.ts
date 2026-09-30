@@ -30,7 +30,7 @@ export * from './turn.js';
  */
 export * from './remedy.js';
 /**
- * A turn's output as messages, and the text derived from them — [P13.0].
+ * A turn's output as messages, and the text derived from them — [P14.0].
  *
  * Beside the turn record and not part of it, for `remedy.js`'s reason: the
  * record is types, and `Turn.output.text` became a *derived* value that the

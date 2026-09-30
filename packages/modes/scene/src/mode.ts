@@ -419,17 +419,17 @@ export const NARRATE: StepDefinition = {
  * Scene is. It asks; the runner resolves the role from the definition and
  * assembles with the purpose the definition implies.
  *
- * ***It asks in one of three ways since [P13.2]***, and the session says which
+ * ***It asks in one of three ways since [P14.2]***, and the session says which
  * — `voice` and `dispatch` as `StepInput` hands them over, the session's own
  * values rather than the ones declared below
- * ([P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [§1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)):
+ * ([P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [§1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)):
  *
  * - **Narrator** — exactly what this step always did: one merged call, spoken by
  *   nobody in particular, and one `message`. Who the policy selected does not
  *   change it; a narrator speaks for the scene, not for a member — and
  *   `dispatch` does not change it either; [06 §3]'s *narrator + per-actor* cell
- *   is not built (P13.2 as-built). *Absent* reads as narrator, because that is
+ *   is not built (P14.2 as-built). *Absent* reads as narrator, because that is
  *   what a host that hands no voice played.
  * - **Embodied, per-actor** — one **speaking call** per selected member, in the
  *   order `speakers` gives, each awaited before the next: the host shows each
@@ -438,7 +438,7 @@ export const NARRATE: StepDefinition = {
  *   selection's, which is what makes a rewrite replay the same round — the
  *   policy's draws are on the tape, and this loop adds none. The turn's
  *   `messages` are the calls' results, speaker and all — *a reply cleanup cut
- *   to nothing included*, deliberately (2026-09-29, the [P13.2] review): it
+ *   to nothing included*, deliberately (2026-09-29, the [P14.2] review): it
  *   stays as an empty message under the speaker's name so its `original` stays
  *   on the record, and `output.text` leaves it out, since it said nothing.
  * - **Embodied, merged** — Marinara's merged mode: **one** speaking call, for
@@ -451,7 +451,7 @@ export const NARRATE: StepDefinition = {
  *   call with none.
  *
  * ***An empty `speakers` in an embodied voice is nobody speaking, and the step
- * makes no call*** — `manual` after an input ([P13 §1.3]: *"nobody replies to
+ * makes no call*** — `manual` after an input ([P14 §1.3]: *"nobody replies to
  * an input"*), or a round the policy gave nobody. It returns nothing, which is
  * what an absent output has always meant on the record: the turn is the
  * player's input and no reply. *Absent `speakers` is different* — a session
@@ -490,14 +490,14 @@ export const SCENE: ModeDefinition = {
   version: '1.0.0',
   displayName: 'Scene',
   /**
-   * ***A chat among embodied characters, since [P13.3]*** —
-   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+   * ***A chat among embodied characters, since [P14.3]*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
    * *"Scene's declared values become `embodied`, `per-actor`, `natural`."*
    * ~~`voice: 'narrator'`, `dispatch: 'merged'`~~ until then.
    *
    * **What a new session is created with, and nothing more.** Creation writes
    * these into the session (`chatSettingsAtCreation`), a session's own values
-   * win over them, and a session written before [P13.0] reads `legacy` below —
+   * win over them, and a session written before [P14.0] reads `legacy` below —
    * so the flip re-voices nobody's saved game. *Narrated is one control away*
    * (`voice: 'narrator'` on the session), and the pack serves both voices
    * (`preset.ts`). In a single-character chat `per-actor` and `merged` are the
@@ -506,12 +506,12 @@ export const SCENE: ModeDefinition = {
   voice: 'embodied',
   dispatch: 'per-actor',
   /**
-   * ***What a Scene session written before [P13.0] was played as*** —
-   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * ***What a Scene session written before [P14.0] was played as*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * ~~**The same three values declared above, and written down before they
-   * move.**~~ *They moved at [P13.3]*, and this is what keeps them from moving
-   * anybody: every Scene session made before P13.0 carries none of the three
+   * move.**~~ *They moved at [P14.3]*, and this is what keeps them from moving
+   * anybody: every Scene session made before P14.0 carries none of the three
    * fields, absence meant these, and `chatSettingsOf` reads such a session
    * through this rather than through the values above (pinned against the real
    * Scene in `sessions/chat-settings.test.ts`). Such a session also holds its
@@ -520,8 +520,8 @@ export const SCENE: ModeDefinition = {
    */
   legacy: { voice: 'narrator', dispatch: 'merged', select: 'fixed' },
   /**
-   * ***A chat opens on its cast's greetings*** — [P13 §1.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13.4]: a new Scene session is written an opening turn from each
+   * ***A chat opens on its cast's greetings*** — [P14 §1.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.4]: a new Scene session is written an opening turn from each
    * member's written openings, as SillyTavern opens a chat on `first_mes`.
    */
   openingTurn: true,
@@ -533,7 +533,7 @@ export const SCENE: ModeDefinition = {
   presets: [],
   /**
    * ***Who replies: SillyTavern's natural order over a cast that is all here***
-   * — [P13 §1.2], [P13 §1.3], declared at [P13.3] (~~`{ select: 'fixed',
+   * — [P14 §1.2], [P14 §1.3], declared at [P14.3] (~~`{ select: 'fixed',
    * maxActors: 1 }`~~ until then).
    *
    * - `natural` — mentions, then talkativeness rolls, then somebody: ST's
@@ -554,16 +554,16 @@ export const SCENE: ModeDefinition = {
    * order, and the stager reads what the narrator wrote.
    */
   /**
-   * ***Three since [P13.5a]***: the trackers after the stager, both `post`
+   * ***Three since [P14.5a]***: the trackers after the stager, both `post`
    * and both reading what the narrator wrote. After, because staging is the
    * cheaper question and neither reads the other.
    */
   /**
-   * ***Four since [P13.5b]***: the secret plot's pass first, because it is
+   * ***Four since [P14.5b]***: the secret plot's pass first, because it is
    * `pre` — an arc it writes steers this turn's reply, and the runner puts the
    * engine's director after it so a push reads the fresh arc.
    *
-   * ***Six since [P13.5c]***: the editor straight after the narrator, first
+   * ***Six since [P14.5c]***: the editor straight after the narrator, first
    * among the `post` steps, so everything after it — the stager, the
    * trackers, the engine's own passes — reads the prose the turn is written
    * with; and the echo chamber last of Scene's, reacting to that prose.
@@ -586,7 +586,7 @@ export const SCENE: ModeDefinition = {
     LOCATION_CHANNEL,
     /**
      * ***The six trackers, their switches, the locks, the hidden fields and
-     * the cadence*** — [P13 §1.9.2], [P13.5a]; `tracking.ts` argues each.
+     * the cadence*** — [P14 §1.9.2], [P14.5a]; `tracking.ts` argues each.
      *
      * *`se.location` stays beside `se.track.world`'s `location`*, and the two
      * are not the same fact told twice by accident: `se.location` is the
@@ -598,9 +598,9 @@ export const SCENE: ModeDefinition = {
      * staging. Recorded rather than resolved.
      */
     ...TRACKING_CHANNELS,
-    // The secret plot, its switch, its reveal and its cadence — [P13.5b], `plot.ts`.
+    // The secret plot, its switch, its reveal and its cadence — [P14.5b], `plot.ts`.
     ...PLOT_CHANNELS,
-    // The editor's switches, rules and hold; the echo chamber — [P13.5c].
+    // The editor's switches, rules and hold; the echo chamber — [P14.5c].
     ...EDIT_CHANNELS,
     ...ECHO_CHANNELS,
   ],
@@ -669,11 +669,11 @@ export const SCENE: ModeDefinition = {
       channelId: BACKDROP_ON_CHANNEL.id,
       widget: { kind: 'toggle', label: 'Stage a backdrop' },
     },
-    // The trackers' cards and their switches — [P13.5a], see `tracking.ts`.
+    // The trackers' cards and their switches — [P14.5a], see `tracking.ts`.
     ...TRACKING_SURFACES,
-    // The secret plot's switch, cadence, reveal and card — [P13.5b], `plot.ts`.
+    // The secret plot's switch, cadence, reveal and card — [P14.5b], `plot.ts`.
     ...PLOT_SURFACES,
-    // The editor's and the echo chamber's settings, and the chorus's panel — [P13.5c].
+    // The editor's and the echo chamber's settings, and the chorus's panel — [P14.5c].
     ...EDIT_SURFACES,
     ...ECHO_SURFACES,
   ],

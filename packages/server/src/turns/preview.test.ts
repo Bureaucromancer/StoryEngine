@@ -65,7 +65,7 @@ describe('the step a preview is about', () => {
   });
 
   it('is the step that writes the messages, not a prose-role pass declared ahead of it', () => {
-    // [P13.5b]: Scene's secret-plot pass is `pre`, asks `prose` and writes an
+    // [P14.5b]: Scene's secret-plot pass is `pre`, asks `prose` and writes an
     // effect; the meter measures the narrator's call behind it.
     const mode = modeOf([
       step({ id: 'se.scene.plot', role: 'prose', callKind: 'plot', contributes: 'effects' }),

@@ -126,7 +126,7 @@ to P7.9 carries even that. P7.2 is the cast panel. P7.3, on branch `p7`, carries
 [19 §5.1](../19-tech-stack.md), and the role-binding editor; not the pack, not
 `params`. *Corrected 2026-09-29: P7.3 deferred voice and dispatch to P7.9, whose
 record never mentions them; they became session fields at
-[P13.0](30-p13-scene-and-session-import.md) ([P13 §0.6](30-p13-scene-and-session-import.md)).*
+[P14.0](31-p14-scene-and-session-import.md) ([P14 §0.6](31-p14-scene-and-session-import.md)).*
 P7's §4 does not list an editor as out of scope, so it is neither in
 nor deliberately out. **P8 through P11 do not build one either**: P9, P10 and
 P11 never use the word *preset*, and P8's one use is an import marker. The only
@@ -204,8 +204,8 @@ somebody moves it"*, P7 §0.1); the setup wizard and the `setups/` kind's writer
 (P7.4); and the two false deferrals P7 §0.1a struck — the context-window surface
 and the advisory marker — which were already built. *Corrected 2026-09-29: voice
 and dispatch were not taken. P7.3 deferred them to P7.9, whose record never
-mentions them, and no session field existed until [P13.0](30-p13-scene-and-session-import.md)
-added both ([P13 §0.6](30-p13-scene-and-session-import.md)).*
+mentions them, and no session field existed until [P14.0](31-p14-scene-and-session-import.md)
+added both ([P14 §0.6](31-p14-scene-and-session-import.md)).*
 
 **P7's, until P7 closes without them — then this phase's without a second
 routing.** Each is something P7's document calls its own and no P7 stage carries
@@ -310,11 +310,11 @@ assume the current one. ~~The revisit confirms this against what P7.3 did with
 voice and dispatch, which are the same shape of question — *session field whose
 absence means the mode's value* — and were decided the same way.~~ *Corrected
 2026-09-29: P7.3 did nothing with voice and dispatch; it deferred them to P7.9,
-whose record never mentions them ([P13 §0.6](30-p13-scene-and-session-import.md)).
-They are the same shape of question, and [P13.0](30-p13-scene-and-session-import.md)
+whose record never mentions them ([P14 §0.6](31-p14-scene-and-session-import.md)).
+They are the same shape of question, and [P14.0](31-p14-scene-and-session-import.md)
 answered it the same way — session fields — with one refinement this lean did not
 need: absence means the mode's `legacy` value for a session written before the
-fields existed, because Scene's declared values move in P13.*
+fields existed, because Scene's declared values move in P14.*
 
 **Editing the session's own copy in place is the same operation as switching
 to a pack of one.** Once the copy is addressable through the settings panel,

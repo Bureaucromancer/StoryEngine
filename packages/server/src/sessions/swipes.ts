@@ -23,9 +23,9 @@ export interface SwipeGroups {
 
 /**
  * ***Which alternatives each message's counter holds*** —
- * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * *"swipes surface on the message, not the turn. The sibling strip for siblings
- * that differ only from message k is drawn on message k"*, built at [P13.5].
+ * that differ only from message k is drawn on message k"*, built at [P14.5].
  *
  * ***Grouped by what the siblings say, not the `carried` flag***, because a
  * swipe's family is wider than what one sibling carried. A swipe of message 2

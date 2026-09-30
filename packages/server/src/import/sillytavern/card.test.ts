@@ -56,7 +56,7 @@ describe('what the card becomes', () => {
     // the five actor blocks in the Scene preset render empty — legal and quiet
     // under `omitWhenEmpty`, and asserted here so the gate does not discover it.
     // *Of the profile's own sections*: the card's system prompt joins them as
-    // `se.card.system` since [P13.3], which is not a heuristic split of
+    // `se.card.system` since [P14.3], which is not a heuristic split of
     // anything — see the prompt fields below.
     const { actor } = convert();
 
@@ -123,10 +123,10 @@ describe('what the card becomes', () => {
 
 describe('the card’s own prompt fields, which stack', () => {
   /**
-   * ~~*What the card wanted and cannot have*~~ — [P13.3] moved the prompt
+   * ~~*What the card wanted and cannot have*~~ — [P14.3] moved the prompt
    * fields out of `compat` into sections the Scene pack places, and
    * talkativeness into the `modeData` the speaker policy reads
-   * ([P13 §1.5], [P13 §1.3]). The override warning goes with them, and stays
+   * ([P14 §1.5], [P14 §1.3]). The override warning goes with them, and stays
    * only for what a stack still cannot do.
    */
   it('makes a section of each prompt field, and no longer warns for having them', () => {

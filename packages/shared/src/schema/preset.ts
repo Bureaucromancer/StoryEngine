@@ -81,8 +81,8 @@ export type Placement = Static<typeof Placement>;
 
 /**
  * ***Whose cards an actor-sourced block takes, on a call that speaks for
- * somebody*** — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * added at [P13.2].
+ * somebody*** — [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * added at [P14.2].
  *
  * **Absent is everyone, which is what every preset written before this
  * means**, and it is also what [00 §2.10](../../../../docs/design/00-stance.md)
@@ -103,8 +103,8 @@ export type Placement = Static<typeof Placement>;
  * session is voiced. The alternative considered — a scope that is inert on a
  * call with no speaker — would send such a pack's cards twice to a narrator.
  *
- * ***A third, `voiced`, at [P13.3] — whoever this call writes as***
- * ([P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+ * ***A third, `voiced`, at [P14.3] — whoever this call writes as***
+ * ([P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
  * Under `per-actor` dispatch that is the speaker; under `merged` — one call
  * writing for the whole room, embodied or narrated — it is everyone present.
  * §1.5 asks exactly this of a card's own prompts (*"each call carries the
@@ -146,7 +146,7 @@ export const SlotSource = Type.Union(
   [
     Type.Object({ of: Type.Literal('persona') }),
     /**
-     * "se.summary", "se.appearance", … — and since [P13.2] an optional
+     * "se.summary", "se.appearance", … — and since [P14.2] an optional
      * {@link ActorScope}, on this arm and the next, for a pack that narrows a
      * card block to the member a call speaks for or to the rest of the room.
      */
@@ -206,9 +206,9 @@ export const SlotSource = Type.Union(
      * person, which is the order they narrow in. An author who wants a
      * character's samples somewhere other than the setting's names one.
      *
-     * ***`scope` narrows the actor carrier and nothing else*** ([P13.2]). A
+     * ***`scope` narrows the actor carrier and nothing else*** ([P14.2]). A
      * character's example dialogue is the one sample that belongs to a *who*,
-     * and [P13 §1.5] sends it scoped to the speaker: an example of how Lund
+     * and [P14 §1.5] sends it scoped to the speaker: an example of how Lund
      * talks, in the call where Vera is talking, is an instruction to sound like
      * Lund. A treatment's or a book's samples belong to the story rather than
      * to anybody in it, so the scope does not reach them.
@@ -223,8 +223,8 @@ export const SlotSource = Type.Union(
     Type.Object({ of: Type.Literal('channel'), channelId: Type.String() }),
     /**
      * ***What the story has established*** —
-     * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * added at [P13.5a].
+     * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5a].
      *
      * Every channel that declares itself established state (the SDK's
      * `EstablishedState`) and is switched on, **scoped values included**, as
@@ -442,8 +442,8 @@ export const PresetBlock = Type.Union([SlotBlock, TextBlock], { title: 'PresetBl
 
 /**
  * ***Whether a block is the pack's own instruction*** —
- * [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * `prompts.instruction: false`, read at [P13.3].
+ * [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * `prompts.instruction: false`, read at [P14.3].
  *
  * A chat may switch the pack's instruction off and send a card's system prompt
  * alone, which is SillyTavern's `prefer_character_prompt` one toggle away. So
@@ -701,8 +701,8 @@ export const Preset = Type.Object(
 
     /**
      * ***What a push says when nobody could be asked*** —
-     * [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * added at [P13.5b].
+     * [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5b].
      *
      * A person arms *Push story* for one turn, `natural` or `random`, and the
      * engine's `se.scene.direct` makes one small call for a direction. When that

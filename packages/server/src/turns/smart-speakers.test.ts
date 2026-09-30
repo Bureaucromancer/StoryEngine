@@ -18,8 +18,8 @@ import {
 } from './smart-speakers.js';
 
 /**
- * ***Smart order's call*** — `se.speakers.smart`, [P13 §1.3a], built at
- * [P13.1]. The rules that decide without it are `speakers.test.ts`'s; the
+ * ***Smart order's call*** — `se.speakers.smart`, [P14 §1.3a], built at
+ * [P14.1]. The rules that decide without it are `speakers.test.ts`'s; the
  * whole turn — who the later steps are handed, and that the rules really do
  * make no call — is `runner.test.ts`'s.
  *

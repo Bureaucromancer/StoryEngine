@@ -9,8 +9,8 @@ import { plotSwitches } from './plot.js';
 
 /**
  * ***Marinara's agent state, as Scene's tracker channels*** —
- * [P13 §2.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * second table, built at [P13.5a]:
+ * [P14 §2.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * second table, built at [P14.5a]:
  *
  * | Marinara | Here |
  * |---|---|
@@ -178,13 +178,13 @@ export function trackerSwitches(
     notes.push({ key: 'import.chat.manualTrackersPerAgent', params: { chat }, level: 'info' });
   }
   /**
-   * ***The director*** ([P13.5b]): its push is a per-turn flag here, available
+   * ***The director*** ([P14.5b]): its push is a per-turn flag here, available
    * whatever the chat had on, so there is nothing of it to carry — and its
    * secret plot's switch and cadence are `plotSwitches`'.
    */
   out.push(...plotSwitches(metadata, active));
   /**
-   * ***The editor and the echo chamber*** ([P13.5c]): their switches, the
+   * ***The editor and the echo chamber*** ([P14.5c]): their switches, the
    * prose guardian's settings, and a note each for immersive HTML and the
    * card-evolution auditor, which are not built — `editorSwitches`'.
    */
@@ -193,7 +193,7 @@ export function trackerSwitches(
    * *Agents none of the above answers for* — the ones with an equivalent here
    * under another name (§1.9.1: expression, background, illustrator, lorebook
    * keeper…) and the discarded ones — are still one note, which is what
-   * `agentsNotCarried` has said since [P13.10], now about what is left.
+   * `agentsNotCarried` has said since [P14.10], now about what is left.
    */
   const others = active.filter(
     (agent) =>
@@ -288,7 +288,7 @@ function snapshotShape(row: Row): Shape {
 }
 
 /**
- * ***One snapshot, as tracker values*** — [P13 §1.9.2]'s table read
+ * ***One snapshot, as tracker values*** — [P14 §1.9.2]'s table read
  * backwards, each field as the code that applies Marinara's results stores it
  * (`game-state.ts`):
  *
@@ -298,7 +298,7 @@ function snapshotShape(row: Row): Shape {
  * - **character**, per present character *with a card* (`characterId`):
  *   `mood`, `appearance`, `outfit`, `thoughts`; `customFields` as `fields`;
  *   `stats` as they are. One with no card is somebody the story mentioned and
- *   the library has no actor for — [P13 §1.9.2]'s channel is per actor, so
+ *   the library has no actor for — [P14 §1.9.2]'s channel is per actor, so
  *   there is nowhere to put them, and the builder's note counts whoever it
  *   cannot place.
  * - **persona**: `playerStats.status`, and `personaStats` (or, before the
@@ -306,7 +306,7 @@ function snapshotShape(row: Row): Shape {
  * - **quests**: `playerStats.activeQuests`, without the stage number.
  * - **inventory**: the inventory tracker's three groups, and persona-stats'
  *   own `inventory` folded into *carrying* — *"one place a sword can be"*,
- *   [P13 §1.9.2]'s table — by name, the tracker's row first.
+ *   [P14 §1.9.2]'s table — by name, the tracker's row first.
  * - **custom**: `playerStats.customTrackerFields`.
  * - **locks** and **hidden**: the field-lock and hidden-field maps, each key
  *   translated by {@link pathOfKey}.

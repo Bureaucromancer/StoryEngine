@@ -215,7 +215,7 @@ export interface AppServices {
    */
   recoverRenditions: () => Promise<{ interrupted: number; marked: number }>;
   /**
-   * ***The summary chain's background warm*** — [P13.11], [18 §7.5].
+   * ***The summary chain's background warm*** — [P14.11], [18 §7.5].
    *
    * Asked by `sessions.imported` after every import, cancelled by
    * `sessions.deleting`, and stopped by `disposeServices` after the runner
@@ -908,7 +908,7 @@ async function assembleWithState(
 
   /**
    * ***The warm, and the two hooks that reach it from the store*** —
-   * [P13.11]. Assigned onto the session context rather than written into its
+   * [P14.11]. Assigned onto the session context rather than written into its
    * literal, because the warm needs the providers and the bus and the context
    * is declared before either — and a closure over a later `const` is the
    * temporal-dead-zone hazard the config note above already refused once.
@@ -1124,7 +1124,7 @@ export async function disposeServices(services: AppServices): Promise<void> {
    */
   await services.drainRenditions();
   // The warm reads the index and writes link files, so it stops before either
-  // store closes; what it had not derived, the next turn will ([P13.11]).
+  // store closes; what it had not derived, the next turn will ([P14.11]).
   await services.summaryWarm.stop();
   services.stopUpdateCheck();
   services.backupSchedule?.stop();
@@ -1567,11 +1567,11 @@ export async function buildApp(
       registerImportRoutes(api, services);
       registerSearchRoutes(api, services);
       registerSessionRoutes(api, services);
-      // Hide and unhide — P13 §1.6's one gesture that is not a turn ([P13.4]).
+      // Hide and unhide — P14 §1.6's one gesture that is not a turn ([P14.4]).
       registerGestureRoutes(api, services);
-      // A chat's settings — voice, dispatch, who replies, the note ([P13.5]).
+      // A chat's settings — voice, dispatch, who replies, the note ([P14.5]).
       registerChatRoutes(api, services);
-      // A mode's on-demand step between turns — Update trackers ([P13.5a]).
+      // A mode's on-demand step between turns — Update trackers ([P14.5a]).
       registerOnDemandRoutes(api, services);
 
       /**

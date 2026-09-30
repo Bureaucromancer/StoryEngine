@@ -43,11 +43,11 @@ import type {
 
 /**
  * ***The chat tree builder*** —
- * [P13.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+ * [P14.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
  * one family of foreign chats in, one `SessionExport` out, and nothing touched
  * on the way.
  *
- * **Every path into a session ends in `importSession`** ([P13 §2.1]): a folder
+ * **Every path into a session ends in `importSession`** ([P14 §2.1]): a folder
  * sweep, a zip, a Marinara profile, one uploaded `.jsonl`. That reader already
  * mints the session id, stamps `origin`, marks turns foreign, refuses a
  * collision and indexes, and the backup import is the precedent for handing it
@@ -59,42 +59,42 @@ import type {
  *
  * ***Pure, and that is a property of the signature rather than a promise.***
  * No I/O, no library, no clock, no randomness: the chats, what the library
- * knows about them ([P13 §2.5]'s resolution, P13.8's work), the account and the
- * time all arrive as arguments. That is what lets [P13.6]'s proof obligation be
+ * knows about them ([P14 §2.5]'s resolution, P14.8's work), the account and the
+ * time all arrive as arguments. That is what lets [P14.6]'s proof obligation be
  * a property test over generated families rather than a handful of fixtures —
  * hand-written fixtures are linear, and the bugs are in the forks.
  *
- * The build, in the order [P13 §2] decides it:
+ * The build, in the order [P14 §2] decides it:
  *
- * 1. **Rounds** ([P13 §2.2], `rounds.ts`): each chat's lines grouped into turns.
- * 2. **Swipes** ([P13 §2.3]): each alternative a sibling from the message it
+ * 1. **Rounds** ([P14 §2.2], `rounds.ts`): each chat's lines grouped into turns.
+ * 2. **Swipes** ([P14 §2.3]): each alternative a sibling from the message it
  *    belongs to.
- * 3. **Identity** ([P13 §2.4], `ids.ts`): every node keyed by its content and
+ * 3. **Identity** ([P14 §2.4], `ids.ts`): every node keyed by its content and
  *    its parent's key, so the family's chats collapse onto one tree.
- * 4. **Refs and resolution** ([P13 §2.5]): a ref per chat, the head on the
+ * 4. **Refs and resolution** ([P14 §2.5]): a ref per chat, the head on the
  *    root chat's, speakers named by the library where it knows them.
- * 5. **Settings** ([P13 §2.6]): the Scene chat fields, from the source where it
+ * 5. **Settings** ([P14 §2.6]): the Scene chat fields, from the source where it
  *    said and from Scene's chat defaults where it did not — and the one setting
  *    that is state rather than a field, a group's muted members, as effects on
  *    the opening turns with the head cache to match ({@link mutedEffects}).
  */
 
 /**
- * ***Scene, as a chat*** — the three fields [P13 §1.2] declares, as an import
+ * ***Scene, as a chat*** — the three fields [P14 §1.2] declares, as an import
  * writes them when the source says nothing.
  *
  * **Written explicitly, never left absent**, and the reason is
  * `chatSettingsOf`'s rule 2: a Scene session carrying none of `voice`,
- * `dispatch` and `speakers` is read as one written before P13.0, and plays as
+ * `dispatch` and `speakers` is read as one written before P14.0, and plays as
  * the mode's `legacy` — narrator, merged, fixed. An imported chat was played
- * in the characters' own voices, one reply each, and [P13]'s revision exists so
+ * in the characters' own voices, one reply each, and [P14]'s revision exists so
  * that it lands in a mode that plays the way the chat did. Absent would quietly
  * re-voice every import as a narrated story.
  *
- * *Scene's P13 values rather than whatever the mode declares today*: this
+ * *Scene's P14 values rather than whatever the mode declares today*: this
  * module cannot read the mode (the SDK boundary puts `packages/modes/scene` out
  * of the server's reach), and a chat's settings should not change meaning on
- * the day the mode's declared values move, which [P13 §1.2] says they do. In a
+ * the day the mode's declared values move, which [P14 §1.2] says they do. In a
  * single-character chat `per-actor` and `merged` are the same one call.
  */
 const SCENE_CHAT = {
@@ -108,7 +108,7 @@ const SCENE_CHAT = {
 };
 
 /**
- * The most actors a cast may name — [P13 §1.2]'s *"`participants.maxActors`
+ * The most actors a cast may name — [P14 §1.2]'s *"`participants.maxActors`
  * rises to 32, the cast route's own ceiling"* (`CastBody.actors.maxItems`). A
  * bound on a request body rather than a claim about groups, and so a bound on
  * what an import may write into the same field.
@@ -158,7 +158,7 @@ interface Walked {
 /**
  * Builds one session document from one family of chats.
  *
- * `settings` is the source's say about how the chat is played ([P13 §2.6]);
+ * `settings` is the source's say about how the chat is played ([P14 §2.6]);
  * without it the session gets Scene's chat defaults. The answer's `notes` are
  * everything the person should be told, and never a sentence (`ImportNote`).
  */
@@ -189,7 +189,7 @@ export function buildSession(
   /**
    * Places a node, or finds it already placed by an earlier round of an earlier
    * chat — which is the whole of how a branch's copied prefix collapses onto
-   * the root's path ([P13 §2.4]). A node found keeps everything it was first
+   * the root's path ([P14 §2.4]). A node found keeps everything it was first
    * placed with, its time included, so a later chat cannot move an id.
    *
    * ***Everything but its hiding.*** The chats of a family are separate files,
@@ -201,8 +201,8 @@ export function buildSession(
    * two rules that is the one that sends the model nothing a chat of the family
    * kept from it; the other, the root chat's word, would quietly put a branch's
    * `/hide` back into the branch's prompt. Either way a line the chats disagree
-   * about is counted, and the person is told ([P13 §2.6]'s *"a note, never
-   * silence"*). [P13 §2.7]'s hidden merge has to apply the same rule, or a
+   * about is counted, and the person is told ([P14 §2.6]'s *"a note, never
+   * silence"*). [P14 §2.7]'s hidden merge has to apply the same rule, or a
    * sync would undo what the first import decided.
    *
    * The key holds each message's speaker and text and their count, so the
@@ -283,7 +283,7 @@ export function buildSession(
   const ordered = [...nodes.values()].sort((one, two) => (id(one.key) < id(two.key) ? -1 : 1));
 
   // -------------------------------------------------------------------------
-  // Resolution — [P13 §2.5]
+  // Resolution — [P14 §2.5]
   // -------------------------------------------------------------------------
 
   /**
@@ -316,7 +316,7 @@ export function buildSession(
    * ***The roster first, in the group's order, then whoever else spoke*** —
    * `ChatFamily.roster`. A group's members are its cast whether or not they
    * said a word, and the order is the group's because `list` answers in cast
-   * order ([P13 §1.3]): reading it off the lines instead would reorder the
+   * order ([P14 §1.3]): reading it off the lines instead would reorder the
    * round by who happened to speak first.
    */
   for (const member of family.roster ?? []) meet(member);
@@ -351,7 +351,7 @@ export function buildSession(
   );
 
   // -------------------------------------------------------------------------
-  // Hidden — [P13 §2.6]: imported, and hidden, no longer dropped
+  // Hidden — [P14 §2.6]: imported, and hidden, no longer dropped
   // -------------------------------------------------------------------------
 
   const hidden: Record<string, true | number[]> = {};
@@ -395,7 +395,7 @@ export function buildSession(
     /**
      * ***A hidden player's line under replies that are not hidden has no exact
      * home.*** `session.hidden` hides a whole turn or some of its messages, and
-     * an input is neither — [P13 §1.6]'s hide works on the same two arms, so
+     * an input is neither — [P14 §1.6]'s hide works on the same two arms, so
      * Part A cannot express it either. Splitting the line into a turn of its own
      * would express it, and would make the round boundaries depend on hiding,
      * which `rounds.ts` explains a sync cannot survive. So the line is shown,
@@ -411,7 +411,7 @@ export function buildSession(
   }
 
   // -------------------------------------------------------------------------
-  // Refs, the head and the remembered path — [P13 §2.5]
+  // Refs, the head and the remembered path — [P14 §2.5]
   // -------------------------------------------------------------------------
 
   const branchRefs: BranchRef[] = [];
@@ -470,7 +470,7 @@ export function buildSession(
   for (const chat of family.chats) {
     /**
      * *A pointer to a chat that is not here.* Grouping is the caller's
-     * ([P13 §2.5]); the builder was handed this chat as part of the family and
+     * ([P14 §2.5]); the builder was handed this chat as part of the family and
      * builds it as one — content decides where it joins, if anywhere, and the
      * note says its stated parent was missing.
      */
@@ -531,11 +531,11 @@ export function buildSession(
     updatedAt: context.now,
     headTurnId: head === null ? null : id(head.key),
     /**
-     * ***Where [P13 §2.7]'s sync looks for this session again*** — the
+     * ***Where [P14 §2.7]'s sync looks for this session again*** — the
      * family's root, as the library's re-import rule keys an object on
      * `originalFilename` (`import/identity.ts`).
      *
-     * **`importSession` keeps it** since [P13.10a], and the index carries it
+     * **`importSession` keeps it** since [P14.10a], and the index carries it
      * (`sessionByOrigin`), so a second import of the same family finds the
      * session and extends it. The rest of this `origin` is the reader's own —
      * it stamps `source` and the dates for every import alike.
@@ -584,13 +584,13 @@ export function buildSession(
 }
 
 // ---------------------------------------------------------------------------
-// Swipes — [P13 §2.3]
+// Swipes — [P14 §2.3]
 // ---------------------------------------------------------------------------
 
 /**
  * ***Swipes are siblings from the message they belong to*** —
- * [P13 §2.3](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * which is [P13 §1.6]'s swipe read backwards.
+ * [P14 §2.3](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * which is [P14 §1.6]'s swipe read backwards.
  *
  * For a character line at index *k* of a round, every swipe but the active one
  * becomes a sibling of the round's turn: the same parent, the same input,
@@ -607,7 +607,7 @@ export function buildSession(
  * - **a swipe array on an older message becomes leaves**, because nothing ever
  *   followed them;
  * - **greetings-as-swipes become sibling opening turns** — an output-only first
- *   round's alternates are siblings at the root, which is [P13 §1.7];
+ *   round's alternates are siblings at the root, which is [P14 §1.7];
  * - **swipes on a player's or narrator's line are ignored.** A swipe is a
  *   reply regenerated, and neither is a reply anybody generated.
  *
@@ -640,7 +640,7 @@ function placeSwipes(
           line: own.line,
           // *The swipe's own state, never the line's*: Marinara keys a snapshot
           // by `(message, swipe)`, and a swipe having its own tracker state is
-          // the tree doing what it does ([P13 §1.9]).
+          // the tree doing what it does ([P14 §1.9]).
           ...(swipe.state === undefined ? {} : { state: swipe.state }),
         },
       ];
@@ -653,12 +653,12 @@ function placeSwipes(
 }
 
 /**
- * ***A round's time, and every one of its siblings'*** — [P13 §2.4]'s *"the
+ * ***A round's time, and every one of its siblings'*** — [P14 §2.4]'s *"the
  * send time, forced strictly above the parent's"*, read as the round's own
  * send time and never a swipe's.
  *
  * **The rule is that no id may depend on which swipe was showing**, because
- * the person changes that, and [P13 §2.7]'s sync has to find every turn it
+ * the person changes that, and [P14 §2.7]'s sync has to find every turn it
  * already holds when they have. A round and its swipes' siblings are one set of
  * nodes seen from whichever swipe is active: switch the swipe and the round
  * becomes a sibling and a sibling the round. So they must all take a time that
@@ -706,7 +706,7 @@ function roundTime(round: Round): number | null {
 /**
  * ***Which swipe is the one on screen.*** `activeSwipe` when it is a usable
  * index — the parser has already made that swipe's text authoritative
- * ([P13 §0.3]). A missing or out-of-range index is read by content instead: the
+ * ([P14 §0.3]). A missing or out-of-range index is read by content instead: the
  * swipe holding the line's own text is the active one, since `text` is the
  * authoritative copy of whatever was showing. Either way the active swipe is
  * the round's own turn and never a sibling of it.
@@ -742,11 +742,11 @@ function foreignIdOf(reply: ChatMessage, swipe: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Refs and the head — [P13 §2.5]
+// Refs and the head — [P14 §2.5]
 // ---------------------------------------------------------------------------
 
 /**
- * ***The head is the root chat's head*** — [P13 §2.5]: the imported session
+ * ***The head is the root chat's head*** — [P14 §2.5]: the imported session
  * opens where the chat the person was playing did. A root chat with nothing in
  * it has no head, and then the first chat that has one gives it, rather than a
  * session that opens on nothing while it holds turns.
@@ -760,8 +760,8 @@ function headOf(walked: readonly Walked[], nodes: ReadonlyMap<string, Node>): No
 }
 
 /**
- * ***`lastSelectedChild`, along the root chat's path first*** — [P13 §2.3]'s
- * *"`lastSelectedChild` names the active sibling"* and [P13 §2.5]'s head.
+ * ***`lastSelectedChild`, along the root chat's path first*** — [P14 §2.3]'s
+ * *"`lastSelectedChild` names the active sibling"* and [P14 §2.5]'s head.
  *
  * **Keyed as `moveHead` keys it**: parent turn id to child turn id, for each
  * step of a path (`sessions/store.ts`). *Only where there is a choice* — a node
@@ -806,7 +806,7 @@ function rememberedPath(
 }
 
 // ---------------------------------------------------------------------------
-// Muted members — [P13 §2.6], [P13.9]
+// Muted members — [P14 §2.6], [P14.9]
 // ---------------------------------------------------------------------------
 
 /** A muted member the session can name: their foreign key, and the actor they are. */
@@ -824,7 +824,7 @@ interface Muted {
  * foreign key instead would put a name into the channel map that no cast
  * member answers to — and `resolveCast` unions the actors the channels name
  * into the cast, so it would be a phantom member, muted. Such a member is said
- * instead: their lines keep their name ([P13 §2.5]) and the note says the mute
+ * instead: their lines keep their name ([P14 §2.5]) and the note says the mute
  * did not come across. *In the cast too*, for the same reason, and the roster
  * puts every resolved member there unless the cast ceiling was reached — a
  * member left out by the ceiling is *in* the library, so `mutedUnresolved`
@@ -856,9 +856,9 @@ function mutedMembers(
 
 /**
  * ***A group's muted members, as the state the session opens in*** —
- * [P13 §2.6]'s *"ST `disabled_members` … → presence `false` (muted)"*.
+ * [P14 §2.6]'s *"ST `disabled_members` … → presence `false` (muted)"*.
  *
- * **The decision, and the exception to [P13 §2.2] it is.** Presence is the
+ * **The decision, and the exception to [P14 §2.2] it is.** Presence is the
  * `se.presence` channel (`sessions/cast.ts`): a value at a node, which only an
  * effect on a turn writes. §2.2 has an imported turn carry `effects: []` and
  * *"nothing fabricated"* — and the reason for that rule is a `TurnRequest` or
@@ -869,7 +869,7 @@ function mutedMembers(
  * not respected.
  *
  * - ***On every opening turn***, not only the first: a group's greetings can
- *   come in as several sibling openings ([P13 §1.7]), each the root of its own
+ *   come in as several sibling openings ([P14 §1.7]), each the root of its own
  *   path, and a mute on one of them would hold on that path alone. The
  *   source's state is the group's, not a greeting's. And *on the opening*
  *   rather than at the head: SillyTavern keeps the group's mute as it is now,
@@ -877,7 +877,7 @@ function mutedMembers(
  *   opening is the one place every branch of the family inherits it from,
  *   where the head would leave every other ref playing with the member back
  *   in the room.
- * - ***`proposedBy: engine`***, the same arm [P13 §2.6] gives Marinara's
+ * - ***`proposedBy: engine`***, the same arm [P14 §2.6] gives Marinara's
  *   tracker snapshots, and for the same reason. The other three would each be
  *   a false statement: no model call exists to name (`model`), no step ran
  *   (`step`), and `user` is what `reconcileHandEdits` writes for a person's
@@ -912,15 +912,15 @@ function mutedEffects(node: Node, turnId: string, muted: readonly Muted[]): Chan
 }
 
 // ---------------------------------------------------------------------------
-// The source's state — [P13 §2.6], [P13.5a]
+// The source's state — [P14 §2.6], [P14.5a]
 // ---------------------------------------------------------------------------
 
 /**
  * ***Every turn's effects: the source's state, where it moves along the path***
- * — [P13 §2.6]'s *"`game_state_snapshots` row for a message's swipe → effects
+ * — [P14 §2.6]'s *"`game_state_snapshots` row for a message's swipe → effects
  * on the turn holding that message, one per enabled tracker channel,
  * `proposedBy: engine`; the snapshot keying* is *the tree's"*, and
- * {@link mutedEffects}' exception to [P13 §2.2] widened to it for the same
+ * {@link mutedEffects}' exception to [P14 §2.2] widened to it for the same
  * reason: the source *says* what it had established at that message, and a
  * session keeps such a thing only as an effect on a turn.
  *
@@ -942,9 +942,9 @@ function mutedEffects(node: Node, turnId: string, muted: readonly Muted[]): Chan
  *   `ChatSettings.state`, the agent switches — beside the muted members'
  *   presence, for {@link mutedEffects}' argument about where a chat-wide fact
  *   goes; then the opening's lines. The mutes stay first and are never
- *   deduplicated: [P13.10a]'s sync reads them as the source's word on the path.
+ *   deduplicated: [P14.10a]'s sync reads them as the source's word on the path.
  * - ***On the head, the state the source keeps as of now*** —
- *   `ChatSettings.headState`, the secret plot ([P13.5b]): last, after the
+ *   `ChatSettings.headState`, the secret plot ([P14.5b]): last, after the
  *   head's own lines, since it is the source's value at the head.
  * - ***`proposedBy: engine`, applied, `before` the value at the parent*** —
  *   what `acceptEffect` records, built here for {@link mutedEffects}' reason
@@ -961,7 +961,7 @@ function stateEffects(
   on: {
     muted: readonly Muted[];
     opening: readonly ChatStateValue[];
-    /** `ChatSettings.headState`, for the head node alone ([P13.5b]). */
+    /** `ChatSettings.headState`, for the head node alone ([P14.5b]). */
     head: { key: string | null; state: readonly ChatStateValue[] };
     resolution: ChatResolution;
     cast: readonly string[];
@@ -1106,7 +1106,7 @@ function hiddenHere(message: ChatMessage, hiddenLines: ReadonlySet<string>): boo
 
 /**
  * A reply as a line of a node. *A narrator line has no speaker whatever the
- * parser put there*: [P13 §2.2] makes it a `speaker: null` message, and a
+ * parser put there*: [P14 §2.2] makes it a `speaker: null` message, and a
  * speaker on it would be one the chat never showed.
  */
 function lineOf(message: ChatMessage, hiddenLines: ReadonlySet<string>): Line {
@@ -1132,15 +1132,15 @@ function contentOf(input: Node['input'], lines: readonly Line[]): NodeContent {
 }
 
 /**
- * ***A turn nothing ran*** — [P13 §2.2]'s *"`status: 'complete'`,
+ * ***A turn nothing ran*** — [P14 §2.2]'s *"`status: 'complete'`,
  * `effects: []`, `tape: []`, and nothing fabricated."* — *with the one
- * exception [P13.9] makes*: an opening turn carries the muted members'
+ * exception [P14.9] makes*: an opening turn carries the muted members'
  * presence, which is the source's state and not a fabrication
  * ({@link mutedEffects}).
  *
  * **No `request`, `cost` or `steps`.** [18 §3]'s first consequence keeps them
  * optional precisely so a turn that never ran a model can exist, and
- * [P13 §2.6] is blunt about the temptation: *"A `TurnRequest` built from three
+ * [P14 §2.6] is blunt about the temptation: *"A `TurnRequest` built from three
  * of its fields is a fabrication of the other twenty."*
  *
  * - **`input.kind` is `do`**, verbatim in every shipped pack; **`actorId`** is

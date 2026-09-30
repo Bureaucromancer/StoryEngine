@@ -21,6 +21,7 @@ import {
   useSession,
   useSetSessionArchived,
   useSetSessionPreset,
+  useTranscript,
 } from '../queries.js';
 import { disclosure, link } from '../ui/classes.js';
 import { Alert } from '../ui/Alert.js';
@@ -71,6 +72,17 @@ export function SessionPanel(props: {
   block?: string;
 }): JSX.Element | null {
   const session = useSession(props.sessionId);
+  /**
+   * ***Whether the story has pictures on its moves*** — [25 E15]: *"an export
+   * containing attachments should say so"*. The transcript Play already holds,
+   * read from the same cache entry, so asking costs nothing. *The path shown,
+   * not every branch*: a picture only on a branch nobody is looking at goes
+   * unmentioned. The note is a courtesy — the export carries every branch and
+   * every caption either way.
+   */
+  const transcript = useTranscript(props.sessionId);
+  const hasPictures =
+    transcript.data?.turns.some((turn) => (turn.input?.attachments?.length ?? 0) > 0) ?? false;
   // The same key the library page holds, so opening this issues no request.
   const presets = useLibrary('presets');
   const setPreset = useSetSessionPreset(props.sessionId);
@@ -225,6 +237,15 @@ export function SessionPanel(props: {
           <a href={`/api/sessions/${props.sessionId}/export`} className={link.inline} download>
             Export this session
           </a>
+          {/* *Said where the choice is made*: an export carries the record of
+              every picture and its caption, and not the picture — the file
+              is the story's text. A backup is what carries the pixels. */}
+          {hasPictures ? (
+            <Fine>
+              The pictures on this story’s moves travel as their captions. A backup carries the
+              pictures themselves.
+            </Fine>
+          ) : null}
           <Button
             type="button"
             onClick={() => {
@@ -300,7 +321,7 @@ export function SessionPanel(props: {
         {setArchived.isError ? <Alert tone="error">{setArchived.error.message}</Alert> : null}
         {remove.isError ? <Alert tone="error">{remove.error.message}</Alert> : null}
 
-        {/* ***Update from source*** — [P13 §2.7], [P13.10a]. Only on a session
+        {/* ***Update from source*** — [P14 §2.7], [P14.10a]. Only on a session
             made from a chat, which is the only kind with a source to update
             from: the import stamped where it came from, and that is also what
             the server finds it by. */}
@@ -331,7 +352,7 @@ export function SessionPanel(props: {
 
 /**
  * ***Where a session came from, if a chat*** — `origin.originalFilename`, which
- * the import stamps with the chat family's root path ([P13 §2.7]): `chats/<folder>/<file>.jsonl`
+ * the import stamps with the chat family's root path ([P14 §2.7]): `chats/<folder>/<file>.jsonl`
  * from a folder, the bare file name from one upload, `…/chats.json#<id>` from a
  * Marinara store. Read off the session as the server sends it, since the
  * summary type does not name `origin`.
@@ -353,7 +374,7 @@ function pickableName(source: string): string | null {
 
 /**
  * `POST /api/import/sessions/:id/update` — the sweep of the recorded folder
- * ([P13.10a]). **Here rather than in `api.ts`**: this panel is its one caller,
+ * ([P14.10a]). **Here rather than in `api.ts`**: this panel is its one caller,
  * and the request is the plain JSON one `api.ts`'s own helper makes, CSRF
  * header included.
  */
@@ -386,14 +407,14 @@ type Updating =
   | { kind: 'failed'; message: string; notes: ImportItem['notes'] };
 
 /**
- * ***Update from source*** — [P13 §2.7], [P13.10a]: the session menu's way to
+ * ***Update from source*** — [P14 §2.7], [P14.10a]: the session menu's way to
  * bring a chat imported from SillyTavern or Marinara up to date.
  *
  * **Two doors, as §2.7 names them.** A chat that came from a folder the server
  * swept is swept again, server-side, from the path the ledger recorded. One
  * that came as a file cannot be re-read — *a browser cannot reopen a path* —
  * so the server says so and the panel offers the file picker, for the same
- * file under the same name: the name is the chat's identity ([P13 §2.4]), and a
+ * file under the same name: the name is the chat's identity ([P14 §2.4]), and a
  * file picked under another would arrive as another chat. A chat that came in a
  * folder through the browser has neither, and is told to import the folder
  * again, which updates every chat in it.

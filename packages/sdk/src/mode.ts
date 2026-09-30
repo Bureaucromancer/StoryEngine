@@ -43,8 +43,8 @@ export interface ModeDefinition {
    * become optional *session* fields whose absence means the mode's value, which
    * is a field rather than a migration.~~ *Corrected 2026-09-29: P7 never did
    * it* — [P7.3] deferred the fields to [P7.9], whose record never mentions
-   * them ([P13 §0.6](../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
-   * **They became optional session fields at [P13.0]**, and these are now what
+   * them ([P14 §0.6](../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
+   * **They became optional session fields at [P14.0]**, and these are now what
    * a new session is *created with* rather than what every session reads:
    * creation writes them onto the session explicitly, and `chatSettingsOf` in
    * the server reads the session's own before these. What keeps them honest
@@ -55,11 +55,11 @@ export interface ModeDefinition {
   dispatch: 'merged' | 'per-actor';
   /**
    * ***What a session that predates this mode's current declared values reads
-   * as*** — [P13 §1.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.0].
+   * as*** — [P14 §1.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.0].
    *
    * **The problem it exists for is a default that moves.** Absence on a session
-   * has always meant *the mode's value*, and P13 changes Scene's values from
+   * has always meant *the mode's value*, and P14 changes Scene's values from
    * `narrator`/`merged`/`fixed` to `embodied`/`per-actor`/`natural`. Without this,
    * that change would silently re-voice every Scene session anybody has ever
    * played: a chat narrated in the third person for forty turns would answer
@@ -136,8 +136,8 @@ export interface ModeDefinition {
   renditions?: { illustration?: 'off' | 'on-demand' | 'each-turn' };
   /**
    * ***Whether a new session opens on its cast's written openings*** —
-   * [P13 §1.7](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.4].
+   * [P14 §1.7](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.4].
    *
    * `true` makes session creation write an **opening turn**: output only, no
    * call and no `request`, one message per cast member with a written opening —
@@ -152,7 +152,7 @@ export interface ModeDefinition {
    * assistant session that greeted with whatever card was cast would be a
    * mode's behaviour decided by a setting that says something else. Absent
    * means no opening turn, which is every session every mode made before
-   * P13.4 — so a mode that says nothing is unchanged.
+   * P14.4 — so a mode that says nothing is unchanged.
    */
   openingTurn?: boolean;
   setup: SetupSchema;
@@ -193,12 +193,12 @@ export interface ModePreset {
  *   scene.~~
  * - ~~`manual` — whoever the player named with the input, and nobody otherwise.~~
  *
- * ***Corrected 2026-09-29, at [P13.1]: those four lines named ST's arms and
+ * ***Corrected 2026-09-29, at [P14.1]: those four lines named ST's arms and
  * described something else.*** [P7.3] took the taxonomy and not the behaviour
- * — [P13 §0.7](../../../docs/design/workplan/30-p13-scene-and-session-import.md)
+ * — [P14 §0.7](../../../docs/design/workplan/31-p14-scene-and-session-import.md)
  * lays the two side by side — and nothing noticed because no shipped step read
  * the answer. The arms now do what `group-chats.js` does at the pinned commit
- * ([P13 §1.3]), every random choice on the turn's tape:
+ * ([P14 §1.3]), every random choice on the turn's tape:
  *
  * - `natural` — the default for a chat. Whoever the **activation text** names
  *   (the input, or the last message when there is none), in the order the
@@ -217,7 +217,7 @@ export interface ModePreset {
  *   member at random, which is ST's and is what keeps *let them talk* from
  *   silently doing nothing.
  *
- * **And a fifth, `smart`, which is not ST's** — [P13 §1.3a], Marinara's
+ * **And a fifth, `smart`, which is not ST's** — [P14 §1.3a], Marinara's
  * `smart` order built the way the hook selector is. The rules decide whenever
  * they can (force-talk, a mention, a room of one); otherwise an engine step
  * asks a model, with `natural`'s pick drawn beforehand as the fallback. It is
@@ -235,7 +235,7 @@ export interface ModePreset {
  * **`fixed` stays and is not one of the four.** It is the honest answer for a
  * mode that seats one actor, and removing it would force Scene to claim a
  * selection strategy for a choice it does not make. *It also stays after
- * [P13.1]*: a pre-P13 Scene session reads as `fixed` through
+ * [P14.1]*: a pre-P14 Scene session reads as `fixed` through
  * `ModeDefinition.legacy`, and a session file naming it has to keep meaning
  * what it meant.
  */
@@ -265,8 +265,8 @@ export interface ParticipantPolicy {
   /**
    * ***A declared cast member with no presence value is present; presence
    * `false` is muted*** —
-   * [P13 §1.3](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.1].
+   * [P14 §1.3](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.1].
    *
    * **The problem is a default that made every arm select from nobody.**
    * `se.presence` has been the eligibility test since [P7.3], its `init` is
@@ -291,8 +291,8 @@ export interface ParticipantPolicy {
    * not a migration of anybody's saved games.
    *
    * *No built-in mode declares it yet.* Scene is the one meant to, and the
-   * design dates that twice — [P13 §1.2] and §1.3 read as P13.1, §3's stage
-   * list as [P13.3] with the rest of Scene's declared values; P13.1 follows
+   * design dates that twice — [P14 §1.2] and §1.3 read as P14.1, §3's stage
+   * list as [P14.3] with the rest of Scene's declared values; P14.1 follows
    * the stage list, and `speakers.ts`'s `naturalOrder` says why.
    */
   castIsPresent?: boolean;
@@ -582,8 +582,8 @@ export interface SurfaceContribution {
    *   mark on a message. Adding an arm is exactly what [10 §8.1]'s paired
    *   commitment requires of the widget vocabulary, and the same sentence
    *   governs regions: *"ask what widget would let it, and add that."*
-   * - `settings` — ***the session's settings***, added at [P13.5a] for
-   *   [P13 §1.9.6]: *"switches in the session's settings, grouped under
+   * - `settings` — ***the session's settings***, added at [P14.5a] for
+   *   [P14 §1.9.6]: *"switches in the session's settings, grouped under
    *   Agents because that is what a Marinara user will look for"*. A switch
    *   that costs a model call every turn is configuration, and the panel stack
    *   is where the story's state is read; putting six tracker switches beside
@@ -592,7 +592,7 @@ export interface SurfaceContribution {
   region: 'hud' | 'panel' | 'message' | 'stage' | 'settings';
   /**
    * ***The heading a contribution goes under within its region*** — added at
-   * [P13.5a], for the same sentence of [P13 §1.9.6]. Authored content, like a
+   * [P14.5a], for the same sentence of [P14 §1.9.6]. Authored content, like a
    * widget's label; contributions sharing one are drawn together, in
    * declaration order. Absent is the region's own, ungrouped.
    */

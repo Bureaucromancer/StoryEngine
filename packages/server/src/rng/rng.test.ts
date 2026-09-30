@@ -382,7 +382,7 @@ describe('a group contest replays to an entry, not to a position', () => {
 
 /**
  * ***A rewrite swipe replays call k's draws*** — `swipeReplay` and
- * `Rng.speaking`, 2026-09-29 at the [P13.4] review. A swipe from message *k*
+ * `Rng.speaking`, 2026-09-29 at the [P14.4] review. A swipe from message *k*
  * makes call *k* first, so its keys count from 0 where the original's call *k*
  * counted from wherever calls `0..k-1` left them.
  */

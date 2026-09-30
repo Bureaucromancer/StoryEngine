@@ -89,7 +89,7 @@ export class Rng {
 
   /**
    * ***Tags the draws `task` makes with the round message they are for*** —
-   * `Draw.message`, 2026-09-29 at the [P13.4] review. **Synchronous on
+   * `Draw.message`, 2026-09-29 at the [P14.4] review. **Synchronous on
    * purpose**: the tag is this object's state while `task` runs, and a task
    * that awaited could lend it to a draw made elsewhere meanwhile. The runner
    * wraps a speaking call's lore retrieval, which is synchronous, and nothing
@@ -175,7 +175,7 @@ export class Rng {
 
 /**
  * ***The tape a rewrite swipe from message `from` replays*** — 2026-09-29, at
- * the [P13.4] review.
+ * the [P14.4] review.
  *
  * A swipe's first speaking call is the one that writes message *k*, so keys
  * counted from 0 across the turn line its draws up with **call 0's** in the

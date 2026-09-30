@@ -24,7 +24,7 @@ import {
 import { SCENE_ID } from './mode.js';
 
 /**
- * ***The echo chamber, held to [P13 §1.9.5]*** — [P13.5c]: *"a panel fed by a
+ * ***The echo chamber, held to [P14 §1.9.5]*** — [P14.5c]: *"a panel fed by a
  * cadence step, since it never touches the story. Off by default."*
  *
  * The claims: **off costs nothing**; **it never reaches a prompt** (no render,

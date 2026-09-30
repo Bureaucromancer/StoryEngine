@@ -275,9 +275,9 @@ export function importNotesFor(
 
 /**
  * ***The server path a session last came in from***, or null —
- * [P13 §2.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * *"re-sweeps the server path recorded in the ledger when the import came
- * from one"*, [P13.10a].
+ * from one"*, [P14.10a].
  *
  * Only a sweep of a server path records a root: an upload names its file and
  * nothing more ([21 §4.1.1]), and a refused sweep wrote nothing. So a row

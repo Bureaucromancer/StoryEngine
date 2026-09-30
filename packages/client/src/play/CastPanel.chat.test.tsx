@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatSettings } from '../api.js';
 
 /**
- * ***The cast panel in a chat*** — [P13 §1.8], [P13.5]: add and remove over
+ * ***The cast panel in a chat*** — [P14 §1.8], [P14.5]: add and remove over
  * the cast route, mute as presence, talkativeness on the card, speak, and the
  * card's prompt switches. `CastPanel.test.tsx` keeps the P7 claims, on a
  * session that is not a chat, and those must still hold.

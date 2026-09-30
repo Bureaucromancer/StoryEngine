@@ -85,7 +85,7 @@ describe('a session file that cannot be loaded', () => {
 
 /**
  * ***A chat from SillyTavern or Marinara, through the same control*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * A `.jsonl` goes to the library's import, not the export's door, and comes
  * back as a review row; the row's `objectId` is the session to open.
@@ -148,8 +148,8 @@ describe('a chat file', () => {
     expect(await screen.findByText('That file is not a chat this build can read.')).toBeTruthy();
   });
 
-  it('opens the session a chat that grew was brought up to date in — [P13.10a]', async () => {
-    // [P13 §2.7]: loading a chat again extends the session it made, and the
+  it('opens the session a chat that grew was brought up to date in — [P14.10a]', async () => {
+    // [P14 §2.7]: loading a chat again extends the session it made, and the
     // row names that session, so the control opens it as it would a new one.
     const extended = {
       key: 'import.chat.extended',

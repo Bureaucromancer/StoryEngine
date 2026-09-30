@@ -19,8 +19,8 @@ import type { TurnPayload } from '../turns/runner.js';
 
 /**
  * ***The gestures of a chat, onto the tree*** —
- * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.4].
+ * [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.4].
  *
  * Each SillyTavern and Marinara verb has one form here, and most of them are
  * `POST /sessions/:id/turns` with a field that says which: an empty send is a
@@ -35,7 +35,7 @@ import type { TurnPayload } from '../turns/runner.js';
  * *Delete is not here, because it is not new*: §1.6 makes it *"the head moves
  * to the parent. The turn remains as a sibling nobody is on"*, which is
  * `PUT /sessions/:id/head` with the parent's id — or `null` for a first turn,
- * which that route accepts since [P13.4] (`moveHead`).
+ * which that route accepts since [P14.4] (`moveHead`).
  */
 
 /** The submission fields this module reads — `SubmitBody`'s, as the handler parsed them. */
@@ -79,7 +79,7 @@ export interface GestureRefusal {
  * - `speaking` — the ids the route's force-talk check must pass: the carried
  *   speaker, or the speakers an edit wrote lines for.
  * - `hidden` — `TurnPayload.hidden`: the named turn's hide entry, kept to
- *   what a swipe or a continue carries (2026-09-29, the [P13.4] review). An
+ *   what a swipe or a continue carries (2026-09-29, the [P14.4] review). An
  *   edit's is settled once its lines are signed, from `authored.from`
  *   ({@link editedFrom}).
  * - `authored.from` — for an edit that names the turn it edits (`editOf`),
@@ -199,7 +199,7 @@ function carriedInput(turn: Turn): NonNullable<TurnPayload['input']> | undefined
 
 /**
  * ***The hide entry a carrying sibling keeps*** — added 2026-09-29, at the
- * [P13.4] review, which found a swipe and a continue bringing back into the
+ * [P14.4] review, which found a swipe and a continue bringing back into the
  * prompt every message the person had hidden on the turn they named. `true`
  * stays `true` — a turn hidden whole is hidden whole on its swipe too, the
  * regenerated message with it, which is what a person who hid the round
@@ -245,7 +245,7 @@ function siblingOf(
 /**
  * ***A swipe or a continue speaks as a member, in an embodied chat.***
  *
- * *Deliberately not built for narrated text* ([P13.4]): a narrator's reply is
+ * *Deliberately not built for narrated text* ([P14.4]): a narrator's reply is
  * one merged call that speaks for nobody, so *"regenerate message k by the same
  * speaker"* has no speaker to give it, and a narrated turn is one message — its
  * swipe is the plain redo that already exists. And a narrator-voice session's
@@ -297,7 +297,7 @@ export async function gestureOf(
     const written = body.authored.input;
     /**
      * ***An edit that names what it edits*** (`editOf`) — added 2026-09-29,
-     * at the [P13.4] review. Without it an edit was a turn re-authored from
+     * at the [P14.4] review. Without it an edit was a turn re-authored from
      * nothing: an edit of the reply lost the player's line unless the client
      * re-sent it, and even then its pictures, force-talk and raw text, which
      * `authored.input` has no field for. Named, the edit is a sibling of that
@@ -415,7 +415,7 @@ export async function gestureOf(
     const speaking = spokenBy(last, voice);
     if ('status' in speaking) return { refused: speaking };
     /*
-     * ***A hidden message is not continued*** (2026-09-29, the [P13.4]
+     * ***A hidden message is not continued*** (2026-09-29, the [P14.4]
      * review): the call would be shown, as its `required` last entry, a line
      * the person took out of the story, and the continuation would bring it
      * back. Unhide it first — which is the refusal's sentence.
@@ -449,7 +449,7 @@ export async function gestureOf(
              * `settled`). A call that fails before its first word therefore
              * leaves the failed sibling saying what is true: it carried this
              * message and wrote none of it. ~~Written as `{ speaker, text }`,
-             * unmarked~~ — corrected 2026-09-29, at the [P13.4] review: that
+             * unmarked~~ — corrected 2026-09-29, at the [P14.4] review: that
              * dropped the reasoning, and a failed continue's record claimed a
              * message it had only carried. Only its old `original` goes, which
              * described text the continued message no longer is.
@@ -503,7 +503,7 @@ export async function gestureOf(
  * replaced by the original message whole, so its reasoning and `original`
  * survive; and the hide entry, `true` kept and a list kept to the indices
  * whose line is still the original's — a hide was of those words, and a line
- * rewritten by hand is the person's new text, shown. 2026-09-29, the [P13.4]
+ * rewritten by hand is the person's new text, shown. 2026-09-29, the [P14.4]
  * review; see `gestureOf`'s `editOf`.
  */
 export function editedFrom(
@@ -579,8 +579,8 @@ export async function authoredMessages(
 }
 
 /**
- * ***Hide and unhide*** — `PUT /sessions/:id/turns/:turnId/hidden`, [P13 §1.6],
- * [P13.4]; `setHidden` carries the argument for what an entry is.
+ * ***Hide and unhide*** — `PUT /sessions/:id/turns/:turnId/hidden`, [P14 §1.6],
+ * [P14.4]; `setHidden` carries the argument for what an entry is.
  *
  * `hidden: true` hides the turn whole, a list of indices hides those
  * messages, and `false` or `[]` unhides it. **One route and a set**, not a

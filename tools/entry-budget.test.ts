@@ -60,8 +60,8 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * the difference between a budget and a warning.
  */
 /*
- * ***Raised to 320 on 2026-09-29, at [P13.5]*** (the chat surface,
- * [P13 §1.8](../docs/design/workplan/30-p13-scene-and-session-import.md)). The
+ * ***Raised to 320 on 2026-09-29, at [P14.5]*** (the chat surface,
+ * [P14 §1.8](../docs/design/workplan/31-p14-scene-and-session-import.md)). The
  * entry measured **306.91** before the stage and **314.69** after it: +7.78 kB
  * of the play page's own code — the transcript drawn as a chat, the chat
  * settings, the cast panel's four controls, the creation form's characters and
@@ -73,9 +73,9 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * number leaves about five kB, a little more than the three the stage found.
  */
 /*
- * ***Raised to 325 on 2026-09-30, at [P13.5c]*** (the editor and the echo
- * chamber, [P13 §1.9.4–§1.9.5](../docs/design/workplan/30-p13-scene-and-session-import.md)).
- * P13.5a's and P13.5b's as-built notes recorded the entry closing in on 320 —
+ * ***Raised to 325 on 2026-09-30, at [P14.5c]*** (the editor and the echo
+ * chamber, [P14 §1.9.4–§1.9.5](../docs/design/workplan/31-p14-scene-and-session-import.md)).
+ * P14.5a's and P14.5b's as-built notes recorded the entry closing in on 320 —
  * **318.7**, **319.65**, **319.85** — each saying the next addition would have
  * to argue for the ceiling. This is that argument. The stage measured
  * **320.43** and, with its four new import notes' sentences shortened (and the
@@ -83,9 +83,9 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * show the original* disclosure and the continuity checklist with its *Apply*
  * (`ChatMessages.tsx`), and the notes, which are on the entry because
  * `note-labels.ts` is. **No new dependency**, which is the [20 §7] trigger.
- * Five kB is P13.5's own margin again, a little under two stages at this
+ * Five kB is P14.5's own margin again, a little under two stages at this
  * phase's rate; what would buy room instead is the first `React.lazy`
- * (P13.5's note above), or moving the note sentences off the entry with the
+ * (P14.5's note above), or moving the note sentences off the entry with the
  * library surface that is their only reader — a loading decision, which a
  * feature stage should not make in passing.
  */

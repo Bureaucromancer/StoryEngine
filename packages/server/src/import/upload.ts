@@ -178,7 +178,7 @@ export function readUpload(
     parsed = JSON.parse(text);
   } catch {
     /**
-     * ***Not one JSON document — and possibly one per line*** — [P13.8].
+     * ***Not one JSON document — and possibly one per line*** — [P14.8].
      * SillyTavern's chat file, and Marinara's per-chat export of the same
      * format, is JSON Lines: `JSON.parse` refuses the whole and every line
      * parses on its own. Asked here, below the document parse, because a
@@ -442,7 +442,7 @@ function probe(body: Record<string, unknown>, confidence: ProbeConfidence): stri
 }
 
 /**
- * ***Whether text is a chat file*** — [P13.8], by content and never by the
+ * ***Whether text is a chat file*** — [P14.8], by content and never by the
  * `.jsonl` on its name, which is this file's rule for everything.
  *
  * **Two lines that are each a JSON object**, or one that is a header carrying

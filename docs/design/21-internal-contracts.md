@@ -81,13 +81,13 @@ type BlockSource =
   // ── ~~The two~~ ~~The three~~ The four a slot can never name, because no preset positions them ──
   | { kind: "preset"; blockId: string }   // a TextBlock: authored prose
   | { kind: "step"; stepId: StepId }      // contributed at runtime
-  /** ([P13.2](workplan/30-p13-scene-and-session-import.md), corrected
+  /** ([P14.2](workplan/31-p14-scene-and-session-import.md), corrected
    *  2026-09-29.) One reply of a round that has not been committed yet — an
    *  earlier speaking call of this turn — placed by the collector after the
    *  input and never by a pack. `message` is its index into the turn's
    *  `output.messages`; `actorId` who said it, null for a narrator's. */
   | { kind: "round"; message: number; actorId: ActorId | null }
-  /** ([P13.3](workplan/30-p13-scene-and-session-import.md), 2026-09-29.) The
+  /** ([P14.3](workplan/31-p14-scene-and-session-import.md), 2026-09-29.) The
    *  session's author's note, placed by the collector at its own depth on
    *  every `every`-th input — never by a pack. */
   | { kind: "note" }
@@ -99,12 +99,12 @@ prose" — that is a `TextBlock`, which *is* a block rather than a reference to
 one. Likewise a step's contribution has no slot because it did not exist when the
 preset was authored. `SlotSource` is therefore **`BlockSource` minus those
 ~~two~~ three**, which is a derivation rather than a second list. *Corrected
-2026-09-29, at [P13.2](workplan/30-p13-scene-and-session-import.md)*: `round`
+2026-09-29, at [P14.2](workplan/31-p14-scene-and-session-import.md)*: `round`
 is the third, and cannot be slot-named for the reason a step's contribution
 cannot — the replies do not exist when the pack is authored — and for one more:
-every pack written before P13.2 positions no such slot, and a round a pack had
+every pack written before P14.2 positions no such slot, and a round a pack had
 to opt into would be a round in which each member answered the player alone.
-*And again at [P13.3](workplan/30-p13-scene-and-session-import.md), 2026-09-29*:
+*And again at [P14.3](workplan/31-p14-scene-and-session-import.md), 2026-09-29*:
 `note`, the author's note, is the fourth, for the round's second reason — a
 note a pack had to position would be a setting that did nothing in every pack
 written before it. The `history` arm gained an optional `message` index at the

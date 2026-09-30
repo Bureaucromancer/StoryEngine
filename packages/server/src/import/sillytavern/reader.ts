@@ -137,7 +137,7 @@ export class SillyTavernReader implements SourceReader {
       case 'User Avatars':
         return this.#persona(path, personas);
       /**
-       * ***Chats, for the session pass*** — [P13.8]. Handed on unread, as a
+       * ***Chats, for the session pass*** — [P14.8]. Handed on unread, as a
        * candidate the sweep sets aside until every card is written, so a chat
        * resolves against the cards that came in beside it; the pass reads the
        * file when it reaches it. *Unread here too*, because the tree reader
@@ -194,7 +194,7 @@ export class SillyTavernReader implements SourceReader {
     if (bytes === null) {
       /**
        * ***A `.jsonl` with no bytes goes to the session pass anyway*** —
-       * [P13.8]. The browser upload holds a loose folder's `.jsonl` files back
+       * [P14.8]. The browser upload holds a loose folder's `.jsonl` files back
        * until the person chooses chats (`directory-upload.ts`), so an unsent
        * one is most often a choice, not a failure; the pass is what knows
        * which (`chat-sessions.ts`), and says *not chosen*, *over the limit*,
@@ -292,7 +292,7 @@ export class SillyTavernReader implements SourceReader {
   /**
    * A group's own file, `groups/<id>.json`, on the same terms as a chat: handed
    * on unread to the session pass, which reads it beside the group's chats for
-   * their roster, reply strategy and muted members ([P13.9]) — a few hundred
+   * their roster, reply strategy and muted members ([P14.9]) — a few hundred
    * bytes, but only meaningful with the chats in view.
    */
   #group(path: string): SourceItem {

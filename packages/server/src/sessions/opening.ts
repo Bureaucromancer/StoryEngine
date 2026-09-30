@@ -14,8 +14,8 @@ import type { SessionFile, Turn } from './types.js';
 
 /**
  * ***The opening turn a chat starts on*** —
- * [P13 §1.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.4].
+ * [P14 §1.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.4].
  *
  * A new session whose mode declares `openingTurn` is written **output-only
  * turns** at creation: no call, no `request`, no tape, one message per cast

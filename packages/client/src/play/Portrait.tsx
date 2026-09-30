@@ -7,8 +7,8 @@ import { api, type LibraryObject } from '../api.js';
 
 /**
  * ***Who is speaking, as a face*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * *"the speaker's portrait and name"*, built at [P13.5].
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * *"the speaker's portrait and name"*, built at [P14.5].
  *
  * **The card's own likeness first**, in the order the actor record ranks them:
  * a `reference` medium is the canonical likeness ([03 §5.2.2]), and the card's

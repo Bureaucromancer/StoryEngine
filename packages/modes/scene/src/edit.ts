@@ -19,8 +19,8 @@ import type {
 /**
  * ***The editor*** — Marinara's prose guardian and continuity checker, as one
  * Scene step —
- * [P13 §1.9.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5c].
+ * [P14 §1.9.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5c].
  *
  * Marinara merges its rewrite agents into **one combined editor call** after
  * generation (`prose-guardian-settings.ts:135-220`,
@@ -147,7 +147,7 @@ export const EDIT_CHANNELS: readonly ChannelDefinition[] = [
 
 const AGENTS = 'Agents';
 
-/** Under *Agents*, beside the trackers and the secret plot — [P13 §1.9.6]. */
+/** Under *Agents*, beside the trackers and the secret plot — [P14 §1.9.6]. */
 export const EDIT_SURFACES: readonly SurfaceContribution[] = [
   {
     region: 'settings',

@@ -838,7 +838,7 @@ export const api = {
   importDirectoryPlan: (
     entries: { path: string; bytes: number }[],
     /**
-     * Plan the chats in too — [P13.8]'s opt-in. The first plan leaves them out
+     * Plan the chats in too — [P14.8]'s opt-in. The first plan leaves them out
      * and says in `chats` what they would add; the panel asks again with this
      * set once the person has chosen them, so the server spends the budget.
      */
@@ -871,7 +871,7 @@ export const api = {
     onConflict?: 'replace' | 'keep-both' | 'skip',
     /**
      * *Whether the person chose chats*, when the plan offered the choice —
-     * [P13.8]. `skip` makes each chat left out a `skipped` row rather than one
+     * [P14.8]. `skip` makes each chat left out a `skipped` row rather than one
      * that *could not be read*; absent is a folder the choice was never
      * offered for, and takes whatever was carried.
      */
@@ -1042,7 +1042,7 @@ export interface SessionSummary {
   setup?: { id: string };
   /**
    * ***Who is seated*** — the roster the cast panel adds to and takes from,
-   * claimed at [P13.5].
+   * claimed at [P14.5].
    *
    * On the wire since P2, as `preset` above was, and unclaimed because no
    * surface changed it: `PUT /api/sessions/:id/cast` had no client. The panel's
@@ -1057,11 +1057,11 @@ export interface SessionSummary {
 
 /**
  * ***How a session plays as a chat*** — the effective settings, as the server's
- * one reader (`chatSettingsOf`) reads them — [P13 §1.2], [P13 §1.5], [P13.5].
+ * one reader (`chatSettingsOf`) reads them — [P14 §1.2], [P14 §1.5], [P14.5].
  *
  * **Effective rather than stored**, which is why this is its own member of the
  * read and not a field of `SessionSummary`: a Scene session written before
- * P13.0 carries none of these fields and plays as a narrated one, and a panel
+ * P14.0 carries none of these fields and plays as a narrated one, and a panel
  * reading the file would show it as Scene's declared chat — wrong about the
  * very session the reading exists to protect.
  */
@@ -1088,7 +1088,7 @@ export interface ChatSettings {
 
 /**
  * The speaker policies — the SDK's `ParticipantPolicy['select']`, spelled here
- * because this package does not import the SDK. `fixed` is a pre-P13 session's
+ * because this package does not import the SDK. `fixed` is a pre-P14 session's
  * reading and is offered by no control; a value this build has not heard of
  * arrives as a string and is shown as itself.
  */
@@ -1098,13 +1098,13 @@ export type SpeakerPolicy = 'fixed' | 'natural' | 'list' | 'pooled' | 'manual' |
 export type CardPromptPart = 'system' | 'post-history' | 'depth';
 
 /**
- * A change to a chat's settings — `PUT /api/sessions/:id/chat`, [P13.5].
+ * A change to a chat's settings — `PUT /api/sessions/:id/chat`, [P14.5].
  *
  * *Every member optional.* `speakers` merges member by member; `note: null`
  * removes the note; `prompts.cards` merges per card, where `true` (or an empty
  * list) is *send everything* and `false` or a list of parts is what is skipped.
  * The server writes voice, dispatch and speakers together whenever any one is
- * sent, so a pre-P13 session is never re-voiced by a single box.
+ * sent, so a pre-P14 session is never re-voiced by a single box.
  */
 export interface ChatPatch {
   voice?: ChatSettings['voice'];
@@ -1125,7 +1125,7 @@ export function setChatSettings(
 }
 
 /**
- * Who is seated — [06 §7.2], [P13 §1.8]'s *"add and remove, over
+ * Who is seated — [06 §7.2], [P14 §1.8]'s *"add and remove, over
  * `PUT /sessions/:id/cast`, which exists and has no client"*. The roster is
  * sent whole, persona included: the route replaces both members, and a panel
  * that sends what it shows cannot drift from what is stored.
@@ -1138,7 +1138,7 @@ export function setSessionCast(
 }
 
 /**
- * Hide and unhide — [P13 §1.6], [P13.4]'s route, [P13.5]'s caller. **A set, not
+ * Hide and unhide — [P14 §1.6], [P14.4]'s route, [P14.5]'s caller. **A set, not
  * a toggle**: `true` hides the whole turn, a list hides those messages, and
  * `false` or `[]` unhides. The client sends the turn's whole entry, which it
  * already has on screen, so a retry lands where the first did.
@@ -1226,7 +1226,7 @@ export interface NewSession {
   modeConfig?: Record<string, unknown>;
   /**
    * ***Which written opening each member starts on*** — actor id to opening id,
-   * [P13 §1.7], [P13.5]. Absent for a member is their primary; read only by a
+   * [P14 §1.7], [P14.5]. Absent for a member is their primary; read only by a
    * mode that writes an opening turn (`PublicMode.openingTurn`).
    */
   openings?: Record<string, string>;
@@ -1251,8 +1251,8 @@ export interface PublicMode {
   setup: ModeSetup;
   surfaces: { region: string }[];
   /**
-   * Whether a new session opens on its cast's greetings — [P13 §1.7]. Optional
-   * because a server older than [P13.5] does not say, and not saying is *no*.
+   * Whether a new session opens on its cast's greetings — [P14 §1.7]. Optional
+   * because a server older than [P14.5] does not say, and not saying is *no*.
    */
   openingTurn?: boolean;
 }
@@ -1597,12 +1597,12 @@ export interface ModeSurface {
   text?: string;
   image?: { url: string; alt: string };
   on?: boolean;
-  /** The contribution's heading within its region — [P13.5a]. */
+  /** The contribution's heading within its region — [P14.5a]. */
   group?: string;
-  /** `meter`: the bar, bounded — [P13.5a]. */
+  /** `meter`: the bar, bounded — [P14.5a]. */
   meter?: { value: number; min: number; max: number };
   /**
-   * `record`: the value and the fields it is shown by — [P13.5a]. Raw JSON
+   * `record`: the value and the fields it is shown by — [P14.5a]. Raw JSON
    * because a record is edited, and the edit is the whole value written back
    * through the channel route; `locks` and `hidden` are sets of field paths
    * (`<channel key>/<JSON Pointer>`) written back the same way.
@@ -1626,7 +1626,7 @@ export interface RecordField {
   show: string;
 }
 
-/** A step a person may run between turns — `modeActions`, [P13.5a]. */
+/** A step a person may run between turns — `modeActions`, [P14.5a]. */
 export interface ModeAction {
   stepId: string;
   label: string;
@@ -1728,12 +1728,12 @@ export function readSession(sessionId: string): Promise<{
    */
   surfaces?: ModeSurface[];
   /**
-   * What a person may run between turns — [P13.5a]'s *Update trackers*, while
+   * What a person may run between turns — [P14.5a]'s *Update trackers*, while
    * something it writes is switched on. Absent from an older server.
    */
   actions?: ModeAction[];
   /**
-   * How this session plays as a chat — [P13.5]. **Absent for a mode that does
+   * How this session plays as a chat — [P14.5]. **Absent for a mode that does
    * not play as one**, which is `dials`' rule: nothing to render rather than
    * controls that change nothing.
    */
@@ -1892,7 +1892,7 @@ export interface DegradedChannel {
  */
 /**
  * ***Runs a step the mode declares on demand*** — `POST /sessions/:id/steps/
- * :stepId/run`, [P13.5a]'s *Update trackers*. The answer is the engine turn it
+ * :stepId/run`, [P14.5a]'s *Update trackers*. The answer is the engine turn it
  * wrote, or `turn: null` when there was nothing to change.
  */
 export function runSessionStep(
@@ -1923,7 +1923,7 @@ export function writeSessionChannel(
 
 /**
  * ***Where a path turn's siblings are drawn*** — the server's `swipeGroups`,
- * [P13.5]. `messages[k]` is message *k*'s counter, the turn among it, `[]` for
+ * [P14.5]. `messages[k]` is message *k*'s counter, the turn among it, `[]` for
  * none, with one more entry than the turn has messages; `turn` is the turn's
  * own strip. Both read the same from whichever member is on screen.
  */
@@ -1946,7 +1946,7 @@ export function readTranscript(
   turns: TurnRecord[];
   siblings?: Record<string, string[]>;
   /**
-   * ***Where each path turn's siblings are drawn*** — [P13 §1.6], [P13.5]: for
+   * ***Where each path turn's siblings are drawn*** — [P14 §1.6], [P14.5]: for
    * a turn on the path with siblings, the ordered alternatives on each
    * message's counter (one extra entry for those that go on past its last
    * message) and the siblings that answer a different move, kept on the turn.
@@ -2180,7 +2180,7 @@ export interface SubmitTurn {
   idempotencyKey: string;
   headTurnId: string | null;
   /**
-   * The move's words. ***Absent is a turn with no input*** — [P13 §1.6]'s *let
+   * The move's words. ***Absent is a turn with no input*** — [P14 §1.6]'s *let
    * them talk*, ST's empty send — and so is every gesture that carries its move
    * from the turn it names (a swipe, a continue) or writes its own (an edit).
    * An empty string is still a move: a picture with no words is one.
@@ -2198,6 +2198,13 @@ export interface SubmitTurn {
    * and size from its own store; a caption is the player's words about one.
    */
   attachments?: readonly { digest: string; caption?: string }[];
+  /**
+   * A redo's pictures: **the turn whose pictures this move carries**, copied by
+   * the server exactly as that turn recorded them — every id, kind and caption,
+   * and a picture whose bytes never reached this server. Never with
+   * `attachments`, which is for pictures just uploaded.
+   */
+  attachmentsOf?: string;
   /**
    * Attach this turn to a node other than the head — [P6.0c].
    *
@@ -2221,11 +2228,11 @@ export interface SubmitTurn {
   redoOf?: string;
   /**
    * ***Force-talk*** — who replies, in order, over the session's policy
-   * ([P13 §1.3]): the cast panel's *speak* and the composer's *who speaks next*.
+   * ([P14 §1.3]): the cast panel's *speak* and the composer's *who speaks next*.
    */
   speakers?: string[];
   /**
-   * ***Push story*** — arms the director for this one turn ([P13 §1.9.3]):
+   * ***Push story*** — arms the director for this one turn ([P14 §1.9.3]):
    * `natural` moves the story on, `random` brings in something unexpected.
    */
   push?: 'natural' | 'random';
@@ -2236,7 +2243,7 @@ export interface SubmitTurn {
   /** ***Edit*** — the turn a hand-written sibling rewrites; sent with `authored`. */
   editOf?: string;
   /**
-   * ***Edit*** — a turn written by hand, with no call ([P13 §1.6]). Lines left as
+   * ***Edit*** — a turn written by hand, with no call ([P14 §1.6]). Lines left as
    * they were are kept whole when `editOf` names the turn they came from.
    */
   authored?: {
@@ -2266,6 +2273,9 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
             ...(submission.attachments === undefined || submission.attachments.length === 0
               ? {}
               : { attachments: submission.attachments }),
+            ...(submission.attachmentsOf === undefined
+              ? {}
+              : { attachmentsOf: submission.attachmentsOf }),
           },
         }),
     ...(submission.guidance === undefined || submission.guidance.length === 0
@@ -2319,8 +2329,8 @@ export interface Abandoned {
 export function moveHead(
   sessionId: string,
   /**
-   * ***`null` is the root*** — [P13.4] made the route take it so a greeting,
-   * the session's first turn, can be deleted: [P13 §1.6]'s *Delete* moves the
+   * ***`null` is the root*** — [P14.4] made the route take it so a greeting,
+   * the session's first turn, can be deleted: [P14 §1.6]'s *Delete* moves the
    * head to the deleted turn's parent, and the first turn's parent is no turn
    * at all. The turn stays on disk as a sibling nobody is on.
    */
@@ -2341,6 +2351,12 @@ export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: s
 export interface PendingInput {
   text: string;
   guidance: string;
+  /**
+   * The kind the selector chose, so a pack whose input slots are per-kind
+   * previews the block the turn will send. Absent is the server's default, as
+   * it is for a submission.
+   */
+  kind?: string;
   /** The move's pictures, so the preview assembles the blocks the turn will. */
   attachments?: readonly { digest: string; caption?: string }[];
 }
@@ -2365,6 +2381,7 @@ export function previewTurn(
       : {
           input: {
             text: pending.text,
+            ...(pending.kind === undefined ? {} : { kind: pending.kind }),
             ...(pictures.length === 0 ? {} : { attachments: pictures }),
           },
         }),
@@ -2982,7 +2999,7 @@ export function importSessionDocument(document: unknown): Promise<{
 /**
  * ***A chat somebody else's app wrote*** — a SillyTavern `.jsonl`, or
  * Marinara's per-chat export of the same format —
- * [P13.8](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **Through the library's one-file door rather than beside the export**, and
  * the difference is what each is. An export is our own document and loads as

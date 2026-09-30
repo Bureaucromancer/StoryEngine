@@ -28,8 +28,8 @@ import { TurnRunner, type TurnPayload } from './runner.js';
 
 /**
  * ***A swipe and a continue, run through the pipeline*** —
- * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.4].
+ * [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.4].
  *
  * The route reads the record and hands the runner a `carry`
  * (`routes/gestures.ts`); this file hands it one directly and proves what the

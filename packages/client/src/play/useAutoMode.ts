@@ -5,8 +5,8 @@ import { useEffect, useRef } from 'react';
 
 /**
  * ***Auto-mode*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5]: SillyTavern's `auto_mode_delay`. *"While the page is idle,
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5]: SillyTavern's `auto_mode_delay`. *"While the page is idle,
  * a client timer submits* let them talk *turns, and typing stops it. It is
  * client-side in both sources and stays client-side here."*
  *

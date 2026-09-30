@@ -227,7 +227,7 @@ describe('a mode’s contributed surface', () => {
 });
 
 /**
- * ***The two arms [P13.5a] added, and the grouping*** — a stat bar, and a
+ * ***The two arms [P14.5a] added, and the grouping*** — a stat bar, and a
  * structured value read and edited field by field. Still knowing no channel:
  * every label, field and path below comes from the payload, and the writes
  * are the ordinary channel write — the whole value for an edit, the whole set

@@ -15,7 +15,7 @@ import type { Turn } from './types.js';
  * the tests in the gates' files would all still pass on a predicate that
  * dropped the one clause none of their fixtures happens to lean on.
  *
- * *Corrected 2026-09-29, at [P13.1]*: `list` no longer rotates, and no speaker
+ * *Corrected 2026-09-29, at [P14.1]*: `list` no longer rotates, and no speaker
  * arm reads the path's depth. The smart order's roster does read
  * `isStoryTurn`, to tell the model how many rounds ago each member last spoke
  * (`turns/smart-speakers.ts`), but that is a line in a prompt rather than a

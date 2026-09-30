@@ -15,8 +15,8 @@ import { disconnectSignal } from './disconnect.js';
 
 /**
  * ***`POST /sessions/:id/steps/:stepId/run`*** — a mode's on-demand step, run
- * between turns: [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * *Update trackers*, built at [P13.5a]. `turns/on-demand.ts` carries the
+ * between turns: [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * *Update trackers*, built at [P14.5a]. `turns/on-demand.ts` carries the
  * argument for what it writes; this is the request and its refusals.
  *
  * **The step's id in the path, and the mode's declaration as the gate**, so

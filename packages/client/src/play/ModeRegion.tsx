@@ -59,7 +59,7 @@ export function ModeRegion(props: {
    */
   scopeKey?: string | null;
   /**
-   * ***Who a scope key is*** — [P13.5a]. A per-character card is headed by the
+   * ***Who a scope key is*** — [P14.5a]. A per-character card is headed by the
    * character's name, and a name is the library's to give: the page already
    * holds the actors, so it hands a lookup down rather than this component
    * reading the library for every card. Absent, a scoped card is headed by its
@@ -87,7 +87,7 @@ export function ModeRegion(props: {
 
   /**
    * ***Grouped by the contribution's own heading*** — `SurfaceContribution.
-   * group`, [P13.5a]. Ungrouped widgets first, as they always were; then each
+   * group`, [P14.5a]. Ungrouped widgets first, as they always were; then each
    * group under its heading, in the order its first member was declared. The
    * heading is authored content travelling with the mode, like a label.
    */
@@ -123,7 +123,7 @@ const ACTION_WORDS = labels('play.mode-actions', {
 });
 
 /**
- * ***What a person may run between turns*** — `modeActions`, [P13.5a]'s
+ * ***What a person may run between turns*** — `modeActions`, [P14.5a]'s
  * *Update trackers*. Knows no step: each button is a declared on-demand step
  * and its declared words, sent by the server only while the step has something
  * to do. What it writes is an engine turn under the head, which the cards

@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -33,6 +33,8 @@ const importChatFile = vi.fn();
 const navigate = vi.fn();
 
 let session: Record<string, unknown> = {};
+/** The transcript the panel reads — empty unless a test gives it turns. */
+let turns: Record<string, unknown>[] = [];
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -41,6 +43,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   deleteSession: (...a: unknown[]) => deleteSession(...a) as unknown,
   importChatFile: (...a: unknown[]) => importChatFile(...a) as unknown,
   readSession: () => Promise.resolve({ session }),
+  readTranscript: () => Promise.resolve({ turns }),
   api: { listLibrary: () => Promise.resolve({ objects: [] }) },
 }));
 
@@ -88,6 +91,7 @@ beforeEach(() => {
   setSessionPreset.mockResolvedValue({ session: {} });
   setSessionArchived.mockResolvedValue({ session: {} });
   deleteSession.mockResolvedValue(undefined);
+  turns = [];
   session = {
     id: SESSION_ID,
     name: 'The Ashfall Road',
@@ -328,7 +332,7 @@ describe('editing one block of the pack', () => {
 });
 
 /**
- * ***Update from source*** — [P13 §2.7], [P13.10a].
+ * ***Update from source*** — [P14 §2.7], [P14.10a].
  *
  * The session menu's verb on a session made from a chat, and its two doors:
  * the server sweeps the folder the ledger recorded, or, for a chat that came as
@@ -423,5 +427,89 @@ describe('update from source', () => {
 
     expect(await screen.findByText(/Import that folder again/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Choose/ })).toBeNull();
+  });
+});
+
+/**
+ * ***An export containing attachments should say so*** — [25 E15], said where
+ * the choice is made.
+ *
+ * An export is the story's text: it carries the record of every picture and
+ * its caption, and not the picture. A person choosing between *Export* and a
+ * backup is owed that sentence **before** the file is on another install and
+ * the pictures are placeholders — and owed its absence on a story with no
+ * pictures, where it would be a warning about nothing, which is how a
+ * warning teaches people to stop reading warnings.
+ */
+describe('exporting a story with pictures', () => {
+  const NOTE = /travel as their captions\. A backup carries the pictures themselves\./;
+
+  /** A turn with a move, and whatever that move carried. */
+  function turnWith(id: string, input: Record<string, unknown>): Record<string, unknown> {
+    return {
+      id,
+      sessionId: SESSION_ID,
+      parentTurnId: null,
+      createdAt: '2026-09-27T10:00:00.000Z',
+      status: 'complete',
+      input: { actorId: null, text: 'I hold it up.', kind: 'do', raw: 'I hold it up.', ...input },
+      output: { text: 'The light catches it.' },
+      effects: [],
+      tape: [],
+    };
+  }
+
+  /**
+   * Mounted with a client the test keeps, so the negative case can wait for
+   * the transcript to have **landed** before asserting that nothing is shown.
+   * Asserted any earlier, the note's absence would be the absence of an answer
+   * rather than the answer — a test that passes against a panel that never
+   * reads the transcript at all.
+   */
+  async function renderSettled(): Promise<ReturnType<typeof userEvent.setup>> {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SessionPanel sessionId={SESSION_ID} />
+      </QueryClientProvider>,
+    );
+    const user = await open();
+    await waitFor(() => {
+      expect(client.getQueryData(['transcript', SESSION_ID])).toBeDefined();
+    });
+    // The cache holds the answer a beat before its observers are told, and the
+    // telling is a scheduled task — so one more task, inside `act`, is what
+    // puts the rendering after it rather than racing it.
+    await act(async () => {
+      await new Promise((settle) => setTimeout(settle, 0));
+    });
+    return user;
+  }
+
+  it('says pictures travel as captions when a move on the story carried one', async () => {
+    // The first turn has none and the second has one: *any* move is enough,
+    // which is the mutation of reading only the first or the last turn.
+    turns = [
+      turnWith('turn-1', {}),
+      turnWith('turn-2', {
+        attachments: [{ id: '0', kind: 'image', digest: `sha256:${'f'.repeat(64)}` }],
+      }),
+    ];
+    await renderSettled();
+
+    expect(screen.getByText(NOTE)).toBeTruthy();
+    // Beside the link it qualifies, not somewhere else in the panel.
+    expect(screen.getByText('Export this session').parentElement?.textContent).toMatch(NOTE);
+  });
+
+  it('says nothing about pictures on a story that has none', async () => {
+    // Both spellings of *no pictures*: no field, and an empty list. The
+    // mutation is testing for the field's presence rather than its length,
+    // which an empty list — a shape a writer is free to produce — would fool.
+    turns = [turnWith('turn-1', {}), turnWith('turn-2', { attachments: [] })];
+    await renderSettled();
+
+    expect(screen.getByText('Export this session')).toBeTruthy();
+    expect(screen.queryByText(NOTE)).toBeNull();
   });
 });

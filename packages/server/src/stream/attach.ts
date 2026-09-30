@@ -68,7 +68,7 @@ export type StreamFrame =
   | { kind: 'snapshot'; snapshot: Snapshot }
   | { kind: 'progress'; jobId: string; event: ProgressEvent }
   /**
-   * `message` — the turn's message a speaking call's text belongs to, [P13.2].
+   * `message` — the turn's message a speaking call's text belongs to, [P14.2].
    * Absent on a narrator's text and on the separator between two messages; see
    * `TurnStream.delta`.
    */
@@ -92,7 +92,7 @@ export type StreamFrame =
    */
   | { kind: 'rendition'; rendition: Rendition }
   /**
-   * The summary chain's warm moved — [P13.11]. Whole state, applied by
+   * The summary chain's warm moved — [P14.11]. Whole state, applied by
    * replacement, so it needs no cursor either; see `SummaryWarm`.
    */
   | { kind: 'summaries'; warm: SummaryWarm };

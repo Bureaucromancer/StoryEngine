@@ -1,10 +1,19 @@
-# 30 — P13 implementation plan
+# 31 — P14 implementation plan
 
 **Status: planned 2026-09-28, for immediate implementation.** No stage has
 landed. A feature in its own document, on the precedent
 [P12 §1.5](29-p12-implementation.md) set.
 
-**P13 is two things, in order.**
+*Renumbered 2026-09-30, at the merge into main.* Written and built as **P13**
+in document 30, on a branch that did not yet have main's P13 — the Aventuras
+import ([P13](30-p13-aventuras-import.md)), merged at `7565265` a day before this
+branch was. That number was taken and cited by hash first, so this phase is
+P14 and this document is 31. Every *P13* this phase wrote, here and in code
+comments, now reads *P14*; the commits that built it still say P13 in their
+subjects, and that history is not rewritten. Its index column took schema
+version **12**, main having spent 11 on the picture-caption reindex.
+
+**P14 is two things, in order.**
 
 - **Part A — Scene, built out to the mode [06 §7.2](../06-modes-and-turn-pipeline.md)
   specified.** A direct functional equivalent of a SillyTavern or Marinara
@@ -125,7 +134,7 @@ record never mentions them.
 [P7B §0.3](24-p7b-presets-and-prompts.md) and `sessions/store.ts:1937` both say
 P7.3 *"decided"* voice and dispatch as session fields. No session field exists,
 and the only readers echo the mode's constant (`mode-registry.ts:168`). Both
-are corrected at P13.0.
+are corrected at P14.0.
 
 **So this phase finishes a mode, not a new direction.** Nothing in the corpus
 rejects embodied or per-actor. What [00 §2.10](../00-stance.md) rejects is
@@ -219,12 +228,12 @@ hidden?: Record<string, true | number[]>;                // §1.7
 prompts?: { instruction?: false; cards?: Record<string, false | CardPromptPart[]> };  // §1.5
 ```
 
-*Corrected 2026-09-29, at P13.0:* `policy` is typed as the SDK's
+*Corrected 2026-09-29, at P14.0:* `policy` is typed as the SDK's
 `ParticipantPolicy['select']`, which **keeps `fixed`** where the sketch leaves
-it out. Three things need it: Scene declares `select: 'fixed'` until P13.1
+it out. Three things need it: Scene declares `select: 'fixed'` until P14.1
 changes it, creation writes the mode's declared value, and the reading of a
-pre-P13 session below is narrator/merged/**fixed**. `smart` joins the union at
-P13.1, which builds it. And `note.every` of 0 or less is a note switched off
+pre-P14 session below is narrator/merged/**fixed**. `smart` joins the union at
+P14.1, which builds it. And `note.every` of 0 or less is a note switched off
 with its text kept, which is ST's `note_interval <= 0` (`authors-note.js:351`),
 so §2.6 copies the value across as it is.
 
@@ -236,14 +245,14 @@ table, and it keeps [13](../13-write-mode.md)'s falsification test meaningful:
 that test asks whether people already produce chapters in Scene.
 
 **An existing session keeps what it was played with.** A Scene session written
-before P13 has none of these fields, and absence has always meant the mode's
+before P14 has none of these fields, and absence has always meant the mode's
 value. Flipping that value would silently re-voice every existing session. So:
 
-- the session-creation route writes all three explicitly from P13 on;
+- the session-creation route writes all three explicitly from P14 on;
 - the readers treat a Scene session **without** them as
   `narrator`/`merged`/`fixed`.
 
-The pre-P13 preset is already a copy inside each session (`SessionFile.preset`),
+The pre-P14 preset is already a copy inside each session (`SessionFile.preset`),
 so its narrator instruction travels with it regardless.
 
 **`participants.maxActors` rises to 32**, the cast route's own ceiling
@@ -271,14 +280,14 @@ speakers.
   unless `allowSelfResponses`: ST bans them only when the round was not
   started by the player (`:1245`). ST matches words with ASCII `\w`, so a
   name outside it matches badly: ~~a name like *Zoë* never matches~~
-  (*corrected at P13.1*: *Zoë* reads as `zo` and so matches "Zo" and "Zoé"
+  (*corrected at P14.1*: *Zoë* reads as `zo` and so matches "Zo" and "Zoé"
   too; *Renée* reads as `ren` and a lone `e`; Cyrillic, Greek and CJK names
   are never found). Ours matches Unicode letters and digits, a deliberate
   difference. **Talkativeness**
   lives at `actor.modeData['storyengine.scene'].talkativeness`, default 0.5. It
   is participation, not prompt, so it belongs in `modeData`: the card schema's
   *"prompt assembly is owned by the preset"* exclusion (`actor.ts:158`) is about
-  the other kind. ST's `talkativeness` imports there (§3, P13.9).
+  the other kind. ST's `talkativeness` imports there (§3, P14.9).
 - **`list`**: everyone eligible, once each, in cast order. This is ST's LIST and
   Marinara's `sequential`.
 - **`pooled`**: one member. After an input, anyone at random. On a turn with
@@ -515,7 +524,7 @@ and the card toggles also appear on each member's cast row, because that is
 where a person looks when one character misbehaves.
 
 Today these fields import into `actor.compat` with an
-`import.card.wantsPromptOverride` warning (`card.ts:367`). P13 moves them into
+`import.card.wantsPromptOverride` warning (`card.ts:367`). P14 moves them into
 sections the Scene pack places, and the warning goes. **00 §2.4 holds**:
 assembly is still owned by the preset, and a pack that leaves the sections
 unplaced sends none of them.
@@ -826,7 +835,7 @@ which rewrites the message and keeps the original in the message's extras.
 #### 1.9.5 The rest of the catalogue
 
 - **Echo chamber.** ~~Side reactions from other characters~~ — corrected at
-  P13.5c's review: Marinara's agent is a configurable *fictional live
+  P14.5c's review: Marinara's agent is a configurable *fictional live
   audience* (`official-agent-knowledge.ts`: *"a configurable fictional live
   audience reacting to the current scene"*) — invented stream-chat handles in
   a chosen style, several messages a generation, accumulating in its panel,
@@ -952,7 +961,7 @@ ST's greetings-as-swipes on message 0 become sibling opening turns, which is
 id = uuidv7Shaped( time, H(account, familyKey, parentId, input, messages) )
 ```
 
-*Made exact at P13.6 (`import/chat/ids.ts`), 2026-09-29.* `messages` means each
+*Made exact at P14.6 (`import/chat/ids.ts`), 2026-09-29.* `messages` means each
 message's **speaker key and text** and nothing else: never a resolved library
 id (a card imported later must not move an id), never `carried` or `hidden`
 (both say how a node was reached or shown, not what it is; hashing `carried`
@@ -1096,12 +1105,12 @@ target session's lock, appends in the document's order (parents first, by
 the ledger. The `already-here` refusal stays for its original case: an export
 from this install being loaded back, where there is no source to extend from.
 
-**The open case, found at P13.6: a chat that grew *inside* its last round.**
+**The open case, found at P14.6: a chat that grew *inside* its last round.**
 A round is one turn and its id hashes the whole round, so a group round that
 gains a fourth reply, or a player's line that gets its reply after the import,
 is a **different** node from the one imported, and a plain re-import writes it
 as a sibling beside the old round rather than extending it. Two ways out, for
-P13.10a to choose between with a test for each: key a round on its opening
+P14.10a to choose between with a test for each: key a round on its opening
 (the input and the first reply) and let later replies extend it in place,
 which gives up a little of §2.4's *identical content, identical id*; or accept
 the sibling, name it for what it is (*the round as it now stands*) and move the
@@ -1131,7 +1140,7 @@ they are the general case throughout (00 §2.10).
 
 ### Part A
 
-#### P13.0 — Corrections and the record
+#### P14.0 — Corrections and the record
 
 - 18 §7 corrected to §0.
 - [P7B §0.3](24-p7b-presets-and-prompts.md) and the `store.ts:1937` docstring
@@ -1141,9 +1150,9 @@ they are the general case throughout (00 §2.10).
   carries all of them through.
 
 *Ends at:* a turn with three attributed messages and a hidden index exports and
-imports unchanged, and a pre-P13 Scene session reads as narrator/merged/fixed.
+imports unchanged, and a pre-P14 Scene session reads as narrator/merged/fixed.
 
-#### P13.1 — Who replies
+#### P14.1 — Who replies
 
 - `speakers.ts`'s arms to ST's behaviour (§1.3), every draw on the tape.
 - `castIsPresent` and muting.
@@ -1163,7 +1172,7 @@ imports unchanged, and a pre-P13 Scene session reads as narrator/merged/fixed.
     tape's `natural` pick, with a warned outcome;
   - a rewrite makes no call and keeps the speakers.
 
-#### P13.2 — Per-actor dispatch
+#### P14.2 — Per-actor dispatch
 
 - The generate step's loop (§1.4) and assembly re-scoped by `speaker`.
 - The three macros; `speaker`/`others` block scopes.
@@ -1187,7 +1196,7 @@ slightly wrong; each is recorded where the code carries its argument.
   that speaks for nobody, `{{notChar}}` is the persona alone — ST's solo-chat
   meaning. Counted from the first of the cast it named everyone but them, and
   it reaches narrator calls, because the importer keeps an ST preset's
-  `{{notChar}}` as written; before P13.2 it rendered empty there. So narrator
+  `{{notChar}}` as written; before P14.2 it rendered empty there. So narrator
   output is byte-identical for a pack that never spells it, and a pack that
   does now reads the persona (`assembly/collect.ts`, `renderContextOf`, pinned
   in `collect.test.ts`).
@@ -1200,9 +1209,9 @@ slightly wrong; each is recorded where the code carries its argument.
   defines it) and §1.10's *"what they see is ST's"* — ST's `collectField` and
   Marinara's `resolveActiveCharacterIds` both leave a muted member out. It is
   so because the collector reads no presence, and Scene declares no
-  `castIsPresent` until P13.3, so *muted* cannot yet be told from *no presence
+  `castIsPresent` until P14.3, so *muted* cannot yet be told from *no presence
   value*; [00 §2.10] argues for the other members' cards, not the muted ones.
-  **An open decision for [P13.3]**: filter non-speakers whose presence reads
+  **An open decision for [P14.3]**: filter non-speakers whose presence reads
   `false` (keeping a muted speaker, as ST's `characterId !== index` exemption
   keeps a force-talked one), or correct §1.4 to *"every card"* with a reason.
 - **The two block scopes partition the cast on every call**: `speaker` is
@@ -1251,7 +1260,7 @@ slightly wrong; each is recorded where the code carries its argument.
   makes one merged call and one `message` whatever `dispatch` says
   (`modes/scene/src/mode.ts`, `narrate`; pinned in `turns/runner-dispatch.test.ts`,
   whose narrator case passes `per-actor` explicitly). [06 §3]'s *narrator +
-  per-actor dialogue passes* cell is therefore not built. For [P13.5]: the
+  per-actor dialogue passes* cell is therefore not built. For [P14.5]: the
   settings panel either shows dispatch only under embodied voice or says it has
   no effect under narrator, until a stage defines that cell.
 - **A later speaker's lore scan reads the round** (review, 2026-09-29), as §1.4
@@ -1270,14 +1279,14 @@ slightly wrong; each is recorded where the code carries its argument.
   [21 §1.1]'s `BlockSource` (the `round` arm), [04 §8.2]'s slot sources (the
   `scope` field) and [19]'s template namespace (five names).
 
-*Left for [P13.3]:* the pack's wording (naming the speaker as the one to write,
+*Left for [P14.3]:* the pack's wording (naming the speaker as the one to write,
 the group nudge); names in history, which prefixes the round's entries as it
 does past turns'; the preview, which still assembles one merged call; and the
 importer's macro table, which refuses `{{group}}`, maps `{{charIfNotGroup}}`
 to `{{ char }}` and leaves `{{notChar}}` verbatim — all three now have a name to
 map to.
 
-#### P13.3 — The Scene pack and the card's own fields
+#### P14.3 — The Scene pack and the card's own fields
 
 - `SCENE_PRESET` rewritten (§1.5).
 - ST import moves `system_prompt`, `post_history_instructions` and
@@ -1300,7 +1309,7 @@ the code carries its argument:
   `{ select: 'natural', castIsPresent: true, maxActors: 32 }`
   (`modes/scene/src/mode.ts`); `legacy` stays narrator/merged/fixed, and
   `chat-settings.test.ts` now pins, against the Scene that ships, that a
-  pre-P13.0 file, a file P13.0 created narrated, and a file made today read
+  pre-P14.0 file, a file P14.0 created narrated, and a file made today read
   as they were made. `mode.test.ts`'s narrator pin is a pin on the declared
   values and on the pack having an instruction for each voice — the
   narrator's word for word as every earlier session has it.
@@ -1311,8 +1320,8 @@ the code carries its argument:
   turn's messages. `se.instruction` is keyed `narrator` (~~`narrate`~~, the
   call kind of both), `se.instruction.embodied` and the three card blocks
   `embodied`; the rest are both voices'. A new session set to `narrator`
-  assembles byte-identically to before — `collect.test.ts`'s pre-P13.2
-  snapshot did not move. *Pre-P13 sessions hold their own copy* of the pack
+  assembles byte-identically to before — `collect.test.ts`'s pre-P14.2
+  snapshot did not move. *Pre-P14 sessions hold their own copy* of the pack
   (`SessionFile.preset`), whose instruction still says `narrate`; `presetOf`
   adds the new blocks, all embodied-only. One such session switched to
   embodied by hand would get both instructions, and *Switch to the mode's
@@ -1346,7 +1355,7 @@ the code carries its argument:
   **Not placed by an imported
   SillyTavern preset**: its converter maps no marker to these sections, so a
   session on an imported pack sends no card prompts — a converter change, left
-  for P13.9.
+  for P14.9.
 - **Post-history instructions follow the input in sequence**, not
   `in-history` depth 0 as the table says: this build's history run ends where
   the input slot begins, so depth 0 would sit *before* the move the reply
@@ -1373,7 +1382,7 @@ the code carries its argument:
 - **`prompts.instruction: false`** skips the blocks `isInstructionBlock`
   names — `se.instruction`, `se.instruction.*`, and an imported ST preset's
   `st.main` — an id convention rather than a schema field.
-- **Muted cards leave**, deciding [P13.2]'s open question the first way: under
+- **Muted cards leave**, deciding [P14.2]'s open question the first way: under
   `castIsPresent` a non-speaker whose presence is `false` has no card on the
   call (ST's `collectField`, Marinara's `resolveActiveCharacterIds`), and a
   muted speaker keeps theirs. Without `castIsPresent` nothing changes.
@@ -1382,7 +1391,7 @@ the code carries its argument:
   member nobody muted as present. *Review, 2026-09-29*: ~~the mode's
   reading~~ **the mode's reading in an embodied session** —
   `castIsPresentFor` (`sessions/chat-settings.ts`). Read through the mode
-  alone, every narrated Scene session (`legacy`, and those P13.0 created
+  alone, every narrated Scene session (`legacy`, and those P14.0 created
   narrated) dropped the card of a member the story had walked out, and its
   panel moved every untouched member to *Here*; now those sessions keep the
   prompt and the panel they had. And a value the quarantine reset to the
@@ -1407,7 +1416,7 @@ the code carries its argument:
   the context past them. The retriever still scans hidden lines, and still
   reads a card's prompt sections as part of what the card says.
 - **The importer's macro table** maps `{{group}}`, `{{charIfNotGroup}}` and
-  `{{notChar}}` (and `<GROUP>`) onto the namespace P13.2 gave them.
+  `{{notChar}}` (and `<GROUP>`) onto the namespace P14.2 gave them.
 - **The preview is the first speaker's call** under an embodied voice,
   whatever the dispatch, and passes the dispatch so the speaker's model hint
   applies under `per-actor` only. It draws the selection on a fresh tape, as
@@ -1416,7 +1425,7 @@ the code carries its argument:
   a selection of nobody reads `not-this-turn`. Later speakers are not
   previewed: their prompts hold replies not yet written.
 
-#### P13.4 — The gestures
+#### P14.4 — The gestures
 
 - `input` optional on `POST /turns`, plus `speakers`, `fromMessage`,
   `continueOf` and `authored`.
@@ -1535,7 +1544,7 @@ left open, each where the code carries its argument:
   retry lands where the first did. Under the session lock and *not* refused
   while a turn runs: a hide moves no node, and the running turn assembled
   before it. An index past the turn's messages is `no-such-message`. Owed a
-  caller at [P13.5] in `route-callers.test.ts`.
+  caller at [P14.5] in `route-callers.test.ts`.
 - **The opening turn is a mode's declaration**, `ModeDefinition.openingTurn`
   (an optional SDK field; Scene declares it). The engine may not name a mode,
   and `voice: 'embodied'` is not the same claim — the assistant is embodied
@@ -1552,7 +1561,7 @@ left open, each where the code carries its argument:
   *the player*, as the assembler calls them. `lastSelectedChild` has no entry
   for a root, so the head is the whole of which greeting is selected.
 
-*Left for [P13.5]:* ~~an empty send under `manual`, with nobody forced, commits
+*Left for [P14.5]:* ~~an empty send under `manual`, with nobody forced, commits
 a turn with no input and no reply~~ — corrected 2026-09-29, at this stage's
 review: under `manual` an empty send with nobody forced gets **one eligible
 member, chosen at random** — ST's `shuffle(enabledMembers).slice(0, 1)`, kept
@@ -1562,7 +1571,7 @@ member muted or absent), and the composer should not offer that send, or
 should say it will get no reply. Provider prefill for continue stays later
 work, as §1.6 says.
 
-#### P13.5 — The chat surface
+#### P14.5 — The chat surface
 
 - The transcript, composer, cast panel, settings and creation form (§1.8).
 - Auto-mode.
@@ -1581,7 +1590,7 @@ its argument:
 
 - **The server read-side the surface needed, and nothing else.** Four
   additions, each argued where it lives. `GET /sessions/:id` sends `chat`, the
-  **effective** settings through `chatSettingsOf` — so a pre-P13 session's
+  **effective** settings through `chatSettingsOf` — so a pre-P14 session's
   panel shows the narrated, merged, `fixed` values its turns get — and only
   for a mode that plays as a chat (`isChatMode`: the mode declares
   `castIsPresent`; not the voice, which a chat can switch). `PUT
@@ -1617,7 +1626,7 @@ its argument:
   default and for its reason: swiping past a failed check must not be
   save-scumming by accident. Swipe and continue are not offered on a
   narrator's line, and continue only on the last line and never a hidden one
-  — the three refusals [P13.4] built, not shown as buttons that fail.
+  — the three refusals [P14.4] built, not shown as buttons that fail.
 - **Talkativeness is written to the card**, as §1.3 puts it
   (`modeData[mode].talkativeness`), through the ordinary library save and
   under the session's mode id. So changing it in one chat's cast panel changes
@@ -1626,15 +1635,15 @@ its argument:
 - **Mute is presence relabelled.** In an embodied chat the one checkbox reads
   *Muted*, ticked when presence is `false`; in a narrated one it stays *In the
   scene*, because there presence means the room (`castIsPresentFor`).
-- **Dispatch shows only under the characters' voice** — [P13.2]'s *"either
+- **Dispatch shows only under the characters' voice** — [P14.2]'s *"either
   shows dispatch only under embodied voice or says it has no effect"*, the
-  first of the two. **Smart's cost is in its option's label.** A pre-P13
+  first of the two. **Smart's cost is in its option's label.** A pre-P14
   session's `fixed` is shown as itself, offered by no control.
 - **An empty send in a chat is a turn with no input**, labelled *Let them talk*
   while the box is empty, and it sends under `manual` with nobody named — the
-  policy picks one, as [P13.4] settled. It is refused, with a sentence, only
+  policy picks one, as [P14.4] settled. It is refused, with a sentence, only
   when nobody seated could answer (every member muted or gone), which is
-  [P13.4]'s *"should not offer that send, or should say it will get no
+  [P14.4]'s *"should not offer that send, or should say it will get no
   reply"* — both. *Who speaks next* is one-shot and cleared by the send; while
   a round streams its place shows the order.
 - **The round is painted per message** from `call.started` and the indexed
@@ -1659,14 +1668,14 @@ its argument:
   (`tools/entry-budget.test.ts`, with the numbers): the stage's code added
   7.78 kB to a play page that is on the common entry, and no dependency.
 - **Discharged**: `route-callers.test.ts`'s owed row for the hide route.
-  **Also documented**: the hide route itself, which [P13.4] left out of
+  **Also documented**: the hide route itself, which [P14.4] left out of
   `docs/api.md`.
 
 *Not walked:* the gate (§4.1 items 1 and 2) is now walkable and has not been.
 
 ### Part B
 
-#### P13.5a — Trackers
+#### P14.5a — Trackers
 
 - The six `se.track.*` channels and `se.track.locks` (§1.9.2).
 - `se.scene.track`: one batched structured call, locks written back, absent
@@ -1799,7 +1808,7 @@ tracker snapshots (`fixtures/test-marinara.ts`), and the builder's half is
     nobody wrote reading as its `init` — a snapshot is a whole state every
     time, and six effects per turn saying nothing would bury the changes. Ids
     are `effectKey` over the turn's key, the channel and the member's foreign
-    key, as P13.9's presence effects are; `proposedBy: engine`, applied,
+    key, as P14.9's presence effects are; `proposedBy: engine`, applied,
     `before` the parent's value; the head cache is the head path's replay, so
     opening the session reconciles nothing (asserted).
   - *Per-character values are per actor*: a present character is written only
@@ -1816,7 +1825,7 @@ tracker snapshots (`fixtures/test-marinara.ts`), and the builder's half is
   - *Switches* from the root chat: an agent's switch is on only when
     `enableAgents` **and** `activeAgentIds` say so, which is when Marinara ran
     it; `manualTrackers` is the cadence's `manual`. Written on the opening
-    turns beside the mutes, for P13.9's reason.
+    turns beside the mutes, for P14.9's reason.
   - *Not carried, each a note*: agent models (`agentModelsNotCarried` —
     global in Marinara, the session's `stepRoles` here), per-agent manual
     (`manualTrackersPerAgent`), a quest's stage *number* (an index into
@@ -1868,7 +1877,7 @@ written on opening turns, and §2.7's graft rule carries only presence. And
 which has no control yet (`PUT …/roles` is still owed, P7B §1.12), so a
 Marinara user looking for a tracker model finds the note and no setting.
 
-#### P13.5b — The director and the secret plot
+#### P14.5b — The director and the secret plot
 
 - `push` on submission, `se.scene.direct` armed by it, guidance through the
   engine-only cell, the pack's fixed push text as the fallback.
@@ -1892,7 +1901,7 @@ carries `agent_memory` rows and a director that keeps a plot
   `{ when: 'armed', flag: 'push' }`. The runner plans it only on a pushed turn
   (the suggester's rule) and still evaluates its condition. **After the mode's
   own `pre` steps**, so a plot pass that just wrote a fresh arc is the one the
-  direction reads — *which it did not, until P13.5c's review*: the secrets were
+  direction reads — *which it did not, until P14.5c's review*: the secrets were
   resolved when the plan was built, before any step ran. `DirectContext.secrets`
   is a thunk over the runner's running channels now, read when the step runs
   (`director.test.ts` holds the first-turn case). One plain-text call over its own candidates — the task, the
@@ -1911,7 +1920,7 @@ carries `agent_memory` rows and a director that keeps a plot
   **A rewrite keeps the push** (read off the redone turn's outcome, as
   force-talk is read off `input.speakers`) and asks the director again; so
   does a guided redo (`redoOf`), and a plain reroll, which names no turn, is
-  sent the push by the client off the same outcome (both added at P13.5c's
+  sent the push by the client off the same outcome (both added at P14.5c's
   review, which found a second attempt at a pushed turn running undirected); an
   edit refuses it (`conflicting-gesture`). *Not `Turn.input.push`*: a *let
   them talk* turn has no input to hang it on, and the outcome already says it.
@@ -1973,16 +1982,16 @@ control (`PUT …/roles`, P7B §1.12). And every Scene turn now carries a third
 dead `ok` row, the plot pass switched off — [25 C17], now past its *decide
 with the second instance*.
 
-*Corrected at [P13.5c], 2026-09-30.* The stage left the import's
+*Corrected at [P14.5c], 2026-09-30.* The stage left the import's
 `agentsNotCarried` sentence naming *the narrative director … or the secret
 plot* as not imported, which this stage had just made untrue; the note fires
 for the director no longer (`trackers.ts` filtered it), but the words a person
-reads for the remaining agents still named it. P13.5c rewrote the sentence for
+reads for the remaining agents still named it. P14.5c rewrote the sentence for
 what is actually left (the agents with an equivalent under another name, and
-the discarded ones). The 319.85 kB entry this stage recorded is where P13.5c's
+the discarded ones). The 319.85 kB entry this stage recorded is where P14.5c's
 budget argument starts (`tools/entry-budget.test.ts`).
 
-#### P13.5c — The editor and the echo chamber
+#### P14.5c — The editor and the echo chamber
 
 - `se.scene.edit`: style edits applied before commit, per message, with the
   unedited text in `OutputMessage.original` and the transcript's *show original*.
@@ -2102,7 +2111,7 @@ immersive HTML. What the stage decided that §1.9.4–§1.9.6 left open:
   `card-evolution-auditor` are a note each saying why they are not built
   (`immersiveHtmlNotBuilt`, `cardEvolutionNotBuilt`); `agentsNotCarried` is
   narrowed to what is left.
-- **The scenario** — P13.12's first *found, not fixed*. A chat's session is
+- **The scenario** — P14.12's first *found, not fixed*. A chat's session is
   written with the Treatment the sweep made from its cast's card scenario,
   found by provenance: a treatment stamped `scenario:` whose cast names the
   actor, through the index's link table (`scenarioTreatmentOf`,
@@ -2130,7 +2139,7 @@ no control (P7B §1.12). The editor switches and settings arrive on a first
 import only, the trackers' reason. And the gate's critical item 5 (*"whether
 an edited message reads better than its original"*) is a person's.
 
-#### P13.6 — The chat tree builder
+#### P14.6 — The chat tree builder
 
 `import/chat/` is source-neutral and pure. It holds `ChatMessage`,
 `ChatFamily`, and `buildSession(family, resolution, account)` →
@@ -2144,7 +2153,7 @@ hand-written fixtures are linear:
 - the same input gives byte-identical output;
 - two accounts produce disjoint ids.
 
-#### P13.7 — SillyTavern JSONL
+#### P14.7 — SillyTavern JSONL
 
 The parser handles:
 - header detection, including headerless old group files;
@@ -2155,7 +2164,7 @@ The parser handles:
 - `gen_id` batches, narrator, comment and hidden lines;
 - the `marinara_*` extras (§0.4).
 
-#### P13.8 — Resolution and the doors
+#### P14.8 — Resolution and the doors
 
 - `import/chat/resolve.ts` (§2.5), with note keys under `import.chat.*`, where
   `note-labels.test.ts` scans them.
@@ -2168,7 +2177,7 @@ The parser handles:
   `.jsonl`.
 - The surface says once what an update from source does and does not do (§2.7).
 
-#### P13.9 — SillyTavern families and groups
+#### P14.9 — SillyTavern families and groups
 
 - `main_chat` families, branch of branch, missing parents, checkpoints.
 - `groups/<id>.json`, with its strategy, self-responses and muted members, onto
@@ -2178,7 +2187,7 @@ The parser handles:
 checkpoint imports as one session with four refs and the prefix once. A
 three-member group imports with each round's messages attributed.
 
-#### P13.10 — Marinara
+#### P14.10 — Marinara
 
 - Over the reader's `#rows`: `chats` filtered to `roleplay`.
 - `messages` ordered `(createdAt, id)` (`chats.storage.ts:963`).
@@ -2189,9 +2198,9 @@ three-member group imports with each round's messages attributed.
   and the agent switches (§2.6).
 
 The profile archive, data root and v1 profile come in through the sweep. The
-per-chat JSONL export comes in through P13.7.
+per-chat JSONL export comes in through P14.7.
 
-#### P13.10a — Sync
+#### P14.10a — Sync
 
 - `origin.originalFilename` stamped with the family's root path.
 - `importSession`'s `extend` arm, under the session lock.
@@ -2217,7 +2226,7 @@ two cases; the rest of §2.7 is one case each there, and the two doors are in
   purpose; `ids.ts` carries the argument.
 - **Found by `(account, originalFilename)`.** `importSession` keeps the
   document's `origin.originalFilename`, and the index carries it
-  (`session.origin_filename`, index schema 11, `sessionByOrigin`). A session
+  (`session.origin_filename`, index schema 12, `sessionByOrigin`). A session
   imported before this stage has none, and is found by the turns it holds
   instead, then stamped. `extend` is an option the chat doors pass. It is
   never inferred, so an export loaded back where it came from is still
@@ -2291,7 +2300,7 @@ two cases; the rest of §2.7 is one case each there, and the two doors are in
   name, since the name is the chat's identity (§2.4), or, for a chat that came
   in a browser-uploaded folder, says to import the folder again. The hint in
   *Load a session or a chat* now says what an update does and does not do,
-  replacing P13.8's interim *"comes later"*.
+  replacing P14.8's interim *"comes later"*.
 - **Where this departs from §2.7's text.** The text above is unedited; these
   are the disagreements, for whoever owns §2.7 to settle or point at:
   1. *"`lastSelectedChild` … left alone"* when played on: it is not. It takes
@@ -2308,13 +2317,13 @@ two cases; the rest of §2.7 is one case each there, and the two doors are in
   5. *"With a test for each"*: the open case was decided by argument, above.
      Only the sibling behaviour has tests (`build.test.ts`,
      `chat-sync.test.ts`). §2.7's open-case paragraph still reads as open and
-     wants a one-line pointer here, left for after P13.4's edit to the file
+     wants a one-line pointer here, left for after P14.4's edit to the file
      lands.
 - **Not done.** A backup restored under another account handle names the same
   source with ids hashed for the old handle, so a sync there appends the whole
   family beside itself. A group's renamed title does not rename the session.
 
-#### P13.11 — The first turn after a long import
+#### P14.11 — The first turn after a long import
 
 `ensureChain` is lazy and sequential (`sessions/summaries.ts:213`). After
 `importSession`, a background warm derives the head path's chain outside any
@@ -2395,7 +2404,7 @@ played with no `se.summary` call in the turn's record. The warm is
   *"has the same shape and was not checked"*, is still unchecked. Its
   eight-turn read is §3's *not in this phase*.
 
-#### P13.12 — The corpus and the gate test
+#### P14.12 — The corpus and the gate test
 
 - A fixture pair per source in the `fixture-pair` project (`FIXTURE_PAIR`
   becomes a list). Each sweeps cards and chats, opens the session, previews a
@@ -2429,7 +2438,7 @@ by that project alone. The two new files are `import/fixture-pair-chats.test.ts`
 - **The corpus cards were given prompts in the test, not in the shared
   trees.** Neither tree's cards carries `system_prompt`,
   `post_history_instructions` or a depth prompt, because they were written at
-  P4, before P13.3 gave those fields a destination. Over them, the test could
+  P4, before P14.3 gave those fields a destination. Over them, the test could
   not tell *unreachable* from *nothing to place*. Other tests count and compare
   those cards, so the fields are added where the pair test builds its tree.
 - **"Fed" is named by block, not by source kind.** The old gate's *no `actor`
@@ -2454,7 +2463,7 @@ by that project alone. The two new files are `import/fixture-pair-chats.test.ts`
   per-turn `appendTurnOnly`, a segment append and an index row each, not
   batched, which is where a faster import would start. Opening the session
   afterwards costs about 0.2 ms a turn (1 s at 5,001 turns). No model is
-  bound, so the P13.11 warm makes no call inside the timed span.
+  bound, so the P14.11 warm makes no call inside the timed span.
 - **The size test bounds growth, not speed.** The first bound was 30 s,
   called "about five times the measurement", but the measurement above was
   taken with the file running mostly alone. CI's `pnpm test` runs
@@ -2480,7 +2489,7 @@ by that project alone. The two new files are `import/fixture-pair-chats.test.ts`
      chat. SillyTavern sends the card's scenario on every turn of that chat.
      Neither §2.6 nor [18](../18-session-import.md) says which should happen.
      The pair test leaves `se.treatment` out of `FED` rather than assert the
-     gap. *Fixed at [P13.5c]*, 2026-09-30: the session pass links the
+     gap. *Fixed at [P14.5c]*, 2026-09-30: the session pass links the
      treatment the sweep made from the cast's card scenario, found by its
      `scenario:` stamp and cast, and `se.treatment` is in `FED`.
   2. **Example dialogue reaches the model with `<START>` verbatim.** Nothing in

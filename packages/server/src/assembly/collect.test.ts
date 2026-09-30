@@ -1677,7 +1677,7 @@ describe('a channel slot', () => {
   });
 
   /**
-   * ***Switched off is silent*** — `ChannelDefinition.enabledBy`, [P13.5b]: a
+   * ***Switched off is silent*** — `ChannelDefinition.enabledBy`, [P14.5b]: a
    * secret plot a person switched off stops reaching the narrator, whatever
    * its value, and the record says a person did it.
    */
@@ -1759,7 +1759,7 @@ describe('a channel slot', () => {
 });
 
 /**
- * ***What the story has established*** — [P13 §1.9.2], [P13.5a]'s `{ of:
+ * ***What the story has established*** — [P14 §1.9.2], [P14.5a]'s `{ of:
  * 'state' }`.
  *
  * Over Scene's real trackers, installed as a session gets them, because the
@@ -2392,7 +2392,9 @@ describe('a wrapper names who its block is about', () => {
  *
  * - a picture on the move being made is **required**, as the move's words are —
  *   a budget that could drop it would drop the part of the move being shown;
- * - it is wrapped as its slot wraps everything, both ways it can go;
+ * - it is **never framed by the move's kind** — a picture is not speech — and
+ *   in history wears the history slot's wrapper as every history block does, so
+ *   the same picture reads the same before and after its turn;
  * - in history it follows its turn's words and precedes the reply, and is
  *   **never current**, so R1 never sends an old picture as pixels;
  * - a move that was only a picture still has its picture in history, where an
@@ -2407,7 +2409,7 @@ describe('pictures on a move', () => {
     caption: 'a lantern',
   };
 
-  it('makes the move’s picture a required candidate, wrapped both ways', () => {
+  it('makes the move’s picture a required candidate, in its own words both ways', () => {
     const { candidates } = collectCandidates(
       context({
         preset: preset([
@@ -2416,23 +2418,78 @@ describe('pictures on a move', () => {
             id: 'se.input',
             role: 'user',
             source: { of: 'input' },
-            wrapper: 'You: {{content}}',
+            wrapper: 'You say: “{{content}}”',
           }),
         ]),
         input: { text: 'Look.', attachments: [PICTURE] },
       }),
     );
 
+    const words = candidates.find((one) => one.id === 'se.input');
+    expect(words?.text).toBe('You say: “Look.”');
     const picture = candidates.find((one) => one.image !== undefined);
     expect(picture?.id).toBe('se.input.attachment.0');
     expect(picture?.required).toBe(true);
-    expect(picture?.text).toBe('You: [Picture — not shown: a lantern]');
+    // Not *you say: "[Picture…]"* — a picture is not a line of speech.
+    expect(picture?.text).toBe('[Picture — not shown: a lantern]');
     expect(picture?.image).toMatchObject({
       current: true,
       digest: PICTURE.digest,
-      sentText: 'You: [Picture: a lantern]',
+      sentText: '[Picture: a lantern]',
     });
     expect(picture?.source).toEqual({ kind: 'input', part: 'attachment', attachmentId: '0' });
+  });
+
+  /**
+   * ***The same picture, before and after its turn*** — the drift main's
+   * `asItWasSaid` removed for a move's words, which pictures reached from the
+   * other side: framed as speech while current, bare a turn later. Pack-shaped:
+   * a `say` slot that quotes, a history slot with a wrapper of its own.
+   */
+  it('reads the same as the move being made and in history, but for the history slot’s own frame', () => {
+    const say = block({
+      kind: 'slot',
+      id: 'se.input.say',
+      role: 'user',
+      source: { of: 'input' },
+      appliesTo: ['say'],
+      wrapper: 'The player’s character says: “{{content}}”',
+    });
+    const history = block({
+      kind: 'slot',
+      id: 'se.history',
+      source: { of: 'history' },
+      wrapper: '(earlier) {{content}}',
+    });
+    const now = collectCandidates(
+      context({
+        preset: preset([history, say]),
+        inputKind: 'say',
+        input: { text: 'Look.', attachments: [PICTURE] },
+      }),
+    ).candidates.find((one) => one.image !== undefined);
+    const later = collectCandidates(
+      context({
+        preset: preset([history, say]),
+        history: [
+          {
+            id: 'turn-1',
+            input: {
+              actorId: null,
+              kind: 'say',
+              text: 'Look.',
+              raw: 'Look.',
+              attachments: [PICTURE],
+            },
+            output: { text: 'A lantern, lit.' },
+          } as Turn,
+        ],
+      }),
+    ).candidates.find((one) => one.image !== undefined);
+
+    expect(now?.image?.sentText).toBe('[Picture: a lantern]');
+    expect(later?.text).toBe('(earlier) [Picture — not shown: a lantern]');
+    expect(later?.image?.sentText).toBe('(earlier) [Picture: a lantern]');
   });
 
   it('places an old picture after its words and before the reply, never as current', () => {
@@ -2483,8 +2540,8 @@ describe('pictures on a move', () => {
 });
 
 /**
- * ***A call that speaks for somebody*** — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.2].
+ * ***A call that speaks for somebody*** — [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.2].
  */
 describe('a call that speaks for somebody', () => {
   beforeEach(async () => {
@@ -2529,12 +2586,12 @@ describe('a call that speaks for somebody', () => {
 
   /**
    * ***A call that names nobody collects exactly what it collected before
-   * P13.2*** — the snapshot was written against the build without speaking
+   * P14.2*** — the snapshot was written against the build without speaking
    * calls, over the stock Scene pack with a persona, three cast members, a
    * sample and a turn of history, so every slot that pack positions has
    * something to say. Actor ids are replaced by names so the record reads.
    *
-   * *A narrator's call, said since [P13.3]*: the stock pack keys its two
+   * *A narrator's call, said since [P14.3]*: the stock pack keys its two
    * instructions to the call's voice, and a call that writes the turn and
    * names nobody is the narrator's (`CollectContext.voice`). The snapshot did
    * not move — which is the claim: the narrated setting is byte-identical.
@@ -2675,7 +2732,7 @@ describe('a call that speaks for somebody', () => {
     it('reads as before for a call that speaks for nobody: char is the first of the cast', () => {
       // `{{char}}` has meant the first cast member since P4.1, and a merged
       // call still means it — the mutation is re-scoping without a speaker.
-      // `notChar` is the persona alone there (2026-09-29, the [P13.2] review):
+      // `notChar` is the persona alone there (2026-09-29, the [P14.2] review):
       // nobody is speaking, so there is no member to count the others from.
       expect(namesIn({ persona, actors: [vera, marlow, lund] })).toBe(
         'char=Vera|group=Vera, Marlow, Lund|charIfNotGroup=Vera, Marlow, Lund|' +
@@ -2685,7 +2742,7 @@ describe('a call that speaks for somebody', () => {
 
     /**
      * ***An imported pack's `{{notChar}}` on a narrator's call*** — the importer
-     * keeps it as written, and before P13.2 it rendered empty. Counted from
+     * keeps it as written, and before P14.2 it rendered empty. Counted from
      * `actors[0]` it would have told the narrator never to write for the
      * persona and every member but the first; it names the persona, the one
      * person a narrator must never write for.
@@ -2896,8 +2953,8 @@ describe('a call that speaks for somebody', () => {
         ['se.history.turn-1.input', 'user', 'I knock.'],
         ['se.history.turn-1.output', 'assistant', 'The door gave.'],
         ['se.input', 'user', 'Well?'],
-        // Named since [P13.3]: two speakers are in the window with the round,
-        // so `groups` names each line ([P13 §1.5]).
+        // Named since [P14.3]: two speakers are in the window with the round,
+        // so `groups` names each line ([P14 §1.5]).
         ['se.round.0', 'assistant', 'Vera: "You came."'],
         ['se.round.1', 'assistant', 'Marlow: "I owe you nothing."'],
         ['se.after', 'system', 'Stay in the scene.'],
@@ -2918,7 +2975,7 @@ describe('a call that speaks for somebody', () => {
     });
 
     /**
-     * ***Chat goes before card fields*** (2026-09-29, the [P13.2] review) —
+     * ***Chat goes before card fields*** (2026-09-29, the [P14.2] review) —
      * priced from the input slot, the round outranked every block in the pack,
      * and a tight budget took the speaker's own card before an earlier reply.
      */
@@ -2956,7 +3013,7 @@ describe('a call that speaks for somebody', () => {
 
     /**
      * ***After the input the turn carried, not the pack's first*** (2026-09-29,
-     * the [P13.2] review) — Freeform's shape: a slot per input kind, each
+     * the [P14.2] review) — Freeform's shape: a slot per input kind, each
      * followed by its instruction. On a `say` turn the `do` slot is skipped, and
      * a round placed after it came before the move it answers.
      */
@@ -3064,7 +3121,7 @@ describe('a call that speaks for somebody', () => {
 });
 
 /**
- * ***A chat, as [P13.3] assembles it*** — [P13 §1.5]'s pack, the card's own
+ * ***A chat, as [P14.3] assembles it*** — [P14 §1.5]'s pack, the card's own
  * prompts, names in history, the author's note and the hidden filter, over the
  * Scene pack that ships (read through the registry, so it is the pack a real
  * session copies).
@@ -3197,8 +3254,8 @@ describe('a chat, assembled', () => {
     });
 
     /**
-     * ***Not under `merged`*** (2026-09-29, the [P13.3] review): the one call
-     * writes for the whole room ([P13 §1.4]), and telling it to write only as
+     * ***Not under `merged`*** (2026-09-29, the [P14.3] review): the one call
+     * writes for the whole room ([P14 §1.4]), and telling it to write only as
      * its first speaker contradicted what the dispatch is for.
      */
     it('leaves the group nudge out of a merged call, which may voice every member', () => {
@@ -3283,7 +3340,7 @@ describe('a chat, assembled', () => {
 
       // Depth 1: before the newest chat entry — the player's move — as the user
       // it asked to be. ~~Before the newest history entry~~: counted over the
-      // whole chat since 2026-09-29, the [P13.3] review, as ST counts it.
+      // whole chat since 2026-09-29, the [P14.3] review, as ST counts it.
       const at = ids(rows).indexOf('se.card.depth.vera');
       expect(ids(rows)[at - 1]).toBe('se.history.t2.output');
       expect(ids(rows)[at + 1]).toBe('se.input');
@@ -3327,7 +3384,7 @@ describe('a chat, assembled', () => {
 
   /**
    * ***A card taken as the persona brings no card prompts*** (2026-09-29, the
-   * [P13.3] review). The persona slot renders every `always` section, and the
+   * [P14.3] review). The persona slot renders every `always` section, and the
    * importer writes a card's three prompts as `always` sections — so its
    * *"You are …"* reached every call, in both voices, past the rules the actor
    * path holds them to.
@@ -3468,7 +3525,7 @@ describe('a chat, assembled', () => {
 
     /**
      * ***Depths count the move and the round, as SillyTavern's do*** (2026-09-29,
-     * the [P13.3] review). Its chat holds the player's newest message and each
+     * the [P14.3] review). Its chat holds the player's newest message and each
      * earlier member's reply before the next member assembles, so on a later
      * speaker's call depth 0 is after the round and depth 1 before its last
      * line. Counted from the history's end, both sat before the player's move —
@@ -3505,7 +3562,7 @@ describe('a chat, assembled', () => {
 
     /**
      * ***A continue ends on the message it continues, then the nudge*** —
-     * [P13.4], corrected at its review (2026-09-29). ST takes the continued
+     * [P14.4], corrected at its review (2026-09-29). ST takes the continued
      * message out of the chat *after* depth injection (`openai.js:908`), so a
      * depth-0 run sits before it, and depth 1 is still counted over the chat
      * including it. Pushed after the splice alone, the note sat between the

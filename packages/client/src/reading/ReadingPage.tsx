@@ -131,7 +131,7 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
                 <MovePictures sessionId={props.sessionId} pictures={passage.said.pictures} />
               </blockquote>
             )}
-            {/* ***Named lines, when the record names them*** — [P13.5]. The
+            {/* ***Named lines, when the record names them*** — [P14.5]. The
                 speaker's name above each message, as a script sets it; the
                 pictures then fall to the end of the turn, §10.4a's rule for an
                 anchor that does not resolve. */}
@@ -203,7 +203,7 @@ function Illustrated(props: {
   const chosenId = props.renditions?.selection[props.turnId];
   const shown = all.find((one) => one.id === chosenId) ?? all[all.length - 1];
 
-  // No words is a named chat turn's pictures alone ([P13.5]): nothing to set
+  // No words is a named chat turn's pictures alone ([P14.5]): nothing to set
   // an empty paragraph for.
   if (shown === undefined) {
     return props.text === '' ? <></> : <p className="whitespace-pre-wrap">{props.text}</p>;

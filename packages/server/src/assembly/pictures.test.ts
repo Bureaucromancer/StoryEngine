@@ -8,7 +8,7 @@ import type { Turn } from '@storyengine/shared';
 import { turnText } from '../index-db/sessions.js';
 import { unitTextOf } from '../sessions/summary-chain.js';
 import { transcriptOf } from '../turns/steps.js';
-import { moveText, pictureTexts, pictureWords, scanText } from './pictures.js';
+import { moveText, pictureTexts, pictureWords, quoted, scanText } from './pictures.js';
 
 /**
  * ***A picture, in words, everywhere a move is read as text*** — [25 E15], R1.
@@ -105,6 +105,63 @@ describe('what a step’s transcript and the index say', () => {
     expect(turnText(turn)).toContain('a lantern');
     expect(turnText({ ...turn, input: { ...turn.input!, attachments: [] } })).toBe(
       'Look.\nA lantern, lit.',
+    );
+  });
+});
+
+/**
+ * ***A move quoted line by line*** — what the summariser and memory extraction
+ * hand a model as *what the player did*, beside a reply left bare.
+ *
+ * They used to put one `> ` in front of the whole string, which quotes the
+ * first line only: {@link moveText} puts each picture's stand-in on a line of
+ * its own, so the stand-in read as the first line of the narrator's reply —
+ * and so did the second line of any move typed with a line break, which was
+ * wrong before pictures existed.
+ */
+describe('a move as a quotation', () => {
+  /**
+   * *Empty in, empty out.* A move with nothing in it — a continue, a turn that
+   * was only ever a reply — must add no bare `>` for its caller's `filter` to
+   * miss. Falsified by quoting unconditionally (`'>'` or `'> '`).
+   */
+  it('adds nothing to an empty move', () => {
+    expect(quoted('')).toBe('');
+  });
+
+  it('quotes a single line', () => {
+    expect(quoted('a')).toBe('> a');
+  });
+
+  /**
+   * The case the function exists for. Falsified by quoting the string rather
+   * than each line — the old `> ${said}` — which leaves the stand-in bare.
+   */
+  it('quotes every line, so a picture on the next line stays the player’s', () => {
+    expect(quoted('a\n[Picture: x]')).toBe('> a\n> [Picture: x]');
+    expect(quoted(moveText(WITH_PICTURES))).toBe(
+      '> Look.\n> [Picture: a lantern]\n> [Picture, not described]',
+    );
+  });
+
+  /**
+   * A blank line inside a move is still inside the quotation, and is written as
+   * a bare `>` — Markdown's own spelling — rather than `> ` with a trailing
+   * space a formatter or a model would strip. Falsified by skipping blank lines
+   * (the quotation splits in two) or by writing them as `> `.
+   */
+  it('keeps a blank line inside the quotation as a bare marker', () => {
+    expect(quoted('a\n\nb')).toBe('> a\n>\n> b');
+  });
+
+  /**
+   * A move that is only pictures has no words, and `moveText` leaves out the
+   * empty line rather than leading with it — so the quotation starts at the
+   * first stand-in, not at a bare `>`.
+   */
+  it('quotes a move that is only pictures from its first picture', () => {
+    expect(quoted(moveText({ text: '', attachments: [{ caption: 'x' }, {}] }))).toBe(
+      '> [Picture: x]\n> [Picture, not described]',
     );
   });
 });

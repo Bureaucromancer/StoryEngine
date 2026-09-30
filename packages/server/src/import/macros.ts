@@ -87,7 +87,7 @@ const MACROS: Readonly<Record<string, MacroOutcome>> = {
    * yet — party arrives at P7 — so it renders as the character's name today and
    * the shape is already right for when it does not.~~
    *
-   * ***The three group names map onto their own since [P13.3]*** — [P13.2]
+   * ***The three group names map onto their own since [P14.3]*** — [P14.2]
    * put `group`, `charIfNotGroup` and `notChar` in the template's closed
    * namespace with SillyTavern's meanings (`assembly/template.ts`), and this
    * table was left refusing `{{group}}`, approximating `{{charIfNotGroup}}` as
@@ -223,7 +223,7 @@ export function convertMacros(
     const outcome = ownEntry(MACROS, name) ?? UNKNOWN;
     if (!seen.has(name)) {
       if (outcome.kind === 'mapped') {
-        // Never a note, and there are ~~five~~ six of them ([P13.3]).
+        // Never a note, and there are ~~five~~ six of them ([P14.3]).
         seen.set(name, outcome);
       } else if (budget.left > 0) {
         seen.set(name, outcome);

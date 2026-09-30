@@ -284,13 +284,13 @@ const OWED = new Map<string, string>([
    * the surface, which is the only way out this map has.
    */
   /**
-   * ***The hide row stood here for one stage and is gone.*** [P13.4] built
-   * hide and unhide as server behaviour and [P13.5] built the transcript's
+   * ***The hide row stood here for one stage and is gone.*** [P14.4] built
+   * hide and unhide as server behaviour and [P14.5] built the transcript's
    * ghost and its hide action, which name the address. Discharged by building
    * the surface.
    */
   /**
-   * ***The on-demand run stood here for half a stage and is gone.*** [P13.5a]'s
+   * ***The on-demand run stood here for half a stage and is gone.*** [P14.5a]'s
    * server half built *Update trackers* as a route; its client half built the
    * control (`ModeActions`, from the session read's `actions`), and `api.ts`'s
    * `runSessionStep` names the address. Discharged by building the surface.

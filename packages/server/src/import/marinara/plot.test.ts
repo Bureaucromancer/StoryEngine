@@ -18,8 +18,8 @@ import { sweep } from '../sweep.js';
 import { SCENE_PLOT, plotSwitches, secretPlotOf } from './plot.js';
 
 /**
- * ***Marinara's secret plot, imported*** — [P13 §2.6]'s second table, built at
- * [P13.5b]: *"`agent_memory` `overarchingArc` → `se.plot.secret` on the root
+ * ***Marinara's secret plot, imported*** — [P14 §2.6]'s second table, built at
+ * [P14.5b]: *"`agent_memory` `overarchingArc` → `se.plot.secret` on the root
  * chat's head turn"* and *"`narrativeDirectorSecretPlotEnabled` → the switch"*.
  *
  * 1. **The spellings are Scene's**, pinned to the registry, and every arc read

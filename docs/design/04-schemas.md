@@ -1373,16 +1373,16 @@ type SlotSource =
    *  which makes this the slot ST's `charPersonality` converts to. §8.4.1. */
   | { of: "actor"; field: "traits" | "visual"; scope?: "speaker" | "others" | "voiced" }
   /** `scope` on both actor arms and on `samples` — *added 2026-09-29, at
-   *  [P13.2](workplan/30-p13-scene-and-session-import.md)*: on a call that
+   *  [P14.2](workplan/31-p14-scene-and-session-import.md)*: on a call that
    *  speaks as a member, `speaker` narrows to them and `others` to the rest;
    *  the two partition the cast on every call, so on a call that speaks for
    *  nobody `speaker` is nobody and `others` everyone. A scope that matches
    *  nobody is recorded as `not-applicable`. On `samples` it narrows the actor
    *  carrier only — a Treatment or a Lorebook has no cast to scope.
-   *  *`voiced` added 2026-09-29, at [P13.3](workplan/30-p13-scene-and-session-import.md)*:
+   *  *`voiced` added 2026-09-29, at [P14.3](workplan/31-p14-scene-and-session-import.md)*:
    *  whoever the call writes as — the speaker under `per-actor` dispatch,
    *  everyone present under `merged` or on a narrator's call. It is what a
-   *  card's own prompts and example dialogue need ([P13 §1.5]), and it is not
+   *  card's own prompts and example dialogue need ([P14 §1.5]), and it is not
    *  a partition with the other two. */
   | { of: "lore"; phase: "before" | "after" }
   | { of: "history" }
@@ -1412,7 +1412,7 @@ type SlotSource =
 // three assembler-only origins — `preset`, because a preset's own prose *is* a
 // TextBlock rather than a reference to one, and `step`, because a step's
 // contribution did not exist when the preset was authored; and (corrected
-// 2026-09-29, at P13.2) `round`, this turn's earlier speakers' replies, which
+// 2026-09-29, at P14.2) `round`, this turn's earlier speakers' replies, which
 // the collector places after the input and no pack positions. One vocabulary, used
 // from both ends: a slot names a source, the assembler fills it, and the block
 // it produces records the same source back.

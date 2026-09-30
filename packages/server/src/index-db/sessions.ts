@@ -4,7 +4,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { TurnLocation } from '../sessions/segments.js';
-import { moveText } from '../assembly/pictures.js';
+import { scanText } from '../assembly/pictures.js';
 import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
 import { clearLinks, writeLinks } from './links.js';
@@ -73,10 +73,19 @@ export interface TurnHit {
  * in the session the moment a lorebook entry mentioned the word.
  */
 export function turnText(turn: Turn): string {
-  // The move with its pictures' stand-ins ([25 E15]), so searching for what a
-  // caption said finds the turn — and a move with no pictures indexes exactly
-  // as it always did.
-  return [turn.input === undefined ? undefined : moveText(turn.input), turn.output?.text]
+  /**
+   * The move with its pictures' **captions** ([25 E15]), so searching for what a
+   * caption said finds the turn — and a move with no pictures indexes exactly
+   * as it always did.
+   *
+   * ***Captions, not the stand-ins a model reads*** (2026-09-27, index version
+   * 11). This indexed `moveText`, and search is a surface a person reads: its
+   * snippets showed the engine's English for a model — *[Picture, not
+   * described]* — past the client's catalogue, and a search for *picture*
+   * matched every undescribed one. The caption is the person's own words, which
+   * is what a person searches for.
+   */
+  return [turn.input === undefined ? undefined : scanText(turn.input), turn.output?.text]
     .filter((text) => Boolean(text))
     .join('\n');
 }
@@ -138,8 +147,8 @@ function originFilenameOf(session: SessionFile): string | null {
 
 /**
  * ***The session this account made from a source*** —
- * [P13 §2.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.10a].
+ * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.10a].
  *
  * The library's re-import rule, applied to a session: *same owner, same
  * `originalFilename`* is the same thing (`import/identity.ts`). An imported
@@ -207,7 +216,7 @@ export function indexTurn(
     // protocol's idempotency makes an ordinary event — from leaving two rows
     // that both match.
     //
-    // ***Only for a reindex*** ([P13.8]). This said the delete was cheap, and
+    // ***Only for a reindex*** ([P14.8]). This said the delete was cheap, and
     // it is not: `turn_id` is an unindexed FTS column, so the delete reads
     // every turn's text on the install, and a chat import appends thousands of
     // turns in one request — quadratic in the chat's length, 16 s for 4,000
@@ -435,11 +444,11 @@ export function sessionHoldingTurns(db: DatabaseSync, turnIds: Iterable<string>)
  * How many of these turns the index does not hold.
  *
  * ***The rest of the question `sessionHoldingTurns` stops asking at its first
- * yes*** — [P13.8]. A chat import refused as `already-here` knows that *some*
+ * yes*** — [P14.8]. A chat import refused as `already-here` knows that *some*
  * of its turns are on this install; whether *all* of them are is the
  * difference between a copy of what is here, which is `unchanged`, and one
  * the refusal would leave something out of (`import/chat-sessions.ts`). Since
- * [P13.10a] a chat that grew extends its own session instead of being refused,
+ * [P14.10a] a chat that grew extends its own session instead of being refused,
  * so this is asked only of turns another session holds. Asked of the `turn`
  * table alone, for the reason the function above gives.
  */

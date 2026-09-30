@@ -190,7 +190,7 @@ describe('a path that is named but not carried', () => {
 
 /**
  * ***Chats, only when chosen*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * They are most of a SillyTavern tree's bytes, so the plan leaves them out
  * and says what they would add; asked again with the choice made, it puts
@@ -251,7 +251,7 @@ describe('the chats in a SillyTavern tree', () => {
 });
 
 /**
- * ***A loose folder's chats are opt-in too*** — [P13.8] says the browser
+ * ***A loose folder's chats are opt-in too*** — [P14.8] says the browser
  * upload makes chats opt-in, not a SillyTavern tree's upload. A loose root has
  * nothing but names to go on before a byte moves, and a `.jsonl` name is
  * enough to ask; what each file is, the content probe decides once it is sent.

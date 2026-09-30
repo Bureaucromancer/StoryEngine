@@ -36,8 +36,8 @@ import { Liquid } from 'liquidjs';
  * template can depend on, and therefore one more thing that has to be true
  * before a block can render.
  *
- * ***Grown by three at [P13.2], and this is the argument***
- * ([P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)).
+ * ***Grown by three at [P14.2], and this is the argument***
+ * ([P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
  * A call that speaks for one member of a group has to be able to say who else
  * is there — *"write only as Vera, not as Lund or Ned"* is the one sentence a
  * group prompt cannot do without, and both sources ship it. All three are
@@ -49,7 +49,7 @@ import { Liquid } from 'liquidjs';
 export interface RenderContext {
   /**
    * The active actor's name. ST's `{{char}}`. ***The speaker, on a call that
-   * speaks for somebody*** ([P13.2]); otherwise the first of the cast, as
+   * speaks for somebody*** ([P14.2]); otherwise the first of the cast, as
    * before.
    */
   char: string;
@@ -94,8 +94,8 @@ export interface RenderContext {
   notChar: string;
   /**
    * ***How the call's session dispatches a round*** — `'per-actor'` or
-   * `'merged'`, the session's `dispatch` ([P13 §1.4]); absent outside a
-   * session. Added 2026-09-29, at the [P13.3] review, and **the one field here
+   * `'merged'`, the session's `dispatch` ([P14 §1.4]); absent outside a
+   * session. Added 2026-09-29, at the [P14.3] review, and **the one field here
    * that is not a name**, so this is the argument the interface's own comment
    * asks for.
    *
@@ -103,7 +103,7 @@ export interface RenderContext {
    * instruction adds *"write only as {{char}}, and leave {{notChar}} to speak
    * for themselves"* in a group — right on a `per-actor` call, which is one
    * member's reply, and wrong on a `merged` one, which is Marinara's merged
-   * mode: one reply that may voice every member ([P13 §1.4]). The names are
+   * mode: one reply that may voice every member ([P14 §1.4]). The names are
    * the same on both calls (a merged call speaks as its first speaker), so no
    * name can tell them apart. A block keyed to the dispatch would have been
    * new collector machinery for one sentence; a condition in the template is
@@ -155,8 +155,8 @@ export type RenderResult = { ok: true; text: string } | RenderFailure;
  * - `memoryLimit` is charged before a range, `append`, `join` or `split`
  *   allocates, so that range is a thrown error and a {@link RenderFailure}.
  *   A million is several orders past anything a block legitimately builds,
- *   since the namespace holds ~~two names~~ five, all names ([P13.2]), and
- *   one two-word setting ([P13.3]'s `dispatch`).
+ *   since the namespace holds ~~two names~~ five, all names ([P14.2]), and
+ *   one two-word setting ([P14.3]'s `dispatch`).
  * - `renderLimit` is a wall-clock backstop per render for loops that stay under
  *   the memory budget. Only a pathological template reaches it, so an
  *   ordinary render stays reproducible.
@@ -185,12 +185,12 @@ const engine = new Liquid({
  * {@link RenderFailure} gives.
  *
  * ***The three group names are optional here and never in the collector***
- * ([P13.2]). The collector always has a cast to count and always names all
+ * ([P14.2]). The collector always has a cast to count and always names all
  * five; a caller rendering one template outside a turn — the importer checking
  * what a converted macro renders to — has two names and no group, and a name
  * it does not pass renders empty, as any name outside the namespace does
  * (`strictVariables` is off above, for its stated reason). *`dispatch` is
- * optional in both* ([P13.3]): a collect outside a session has none, and a
+ * optional in both* ([P14.3]): a collect outside a session has none, and a
  * template asking for it reads no dispatch rather than a made-up one.
  */
 export function renderTemplate(

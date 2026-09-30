@@ -46,7 +46,9 @@ import {
   setRenditionSelection,
   setName,
   snapshotIsAt,
+  sessionFilePath,
   undoTurn,
+  withSessionLock,
   writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
@@ -76,7 +78,7 @@ import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
 import { assetPath } from '../renditions/worker.js';
-import { readFileBytes } from '../storage/files.js';
+import { fileExists, readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
 import { channelInPlay, modeActions, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
@@ -88,6 +90,7 @@ import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { exportSession } from '../sessions/export.js';
 import { importSession } from '../sessions/import.js';
 import {
+  attachmentsAgain,
   attachmentsFor,
   digestsOf,
   isDigest,
@@ -102,7 +105,7 @@ import { impersonate } from '../turns/impersonate.js';
 import { keptSpeakers } from '../turns/smart-speakers.js';
 import { SE_SCENE_DIRECT, type Push } from '../turns/direct.js';
 import { forceRefusal, type ForceRefusal } from '../turns/speakers.js';
-import { previewAssembly } from '../turns/preview.js';
+import { DEFAULT_INPUT_KIND, previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
 import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
 import { PathEscapeError } from '../storage/paths.js';
@@ -378,8 +381,8 @@ const CreateBody = Type.Object(
     hooks: Type.Optional(Type.Array(HookInput, { maxItems: 256 })),
     /**
      * ***Which written opening each member starts on*** — actor id to opening
-     * id, [P13 §1.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * [P13.4]. Read only by a mode that declares `openingTurn`.
+     * id, [P14 §1.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.4]. Read only by a mode that declares `openingTurn`.
      *
      * Absent for a member is their primary. In a group this is how an
      * alternate is chosen at all — §1.7: *"siblings across N members would be a
@@ -755,10 +758,10 @@ const SubmitBody = Type.Object(
      * have vanished from the turn with nothing said. A closed object answers 400
      * instead, which is the refusal a person can act on.
      *
-     * ***Optional since [P13.4]*** — [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+     * ***Optional since [P14.4]*** — [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
      * *let them talk*: ST's empty send and Marinara's new reply. A turn with no
      * input is the cast answering the last message, the speakers chosen by the
-     * policy with that message as the activation text, as [P13.1] computes
+     * policy with that message as the activation text, as [P14.1] computes
      * (`turns/speakers.ts`, `activationText`). A swipe and a continue carry
      * the input of the turn they name and refuse one beside them; an edit
      * carries its own inside `authored`.
@@ -770,6 +773,15 @@ const SubmitBody = Type.Object(
           actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
           kind: Type.Optional(Type.String({ maxLength: 40 })),
           attachments: AttachmentsField,
+          /**
+           * ***A redo's pictures, named by the turn that has them*** —
+           * [25 E15]. The server copies that turn's `input.attachments` as
+           * recorded, ids and kinds and digest-less pictures included, rather
+           * than rebuilding them from what a client re-sends — see
+           * `attachmentsAgain`. Not with `attachments`, which is for pictures
+           * just uploaded.
+           */
+          attachmentsOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
         },
         { additionalProperties: false },
       ),
@@ -777,8 +789,8 @@ const SubmitBody = Type.Object(
     guidance: Type.Optional(Type.String({ maxLength: 4000 })),
     /**
      * ***Force-talk*** — who should reply, by actor id, in order;
-     * [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * added at [P13.1]. ST's member *speak* button and `/trigger`; Marinara's
+     * [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.1]. ST's member *speak* button and `/trigger`; Marinara's
      * `forCharacterId`.
      *
      * **Overrides the session's speaker policy**, whatever it is. Reaches a
@@ -808,8 +820,8 @@ const SubmitBody = Type.Object(
       }),
     ),
     /**
-     * ***Push story*** — [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * added at [P13.5b]: Marinara's director push, armed for this one turn.
+     * ***Push story*** — [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5b]: Marinara's director push, armed for this one turn.
      * `natural` moves the story on through what it already has; `random`
      * brings in something plausible nobody saw coming. It arms the engine's
      * `se.scene.direct`, whose direction reaches the guidance slot and whose
@@ -826,8 +838,8 @@ const SubmitBody = Type.Object(
     push: Type.Optional(Type.Union([Type.Literal('natural'), Type.Literal('random')])),
     /**
      * ***Swipe*** — regenerate message *k* of the turn `redoOf` or `rewriteOf`
-     * names, [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * [P13.4]. The new turn is a sibling that carries messages `0..k-1`
+     * names, [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.4]. The new turn is a sibling that carries messages `0..k-1`
      * (`carried: true`) and the same input, and regenerates message *k* by
      * whoever said it: the round starts at *k*, with the carried messages as
      * the round so far. `redoOf` makes it a reroll, `rewriteOf` a rewrite, as
@@ -836,13 +848,13 @@ const SubmitBody = Type.Object(
     fromMessage: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
     /**
      * ***Continue*** — a sibling of this turn whose last message is the old
-     * text and a continuation, [P13 §1.6], [P13.4]. One call, by the last
+     * text and a continuation, [P14 §1.6], [P14.4]. One call, by the last
      * message's speaker, shown that message as the last assistant entry and
      * ending on SillyTavern's continue nudge (`openai.js:110`).
      */
     continueOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     /**
-     * ***The turn an edit rewrites*** — added 2026-09-29, at the [P13.4]
+     * ***The turn an edit rewrites*** — added 2026-09-29, at the [P14.4]
      * review. Sent with `authored`, the edit is that turn's sibling and carries
      * what `authored` does not rewrite: the input whole (pictures, force-talk,
      * raw text) unless `authored.input` is sent, when only its text, actor and
@@ -852,7 +864,7 @@ const SubmitBody = Type.Object(
      */
     editOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     /**
-     * ***Edit*** — a turn written by hand, [P13 §1.6], [P13.4]: no call and
+     * ***Edit*** — a turn written by hand, [P14 §1.6], [P14.4]: no call and
      * no `request`. Sent with `editOf`, it is that turn's sibling and carries
      * what it does not rewrite (above); ~~sent with `parentTurnId` set to the
      * edited turn's parent, it is a sibling~~ — that still makes one, but
@@ -905,7 +917,7 @@ const SubmitBody = Type.Object(
 const HeadBody = Type.Object(
   {
     /**
-     * `null` is the root, since [P13.4]: [P13 §1.6]'s *Delete* of a first
+     * `null` is the root, since [P14.4]: [P14 §1.6]'s *Delete* of a first
      * turn — the greeting — moves the head to its parent, which is nobody.
      */
     turnId: Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
@@ -1126,7 +1138,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
     /**
      * ***The members a greeting can come from, read before the session exists***
-     * — [P13 §1.7], [P13.4] — so a choice naming nobody is refused with
+     * — [P14 §1.7], [P14.4] — so a choice naming nobody is refused with
      * nothing left behind. The cast in cast order, the persona out of it:
      * the player does not greet themselves. Only for a mode that declares
      * `openingTurn`, and only when somebody is cast.
@@ -1183,9 +1195,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         preset,
         /**
          * **Voice, dispatch and the speaker policy, from what the mode declares
-         * today** — [P13 §1.2], [P13.0]. Written rather than left to default,
+         * today** — [P14 §1.2], [P14.0]. Written rather than left to default,
          * because a session with none of the three is read as one made before
-         * P13.0 (`chatSettingsOf`), and this one was not: it keeps the voice it
+         * P14.0 (`chatSettingsOf`), and this one was not: it keeps the voice it
          * was made with when the mode's declared values change.
          */
         ...chatSettingsAtCreation(mode.definition),
@@ -1294,7 +1306,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
 
       /**
-       * ***The opening turn*** — [P13 §1.7], [P13.4]. Written before the
+       * ***The opening turn*** — [P14 §1.7], [P14.4]. Written before the
        * setup turn is reserved, so a mode that has both generates its world
        * from the greeting's node rather than beside it; and written directly,
        * under the session's lock, because it makes no call — there is nothing
@@ -1541,7 +1553,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       };
     }
 
-    // Presence read as the mode reads it — [P13.3]: under `castIsPresent` a
+    // Presence read as the mode reads it — [P14.3]: under `castIsPresent` a
     // member nobody has muted is present, and the panel says so. ***In an
     // embodied session only*** (2026-09-29, the review): a narrated one reads
     // presence as it always did — see `castIsPresentFor`.
@@ -1575,18 +1587,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         actors: presentMembers(cast, session.cast?.persona ?? null),
       }),
       /**
-       * ***What a person may run between turns*** — `modeActions`, [P13.5a]:
+       * ***What a person may run between turns*** — `modeActions`, [P14.5a]:
        * *Update trackers*, while a tracker is on. Here for `inputs`' reason
        * below: a property of this session's mode, on the route the page polls.
        */
       actions: modeActions(session.channels, modeId),
       cast,
       /**
-       * ***How this session plays as a chat*** — [P13 §1.2], [P13 §1.5],
-       * [P13.5]: the effective voice, dispatch, speaker policy, author's note,
+       * ***How this session plays as a chat*** — [P14 §1.2], [P14 §1.5],
+       * [P14.5]: the effective voice, dispatch, speaker policy, author's note,
        * hide map and prompt switches, read through `chatSettingsOf` — the one
        * reader, so a settings panel shows what the next turn will do rather
-       * than what the file happens to spell. *A pre-P13 session shows its
+       * than what the file happens to spell. *A pre-P14 session shows its
        * legacy values*, which is the reading its turns get.
        *
        * **Absent for a mode that does not play as a chat** (`isChatMode`),
@@ -2374,22 +2386,6 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***The pixels*** — [P9.2], and the shape `routes/library.ts` already
-   * promised this phase.
-   *
-   * That file's `GET /library/:kind/:id/media/:mediaId` says it in as many
-   * words: *"[P9] is the next consumer — a rendition's asset needs serving the
-   * same way, and `MediaSelection`'s two arms are already the one shape both go
-   * through."* So: `content-type` from the record, `etag` from the bytes' own
-   * digest, and the buffer. No `sendFile`, no range support, and nothing this
-   * build does not already do once.
-   *
-   * **The record is read to serve the bytes**, rather than the path being
-   * derived from the id alone. It costs one file read and buys the two headers —
-   * and it is the only thing that can tell an evicted rendition (`asset: null`,
-   * a **404** and a placeholder) from one that was never made.
-   */
-  /**
    * ***A picture for a move, uploaded before the move is sent*** — [25 E15], R1,
    * and [10 §11.2b]'s two-step shape: the bytes first, then the turn names them
    * by digest in its ordinary JSON body.
@@ -2423,12 +2419,31 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         });
       }
 
-      const stored = await storeAttachment(
-        services.sessions.layout,
-        account.handle,
-        sessionId,
-        part.bytes,
-      );
+      /**
+       * ***Stored under the session's lock, and only while the session is
+       * there*** — `intoSession`'s rule for a late writer. The body is read
+       * before this, outside the lock, so a slow transfer never holds it; and a
+       * session deleted during the transfer is not recreated as a folder holding
+       * one picture beside the trashed one, which nothing would ever list,
+       * sweep or remove.
+       */
+      const { layout } = services.sessions;
+      let stored: Awaited<ReturnType<typeof storeAttachment>> | 'gone';
+      try {
+        stored = await withSessionLock(sessionId, async () =>
+          (await fileExists(sessionFilePath(layout, account.handle, sessionId)))
+            ? storeAttachment(layout, account.handle, sessionId, part.bytes)
+            : 'gone',
+        );
+      } catch (error) {
+        if (error instanceof PathEscapeError) {
+          return reply.code(422).send({ error: 'refused-path', message: error.message });
+        }
+        throw error;
+      }
+      if (stored === 'gone') {
+        return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+      }
       if (stored === null) {
         return reply
           .code(415)
@@ -2436,12 +2451,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       }
 
       try {
-        const turns = await readTurns(services.sessions, account.handle, sessionId);
-        await sweepAttachments(
-          services.sessions.layout,
-          account.handle,
-          sessionId,
-          digestsOf(turns.values()),
+        await sweepAttachments(layout, account.handle, sessionId, async () =>
+          digestsOf((await readTurns(services.sessions, account.handle, sessionId)).values()),
         );
       } catch {
         // A sweep that fails leaves a file for next time; it must not cost the
@@ -2483,6 +2494,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     },
   );
 
+  /**
+   * ***The pixels*** — [P9.2], and the shape `routes/library.ts` already
+   * promised this phase.
+   *
+   * That file's `GET /library/:kind/:id/media/:mediaId` says it in as many
+   * words: *"[P9] is the next consumer — a rendition's asset needs serving the
+   * same way, and `MediaSelection`'s two arms are already the one shape both go
+   * through."* So: `content-type` from the record, `etag` from the bytes' own
+   * digest, and the buffer. No `sendFile`, no range support, and nothing this
+   * build does not already do once.
+   *
+   * **The record is read to serve the bytes**, rather than the path being
+   * derived from the id alone. It costs one file read and buys the two headers —
+   * and it is the only thing that can tell an evicted rendition (`asset: null`,
+   * a **404** and a placeholder) from one that was never made.
+   */
   app.get(
     '/sessions/:sessionId/renditions/:renditionId/asset',
     { schema: { params: RenditionParams } },
@@ -2806,7 +2833,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const children = childrenByParent(byId);
       const siblings: Record<string, string[]> = {};
       /**
-       * ***And which message each one is a swipe of*** — [P13 §1.6], [P13.5]:
+       * ***And which message each one is a swipe of*** — [P14 §1.6], [P14.5]:
        * the counter is drawn on the message a swipe redid, not on the turn.
        * `swipeGroups` says how the siblings are grouped; only nodes with
        * siblings appear, by the rule above.
@@ -2894,10 +2921,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       };
       /**
        * The move's pictures, read as a submission reads them — so the preview
-       * and the turn assemble the same blocks. **A picture this session never
-       * had is left out rather than refused**: a preview answers *what would be
-       * sent*, and it fires on every pause in typing, so a stale composer must
-       * not turn the meter into an error.
+       * and the turn assemble the same blocks. **A picture this session does not
+       * hold is left out rather than refused, and only that picture**: a preview
+       * answers *what would be sent*, and it fires on every pause in typing, so a
+       * stale composer must not turn the meter into an error — nor hide the
+       * pictures that are fine behind the one that is not.
        */
       const { attachments: named, ...rest } = body.input ?? { text: '' };
       let attachments: TurnAttachment[] | undefined;
@@ -2907,8 +2935,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           account.handle,
           session.id,
           named,
-          async () =>
-            digestsOf((await readTurns(services.sessions, account.handle, session.id)).values()),
+          'preview',
         );
         if (read.ok) attachments = read.attachments;
       }
@@ -3369,6 +3396,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           actorId?: string | null;
           kind?: string;
           attachments?: { digest: string; caption?: string }[];
+          attachmentsOf?: string;
         };
         guidance?: string;
         speakers?: string[];
@@ -3383,8 +3411,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       };
 
       /**
-       * ***Which gesture this is, read against the record*** — [P13 §1.6],
-       * [P13.4]: a swipe, a continue or an edit, or none of them. First,
+       * ***Which gesture this is, read against the record*** — [P14 §1.6],
+       * [P14.4]: a swipe, a continue or an edit, or none of them. First,
        * because each can refuse the body outright, and because what it
        * resolves to — the node, the carried move, who speaks — is what every
        * check below is made against (`routes/gestures.ts`).
@@ -3413,8 +3441,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        */
       let replay: Tape | undefined;
       /**
-       * ***And who it spoke for*** — [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
-       * point 7, [P13.1]. *Rewrite keeps the speakers and reroll asks again*:
+       * ***And who it spoke for*** — [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+       * point 7, [P14.1]. *Rewrite keeps the speakers and reroll asks again*:
        * the tape carries every choice the rule-based arms make, and this carries
        * one it cannot — a smart pick, which was a model's answer rather than a
        * draw. Read from the same record in the same read, for the tape's
@@ -3423,7 +3451,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       let kept: string[] | undefined;
       /**
        * ***And who it was asked to speak for*** — the redone turn's force-talk,
-       * `Turn.input.speakers`, [P13.1]. The other choice of speaker the tape
+       * `Turn.input.speakers`, [P14.1]. The other choice of speaker the tape
        * cannot carry, and the one a rewrite lost before the record kept it: a
        * forced turn's rewrite played the session's policy, so *"Lund, answer
        * that"* came back as whoever the policy chose — under `manual`, nobody.
@@ -3432,7 +3460,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        */
       let forced: string[] | undefined;
       /**
-       * ***And whether it was pushed*** — [P13.5b]: the redone turn's
+       * ***And whether it was pushed*** — [P14.5b]: the redone turn's
        * `direction.push`, for force-talk's reason. The body's own wins.
        */
       let pushed: Push | undefined;
@@ -3450,7 +3478,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         }
         /*
          * A rewrite swipe from *k* replays call *k*'s draws, not call 0's —
-         * `swipeReplay` (2026-09-29, the [P13.4] review).
+         * `swipeReplay` (2026-09-29, the [P14.4] review).
          */
         replay =
           body.fromMessage === undefined
@@ -3526,7 +3554,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // The move the person typed — a submission's or an edit's. A carried
       // move was checked when its own turn was submitted.
       const kind = (body.input ?? body.authored?.input)?.kind;
-      if (kind !== undefined) {
+      /**
+       * *The default kind is never refused*: a move sent without one is
+       * recorded as `do` whatever the mode declares (`payloadOf`), so its redo —
+       * which now repeats the recorded kind — sends `do`, and refusing that
+       * would make a turn this server wrote impossible to redo.
+       */
+      if (kind !== undefined && kind !== DEFAULT_INPUT_KIND) {
         const submitting = await readSession(services.sessions, account.handle, sessionId);
         const accepted = modeById(submitting?.mode?.id ?? DEFAULT_MODE_ID)?.definition.inputs;
         if (submitting !== null && accepted !== undefined && !accepted.includes(kind)) {
@@ -3540,8 +3574,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       /**
        * ***Force-talk, checked against the node the turn will answer at*** —
-       * [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-       * [P13.1].
+       * [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+       * [P14.1].
        *
        * **A 422 naming the class of refusal**, for the input kind's reason: a
        * silently dropped name is a person pressing *speak* on somebody and
@@ -3564,7 +3598,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * only a stale client can make.
        */
       /*
-       * ***The same door for every speaker a gesture names*** ([P13.4]): the
+       * ***The same door for every speaker a gesture names*** ([P14.4]): the
        * carried speaker of a swipe or a continue, and every member an edit
        * wrote a line for, are refused on the same three grounds as a forced
        * one — the persona's lines are the input, and somebody outside the cast
@@ -3617,7 +3651,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       /*
        * ***An edit that named its turn keeps what it left alone*** — each
        * unchanged line whole, and the hide entry on those lines (`editedFrom`,
-       * 2026-09-29 at the [P13.4] review).
+       * 2026-09-29 at the [P14.4] review).
        */
       let hidden = gesture.hidden;
       if (gesture.authored?.from !== undefined && authored !== undefined) {
@@ -3631,16 +3665,46 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * [25 E15], R1. A digest the store does not hold names a picture that was
        * never uploaded here, and recording it would be a turn pointing at
        * nothing; refused before a job exists, while the request is still one.
+       *
+       * ***Or a redo's, copied from the turn it names*** — which is how a
+       * picture whose bytes never reached this server (an imported turn) is
+       * carried: it is on the record, so it is not a claim.
        */
       let attachments: TurnAttachment[] | undefined;
-      if (body.input?.attachments !== undefined && body.input.attachments.length > 0) {
+      const composed = body.input?.attachments ?? [];
+      if (body.input?.attachmentsOf !== undefined) {
+        if (composed.length > 0) {
+          return reply.code(400).send({
+            error: 'invalid',
+            message: 'A move carries its own pictures or another turn’s, not both.',
+          });
+        }
+        const source = await readTurnById(
+          services.sessions,
+          account.handle,
+          sessionId,
+          body.input.attachmentsOf,
+        );
+        if (source === null) {
+          return reply.code(404).send({
+            error: 'no-such-turn',
+            message: 'No such turn in this session to take the pictures from.',
+          });
+        }
+        const again = await attachmentsAgain(
+          services.sessions.layout,
+          account.handle,
+          sessionId,
+          source.input?.attachments ?? [],
+        );
+        if (again.length > 0) attachments = again;
+      } else if (composed.length > 0) {
         const read = await attachmentsFor(
           services.sessions.layout,
           account.handle,
           sessionId,
-          body.input.attachments,
-          async () =>
-            digestsOf((await readTurns(services.sessions, account.handle, sessionId)).values()),
+          composed,
+          'submit',
         );
         if (!read.ok) {
           return reply.code(422).send({
@@ -3666,7 +3730,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         kept,
         forced,
         pushed,
-        // A guided swipe's attempt is the one message it redoes ([P13.4]).
+        // A guided swipe's attempt is the one message it redoes ([P14.4]).
         attempt: gesture.attempt ?? attempt,
         attachments,
         gesture,
@@ -3879,7 +3943,7 @@ function payloadOf(
     attempt?: { turnId: string; text: string } | undefined;
     /** The move's pictures, as the store described them — never the client's claim. */
     attachments?: TurnAttachment[] | undefined;
-    /** What a swipe, a continue or an edit resolved to — `routes/gestures.ts`, [P13.4]. */
+    /** What a swipe, a continue or an edit resolved to — `routes/gestures.ts`, [P14.4]. */
     gesture?: Gesture;
     /** An edit's lines, signed with the cast's names. */
     authored?: OutputMessage[];
@@ -3890,7 +3954,7 @@ function payloadOf(
   const hidden = fromRecord.hidden === undefined ? {} : { hidden: fromRecord.hidden };
   const gesture = fromRecord.gesture ?? {};
   /**
-   * ***An edit is its input and its lines, and nothing else*** ([P13.4]): the
+   * ***An edit is its input and its lines, and nothing else*** ([P14.4]): the
    * clash check has already refused every field that would steer a call, and
    * the runner makes none.
    */
@@ -3906,13 +3970,13 @@ function payloadOf(
   // The body's is checked by the handler before a job existed, and the
   // record's was checked when its own turn was submitted; both are checked
   // again by the selector when the turn runs — see `TurnPayload.speakers`.
-  // A carried move keeps the force-talk it recorded ([P13.4]).
+  // A carried move keeps the force-talk it recorded ([P14.4]).
   const speakers = body.speakers ?? fromRecord.forced ?? gesture.recorded;
   const push = body.push ?? fromRecord.pushed;
   /**
    * ***The move***: the gesture's, when it carries one — already a record's
    * input, pictures and all — else the body's, else none: a turn with no
-   * input is *let them talk* ([P13.4]).
+   * input is *let them talk* ([P14.4]).
    */
   const input: TurnPayload['input'] =
     gesture.input ??
@@ -3920,7 +3984,7 @@ function payloadOf(
       ? undefined
       : {
           actorId: body.input.actorId ?? null,
-          kind: body.input.kind ?? 'do',
+          kind: body.input.kind ?? DEFAULT_INPUT_KIND,
           text: body.input.text,
           // What the player typed, before anything normalised it. Kept because a
           // rewrite replays the original rather than the interpretation.
@@ -3942,7 +4006,7 @@ function payloadOf(
 
 /**
  * ***The push a turn was given***, as a rewrite restores it — the flavour on
- * its director's outcome ([P13.5b]), or `undefined` for a turn nobody pushed.
+ * its director's outcome ([P14.5b]), or `undefined` for a turn nobody pushed.
  * Shape-guarded for `forcedOn`'s reason: the record is a file.
  */
 function pushedOn(turn: Turn): Push | undefined {
@@ -3969,7 +4033,7 @@ function forcedOn(turn: Turn): string[] | undefined {
 }
 
 /**
- * What each force-talk refusal says — [P13 §1.3], [P13.1]. **One error class
+ * What each force-talk refusal says — [P14 §1.3], [P14.1]. **One error class
  * per reason**, because a client acts differently on each: a persona named is
  * a client that should have offered impersonate instead, somebody outside the
  * cast is a stale roster, and somebody written out is a status a person can

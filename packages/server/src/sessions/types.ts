@@ -325,12 +325,12 @@ export interface SessionFile {
   /**
    * ***Narrated, or spoken by the characters themselves*** — [06 §3]'s first
    * axis as a session setting,
-   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.0].
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.0].
    *
    * **The field [06 §3] asked for and P7 promised**: both axes *"exposed
    * per-session and overridable per-turn"*. [P7.3] deferred it and the stage it
-   * deferred to never mentioned it, which [P13 §0.6] records; until now the only
+   * deferred to never mentioned it, which [P14 §0.6] records; until now the only
    * readers echoed the mode's constant.
    *
    * ***Read through `chatSettingsOf`, never directly***, because absence is not
@@ -338,14 +338,14 @@ export interface SessionFile {
    * written before this field existed, and reads as what the mode's
    * `ModeDefinition.legacy` says it was played as — so a mode changing its
    * declared values does not re-voice everybody's saved games. Creation writes
-   * all three from P13.0 on, which is what makes that reading safe.
+   * all three from P14.0 on, which is what makes that reading safe.
    */
   voice?: 'narrator' | 'embodied';
   /**
    * ***One call for the scene, or one per speaker*** — [06 §3]'s second axis,
-   * [P13 §1.2]. `merged` is one call writing for everybody present; `per-actor`
+   * [P14 §1.2]. `merged` is one call writing for everybody present; `per-actor`
    * is a call per speaker in order, each seeing the replies before it
-   * ([P13 §1.4]). In a single-character chat the two are the same call.
+   * ([P14 §1.4]). In a single-character chat the two are the same call.
    *
    * Read through `chatSettingsOf`, for {@link SessionFile.voice}'s reason.
    */
@@ -353,21 +353,21 @@ export interface SessionFile {
   /**
    * ***Who replies, and how the transcript names them*** —
    * [06 §7.2](../../../../docs/design/06-modes-and-turn-pipeline.md)'s
-   * participant policy as a session setting, [P13 §1.2], [P13 §1.3].
+   * participant policy as a session setting, [P14 §1.2], [P14 §1.3].
    *
    * - `policy` — which of SillyTavern's activation strategies picks the
    *   speakers. ***The SDK's `ParticipantPolicy['select']`***, which is what
-   *   the mode declares. ~~*For now*: [P13.1] widens the vocabulary with
+   *   the mode declares. ~~*For now*: [P14.1] widens the vocabulary with
    *   `smart` when it builds smart order, and a type naming an arm with no
    *   implementation behind it would be a promise the record cannot keep.~~
-   *   *Widened at [P13.1], 2026-09-29*, by the same edit that gave `smart` its
+   *   *Widened at [P14.1], 2026-09-29*, by the same edit that gave `smart` its
    *   arm in `selectSpeakers` — so the type followed the implementation rather
    *   than promising it. **It overrides the mode's declaration** at run time,
    *   read through `chatSettingsOf`.
    * - `allowSelfResponses` — whether the last speaker may speak again; ST's
    *   `allow_self_responses`.
    * - `namesInHistory` — when each attributed message is prefixed with its
-   *   speaker's name in the prompt ([P13 §1.5]).
+   *   speaker's name in the prompt ([P14 §1.5]).
    * - `maxPerRound` — the most a `smart` pick may choose; default 3.
    *
    * *All four together or not at all*, because a partial object in a file
@@ -381,7 +381,7 @@ export interface SessionFile {
     maxPerRound: number;
   };
   /**
-   * ***The author's note*** — [P13 §1.5]'s, SillyTavern's
+   * ***The author's note*** — [P14 §1.5]'s, SillyTavern's
    * `note_prompt`/`note_depth`/`note_interval`.
    *
    * Text placed in history at `depth` messages from the end, on every
@@ -392,12 +392,12 @@ export interface SessionFile {
    *
    * ***`every: 0` is a note switched off***, text kept — SillyTavern's
    * `note_interval <= 0` (*"0 = Disable, 1 = Always"*), so an importer copies
-   * the value across as it is ([P13 §2.6]) and the renderer places nothing.
+   * the value across as it is ([P14 §2.6]) and the renderer places nothing.
    * `chatSettingsOf` reads any whole number below 1 as 0.
    */
   note?: { text: string; depth: number; every: number };
   /**
-   * ***What history skips and the transcript ghosts*** — [P13 §1.6]'s hide,
+   * ***What history skips and the transcript ghosts*** — [P14 §1.6]'s hide,
    * SillyTavern's `is_system` and Marinara's `hiddenFromAI`.
    *
    * Keyed by turn id: `true` hides the whole turn, a list hides those message
@@ -409,7 +409,7 @@ export interface SessionFile {
    */
   hidden?: Record<string, true | number[]>;
   /**
-   * ***What a chat has switched off of the prompt*** — [P13 §1.5].
+   * ***What a chat has switched off of the prompt*** — [P14 §1.5].
    *
    * - `instruction: false` skips the pack's own instruction, so a card's system
    *   prompt is sent alone — SillyTavern's default, one toggle away.
@@ -440,7 +440,7 @@ export interface SessionFile {
 
 /**
  * ***Which of a card's own prompt fields a chat sends*** —
- * [P13 §1.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * One per field the Scene pack places: `system` is the card's `system_prompt`
  * (`se.card.system`), `post-history` its `post_history_instructions`

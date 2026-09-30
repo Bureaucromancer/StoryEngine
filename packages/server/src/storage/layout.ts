@@ -520,8 +520,10 @@ export class Layout {
    *
    * ***A file in the account's directory rather than a table in
    * `state.sqlite`***, because the second is install-level and an account
-   * archive holds none of it: somebody who took their own backup elsewhere
-   * would leave their spend behind. Append-only JSON lines, like a turn segment,
+   * archive holds none of it — the file is inside that archive, comes back with
+   * a restore or an in-place unpack, and goes with the account. Not with a
+   * merge import, whose scope is the library, sessions and tags. Append-only
+   * JSON lines, like a turn segment,
    * and for the segment's reason — a record of what happened is never
    * rewritten, and a torn append costs the newest line rather than the file.
    */

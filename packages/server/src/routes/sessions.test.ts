@@ -978,10 +978,10 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 23 since the secret plot's slot ([P13.5b]), 22 since
-    // the established-state slot ([P13.5a]), 21
+    // gains a block — 23 since the secret plot's slot ([P14.5b]), 22 since
+    // the established-state slot ([P14.5a]), 21
     // since the embodied instruction and the card's three
-    // prompt slots ([P13.3]), 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
+    // prompt slots ([P14.3]), 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
     // from the goal slot ([06 §7.3.3]'s *always injected*, [P7.6]), 15 from the
     // second lore slot ([P6B.1], the phase every `after_char` entry was being
     // dropped for), 14 from the previous-attempt slot ([06 §5.1]), 13 from the
@@ -1001,12 +1001,12 @@ describe('a session with a cast assembles the whole preset', () => {
 
   /**
    * ***Voice, dispatch and the speaker policy are written down at creation*** —
-   * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13.0].
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.0].
    *
    * Read off the file rather than the reply, because what matters is what a
    * later build reads: a session with none of the three is taken for one made
-   * before P13.0 and read as the mode's *legacy* values, so a session made now
+   * before P14.0 and read as the mode's *legacy* values, so a session made now
    * has to carry what it was made with — or the stage that changes Scene's
    * declared values would re-voice it.
    */
@@ -1044,7 +1044,7 @@ describe('a session with a cast assembles the whole preset', () => {
 
   it('refuses more actors than the mode seats', async () => {
     // The first real consumer of `ParticipantPolicy`, which was a declaration
-    // nothing read. ~~Scene seats one.~~ Scene seats 32 since [P13.3] — the
+    // nothing read. ~~Scene seats one.~~ Scene seats 32 since [P14.3] — the
     // cast body's own ceiling — so the test mode, which seats one, asks.
     registerMode(TEST_MODE);
     const refused = await server.request({

@@ -8,8 +8,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NO_LORE_REPORT } from '@storyengine/shared';
+import type { AssembledBlock, ImageWithheld } from '@storyengine/shared';
 
-import { ApiError, type TurnPreview, type TurnRecord } from '../api.js';
+import { ApiError, type PendingInput, type TurnPreview, type TurnRecord } from '../api.js';
 import type { StreamHandlers } from './stream.js';
 
 /**
@@ -203,6 +204,15 @@ function previewOf(spent: number): { preview: TurnPreview } {
       lore: NO_LORE_REPORT,
     },
   };
+}
+
+/**
+ * The same reading with blocks in it — for the composer's pictures, whose
+ * outlook is read off the preview's block for each one.
+ */
+function previewWith(blocks: AssembledBlock[]): { preview: TurnPreview } {
+  const { preview } = previewOf(100);
+  return { preview: preview.state === 'assembled' ? { ...preview, blocks } : preview };
 }
 
 beforeEach(() => {
@@ -1419,13 +1429,20 @@ describe('pictures on a move', () => {
     });
   });
 
-  it('redoes a turn with its pictures, as the record names them', async () => {
+  /**
+   * ***A redo is that move again: its kind, and its pictures as recorded*** —
+   * named by the turn, so the server copies them rather than a client
+   * rebuilding them; and the kind, so a redone `think` is not narrated as a
+   * `do`.
+   */
+  it('redoes a turn with its kind and its pictures, named by the turn', async () => {
     readTranscript.mockResolvedValue({
       turns: [
         {
           ...TURN,
           input: {
             ...TURN.input!,
+            kind: 'think',
             attachments: [{ id: '0', kind: 'image', digest: DIGEST, caption: 'a lantern' }],
           },
         },
@@ -1438,9 +1455,22 @@ describe('pictures on a move', () => {
 
     await waitFor(() => {
       expect(submitTurn).toHaveBeenCalledWith(
-        expect.objectContaining({ attachments: [{ digest: DIGEST, caption: 'a lantern' }] }),
+        expect.objectContaining({ kind: 'think', attachmentsOf: TURN.id }),
       );
     });
+    expect(submitTurn.mock.calls.at(-1)?.[0]).not.toHaveProperty('attachments');
+  });
+
+  it('names no pictures on the redo of a move that had none', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Redo' }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(expect.objectContaining({ kind: 'action' }));
+    });
+    expect(submitTurn.mock.calls.at(-1)?.[0]).not.toHaveProperty('attachmentsOf');
   });
 
   /**
@@ -1464,5 +1494,585 @@ describe('pictures on a move', () => {
 
     expect(await screen.findByText('a lantern')).toBeTruthy();
     expect(screen.getByText(/only its description travelled here/)).toBeTruthy();
+  });
+
+  /**
+   * ***The composer's pictures, from the pick to the send*** (2026-09-27).
+   *
+   * The tests above hold the promise — a picture carries words, and a move may
+   * be only one. These hold the bookkeeping around it, which is where the
+   * composer can be wrong while every sent body still looks right: how many a
+   * pick may add, when two files are one picture, which pictures a send lets go
+   * of, what the preview is asked and when, and what the preview's answer says
+   * back about each picture.
+   *
+   * ***Every preview URL gets a name here.*** The file-wide stub hands out one
+   * `blob:picture` for everything, which is enough for a thumbnail to exist and
+   * not enough to say *which* preview a revoke let go of — and letting go of
+   * the wrong one is the failure worth catching: a thumbnail still on screen
+   * whose bytes the browser has been told to drop.
+   */
+  describe('in the composer', () => {
+    /** The first of {@link distinctUploads}' digests. */
+    const HARBOUR = `sha256:${'1'.repeat(64)}`;
+
+    let createUrl = vi.fn<(object: Blob | MediaSource) => string>();
+    let revokeUrl = vi.fn<(url: string) => void>();
+
+    beforeEach(() => {
+      let made = 0;
+      createUrl = vi.fn<(object: Blob | MediaSource) => string>(() => {
+        made += 1;
+        return `blob:picture-${String(made)}`;
+      });
+      revokeUrl = vi.fn<(url: string) => void>();
+      URL.createObjectURL = createUrl;
+      URL.revokeObjectURL = revokeUrl;
+    });
+
+    /** Several files in one pick, the way a multi-select hands them over. */
+    async function pick(count: number): Promise<void> {
+      const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+      if (input === null) throw new Error('no picture input');
+      await userEvent.upload(
+        input,
+        Array.from(
+          { length: count },
+          (_, n) => new File([`png-${String(n)}`], `photo-${String(n)}.png`, { type: 'image/png' }),
+        ),
+      );
+    }
+
+    /**
+     * A different digest for every upload — `1…1`, `2…2`, and on — so each file
+     * in a pick is a different picture. The file-wide default hands every upload
+     * the same digest, which is the dedupe test's fixture and nobody else's.
+     */
+    function distinctUploads(): void {
+      let made = 0;
+      uploadPicture.mockImplementation(() => {
+        made += 1;
+        return Promise.resolve({
+          digest: `sha256:${String(made).repeat(64)}`,
+          mime: 'image/webp',
+          bytes: 12,
+        });
+      });
+    }
+
+    /**
+     * Until the attach has finished. The button reads *Preparing…* from the
+     * moment the pick lands — the flag is set before the first await — so its
+     * own label coming back is the end of the whole pick, not of one file.
+     */
+    async function attached(): Promise<void> {
+      await screen.findByRole('button', { name: 'Attach a picture' });
+    }
+
+    function thumbnails(): HTMLElement[] {
+      return screen.queryAllByRole('img', { name: /^Picture \d on this move$/ });
+    }
+
+    /**
+     * ***Four, across one pick*** — the server's limit, said and kept here.
+     *
+     * The count is kept in the loop rather than read from `pictures`, which is
+     * the value this render closed over and does not grow while the loop runs.
+     * The falsifying mutation is exactly that — gating each file on
+     * `pictures.length` — after which a five-file pick uploads five, shows
+     * five, and the server refuses the move for a reason the composer
+     * displayed no sign of. The fifth file is not even **uploaded**, which is
+     * the half that costs bandwidth on a phone.
+     */
+    it('takes four pictures from a pick of five, and says four is the most', async () => {
+      distinctUploads();
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await pick(5);
+      await attached();
+
+      expect(thumbnails()).toHaveLength(4);
+      expect(uploadPicture).toHaveBeenCalledTimes(4);
+      expect(screen.getByText('Four pictures is the most one move can carry.')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Attach a picture' })).toHaveProperty(
+        'disabled',
+        true,
+      );
+    });
+
+    /**
+     * ***Two files that are the same bytes are one picture*** — a photo and its
+     * copy, picked together. A picture's address is its bytes, so two of them
+     * in the composer would be two rows under one React key and one attachment
+     * named twice on the move.
+     *
+     * The falsifying mutation is seeding `seen` from what was already held and
+     * never adding to it inside the loop — which catches a repeat across two
+     * picks and misses one inside a single pick, the case this test is. The
+     * preview count is the second half: a blob URL made for the duplicate
+     * before it was recognised is one the page never shows and never revokes.
+     */
+    it('keeps one picture when two files in a pick are the same bytes', async () => {
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await pick(2);
+      await attached();
+
+      // Both uploaded — the digest is the server's answer, so there is no
+      // knowing they are the same without asking — and one kept.
+      expect(uploadPicture).toHaveBeenCalledTimes(2);
+      expect(thumbnails()).toHaveLength(1);
+      expect(createUrl).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * ***Send says why it is greyed while a picture is being prepared*** —
+     * [10 §11.1a]'s rule for a control that disables.
+     *
+     * Two gates, and the test goes through both. The button is the visible
+     * one; **Enter in the box is the other way to send**, and it calls
+     * `submit()` directly, so the button being disabled says nothing about it.
+     * The falsifying mutation is dropping `attaching` from `submit()`'s guard:
+     * the move then goes out without the picture somebody is watching being
+     * prepared for it. The send at the end is the other direction — the gate
+     * lifts, and the move carries the picture it waited for.
+     */
+    it('greys Send while a picture is being prepared, and refuses Enter too', async () => {
+      let finish = (uploaded: { digest: string; mime: string; bytes: number }): void =>
+        void uploaded;
+      uploadPicture.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await attach();
+
+      expect(await screen.findByRole('button', { name: 'Preparing picture…' })).toHaveProperty(
+        'disabled',
+        true,
+      );
+      expect(screen.getByRole('button', { name: 'Preparing…' })).toHaveProperty('disabled', true);
+
+      await userEvent.type(
+        screen.getByRole('textbox', { name: 'What do you do?' }),
+        'Look.{Enter}',
+      );
+      expect(submitTurn).not.toHaveBeenCalled();
+
+      await act(async () => {
+        finish({ digest: DIGEST, mime: 'image/webp', bytes: 12 });
+        await Promise.resolve();
+      });
+      await userEvent.click(await screen.findByRole('button', { name: 'Send' }));
+
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalledWith(
+          expect.objectContaining({ text: 'Look.', attachments: [{ digest: DIGEST }] }),
+        );
+      });
+    });
+
+    /**
+     * ***A sent picture leaves the composer, and its preview goes with it.***
+     * Cleared as the words are — and revoked, because a blob URL is held by the
+     * browser for as long as the document lives unless it is told, and a play
+     * session is a long-lived document.
+     *
+     * The falsifying mutations: not clearing on success (the picture rides
+     * along with the next move too), and clearing without revoking (a leak
+     * nobody sees until a long session with many pictures).
+     */
+    it('clears a picture once its move is accepted, and lets go of its preview', async () => {
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await attach();
+      await screen.findByRole('img', { name: 'Picture 1 on this move' });
+      await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+      await waitFor(() => {
+        expect(thumbnails()).toHaveLength(0);
+      });
+      expect(screen.queryByRole('textbox', { name: 'What it shows' })).toBeNull();
+      expect(revokeUrl).toHaveBeenCalledWith('blob:picture-1');
+    });
+
+    /**
+     * ***Only what was sent*** — `clearSent`'s whole reason to take a set.
+     *
+     * A picture attached while the move was on its way was not in it, and must
+     * stay for the next one rather than vanish unsent. Reached here through the
+     * file input itself, which is not greyed with the Attach button beside it
+     * — so this pins the filter, which is the part that decides, rather than
+     * claiming a gesture a person makes often.
+     *
+     * The falsifying mutation is clearing every picture on success, which is
+     * what *cleared when the move is sent, as the words are* reads like if the
+     * words are taken literally. The preview assertions are the sharper half:
+     * revoking the survivor's URL leaves a thumbnail on screen pointing at
+     * bytes the browser has let go of.
+     */
+    it('keeps a picture that was attached while the move was going out', async () => {
+      let accept = (accepted: { jobId: string; cursor: string }): void => void accepted;
+      submitTurn.mockReturnValue(
+        new Promise((resolve) => {
+          accept = resolve;
+        }),
+      );
+      distinctUploads();
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await attach();
+      await screen.findByRole('img', { name: 'Picture 1 on this move' });
+      await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+      await screen.findByRole('button', { name: 'Sending…' });
+
+      await attach();
+      await screen.findByRole('img', { name: 'Picture 2 on this move' });
+      await act(async () => {
+        accept({ jobId: 'job-1', cursor: 'job-1.0' });
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(thumbnails()).toHaveLength(1);
+      });
+      expect(submitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ attachments: [{ digest: HARBOUR }] }),
+      );
+      // The survivor is the second picture, now the only one.
+      expect(screen.getByRole('img', { name: 'Picture 1 on this move' }).getAttribute('src')).toBe(
+        'blob:picture-2',
+      );
+      expect(revokeUrl).toHaveBeenCalledWith('blob:picture-1');
+      expect(revokeUrl).not.toHaveBeenCalledWith('blob:picture-2');
+    });
+
+    /**
+     * ***A refused move keeps its pictures and their captions.*** The clearing
+     * lives in `onSuccess` for this reason: a `409` or a dropped connection is
+     * not the move having gone, and a composer that emptied itself on the way
+     * out would make somebody pick and describe every picture again to retry.
+     *
+     * The falsifying mutation is clearing when the send is *asked for* rather
+     * than when it is accepted — the shape the words' clearing had before
+     * [polish §11] moved it.
+     */
+    it('keeps the pictures and their captions when the move is refused', async () => {
+      submitTurn.mockRejectedValue(new Error('The session already has a turn in flight.'));
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await attach();
+      await userEvent.type(
+        await screen.findByRole('textbox', { name: 'What it shows' }),
+        'the harbour at dusk',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert').textContent).toContain('already has a turn in flight');
+      });
+      expect(thumbnails()).toHaveLength(1);
+      expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'What it shows' }).value).toBe(
+        'the harbour at dusk',
+      );
+      expect(revokeUrl).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ***Remove lets go of that picture and only that one*** — its preview
+     * revoked, its neighbour untouched, and the move no longer naming it.
+     *
+     * The second of two, so an off-by-one in the numbered label or a filter
+     * that dropped the wrong digest shows as the wrong survivor. The send at
+     * the end is the consequence that matters: a removed picture that still
+     * went with the move would be the one thing somebody took out on purpose.
+     */
+    it('removes the picture it names, and revokes its preview', async () => {
+      distinctUploads();
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await pick(2);
+      await attached();
+      await userEvent.click(screen.getByRole('button', { name: 'Remove picture 2' }));
+
+      expect(thumbnails()).toHaveLength(1);
+      expect(screen.getByRole('img', { name: 'Picture 1 on this move' }).getAttribute('src')).toBe(
+        'blob:picture-1',
+      );
+      expect(revokeUrl).toHaveBeenCalledWith('blob:picture-2');
+      expect(revokeUrl).not.toHaveBeenCalledWith('blob:picture-1');
+      // One picture left, so its caption field drops the number.
+      expect(screen.getByRole('textbox', { name: 'What it shows' })).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalledWith(
+          expect.objectContaining({ attachments: [{ digest: HARBOUR }] }),
+        );
+      });
+    });
+
+    /**
+     * ***The previews go with the page, and not before.*** Read through a ref
+     * because a cleanup keyed on `pictures` would run on every change to it —
+     * revoking the previews still on screen each time one was added.
+     *
+     * So both halves: nothing revoked while a second picture joins the first
+     * (the mutation is keying the effect on `pictures`), and both revoked on
+     * the way out (the mutation is dropping the effect).
+     */
+    it('lets go of every preview when the page goes, and none before', async () => {
+      distinctUploads();
+      const { unmount } = renderPage();
+      await screen.findByText('I knock twice.');
+
+      await attach();
+      await screen.findByRole('img', { name: 'Picture 1 on this move' });
+      await attach();
+      await screen.findByRole('img', { name: 'Picture 2 on this move' });
+      expect(revokeUrl).not.toHaveBeenCalled();
+
+      unmount();
+
+      expect(revokeUrl).toHaveBeenCalledWith('blob:picture-1');
+      expect(revokeUrl).toHaveBeenCalledWith('blob:picture-2');
+    });
+
+    /**
+     * ***Enter in a caption is not Send.*** The caption is a one-line field in
+     * the composer's form, and a bare Enter in a one-line field submits its
+     * form — so describing the first of two pictures sent the move with the
+     * second still undescribed, which is the one thing the caption exists to
+     * stop.
+     *
+     * The second half is the control: the same move *is* sendable, by Enter
+     * where Enter sends. Without it, the first half would pass against a
+     * composer that refused this move for some other reason.
+     */
+    it('does not send the move on Enter in a caption', async () => {
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await attach();
+      const caption = await screen.findByRole<HTMLInputElement>('textbox', {
+        name: 'What it shows',
+      });
+      await userEvent.type(caption, 'the harbour at dusk{Enter}');
+
+      expect(submitTurn).not.toHaveBeenCalled();
+      expect(caption.value).toBe('the harbour at dusk');
+
+      await userEvent.type(screen.getByRole('textbox', { name: 'What do you do?' }), '{Enter}');
+      await waitFor(() => {
+        expect(submitTurn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            text: '',
+            attachments: [{ digest: DIGEST, caption: 'the harbour at dusk' }],
+          }),
+        );
+      });
+    });
+
+    /**
+     * ***A caption settles like the text does*** — `useDebouncedInput`'s
+     * pictures key (2026-09-27).
+     *
+     * Until it, the effect read the pictures live while the text and guidance
+     * waited for a pause, so every keystroke in a caption was a preview of its
+     * own — a read of every segment in the session per letter, which is the
+     * cost the debounce exists to spare. Same tolerance as *asks once for a
+     * burst of typing* above and for its reason: `userEvent` runs on real
+     * timers, so the bound is *far fewer than one per letter* rather than
+     * exactly one. The falsifying mutation — the pictures back outside the
+     * debounce — makes nineteen.
+     */
+    it('asks the preview about a caption once it settles, not once per letter', async () => {
+      renderPage();
+      await screen.findByText('I knock twice.');
+
+      await attach();
+      const caption = await screen.findByRole('textbox', { name: 'What it shows' });
+      // The picture on its own first, so the burst below starts from rest.
+      await waitFor(() => {
+        expect(previewTurn).toHaveBeenCalledWith(SESSION.id, {
+          text: '',
+          guidance: '',
+          attachments: [{ digest: DIGEST }],
+        });
+      });
+
+      await userEvent.type(caption, 'the harbour at dusk');
+
+      await waitFor(() => {
+        expect(previewTurn).toHaveBeenCalledWith(SESSION.id, {
+          text: '',
+          guidance: '',
+          attachments: [{ digest: DIGEST, caption: 'the harbour at dusk' }],
+        });
+      });
+      const captioned = previewTurn.mock.calls.filter(
+        (call) => (call[1] as PendingInput).attachments?.[0]?.caption !== undefined,
+      );
+      expect(captioned.length).toBeLessThan(5);
+    });
+
+    /**
+     * ***Will the model see it*** — [25 E15]'s *"Play marks each attachment
+     * sent as a picture or sent as its description"*, answered before the move
+     * goes rather than after.
+     *
+     * The preview's answer is shaped the way the server builds it for a picture
+     * that is also in the story already: **the same bytes twice**, once on an
+     * earlier move — held, because only the move being made sends pictures —
+     * and once on this one. The history block is listed first on purpose. An
+     * outlook that matched on the digest alone would find it and report the
+     * earlier move's reason for this picture, which is the falsifying mutation
+     * the first test is built to catch.
+     *
+     * The preview answers with the picture only when it was asked about one,
+     * as the server does: a stub that put the block in every answer would have
+     * the outlook shown off the at-rest reading, before the picture's own
+     * preview was ever asked for.
+     */
+    describe('what the preview says about each picture', () => {
+      function answerWith(image: { sent: boolean; withheld?: ImageWithheld }): void {
+        previewTurn.mockImplementation((_id: string, pending: PendingInput) =>
+          Promise.resolve(
+            pending.attachments === undefined
+              ? previewOf(100)
+              : previewWith([
+                  {
+                    id: 'se.history.turn-1.attachment.0',
+                    source: {
+                      kind: 'history',
+                      turnId: 'turn-1',
+                      range: [0, 0],
+                      part: 'attachment',
+                      attachmentId: '0',
+                    },
+                    reason: 'history',
+                    role: 'user',
+                    text: '[Picture]',
+                    tokens: 3,
+                    included: true,
+                    image: {
+                      attachmentId: '0',
+                      digest: DIGEST,
+                      mime: 'image/png',
+                      sent: false,
+                      withheld: 'outside-window',
+                    },
+                  },
+                  {
+                    id: 'se.input.attachment.0',
+                    source: { kind: 'input', part: 'attachment', attachmentId: '0' },
+                    reason: 'the move being made',
+                    role: 'user',
+                    text: '[Picture]',
+                    tokens: 3,
+                    included: true,
+                    image: { attachmentId: '0', digest: DIGEST, mime: 'image/png', ...image },
+                  },
+                ]),
+          ),
+        );
+      }
+
+      it('says the model will see a picture the preview sends', async () => {
+        answerWith({ sent: true });
+        renderPage();
+        await screen.findByText('I knock twice.');
+
+        await attach();
+
+        expect(await screen.findByText('The model will see this picture.')).toBeTruthy();
+        expect(screen.queryByText(/only the move being made sends pictures/)).toBeNull();
+      });
+
+      /**
+       * The other arm, with the reason in the composer's words rather than the
+       * class. The falsifying mutation is reading `sent` alone and printing
+       * one sentence for every withheld picture — which would leave somebody
+       * with a text-only narrator no way to tell that from a picture the
+       * server never received.
+       */
+      it('says the model will get the caption instead, and why', async () => {
+        answerWith({ sent: false, withheld: 'model-text-only' });
+        renderPage();
+        await screen.findByText('I knock twice.');
+
+        await attach();
+
+        expect(
+          await screen.findByText(
+            'The model will get your caption instead: the model answering is not marked as seeing pictures.',
+          ),
+        ).toBeTruthy();
+      });
+
+      /**
+       * ***Nothing until the preview has a block for it*** — just attached, or
+       * nothing bound. Waited for through the meter, which moves only when
+       * the picture's own preview has landed, so the absence below is the
+       * answer and not the lack of one. The falsifying mutation is a default
+       * sentence for a picture with no block, which would promise *the model
+       * will see it* on an install with no model at all.
+       */
+      it('says nothing about a picture the preview has no block for', async () => {
+        previewTurn.mockImplementation((_id: string, pending: PendingInput) =>
+          Promise.resolve(previewOf(pending.attachments === undefined ? 100 : 2_500)),
+        );
+        renderPage();
+        await screen.findByText('I knock twice.');
+
+        await attach();
+
+        expect(await screen.findByRole('button', { name: /2,500 of 5,120/ })).toBeTruthy();
+        expect(screen.queryByText(/^The model will/)).toBeNull();
+      });
+
+      /**
+       * ***And the kind the selector chose*** — the same effect's other new
+       * field. A pack whose input slots are per kind previews nothing of the
+       * move without it, so the meter and the panel would measure a `do` while
+       * the player composes a `say`.
+       *
+       * Asked on the click, not on the next keystroke: `kind` is in the
+       * effect's dependencies, and the falsifying mutations are dropping it
+       * from there (the preview catches up only when somebody next types) or
+       * from the body (it never does).
+       */
+      it('asks the preview about the kind the selector chose', async () => {
+        readSession.mockResolvedValue({
+          session: SESSION,
+          activeJob: null,
+          inputs: ['do', 'say'],
+        });
+        renderPage();
+        await screen.findByText('I knock twice.');
+        await waitFor(() => {
+          expect(previewTurn).toHaveBeenCalledWith(SESSION.id, { text: '', guidance: '' });
+        });
+
+        await userEvent.click(screen.getByRole('radio', { name: 'Say' }));
+
+        await waitFor(() => {
+          expect(previewTurn).toHaveBeenCalledWith(SESSION.id, {
+            text: '',
+            guidance: '',
+            kind: 'say',
+          });
+        });
+      });
+    });
   });
 });

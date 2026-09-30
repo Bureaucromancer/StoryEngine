@@ -322,7 +322,7 @@ async function runNextTurn(): Promise<Turn> {
  * named here once so that eight assertions about other features do not each
  * have to explain it.
  *
- * *The third is [P13.5a]'s trackers*, and the note applies to it word for word:
+ * *The third is [P14.5a]'s trackers*, and the note applies to it word for word:
  * every tracker is off by default, so the step reads six booleans and returns.
  *
  * `se.scene.stage` is Scene's stager, and on every session in this file it does
@@ -338,14 +338,14 @@ async function runNextTurn(): Promise<Turn> {
  * [25 C17].
  */
 /*
- * *The fourth is [P13.5b]'s secret-plot pass*, and the note applies to it too —
+ * *The fourth is [P14.5b]'s secret-plot pass*, and the note applies to it too —
  * the plot is off by default, so the step reads one boolean and returns. It is
  * first because it is `pre`, which moves the narrator off `steps[0]`: the
  * assertions below that meant *the narrator's outcome* read it by id
  * ({@link narrator}) rather than by position.
  */
 /*
- * *And [P13.5c]'s editor and echo chamber make six*, both off by default and
+ * *And [P14.5c]'s editor and echo chamber make six*, both off by default and
  * both the same one-read `ok`: the editor after the narrator (first of the
  * `post` steps), the chorus last of Scene's. 25 C17's dead rows are now four.
  */
@@ -358,7 +358,7 @@ const SCENE_STEPS = [
   'se.scene.echo',
 ];
 
-/** The narrator's outcome on a Scene turn — by id, since [P13.5b] put a `pre` step first. */
+/** The narrator's outcome on a Scene turn — by id, since [P14.5b] put a `pre` step first. */
 function narrator(turn: Turn | undefined): StepOutcome | undefined {
   return turn?.steps?.find((step) => step.stepId === 'se.narrate');
 }
@@ -370,17 +370,17 @@ describe('a turn goes all the way through', () => {
     expect(turn.status).toBe('complete');
     expect(turn.output?.text).toBe('The rain had not stopped for three days.');
     expect(turn.steps).toMatchObject([
-      // The secret plot's pass, [P13.5b]: off, so the same one-read `ok`.
+      // The secret plot's pass, [P14.5b]: off, so the same one-read `ok`.
       { stepId: 'se.scene.plot', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       { stepId: 'se.narrate', state: 'ok' },
-      // The editor, [P13.5c]: off, and it revised nothing, so no `revisions`.
+      // The editor, [P14.5c]: off, and it revised nothing, so no `revisions`.
       { stepId: 'se.scene.edit', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       // `ok` and contributing nothing, which is the whole of `SCENE_STEPS`'s note.
       { stepId: 'se.scene.stage', state: 'ok', contributed: { blocks: 0, effects: 0 } },
-      // The trackers, [P13.5a]: all six off by default, so the same one-read
+      // The trackers, [P14.5a]: all six off by default, so the same one-read
       // `ok` for the same reason.
       { stepId: 'se.scene.track', state: 'ok', contributed: { blocks: 0, effects: 0 } },
-      // The echo chamber, [P13.5c]: off, the same.
+      // The echo chamber, [P14.5c]: off, the same.
       { stepId: 'se.scene.echo', state: 'ok', contributed: { blocks: 0, effects: 0 } },
     ]);
     expect(turn.steps?.find((step) => step.stepId === 'se.scene.edit')?.revisions).toBeUndefined();
@@ -3025,7 +3025,7 @@ describe('the history the runner hands the collector', () => {
 /**
  * **A mode whose `select` is not `fixed`, running** — [P7.3]'s own *Ends at*,
  * [06 §7.2]'s *"the policy selects speakers"*, and ***the arms as ST runs them
- * since [P13.1]***.
+ * since [P14.1]***.
  *
  * The unit tests in `speakers.test.ts` say what each arm decides, row by row
  * against `group-chats.js`; what only a turn can say is that the decision is
@@ -3037,11 +3037,11 @@ describe('the history the runner hands the collector', () => {
  *
  * *The rotation tests this block used to hold went with the rotation*: ~~`list`
  * rotates one speaker per turn on the path's depth~~ was P7.3's reading, and
- * ST's LIST is everybody, once each, every round ([P13 §0.7]).
+ * ST's LIST is everybody, once each, every round ([P14 §0.7]).
  */
 describe('a mode that selects speakers', () => {
   /**
-   * ***The ensemble fixture under `castIsPresent`*** — [P13 §1.3]. A variant
+   * ***The ensemble fixture under `castIsPresent`*** — [P14 §1.3]. A variant
    * rather than a change to the fixture, because the tests below that write
    * presence are about the old reading, which is still every mode's that does
    * not ask for the new one.
@@ -3200,7 +3200,7 @@ describe('a mode that selects speakers', () => {
 
   /**
    * **`castIsPresent`: a cast nobody has said anything about is all here** —
-   * [P13 §1.3]. Without it a chat is an empty room, because nothing in the
+   * [P14 §1.3]. Without it a chat is an empty room, because nothing in the
    * build writes presence; with it, presence `false` is *muted*.
    */
   it('counts the cast as present under castIsPresent, and leaves out the muted', async () => {
@@ -3218,7 +3218,7 @@ describe('a mode that selects speakers', () => {
   });
 
   /**
-   * ***The session's policy wins over the mode's*** — [P13 §1.2]. The fixture
+   * ***The session's policy wins over the mode's*** — [P14 §1.2]. The fixture
    * declares `list`; a session created with `manual` answers an input with
    * nobody, which `list` never would.
    */
@@ -3232,7 +3232,7 @@ describe('a mode that selects speakers', () => {
   });
 
   /**
-   * **Force-talk overrides the policy** — [P13 §1.3], `group-chats.js:1006`.
+   * **Force-talk overrides the policy** — [P14 §1.3], `group-chats.js:1006`.
    * `manual` replying to an input is nobody, so a forced turn answering at all
    * is the override working; and a muted member is who the button reaches.
    */
@@ -3251,7 +3251,7 @@ describe('a mode that selects speakers', () => {
   });
 
   /**
-   * ***A rewrite picks the same speakers*** — [P13.1]'s proof obligation, and
+   * ***A rewrite picks the same speakers*** — [P14.1]'s proof obligation, and
    * [19 §14.5]'s *same mechanical outcome, different prose* reaching who
    * speaks. `natural` over three members draws a shuffle and a roll each, so
    * the first turn's tape carries the selector's draws; the rewrite is a
@@ -3289,7 +3289,7 @@ describe('a mode that selects speakers', () => {
   });
 
   /**
-   * ***A rewrite of a forced turn keeps who was forced*** — [P13.1], and the
+   * ***A rewrite of a forced turn keeps who was forced*** — [P14.1], and the
    * one choice of speaker that is neither a draw on the tape nor a model's
    * answer, so neither `replay` nor `keptSpeakers` can carry it.
    *
@@ -3373,7 +3373,7 @@ describe('a mode that selects speakers', () => {
   });
 
   /**
-   * ***Smart order, through a turn*** — [P13 §1.3a], and [P13.1]'s proof
+   * ***Smart order, through a turn*** — [P14 §1.3a], and [P14.1]'s proof
    * obligation for `smart` *"with a stubbed provider"*.
    *
    * `speakers.test.ts` holds the rules to their table and `smart-speakers.test.ts`
@@ -4509,14 +4509,14 @@ describe('an introduction the narrator was asked to make', () => {
 
 /**
  * ***A turn several people spoke in*** —
- * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.0].
+ * [P14 §1.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.0].
  *
  * A turn is one node however many messages it emits ([07 §3], [25 C11]), so
  * what these hold to account is the record rather than any dispatch: a step
  * hands back attributed messages, and the turn that lands on disk keeps them
  * **and** a `text` every older reader can read. *No mode ships a step that does
- * this yet* — per-actor dispatch is [P13.2]'s — which is why the step is a
+ * this yet* — per-actor dispatch is [P14.2]'s — which is why the step is a
  * fixture here rather than Scene's.
  */
 describe('a turn that speaks with several voices', () => {

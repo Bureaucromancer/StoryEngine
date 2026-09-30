@@ -171,19 +171,19 @@ export const FREEFORM: ModeDefinition = {
    * once each, whoever was addressed, and `pooled` would pick at random, both of
    * which are answers to a question this mode does not ask.
    *
-   * *Corrected 2026-09-29, at [P13.1]*: `natural` is now ST's three steps
+   * *Corrected 2026-09-29, at [P14.1]*: `natural` is now ST's three steps
    * (`group-chats.js:1242-1316`) — first the members the activation text names
    * (the input, or the last message when there is none), then every member
    * whose talkativeness roll succeeds, then one member at random if still
    * nobody — so it answers nobody only when nobody is eligible, and the mention
    * is the step that answers *"Vera, what do you think?"*; the struck `list`
-   * clause described P7.3's rotation, which P13.1 removed. The reason for
+   * clause described P7.3's rotation, which P14.1 removed. The reason for
    * declaring `natural` stands. *What it changes today is little*: the narrate
    * step is merged and never reads `speakers`, so the arm's pick reaches a step
    * that does not use it.
    *
    * ~~*It is honestly a heuristic and `speakers.ts` says so at length.*~~ It is
-   * a transcription of ST's arm since [P13.1], and `speakers.ts` names the line
+   * a transcription of ST's arm since [P14.1], and `speakers.ts` names the line
    * each step comes from. Declaring it is a claim about what this mode wants,
    * not about how well the scan works.
    *

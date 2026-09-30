@@ -15,9 +15,9 @@ import { ModeRegion } from './ModeRegion.js';
 
 /**
  * ***How this chat plays*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * *"session settings gain voice, dispatch, policy, self-responses, names in
- * history and the author's note"*, built at [P13.5].
+ * history and the author's note"*, built at [P14.5].
  *
  * ***Two visible controls with plain-language labels, not a four-way enum*** —
  * [06 §7.2](../../../../docs/design/06-modes-and-turn-pipeline.md)'s
@@ -26,12 +26,12 @@ import { ModeRegion } from './ModeRegion.js';
  * answer a question they already have words for: *do the characters speak for
  * themselves?* and *does each one get a call of their own?*
  *
- * **Dispatch shows only under the characters' own voice.** [P13.2] built a
+ * **Dispatch shows only under the characters' own voice.** [P14.2] built a
  * narrator that ignores it — a narrator speaks for nobody, so there is no
  * speaker to give a call — and asked this stage to either hide the control or
  * say it does nothing. Hiding it is the one that cannot be misread.
  *
- * ***The smart policy says its cost in its label*** — [P13 §1.3a] point 8: *"the
+ * ***The smart policy says its cost in its label*** — [P14 §1.3a] point 8: *"the
  * cost is in the label, not a help page"*. A person choosing it is choosing an
  * extra model call on some turns, and the only honest place to say so is the
  * option they are choosing.
@@ -42,7 +42,7 @@ import { ModeRegion } from './ModeRegion.js';
  * that happened to start meanwhile.
  *
  * *Read from the session's effective settings* (`chat` on the read, through
- * the server's one reader), so a session written before P13 shows the
+ * the server's one reader), so a session written before P14 shows the
  * narrated, merged, first-played settings its turns actually get.
  */
 const WORDS = labels('play.chat-settings', {
@@ -75,7 +75,7 @@ const WORDS = labels('play.chat-settings', {
 
 /**
  * The policies a person may choose, in the order they are offered. `fixed` is
- * not among them: it is how a session written before P13 reads, and it is
+ * not among them: it is how a session written before P14 reads, and it is
  * shown as itself only on such a session, so the select never lies about it.
  */
 const POLICY_WORDS: Readonly<Record<string, string>> = labels('play.speaker-policy', {
@@ -99,8 +99,8 @@ export function ChatSettingsPanel(props: { sessionId: string }): JSX.Element | n
   const session = useSession(props.sessionId);
   const chat = session.data?.chat;
   /**
-   * ***What the mode put in settings*** — the `settings` region, [P13.5a]:
-   * [P13 §1.9.6]'s agent switches, *"in the session's settings, grouped under
+   * ***What the mode put in settings*** — the `settings` region, [P14.5a]:
+   * [P14 §1.9.6]'s agent switches, *"in the session's settings, grouped under
    * Agents"*. Inside this panel for a chat, which is where a Marinara user
    * looks; on its own for a mode that declares settings and does not play as a
    * chat, so a switch never goes missing with the panel around it.
@@ -266,7 +266,7 @@ function Settings(props: {
 }
 
 /**
- * The author's note — [P13 §1.5]. *Held locally until saved*, and re-seeded
+ * The author's note — [P14 §1.5]. *Held locally until saved*, and re-seeded
  * when the stored note changes underneath it (another tab, an import), so what
  * the box shows is never older than what the next turn will send unless
  * somebody is in the middle of typing it.

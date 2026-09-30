@@ -174,10 +174,10 @@ Another mechanism that already existed.
 > for the mode's own session. `cast` **is** filtered, because a scene's whole
 > cast is not a small thing to hand somebody who did not ask for it.
 >
-> ***And `StepResult` moved at [P13.0](workplan/30-p13-scene-and-session-import.md)***
+> ***And `StepResult` moved at [P14.0](workplan/31-p14-scene-and-session-import.md)***
 > (2026-09-29), which struck the second item above. It now carries `message`
 > (one reply by nobody in particular, as before) **or** `messages?: OutputMessage[]`
-> ([P13 §1.1](workplan/30-p13-scene-and-session-import.md)), each message with
+> ([P14 §1.1](workplan/31-p14-scene-and-session-import.md)), each message with
 > its speaker, and never both: the runner fails a result carrying both as the
 > step's own failure, before anything else it carries is applied, and derives
 > `output.text` from the list. The sketch's `Message[]` ships as

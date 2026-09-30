@@ -168,7 +168,7 @@ export interface Summariser {
   key: string;
   run(input: { previous: string | null; units: readonly SummaryUnit[] }): Promise<string>;
   /**
-   * ***The caller's stop, for the one wait that is not a call*** ([P13.11]).
+   * ***The caller's stop, for the one wait that is not a call*** ([P14.11]).
    * A walk that joins a derivation already in flight is waiting on somebody
    * else's call, which its own abort does not reach; this lets it stop
    * waiting. It then asks `run`, which is where the caller's own stop is
@@ -207,7 +207,7 @@ export interface ChainResult {
 }
 
 /**
- * ***Derivations in flight, by the file they will write*** — [P13.11].
+ * ***Derivations in flight, by the file they will write*** — [P14.11].
  *
  * Until the warm (`turns/warm-summaries.ts`) there was one caller per session
  * at a time — the turn, under the session's job — so a link was never asked
@@ -267,7 +267,7 @@ function untilStopped(
  * so a parallel map over the plan would be a different function.
  *
  * ***At most one call per link, however many walk the chain at once***
- * ([P13.11]) — see {@link inFlight}. The owner registers *before* it looks at
+ * ([P14.11]) — see {@link inFlight}. The owner registers *before* it looks at
  * the disk a second time, and a derivation leaves the map only after its write:
  * so a walk that read "missing" just before another's write landed, and then
  * found no entry, is the owner of a fresh entry whose own re-read finds the

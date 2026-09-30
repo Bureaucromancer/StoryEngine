@@ -16,8 +16,8 @@ import { resolveChat, type ChatLibrary, type ChatLibraryKind } from './resolve.j
 import type { ChatFamily, ChatMessage, ResolvedRef } from './types.js';
 
 /**
- * ***Resolution, as [P13 §2.5]'s table*** —
- * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * ***Resolution, as [P14 §2.5]'s table*** —
+ * [P14.8](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * Most of this runs against a library that is two maps, because what is under
  * test is the table — which file a key is tried as, in what order, and what a
@@ -113,7 +113,7 @@ describe('a speaker', () => {
   });
 
   it('is nobody when two actors share the name, and says so once', () => {
-    // [P13 §2.5]'s *unique*: choosing one of two would be the import deciding
+    // [P14 §2.5]'s *unique*: choosing one of two would be the import deciding
     // whose conversation it was.
     const lib = library(
       {},

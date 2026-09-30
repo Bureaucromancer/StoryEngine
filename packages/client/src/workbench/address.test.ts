@@ -64,7 +64,7 @@ const EVERY_ARM: BlockSource[] = [
   { kind: 'input' },
   { kind: 'preset', blockId: 'b-1' },
   { kind: 'step', stepId: 's-1' },
-  // [P13.2]'s round, with its label added in the same edit, as this fixture's
+  // [P14.2]'s round, with its label added in the same edit, as this fixture's
   // comment above asks of the next arm.
   { kind: 'round', message: 0, actorId: 'a-4' },
   { kind: 'round', message: 1, actorId: null },

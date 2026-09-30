@@ -10,7 +10,7 @@ import { evaluateCondition } from './steps.js';
 import { DIRECT_STEP, direct, PUSH_FLAG, type DirectContext } from './direct.js';
 
 /**
- * ***The director's push, held to its own claims*** — [P13 §1.9.3], [P13.5b].
+ * ***The director's push, held to its own claims*** — [P14 §1.9.3], [P14.5b].
  *
  * **Armed, never on a cadence** — the first producer `StepCondition.armed` has
  * had; **its own candidates**, the recent lines and the secret; **every

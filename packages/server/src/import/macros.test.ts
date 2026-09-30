@@ -180,7 +180,7 @@ describe('what SillyTavern means by a name', () => {
       angles: true,
     });
 
-    // `<GROUP>` maps since [P13.3]; the two-name context renders it empty, as
+    // `<GROUP>` maps since [P14.3]; the two-name context renders it empty, as
     // a name the caller did not pass renders.
     expect(renderTemplate(template, CONTEXT)).toEqual({
       ok: true,
@@ -189,8 +189,8 @@ describe('what SillyTavern means by a name', () => {
     expect(seen.get('group')).toEqual({ kind: 'mapped', liquid: '{{ group }}' });
   });
 
-  it('maps the three group names onto the namespace P13.2 gave them', () => {
-    // [P13.3]: `{{group}}` was refused, `{{charIfNotGroup}}` approximated as
+  it('maps the three group names onto the namespace P14.2 gave them', () => {
+    // [P14.3]: `{{group}}` was refused, `{{charIfNotGroup}}` approximated as
     // the character alone, and `{{notChar}}` left as braces. Rendered against
     // a group's names, each says what it said in SillyTavern.
     const { template, seen } = convertMacros(

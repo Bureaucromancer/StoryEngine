@@ -13,7 +13,7 @@ import {
 
 /**
  * ***A folder's chats into families, and a group's file into settings*** —
- * [P13.9](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.9](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The grouping is pure and the sweep-level tests (`chat-families.test.ts`) see
  * only its result as sessions; these hold the rules one at a time — the older

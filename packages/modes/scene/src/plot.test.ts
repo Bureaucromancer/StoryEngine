@@ -26,7 +26,7 @@ import {
 import { SCENE_PRESET } from './preset.js';
 
 /**
- * ***The secret plot, held to [P13 §1.9.3]*** — [P13.5b].
+ * ***The secret plot, held to [P14 §1.9.3]*** — [P14.5b].
  *
  * The step's claims, each with the mutation that falsifies it: **off costs
  * nothing**; **no arc is due at once**, and so is a completed one; **otherwise

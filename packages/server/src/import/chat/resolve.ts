@@ -8,9 +8,9 @@ import type { ChatFamily, ChatResolution, ForeignRef, ResolvedRef } from './type
 
 /**
  * ***What the library knows about a chat's names*** —
- * [P13 §2.5](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14 §2.5](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * resolution table, built at
- * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The builder (`build.ts`) is handed a {@link ChatResolution} and never looks
  * anything up, which is what keeps it pure. This is where the looking up
@@ -32,7 +32,7 @@ import type { ChatFamily, ChatResolution, ForeignRef, ResolvedRef } from './type
  * first (`priorImportId`, `import/identity.ts`): a card imported from a file
  * is stamped with that file's source-relative path, and the chat names the same
  * file, so the two meet exactly and the answer survives a rename in either
- * place. Only when that fails, an **exact, unique** name match — [P13 §2.5]'s
+ * place. Only when that fails, an **exact, unique** name match — [P14 §2.5]'s
  * fallback, for the card imported some other way than beside its chats (typed
  * in by hand, copied from another install, uploaded under a different file
  * name). *Unique* is the load-bearing word: two actors called *Vera* is no
@@ -68,7 +68,7 @@ export interface ChatLibrary {
  * - **`persona`**: the persona key locked to the chat — SillyTavern's
  *   `chat_metadata.persona`, which the parser has already written in the same
  *   vocabulary a player's line uses (`User Avatars/<file>`), so the two are
- *   tried alike. The lines' own persona keys come first ([P13 §2.5]'s *"a user
+ *   tried alike. The lines' own persona keys come first ([P14 §2.5]'s *"a user
  *   line's `force_avatar` … else `chat_metadata.persona`"*): they say who the
  *   player actually was, and the lock says only who they were last set to be.
  * - **`lore`**: lorebooks the chat binds by name — SillyTavern's
@@ -155,8 +155,8 @@ export function resolveChat(
     speakers.set(speaker.key, match.ref);
   };
   /**
-   * ***A group's roster first*** ([P13 §2.5]'s *"plus `groups/<id>.json`
-   * `members` for the roster"*, [P13.9]): every member is looked up whether or
+   * ***A group's roster first*** ([P14 §2.5]'s *"plus `groups/<id>.json`
+   * `members` for the roster"*, [P14.9]): every member is looked up whether or
    * not they spoke, because the cast is the members and a muted one is exactly
    * who the lines never mention. A member who did speak is the same key either
    * way, so they are looked up once.
@@ -170,7 +170,7 @@ export function resolveChat(
   }
 
   // -------------------------------------------------------------------------
-  // The persona — [P13 §2.5]: the lines' own first, then the chat's lock
+  // The persona — [P14 §2.5]: the lines' own first, then the chat's lock
   // -------------------------------------------------------------------------
 
   const personas = personaCandidates(family, hints.persona);
@@ -226,7 +226,7 @@ export function resolveChat(
 }
 
 /**
- * ***One speaker, by [P13 §2.5]'s table.***
+ * ***One speaker, by [P14 §2.5]'s table.***
  *
  * - **A SillyTavern key is a card file** (`Vera.png`: the folder a single chat
  *   is filed under, or a group line's `original_avatar`). Tried as
@@ -237,7 +237,7 @@ export function resolveChat(
  * - **A Marinara key is a character id**, stamped by its reader as the row it
  *   came from (`storage/tables/characters.json#<id>`, `marinara/reader.ts`).
  *   Reached here only through Marinara's per-chat JSONL export today; the
- *   profile path is [P13.10]'s.
+ *   profile path is [P14.10]'s.
  * - **A {@link SPEAKER_BY_NAME} key has no file** — the line named the speaker
  *   and nothing else — so it goes straight to the name.
  */

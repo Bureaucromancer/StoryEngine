@@ -40,20 +40,20 @@ import { Fine } from '../ui/Text.js';
  * as the argument for when a second consumer wants one.
  *
  * ***And a chat from SillyTavern or Marinara*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * *"one file"* door. A `.jsonl` is somebody else's chat rather than our own
  * export, so it does not go where an export goes: it is uploaded to the
  * library's import, which reads it, finds its characters in this account's
- * library and builds the session ([P13 §2.1]), and answers with the new
+ * library and builds the session ([P14 §2.1]), and answers with the new
  * session's id. **Told apart by the name's extension, here and only here** —
  * the server decides what the bytes are by their content either way; this
  * only picks which of two doors to knock on, and a `.jsonl` sent to the
  * export's door would be refused as not JSON.
  *
- * ***The hint says once what an import and an update are*** — [P13.8]'s
+ * ***The hint says once what an import and an update are*** — [P14.8]'s
  * *"the surface says once what an update from source does and does not do"*,
- * [P13 §2.7]. It shipped at P13.8 as an interim sentence (*updating comes
- * later*), because there was no update to describe; [P13.10a] made sync, and
+ * [P14 §2.7]. It shipped at P14.8 as an interim sentence (*updating comes
+ * later*), because there was no update to describe; [P14.10a] made sync, and
  * this is the §2.7 sentence: loading a chat again brings its session up to
  * date — new messages, edits and branches added beside what is here, nothing
  * deleted or rewritten, the person's place kept if they played on, nothing
@@ -108,7 +108,7 @@ function isChat(file: File): boolean {
  * wrote, and an id that is not a session's opens a page for nothing. So a
  * session is a row that says `import.chat.imported`, or — a chat loaded again
  * after it grew — `import.chat.extended`, which names the session it brought up
- * to date ([P13.10a]); *already here* is one that says
+ * to date ([P14.10a]); *already here* is one that says
  * `import.chat.alreadyHere`. Anything else made no session, and its warnings
  * are the only account of why.
  */
@@ -218,7 +218,7 @@ export function ImportSession(): JSX.Element {
                * request is made — the commonest way to pick the wrong file,
                * and the one the class read alone still sent to the fallback.
                *
-               * ***A chat's refusal is a row, not a status*** ([P13.8]):
+               * ***A chat's refusal is a row, not a status*** ([P14.8]):
                * the library's import answers `200` with the file's
                * disposition, so `sessionOf` turns a row that made no
                * session into a `ChatRefused`, and it is read here with the

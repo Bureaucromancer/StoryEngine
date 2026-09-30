@@ -192,19 +192,28 @@ export function PlayPage({
    * nothing a phone recorded about where a photo was taken ever leaves it
    * (`preparePicture`, which refuses rather than sending an original).
    */
+  /** Whether the page is still here — read by an attach whose upload outlived it. */
+  const pageOpen = useRef(true);
   const attachPictures = async (files: readonly File[]): Promise<void> => {
     setPictureProblem(null);
     setAttaching(true);
     try {
       // Counted here rather than read from `pictures`, which is the value this
-      // render closed over and does not grow while the loop runs.
+      // render closed over and does not grow while the loop runs — and the same
+      // for what is already held, so two files in one pick that come out as the
+      // same bytes (a photo and its copy) are one picture, not two with one key.
       let room = MAX_PICTURES - pictures.length;
+      const seen = new Set(pictures.map((one) => one.digest));
       for (const file of files) {
         if (room <= 0) break;
         const prepared = await preparePicture(file);
         const uploaded = await uploadPicture(sessionId, prepared);
+        // A page left while the upload was out has already let go of its
+        // previews, and a preview made now would be one nothing ever releases.
+        if (!pageOpen.current) return;
         // The same picture attached twice is one picture: its address is its bytes.
-        if (pictures.some((one) => one.digest === uploaded.digest)) continue;
+        if (seen.has(uploaded.digest)) continue;
+        seen.add(uploaded.digest);
         room -= 1;
         const preview = URL.createObjectURL(prepared);
         setPictures((held) => [...held, { digest: uploaded.digest, preview, caption: '' }]);
@@ -216,11 +225,34 @@ export function PlayPage({
     }
   };
 
-  const clearPictures = (): void => {
-    for (const picture of pictures) URL.revokeObjectURL(picture.preview);
-    setPictures([]);
+  /**
+   * ***Clears the pictures a move carried, and only those*** — a picture whose
+   * attach finished while the move was on its way was not in it, and stays for
+   * the next one rather than vanishing unsent.
+   */
+  const clearSent = (sent: ReadonlySet<string>): void => {
+    setPictures((held) => {
+      for (const one of held) if (sent.has(one.digest)) URL.revokeObjectURL(one.preview);
+      return held.filter((one) => !sent.has(one.digest));
+    });
     setPictureProblem(null);
   };
+
+  /**
+   * ***The previews go with the page*** — each is a blob URL, which the browser
+   * keeps for as long as the document lives unless it is told. Read through a
+   * ref, because a cleanup keyed on `pictures` would revoke previews still on
+   * screen every time one was added.
+   */
+  const heldPictures = useRef(pictures);
+  heldPictures.current = pictures;
+  useEffect(() => {
+    pageOpen.current = true;
+    return () => {
+      pageOpen.current = false;
+      for (const one of heldPictures.current) URL.revokeObjectURL(one.preview);
+    };
+  }, []);
 
   // Shared with the workbench through `queries.ts`, so both mounts read one
   // cache entry and the invalidate below refreshes both ([P3.1]).
@@ -261,7 +293,7 @@ export function PlayPage({
   const running = state.status === 'running';
 
   /**
-   * ***The chat, when this session is one*** — [P13 §1.8], [P13.5]. `chat` is
+   * ***The chat, when this session is one*** — [P14 §1.8], [P14.5]. `chat` is
    * the server's effective reading and is absent for a mode that does not play
    * as a chat, which is what every chat-only control below keys on: a Freeform
    * session's page is the page it was.
@@ -313,7 +345,7 @@ export function PlayPage({
       name: actorObjects.find((one) => one.id === row.actorId)?.name ?? row.actorId,
     }));
   /**
-   * ***Whether an empty send would get a reply*** — [P13.4]'s note: under an
+   * ***Whether an empty send would get a reply*** — [P14.4]'s note: under an
    * embodied voice a turn with no input and nobody named is answered by the
    * policy's pick from the eligible, and with nobody eligible it is a turn
    * with no reply at all. A narrator always answers, so the check is the
@@ -353,12 +385,12 @@ export function PlayPage({
 
   const send = useMutation({
     /**
-     * `empty` is *let them talk* — [P13 §1.6]: a turn with **no input**, not
+     * `null` is *let them talk* — [P14 §1.6]: a turn with **no input**, not
      * one with empty words, so the policy answers the last message rather than
      * a blank move (ST's empty send). Pictures and a kind belong to a move, so
      * an empty send carries neither; guidance and a named speaker it may.
      */
-    mutationFn: (empty: boolean) =>
+    mutationFn: (sending: readonly { digest: string; caption?: string }[] | null) =>
       submitTurn({
         sessionId,
         // A key the client owns, so a retry of *this* submission is recognised
@@ -369,23 +401,23 @@ export function PlayPage({
         // say what `ids.ts` already says.
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
-        ...(empty
+        ...(sending === null
           ? {}
           : {
               text: draft,
               // Absent unless the player chose, so the route applies the mode's
               // default rather than the client guessing `do` for a mode without one.
               ...(kind === undefined ? {} : { kind }),
-              ...(pictureRefs.length === 0 ? {} : { attachments: pictureRefs }),
+              ...(sending.length === 0 ? {} : { attachments: sending }),
             }),
         guidance,
         ...(forced === '' || !embodied ? {} : { speakers: [forced] }),
         ...(push === '' || chat === undefined ? {} : { push }),
       }),
-    onSuccess: (accepted) => {
+    onSuccess: (accepted, sending) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
       setDraft('');
-      clearPictures();
+      clearSent(new Set((sending ?? []).map((one) => one.digest)));
       setForced('');
       setPush('');
       setNobody(false);
@@ -425,9 +457,9 @@ export function PlayPage({
     // the record keeps the move either way ([25 E15]).
     if (draft.trim().length === 0 && pictures.length === 0) {
       /**
-       * ***An empty box is *let them talk*, in a chat*** — [P13 §1.8]. Under
+       * ***An empty box is *let them talk*, in a chat*** — [P14 §1.8]. Under
        * `manual` with nobody named it still sends: the policy picks one
-       * eligible member at random, which is SillyTavern's and what [P13.4]
+       * eligible member at random, which is SillyTavern's and what [P14.4]
        * kept. It is refused here only when nobody at all could answer, and
        * then it says so rather than committing a turn with no reply.
        */
@@ -436,14 +468,14 @@ export function PlayPage({
         setNobody(true);
         return;
       }
-      send.mutate(true);
+      send.mutate(null);
       return;
     }
-    send.mutate(false);
+    send.mutate(pictureRefs);
   };
 
   /**
-   * ***The chat's gestures, each a turn*** — [P13 §1.6]. One mutation for every
+   * ***The chat's gestures, each a turn*** — [P14 §1.6]. One mutation for every
    * gesture that submits: a swipe, a continue, an edit, a branch at a message,
    * and the cast panel's *speak*. They share the redo's posture — the composer
    * is left alone, because none of them used what is in it — and differ only
@@ -465,7 +497,7 @@ export function PlayPage({
   const hide = useSetHidden(sessionId);
 
   /**
-   * ***What each message's actions send*** — [P13 §1.6]'s table, row by row.
+   * ***What each message's actions send*** — [P14 §1.6]'s table, row by row.
    *
    * - **Swipe** regenerates message *k* by the same speaker: `rewriteOf`, so
    *   the tape's draws hold and only the words change — the Redo button's
@@ -493,7 +525,7 @@ export function PlayPage({
       gesture.mutate({ continueOf: turn.id, parentTurnId: turn.parentTurnId });
     },
     onEditMessage: (turn, index, text) => {
-      // `outputMessagesOf`, so a turn with no `messages` — pre-P13 or narrated
+      // `outputMessagesOf`, so a turn with no `messages` — pre-P14 or narrated
       // — is edited as the one narrator line it is drawn as.
       const messages = outputMessagesOf(turn.output).map((message, at) => ({
         speaker: message.speaker?.id ?? null,
@@ -602,26 +634,23 @@ export function PlayPage({
         // sending `''` would turn it into a blank move by the player.
         ...(turn.input === undefined ? {} : { text: turn.input.text }),
         /**
-         * **The turn's pictures come with it**, for the reason its words do:
-         * this is *that turn again*. Named by digest, as the record names them —
-         * and a picture whose bytes never reached this server (an imported
-         * turn) is still accepted, and goes as its caption.
+         * **The move's kind comes with it** — a redone `think` is a thought
+         * again, not a `do` that puts the player's private thought in the
+         * scene, which is the failure the kind exists to prevent.
          */
-        attachments: (turn.input?.attachments ?? []).flatMap((picture) =>
-          picture.digest === undefined
-            ? []
-            : [
-                {
-                  digest: picture.digest,
-                  ...(picture.caption === undefined ? {} : { caption: picture.caption }),
-                },
-              ],
-        ),
+        ...(turn.input?.kind === undefined ? {} : { kind: turn.input.kind }),
+        /**
+         * **And its pictures**, for the reason its words do: this is *that turn
+         * again*. Named by the turn rather than re-sent, so the server copies
+         * them as recorded — a picture whose bytes never reached this server
+         * (an imported turn) included, and goes as its caption.
+         */
+        ...((turn.input?.attachments?.length ?? 0) === 0 ? {} : { attachmentsOf: turn.id }),
         parentTurnId: turn.parentTurnId,
         ...(rewrite ? { rewriteOf: turn.id } : {}),
         ...(guidance === undefined ? {} : { guidance, redoOf: turn.id }),
         /**
-         * ***A pushed turn is redone pushed*** — [P13.5b]. A rewrite gets it
+         * ***A pushed turn is redone pushed*** — [P14.5b]. A rewrite gets it
          * from the server, off the redone turn's director outcome; a plain
          * reroll names no turn the server could read it from, so it is sent.
          */
@@ -710,10 +739,10 @@ export function PlayPage({
   });
 
   /**
-   * ***Delete*** — [P13 §1.6]: *"the head moves to the parent. The turn
+   * ***Delete*** — [P14 §1.6]: *"the head moves to the parent. The turn
    * remains as a sibling nobody is on."* A head move and nothing else, so it
    * refreshes what one does; the first turn's parent is the root, `null`,
-   * which [P13.4] made `PUT /head` accept for exactly this.
+   * which [P14.4] made `PUT /head` accept for exactly this.
    */
   const remove = useMutation({
     mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.parentTurnId ?? null),
@@ -736,7 +765,7 @@ export function PlayPage({
     remove.isPending;
 
   /**
-   * ***Auto-mode*** — [P13 §1.8]: a *let them talk* turn whenever the page has
+   * ***Auto-mode*** — [P14 §1.8]: a *let them talk* turn whenever the page has
    * been idle for the delay. Idle is the stream settled, nothing being sent or
    * moved, nothing in the box and no line being edited; the clock and its
    * re-arming are `useAutoMode`'s.
@@ -766,7 +795,7 @@ export function PlayPage({
         setNobody(true);
         return;
       }
-      send.mutate(true);
+      send.mutate(null);
     },
   });
   /**
@@ -841,7 +870,10 @@ export function PlayPage({
    * flight: the input is disabled, the head is moving, and the entry was
    * dropped at submit.
    */
-  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS);
+  const pictureKey = pictureRefs
+    .map((picture) => `${picture.digest}\u0000${picture.caption ?? ''}`)
+    .join('\u0001');
+  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS, pictureKey);
   const refresh = useRefreshPreview(sessionId);
   const refreshPreview = refresh.mutate;
   const preview = usePreview(sessionId);
@@ -860,10 +892,17 @@ export function PlayPage({
      * at-rest reading is asked for then.
      */
     if (settled.text !== draft || settled.guidance !== guidance) return;
-    // The move's pictures too, so the meter and the panel measure the blocks the
-    // turn will send — a picture is not a keystroke, so it is not debounced.
-    refreshPreview(pictureRefs.length === 0 ? settled : { ...settled, attachments: pictureRefs });
-  }, [settled, draft, guidance, running, refreshPreview, pictureRefs]);
+    if (settled.pictures !== pictureKey) return;
+    // The move's pictures and its kind too, so the meter and the panel measure
+    // the blocks the turn will send — a pack whose input slots are per-kind
+    // previews nothing of the move without the kind.
+    refreshPreview({
+      text: settled.text,
+      guidance: settled.guidance,
+      ...(kind === undefined ? {} : { kind }),
+      ...(pictureRefs.length === 0 ? {} : { attachments: pictureRefs }),
+    });
+  }, [settled, draft, guidance, running, refreshPreview, pictureRefs, pictureKey, kind]);
 
   /**
    * The stream's closing frame is what says the record is durable in all three
@@ -972,7 +1011,7 @@ export function PlayPage({
         }}
       />
 
-      {/* **How this chat plays** — [P13 §1.8]'s session settings, [P13.5].
+      {/* **How this chat plays** — [P14 §1.8]'s session settings, [P14.5].
           Beside the cast because the two are the chat's configuration: who is
           in it, and how they are asked to speak. Renders nothing for a mode
           that does not play as a chat. */}
@@ -1023,7 +1062,7 @@ export function PlayPage({
           Last in the panel stack because the four above it are the engine's own
           and a mode's additions belong after them, and because a mode that
           declares none renders nothing here at all. */}
-      {/* ***What a person may run between turns*** — [P13.5a]'s *Update
+      {/* ***What a person may run between turns*** — [P14.5a]'s *Update
           trackers*, above the cards it updates. Renders nothing unless the
           server lists an action, which it does only while a tracker is on. */}
       <ModeActions
@@ -1198,8 +1237,8 @@ export function PlayPage({
           disabled={running}
           onChange={setKind}
         />
-        {/* **Who speaks next** — [P13 §1.8], and while a round streams, who is
-            speaking ([P13 §1.3a] point 8). Beside the kind selector because it
+        {/* **Who speaks next** — [P14 §1.8], and while a round streams, who is
+            speaking ([P14 §1.3a] point 8). Beside the kind selector because it
             is the same sort of choice: made before the words, about them. */}
         {!embodied ? null : (
           <WhoSpeaksNext
@@ -1214,7 +1253,7 @@ export function PlayPage({
             running={running}
           />
         )}
-        {/* **Push story** — [P13.5b]: made before the words, like the two
+        {/* **Push story** — [P14.5b]: made before the words, like the two
             above, and a chat's alone. */}
         {chat === undefined ? null : (
           <PushStory value={push} onChange={setPush} disabled={running || send.isPending} />
@@ -1232,7 +1271,7 @@ export function PlayPage({
               onChange={(event) => {
                 setDraft(event.target.value);
                 setNobody(false);
-                // Typing stops auto-mode — [P13 §1.8]. Somebody writing has
+                // Typing stops auto-mode — [P14 §1.8]. Somebody writing has
                 // taken the turn back, and a timer firing under them would
                 // send the scene on without the move they are composing.
                 if (event.target.value !== '') setAuto(false);
@@ -1277,12 +1316,14 @@ export function PlayPage({
             /* **The label is the reason it is greyed**, which is what
                [10 §11.1a] asks of any control that disables: a button reading
                *Sending…* has already said why it cannot be pressed again. */
-            <Button type="submit" variant="primary" disabled={send.isPending}>
+            <Button type="submit" variant="primary" disabled={send.isPending || attaching}>
               {send.isPending
                 ? SENDING
-                : chat !== undefined && draft.trim() === '' && pictures.length === 0
-                  ? letThemTalkLabel()
-                  : 'Send'}
+                : attaching
+                  ? PREPARING
+                  : chat !== undefined && draft.trim() === '' && pictures.length === 0
+                    ? letThemTalkLabel()
+                    : 'Send'}
             </Button>
           )}
         </div>
@@ -1300,9 +1341,12 @@ export function PlayPage({
         */}
         <ComposerPictures
           pictures={pictures}
+          previewBlocks={
+            preview.data?.preview.state === 'assembled' ? preview.data.preview.blocks : undefined
+          }
           busy={attaching}
           problem={pictureProblem}
-          disabled={running}
+          disabled={running || send.isPending}
           onAttach={(files) => {
             void attachPictures(files);
           }}
@@ -1424,7 +1468,7 @@ function IllustratedProse({
   text: string;
   spans: readonly TextSpan[];
   /**
-   * ***The pictures and none of the prose*** — [P13.5]: a chat turn draws its
+   * ***The pictures and none of the prose*** — [P14.5]: a chat turn draws its
    * words message by message (`ChatMessages`), and its pictures fall to the
    * end of the turn, which is §10.4a's rule for an anchor that does not
    * resolve. Anchoring one inside a message is a later refinement; losing the
@@ -1618,7 +1662,7 @@ function TurnView({
 }: {
   turn: TurnRecord;
   siblings: string[];
-  /** Where this turn's siblings are drawn — [P13.5], from the transcript. */
+  /** Where this turn's siblings are drawn — [P14.5], from the transcript. */
   swipes: SwipeGroups | undefined;
   /** Whether this is the session's head turn. */
   head: boolean;
@@ -1651,13 +1695,13 @@ function TurnView({
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
   // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
-  // attempt again. ***Unless it made a call*** ([P13.5]): a chat's *let them
+  // attempt again. ***Unless it made a call*** ([P14.5]): a chat's *let them
   // talk* answers no move and is still a reply a person may want again.
   // A greeting made none, and its alternates are its siblings already.
   const rerunnable = turn.input !== undefined || turn.request !== undefined;
   /**
-   * ***Every turn of a chat is drawn as one*** — [P13.5]. A turn whose output
-   * names no speakers — written before P13, narrated, or embodied under
+   * ***Every turn of a chat is drawn as one*** — [P14.5]. A turn whose output
+   * names no speakers — written before P14, narrated, or embodied under
    * `fixed` — is one narrator line (`outputMessagesOf`), drawn as narration;
    * drawing it as prose instead would leave hide, edit, branch and delete
    * unreachable on every turn of a narrator-voice chat. Outside a chat a turn
@@ -2101,7 +2145,7 @@ function recordedRemedy(turn: TurnRecord): string | null {
  * without the reader doing anything (the accessible-markup habit [work plan
  * §2.1] calls day-one, applied where it actually matters).
  *
- * ***Painted as the chat it will be*** since [P13.5]: under `per-actor`
+ * ***Painted as the chat it will be*** since [P14.5]: under `per-actor`
  * dispatch each speaker's call streams into its own message, named as it
  * opens (`liveMessages`), so the round reads as bubbles while it is written
  * rather than becoming them only when it lands. When the stream cannot say
@@ -2150,6 +2194,8 @@ function LiveTurn(props: {
  * the reason every other user-visible sentence here is one ([P11.8]).
  */
 const SENDING = 'Sending…';
+/** Send's label while a picture is being prepared — the reason it is greyed. */
+const PREPARING = 'Preparing picture…';
 const AWAITING = 'Waiting for the first words…';
 const STOPPING = 'Stopping…';
 

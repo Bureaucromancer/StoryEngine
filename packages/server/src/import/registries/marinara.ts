@@ -176,13 +176,13 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // a back-pointer, not a tree edge, so a family of them imports as duplicated
   // prefixes unless it is reassembled whole ([18 §2.2]).
   //
-  // ***`chats`, `messages` and `message_swipes` are converted since [P13.10]***
+  // ***`chats`, `messages` and `message_swipes` are converted since [P14.10]***
   // (2026-09-29): the reader hands the three to the session pass as one
   // candidate (`marinara/reader.ts`, `#chats`), each `roleplay` chat's family
   // becomes one session with its prefix once (`marinara/families.ts`), and the
   // review has a row per chat — `storage/tables/chats.json#<id>` — where it had
   // a `recorded` row per message shard. `conversation` and `game` chats are
-  // still rows, `recorded` with a note ([P13 §2.6]), and a message whose chat
+  // still rows, `recorded` with a note ([P14 §2.6]), and a message whose chat
   // is not in the store is counted in a note rather than dropped unsaid.
   chats: 'converted',
   messages: 'converted',
@@ -194,11 +194,11 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // Party- and mode-shaped: P7 ([P7 §1.10]).
   character_groups: 'recorded',
   persona_groups: 'recorded',
-  // Tracker state, per message and swipe. ~~Stays `recorded` past [P13.10]:
-  // it needs [P13.5a]'s channels to write.~~ ***`converted` at [P13.5a]***:
+  // Tracker state, per message and swipe. ~~Stays `recorded` past [P14.10]:
+  // it needs [P14.5a]'s channels to write.~~ ***`converted` at [P14.5a]***:
   // each roleplay chat's snapshots are effects on the turn holding their
   // message's swipe, with the field locks and hidden fields as the trackers'
-  // two sets (`marinara/trackers.ts`, [P13 §2.6]). A snapshot of a
+  // two sets (`marinara/trackers.ts`, [P14 §2.6]). A snapshot of a
   // conversation or game chat goes where its chat goes — recorded.
   game_state_snapshots: 'converted',
   game_engine_state: 'recorded',
@@ -208,16 +208,16 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   game_turn_storyboard_keyframes: 'recorded',
   spatial_context_snapshots: 'recorded',
   // Agent- and extension-shaped: waiting on the extension host P7 makes real.
-  // *And never the source of a tracker's model* ([P13 §2.6]): Marinara's
+  // *And never the source of a tracker's model* ([P14 §2.6]): Marinara's
   // per-agent connection is global, not per chat, so a chat's trackers run on
   // the session's `stepRoles` here and the chat row says so
   // (`import.chat.agentModelsNotCarried`).
   agent_configs: 'recorded',
   agent_runs: 'recorded',
-  // Holds the narrative director's secret plot. ~~Waits on [P13.5b]'s channel
-  // as the trackers wait on [P13.5a]'s.~~ ***`converted` at [P13.5b]***: a
+  // Holds the narrative director's secret plot. ~~Waits on [P14.5b]'s channel
+  // as the trackers wait on [P14.5a]'s.~~ ***`converted` at [P14.5b]***: a
   // roleplay root chat's `overarchingArc` is `se.plot.secret` on its session's
-  // head turn (`marinara/plot.ts`, [P13 §2.6]). Its other keys are the
+  // head turn (`marinara/plot.ts`, [P14 §2.6]). Its other keys are the
   // director's bookkeeping and go nowhere.
   agent_memory: 'converted',
   capability_documents: 'recorded',

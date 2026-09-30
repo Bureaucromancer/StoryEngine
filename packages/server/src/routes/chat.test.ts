@@ -13,11 +13,11 @@ import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../t
 
 /**
  * ***The server half of the chat surface*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.5]. What the play page reads and writes that no earlier stage served:
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5]. What the play page reads and writes that no earlier stage served:
  *
  * - the session's effective chat settings on `GET /sessions/:id`, and a door to
- *   change them, `PUT /sessions/:id/chat`, which must never re-voice a pre-P13
+ *   change them, `PUT /sessions/:id/chat`, which must never re-voice a pre-P14
  *   session by writing one field of three;
  * - which message each sibling is a swipe of, on the transcript;
  * - who is speaking, on `call.started`, and the round's order, on
@@ -176,7 +176,7 @@ describe('the chat settings, read and written', () => {
    * alone would make it modern and let its absent `voice` fall to Scene's
    * declared `embodied`. It must stay narrated.
    */
-  it('never re-voices a pre-P13 session by writing one field of three', async () => {
+  it('never re-voices a pre-P14 session by writing one field of three', async () => {
     const id = await aSession([await anActor('Vera')]);
     const file = JSON.parse(await readFile(sessionFile(id), 'utf8')) as Record<string, unknown>;
     delete file['voice'];

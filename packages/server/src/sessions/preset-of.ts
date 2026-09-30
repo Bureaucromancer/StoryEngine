@@ -24,7 +24,7 @@ import type { Mode } from '@storyengine/sdk';
  * **What follows is additions, by presence.** A copy that carries the mode's
  * own id gains each shipped block whose id it lacks — at the shipped position,
  * after the nearest shipped block it does have — each of the three level
- * lists it has none of, and the push texts ([P13.5b]) when it has none.
+ * lists it has none of, and the push texts ([P14.5b]) when it has none.
  * Nothing it has is touched: a block switched off stays off, an edited block
  * keeps the edit, and a library preset, whose id is its own, is never read
  * against a mode at all. *Presence is the whole test*, and
@@ -57,7 +57,7 @@ export function presetOf(stored: Preset | undefined, mode: Mode): Preset {
   const levels = LEVEL_LISTS.filter(
     (field) => stored[field] === undefined && shipped[field] !== undefined,
   );
-  // The push texts ([P13.5b]) come the same way: by presence, whole.
+  // The push texts ([P14.5b]) come the same way: by presence, whole.
   const push = stored.pushDirections === undefined && shipped.pushDirections !== undefined;
   if (!missing && levels.length === 0 && !push) return stored;
 

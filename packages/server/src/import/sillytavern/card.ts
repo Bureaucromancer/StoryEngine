@@ -38,7 +38,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * Fields that reach `compat` by name rather than by being unrecognised.
  *
  * ~~`system_prompt`, `post_history_instructions`, `depth_prompt` and
- * `talkativeness` were here~~ until [P13.3], which gave each a destination the
+ * `talkativeness` were here~~ until [P14.3], which gave each a destination the
  * engine reads: the three prompt fields are sections the Scene pack places, and
  * talkativeness is `modeData` the speaker policy rolls against. See
  * {@link applyCardPrompts} and {@link applyTalkativeness}.
@@ -46,14 +46,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const COMPAT_FIELDS = ['creator', 'creator_notes', 'character_version'];
 
 /**
- * ***The card fields [P13.3] honours***, read here and so neither preserved as
+ * ***The card fields [P14.3] honours***, read here and so neither preserved as
  * unknown nor copied to `compat`. `depth_prompt` and `talkativeness` are
  * V1's top-level spellings; V2 and V3 carry them under `extensions`, which
  * {@link EXTENSIONS_CONSUMED} covers.
  */
 const HONOURED = ['system_prompt', 'post_history_instructions', 'depth_prompt', 'talkativeness'];
 
-/** The `extensions.*` keys [P13.3] reads, and so does not also keep in `compat`. */
+/** The `extensions.*` keys [P14.3] reads, and so does not also keep in `compat`. */
 const EXTENSIONS_CONSUMED = new Set(['depth_prompt', 'talkativeness']);
 
 /** Fields this converter reads, and so does not also preserve as unknown. */
@@ -175,9 +175,9 @@ const PLAYER = /\{\{user\}\}|<user>/i;
 
 /**
  * The prose fields a card's text reaches the model through — ***and its own
- * prompts since [P13.3]***, which reach it as sections now: a card's
+ * prompts since [P14.3]***, which reach it as sections now: a card's
  * `system_prompt` says `{{char}}` meaning itself exactly as its description
- * does, and [P13 §1.5] asks for each card's prompts *"rendered with its own
+ * does, and [P14 §1.5] asks for each card's prompts *"rendered with its own
  * `{{char}}"*. Written in here, once, because a section body is never read as a
  * template (the fence above).
  */
@@ -216,7 +216,7 @@ function inOwnName(
       typeof one === 'string' ? rewrite(one) : one,
     );
   }
-  // The depth prompt, wherever the card's version keeps it ([P13.3]).
+  // The depth prompt, wherever the card's version keeps it ([P14.3]).
   const depth = depthPromptOf(out);
   if (depth !== null && typeof depth.value['prompt'] === 'string') {
     const rewritten = { ...depth.value, prompt: rewrite(depth.value['prompt']) };
@@ -318,8 +318,8 @@ function asTraits(personality: string): string[] | null {
 }
 
 /**
- * ***A card's own prompts, as sections the pack places*** — [P13 §1.5]'s table,
- * [P13.3].
+ * ***A card's own prompts, as sections the pack places*** — [P14 §1.5]'s table,
+ * [P14.3].
  *
  * | Card field | Section |
  * |---|---|
@@ -422,8 +422,8 @@ function placementOf(value: Readonly<Record<string, unknown>>): SectionPlacement
 const DEPTH_PROMPT_DEPTH = 4;
 
 /**
- * ***Talkativeness, where the speaker policy rolls against it*** — [P13 §1.3],
- * [P13.3]: `actor.modeData[<the chat-import mode>].talkativeness`, a number in
+ * ***Talkativeness, where the speaker policy rolls against it*** — [P14 §1.3],
+ * [P14.3]: `actor.modeData[<the chat-import mode>].talkativeness`, a number in
  * `[0, 1]`.
  *
  * **`modeData`, not a section**, because it is participation rather than
@@ -548,7 +548,7 @@ function extractBook(
  * ~~`system_prompt`, `post_history_instructions` and `depth_prompt` are a card
  * asking to rewrite the prompt, which cards cannot do here ([00 §2.4]) — so they
  * land in `compat` and the review surfaces *this card wants to override prompts;
- * review*. `talkativeness` joins them~~ — *until [P13.3]*, which moved all four
+ * review*. `talkativeness` joins them~~ — *until [P14.3]*, which moved all four
  * to destinations the engine reads ({@link applyCardPrompts},
  * {@link applyTalkativeness}). [00 §2.4] still holds: the prompts are sections,
  * and a pack decides whether and where they are sent. *Existing imports pick
@@ -564,7 +564,7 @@ function buildCompat(card: Readonly<Record<string, unknown>>): Record<string, un
   }
 
   // `extensions.*` verbatim ([00 §2.4]), including Marinara's fifteen engine
-  // fields when the card came through that way — less the two [P13.3] reads.
+  // fields when the card came through that way — less the two [P14.3] reads.
   if (isRecord(card['extensions'])) {
     for (const [key, value] of Object.entries(card['extensions'])) {
       if (EXTENSIONS_CONSUMED.has(key)) continue;

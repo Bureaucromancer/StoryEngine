@@ -8,7 +8,7 @@ import { marinaraFamilies } from './families.js';
 
 /**
  * ***Marinara's chat tables, read*** —
- * [P13.10](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The parser and the grouping, pure, over rows written here in the stored
  * shape: JSON columns as text, as `db/schema/chats.ts` keeps them. The sweep
@@ -326,7 +326,7 @@ describe('a Marinara chat, joined from its tables', () => {
           {
             summary: 'They met.',
             enableAgents: true,
-            // Not the director, whose push and plot are carried since [P13.5b].
+            // Not the director, whose push and plot are carried since [P14.5b].
             activeAgentIds: ['world-state', 'prose-guardian', 'expression'],
           },
         ),
@@ -351,9 +351,9 @@ describe('a Marinara chat, joined from its tables', () => {
       'import.chat.hiddenFromUserShown',
       'import.chat.rewriteOriginalsNotCarried',
       'import.chat.summaryNotCarried',
-      // [P13.5a]: the world tracker's switch came across, the expression
+      // [P14.5a]: the world tracker's switch came across, the expression
       // agent's did not (it is `se.scene.stage` here), and the trackers' models
-      // are Marinara's global ones. The prose guardian's came too ([P13.5c]).
+      // are Marinara's global ones. The prose guardian's came too ([P14.5c]).
       'import.chat.agentsNotCarried',
       'import.chat.agentModelsNotCarried',
     ]);

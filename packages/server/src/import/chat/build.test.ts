@@ -22,9 +22,9 @@ import type {
 
 /**
  * ***The chat tree builder, one rule at a time*** —
- * [P13.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
- * Each `describe` is one section of [P13 §2]: rounds (§2.2), swipes (§2.3),
+ * Each `describe` is one section of [P14 §2]: rounds (§2.2), swipes (§2.3),
  * identity (§2.4), refs and resolution (§2.5), settings and notes (§2.6). These
  * are the cases a person would write down; `build-property.test.ts` is the
  * stage's actual proof obligation, over families nobody would think to write,
@@ -634,9 +634,9 @@ describe('identity is content and parent (§2.4)', () => {
   });
 
   it('finds a chat’s earlier rounds again when it grew, and makes a round that grew a sibling', () => {
-    // [P13 §2.2] makes a round one turn, so a reply to a trailing player's line
-    // changes that turn's content — and its key. [P13 §2.7]'s open case,
-    // decided at P13.10a (`ids.ts`): the grown round is a *sibling* of the
+    // [P14 §2.2] makes a round one turn, so a reply to a trailing player's line
+    // changes that turn's content — and its key. [P14 §2.7]'s open case,
+    // decided at P14.10a (`ids.ts`): the grown round is a *sibling* of the
     // round as it was imported, never the same turn extended in place — a
     // turn rewritten is what sync promises never to do. The extend arm names
     // it and moves the head onto it (`chat-sync.test.ts`); this pins the
@@ -832,7 +832,7 @@ describe('the session document (§2.5, §2.6)', () => {
   });
 });
 
-describe('a group’s roster and muted members — P13.9', () => {
+describe('a group’s roster and muted members — P14.9', () => {
   const MARIS: ForeignRef = { key: 'Maris.png', name: 'Maris' };
   const LUND: ForeignRef = { key: 'Lund.png', name: 'Lund' };
   const CREW: ChatResolution = {
@@ -918,12 +918,12 @@ describe('a group’s roster and muted members — P13.9', () => {
 });
 
 /**
- * ***The source's state, as effects — [P13.5a]***. The builder knows no
+ * ***The source's state, as effects — [P14.5a]***. The builder knows no
  * tracker: it is handed `ChatStateValue`s and writes each where it moves the
  * state along the path. The sweep over Marinara's fixture holds the Marinara
  * half (`marinara/trackers.test.ts`); this holds the builder to its own.
  */
-describe('the source’s state — P13.5a', () => {
+describe('the source’s state — P14.5a', () => {
   const place = (value: string, member?: ForeignRef): ChatStateValue[] => [
     {
       channelId: member === undefined ? 'x.place' : 'x.mood',

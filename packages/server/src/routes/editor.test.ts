@@ -20,8 +20,8 @@ import {
 
 /**
  * ***The editor and the echo chamber, through the server*** —
- * [P13 §1.9.4–§1.9.5](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.5c]'s *ends at*: *"a banned word in a reply is edited out before the
+ * [P14 §1.9.4–§1.9.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5c]'s *ends at*: *"a banned word in a reply is edited out before the
  * turn is written, and the message offers the original; a continuity finding
  * applied from the checklist is a sibling."*
  *

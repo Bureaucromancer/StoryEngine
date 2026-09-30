@@ -726,7 +726,7 @@ describe('answers that arrive after the question changed', () => {
 
 /**
  * ***A folder with chats in it asks first*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * Chats are most of a SillyTavern tree's bytes, so the browser upload leaves
  * them out unless the person says otherwise — and says what saying otherwise

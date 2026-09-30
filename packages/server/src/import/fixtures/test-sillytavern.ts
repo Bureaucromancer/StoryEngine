@@ -179,7 +179,7 @@ const json = (value: unknown): string => JSON.stringify(value, null, 2);
 
 /**
  * ***Vera's chat, small and whole*** —
- * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * It was a one-line prop for three phases — a file for the sweep to count as
  * `recorded` — and it is a real chat now because the sweep converts chats, and
@@ -192,8 +192,8 @@ const json = (value: unknown): string => JSON.stringify(value, null, 2);
  *    world it binds — so resolution has both of its non-line references to
  *    find, and both are in this tree.
  * 2. **The greeting, with the card's alternate as a swipe** — no generation
- *    record, which is how the parser knows a greeting ([P13 §1.7]), and one
- *    alternative, which [P13 §2.3] makes a sibling opening turn.
+ *    record, which is how the parser knows a greeting ([P14 §1.7]), and one
+ *    alternative, which [P14 §2.3] makes a sibling opening turn.
  * 3. **The player's line**, locked to the persona by its thumbnail — the key
  *    that meets `User Avatars/inspector.png` as the sweep stamped it.
  * 4. **A reply with a swipe**, the second one showing: a generated line
@@ -307,7 +307,7 @@ export function sillyTavernFixture(): Record<string, Uint8Array | string> {
     'User Avatars/inspector.png': makePng(),
 
     // A chat, which the sweep's session pass turns into a session after the
-    // cards and the persona above are in ([P13.8]). See `VERA_CHAT`.
+    // cards and the persona above are in ([P14.8]). See `VERA_CHAT`.
     'chats/Vera Solano/2026-01-01.jsonl': `${VERA_CHAT}\n`,
 
     // One file per remaining disposition class, so the review's counts are

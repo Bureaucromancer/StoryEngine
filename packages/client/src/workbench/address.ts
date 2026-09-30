@@ -38,7 +38,7 @@ import { labels } from '../i18n/catalogue.js';
  *   came out of — which is what P4.4's demo turns on. A pack copied from a mode
  *   default, and every record written before P4.4, carries no id, and those get
  *   a label like anything else.
- * - **round** names a reply this turn already gave ([P13.2]), and links to the
+ * - **round** names a reply this turn already gave ([P14.2]), and links to the
  *   member who gave it; a narrator's line has nobody to link to.
  * - **input / guidance / step / channel / treatment / goal** — no library
  *   object behind them at this phase.
@@ -107,7 +107,7 @@ const SOURCE_LABELS: Record<string, string> = labels('workbench.source', {
    */
   schema: 'Reply format',
   /**
-   * ***A reply this turn already gave*** — [P13.2]'s round: under `per-actor`
+   * ***A reply this turn already gave*** — [P14.2]'s round: under `per-actor`
    * dispatch each speaker's call is shown the replies before it, and those are
    * not history yet, so they are a source of their own. *"Earlier this round"*
    * because that is what a reader looking at the third speaker's prompt is
@@ -115,7 +115,7 @@ const SOURCE_LABELS: Record<string, string> = labels('workbench.source', {
    */
   round: 'Earlier this round',
   /**
-   * ***The session's author's note*** — [P13.3]: placed by the engine at its
+   * ***The session's author's note*** — [P14.3]: placed by the engine at its
    * own depth on every `every`-th input, never by a pack, so it is a source of
    * its own.
    */
@@ -136,7 +136,7 @@ export function blockSourceAddress(source: BlockSource): SourceAddress {
     return { label, link: { kind: 'actors', id: source.actorId } };
   }
   // Whose reply the next speaker was shown — the member it came from, when it
-  // was a member's and not a narrator's line ([P13.2]).
+  // was a member's and not a narrator's line ([P14.2]).
   if (source.kind === 'round' && source.actorId !== null) {
     return { label, link: { kind: 'actors', id: source.actorId } };
   }

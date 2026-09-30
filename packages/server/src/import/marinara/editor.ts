@@ -7,8 +7,8 @@ import type { ChatStateValue } from '../chat/types.js';
 
 /**
  * ***Marinara's editor and echo chamber, as Scene's*** —
- * [P13 §2.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * second table and [§1.9.6], built at [P13.5c]:
+ * [P14 §2.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * second table and [§1.9.6], built at [P14.5c]:
  *
  * | Marinara | Here |
  * |---|---|

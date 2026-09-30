@@ -103,10 +103,10 @@ const routeApi = getRouteApi('/play');
  * predates this table.)
  */
 /**
- * ***Who is in it, and how each of them opens*** — [P13 §1.8]'s *"creation
+ * ***Who is in it, and how each of them opens*** — [P14 §1.8]'s *"creation
  * picks characters. The form picks a persona only today, and every session it
  * makes has an empty cast. Scene's form picks one or more characters and each
- * member's opening"*, built at [P13.5].
+ * member's opening"*, built at [P14.5].
  *
  * **Outside the disclosure**, unlike the persona, because for a chat it is the
  * first question rather than a refinement: a Scene with nobody in it is a

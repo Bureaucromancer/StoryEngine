@@ -273,7 +273,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
 
     /**
      * ***`kind: chat` — the file must be a chat, or nothing is written*** —
-     * [P13.8]. Play's *Import session* sends a `.jsonl` here and opens the
+     * [P14.8]. Play's *Import session* sends a `.jsonl` here and opens the
      * row's `objectId` as a session. Without this, a `.jsonl` that was really a
      * card or a lorebook went into the library through the door the person
      * used to load a conversation, and Play then navigated to a library id as
@@ -389,7 +389,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
 
     const outcome = await sweep({
       library: services.library,
-      // Chats become sessions in the same sweep ([P13.8]), after the cards.
+      // Chats become sessions in the same sweep ([P14.8]), after the cards.
       sessions: services.sessions,
       handle: account.handle,
       files: opened.source,
@@ -444,8 +444,8 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
 
   /**
    * ***Update from source*** —
-   * [P13 §2.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13.10a]: Play's session menu, on a session made from a chat.
+   * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.10a]: Play's session menu, on a session made from a chat.
    *
    * *"Re-sweeps the server path recorded in the ledger when the import came
    * from one"* — and a sweep of it is the whole mechanism: the chat pass finds
@@ -631,7 +631,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     }
 
     /**
-     * ***Chats only when asked for*** — [P13.8]. They are most of a
+     * ***Chats only when asked for*** — [P14.8]. They are most of a
      * SillyTavern tree's bytes, so the first plan leaves them out and says what
      * they would cost (`chats`); the panel offers the choice with that number
      * on it, and asks again with `chats: true` when it is taken. Asked again
@@ -675,7 +675,7 @@ export function registerImportRoutes(app: FastifyInstance, services: AppServices
     let manifest: string[] = [];
     let onConflict: ConflictPolicy | undefined;
     /**
-     * ***Whether the person chose chats*** — [P13.8]. `skip` says they did not,
+     * ***Whether the person chose chats*** — [P14.8]. `skip` says they did not,
      * and the chats they were offered were named in the manifest and never
      * sent: each is then `skipped` in the review, which is true, rather than
      * *could not be read*, which is what a named-and-unsent file otherwise
@@ -867,7 +867,7 @@ const ManifestBody = Type.Object(
       ),
       { maxItems: 50_000 },
     ),
-    /** Plan the chats in as well — [P13.8]'s opt-in, asked for by the panel. */
+    /** Plan the chats in as well — [P14.8]'s opt-in, asked for by the panel. */
     chats: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
@@ -1086,7 +1086,7 @@ async function importOneFile(
   });
 
   /**
-   * ***A chat, or `unrecognised` before anything is tried*** — [P13.8]'s
+   * ***A chat, or `unrecognised` before anything is tried*** — [P14.8]'s
    * `kind: chat`. Asked first, so neither the archive arm nor the envelope arm
    * below can sweep a zip or a Marinara profile into the library on the way
    * to answering a door that only ever wanted a conversation. A file that is
@@ -1212,7 +1212,7 @@ async function importOneFile(
     {
       library: services.library,
       /**
-       * *A chat is one file too* ([P13.8]): `readUpload` knows one by its
+       * *A chat is one file too* ([P14.8]): `readUpload` knows one by its
        * lines, and `convertOne` hands it to the sweep's session pass, which
        * answers with the new session's id as the row's `objectId`. This route
        * learns nothing else about chats — Play's *Import session* sends a

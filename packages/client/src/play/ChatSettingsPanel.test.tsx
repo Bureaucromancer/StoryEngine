@@ -9,10 +9,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatSettings } from '../api.js';
 
 /**
- * ***How this chat plays*** — [P13 §1.8]'s session settings, [P13.5]. The
+ * ***How this chat plays*** — [P14 §1.8]'s session settings, [P14.5]. The
  * claims a simplification would break: voice and dispatch are two plain
  * controls rather than a four-way enum, dispatch is not offered where it does
- * nothing, smart says its cost where it is chosen, and a pre-P13 session's
+ * nothing, smart says its cost where it is chosen, and a pre-P14 session's
  * `fixed` is shown as itself rather than as whatever the select offers first.
  */
 
@@ -113,7 +113,7 @@ describe('the chat settings', () => {
     });
   });
 
-  it('shows a session written before P13 as it plays, not as the first option', async () => {
+  it('shows a session written before P14 as it plays, not as the first option', async () => {
     answerWith({
       ...CHAT,
       voice: 'narrator',
@@ -191,7 +191,7 @@ describe('the chat settings', () => {
 });
 
 /**
- * ***The Agents group*** — [P13 §1.9.6], [P13.5a]: the mode's `settings`
+ * ***The Agents group*** — [P14 §1.9.6], [P14.5a]: the mode's `settings`
  * region, drawn inside this panel under the heading the mode gave it. The
  * panel knows no tracker; it draws what the session read hands it.
  */

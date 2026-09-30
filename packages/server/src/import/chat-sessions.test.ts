@@ -18,7 +18,7 @@ import { convertOne, sweep, type SweepRequest } from './sweep.js';
 
 /**
  * ***A SillyTavern tree, swept, comes out with its chats as sessions*** —
- * [P13.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The stage's claim is an ordering and a meeting: the session pass runs after
  * the library loop, so a chat resolves against the cards written beside it
@@ -106,7 +106,7 @@ describe('sweeping a tree of cards and chats', () => {
     expect(inputs.every((input) => input.actorId === inspector)).toBe(true);
 
     // The greeting and its alternate are two opening turns, the reply and its
-    // other swipe two more ([P13 §2.3]); Vera speaks every reply, by id.
+    // other swipe two more ([P14 §2.3]); Vera speaks every reply, by id.
     expect(turns).toHaveLength(4);
     const speakers = turns.flatMap((turn) => turn.output?.messages ?? []);
     expect(speakers.length).toBeGreaterThan(0);
@@ -114,8 +114,8 @@ describe('sweeping a tree of cards and chats', () => {
   });
 
   /**
-   * ***The card's scenario reaches the session*** — [P13.5c], the gap
-   * [P13.12] found: the sweep made a treatment from Vera's `scenario` and the
+   * ***The card's scenario reaches the session*** — [P14.5c], the gap
+   * [P14.12] found: the sweep made a treatment from Vera's `scenario` and the
    * chat's session linked none, so `se.treatment` was empty on every imported
    * chat while SillyTavern sends the scenario every turn. The treatment is
    * found by its provenance — the `scenario:` stamp the sweep gives it — and
@@ -222,8 +222,8 @@ describe('sweeping a tree of cards and chats', () => {
   });
 
   it('extends the session a grown chat was imported into, and makes no second one', async () => {
-    // [P13 §2.7], [P13.10a]: a chat that grew *extends* the session it came
-    // from. Until P13.10a this row was `recorded` and the new turns were left
+    // [P14 §2.7], [P14.10a]: a chat that grew *extends* the session it came
+    // from. Until P14.10a this row was `recorded` and the new turns were left
     // out; now they are appended to the same session, which the row names.
     const tree = sillyTavernFixture();
     const first = await run(tree);
@@ -255,7 +255,7 @@ describe('sweeping a tree of cards and chats', () => {
     const chat = row(second, CHAT);
     expect(chat.disposition).toBe('converted');
     expect(chat.objectId).toBe(row(first, CHAT).objectId);
-    // One round — the player's line and its reply — is one turn ([P13 §2.2]).
+    // One round — the player's line and its reply — is one turn ([P14 §2.2]).
     expect(chat.notes[0]).toEqual({
       key: 'import.chat.extended',
       params: { name: '2026-01-01', count: 1 },
@@ -281,7 +281,7 @@ describe('sweeping a tree of cards and chats', () => {
   });
 
   it('records a group’s own file whose chats did not come with it', async () => {
-    // Read since P13.9, and with nothing to apply its roster to: said so,
+    // Read since P14.9, and with nothing to apply its roster to: said so,
     // rather than called converted into nothing.
     const items = await run({
       ...sillyTavernFixture(),
@@ -347,7 +347,7 @@ describe('one chat file on its own', () => {
     // Pinned because the surfaces say it (`import.chats.copy`, the
     // `sessions.import` hint): a chat's family is keyed by its path, which is
     // `chats/<card>/<file>` in a folder and the bare file name on its own, so
-    // the two doors do not recognise each other until [P13 §2.7]'s sync.
+    // the two doors do not recognise each other until [P14 §2.7]'s sync.
     await run(sillyTavernFixture());
     const bytes = new TextEncoder().encode(String(sillyTavernFixture()[CHAT]));
 

@@ -166,8 +166,8 @@ export type WidgetSpec =
    */
   | { kind: 'toggle'; label: string }
   /**
-   * ***A stat bar*** — [P13 §1.9.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.5a], and it is [10 §8.0]'s *"a `meter` arrives with the
+   * ***A stat bar*** — [P14 §1.9.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5a], and it is [10 §8.0]'s *"a `meter` arrives with the
    * first numeric channel"* arriving.
    *
    * **Over a number, or over a value that carries its own ceiling.** A plain
@@ -184,8 +184,8 @@ export type WidgetSpec =
    */
   | { kind: 'meter'; label: string; min?: number; max?: number }
   /**
-   * ***A structured value, read and edited field by field*** — [P13 §1.9.2],
-   * added at [P13.5a]. *"Which is new here."*
+   * ***A structured value, read and edited field by field*** — [P14 §1.9.2],
+   * added at [P14.5a]. *"Which is new here."*
    *
    * **The fields are declared, not inferred from the schema.** A JSON Schema
    * says what a value may be; it does not say that `stats` is a row of bars,
@@ -218,7 +218,7 @@ export type WidgetSpec =
     };
 
 /**
- * ***One field of a {@link WidgetSpec} `record`*** — [P13.5a].
+ * ***One field of a {@link WidgetSpec} `record`*** — [P14.5a].
  *
  * `key` is one property of the value, or `''` for **the value itself** — JSON
  * Pointer's own spelling of the whole document — which is how a record shows a
@@ -249,8 +249,8 @@ export interface RecordField {
 
 /**
  * ***Part of what the story has established*** —
- * [P13 §1.9.2](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * declared at [P13.5a].
+ * [P14 §1.9.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * declared at [P14.5a].
  *
  * A channel carrying this is rendered by a preset's `{ of: 'state' }` slot:
  * every such channel, every scoped key of it, through its own {@link
@@ -450,8 +450,8 @@ export interface ChannelDefinition {
   state?: EstablishedState;
   /**
    * ***The switch this channel waits on, wherever it is read*** —
-   * [P13 §1.9.3](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.5b]: the id of a boolean channel whose value must be `true`
+   * [P14 §1.9.3](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5b]: the id of a boolean channel whose value must be `true`
    * for this one to reach a prompt slot, a channel digest or a surface.
    *
    * **{@link EstablishedState.enabledBy}, for a channel that is not established
@@ -469,7 +469,7 @@ export interface ChannelDefinition {
   /**
    * ***The reveal affordance*** — [06 §7.3](../../../docs/design/06-modes-and-turn-pipeline.md):
    * *"Hidden GM state (… the Narrative Director's Secret Plot) is a channel
-   * with `visibility: "hidden"` and a reveal affordance."* Added at [P13.5b].
+   * with `visibility: "hidden"` and a reveal affordance."* Added at [P14.5b].
    *
    * The id of a boolean channel a person switches: while it is `true`, this
    * hidden channel's surfaces are drawn as though it were `player`, and while

@@ -31,10 +31,10 @@ import {
 /**
  * Who talks this turn — [06 §7.2]'s taxonomy, [P7.3], and **each arm against
  * a table transcribed from SillyTavern's `public/scripts/group-chats.js`** at
- * the pinned commit — [P13 §1.3], [P13.1]'s first proof obligation.
+ * the pinned commit — [P14 §1.3], [P14.1]'s first proof obligation.
  *
  * ***Why tables, and why the rolls are scripted.*** P7.3's arms carried ST's
- * names and did something else ([P13 §0.7]), and nothing caught it because the
+ * names and did something else ([P14 §0.7]), and nothing caught it because the
  * tests asserted what the code did rather than what the source does. So each
  * row below names the lines of `group-chats.js` it transcribes, and the tape is
  * replaced by a script that says what every roll and every pick comes out as —
@@ -208,7 +208,7 @@ interface Row {
 describe('who is eligible to be chosen', () => {
   /**
    * **`castIsPresent`: a cast member with no presence value is present, and
-   * presence `false` is muted** — [P13 §1.3]. ST's `disabled_members`, and the
+   * presence `false` is muted** — [P14 §1.3]. ST's `disabled_members`, and the
    * reason a chat is not an empty room: nothing in the build writes presence,
    * so under the old reading nobody was ever eligible.
    */
@@ -221,7 +221,7 @@ describe('who is eligible to be chosen', () => {
   });
 
   it('keeps the old reading for a mode that does not declare it: present is presence true', () => {
-    // Freeform's reading, and every mode's before [P13.1] — absent is absent.
+    // Freeform's reading, and every mode's before [P14.1] — absent is absent.
     expect(select('list', { presentOnly: ['Abel'] }).speakers).toEqual(['Abel']);
     expect(select('list', { presentOnly: [] }).speakers).toEqual([]);
   });
@@ -443,7 +443,7 @@ describe('natural', () => {
 
   /**
    * **Unicode letters where ST has ASCII `\w` — a deliberate difference**,
-   * [P13 §1.3]. ST's `extractAllWords` matches `\b\w+\b` without the `u` flag,
+   * [P14 §1.3]. ST's `extractAllWords` matches `\b\w+\b` without the `u` flag,
    * so a word stops at its first letter outside ASCII: *Zoë* is the word *zo*,
    * found by *Zo* and *Zoé* as well as by her name, and a name in Cyrillic has
    * no words at all and is never found. (§1.3's *"Zoë never matches"* is the
@@ -630,7 +630,7 @@ describe('manual', () => {
 });
 
 /**
- * **Smart order's rules-first pre-pass** — [P13 §1.3a]'s first table. The call
+ * **Smart order's rules-first pre-pass** — [P14 §1.3a]'s first table. The call
  * itself is `se.speakers.smart`, tested in `smart-speakers.test.ts` and through
  * the runner; what this arm owes is that the rules decide without asking
  * whenever they can, and that when they cannot the fallback is already drawn.
@@ -910,7 +910,7 @@ describe('the activation text', () => {
 });
 
 /**
- * **A replay picks the same speakers** — [P13.1]'s proof obligation, on the
+ * **A replay picks the same speakers** — [P14.1]'s proof obligation, on the
  * real tape rather than a script, because the claim is about the tape.
  */
 describe('on the tape', () => {
@@ -956,7 +956,7 @@ function onTape(policy: ParticipantPolicy['select'], rng: Rng, scene: Scene = {}
 }
 
 /**
- * ***No selection, or a selection*** — `turnSelection`, [P13.3]: the runner's
+ * ***No selection, or a selection*** — `turnSelection`, [P14.3]: the runner's
  * question asked in one place so the preview asks it the same way, and the
  * rule that a room nobody has been cast in is narrated rather than silent.
  */

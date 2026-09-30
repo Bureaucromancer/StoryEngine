@@ -13,8 +13,8 @@ import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../t
 
 /**
  * ***The narrative director and the secret plot, through the server*** —
- * [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.5b]'s *ends at*: *"a pushed turn's record shows the direction it was
+ * [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5b]'s *ends at*: *"a pushed turn's record shows the direction it was
  * given; a failed direction call falls back to the fixed text and says so; the
  * secret plot is in the prompt and not in the transcript until revealed."*
  *

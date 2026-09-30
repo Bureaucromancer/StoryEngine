@@ -377,7 +377,7 @@ describe('the live turn', () => {
 });
 
 /**
- * ***A round, painted as the chat it will be*** — [P13 §1.8], [P13.5].
+ * ***A round, painted as the chat it will be*** — [P14 §1.8], [P14.5].
  *
  * The three claims a simplification would break: a piece lands in the message
  * its index names and nowhere else but `text`; the between-speakers blank line

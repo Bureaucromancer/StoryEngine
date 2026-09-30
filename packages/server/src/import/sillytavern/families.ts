@@ -9,10 +9,10 @@ import { SPEAKER_BY_NAME } from './chat.js';
 
 /**
  * ***SillyTavern's families and groups*** —
- * [P13.9](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §0.1](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §2.5](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §2.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.9](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §0.1](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §2.5](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §2.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **What one file cannot say about itself.** The parser (`chat.ts`) reads a chat
  * file and stops at its edges: `main_chat` is a name, and which file that is —
@@ -38,7 +38,7 @@ import { SPEAKER_BY_NAME } from './chat.js';
  * ***What grouping needs to know about one chat file***, and nothing more — so
  * the pass can drop the chat itself once it has this.
  *
- * - **`path`** is the chat's identity ([P13 §0.2]): `chats/<card>/<name>.jsonl`,
+ * - **`path`** is the chat's identity ([P14 §0.2]): `chats/<card>/<name>.jsonl`,
  *   `group chats/<id>.jsonl`, or a bare file name for an upload.
  * - **`name`** is the file's name without `.jsonl` — the thing `main_chat` names,
  *   and a group's `chats` list.
@@ -58,7 +58,7 @@ export interface ChatHeading {
 
 /**
  * ***`groups/<id>.json`, read*** — the shape `endpoints/groups.js` writes
- * (`/create`, `:156-188`), reduced to what [P13 §2.5] and §2.6 map.
+ * (`/create`, `:156-188`), reduced to what [P14 §2.5] and §2.6 map.
  *
  * - **`members`**: the members' card files, in the group's order — which is
  *   the order `list` answers in, and the cast's.
@@ -67,9 +67,9 @@ export interface ChatHeading {
  *   through `members` (`enabledMembers`, `group-chats.js:1003`), so a stale
  *   entry mutes nobody there and must not mute anybody here.
  * - **`speakers`**: `activation_strategy` and `allow_self_responses` onto
- *   [P13 §1.2]'s fields, only as far as the file said them.
+ *   [P14 §1.2]'s fields, only as far as the file said them.
  * - **`generationMode`**: `generation_mode`, named, or null when the file did
- *   not say — recorded in a note and nothing else ([P13 §2.6]).
+ *   not say — recorded in a note and nothing else ([P14 §2.6]).
  * - **`chats`**: `chats`, the group's chat file names, plus `chat_id` (the one
  *   open) if the list somehow lacks it.
  * - **`legacyMetadata`**: each chat's `chat_metadata` as a group file written
@@ -93,8 +93,8 @@ export interface SillyTavernGroup {
 }
 
 /**
- * `group_activation_strategy` (`group-chats.js:122`) onto [P13 §1.3]'s arms —
- * the table [P13 §2.6] gives, and the order [06 §7.2] took the taxonomy in.
+ * `group_activation_strategy` (`group-chats.js:122`) onto [P14 §1.3]'s arms —
+ * the table [P14 §2.6] gives, and the order [06 §7.2] took the taxonomy in.
  */
 const STRATEGIES: Readonly<Record<number, NonNullable<ChatSettings['speakers']>['policy']>> = {
   0: 'natural',
@@ -259,11 +259,11 @@ export function legacyMetadataOf(
 }
 
 /**
- * ***One family, as the pass will build it*** — [P13 §2.5]'s *"a chat and every
+ * ***One family, as the pass will build it*** — [P14 §2.5]'s *"a chat and every
  * chat that points back to it"*.
  *
  * - **`key`** is the root chat's path, which is `ChatFamily.key` and so hashed
- *   into every turn id ([P13 §2.4]).
+ *   into every turn id ([P14 §2.4]).
  * - **`chats`**: root first, then the rest in creation order, each with the
  *   path of the chat it names as its parent — present in the family, or, for a
  *   root whose `main_chat` names a chat that is not here, the path that chat
@@ -297,7 +297,7 @@ export interface Families {
 }
 
 /**
- * ***A folder's chats, grouped into families*** — [P13 §0.1], [P13 §2.5].
+ * ***A folder's chats, grouped into families*** — [P14 §0.1], [P14 §2.5].
  *
  * **A chat's parent is the chat its `main_chat` names, in the same folder.**
  * Branches (`createBranch`, `bookmarks.js:186`) and checkpoints
@@ -321,12 +321,12 @@ export interface Families {
  * a stated parent, so a derivation that finds no chat is no parent and no note.
  *
  * ***A parent that is not here*** makes the chat a root of its own family
- * ([P13 §2.5]), keeping the pointer so the builder's `parentMissing` fires.
+ * ([P14 §2.5]), keeping the pointer so the builder's `parentMissing` fires.
  *
  * ***A parent that is here and was not read is not missing.*** `unread` is the
  * source's chats that were named and never parsed — over a browser upload's
  * limit, or refused. Building a branch of one as its own root would give its
- * turns ids hashed under its own path ([P13 §2.4]); when the parent arrives
+ * turns ids hashed under its own path ([P14 §2.4]); when the parent arrives
  * later the same lines come in again under the parent's key, a second copy
  * rather than `unchanged`. So such a chat, and every chat below it, is
  * {@link HeldBack held back} — not imported now, rather than imported as

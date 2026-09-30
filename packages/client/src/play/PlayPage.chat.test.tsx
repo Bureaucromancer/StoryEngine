@@ -14,8 +14,8 @@ import type { StreamHandlers } from './stream.js';
 
 /**
  * ***The play page as a chat*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.5].
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5].
  *
  * `PlayPage.test.tsx` holds the page's older claims and its fixtures have no
  * `chat`, which is itself a claim this file leans on: a session whose mode is
@@ -238,7 +238,7 @@ describe('the transcript as a chat', () => {
     expect(within(vera).getByText('She is relieved.')).toBeTruthy();
   });
 
-  it('draws a turn written before P13 as narration, with the chat’s gestures on it', async () => {
+  it('draws a turn written before P14 as narration, with the chat’s gestures on it', async () => {
     renderPage();
     const narration = await lineOf('The door opens.');
     // Nobody's line: no name above it, and nothing "by the same speaker".
@@ -346,7 +346,7 @@ describe('the gestures on a message', () => {
   });
 
   /**
-   * ***The editor's two marks*** — [P13 §1.9.4], [P13.5c]: an edited line
+   * ***The editor's two marks*** — [P14 §1.9.4], [P14.5c]: an edited line
    * offers what the model wrote, and a continuity finding on a line is applied
    * by the edit gesture with its one substitution.
    */
@@ -530,7 +530,7 @@ describe('the composer in a chat', () => {
   });
 
   /**
-   * ***Push story*** — [P13 §1.9.3], [P13.5b]: the director armed for one
+   * ***Push story*** — [P14 §1.9.3], [P14.5b]: the director armed for one
    * turn, sent as the submission's `push` and cleared once it is.
    */
   it('pushes the story for one turn, then forgets it', async () => {

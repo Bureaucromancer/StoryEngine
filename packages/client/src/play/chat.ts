@@ -5,8 +5,8 @@ import type { CardPromptPart, CastRow, ChatSettings, SwipeGroups } from '../api.
 
 /**
  * ***The chat surface's arithmetic*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.5].
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.5].
  *
  * Every decision the transcript, the cast panel and the composer make about a
  * chat that is not rendering: which lines are hidden and what a hide sends,
@@ -30,7 +30,7 @@ export function isMessageHidden(entry: HiddenEntry, index: number): boolean {
 
 /**
  * ***What a hide or an unhide of one message sends*** — the turn's whole entry,
- * because the route sets rather than toggles ([P13.4]).
+ * because the route sets rather than toggles ([P14.4]).
  *
  * *Unhiding one message of a turn hidden whole* keeps the rest hidden: the
  * entry becomes every other index. What it cannot keep is the input, which only
@@ -57,7 +57,7 @@ export function hideSent(
 }
 
 /**
- * ***The siblings a message's counter counts*** — [P13 §1.6]: *"the sibling
+ * ***The siblings a message's counter counts*** — [P14 §1.6]: *"the sibling
  * strip for siblings that differ only from message k is drawn on message k"*.
  *
  * The server groups them (`swipeGroups`): the siblings that answer the same
@@ -83,7 +83,7 @@ export function messageSiblings(
 /**
  * ***The siblings the turn's own strip keeps*** — the ones that answer a
  * different move, which no message's counter can hold. A turn not drawn as a
- * chat keeps them all, as it did before [P13.5]: a prose turn's siblings are
+ * chat keeps them all, as it did before [P14.5]: a prose turn's siblings are
  * redos of the whole of it.
  */
 export function turnSiblings(
@@ -96,7 +96,7 @@ export function turnSiblings(
 }
 
 /**
- * ***Who may be asked to speak*** — force-talk's three grounds ([P13 §1.3]):
+ * ***Who may be asked to speak*** — force-talk's three grounds ([P14 §1.3]):
  * seated, not the persona, and not dead or departed. **Muted members may**:
  * that is what *speak* is for, and it is SillyTavern's `force_chid` bypassing
  * `disabled_members`.
@@ -112,7 +112,7 @@ export function canSpeak(
 }
 
 /**
- * ***Whether anybody would answer a turn nobody was named for*** — [P13.4]'s
+ * ***Whether anybody would answer a turn nobody was named for*** — [P14.4]'s
  * note to this stage: *"a turn with no input and no reply happens only when
  * nobody in the cast is eligible, and the composer should not offer that
  * send, or should say it will get no reply."* Eligible is `canSpeak` and
@@ -138,7 +138,7 @@ export const CARD_PARTS: readonly CardPromptPart[] = ['system', 'post-history', 
 /**
  * ***What one card switch writes*** — the member's whole entry after the change:
  * `true` for *send everything* (the file's no entry), `false` for every part
- * skipped, which is [P13 §1.5]'s *"cards[actorId]: false skips that card's
+ * skipped, which is [P14 §1.5]'s *"cards[actorId]: false skips that card's
  * prompts entirely"*, and otherwise the parts skipped.
  */
 export function cardSwitch(
@@ -154,7 +154,7 @@ export function cardSwitch(
 
 /**
  * ***A card's talkativeness*** — `modeData[modeId].talkativeness`, SillyTavern's
- * 0-to-1 chance of joining a `natural` round, default 0.5 ([P13 §1.3]).
+ * 0-to-1 chance of joining a `natural` round, default 0.5 ([P14 §1.3]).
  *
  * *Read through the session's mode id*, as the runner reads it: talkativeness
  * is how a mode plays a card, and a client naming Scene's key would be that
@@ -194,7 +194,7 @@ export function withTalkativeness(
 
 /**
  * ***Where each message sits in `output.text`*** — so the mention overlay can
- * be drawn per message ([P13.5]).
+ * be drawn per message ([P14.5]).
  *
  * The spans a turn carries are offsets into `output.text`, which is the
  * messages' texts joined by a blank line with the empty ones left out

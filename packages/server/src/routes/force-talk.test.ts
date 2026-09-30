@@ -15,8 +15,8 @@ import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../t
 
 /**
  * ***Force-talk, through the route*** — `POST /sessions/:id/turns` with
- * `speakers`, [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.1].
+ * `speakers`, [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.1].
  *
  * ST's member *speak* button and `/trigger`, Marinara's `forCharacterId`: a
  * person names who should reply, and that overrides whatever the session's
@@ -224,7 +224,7 @@ describe('force-talk on submission', () => {
   });
 
   /**
-   * ***A rewrite keeps who was forced, read off the record*** — [P13.1]. A
+   * ***A rewrite keeps who was forced, read off the record*** — [P14.1]. A
    * `rewriteOf` submission sends no `speakers` of its own, and force-talk is
    * not a draw, so before the turn recorded it the rewrite played the
    * fixture's policy over an empty room and answered with nobody. The route

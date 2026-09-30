@@ -168,8 +168,8 @@ describe('the three formats agree', () => {
 });
 
 /**
- * ***The reading view names speakers from the same field*** — [P13 §1.8],
- * [P13.5]. A chat turn's messages carry who said each one, and all three
+ * ***The reading view names speakers from the same field*** — [P14 §1.8],
+ * [P14.5]. A chat turn's messages carry who said each one, and all three
  * renderings must name them alike; a turn with no attributed message reads as
  * it always did.
  */

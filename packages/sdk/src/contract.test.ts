@@ -143,7 +143,7 @@ describe('a mode can be written against the SDK alone', () => {
       { kind: 'text', label: 'Time' },
       { kind: 'image', label: 'Behind you' },
       { kind: 'toggle', label: 'Show the scene' },
-      // [P13.5a]'s two, and the record is the one with a payload of its own:
+      // [P14.5a]'s two, and the record is the one with a payload of its own:
       // field names from a closed vocabulary and two channel ids, never markup.
       { kind: 'meter', label: 'Health', max: 10 },
       {
@@ -191,7 +191,7 @@ describe('a mode can be written against the SDK alone', () => {
 
   /**
    * ***A step that voices several speakers, from this package alone*** —
-   * [P13.0](../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14.0](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * `OutputMessage` is a record type and lives in `shared`, so what this
    * asserts is that the re-export carries it: a mode author writing a group
@@ -210,7 +210,7 @@ describe('a mode can be written against the SDK alone', () => {
   });
 
   /**
-   * ***A round, fanned out from this package alone*** — [P13.2]. The session's
+   * ***A round, fanned out from this package alone*** — [P14.2]. The session's
    * voice and dispatch arrive on the input, a speaking call names its member,
    * and the result carries back who spoke and, when cleanup changed the reply,
    * what the model said — everything a step needs to write the turn's

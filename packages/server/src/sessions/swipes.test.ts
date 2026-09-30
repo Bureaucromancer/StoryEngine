@@ -8,7 +8,7 @@ import type { OutputMessage, Turn } from '@storyengine/shared';
 import { swipeGroups } from './swipes.js';
 
 /**
- * Where a sibling's counter is drawn — [P13 §1.6], [P13.5]. The route test
+ * Where a sibling's counter is drawn — [P14 §1.6], [P14.5]. The route test
  * plays a real swipe; these pin the grouping rules a route test cannot reach
  * cheaply: a swipe of a swipe, a continue, a greeting, and the one the first
  * cut got wrong — the same counter read from each of its members.

@@ -174,7 +174,7 @@ export async function advanceCommit(
 
 /**
  * ***What the head move writes beside the turn*** — added 2026-09-29, at the
- * [P13.4] review. `hidden` is the new turn's `session.hidden` entry, which a
+ * [P14.4] review. `hidden` is the new turn's `session.hidden` entry, which a
  * swipe, a continue or an edit carries from the turn it names
  * (`TurnPayload.hidden`); written by `advanceHead` in the same session write
  * as the head, under the lock this protocol already holds.

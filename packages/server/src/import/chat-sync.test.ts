@@ -33,8 +33,8 @@ import { sweep } from './sweep.js';
 
 /**
  * ***Sync: a re-import extends the session it came from*** —
- * [P13.10a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §2.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.10a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The stage's *Ends at*, first and as a person would find it: a chat imported,
  * then grown in SillyTavern by three messages, an edit and a new branch, and
@@ -662,7 +662,7 @@ describe('a session imported before sync existed', () => {
     const first = await run({ ...sillyTavernFixture(), ...before() });
     const sessionId = row(first, ROOT).objectId ?? '';
 
-    // What P13.8 to P13.10 wrote: no source on the session, no sync record.
+    // What P14.8 to P14.10 wrote: no source on the session, no sync record.
     const context = server.services.sessions;
     const here = await readSession(context, 'ned', sessionId);
     await writeJsonAtomic(sessionFilePath(context.layout, 'ned', sessionId), {

@@ -76,8 +76,8 @@ const TENTHS = Array.from({ length: 11 }, (_, at) => at / 10);
  * questions and a cast member can be either without the other — `castBadge`
  * derives the first from presence and status, `partyBadge` says the second.*
  *
- * ***And since [P13.5], the chat's own four*** —
- * [P13 §1.8](../../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+ * ***And since [P14.5], the chat's own four*** —
+ * [P14 §1.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
  * *"the cast panel gains add and remove, over `PUT /sessions/:id/cast`, which
  * exists and has no client; mute (presence); talkativeness; speak."* Plus the
  * card's prompt switches, which §1.5 puts here *"because that is where a
@@ -85,10 +85,10 @@ const TENTHS = Array.from({ length: 11 }, (_, at) => at / 10);
  *
  * - **Mute is presence**, relabelled rather than re-plumbed. Under a chat's
  *   `castIsPresent` a member nobody touched is present and `false` is
- *   muted ([P13 §1.3]) — so in an embodied chat the one checkbox reads
+ *   muted ([P14 §1.3]) — so in an embodied chat the one checkbox reads
  *   *Muted* and writes the same channel *In the scene* always did.
  * - **Talkativeness is the card's, not the session's**, and the control says
- *   so. [P13 §1.3] puts it at `actor.modeData[mode].talkativeness` —
+ *   so. [P14 §1.3] puts it at `actor.modeData[mode].talkativeness` —
  *   *"participation, not prompt"* — which is where SillyTavern keeps it too
  *   and where an import writes it. A per-session value would be a second
  *   answer the runner does not read. So changing it here edits the card in
@@ -278,7 +278,7 @@ function CastMember(props: {
 
       <div className="flex flex-wrap gap-2">
         <label className="flex items-center gap-1 text-sm text-ink-muted">
-          {/* In a chat, presence `false` is a mute ([P13 §1.3]), and the box
+          {/* In a chat, presence `false` is a mute ([P14 §1.3]), and the box
               says so the right way up: ticked means *muted*. */}
           <input
             type="checkbox"
@@ -368,7 +368,7 @@ function CastMember(props: {
 
 /**
  * ***How readily a member joins a `natural` round*** — SillyTavern's slider, in
- * tenths, written to the card ([P13 §1.3]; see the panel's docstring on why the
+ * tenths, written to the card ([P14 §1.3]; see the panel's docstring on why the
  * card and not the session). A percentage in the reader's own number format,
  * with the two ends named, since *0%* and *100%* are the two values whose
  * meaning is not a chance.

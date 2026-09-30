@@ -58,13 +58,13 @@ export interface Passage {
   /** The story's own words, absent on a turn that never produced any. */
   prose: string | null;
   /**
-   * ***The same words, by who said them*** — [P13 §1.8]'s *"the reading view
-   * names speakers from the same field"*, added at [P13.5].
+   * ***The same words, by who said them*** — [P14 §1.8]'s *"the reading view
+   * names speakers from the same field"*, added at [P14.5].
    *
    * One line per message of `output.messages`, each with its speaker's name as
    * the record holds it (the `Ref` carries it, so a card since deleted is still
    * named) and null for a narrator's line. **Null for a turn with no
-   * attributed message** — one written before P13, or narrated — which reads
+   * attributed message** — one written before P14, or narrated — which reads
    * as `prose` did, because giving a paragraph by nobody a speaker would be
    * inventing one. An empty message is left out, as `output.text` leaves it.
    */

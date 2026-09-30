@@ -490,7 +490,7 @@ the default and is what StoryEngine calls the unconflated version of that;
 it costs the opening messages, which a lorebook has nowhere to hold.
 
 **A chat file becomes a session** —
-[P13.8](design/workplan/30-p13-scene-and-session-import.md). A SillyTavern chat,
+[P14.8](design/workplan/31-p14-scene-and-session-import.md). A SillyTavern chat,
 or Marinara's per-chat export of the same format, is JSON Lines, and it is
 recognised by its **content**, never its `.jsonl` name: two object lines, a
 header carrying `chat_metadata`, or — an old group chat holding only its
@@ -501,7 +501,7 @@ the account's library, and it is loaded as a new session in Play: `201` with
 answers `200` `unchanged` with `import.chat.alreadyHere`. One whose beginning a
 session holds and which has grown in its source since answers `recorded` with
 `import.chat.grownSince`, counting the turns left out: updating a session from
-its source is [P13.10a](design/workplan/30-p13-scene-and-session-import.md)'s,
+its source is [P14.10a](design/workplan/31-p14-scene-and-session-import.md)'s,
 and until then a grown chat is neither unchanged nor a second copy.
 
 **An optional `kind` field, `chat`, makes this door take a chat and nothing
@@ -613,11 +613,12 @@ way: `403 {"error":"no-file-access"}`, and every `422` listed above. A cheaper
 gate here would be a way to ask questions about the filesystem that the route
 which actually reads it refuses to answer.
 
-`verdict` is what the probes decided: `sillytavern`, `marinara`, or
-`loose-files` for a folder that matches nothing. Those are the only three a
-directory can produce — `marinara-archive` and `marinara-envelope` are members of
-the same vocabulary but are reached on the upload path, never by pointing at a
-folder.
+`verdict` is what the probes decided: `sillytavern`, `marinara`, `charx` (an
+unpacked CHARX card), `storyengine-backup` (an unpacked backup, whose library is
+imported and whose sessions, tags and settings are listed and left), or
+`loose-files` for a folder that matches nothing. Those are the five a directory
+can produce — `marinara-archive` and `marinara-envelope` are members of the same
+vocabulary but are never produced by pointing at a folder.
 
 **It never lists a directory.** Every answer is a yes/no probe at a path this
 build already names in its own source. [10 §4.2.2](design/10-ui-surfaces.md)
@@ -676,7 +677,7 @@ path to point anywhere with, so acting on the advice means picking again.
 classification refusals as the sweep.
 
 **Chats are opt-in** —
-[P13.8](design/workplan/30-p13-scene-and-session-import.md). They are most of a
+[P14.8](design/workplan/31-p14-scene-and-session-import.md). They are most of a
 SillyTavern tree's bytes, and a person who picked their data folder to bring in
 their cards has not thereby asked to send years of conversation. So `wanted`
 leaves them out unless the body says `chats: true`, and `chats` says what
@@ -1156,7 +1157,7 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
 }
 ```
 
-`openingTurn` (added at [P13.5](design/workplan/30-p13-scene-and-session-import.md))
+`openingTurn` (added at [P14.5](design/workplan/31-p14-scene-and-session-import.md))
 says whether a new session opens on its cast's written greetings, so a creation
 form offers each member's opening only for a mode that writes one — the
 creation body's `openings` is read by no other.
@@ -1652,7 +1653,7 @@ this is every placement a mode asked for. A `kind` or a `region` a client does
 not know is **skipped**, which is what keeps both vocabularies additive — and
 there is deliberately no `html` anywhere in either ([10 §8]).
 
-*Since P13.5a* ([P13 §1.9.2](design/workplan/30-p13-scene-and-session-import.md)):
+*Since P14.5a* ([P14 §1.9.2](design/workplan/31-p14-scene-and-session-import.md)):
 a fifth region, `settings` (the session's settings, where Scene's tracker
 switches go), and an optional `group` — the heading a contribution is drawn
 under. Two more arms: `meter: { value, min, max }`, a stat bar, and
@@ -1710,11 +1711,11 @@ session's head, so they are the state a panel should be showing rather than a
 summary of the file.
 
 `chat` is how the session plays as a chat
-([P13 §1.2](design/workplan/30-p13-scene-and-session-import.md), added at
-[P13.5]): `{ voice, dispatch, speakers: { policy, allowSelfResponses,
+([P14 §1.2](design/workplan/31-p14-scene-and-session-import.md), added at
+[P14.5]): `{ voice, dispatch, speakers: { policy, allowSelfResponses,
 namesInHistory, maxPerRound }, note | null, hidden, prompts: { instruction,
 cards } }`, **the effective settings** as the server's one reader resolves them
-— so a Scene session written before P13 shows the narrated, merged, `fixed`
+— so a Scene session written before P14 shows the narrated, merged, `fixed`
 values its turns actually get, not Scene's declared ones. **Absent for a mode
 that does not play as a chat** (one that does not declare `castIsPresent`),
 which is `dials`' rule.
@@ -1764,11 +1765,11 @@ once is the `404` or `409` a moment's later look would give.
 maxPerRound? }, note?: { text, depth, every } | null, prompts?: { instruction?,
 cards?: { [actorId]: boolean | parts[] } } }` → `200 { session, chat }`, the
 second being the effective settings after the write. Added at
-[P13.5](design/workplan/30-p13-scene-and-session-import.md); at least one member
+[P14.5](design/workplan/31-p14-scene-and-session-import.md); at least one member
 is required, and the vocabularies are closed (`400` otherwise).
 
 ***Writing any of voice, dispatch and speakers writes all three.*** A session
-carrying none of them was written before P13 and reads as its mode's legacy
+carrying none of them was written before P14 and reads as its mode's legacy
 values; writing `dispatch` alone would make it modern and let its absent
 `voice` fall to the mode's declared one, re-voicing a saved game. So the route
 reads the effective three first and puts all of them on the file, the request
@@ -1785,8 +1786,8 @@ the running turn read its settings before it started.
 ### `PUT /api/sessions/:sessionId/turns/:turnId/hidden`
 
 `{ hidden: true | false | number[] }` → `200 { session }` —
-[P13 §1.6](design/workplan/30-p13-scene-and-session-import.md)'s hide, built at
-[P13.4]. **A set, not a toggle**: `true` hides the turn whole, input included;
+[P14 §1.6](design/workplan/31-p14-scene-and-session-import.md)'s hide, built at
+[P14.4]. **A set, not a toggle**: `true` hides the turn whole, input included;
 a list hides those message indices; `false` or `[]` unhides. `404 no-such-turn`
 for a turn this session does not have, `422 no-such-message` for an index past
 its messages. History skips what is hidden, and the transcript ghosts it.
@@ -1803,10 +1804,10 @@ alternative is reachable at all — a swipe is a sibling nobody named, and witho
 this it would be on disk and invisible. A map of every turn to its lone self
 would grow with the transcript and say nothing.
 
-`swipes` (added at [P13.5](design/workplan/30-p13-scene-and-session-import.md))
+`swipes` (added at [P14.5](design/workplan/31-p14-scene-and-session-import.md))
 says, for each of those nodes, **where its siblings are drawn**:
 `{ messages, turn }`. `messages[k]` is the ordered alternatives on message *k*'s
-counter — [P13 §1.6]'s *"swipes surface on the message, not the turn"* — the
+counter — [P14 §1.6]'s *"swipes surface on the message, not the turn"* — the
 turn itself among them, or `[]` when there is only one. The counter is built
 from the siblings that answer the same move and say the same messages `0..k-1`,
 one alternative per distinct message *k* (by speaker and text), ordered by the
@@ -1825,10 +1826,15 @@ one file part, the library import's two-step shape
 ([10 §11.2b](design/10-ui-surfaces.md)): the bytes first, then the turn names
 them by digest in its ordinary JSON body.
 
-→ **201** `{ attachment: { digest: "sha256:…", mime, bytes } }`; **413
-`too-large`** past 8 MB; **415 `not-an-image`** unless the bytes are a PNG,
-JPEG or WebP **by their own signature** — never by the file name or the part's
-declared type.
+→ **201** `{ attachment: { digest: "sha256:…", mime, bytes, width?, height? } }`
+— the pixel size read from the file's header, absent if it could not be read;
+**413 `too-large`** past 8 MB; **415 `not-an-image`** unless the bytes are a
+PNG, JPEG or WebP **by their own signature** — never by the file name or the
+part's declared type; **404 `not-found`** when the session was deleted while the
+picture was on its way — the store is written under the session's lock and only
+while the session is there, so a late upload never recreates a deleted
+session's folder; **422 `refused-path`** when the session's folder leads
+somewhere else on disk.
 
 **Never re-encoded here.** The client scales a picture down and re-encodes it
 before upload, and **fails closed**: a browser that cannot re-encode refuses
@@ -1836,12 +1842,18 @@ rather than sending the original, because a phone photograph records where it
 was taken. The server keeps its position of having no raster encoder, so this
 route stores exactly the bytes it was given, under their own content address in
 `sessions/<id>/attachments/` ([03 §5.5](design/03-data-model.md)). The same
-picture uploaded twice is one file.
+picture uploaded twice is one file, and **uploading it again renews it**: the
+sweep below counts a day from the last time anybody wanted a picture, not from
+the first time it was written.
 
-**The upload also sweeps**: pictures no turn in the session names — every turn,
-siblings and tombstones included, never only the head path — and nobody has
-touched for a day are removed. On age rather than on commit, because the
-composer holds uploads no turn names yet while the session goes on committing.
+**The upload also sweeps**: pictures no turn in the session names — every turn a
+reader sees, siblings included, never only the head path — and nobody has
+wanted for a day are removed. On age rather than on commit, because the composer
+holds uploads no turn names yet while the session goes on committing; a
+submitted move renews its pictures too, so one is safe while its turn is still
+running. Only names this store writes are ever removed, and the turns are read
+only when something is old enough to go. *A tombstoned turn is not a
+reference* — the reader skips it, and nothing writes tombstones at 1.0.
 
 `GET` serves the bytes in the rendition asset route's shape: `content-type`
 from the store, the digest as the `etag`, and cached as immutable, since the
@@ -1855,7 +1867,8 @@ that caption with a placeholder where the picture would be.
 ```
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
   rewriteOf?: string, redoOf?: string,
-  input: { text, actorId?, kind?, attachments?: [{ digest, caption? }] },
+  input: { text, actorId?, kind?, attachments?: [{ digest, caption? }],
+           attachmentsOf?: string },
   guidance?, speakers?: string[], push?: "natural"|"random" }
 ```
 
@@ -1909,13 +1922,21 @@ with `guidance`; the schema does not couple them.
 **`input.attachments` names pictures already uploaded to this session** —
 at most four, each by digest with an optional caption
 ([25 E15](design/25-open-questions.md)). **Digests and captions are all a client
-says**: the type and size on the turn are read from this server's store, on
-`rewriteOf`'s reasoning. A digest the store does not hold is **`422
-unknown-attachment`**, carrying the `digest` — unless a turn already in this
-session names it, which is the redo of an imported turn whose bytes never
-travelled. Refusing that redo would make a session that once had a picture
-harder to continue than one that never did, so it is recorded as it was and
-goes to every model as its words.
+says**: the type, size and dimensions on the turn are read from this server's
+store, on `rewriteOf`'s reasoning. A digest the store does not hold is **`422
+unknown-attachment`**, carrying the `digest`.
+
+**`input.attachmentsOf` is a redo's pictures**: a turn in this session whose
+`input.attachments` this move carries, **copied as recorded** — every id, kind
+and caption, and a picture whose bytes never reached this server, which is the
+ordinary state of an imported turn and goes to every model as its words.
+Type, size and dimensions are re-read for any picture whose bytes are here now.
+A turn that is not in this session is **`404 no-such-turn`**, and naming both
+`attachments` and `attachmentsOf` is **`400`**. *Why a turn rather than a
+re-sent list*: the client can only re-send what it can name, so a rebuilt list
+lost every picture without a digest and turned a kind this build does not know
+into `image` — which, bytes present, a model that sees would then have been
+sent.
 
 **The caption is the picture for every model that cannot see it**, and it is
 never folded into `input.text`, which stays the player's words. Whether the
@@ -1923,8 +1944,11 @@ pixels go is decided **per call**, from the model the call resolved to: only a
 picture on the move being taken, in a user message, to a model its connection
 lists in `imageModels` (below), with its bytes present. Otherwise the caption
 goes, or an honest placeholder when there is none — and the assembled block's
-`image` says which and why (`model-text-only`, `outside-window`,
-`missing-bytes`, `not-user-role`, `unknown-kind`). Nothing records a session as
+`image` says which and why (`unknown-kind`, `outside-window`, `not-user-role`,
+`missing-bytes`, `model-text-only`, in the order the record prefers when several
+hold: the model last, since it is the one reason another binding fixes; and
+`budget` when the budgeter dropped the block — a picture in history, or a
+step's own — so neither went). Nothing records a session as
 able to see pictures, which is what keeps one used with a model that sees
 continuable on a model that does not.
 
@@ -1933,7 +1957,7 @@ field this server did not know got a `200` and was silently dropped from the
 turn; a closed object answers `400`, which a client can act on.
 
 **`speakers` is force-talk**
-([P13 §1.3](design/workplan/30-p13-scene-and-session-import.md), P13.1):
+([P14 §1.3](design/workplan/31-p14-scene-and-session-import.md), P14.1):
 actor ids, in the order they should reply, and **it overrides the session's
 speaker policy** — SillyTavern's member *speak* button and `/trigger`,
 Marinara's `forCharacterId`. It reaches a **muted** member, which is what it is
@@ -1956,7 +1980,7 @@ the session's policy; a client that wants the same member again sends
 `speakers` again.
 
 **`push` is Push story**
-([P13 §1.9.3](design/workplan/30-p13-scene-and-session-import.md), P13.5b):
+([P14 §1.9.3](design/workplan/31-p14-scene-and-session-import.md), P14.5b):
 the narrative director armed for this one turn — `natural` moves the story on
 through what it already has, `random` brings in something plausible nobody saw
 coming. It runs `se.scene.direct` before the reply, one small call whose
@@ -2002,7 +2026,7 @@ selector did not run**, which is every session with no pool — never *it ran an
 had nothing to say*.
 
 **A `se.speakers.smart` outcome in `turn.steps` says who smart order picked and
-why** ([P13 §1.3a](design/workplan/30-p13-scene-and-session-import.md), P13.1).
+why** ([P14 §1.3a](design/workplan/31-p14-scene-and-session-import.md), P14.1).
 The step runs only on a turn of a `smart` session that no rule settled — nobody
 forced, nobody named, more than one member who may reply — so most turns of such
 a session have no such outcome. When it is there it carries `speakers: { by,
@@ -2016,7 +2040,7 @@ completes. `because` is the model's one line for that member and is absent on a
 fallback or a rewrite, where nobody was asked.
 
 **A `se.scene.direct` outcome in `turn.steps` says what a push directed**
-([P13 §1.9.3](design/workplan/30-p13-scene-and-session-import.md), P13.5b),
+([P14 §1.9.3](design/workplan/31-p14-scene-and-session-import.md), P14.5b),
 present only on a pushed turn. It carries `direction: { push, by, text? }`:
 `by` is `model` when the director answered and `fallback` when the pack's fixed
 text stood in — a `failed` outcome under `failure: "warn"`, whose `error` says
@@ -2025,7 +2049,7 @@ only when the call failed and the pack ships no push text, so the turn ran
 undirected.
 
 **An outcome with `revisions` says what an editor did to the turn's messages**
-([P13 §1.9.4](design/workplan/30-p13-scene-and-session-import.md), P13.5c) —
+([P14 §1.9.4](design/workplan/31-p14-scene-and-session-import.md), P14.5c) —
 Scene's `se.scene.edit`, or any step whose mode declares `revises`. It is
 `[{ index, edited?, changes?, notices? }]`, one row per message the editor had
 something to say about, by the message's index in `output.messages` (a turn with
@@ -2203,10 +2227,14 @@ workbench decides between showing the composed turn and the last committed one.
 
 `input.attachments` previews the pictures in the composer, and each picture's
 block carries the same `image` disclosure a turn's does — so *will this model
-see the picture* is answerable before sending. **A digest the store does not
-hold is dropped here rather than refused**: the preview runs every time
-somebody pauses typing, and a picture removed from the composer a moment ago is
-not a request worth a `422`. And since 2026-09-27 the preview resolves its model
+see the picture* is answerable before sending, and the composer says it under
+each picture. **A digest the store does not hold is left out here rather than
+refused, and only that one**: the preview runs every time somebody pauses
+typing, and a picture swept a moment ago is not a request worth a `422` — nor a
+reason to hide the pictures that are fine. The rest keep the ids they will have
+when the move is sent. And **`input` without a `kind` previews the kind a
+submission defaults to** (`do`), so a pack whose input slots are all per-kind —
+Freeform's — previews the move's words and pictures rather than neither. And since 2026-09-27 the preview resolves its model
 through the same session and step layers, and the same actor hint, as the turn
 does; before, it read the account's binding alone, and could name a different
 model from the one that answered — which the send rule would have made a
@@ -2287,7 +2315,7 @@ Refusals, each a class the client words:
 
 No body. Runs one of the session's mode's **on-demand steps** between turns —
 Scene's is `se.scene.track`, *Update trackers*
-([P13 §1.9.2](design/workplan/30-p13-scene-and-session-import.md), P13.5a). →
+([P14 §1.9.2](design/workplan/31-p14-scene-and-session-import.md), P14.5a). →
 `200 { session, turn, health, hud, surfaces }` when it changed something, or
 `200 { turn: null, callId }` when it had nothing to change (no tracker on, or a
 call that found the scene as it was).
@@ -2356,11 +2384,11 @@ rather than every delta that painted it live, which [P2 §2.10](design/workplan/
 states as the trade; the snapshot's `text` is what makes that lossless.
 
 **`message` is which of the turn's messages a delta belongs to** — added at
-[P13.2](design/workplan/30-p13-scene-and-session-import.md), for a round under
+[P14.2](design/workplan/31-p14-scene-and-session-import.md), for a round under
 `per-actor` dispatch, where each speaker's call streams into a message of its
 own. It is the index into the turn's `output.messages`, and `call.started` and
 `call.streaming` carry the same `message` in their `params` — and since
-[P13.5], `call.started` carries the message's `speaker` too, `{ id, name }`, so
+[P14.5], `call.started` carries the message's `speaker` too, `{ id, name }`, so
 a client can name the bubble as it opens. It is **absent**
 on a narrator's text and on the blank line the server sends between two
 speakers, so a client that appends every delta's `text` to one string — every
@@ -2371,7 +2399,7 @@ committed message can be shorter than what streamed; the draft and the turn
 say what was kept.
 
 **`speakers.picked` is the round's order** — `{ speakers: [{ id, name }], by }`,
-added at [P13.5] for [P13 §1.3a](design/workplan/30-p13-scene-and-session-import.md)'s
+added at [P14.5] for [P14 §1.3a](design/workplan/31-p14-scene-and-session-import.md)'s
 *"while a round streams, the who-speaks-next control shows the picked order"*
 (Marinara's `response_queue`). Sent once per turn, when the selection is final:
 `by` is `rules` when the policy drew it, `forced` when the submission named
@@ -3394,7 +3422,7 @@ proof obligation arriving for free.
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
 | 409 | `exists` | An account with that handle already exists |
 | 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
-| 413 | `too-large` | The preference document would exceed its size cap, or an upload exceeds `limits.maxUploadMb` |
+| 413 | `too-large` | The preference document would exceed its size cap, an upload exceeds `limits.maxUploadMb`, or it exceeds a route's own fixed cap — an avatar's, or a picture on a move's (8 MB) |
 | 415 | `not-multipart` | An upload that was not `multipart/form-data` |
 | 403 | `no-file-access` | A sweep from an account without the `fileAccess` capability |
 | 422 | `inside-data-root` / `not-absolute` / `unreadable-root` | A sweep root this build will not read |

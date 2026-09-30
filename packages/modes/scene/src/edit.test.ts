@@ -26,7 +26,7 @@ import {
 import { SCENE_ID } from './mode.js';
 
 /**
- * ***The editor, held to [P13 §1.9.4]*** — [P13.5c].
+ * ***The editor, held to [P14 §1.9.4]*** — [P14.5c].
  *
  * The step's claims, each with the mutation that falsifies it: **off costs
  * nothing**; **one call per message, carried lines skipped**; **an edit is a

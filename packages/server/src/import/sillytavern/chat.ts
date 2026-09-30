@@ -14,7 +14,7 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
  * ***One SillyTavern chat file, read*** —
- * [P13.7](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+ * [P14.7](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
  * the bytes of one `.jsonl` in, the tree builder's {@link ChatSourceChat} out,
  * with what the file's header says about the chat and what the person should
  * be told.
@@ -28,13 +28,13 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
  * (`getChatData`, `endpoints/chats.js:502`, filters every line `JSON.parse`
  * refuses). Only a file with nothing in it to read is refused.
  *
- * ***Two sources, one format*** — [P13 §0.4]. Marinara's per-chat export
+ * ***Two sources, one format*** — [P14 §0.4]. Marinara's per-chat export
  * (`chats.routes.ts:3596`) writes this same JSONL with a few extras of its own —
  * `extra.marinara_role`, `extra.marinara_character_id`, `extra.marinara_swipes`
  * and `chat_metadata.marinara_metadata` — and the one place it and SillyTavern
  * disagree is load-bearing: **Marinara writes `is_system` for its `system`
  * role**, where SillyTavern's `is_system` means *hidden from the prompt*
- * ([P13 §0.5]). A line carrying Marinara's role is therefore read by Marinara's
+ * ([P14 §0.5]). A line carrying Marinara's role is therefore read by Marinara's
  * meaning of every flag, and a line without one by SillyTavern's. Reading
  * Marinara's system lines as hidden would silently drop every scene-setting
  * line from the prompt of every Marinara chat; reading SillyTavern's hidden
@@ -44,12 +44,12 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
  * file to decide it:
  * - **families** — `main_chat` names a chat by the name SillyTavern gave it,
  *   and which file that is, and whether it is here, is a question about the
- *   folder ([P13.9], `families.ts`); so {@link SillyTavernChatMeta.mainChat} is
+ *   folder ([P14.9], `families.ts`); so {@link SillyTavernChatMeta.mainChat} is
  *   the raw name;
  * - **resolution** — which library object a speaker key or a lorebook name is
- *   ([P13.8]); so speakers are {@link ForeignRef}s in the source's own terms;
+ *   ([P14.8]); so speakers are {@link ForeignRef}s in the source's own terms;
  * - **group settings** — activation strategy, self-responses and muted members
- *   live in `groups/<id>.json`, not in the chat ([P13.9], `families.ts`).
+ *   live in `groups/<id>.json`, not in the chat ([P14.9], `families.ts`).
  */
 
 /**
@@ -76,16 +76,16 @@ import { parsed, refused, type ParseOutcome } from '../parse.js';
  * - **`mainChat`**: `chat_metadata.main_chat` — the name, without extension, of
  *   the chat this one was branched or checkpointed from (`bookmarks.js:199`,
  *   `:281`). *A name, not an id*: turning it into a chat of the family is
- *   [P13.9]'s, which has the folder to look in.
+ *   [P14.9]'s, which has the folder to look in.
  * - **`integrity`**: `chat_metadata.integrity`. **It names a family, not a
- *   chat** ([P13 §0.2]): a branch inherits its parent's.
+ *   chat** ([P14 §0.2]): a branch inherits its parent's.
  * - **`persona`**: `chat_metadata.persona`, the persona locked to the chat, as
  *   the same key a player's line carries (`User Avatars/<file>`), so the
  *   resolver reads one vocabulary for both.
  * - **`worldInfo`**: `chat_metadata.world_info`, the chat's own lorebook by name
- *   (`world-info.js:94`), for [P13 §2.5]'s `worlds/<name>.json`.
- * - **`note`**: the author's note ([P13 §2.6]), in the session's own shape.
- * - **`marinara`**: `chat_metadata.marinara_metadata` as written, for [P13.10],
+ *   (`world-info.js:94`), for [P14 §2.5]'s `worlds/<name>.json`.
+ * - **`note`**: the author's note ([P14 §2.6]), in the session's own shape.
+ * - **`marinara`**: `chat_metadata.marinara_metadata` as written, for [P14.10],
  *   which maps Marinara's chat settings for the profile path and should map
  *   them once. *Carried rather than read here* because reading them twice is
  *   two opinions about Marinara, and the profile is the path with the tables to
@@ -127,15 +127,15 @@ export interface SillyTavernChat {
  * key says what is known, and **it cannot collide with a card**: SillyTavern
  * passes every avatar file name through `sanitize-filename`, which strips `:`.
  *
- * Exported for the resolver ([P13.8]): a key with this prefix has no file to
- * look up, and goes straight to [P13 §2.5]'s unique-name match.
+ * Exported for the resolver ([P14.8]): a key with this prefix has no file to
+ * look up, and goes straight to [P14 §2.5]'s unique-name match.
  */
 export const SPEAKER_BY_NAME = 'name:';
 
 /**
  * ***A chat file, as a reader hands it on*** — the `ImportCandidate.format` of
  * a SillyTavern (or Marinara-exported) `.jsonl`,
- * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * Named here, beside the parser the candidate ends at, because three places
  * spell it and must agree: the tree reader routing `chats/` and `group chats/`
@@ -151,7 +151,7 @@ export const SILLYTAVERN_CHAT_FORMAT = 'sillytavern.chat';
 /**
  * ***A group's own file*** — `groups/<id>.json`, its members, its reply
  * strategy and who is muted. Routed to the session pass with the chats, because
- * that is where [P13.9] reads it (`families.ts`, `parseSillyTavernGroup`): a
+ * that is where [P14.9] reads it (`families.ts`, `parseSillyTavernGroup`): a
  * group chat's roster and settings come from here, and the chats it names are
  * in `group chats/`. Its row points at the sessions it set up.
  */
@@ -159,11 +159,11 @@ export const SILLYTAVERN_GROUP_FORMAT = 'sillytavern.group';
 
 /**
  * ***A group's greetings share one batch***, so they become one opening turn —
- * [P13 §1.7]'s *"each member's primary opening, as one message each"*.
+ * [P14 §1.7]'s *"each member's primary opening, as one message each"*.
  *
  * SillyTavern gives each greeting its own `gen_id`, and a random one
  * (`Date.now() * Math.random() * 1000000`, `group-chats.js:600`), so read
- * literally every member's greeting is a batch of its own and [P13 §2.2]'s rule
+ * literally every member's greeting is a batch of its own and [P14 §2.2]'s rule
  * makes each its own turn. That is not a distinction anybody made: the greetings
  * are written together, all at once, when the group chat is created
  * (`getGroupChat`, `group-chats.js:280`). A string that no `gen_id` can be — they
@@ -207,7 +207,7 @@ const GROUP = /^group chats\/[^/]+$/;
  * Where SillyTavern's author's note can sit outside the history —
  * `extension_prompt_types` (`script.js:483`) `IN_PROMPT` (after the story
  * string) and `BEFORE_PROMPT` (before it); the third, `IN_CHAT`, is the only
- * place this session's note can be, since [P13 §1.5] places a note in the
+ * place this session's note can be, since [P14 §1.5] places a note in the
  * history at a depth and nowhere else.
  */
 const NOTE_OUTSIDE_HISTORY: ReadonlySet<unknown> = new Set([0, 2]);
@@ -220,7 +220,7 @@ const NOTE_ROLES: Readonly<Record<number, string>> = { 1: 'user', 2: 'assistant'
  * `path` is the file's place in the source, relative to the SillyTavern user
  * directory — `chats/Vera/Vera - 2024-07-12@01h31m37s123ms.jsonl`,
  * `group chats/2024-07-12@01h31m37s.jsonl` — or a bare file name when the file
- * arrived alone. It is the chat's id ([P13 §0.2]: *"a chat's own identity is
+ * arrived alone. It is the chat's id ([P14 §0.2]: *"a chat's own identity is
  * its path"*), the prefix of every line's foreign id, and, for a single chat,
  * the only place the file says whose chat it is.
  *
@@ -230,7 +230,7 @@ const NOTE_ROLES: Readonly<Record<number, string>> = { 1: 'user', 2: 'assistant'
  * - `missing-field` (`messages`) — a header and nothing a person wrote.
  *
  * ***`legacyMetadata`*** is a group chat's `chat_metadata` as its group file
- * kept it, before SillyTavern moved it into the chat ([P13.9],
+ * kept it, before SillyTavern moved it into the chat ([P14.9],
  * `families.ts`'s `legacyMetadataOf`). It is read only when the file's own
  * header carries none — the condition SillyTavern's migration tests
  * (`alreadyHasMetadata`, `groups.js:78`) before writing it in — so a chat
@@ -330,7 +330,7 @@ export function parseSillyTavernChat(
      * alone — while `swipe_info[0]` keeps the greeting's own record, with
      * neither (`ensureSwipes` and `syncMesToSwipe`, `script.js:6802`, `:6880`).
      * Read from the line, the greeting would end the greetings with itself
-     * whenever its regenerated swipe was the one showing, and [P13 §1.7]'s one
+     * whenever its regenerated swipe was the one showing, and [P14 §1.7]'s one
      * opening turn would split in two over which swipe the person left up.
      */
     if (role === 'user') greetings = false;
@@ -344,11 +344,11 @@ export function parseSillyTavernChat(
     const reasoning = role === 'user' ? undefined : reasoningOf(line, extra);
     /**
      * ***Only a character line carries its batch.*** `gen_id` is what one
-     * group generation shares ([P13 §2.2]), and SillyTavern stamps it on
+     * group generation shares ([P14 §2.2]), and SillyTavern stamps it on
      * narrator and comment lines too — but there it is only the clock at the
      * moment the slash command ran (`slash-commands.js:6037`), marking a line
      * that no generation produced. Passed on, it would make a `/sys` line typed
-     * after a group's replies a turn of its own, where [P13 §2.2] puts a
+     * after a group's replies a turn of its own, where [P14 §2.2] puts a
      * narrator line *"in the round it falls in"*.
      */
     const batch =
@@ -392,7 +392,7 @@ export function parseSillyTavernChat(
    * *Attachments arrive as a count, never as bytes.* SillyTavern keeps an
    * attachment as a path or a URL into its own user directory (`extra.files`,
    * `extra.media` and their older spellings, `script.js:2060`), and Marinara as
-   * a row of its own; neither is in the chat file. [P13 §2.6]: *"attachments
+   * a row of its own; neither is in the chat file. [P14 §2.6]: *"attachments
    * without bytes"* are a note.
    */
   if (counts.attachments > 0) {
@@ -404,7 +404,7 @@ export function parseSillyTavernChat(
   }
   /**
    * *Which model wrote a reply is not carried, and the person is told once.*
-   * [P13 §2.6]: *"A `TurnRequest` built from three of its fields is a
+   * [P14 §2.6]: *"A `TurnRequest` built from three of its fields is a
    * fabrication of the other twenty."* Slash-command lines are left out of the
    * count: their `model` is SillyTavern's name for *typed by hand*.
    */
@@ -417,7 +417,7 @@ export function parseSillyTavernChat(
   }
   /**
    * *Chat variables are state a script wrote* (`/setvar`), read back by macros
-   * and scripts this install does not run. [P13 §2.6] lists them as a note, and
+   * and scripts this install does not run. [P14 §2.6] lists them as a note, and
    * a warning: a chat whose prompt read `{{getvar::mood}}` plays differently
    * without them.
    */
@@ -539,7 +539,7 @@ function marinaraRoleOf(value: unknown): ChatMessage['role'] | undefined {
     case 'assistant':
       return 'character';
     /**
-     * *Both are narration* — [P13 §2.2]'s *"Marinara `role: 'narrator' |
+     * *Both are narration* — [P14 §2.2]'s *"Marinara `role: 'narrator' |
      * 'system'`"*: Marinara sends each as the `system` role, unattributed.
      */
     case 'system':
@@ -558,7 +558,7 @@ function marinaraRoleOf(value: unknown): ChatMessage['role'] | undefined {
  * (`/sys` and `/comment` write `is_user: false`, `slash-commands.js:6029`,
  * `:6116`), so the order only decides a file somebody edited by hand into
  * saying both, and then it decides it as SillyTavern would. A comment is a
- * narrator line that is hidden ([P13 §2.6]'s *"a hidden narrator message"*);
+ * narrator line that is hidden ([P14 §2.6]'s *"a hidden narrator message"*);
  * its hiding is read with the rest of the hiding, above.
  */
 function roleOf(
@@ -572,7 +572,7 @@ function roleOf(
 
 /**
  * ***Who said a character line***, in the source's own terms — the key
- * [P13 §2.5]'s resolver looks up, and the thing turn identity hashes (see
+ * [P14 §2.5]'s resolver looks up, and the thing turn identity hashes (see
  * {@link ForeignRef}). In order:
  *
  * 1. **Marinara's character id**, `extra.marinara_character_id` or the export's
@@ -616,7 +616,7 @@ function speakerOf(
 }
 
 /**
- * ***Who the player was on a line*** — [P13 §2.5]'s *"a user line's
+ * ***Who the player was on a line*** — [P14 §2.5]'s *"a user line's
  * `force_avatar` thumbnail `file=` → `User Avatars/<file>`"*. SillyTavern locks
  * a line to its persona by writing the persona's thumbnail URL
  * (`script.js:5835`); the key is the persona image's place in the user
@@ -681,7 +681,7 @@ function batchOf(value: unknown): string | undefined {
 }
 
 /**
- * ***A character line's alternatives*** — [P13 §2.3], and [P13 §0.3]'s rule.
+ * ***A character line's alternatives*** — [P14 §2.3], and [P14 §0.3]'s rule.
  *
  * **`mes` is the active swipe's current text.** An edit writes `mes`; older
  * SillyTavern left `swipes[swipe_id]` holding what was there before, and only a
@@ -772,7 +772,7 @@ function recordsModel(extra: Record<string, unknown>): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * ***The author's note, in the session's shape*** — [P13 §2.6]'s
+ * ***The author's note, in the session's shape*** — [P14 §2.6]'s
  * `note_prompt` / `note_depth` / `note_interval` onto `session.note`.
  *
  * **No text is no note**, as `chatSettingsOf` reads it: SillyTavern keeps an
@@ -786,7 +786,7 @@ function recordsModel(extra: Record<string, unknown>): boolean {
  * *Where SillyTavern put the note is not always somewhere a note can be here.*
  * Its note could sit beside the story string, outside the history, or be sent
  * as the user's or the assistant's message; this session's note sits in the
- * history at its depth ([P13 §1.5]). Each difference is a note of its own,
+ * history at its depth ([P14 §1.5]). Each difference is a note of its own,
  * because each changes what the model is sent.
  */
 function noteOf(
@@ -834,7 +834,7 @@ function noteOf(
  * oldest), `June 19, 2023 2:20pm`, and three spellings of its humanized
  * `2024-07-12@01h31m37s123ms`. `Date.parse` reads the first and misreads or
  * refuses the rest — and a time read wrong is not a cosmetic bug here: it is
- * part of every turn id ([P13 §2.4]), so two readings of the same line must
+ * part of every turn id ([P14 §2.4]), so two readings of the same line must
  * agree to the millisecond. The branches run in SillyTavern's order, and the
  * first form that matches decides, valid or not, as it does there.
  *

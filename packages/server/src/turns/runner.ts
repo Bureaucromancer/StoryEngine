@@ -180,8 +180,8 @@ export interface TurnPayload {
   replay?: Tape;
   /**
    * ***Force-talk*** — who a person asked to reply, by actor id, in order;
-   * [P13 §1.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.1]. ST's member *speak* button and `/trigger`, Marinara's
+   * [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.1]. ST's member *speak* button and `/trigger`, Marinara's
    * `forCharacterId`.
    *
    * **Used instead of any policy**, including `fixed`: `selectSpeakers` answers
@@ -209,8 +209,8 @@ export interface TurnPayload {
   speakers?: readonly string[];
   /**
    * ***Who the turn a rewrite redoes spoke for*** —
-   * [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
-   * point 7, added at [P13.1]. Read by the route from the server's own record
+   * [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+   * point 7, added at [P14.1]. Read by the route from the server's own record
    * (`keptSpeakers`), beside `replay` and for its reason: a client cannot post
    * the speakers it would like to have had.
    *
@@ -230,8 +230,8 @@ export interface TurnPayload {
   keptSpeakers?: readonly string[];
   /**
    * ***What this turn carries from the sibling it redoes*** —
-   * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
-   * *Swipe* and *Continue*, added at [P13.4]. Read by the route from the
+   * [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * *Swipe* and *Continue*, added at [P14.4]. Read by the route from the
    * server's own record, for `replay`'s reason.
    *
    * - **A swipe** (`fromMessage: k`) carries messages `0..k-1`, each marked
@@ -258,7 +258,7 @@ export interface TurnPayload {
     continues?: true;
   };
   /**
-   * ***A turn written by hand*** — [P13 §1.6]'s *Edit*, [P13.4]: its input is
+   * ***A turn written by hand*** — [P14 §1.6]'s *Edit*, [P14.4]: its input is
    * `input` above and its output these messages, already attributed by the
    * route. **No step runs and no call is made**, so the turn has no `request`,
    * no tape, no effects and no cost — the record saying a person wrote it, as
@@ -270,7 +270,7 @@ export interface TurnPayload {
    * ***The hide entry the new turn is committed with*** — the one the turn a
    * swipe, a continue or an edit names had, kept to the messages the sibling
    * carries (`routes/gestures.ts`, `carriedHidden`), added 2026-09-29 at the
-   * [P13.4] review. Without it a sibling brought back into the prompt every
+   * [P14.4] review. Without it a sibling brought back into the prompt every
    * message the person had hidden on the original.
    *
    * **Two readings, one entry.** While the turn runs, a carried message whose
@@ -289,8 +289,8 @@ export interface TurnPayload {
   hidden?: true | readonly number[];
   /**
    * ***Push story*** — the flavour a person armed for this one turn,
-   * [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * added at [P13.5b]: Marinara's director push, `natural` or `random`.
+   * [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5b]: Marinara's director push, `natural` or `random`.
    *
    * **It arms `se.scene.direct`** (`turns/direct.ts`) — the runner raises
    * `PUSH_FLAG` in the turn's armed set, which is the first thing that has
@@ -721,7 +721,7 @@ export class TurnRunner {
      */
     const renditions: { report: RenderReport | null } = { report: null };
     /**
-     * Who the smart order picked, and how — [P13 §1.3a], [P13.1]. The eighth
+     * Who the smart order picked, and how — [P14 §1.3a], [P14.1]. The eighth
      * cell, **up here with the other seven for the reason the paragraph above
      * gives**: `write()` closes over it, to put the pick on the outcome of the
      * step that made it.
@@ -734,7 +734,7 @@ export class TurnRunner {
      */
     const smart: { pick: SpeakerPick | null } = { pick: null };
     /**
-     * ***What a push directed*** — [P13 §1.9.3], [P13.5b]. The ninth report
+     * ***What a push directed*** — [P14 §1.9.3], [P14.5b]. The ninth report
      * cell, up here for the paragraph above's reason (`write()` closes over it
      * to put the direction on the step's outcome), and a cell for the hook
      * selector's: the words are guidance, which a step may not hand back, and
@@ -743,8 +743,8 @@ export class TurnRunner {
     const directed: { report: Direction | null } = { report: null };
     /**
      * ***The round — every message a speaking call has written this turn*** —
-     * [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * [P13.2]. The ninth cell, and a different kind from the eight above: those
+     * [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.2]. The ninth cell, and a different kind from the eight above: those
      * carry a report *from* an engine step, and this carries what a mode's step
      * said, **owned by the runner while it is being said**.
      *
@@ -765,7 +765,7 @@ export class TurnRunner {
      *   while a round is in progress. Reset at each step.
      */
     /*
-     * ***Seeded with what a swipe or a continue carries*** ([P13.4],
+     * ***Seeded with what a swipe or a continue carries*** ([P14.4],
      * `TurnPayload.carry`): the regenerated speaker's call is shown the carried
      * messages as the round so far, and a continue's call the message it
      * extends as the round's last. Copies, because the round is mutated as it
@@ -786,7 +786,7 @@ export class TurnRunner {
      * continue's own (which the route refuses to continue while hidden), and
      * a list is those indices, all below the first message this turn writes.
      * With `shownInput`, what a hide on the named turn keeps out of this one's
-     * calls (2026-09-29, the [P13.4] review).
+     * calls (2026-09-29, the [P14.4] review).
      */
     const carriedCount = payload.carry?.messages.length ?? 0;
     const roundHidden: readonly number[] =
@@ -917,8 +917,8 @@ export class TurnRunner {
 
     /**
      * ***A turn written by hand commits here, and nothing below runs*** —
-     * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
-     * *Edit*, [P13.4].
+     * [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+     * *Edit*, [P14.4].
      *
      * **Through the job rather than a direct append**, because everything a
      * submission needs from the job layer an edit needs too: the idempotency
@@ -943,9 +943,9 @@ export class TurnRunner {
 
     /**
      * ***What a swipe or a continue carries is on screen from the start***
-     * ([P13.4]). The draft holds it already (`initialDraft`); the bus's live
+     * ([P14.4]). The draft holds it already (`initialDraft`); the bus's live
      * cell is given it as one unindexed piece, so a reader appending every
-     * delta to one text — the cell itself, and every client older than P13.2 —
+     * delta to one text — the cell itself, and every client older than P14.2 —
      * builds the carried round and then what streams after it, and a
      * per-message reader, which skips unindexed pieces, reads the carried
      * messages off the draft.
@@ -980,8 +980,25 @@ export class TurnRunner {
       job.sessionId,
       digestsOf(payload.input === undefined ? [] : [{ input: payload.input }]),
     );
-    const loadPicture = (digest: string): ReturnType<typeof readAttachment> =>
-      readAttachment(commit.sessions.layout, job.account, job.sessionId, digest);
+    /**
+     * ***A file that is there and cannot be read is missing too*** — the
+     * storage layer's rule is that only absence is a value, and it throws for
+     * anything else; this is the one reader that turns that into *go with the
+     * words*, because a picture must never be what stops a turn
+     * (`planWithPictures`). Said in the log with the digest and the error's code,
+     * never the path.
+     */
+    const loadPicture = async (digest: string): ReturnType<typeof readAttachment> => {
+      try {
+        return await readAttachment(commit.sessions.layout, job.account, job.sessionId, digest);
+      } catch (error) {
+        log?.warn(
+          { event: 'picture.unreadable', digest, code: (error as NodeJS.ErrnoException).code },
+          'A picture on this move could not be read; it goes as its words',
+        );
+        return null;
+      }
+    };
 
     /**
      * **Revoking disables; it never deletes** ([09 §4.5]).
@@ -1013,7 +1030,7 @@ export class TurnRunner {
 
     /**
      * **Who talks this turn** — [06 §7.2]'s participant policy, [P7.3], and
-     * ***the session's policy since [P13.1]***.
+     * ***the session's policy since [P14.1]***.
      *
      * **Once per turn and before the loop**, for two reasons that pull the same
      * way. A selection is a fact about the turn rather than about a step, so two
@@ -1030,9 +1047,9 @@ export class TurnRunner {
      * hand one member's roll to the next.
      *
      * ***The policy is `chatSettingsOf`'s, not the mode's*** —
-     * [P13 §1.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+     * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
      * The mode's `participants.select` is what a session is created with and
-     * what a pre-P13 one reads as through `legacy`; the session's own field
+     * what a pre-P14 one reads as through `legacy`; the session's own field
      * wins over both, which is what makes the policy a setting rather than a
      * constant. `castIsPresent` stays the mode's, because it is a statement
      * about how the mode reads presence rather than a choice a chat makes.
@@ -1063,7 +1080,7 @@ export class TurnRunner {
      */
     const talkativeness = talkativenessMap(cast.actors, mode.definition.id);
     /**
-     * *Through `turnSelection` since [P13.3]*, the one place the preview asks
+     * *Through `turnSelection` since [P14.3]*, the one place the preview asks
      * the same question — and the place that says a room with nobody cast in it
      * is no selection rather than an empty one (see there).
      */
@@ -1099,8 +1116,8 @@ export class TurnRunner {
       speakers: selection?.speakers,
     };
     /**
-     * ***The order, said as soon as it is settled*** — [P13 §1.3a] point 8,
-     * [P13.5]: the play surface's *who speaks next* control shows it while the
+     * ***The order, said as soon as it is settled*** — [P14 §1.3a] point 8,
+     * [P14.5]: the play surface's *who speaks next* control shows it while the
      * round streams. Here when the rules settled the turn; from the smart
      * step's report below when a model was asked. *Embodied only*: a narrator
      * speaks for nobody, whatever the selector drew.
@@ -1135,8 +1152,8 @@ export class TurnRunner {
 
     /**
      * ***Who a speaking call speaks as, checked before anything is assembled***
-     * — [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * [P13.2]. Null for a call that names no `speaker`, which is every call a
+     * — [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.2]. Null for a call that names no `speaker`, which is every call a
      * narrator makes.
      *
      * **Three refusals, each a programmer error in a mode rather than a state
@@ -1194,7 +1211,7 @@ export class TurnRunner {
       round.speaking = true;
       /**
        * ***A continue's one call writes into the message it continues*** —
-       * [P13.4], `TurnPayload.carry`. Its index is that message's, and it is
+       * [P14.4], `TurnPayload.carry`. Its index is that message's, and it is
        * claimed once: a second speaking call on the same turn (a step that
        * fans out regardless) is an ordinary next message.
        */
@@ -1337,7 +1354,7 @@ export class TurnRunner {
       : declaredPlan;
 
     /**
-     * ***The director, when a push armed it*** — [P13 §1.9.3], [P13.5b], and
+     * ***The director, when a push armed it*** — [P14 §1.9.3], [P14.5b], and
      * the ninth engine-owned step.
      *
      * **Planned only on a pushed turn**, the suggester's rule: a director row
@@ -1710,7 +1727,7 @@ export class TurnRunner {
         : withMemory;
 
     /**
-     * ***The smart order, prepended — first of all*** — [P13 §1.3a], [P13.1],
+     * ***The smart order, prepended — first of all*** — [P14 §1.3a], [P14.1],
      * and the eighth engine-owned step.
      *
      * **Planned only when the session plays `smart` and the rules asked** —
@@ -1788,13 +1805,13 @@ export class TurnRunner {
     const turnsOnPath = storyDepth(history);
     /**
      * ***What a person armed for this turn*** — [25 C17]'s `armed`, with a
-     * producer at last ([P13.5b]): a submission's `push` raises `PUSH_FLAG`.
+     * producer at last ([P14.5b]): a submission's `push` raises `PUSH_FLAG`.
      * Empty on every other turn, as it has been since P2.
      */
     const armed: ReadonlySet<string> = new Set(pushing === undefined ? [] : [PUSH_FLAG]);
     /**
-     * ***Hold for rewrite*** — [P13 §1.9.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-     * [P13.5c]: *"a round being edited streams to the transcript only once the
+     * ***Hold for rewrite*** — [P14 §1.9.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.5c]: *"a round being edited streams to the transcript only once the
      * edit is in."* Decided **before the loop**, because the prose streams
      * long before any `post` step runs, and from the declaration alone
      * (`StepDefinition.revises`): a revising `post` step in this plan, one of
@@ -1826,7 +1843,7 @@ export class TurnRunner {
     };
     /**
      * ***The message a continue extends, which no revising step may edit*** —
-     * [P13.5c]'s review. Its opening is an earlier turn's text, already edited
+     * [P14.5c]'s review. Its opening is an earlier turn's text, already edited
      * or not when that turn was written, and an editor handed the whole message
      * would re-edit it (and a rewritten opening would no longer be what the
      * screen shows, so the hold's release would drop it). *Skipped whole*
@@ -1895,7 +1912,7 @@ export class TurnRunner {
       // makes and committed with the step's own — see below.
       const loreEffects: EffectProposal[] = [];
       // Where this step's own speaking calls begin in the round: a partial
-      // round is this step's messages, never an earlier step's ([P13.2]).
+      // round is this step's messages, never an earlier step's ([P14.2]).
       const roundStart = round.messages.length;
       round.failed = null;
 
@@ -1912,7 +1929,7 @@ export class TurnRunner {
             // Read per step, from the cell — see `spoken` above.
             ...(spoken.speakers === undefined ? {} : { speakers: spoken.speakers }),
             // How this session speaks — `chatSettingsOf`'s, as the policy is
-            // ([P13.2]). The mode decides what to do with it.
+            // ([P14.2]). The mode decides what to do with it.
             voice: chat.voice,
             dispatch: chat.dispatch,
             // `mode.config` is where the wizard's answers live ([P7.4]) — a
@@ -1930,7 +1947,7 @@ export class TurnRunner {
             }),
             channels: running,
             history,
-            // The messages too since [P13.5c], for a step that revises one at a time.
+            // The messages too since [P14.5c], for a step that revises one at a time.
             ...(draft.output === undefined
               ? {}
               : {
@@ -1998,7 +2015,7 @@ export class TurnRunner {
                 /*
                  * Tagged with the message this call writes (`Rng.speaking`,
                  * `Draw.message`), so a rewrite swipe from *k* can line its
-                 * replay up with call *k*'s draws (2026-09-29, the [P13.4]
+                 * replay up with call *k*'s draws (2026-09-29, the [P14.4]
                  * review).
                  */
                 const lore = brought
@@ -2016,7 +2033,7 @@ export class TurnRunner {
                         ...(shownInput === undefined ? {} : { input: shownInput }),
                         // What the round has said, scanned as the prompt shows
                         // it — the same round `collectFor` is handed below
-                        // ([P13.2] review, 2026-09-29; ST re-scans each member's
+                        // ([P14.2] review, 2026-09-29; ST re-scans each member's
                         // generation over the chat holding the last reply), a
                         // hidden carried message left out as it is there.
                         ...(voice === null
@@ -2055,7 +2072,7 @@ export class TurnRunner {
                       ...(hooks.report?.guidance === undefined
                         ? {}
                         : { hookGuidance: hooks.report.guidance }),
-                      // The push's direction ([P13.5b]) — the director is `pre`,
+                      // The push's direction ([P14.5b]) — the director is `pre`,
                       // so it has reported by the time anything assembles.
                       ...(directed.report?.text === undefined
                         ? {}
@@ -2071,7 +2088,7 @@ export class TurnRunner {
                       ...(payload.attempt === undefined ? {} : { attempt: payload.attempt }),
                       /**
                        * ***Who this call speaks as, and what the round has said
-                       * so far*** — [P13.2]. The collector re-scopes the prompt
+                       * so far*** — [P14.2]. The collector re-scopes the prompt
                        * for the speaker and places the round after the input; a
                        * copy, because the round grows while this call streams.
                        */
@@ -2082,10 +2099,10 @@ export class TurnRunner {
                             round: [...round.messages],
                             ...(roundHidden.length === 0 ? {} : { roundHidden }),
                           }),
-                      // A continue's call ends on the nudge ([P13.4]).
+                      // A continue's call ends on the nudge ([P14.4]).
                       ...(voice?.continuing === undefined ? {} : { continuing: true as const }),
                       /**
-                       * ***The voice this call writes the turn in*** — [P13.3],
+                       * ***The voice this call writes the turn in*** — [P14.3],
                        * the pack's third match key (`CollectContext.voice`). Only
                        * for a step that writes the turn's messages: `embodied` when
                        * it speaks as a member, `narrator` when it speaks for nobody.
@@ -2111,7 +2128,7 @@ export class TurnRunner {
                      */
                     ...roleLayersOf(inputs),
                     // Whether a speaker's hint applies — 06 §3 consults one
-                    // under `per-actor` only ([P13.2] review).
+                    // under `per-actor` only ([P14.2] review).
                     dispatch: chat.dispatch,
                     providers: this.#options.providers,
                     config,
@@ -2182,7 +2199,7 @@ export class TurnRunner {
 
                       /**
                        * ***A speaking call streams into its own message*** —
-                       * [P13 §1.4] point 4, [P13.2].
+                       * [P14 §1.4] point 4, [P14.2].
                        *
                        * The message is opened at the first piece of text rather
                        * than when the call starts, so a draft never holds a
@@ -2195,7 +2212,7 @@ export class TurnRunner {
                        * appending every piece to one text — the bus's own live
                        * cell, and every client older than this stage — paints
                        * ~~what `output.text` will say~~ `output.text` up to
-                       * cleanup (*corrected 2026-09-29, at the [P13.2]
+                       * cleanup (*corrected 2026-09-29, at the [P14.2]
                        * review*): a reply that settles shorter than it streamed
                        * leaves the joined pieces holding what was cut, so the
                        * live cell is rebased on the draft when that happens —
@@ -2205,7 +2222,7 @@ export class TurnRunner {
                         let open = round.messages[voice.index];
                         /**
                          * ***A continue's first piece takes the carried message
-                         * over*** ([P13.4]): from here it is this turn's own
+                         * over*** ([P14.4]): from here it is this turn's own
                          * message — the old text, the joiner, and what streams
                          * — no longer marked `carried`, because this turn wrote
                          * part of it. The joiner goes out under the message's
@@ -2281,8 +2298,8 @@ export class TurnRunner {
                   'Call finished',
                 );
                 /**
-                 * ***A speaking call's reply, cleaned and kept*** — [P13 §1.4]
-                 * point 3, [P13.2]. Under `per-actor` dispatch the reply is
+                 * ***A speaking call's reply, cleaned and kept*** — [P14 §1.4]
+                 * point 3, [P14.2]. Under `per-actor` dispatch the reply is
                  * cut where another member's line begins and the speaker's
                  * `Name:` goes from each line start ({@link cleanReply}, and both
                  * sources' reasons for it there); a `merged` reply is kept as it
@@ -2294,13 +2311,13 @@ export class TurnRunner {
                  * so the durable event that says the call ended arrives with the
                  * draft already holding the settled message. *And the bus's live
                  * cell rebased on it when cleanup changed anything* (2026-09-29,
-                 * the [P13.2] review): attach prefers that cell to the draft, and
+                 * the [P14.2] review): attach prefers that cell to the draft, and
                  * a client reattaching mid-round would otherwise be shown the
                  * line cleanup just took out.
                  */
                 /*
                  * A continue settles the continuation alone and prefixes the
-                 * old text afterwards ([P13.4]): cleanup is about what the model
+                 * old text afterwards ([P14.4]): cleanup is about what the model
                  * just wrote, and the old text was settled when it was written.
                  */
                 const said =
@@ -2332,8 +2349,8 @@ export class TurnRunner {
                 };
               } catch (error) {
                 /**
-                 * ***A speaker lost mid-round*** — [P13 §1.4]'s last paragraph,
-                 * [P13.2]. What streamed before the failure stays in the
+                 * ***A speaker lost mid-round*** — [P14 §1.4]'s last paragraph,
+                 * [P14.2]. What streamed before the failure stays in the
                  * speaker's message, cleaned by the same rule a finished reply
                  * is, and the draft is re-derived from the round — so the words
                  * a person watched arrive are on the record under the name
@@ -2349,7 +2366,7 @@ export class TurnRunner {
                   if (extending !== undefined) {
                     // A continue cut short: only what streamed is cleaned, and a
                     // call that failed before its first piece left the carried
-                    // message exactly as it was ([P13.4]).
+                    // message exactly as it was ([P14.4]).
                     if (cut !== undefined && cut !== extending.message && !settledHere) {
                       const base = extending.message.text + extending.joiner;
                       const piece = cut.text.slice(base.length);
@@ -2380,7 +2397,7 @@ export class TurnRunner {
         );
 
         /**
-         * ***`message` or `messages`, and never both*** — [P13.0].
+         * ***`message` or `messages`, and never both*** — [P14.0].
          *
          * Checked **before anything the result carries is applied**, so a
          * refused result leaves no half of itself behind: no candidate
@@ -2427,7 +2444,7 @@ export class TurnRunner {
           written.push(effectApplied(effect.channelId, effect.applied, effect.rejectedReason));
         }
         /**
-         * ***What a swipe or a continue carried goes first*** — [P13.4],
+         * ***What a swipe or a continue carried goes first*** — [P14.4],
          * `TurnPayload.carry`. The step answers for the messages it spoke; the
          * carried ones were never its to return, so they are put back in front
          * of its answer here rather than trusted to a mode that would have to
@@ -2457,7 +2474,7 @@ export class TurnRunner {
         }
         /**
          * **Several speakers, and the text derived from them** —
-         * [P13 §1.1](../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+         * [P14 §1.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
          *
          * The step hands back attributed messages and the runner writes the
          * joined `text` beside them, through the one derivation `shared` owns —
@@ -2475,7 +2492,7 @@ export class TurnRunner {
           draft.output = outputFromMessages([...carriedAhead, ...result.messages]);
         }
         /**
-         * ***A revision, applied before the turn is written*** — [P13.5c]. The
+         * ***A revision, applied before the turn is written*** — [P14.5c]. The
          * declaration is checked here rather than trusted: a step that did not
          * declare `revises`, or is not `post`, fails under its own policy
          * rather than rewriting prose it had no claim on.
@@ -2513,7 +2530,7 @@ export class TurnRunner {
       } catch (error) {
         const reason = classifyStep(error);
         /**
-         * ***Was this a speaker lost from a round?*** — [P13.2]. Only when the
+         * ***Was this a speaker lost from a round?*** — [P14.2]. Only when the
          * error is the very one a speaking call threw, so a step that caught it
          * and failed for some other reason is judged on that reason. When it
          * is, the call's words are already in the round and the draft already
@@ -2560,9 +2577,9 @@ export class TurnRunner {
         }
 
         /**
-         * ***A partial round commits*** — [P13 §1.4]'s last paragraph: *"a
+         * ***A partial round commits*** — [P14 §1.4]'s last paragraph: *"a
          * group round that loses its third speaker to a timeout is a turn with
-         * two messages, not a lost turn."* [P13.2].
+         * two messages, not a lost turn."* [P14.2].
          *
          * **The mechanism is this one decision and nothing on the step's
          * side.** When the failure is a speaking call's and at least one
@@ -2593,12 +2610,12 @@ export class TurnRunner {
           partial && definition.failure === 'abort' ? ('warn' as const) : definition.failure;
         // Whether the lost speaker left words behind — a message of its own
         // after the `kept` ones, which the outcome has to say is cut off
-        // (2026-09-29, the [P13.2] review): nothing on the message does.
+        // (2026-09-29, the [P14.2] review): nothing on the message does.
         const cut = partial && round.messages[lost.index] !== undefined;
 
         /**
          * ***The kept speakers' lore settles, as a finished step's does***
-         * (2026-09-29, the [P13.2] review). A partial round commits complete,
+         * (2026-09-29, the [P14.2] review). A partial round commits complete,
          * and the entries that reached speaker 1..k's prompts reached the
          * prompts of replies now on the record — so their cooldown and sticky
          * start and they count as fired, exactly as they would had the step
@@ -2708,7 +2725,7 @@ export class TurnRunner {
         if (definition.revises !== undefined) release();
 
         // Cancellation overrides the declared mode: a user's stop is not a warn.
-        // `handled` rather than the declaration, for a partial round ([P13.2]).
+        // `handled` rather than the declaration, for a partial round ([P14.2]).
         if (handled === 'abort' || reason === 'cancelled') {
           aborted = true;
           stoppedBy = reason;
@@ -3200,7 +3217,7 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
         }),
     // What a swipe or a continue carries is the turn's output from its first
     // checkpoint, so a crash before any reply still leaves the round it
-    // started from on the record ([P13.4]).
+    // started from on the record ([P14.4]).
     ...(payload.carry === undefined || payload.carry.messages.length === 0
       ? {}
       : { output: outputFromMessages(payload.carry.messages) }),
@@ -3215,12 +3232,12 @@ function initialDraft(job: Job, payload: TurnPayload): Turn {
 
 /**
  * ***A revising step's answer, applied to the turn's output*** —
- * `StepResult.revisions`, [P13 §1.9.4], [P13.5c].
+ * `StepResult.revisions`, [P14 §1.9.4], [P14.5c].
  *
  * Each revision names a message by its index in the output (a turn of one
  * message is index `0`). A `text` that differs replaces the message's text and
  * keeps what it replaced as `original` — **unless the message already has one**,
- * which is cleanup's copy of the model's own reply ([P13.2]) and the truer
+ * which is cleanup's copy of the model's own reply ([P14.2]) and the truer
  * original of the two: *show original* offers what the model said. `changes`
  * and `notices` become the outcome's record, copied field by field so a step
  * cannot put anything else on the turn.
@@ -3320,8 +3337,8 @@ interface Round {
 }
 
 /**
- * ***The message a continue extends*** — [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.4].
+ * ***The message a continue extends*** — [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.4].
  *
  * - `message` is the round's entry **by identity**, so the first streamed
  *   piece can tell it is still the carried text and replace it with this
@@ -3331,7 +3348,7 @@ interface Round {
  *   when the old text does not already end in a literal space
  *   (`!cyclePrompt.endsWith(' ')`, `script.js:4918`, the *"coping mechanism
  *   for OAI spacing"*). ~~When it does not already end in whitespace~~ —
- *   corrected 2026-09-29, at the [P13.4] review: ST checks for a space and
+ *   corrected 2026-09-29, at the [P14.4] review: ST checks for a space and
  *   nothing else, so a message ending on a newline gets the space too, and
  *   this now does as ST does. ***One deliberate difference***: nothing when
  *   the old text is empty, where ST would still add the space — an empty
@@ -3388,7 +3405,7 @@ function cleaned(
 }
 
 /**
- * ***A speaking call's message as the round keeps it*** — [P13.2]: the cleaned
+ * ***A speaking call's message as the round keeps it*** — [P14.2]: the cleaned
  * text under the speaker's name, and the model's own words as `original` only
  * when cleanup changed them, so that absent means *this is what the model said*
  * rather than *not recorded* (`OutputMessage.original`).
@@ -3525,7 +3542,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 /**
  * A plan's steps with one inserted after its leading `pre` steps — where the
- * director goes ([P13.5b]): behind every `pre` step already planned, the
+ * director goes ([P14.5b]): behind every `pre` step already planned, the
  * engine's and the mode's, and ahead of the first step that is not one.
  */
 function afterPre(steps: TurnPlan['steps'], step: TurnPlan['steps'][number]): TurnPlan['steps'] {
@@ -3650,7 +3667,7 @@ export function castEntries(
     actors: readonly CastMember[];
   },
   /**
-   * ***Presence, as the collector reads it*** (2026-09-29, the [P13.5a]
+   * ***Presence, as the collector reads it*** (2026-09-29, the [P14.5a]
    * review) — the channels and `castIsPresentFor`'s answer. Only under that
    * reading is a member marked `present: false` (muted); without it nothing is
    * marked, as the collector's `present` filters nothing. Omitted by a caller
@@ -3671,7 +3688,7 @@ export function castEntries(
     actorId: member.actor.id,
     name: member.actor.name,
     kind: 'actors',
-    // Said rather than left to position ([P13.5a]) — see `CastEntry.persona`.
+    // Said rather than left to position ([P14.5a]) — see `CastEntry.persona`.
     ...(member === cast.persona ? { persona: true as const } : {}),
     ...(muted(member) ? { present: false as const } : {}),
     media: member.actor.media.map((one) => ({

@@ -160,15 +160,15 @@ const registered = new Map<string, ChannelDefinition>();
 
 /**
  * ***Whether a channel's switch is on*** — `EstablishedState.enabledBy`,
- * [P13 §1.9.2](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.5a].
+ * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5a].
  *
  * **`true` and nothing else**: a switch nobody has touched reads its declared
  * `init`, and every tracker's is `false` — [00 §4]'s *"RPG systems are opt-in
  * channels"*. A channel with no switch is always on, which is every channel
  * that is not a tracker.
  *
- * ***Either switch*** since [P13.5b]: `ChannelDefinition.enabledBy`, the same
+ * ***Either switch*** since [P14.5b]: `ChannelDefinition.enabledBy`, the same
  * switch said for a channel that is not established state (the secret plot),
  * or the tracker's own on `state`. A channel declaring both waits on both.
  */
@@ -183,7 +183,7 @@ export function stateEnabled(
 
 /**
  * ***Whether a hidden channel has been shown to the player*** —
- * `ChannelDefinition.reveal`, [06 §7.3], [P13.5b]. A `player` channel is always
+ * `ChannelDefinition.reveal`, [06 §7.3], [P14.5b]. A `player` channel is always
  * shown; a hidden one only while its reveal switch reads `true`, and never
  * when it declares none.
  */
@@ -197,7 +197,7 @@ export function revealed(
 
 /**
  * ***Whether a boolean switch channel reads `true`*** — its value, or its
- * declared `init` when nobody has touched it. Exported at [P13.5c] for the
+ * declared `init` when nobody has touched it. Exported at [P14.5c] for the
  * runner's *hold for rewrite* (`StepDefinition.revises`), whose switches are
  * named by a step rather than by a channel's `enabledBy`.
  */
@@ -863,12 +863,12 @@ export function renderedChannels(
 
   for (const definition of registeredChannels()) {
     if (definition.render === undefined) continue;
-    // A tracker switched off says nothing here either ([P13.5a]) — this digest
+    // A tracker switched off says nothing here either ([P14.5a]) — this digest
     // feeds an illustration's prompt, and a character's thoughts from before
     // the switch went off are not the picture's to draw.
     if (!stateEnabled(definition, channels)) continue;
     /**
-     * ***A secret is not a picture's to draw until it is shown*** — [P13.5b].
+     * ***A secret is not a picture's to draw until it is shown*** — [P14.5b].
      * The paragraph above holds for hidden *bookkeeping*, which is what every
      * hidden channel was until then; a channel that declares a `reveal` is a
      * secret the player has not been shown, and a picture is shown. So it is
@@ -898,8 +898,8 @@ export function renderedChannels(
 }
 
 /**
- * ***The session's secrets, as their channels render them*** — [P13 §1.9.3],
- * [P13.5b]: what the director is told about where the story is secretly
+ * ***The session's secrets, as their channels render them*** — [P14 §1.9.3],
+ * [P14.5b]: what the director is told about where the story is secretly
  * heading.
  *
  * **Declared rather than named**: a secret is a hidden channel that declares a

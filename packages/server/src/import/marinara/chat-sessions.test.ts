@@ -21,7 +21,7 @@ import { profileAsFileSource } from './envelope.js';
 
 /**
  * ***A Marinara store, swept, comes out with its roleplay chats as sessions***
- * — [P13.10](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * — [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * The stage's claim, over the shared fixture (`fixtures/test-marinara.ts`): a
  * roleplay and its branch are **one** session whose prefix exists once; the
@@ -29,7 +29,7 @@ import { profileAsFileSource } from './envelope.js';
  * narrator line is hidden; the group's order, dispatch, names and mute are the
  * session's; a conversation chat and an orphaned message are rows that say
  * why they are not sessions. And the per-chat JSONL export, which is
- * SillyTavern's format ([P13 §0.4]), comes in through SillyTavern's parser and
+ * SillyTavern's format ([P14 §0.4]), comes in through SillyTavern's parser and
  * meets the same library.
  */
 
@@ -332,7 +332,7 @@ describe('the other doors', () => {
   });
 
   /**
-   * ***The per-chat export is SillyTavern's format*** ([P13 §0.4]), with
+   * ***The per-chat export is SillyTavern's format*** ([P14 §0.4]), with
    * Marinara's own role, character id and swipes in `extra`, and its metadata
    * under `chat_metadata.marinara_metadata` (`chats.routes.ts:3530-3600`). So
    * it takes SillyTavern's door — `readUpload` knows it as a chat — and its

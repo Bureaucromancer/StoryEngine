@@ -11,7 +11,7 @@ import { importChatFile } from './chat-sessions.js';
 
 /**
  * ***A 10,000-message chat, through the one-file door*** —
- * [P13.12](../../../../docs/design/workplan/30-p13-scene-and-session-import.md):
+ * [P14.12](../../../../docs/design/workplan/31-p14-scene-and-session-import.md):
  * *"one 10,000-message size test, because nobody has measured `importSession`
  * turn by turn"*.
  *
@@ -70,7 +70,7 @@ import { importChatFile } from './chat-sessions.js';
  * it, so a slow import fails *here*, with the milliseconds in the message,
  * rather than on vitest's timeout with nothing said.
  *
- * *No model is bound*, so the P13.11 warm has no summariser and makes no plan
+ * *No model is bound*, so the P14.11 warm has no summariser and makes no plan
  * and no call: what is timed is the import, not a summary chain being derived
  * behind it.
  */

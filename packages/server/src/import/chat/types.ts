@@ -8,16 +8,16 @@ import type { SessionFile } from '../../sessions/types.js';
 /**
  * ***What a foreign chat is, once a source's parser has read it and before
  * anything here has decided what it means*** —
- * [P13 §2.1](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §2.1](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **Source-neutral, and that is the stage's whole reason to exist.** SillyTavern
  * and Marinara store a chat differently — a JSONL file of lines against a table
  * of rows joined to a table of swipes — and store *the same thing*: messages in
  * order, each by the player, a character or the narrator, some with swipes, some
- * hidden, and a family of chats copied from one another ([P13 §0.1]). So each
- * source gets a parser that says what its chat *is* in these terms (P13.7,
- * P13.10), and one builder says what that means as a session. Two builders
+ * hidden, and a family of chats copied from one another ([P14 §0.1]). So each
+ * source gets a parser that says what its chat *is* in these terms (P14.7,
+ * P14.10), and one builder says what that means as a session. Two builders
  * would be two opinions about what a round is, and the first place they
  * disagreed would be a group chat, which is the case nobody tests by hand.
  *
@@ -25,8 +25,8 @@ import type { SessionFile } from '../../sessions/types.js';
  * the source's own identity space — a card file, a character row — because the
  * parser has no library to look in, and because turn identity must not depend
  * on one (see {@link ForeignRef}). What the library knows arrives separately,
- * as a {@link ChatResolution} (P13.8), which is the pure converter's
- * `(chats, resolution) → documents` signature [P13 §2.1] asks for.
+ * as a {@link ChatResolution} (P14.8), which is the pure converter's
+ * `(chats, resolution) → documents` signature [P14 §2.1] asks for.
  */
 
 /**
@@ -34,8 +34,8 @@ import type { SessionFile } from '../../sessions/types.js';
  * avatar file (`Vera.png`) or the chat's folder, or a Marinara character id.
  *
  * **`key` is what turn identity hashes, and never a resolved library id.** That
- * is not tidiness; [P13 §2.7]'s sync depends on it. A turn's id is a function of
- * its content ([P13 §2.4]), and the content includes who spoke. If *who* were
+ * is not tidiness; [P14 §2.7]'s sync depends on it. A turn's id is a function of
+ * its content ([P14 §2.4]), and the content includes who spoke. If *who* were
  * the library's answer, then importing a chat before its card and again after
  * would give every turn a new id, and the second import — which ought to find
  * every turn already present — would instead fork the whole session beside
@@ -66,9 +66,9 @@ export interface ChatSwipe {
 }
 
 /**
- * ***A channel's value, as the source had it at a message*** — [P13 §2.6]'s
+ * ***A channel's value, as the source had it at a message*** — [P14 §2.6]'s
  * *"`game_state_snapshots` row for a message's swipe → effects on the turn
- * holding that message"*, added at [P13.5a].
+ * holding that message"*, added at [P14.5a].
  *
  * **Source-neutral, like everything here**: a channel id and a value in that
  * channel's shape, which the source's own parser has already translated
@@ -104,7 +104,7 @@ export interface ChatStateValue {
 
 /**
  * ***One message, as the source's chat shows it*** —
- * [P13 §2.2](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
+ * [P14 §2.2](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
  * table reads these.
  *
  * - **`role`**: `user` is the player's line (a turn's input), `character` is a
@@ -116,22 +116,22 @@ export interface ChatStateValue {
  *   a turn with no messages: a parser that cannot tell who spoke should not
  *   guess, and a null speaker is the record's word for not guessing.
  * - **`persona`** is who the player was on a `user` line, for the resolver
- *   (P13.8). The builder does not read it: a session has one persona
+ *   (P14.8). The builder does not read it: a session has one persona
  *   (`cast.persona`), and which one is resolution's answer, not a per-line one.
  * - **`at`**: milliseconds since the epoch, or null when unknown. Both sources
  *   hold send times that repeat or run backwards (`st-chat.importer.ts:89`),
  *   and the builder copes with that rather than the parser: see `ids.ts`.
  * - **`swipes` and `activeSwipe`**: for a `character` line with alternatives.
  *   ***`swipes[activeSwipe]` has already been made authoritative by the
- *   parser*** — [P13 §0.3]: `mes` (or Marinara's `messages.content`) is the
+ *   parser*** — [P14 §0.3]: `mes` (or Marinara's `messages.content`) is the
  *   active swipe's current text, and the swipe row is the copy that goes stale
  *   after an edit. So the parser overwrites the stale copy, as Marinara's own
  *   importer does, and the builder trusts what it is given. `text` is the same
  *   string, and is what the builder uses for the line itself. Swipes on a
- *   `user` or `narrator` line are ignored ([P13 §2.3] is about replies).
+ *   `user` or `narrator` line are ignored ([P14 §2.3] is about replies).
  * - **`hidden`**: SillyTavern's `is_system`, Marinara's `hiddenFromAI` —
  *   *not in the prompt*, which is not the same as *not in the chat*
- *   ([P13 §0.5]). Placed like any other line and hidden by `session.hidden`.
+ *   ([P14 §0.5]). Placed like any other line and hidden by `session.hidden`.
  * - **`hiddenByImport`**: hidden because the import has nowhere to keep the
  *   line as the source had it, *not because the source hid it* — a
  *   SillyTavern tool call's record, which SillyTavern sent to a model that
@@ -173,12 +173,12 @@ export interface ChatMessage {
  *   (`chats/<folder>/<name>.jsonl`, `group chats/<id>.jsonl` —
  *   `endpoints/chats.js:554`), Marinara's chat id. *Not* `chat_metadata.integrity`,
  *   which a branch inherits and which therefore names a family rather than a
- *   chat ([P13 §0.2]).
+ *   chat ([P14 §0.2]).
  * - **`name`** is what the chat is called, and becomes its `BranchRef`'s name.
  * - **`parentId`** is the back-pointer the family was grouped by: SillyTavern's
  *   `main_chat` resolved to a chat id, Marinara's `branchParentChatId`. ***The
  *   builder does not build the tree from it*** — content does that
- *   ([P13 §2.4]) — and only checks that it names a chat in the family.
+ *   ([P14 §2.4]) — and only checks that it names a chat in the family.
  * - **`createdAt`**: milliseconds since the epoch, or null. Read only when the
  *   chat's first round has no time of its own.
  */
@@ -192,17 +192,17 @@ export interface ChatSourceChat {
 
 /**
  * ***A chat and every chat that points back to it*** —
- * [P13 §2.5](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14 §2.5](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  * One family becomes one session.
  *
- * - **`key`** is the family's **root chat path**, exactly as [P13 §2.7] gives
+ * - **`key`** is the family's **root chat path**, exactly as [P14 §2.7] gives
  *   it: SillyTavern's `chats/<folder>/<file>.jsonl` or `group chats/<id>.jsonl`,
  *   Marinara's `storage/tables/chats.json#<chatId>` —
  *   `chats/Vera/2026-01-01.jsonl`, say. *Source-relative and unprefixed*, like
  *   every other `originalFilename` the library stamps (`stampImported`, which
  *   the sweep calls with the file's path under the source's root): which
  *   source it is, is `source`'s to say and not the key's. It is hashed into
- *   every turn id ([P13 §2.4]), and it is what §2.7's sync finds the session by
+ *   every turn id ([P14 §2.4]), and it is what §2.7's sync finds the session by
  *   (`origin.originalFilename`), so it must be the same string on every import
  *   of the same root — ***and its form is frozen with the id scheme***, since a
  *   key spelled differently later is a different family whose turns share no
@@ -217,7 +217,7 @@ export interface ChatSourceChat {
  *
  * - **`roster`**: the members of a group, **in the group's own order**, when
  *   the source keeps a list of them apart from the lines — SillyTavern's
- *   `groups/<id>.json` `members` ([P13 §2.5]'s *"plus `groups/<id>.json`
+ *   `groups/<id>.json` `members` ([P14 §2.5]'s *"plus `groups/<id>.json`
  *   `members` for the roster"*), Marinara's chat `characterIds`. Absent for a
  *   single chat, and for a group chat whose group file did not come with it:
  *   then the cast is whoever the lines say spoke, in the order they first did,
@@ -229,11 +229,11 @@ export interface ChatSourceChat {
  *   {@link ChatSettings.muted}). Speakers the roster does not name — a
  *   `/sendas` stranger, a member removed since — follow it, in first-met order.
  *   ***Not hashed into any id***: who is in a group changes without a line of
- *   the chat changing, and a turn is its content ([P13 §2.4]).
+ *   the chat changing, and a turn is its content ([P14 §2.4]).
  *
  * *Grouping is the caller's job, not the builder's.* Which chats are a family
  * depends on what the source holds, and a pointer to a chat the source does not
- * have is a decision the caller makes ([P13 §2.5]'s *"a root of its own"*); the
+ * have is a decision the caller makes ([P14 §2.5]'s *"a root of its own"*); the
  * builder is handed the result and only says, with a note, when a chat's
  * `parentId` names nobody in it.
  */
@@ -253,8 +253,8 @@ export interface ResolvedRef {
 
 /**
  * ***What the library knows about the family's foreign references*** —
- * [P13 §2.5](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md)'s
- * resolution, found by P13.8 and handed in, so that the builder stays pure.
+ * [P14 §2.5](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * resolution, found by P14.8 and handed in, so that the builder stays pure.
  *
  * - **`speakers`**, by {@link ForeignRef.key}: the actor, or null when nothing
  *   was found. A key absent from the map reads as null — nothing is invented.
@@ -270,7 +270,7 @@ export interface ChatResolution {
 
 /**
  * ***What the source says about how the chat is played*** —
- * [P13 §2.6](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P14 §2.6](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
  * each parser mapping its own settings onto these.
  *
  * *Not `sessions/chat-settings.ts`'s `ChatSettings`*, which is a session's
@@ -281,7 +281,7 @@ export interface ChatResolution {
  * - **`voice`, `dispatch`, `speakers`**: SillyTavern's `activation_strategy`
  *   and `allow_self_responses`, Marinara's `groupChatMode`,
  *   `groupResponseOrder` and `groupSpeakerNamesInHistory`, onto the fields
- *   [P13 §1.2] declares. `speakers` is partial so a parser says only what its
+ *   [P14 §1.2] declares. `speakers` is partial so a parser says only what its
  *   source said.
  * - **`note`**: SillyTavern's `note_prompt`, `note_depth`, `note_interval`.
  * - **`hidden`**: foreign ids of lines to hide **in addition to** each line's
@@ -289,14 +289,14 @@ export interface ChatResolution {
  *   on the line.
  * - **`muted`**: {@link ForeignRef.key}s of members the source has switched
  *   off — SillyTavern's `disabled_members`, Marinara's `inactiveCharacterIds` —
- *   which [P13 §2.6] maps to presence `false`.
+ *   which [P14 §2.6] maps to presence `false`.
  *
  * ***Muted members are the one setting that is not a session field***, and
- * they were left out of this type until [P13.9] decided where they go.
+ * they were left out of this type until [P14.9] decided where they go.
  * Presence is the `se.presence` channel (`sessions/cast.ts`): state at a
  * node, written only by an effect on a turn, with `session.channels` a
  * derived cache of it at the head. So a mute is an effect or it is nothing —
- * and [P13 §2.2] has the builder write `effects: []` *"and nothing
+ * and [P14 §2.2] has the builder write `effects: []` *"and nothing
  * fabricated"*. The builder's answer (`build.ts`, `mutedEffects`) is that
  * ***the source's own state is not a fabrication***: it writes, on each
  * opening turn, one applied `se.presence ← false` per muted member, proposed
@@ -315,8 +315,8 @@ export interface ChatSettings {
   muted?: readonly string[];
   /**
    * ***State the source keeps for the chat rather than for a message*** —
-   * Marinara's agent switches (`activeAgentIds`, `manualTrackers`), [P13 §2.6]'s
-   * *"the session's agent switches"*, added at [P13.5a]. Written on every
+   * Marinara's agent switches (`activeAgentIds`, `manualTrackers`), [P14 §2.6]'s
+   * *"the session's agent switches"*, added at [P14.5a]. Written on every
    * opening turn beside the muted members' presence and for their reason: the
    * source says it, a session keeps it only as state at a node, and the
    * opening is the one node every branch of the family inherits from.
@@ -324,7 +324,7 @@ export interface ChatSettings {
   state?: readonly ChatStateValue[];
   /**
    * ***State the source keeps as of now*** — Marinara's secret plot
-   * (`agent_memory`'s `overarchingArc`), added at [P13.5b]. Written on the
+   * (`agent_memory`'s `overarchingArc`), added at [P14.5b]. Written on the
    * **head** turn rather than the openings: the source keeps one value per
    * chat, rewritten in place with no record of the message it was revised at,
    * so what it states is the value at the head — and the head cache, folded
@@ -336,10 +336,10 @@ export interface ChatSettings {
 /**
  * ***Everything the builder would otherwise take from the world*** — who is
  * importing, and when. Passed in so the build is a function of its arguments:
- * the same family, resolution and context give the same bytes ([P13.6]'s proof
+ * the same family, resolution and context give the same bytes ([P14.6]'s proof
  * obligation), which a clock or a session read could not.
  *
- * `account` is hashed into every turn id ([P13 §2.4]); `now` (ISO 8601) stamps
+ * `account` is hashed into every turn id ([P14 §2.4]); `now` (ISO 8601) stamps
  * the session's own times and `exportedBy.at`.
  *
  * ***`modeId` is the mode the session is written into*** — Scene, by
@@ -350,7 +350,7 @@ export interface ChatSettings {
  * [19 §10] calls the design's central one. The caller names it through
  * `mode-registry.ts`, the one place with a reason to spell one.
  *
- * *Which constant the caller takes is P13.8's to decide, and it is not
+ * *Which constant the caller takes is P14.8's to decide, and it is not
  * obviously `DEFAULT_MODE_ID`.* That holds the same string today for a
  * different reason — it is the mode a session with none plays, and this is the
  * mode a chat is imported into — and if the default ever moved, imported chats

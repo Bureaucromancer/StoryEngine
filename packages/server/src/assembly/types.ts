@@ -32,11 +32,11 @@ export type {
  *
  * A slot positions content the engine produces, so it can never point at the
  * preset's own prose (that *is* a block) or at a step's contribution (which did
- * not exist when the preset was authored) — ***or, since [P13.2], at the round
+ * not exist when the preset was authored) — ***or, since [P14.2], at the round
  * so far***, which the engine places after the input slot of every pack rather
- * than wherever a pack remembered to put it — ***or, since [P13.3], at the
+ * than wherever a pack remembered to put it — ***or, since [P14.3], at the
  * author's note***, which the engine places at the session's own depth —
- * ***or, since [P13.4], at the continue nudge***, which the engine puts last.
+ * ***or, since [P14.4], at the continue nudge***, which the engine puts last.
  */
 export type SlotSource = Exclude<
   BlockSource,

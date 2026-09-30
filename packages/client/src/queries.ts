@@ -885,7 +885,7 @@ export function useSetSessionLore(
 }
 
 /**
- * ***A chat's settings, its roster and its hide map*** — [P13 §1.8], [P13.5].
+ * ***A chat's settings, its roster and its hide map*** — [P14 §1.8], [P14.5].
  *
  * Three writes to the session file, and each refreshes what `useWriteChannel`
  * refreshes and for its reason: the entry Play and the workbench read is
@@ -970,7 +970,7 @@ export function useSetHidden(
  */
 /**
  * ***Update trackers*** — a declared on-demand step, run between turns
- * ([P13.5a]). It writes an engine turn under the head — the shape a channel
+ * ([P14.5a]). It writes an engine turn under the head — the shape a channel
  * write writes, and no transcript row — so it refreshes what a channel write
  * refreshes. *Pending until the refetch lands*, as the chat settings' write
  * is: the button stays disabled until the cards show what it wrote.
@@ -1001,7 +1001,7 @@ export function useWriteChannel(
     mutationFn: (write: { key: string; value: unknown }) =>
       writeSessionChannel(sessionId, write.key, write.value),
     /**
-     * ***The refetch is part of the write*** (2026-09-29, the [P13.5a] review):
+     * ***The refetch is part of the write*** (2026-09-29, the [P14.5a] review):
      * returned, so `isPending` — and `useIsMutating` over
      * {@link channelWriteKey} — lasts until the session read holds the value
      * just written. A control that re-enabled before that would build its next

@@ -104,7 +104,7 @@ export const DEFAULT_MODE_ID = 'storyengine.scene';
 
 /**
  * ***The mode a foreign chat is imported into*** —
- * [P13.8](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+ * [P14.8](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
  * by [06 §1](../../../docs/design/06-modes-and-turn-pipeline.md)'s
  * *"SillyTavern/Marinara RP"* row, which is Scene.
  *
@@ -112,7 +112,7 @@ export const DEFAULT_MODE_ID = 'storyengine.scene';
  * The default is what a session plays when it names no mode, or names one this
  * build has never heard of — a fallback, chosen for being the safest thing to
  * open an unknown session in. This is a *mapping*: a SillyTavern or Marinara
- * chat is a roleplay among embodied characters, and [P13]'s revision rebuilt
+ * chat is a roleplay among embodied characters, and [P14]'s revision rebuilt
  * Scene as exactly that chat so an import lands somewhere that plays the way
  * the chat did. ***If the default ever moved — to a mode that suits a new
  * install better, say — imported chats should not move with it***, because
@@ -198,7 +198,7 @@ export interface PublicMode {
   surfaces: ModeDefinition['surfaces'];
   /**
    * ***Whether a new session opens on its cast's greetings*** —
-   * `ModeDefinition.openingTurn`, [P13 §1.7], sent at [P13.5] because the
+   * `ModeDefinition.openingTurn`, [P14 §1.7], sent at [P14.5] because the
    * creation form offers each member's opening only for a mode that writes
    * one. A choice the mode would never read is a control that does nothing.
    */
@@ -304,7 +304,7 @@ export function assertModesRunnable(): void {
     setupPlanFor(mode);
   }
   /**
-   * ***And the mode chats are imported into*** — [P13.8]. After the loop, so a
+   * ***And the mode chats are imported into*** — [P14.8]. After the loop, so a
    * build whose modes cannot run says that first: it is the deeper fault, and a
    * build that registered nothing has already been refused above.
    */
@@ -420,16 +420,16 @@ export interface ModeSurface {
   image?: { url: string; alt: string };
   /** `toggle`: what the switch is currently on. */
   on?: boolean;
-  /** The contribution's heading within its region — `SurfaceContribution.group`, [P13.5a]. */
+  /** The contribution's heading within its region — `SurfaceContribution.group`, [P14.5a]. */
   group?: string;
   /**
    * `meter`: the bar, bounded — a number bounded by the declaration, or a
-   * `{ value, max }` bounded by itself ([P13.5a]).
+   * `{ value, max }` bounded by itself ([P14.5a]).
    */
   meter?: { value: number; min: number; max: number };
   /**
    * `record`: ***the value itself, and the declaration that reads it*** —
-   * [P13.5a].
+   * [P14.5a].
    *
    * **Raw JSON where every other arm sends a rendered string**, and the
    * difference is the arm's purpose rather than an exception to the posture:
@@ -450,7 +450,7 @@ export interface ModeSurface {
 }
 
 /**
- * ***Who an actor-scoped record is about*** — [P13.5a]'s *"each present
+ * ***Who an actor-scoped record is about*** — [P14.5a]'s *"each present
  * character"*, handed in by the caller that knows the cast.
  *
  * **Only for a `record`, and that is the difference between showing and
@@ -496,13 +496,13 @@ export function modeSurfaces(
     const definition = channelDefinition(contribution.channelId);
     /**
      * ***Hidden has no surface — until it is revealed*** — [06 §7.3]'s reveal
-     * affordance, [P13.5b]: a hidden channel declaring `reveal` is drawn while
+     * affordance, [P14.5b]: a hidden channel declaring `reveal` is drawn while
      * its reveal switch is on, and one that declares none never is.
      */
     if (definition === null || !revealed(definition, channels)) continue;
     /**
      * ***A switched-off channel has no surface*** — `EstablishedState.enabledBy`,
-     * [P13.5a]. The declaration already says the channel is *"rendered
+     * [P14.5a]. The declaration already says the channel is *"rendered
      * anywhere"* only while its switch is on; a tracker card for a tracker
      * nobody switched on would be a form for state nothing keeps.
      */
@@ -664,7 +664,7 @@ function mediaUrlFor(value: unknown, sessionId: string | null): string | null {
 
 /**
  * ***What a person may run between turns, here and now*** — the declared
- * {@link StepDefinition.onDemand} steps, [P13.5a]'s *Update trackers*.
+ * {@link StepDefinition.onDemand} steps, [P14.5a]'s *Update trackers*.
  *
  * **Live only while something it writes is switched on.** A step that writes
  * only channels whose `EstablishedState.enabledBy` is off has nothing to do,

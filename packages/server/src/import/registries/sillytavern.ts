@@ -88,12 +88,12 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
 
   /**
    * ***Chats, converted — into sessions, not into the library*** —
-   * [P13 §2.1](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+   * [P14 §2.1](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.8](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
    * These three were `recorded`, with a comment that tracked [25 E4] from
    * *closed* to *conditional on an interchange format*. The condition was met:
-   * P11 wrote the session export, and [P13 §2.1] makes every foreign chat a
+   * P11 wrote the session export, and [P14 §2.1] makes every foreign chat a
    * `SessionExport` that the export's own reader, `importSession`, loads. So a
    * chat file becomes a session in Play, through the sweep's session pass,
    * which runs after the library objects are written so a chat resolves
@@ -101,17 +101,17 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
    *
    * *What 18's survey found bears on this row still, and is answered rather than
    * waived*: an ST message carries no id, and a turn's id is therefore a hash of
-   * its account, its family, its parent and its content ([P13 §2.4]) rather
+   * its account, its family, its parent and its content ([P14 §2.4]) rather
    * than anything the file says. The same chat imported twice is the same
    * turns, which is how a second import knows it is one.
    *
    * - **`chats`**: one folder per character, one `.jsonl` per chat.
    * - **`group chats`**: one `.jsonl` per group chat.
    * - **`groups`**: a group's members and settings, read by the session pass
-   *   beside the group's chats ([P13.9], `sillytavern/families.ts`): its
+   *   beside the group's chats ([P14.9], `sillytavern/families.ts`): its
    *   members become the cast in the group's order, its strategy and
    *   self-responses the session's speaker settings, and its muted members
-   *   presence `false` at the opening ([P13 §2.6]). Each file's row points at
+   *   presence `false` at the opening ([P14 §2.6]). Each file's row points at
    *   the sessions it set up; one whose chats are not here is `recorded`, with
    *   a note saying so.
    *
@@ -154,7 +154,7 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
 /**
  * ***The directories whose files become sessions rather than library
  * objects*** —
- * [P13.8](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.8](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * A list rather than a fourth disposition, because the disposition is the
  * same — `converted` — and what differs is only who asks for them. The browser

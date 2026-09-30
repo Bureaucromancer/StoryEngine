@@ -224,7 +224,7 @@ function reservedNamespaceIssues(value: unknown): ValidationIssue[] {
   const sections = (value as { profile?: { sections?: unknown } }).profile?.sections;
   if (!Array.isArray(sections)) return [];
 
-  // The card's own prompt sections are the engine's too ([P13.3]): the
+  // The card's own prompt sections are the engine's too ([P14.3]): the
   // SillyTavern importer writes them and the Scene pack places them.
   const conventional = new Set<string>([
     ...Object.values(CONVENTIONAL_SECTION_IDS),

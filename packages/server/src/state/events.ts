@@ -114,18 +114,18 @@ export const stepFailed = (
 
 /**
  * ***`message` is which of the turn's messages a speaking call is writing*** —
- * [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
- * point 4, added at [P13.2]: *"Progress events gain `message: n`."*
+ * [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * point 4, added at [P14.2]: *"Progress events gain `message: n`."*
  *
  * The index into the turn's `output.messages`, the same number the draft's
  * messages and the `delta` frames carry, so a surface painting a round knows
  * which bubble a call is filling from the durable events alone. **Absent on a
- * call that speaks for nobody**, which is every call before P13.2 and every
+ * call that speaks for nobody**, which is every call before P14.2 and every
  * narrator's still: a consumer that never heard of it reads these events
  * exactly as it did.
  */
 /**
- * ***`speaker` is who that message is by*** — added at [P13.5], so a surface
+ * ***`speaker` is who that message is by*** — added at [P14.5], so a surface
  * painting the round can put a name and a portrait on the bubble as it opens
  * rather than when the turn lands. A `Ref`, as the message's own `speaker` is,
  * and sent only beside `message`: it is that message's author and nothing else.
@@ -151,8 +151,8 @@ export const callStarted = (
 
 /**
  * ***Who this round is for, in order, once it is settled*** —
- * [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
- * point 8, added at [P13.5]: *"while a round streams, the who-speaks-next
+ * [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * point 8, added at [P14.5]: *"while a round streams, the who-speaks-next
  * control shows the picked order, which is Marinara's `response_queue` event."*
  *
  * **Sent when the selection is final, and once**: straight after the rules

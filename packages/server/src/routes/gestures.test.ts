@@ -21,9 +21,9 @@ import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../t
 
 /**
  * ***Every row of §1.6's table, through the route*** —
- * [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
- * and [§1.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * built at [P13.4], whose *Ends at* this file is: *"every row of §1.6's table
+ * [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * and [§1.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * built at [P14.4], whose *Ends at* this file is: *"every row of §1.6's table
  * has a route test, and a new session opens on its greeting with the
  * alternates as siblings."*
  *
@@ -411,7 +411,7 @@ describe('§1.6 — the gestures', () => {
 
     /**
      * ***A hide follows the message onto its carried copy*** — 2026-09-29, at
-     * the [P13.4] review: the swipe showed the model a line the person had
+     * the [P14.4] review: the swipe showed the model a line the person had
      * hidden, and brought it back visible on the sibling.
      */
     it('keeps a hidden carried message out of the call, and hidden on the sibling', async () => {
@@ -439,7 +439,7 @@ describe('§1.6 — the gestures', () => {
 
     /**
      * ***A rewrite swipe replays call k's draws, not call 0's*** — 2026-09-29,
-     * at the [P13.4] review. A book whose one entry rolls on every speaking
+     * at the [P14.4] review. A book whose one entry rolls on every speaking
      * call gives the round one `lore.probability` draw per message, tagged
      * with it; the swipe's one call must take message 1's, re-keyed from 0.
      */
@@ -554,7 +554,7 @@ describe('§1.6 — the gestures', () => {
       expect([nothing.status, nothing.body.error]).toEqual([422, 'nothing-to-continue']);
     });
 
-    // 2026-09-29, at the [P13.4] review — see the swipe's test of the same.
+    // 2026-09-29, at the [P14.4] review — see the swipe's test of the same.
     it('keeps a hidden earlier message out of the call, and refuses a hidden last one', async () => {
       const vera = await anActor('Vera');
       const lund = await anActor('Lund');
@@ -626,7 +626,7 @@ describe('§1.6 — the gestures', () => {
 
     /**
      * ***`editOf` keeps what the edit leaves alone*** — 2026-09-29, at the
-     * [P13.4] review: an edit of the reply lost the move's picture and
+     * [P14.4] review: an edit of the reply lost the move's picture and
      * force-talk, which `authored.input` has no field for.
      */
     it('keeps the edited turn’s move, pictures and force-talk included, under editOf', async () => {

@@ -58,13 +58,13 @@ export interface RetrieveContext {
   /**
    * ***This turn's earlier speakers' replies***, oldest first — newer than the
    * pending input, and in no history yet because the turn holding them has not
-   * been committed. [P13.2] review, 2026-09-29.
+   * been committed. [P14.2] review, 2026-09-29.
    *
    * **A later speaker's lore sees what the earlier ones said**, as it does in
    * SillyTavern: `generateGroupWrapper` runs each member's `Generate` in turn
    * (`group-chats.js:1051`), and each builds `chatForWI` from the chat the
    * previous reply was just saved into (`script.js:4565`). The collector has
-   * been handed the round since P13.2 and put it in the prompt; a scan that did
+   * been handed the round since P14.2 and put it in the prompt; a scan that did
    * not read it would activate lore for a conversation one reply behind the
    * one the model is shown. Absent or empty on every call that is not a later
    * speaker's.

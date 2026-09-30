@@ -626,7 +626,7 @@ describe('the log alone reconstructs a killed turn', () => {
     const chain = ['job.running', 'step.started', 'call.started', 'job.committed', 'job.recovered'];
     /*
      * *The narrator's step lines*, since Scene declares a `pre` step ahead of
-     * it ([P13.5b]'s secret-plot pass, which reads its switch and returns on
+     * it ([P14.5b]'s secret-plot pass, which reads its switch and returns on
      * every session that has not turned it on — [25 C17]'s dead row). That
      * step's started and finished lines are the turn's too, and not the
      * lifecycle this chain is about.
@@ -777,7 +777,7 @@ describe('the log alone reconstructs a killed turn', () => {
      * step finished; the killed one's did neither and needed a recovery the
      * ordinary one has no line for.
      */
-    // The narrator's lines, for the chain's reason above ([P13.5b]).
+    // The narrator's lines, for the chain's reason above ([P14.5b]).
     const narrating = (line: Record<string, unknown>): boolean =>
       line['stepId'] === undefined || line['stepId'] === 'se.narrate';
     const killedEvents = killedLines.filter(narrating).map((line) => String(line['event']));

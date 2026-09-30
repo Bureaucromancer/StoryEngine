@@ -7,9 +7,9 @@ import type { MarinaraChat } from './chat.js';
 
 /**
  * ***Marinara's families*** —
- * [P13.10](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §0.1](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13 §2.5](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §0.1](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14 §2.5](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **A Marinara branch is a copied chat with a back-pointer**, as SillyTavern's
  * is: *Branch* creates a new `chats` row, copies the messages up to the fork
@@ -17,7 +17,7 @@ import type { MarinaraChat } from './chat.js';
  * chat's id as `metadata.branchParentChatId` (`chats.routes.ts:3885`). A branch
  * of a branch names the branch. So one family is a chat and every chat that
  * points back to it, and it becomes one session whose shared prefix exists once
- * — which the builder's content identity does ([P13 §2.4]); this module only
+ * — which the builder's content identity does ([P14 §2.4]); this module only
  * says which chats are one family, and in what order.
  *
  * ***SillyTavern's rules, on ids rather than names*** (`sillytavern/families.ts`
@@ -32,13 +32,13 @@ import type { MarinaraChat } from './chat.js';
  * *Not `chats.groupId`*, which is Marinara's sidebar grouping — *"like ST chat
  * files per character"* — and which the branch route also sets
  * (`chats.routes.ts:3751`). Two chats started separately for one character share
- * a group and are not a family: [P13 §2.5]'s *"unlinked chats stay separate
+ * a group and are not a family: [P14 §2.5]'s *"unlinked chats stay separate
  * sessions, even when they open on the same greeting."*
  *
  * **Pure**: parsed chats in, plans out.
  */
 
-/** Where a family is keyed — [P13 §2.7]'s `storage/tables/chats.json#<chatId>`. */
+/** Where a family is keyed — [P14 §2.7]'s `storage/tables/chats.json#<chatId>`. */
 export const MARINARA_CHAT_SOURCE = 'storage/tables/chats.json#';
 
 /**

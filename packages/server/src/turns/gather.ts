@@ -368,7 +368,7 @@ export function collectFor(
   call: Omit<CollectContext, FromGather> & Partial<Pick<CollectContext, 'channels'>>,
 ): Collected {
   /**
-   * ***The chat settings, read once for every caller*** — [P13.3], through
+   * ***The chat settings, read once for every caller*** — [P14.3], through
    * `chatSettingsOf` for its reason (what absence means is not a local
    * question). The author's note is decided here because deciding needs the
    * whole path's input count, and the collector is handed only the window; it

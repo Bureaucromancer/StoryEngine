@@ -132,7 +132,7 @@ describe('the mode registry', () => {
   });
 
   it('names the mode chats are imported into apart from the default', async () => {
-    // [P13.8]: the same string today, for a different reason — the default is
+    // [P14.8]: the same string today, for a different reason — the default is
     // a fallback and this is a mapping. Two constants, so that moving the
     // default does not quietly move every imported chat with it.
     const registry = await freshRegistry();

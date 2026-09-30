@@ -284,7 +284,13 @@ const playRoute = createRoute({
     // tests without a router, and a component reaching for a route API would
     // throw the moment it rendered anywhere but here.
     const { block } = playRoute.useSearch();
-    return <PlayPage sessionId={sessionId} {...(block === undefined ? {} : { block })} />;
+    // **Keyed by the session**, so moving to another session is a fresh page
+    // rather than this one with new props: the composer's words and pictures
+    // belong to the session they were written in, and a picture uploaded to one
+    // session's store is a digest the next one refuses.
+    return (
+      <PlayPage key={sessionId} sessionId={sessionId} {...(block === undefined ? {} : { block })} />
+    );
   },
 });
 

@@ -119,7 +119,7 @@ describe('a card and a preset imported from one directory agree', () => {
       url: `/api/sessions/${sessionId}/turns`,
       payload: {
         idempotencyKey: 'fixture-pair-1',
-        // Since P13.4 a Scene session whose cast has written openings starts
+        // Since P14.4 a Scene session whose cast has written openings starts
         // on its opening turn, so the head is that turn rather than null.
         headTurnId: created.body.session.headTurnId ?? null,
         // Names one of the imported book's keys, so the turn's own prompt is

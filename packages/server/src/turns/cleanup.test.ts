@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { cleanReply } from './cleanup.js';
 
 /**
- * ***A group reply, cleaned*** — [P13 §1.4] point 3, [P13.2].
+ * ***A group reply, cleaned*** — [P14 §1.4] point 3, [P14.2].
  *
  * Each row names the source line it was transcribed from, so a reader can check
  * the claim against the pin rather than against this file's own reading of it.

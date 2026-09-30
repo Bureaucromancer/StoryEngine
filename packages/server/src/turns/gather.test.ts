@@ -440,11 +440,11 @@ describe('what a session gets without asking for it', () => {
 
 /**
  * ***A narrated session keeps the presence reading it was played with***
- * (2026-09-29, the [P13.3] review). Scene declares `castIsPresent` since
- * P13.3, and read through the mode alone that re-read every narrated
+ * (2026-09-29, the [P14.3] review). Scene declares `castIsPresent` since
+ * P14.3, and read through the mode alone that re-read every narrated
  * session's presence: a member the story had walked out (`false`, the
  * channel's *not in this room*) lost their card from the narrator's one
- * merged call. Tied to the session's voice, a `legacy` session and one P13.0
+ * merged call. Tied to the session's voice, a `legacy` session and one P14.0
  * made narrated keep the prompt they had.
  */
 describe('a muted-looking member in a narrated session', () => {
@@ -498,7 +498,7 @@ describe('a muted-looking member in a narrated session', () => {
     expect(ids).toContain(`se.actor.summary.${veraId}`);
   });
 
-  it('keeps it in a session P13.0 created narrated', async () => {
+  it('keeps it in a session P14.0 created narrated', async () => {
     const { ids, veraId } = await assembled({ voice: 'narrator', dispatch: 'merged' });
 
     expect(ids).toContain(`se.actor.summary.${veraId}`);

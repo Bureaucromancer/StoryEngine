@@ -285,6 +285,121 @@ A SvelteKit + Tauri app (Svelte 5 runes), Vercel AI SDK across ~8 providers,
 local database, single-user desktop-shaped. Version 0.7.8. The smallest and most
 coherent of the three.
 
+### The library on disk — surveyed 2026-09-26, at `c43da108`
+
+*Added 2026-09-26, for [P13](workplan/30-p13-aventuras-import.md).* "Local
+database" was the whole of what this corpus recorded about where an Aventuras
+install lives, and the three export paths [P4 §1.5](workplan/16-p4-implementation.md)
+found were found in the source rather than here. Everything below is
+`AventurasTeam/Aventuras` v0.7.11 at
+`c43da108f6b3679950e76afe020f6b26abf0c9ce` (2026-09-25), pinned for the reason
+Marinara's survey above gives.
+
+**One SQLite file holds the install, settings included.** `aventura.db`, opened
+by `tauri-plugin-sql` from the WebView and by `sqlx` from Rust
+(`src-tauri/src/db.rs`). It resolves against Tauri's **app config directory**,
+not its data directory — `docs/architecture/persistence.md` says so because
+their own native code once opened a database that did not exist — under the
+bundle id `com.karelian.aventura`:
+
+| Platform | Path |
+|---|---|
+| Linux | `~/.config/com.karelian.aventura/aventura.db` |
+| macOS | `~/Library/Application Support/com.karelian.aventura/aventura.db` |
+| Windows | `%APPDATA%\com.karelian.aventura\aventura.db` |
+| Android | app-private storage; reachable only through the in-app backup |
+
+Settings are rows in a `settings` key/value table in the same file, provider
+keys among them in plain text (`api_profiles`, `openai_api_key`). There is no
+second store.
+
+**WAL mode, and no lease.** A running install has `aventura.db-wal` and
+`-shm` beside the database, and the bare `.db` can be missing committed writes
+— Aventuras' own backup refuses to archive it for exactly that reason
+(`backupService.ts`). Nothing marks a live install the way Marinara's
+`.writer-lease` does; a `-wal` is equally the residue of a crash.
+
+**The schema is versioned by sqlx.** Thirty-nine files in
+`src-tauri/migrations/`, applied at startup and recorded in
+`_sqlx_migrations(version, …)`, so `max(version)` is the schema version. They are
+additive throughout — columns added, never renamed — and checksummed, so a
+shipped migration is never edited. **A restored backup is not migrated until the
+app next starts**, so a backup in the wild carries whatever version wrote it.
+
+**The tables divide into the install and the stories.**
+
+- *The install:* `character_vault`, `lorebook_vault`, `scenario_vault`,
+  `vault_tags`; `preset_packs` with `pack_templates` (Liquid, each with the
+  `content_hash`/`baseline_hash` pair §2's pack paragraph praises),
+  `pack_variables` and `pack_runtime_variables`; `settings`; the legacy
+  `templates`; `vault_assistant_conversations`; `model_health_cache`.
+- *Each story* (`story_id`, cascading): `stories`, `story_entries` (the
+  transcript), `branches`, `characters`, `locations`, `items`, `story_beats`,
+  `entries` (the story's lorebook — the unified `Entry` above), `chapters`,
+  `checkpoints` and `world_state_snapshots` (both whole world states as JSON),
+  `time_anchors`, `kept_separate`, `embedded_images`, `background_images`.
+
+**Images are base64 text inside the database** — generated illustrations,
+backgrounds, and every character and vault portrait. This is why an install with
+a gallery is hundreds of megabytes, and why Aventuras moved its backup and
+export into Rust: the WebView ran out of heap on Android.
+
+**What leaves the app.** Four things, one of which carries everything:
+
+- the **full backup**, a zip of a `VACUUM INTO` snapshot named `aventura.db`
+  plus `metadata.json` — `{ version: 1, createdAt, appVersion, storyCount,
+  hasDatabaseSnapshot, databaseSizeBytes }` — written by
+  `src-tauri/src/backup.rs`. Older backups also carry `stories/*.avt`, which
+  Aventuras' own restore ignores. *The archive itself*, for a reader that has to
+  open one without holding it in memory
+  ([P13.8](workplan/30-p13-aventuras-import.md)): the `zip` crate v8 with only
+  its `deflate` feature, `aventura.db` deflated at level 1 and `metadata.json`
+  stored, through `ZipWriter::new` over a seekable file — so sizes are written
+  back into each local header rather than into data descriptors — and without
+  `large_file`, so there is no zip64 below 4 GiB (the crate refuses a larger
+  entry outright). To be confirmed on a real backup's bytes at the gate;
+- **`.avt`**, one story as versioned JSON, now at 1.10.0
+  (`services/import/types.ts`), which is `gatherStoryData()` — every row the
+  story owns, all branches, images inlined — through the row mappers;
+- the **vault's single-record JSON**, which [P4 §1.5](workplan/16-p4-implementation.md)
+  reads;
+- **LAN sync** (`src-tauri/src/sync/`), a token-checked `POST /sync` serving
+  `.avt` for stories the person selects. A phone-to-desktop feature, not an
+  export.
+
+**The objects are the rows run through mappers, and the mappers do work.**
+`src/lib/services/database.ts` holds one per table — `mapVaultCharacter`
+`:3042`, `mapVaultLorebook` `:3154`, `mapVaultScenario` `:4347`, the pack
+mappers from `:4368`, the story mappers from `:2687` — and they are not
+renames. `mapVaultCharacter` repairs the legacy string-array form of
+`visual_descriptors` through `migrateVisualDescriptors` (`:105`), so a reader
+that selected the column raw would meet a shape the file exports never show.
+
+**A vault lorebook is not `Entry[]`.** `lorebook_vault.entries` holds
+`VaultLorebookEntry[]` — `{ name, type, description, keywords, aliases,
+injectionMode, priority }` (`types/index.ts:305`) — and the `Entry[]` the file
+export writes is produced from it by `vaultEntryToEntryLike`
+(`lorebookImportExport/export/vault.ts:18`). The unified `Entry` above is a
+**story** lorebook's shape; the vault keeps a flatter one.
+
+**`linkedLorebookId` is a row reference, on characters as well as scenarios.**
+Importing a card with an embedded book splits the book into its own
+`lorebook_vault` row and stores the link in the new object's `metadata` —
+`scenarioVault.svelte.ts:345`, `characterVault.svelte.ts:429`. From a file the
+link names nothing; from the database it resolves.
+
+**A story's history is a list, and the tree is in the branches.**
+`story_entries` is `{ type: user_action | narration | system, content,
+position, branch_id, … }`, append-only per branch; `branch_id` null is main.
+`parent_id` exists and **is written `null` at every site that creates an entry**
+(`stores/story.svelte.ts:864`, `:947`, `:5408`). A branch owns only the rows it
+wrote, forks at `fork_entry_id` under `parent_branch_id`, and continues its
+parent's positions from the fork. The world-state tables are copy-on-write on
+top of that: `overrides_id` names the inherited row a branch's row shadows, and
+`deleted` is a tombstone. Regeneration replaces rather than keeping siblings,
+and the `retry` entry type was removed at `c43da108` itself (#535) as never
+written — so the only siblings in an Aventuras story are branches.
+
 ### What it gets right and we should take
 
 **The generation pipeline is a real pipeline.** `GenerationPhase = 'pre' |

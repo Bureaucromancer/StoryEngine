@@ -19,7 +19,7 @@ import {
 
 /**
  * ***One SillyTavern chat file, read*** —
- * [P13.7](../../../../../docs/design/workplan/30-p13-scene-and-session-import.md).
+ * [P14.7](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
  *
  * **Every line below is shaped as SillyTavern writes it**, field for field, and
  * says which function wrote it — `saveReply`, `sendMessageAsUser`,
@@ -27,12 +27,12 @@ import {
  * readings of those writers, and a fixture shaped by guesswork would test the
  * guess. The fixtures live here rather than in `fixtures/test-sillytavern.ts`,
  * ~~whose one chat file is a sweep-counting prop that other tests depend on
- * being exactly one line~~ — whose one chat is, since [P13.8], a small whole
+ * being exactly one line~~ — whose one chat is, since [P14.8], a small whole
  * chat that the sweep turns into a session end to end; the cases here are each
  * one writer's shape, which a single swept chat could not hold.
  *
- * The last `describe` is the stage's point: a parsed chat fed through the P13.6
- * builder comes out as the tree [P13 §2.3] describes.
+ * The last `describe` is the stage's point: a parsed chat fed through the P14.6
+ * builder comes out as the tree [P14 §2.3] describes.
  */
 
 const PATH = 'chats/Vera Solano/Vera Solano - 2024-07-12@01h00m00s000ms.jsonl';
@@ -498,7 +498,7 @@ describe('a headerless group file', () => {
       String(FORCED),
       String(FORCED + 1),
     ]);
-    // …which the builder's rounds read as [P13 §2.2] asks: one opening turn,
+    // …which the builder's rounds read as [P14 §2.2] asks: one opening turn,
     // the round, the force-talked member alone, the old line alone.
     expect(
       roundsOf(chat.messages).map((round) => [
@@ -817,7 +817,7 @@ describe('what cannot be read', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('through the P13.6 builder', () => {
+describe('through the P14.6 builder', () => {
   /**
    * A single-character chat as SillyTavern leaves it: a greeting with an
    * alternate (`getFirstMessage`'s greetings-as-swipes, `script.js:7664`), a

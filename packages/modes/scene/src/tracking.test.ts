@@ -31,7 +31,7 @@ import {
 } from './tracking.js';
 
 /**
- * ***The trackers, held to [P13 §1.9.2]*** — [P13.5a].
+ * ***The trackers, held to [P14 §1.9.2]*** — [P14.5a].
  *
  * The step's claims, each with the mutation that would falsify it: **off costs
  * nothing** (no call until a person switches one on); **one call for every
@@ -152,7 +152,7 @@ describe('what is declared', () => {
 });
 
 /**
- * ***The cards and the switches*** — the client half of [P13.5a]. A card is a
+ * ***The cards and the switches*** — the client half of [P14.5a]. A card is a
  * `record` whose fields are declared rather than inferred, so the claim worth
  * holding is that every declared field is a property the channel's schema
  * actually has: a field naming nothing would be a row the host draws empty
@@ -192,7 +192,7 @@ describe('a turn with trackers on', () => {
   });
 
   /**
-   * ***P13.5a's first claim***: *"with world, character and inventory switched
+   * ***P14.5a's first claim***: *"with world, character and inventory switched
    * on, a turn whose prose moves a character to the docks and hands the player
    * a key proposes all three"* — in **one** call.
    */
@@ -277,7 +277,7 @@ describe('a turn with trackers on', () => {
     expect(result).toEqual({});
   });
 
-  /** ***P13.5a's second claim***: *"a locked location stays put"*. */
+  /** ***P14.5a's second claim***: *"a locked location stays put"*. */
   it('writes a locked field back, and lets the rest of the answer land', async () => {
     const standing = { ...(WORLD.empty as object), location: 'the harbourmaster’s office' };
     const result = await track(

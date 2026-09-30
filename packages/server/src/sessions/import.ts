@@ -93,8 +93,8 @@ export interface SessionImportOptions {
   pixels?: (path: string) => Promise<Uint8Array | null>;
   /**
    * ***A re-import extends the session it came from*** —
-   * [P13 §2.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
-   * [P13.10a]. Set by the chat doors (`import/chat-sessions.ts`), whose
+   * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.10a]. Set by the chat doors (`import/chat-sessions.ts`), whose
    * documents a converter assembled from a source that goes on changing; see
    * {@link extendSession}.
    *
@@ -123,7 +123,7 @@ export type SessionImport =
 /**
  * ***What an extending import did, counted*** — the facts `chat-sessions.ts`
  * turns into the review row's notes, so the person is told what a sync did
- * and, more to the point, what it declined to do ([P13 §2.7]'s *"says so"*).
+ * and, more to the point, what it declined to do ([P14 §2.7]'s *"says so"*).
  */
 export interface SessionSync {
   /**
@@ -142,7 +142,7 @@ export interface SessionSync {
   refsMoved: number;
   /**
    * ***Rounds that grew in the source since the last import*** — §2.7's open
-   * case, decided at [P13.10a]: the grown round is a new sibling beside the
+   * case, decided at [P14.10a]: the grown round is a new sibling beside the
    * round as it was imported, and this counts them so the row can say which
    * is which.
    */
@@ -199,7 +199,7 @@ export async function importSession(
 ): Promise<SessionImport> {
   const result = await loadSession(context, handle, document, options);
   /**
-   * ***And then the chain is warmed, outside this call*** — [P13.11],
+   * ***And then the chain is warmed, outside this call*** — [P14.11],
    * [18 §7.5]: *"an imported 2,000-turn chat at the default `span: 20` asks for
    * ~99 summariser calls, one after another, inside the first turn played
    * after import."* Told here rather than by each door, and after a sync as
@@ -245,7 +245,7 @@ async function loadSession(
   const originalFilename = originalFilenameOf(read.session);
 
   /**
-   * ***The `extend` arm*** — [P13 §2.7], [P13.10a]: a source this account
+   * ***The `extend` arm*** — [P14 §2.7], [P14.10a]: a source this account
    * imported before is found, and the import extends that session rather
    * than refusing it.
    */
@@ -290,11 +290,11 @@ async function loadSession(
       version: exportedBy(read),
       license: null,
       /**
-       * ***The source's own name for itself, kept*** ([P13.10a]). Null until
+       * ***The source's own name for itself, kept*** ([P14.10a]). Null until
        * then, because the only documents were exports, which have no source
        * file to name. A chat's document names its family's root path
        * (`chat/build.ts`), and that is what a later import finds the session
-       * by ([P13 §2.7], `sessionByOrigin`). An export of such a session
+       * by ([P14 §2.7], `sessionByOrigin`). An export of such a session
        * carries it too, so a backup restored elsewhere can still be synced
        * there.
        */
@@ -516,7 +516,7 @@ function foreignise(turn: Turn, source: string): Turn {
 }
 
 // ---------------------------------------------------------------------------
-// Sync — [P13 §2.7], [P13.10a]
+// Sync — [P14 §2.7], [P14.10a]
 // ---------------------------------------------------------------------------
 
 /**
@@ -534,10 +534,10 @@ function originalFilenameOf(session: SessionExport['session']): string | null {
  * ***Which session a re-import extends***, or null for a new one.
  *
  * 1. **By its source** — `(account, originalFilename)` through the index, the
- *    library's re-import rule applied to a session ([P13 §2.7]).
- * 2. **By its turns**, for a session imported before [P13.10a] stamped the
+ *    library's re-import rule applied to a session ([P14 §2.7]).
+ * 2. **By its turns**, for a session imported before [P14.10a] stamped the
  *    source: its `originalFilename` is null, and a chat's turn ids are its
- *    account and content ([P13 §2.4]), so a session holding them is the one
+ *    account and content ([P14 §2.4]), so a session holding them is the one
  *    that chat made. It is stamped as it is extended, and found by 1 after.
  *
  * *Only a session in this account's own folder*, whichever way it was found:
@@ -587,7 +587,7 @@ function scopeOf(context: SessionContext, handle: string): string {
  * record ([P11.10]'s freeze), and this is bookkeeping about one install's
  * relationship with a source on the same disk, which an export has no reason
  * to carry and another install no use for. A session without one — imported
- * before [P13.10a], or restored from a backup — is read by {@link recordFrom},
+ * before [P14.10a], or restored from a backup — is read by {@link recordFrom},
  * which says what it assumes.
  */
 interface SyncRecord {
@@ -621,7 +621,7 @@ const SYNC_SCHEMA = 'storyengine.session-sync/1';
 const SYNC_FILE = 'import-sync.json';
 
 /**
- * ***The session fields a source's settings land in*** ([P13 §2.6]): how a chat
+ * ***The session fields a source's settings land in*** ([P14 §2.6]): how a chat
  * is voiced, dispatched and ordered, and its author's note. Each is merged on
  * its own, so a reply order changed here survives a note changed there.
  */
@@ -693,7 +693,7 @@ function castIn(session: SessionExport['session']): string[] {
  * - **Hidden flags and settings** read as the session's own, which makes the
  *   source's latest win — the same as a first import would have given, and a
  *   hide made here on a line the source shows is undone, once, on this first
- *   sync (a departure from §2.7 the P13.10a entry records).
+ *   sync (a departure from §2.7 the P14.10a entry records).
  * - **The turns** are the imported ones it holds (`foreign`), and the index
  *   answers for any deleted before this sync, while it still has their rows.
  * - **The cast** is the session's own, so only a member new to both is added.
@@ -803,8 +803,8 @@ function mutedIn(turns: readonly Turn[]): Set<string> {
 }
 
 /**
- * ***Played on here since the import*** — the test [P13 §2.7]'s *"it does not
- * move the person"* turns on, defined at [P13.10a]:
+ * ***Played on here since the import*** — the test [P14 §2.7]'s *"it does not
+ * move the person"* turns on, defined at [P14.10a]:
  *
  * - **a turn this install minted** — every imported turn carries `foreign`
  *   (`foreignise`) and nothing else writes it, so a turn without one was
@@ -832,10 +832,10 @@ function playedOnHere(
 
 /**
  * ***A re-import, extending the session it came from*** —
- * [P13 §2.7](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
- * [P13.10a].
+ * [P14 §2.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.10a].
  *
- * **Append-only, and [P13 §2.4]'s identity is why that is enough.** A chat's
+ * **Append-only, and [P14 §2.4]'s identity is why that is enough.** A chat's
  * turn id is its account, family, parent and content, so every message the
  * chat already had is a turn already here and is skipped; every new one is a
  * turn whose parent is here, and is appended; an edited message is a new node
@@ -1101,7 +1101,7 @@ async function extendSession(
     const unchanged = appended.length === 0 && same(visible(next), visible(session));
     /**
      * *The source is stamped as well*, for a session imported before
-     * [P13.10a] and found by its turns: from now on the index finds it by its
+     * [P14.10a] and found by its turns: from now on the index finds it by its
      * source. That alone is not a change a person can see, so it moves neither
      * the session's clock nor the ledger's `unchanged`.
      */
@@ -1229,7 +1229,7 @@ function keepThePerson(
 }
 
 /**
- * ***A round that grew*** — [P13 §2.7]'s open case, decided at [P13.10a]: the
+ * ***A round that grew*** — [P14 §2.7]'s open case, decided at [P14.10a]: the
  * old round is `before` and `after` is the round as it now stands, when the two
  * share a parent and a player's line and `before`'s messages are a strict
  * prefix of `after`'s. Only imported turns are candidates; a turn played here
@@ -1292,7 +1292,7 @@ function pendingMutes(
 }
 
 /**
- * ***A mute the source changed, as effects on a graft*** — [P13 §2.6]'s
+ * ***A mute the source changed, as effects on a graft*** — [P14 §2.6]'s
  * presence, carried by a sync the way the first import carried it
  * (`chat/build.ts`'s `mutedEffects`, whose reasons hold here unchanged:
  * `proposedBy: engine`, applied, built rather than accepted).

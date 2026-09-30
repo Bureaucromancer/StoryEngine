@@ -127,6 +127,35 @@ describe('a backup as an import source', () => {
    * produced. A backup meeting a live account is **the past meeting the
    * present**, and the present is usually what somebody wants to keep.
    */
+  /**
+   * ***And `skip` when nobody says*** —
+   * [P13 §0.5](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * The backups route applied P12.8's default and the sweep did not: an
+   * unpacked backup handed to the import panel — a folder upload or a server
+   * path, neither of which sends a policy — took the sweep's own `replace`, and
+   * reverted every object edited since the archive was taken.
+   */
+  it('keeps your edit when no policy is given, as the import panel sends none', async () => {
+    const id = await addLorebook('Rain City', 'It rains.');
+    const files = await archiveOf();
+
+    const current = read(server.services.library, 'ned', id);
+    const edited = structuredClone(current.body) as { entries: { content: string }[] };
+    edited.entries[0]!.content = 'It has stopped raining.';
+    const { update } = await import('../../library.js');
+    await update(server.services.library, 'ned', id, edited, current.contentHash);
+
+    const report = await importInto(files);
+    expect(report.items[0]?.notes.map((note) => note.key)).toContain(
+      'import.object.differsAndKept',
+    );
+    expect(
+      (read(server.services.library, 'ned', id).body as { entries: { content: string }[] })
+        .entries[0]?.content,
+    ).toBe('It has stopped raining.');
+  });
+
   it('keeps your edit under skip, and reverts it under replace', async () => {
     const id = await addLorebook('Rain City', 'It rains.');
     const files = await archiveOf();

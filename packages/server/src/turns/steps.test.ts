@@ -282,7 +282,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     history: true,
     transcript: true,
     output: true,
-    // A boolean flag, which clones trivially — [P13.5a]'s on-demand run.
+    // A boolean flag, which clones trivially — [P14.5a]'s on-demand run.
     onDemand: true,
   };
 
@@ -291,7 +291,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
     effects: true,
     message: true,
     messages: true,
-    // An editor's answer — plain data, readonly arrays of strings and records ([P13.5c]).
+    // An editor's answer — plain data, readonly arrays of strings and records ([P14.5c]).
     revisions: true,
   };
 
@@ -315,7 +315,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
         // A readonly array, which is where a frozen input would cross badly — and
         // the shape a mode with a widened `select` hands every step ([P7.3]).
         speakers: ['actor-vera'],
-        // How the session speaks — two strings, handed to every step ([P13.2]).
+        // How the session speaks — two strings, handed to every step ([P14.2]).
         voice: 'embodied',
         dispatch: 'per-actor',
         // A frozen record, which is what a session's stored answers are by the
@@ -334,7 +334,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
         ],
         channels: { [SE_CLOCK]: { version: 1, value: { day: 1, hour: 8, minute: 0 } } },
         history: [historyTurn()],
-        // With its messages, as a revising step reads it ([P13.5c]).
+        // With its messages, as a revising step reads it ([P14.5c]).
         output: {
           text: 'The rain did not let up.',
           messages: [{ speaker: null, text: 'The rain did not let up.' }],
@@ -371,7 +371,7 @@ describe('the step boundary is serialisable, which is what P7 moves', () => {
       message: { text: 'the answer', reasoning: 'she had been waiting a while' },
       /**
        * *Beside `message` only because `Required` puts every member here* — the
-       * runner refuses a result carrying both ([P13.0]). What this literal
+       * runner refuses a result carrying both ([P14.0]). What this literal
        * proves is that the shape crosses the hop, and a speaker is a `Ref`, an
        * object inside an object inside an array, which is the depth a clone
        * has to get right.

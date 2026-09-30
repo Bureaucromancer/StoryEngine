@@ -20,8 +20,8 @@ import { sweep } from '../sweep.js';
 import { SCENE_TRACKERS, snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
 
 /**
- * ***Marinara's trackers, imported*** — [P13 §2.6]'s second table, built at
- * [P13.5a]. Three claims, each with the mutation that would falsify it:
+ * ***Marinara's trackers, imported*** — [P14 §2.6]'s second table, built at
+ * [P14.5a]. Three claims, each with the mutation that would falsify it:
  *
  * 1. **The spellings are Scene's.** `trackers.ts` spells the channel ids,
  *    versions and empty values rather than importing them (the SDK boundary),
@@ -244,7 +244,7 @@ describe('the switches', () => {
       ['se.track.custom.on', true],
       ['se.track.cadence', { everyNTurns: 1, manual: true }],
     ]);
-    // The director is no longer a note ([P13.5b]): its push is per turn here,
+    // The director is no longer a note ([P14.5b]): its push is per turn here,
     // and a chat that kept no secret plot has nothing else of it to carry.
     expect(notes.map((note) => note.key)).toEqual([
       'import.chat.manualTrackersPerAgent',
@@ -354,11 +354,11 @@ describe('a Marinara roleplay with trackers, swept', () => {
       ['se.track.character.on', true],
       ['se.track.inventory.on', true],
       ['se.track.cadence', { everyNTurns: 1, manual: true }],
-      // The director's secret plot, switched on, every ten messages — [P13.5b].
+      // The director's secret plot, switched on, every ten messages — [P14.5b].
       ['se.plot.secret.on', true],
       ['se.plot.secret.cadence', { everyNTurns: 5 }],
       // The prose guardian and the echo chamber, the guardian's banned words
-      // and its hold switched off — [P13.5c], `editor.test.ts`.
+      // and its hold switched off — [P14.5c], `editor.test.ts`.
       ['se.edit.style.on', true],
       ['se.echo.on', true],
       ['se.edit.style', expect.objectContaining({ banned: 'ozone, tapestry' })],
@@ -389,7 +389,7 @@ describe('a Marinara roleplay with trackers, swept', () => {
       'se.track.character',
       'se.track.locks',
       'se.track.hidden',
-      // The head, so the director's arc as of now — [P13.5b], `plot.test.ts`.
+      // The head, so the director's arc as of now — [P14.5b], `plot.test.ts`.
       'se.plot.secret',
     ]);
     expect(tracked(next)[0]?.after).toMatchObject({ weather: 'rain' });
@@ -477,7 +477,7 @@ describe('a Marinara roleplay with trackers, swept', () => {
       'se.track.world',
       'se.track.character',
       'se.track.inventory',
-      // The echo chamber's panel, switched on by the import ([P13.5c]).
+      // The echo chamber's panel, switched on by the import ([P14.5c]).
       'se.echo',
     ]);
     expect(read.body.actions).toEqual([{ stepId: 'se.scene.track', label: 'Update trackers' }]);

@@ -16,8 +16,8 @@ import { SE_SPEAKERS_SMART } from '../turns/smart-speakers.js';
 
 /**
  * ***Rewrite keeps the speakers, reroll asks again — through the route*** —
- * [P13 §1.3a](../../../../docs/design/workplan/30-p13-scene-and-session-import.md)
- * point 7, built at [P13.1].
+ * [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * point 7, built at [P14.1].
  *
  * `runner.test.ts` proves the runner keeps a pick it is handed; **what only the
  * route can show is who hands it over.** A `rewriteOf` submission names a turn,
