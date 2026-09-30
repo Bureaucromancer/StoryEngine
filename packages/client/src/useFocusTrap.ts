@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react';
 
 /**
  * A real focus trap, because `aria-modal` is a claim rather than a mechanism
@@ -35,6 +35,23 @@ export function useFocusTrap(onEscape: () => void): RefObject<HTMLDivElement | n
    */
   const [opener] = useState(() => document.activeElement as HTMLElement | null);
 
+  /**
+   * ***The caller's newest `onEscape`, read when Escape is pressed*** rather
+   * than a dependency of the effect below (2026-09-28).
+   *
+   * It was a dependency, and every caller hands a fresh arrow each render — a
+   * `Dialog`'s `onDismiss` is `() => { setOpen(false); }` at most of them — so
+   * each re-render of whatever owned the dialog ran the effect's cleanup, whose
+   * last act is to hand focus back to the opener. Focus left an open dialog
+   * whenever the page behind it re-rendered: a notification arriving, a poll
+   * answering, the bell's own *Mute sounds*, and — the one that loses work —
+   * the restore confirmation, where the letters of *restore* typed after a
+   * re-render went to the button behind the dialog. The effect now runs once a
+   * dialog, which is what its cleanup always assumed, and Escape still calls
+   * the newest callback rather than the first render's.
+   */
+  const escape = useEffectEvent(onEscape);
+
   useEffect(() => {
     function focusable(): HTMLElement[] {
       return Array.from(
@@ -47,7 +64,7 @@ export function useFocusTrap(onEscape: () => void): RefObject<HTMLDivElement | n
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onEscape();
+        escape();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -76,7 +93,7 @@ export function useFocusTrap(onEscape: () => void): RefObject<HTMLDivElement | n
       // state change that closed the dialog.
       if (opener?.isConnected === true) opener.focus();
     };
-  }, [onEscape, opener]);
+  }, [opener]);
 
   return surface;
 }

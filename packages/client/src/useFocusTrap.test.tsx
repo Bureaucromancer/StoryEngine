@@ -19,6 +19,12 @@ import { useFocusTrap } from './useFocusTrap.js';
  *
  * Both were found by mutation: rewriting the opener capture and deleting the
  * listener cleanup each left the dialog's nine tests green.
+ *
+ * A third lifecycle claim joined them on 2026-09-28, found by the audit rather
+ * than by mutation: the trap subscribes once a dialog, however often the page
+ * behind it re-renders. The harness above could not see it either, since the
+ * callback it passes never changes and the re-render it makes happens inside
+ * the dialog.
  */
 
 /**
@@ -129,5 +135,84 @@ describe('the listener', () => {
     await userEvent.keyboard('{Escape}');
 
     expect(onEscape).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A page that re-renders behind an open dialog and hands it a fresh `onEscape`
+ * each time — which is what every caller does, a `Dialog`'s `onDismiss` being
+ * an inline arrow at most of them.
+ */
+function Page({
+  open,
+  asked,
+  onEscape,
+}: {
+  open: boolean;
+  asked: number;
+  onEscape: (asked: number) => void;
+}): JSX.Element {
+  return (
+    <div>
+      <button type="button">Restore this install…</button>
+      <p>{`Asked ${String(asked)} times`}</p>
+      {open ? (
+        <Typed
+          onEscape={() => {
+            onEscape(asked);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function Typed({ onEscape }: { onEscape: () => void }): JSX.Element {
+  const surface = useFocusTrap(onEscape);
+
+  return (
+    <div ref={surface} role="alertdialog">
+      <label>
+        Type restore to confirm
+        <input autoFocus />
+      </label>
+    </div>
+  );
+}
+
+describe('a page that re-renders behind the dialog', () => {
+  /**
+   * ***Focus stays where the person put it*** (2026-09-28). The trap's effect
+   * depended on the callback, so every re-render behind the dialog ran its
+   * cleanup, and the cleanup hands focus back to the opener: the letters typed
+   * after a poll answered went to the button behind the dialog.
+   */
+  it('leaves focus in the dialog, so typing goes on where it started', async () => {
+    const user = userEvent.setup();
+    const onEscape = vi.fn();
+    const { rerender } = render(<Page open={false} asked={0} onEscape={onEscape} />);
+    screen.getByRole('button', { name: 'Restore this install…' }).focus();
+    rerender(<Page open asked={0} onEscape={onEscape} />);
+    const field = screen.getByLabelText<HTMLInputElement>('Type restore to confirm');
+
+    await user.keyboard('re');
+    rerender(<Page open asked={1} onEscape={onEscape} />);
+    await user.keyboard('store');
+
+    expect(document.activeElement).toBe(field);
+    expect(field.value).toBe('restore');
+  });
+
+  /** And a subscription made once still calls the callback the page has now. */
+  it('answers Escape with the newest render’s callback', async () => {
+    const user = userEvent.setup();
+    const onEscape = vi.fn();
+    const { rerender } = render(<Page open asked={0} onEscape={onEscape} />);
+    rerender(<Page open asked={2} onEscape={onEscape} />);
+
+    await user.keyboard('{Escape}');
+
+    expect(onEscape).toHaveBeenCalledTimes(1);
+    expect(onEscape).toHaveBeenCalledWith(2);
   });
 });

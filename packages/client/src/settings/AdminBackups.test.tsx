@@ -76,12 +76,17 @@ const MANIFEST = {
   omitted: [],
 };
 
-function supervised(canRestart: boolean, restorePending = false, draining = false): void {
+function supervised(
+  canRestart: boolean,
+  restorePending = false,
+  draining = false,
+  others = 0,
+): void {
   notices.mockResolvedValue({
     pendingRestart: [],
     canRestart,
     supervision: canRestart ? 'declared' : 'none',
-    interrupts: { mine: 0, others: 0 },
+    interrupts: { mine: 0, others },
     draining,
     restorePending,
     updates: {
@@ -167,6 +172,35 @@ describe('restoring the install', () => {
     await waitFor(() => {
       expect(restoreInstall).toHaveBeenCalledWith(ID, false);
     });
+  });
+
+  /**
+   * ***The word typed back survives the panel asking again*** (2026-09-28).
+   * The notices are asked again every thirty seconds, and each answer
+   * re-rendered the panel behind the dialog; the focus trap re-subscribed on
+   * every render and handed focus back to *Restore this install…*, so the rest
+   * of the word went to that button and the confirmation never enabled.
+   */
+  it('keeps the typing in the dialog when the notices are asked again', async () => {
+    const user = userEvent.setup();
+    const client = renderPanel();
+    await chooseArchive(user);
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    const field = screen.getByLabelText('Type restore to confirm');
+
+    await user.click(field);
+    await user.keyboard('re');
+    // Somebody else starts a turn, which is the kind of change a poll brings:
+    // an answer the same as the last would leave the panel as it was.
+    supervised(true, false, false, 1);
+    await askedAgain(client);
+    await user.keyboard('store');
+
+    expect(document.activeElement).toBe(field);
+    expect(screen.getByRole('button', { name: 'Stop the server and restore' })).toHaveProperty(
+      'disabled',
+      false,
+    );
   });
 
   it('says what a redacted archive would leave, and sends the flag that accepts it', async () => {
