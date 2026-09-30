@@ -112,6 +112,11 @@ import { readStoryRows } from './story-rows.js';
  * as a cast and a lorebook before it hands over the session that links to
  * them. The five tables join {@link CONVERTED_TABLES} and lose their rows.
  *
+ * ***P13.13: and their pictures.*** The candidate carries the story's
+ * `embedded_images` and `background_images` rows too, without their pixels,
+ * and a bounded reader for them; the Writer makes them renditions beside the
+ * turns (`pictures.ts`), and the two tables join {@link CONVERTED_TABLES}.
+ *
  * ***The database is never read where it lies*** (§1.2). `survey()` takes a
  * private copy through `storage/sqlite-snapshot.ts` and opens that, read-only:
  *
@@ -216,6 +221,16 @@ export const STORY_WORLD_TABLES = [
 ] as const;
 
 /**
+ * ***The two tables of a story's pictures*** — [P13.13]. Read with the tree
+ * when a sweep asks for stories, without their pixels (`story-rows.ts`), and
+ * carried as renditions beside the turns — `embedded_images` as
+ * illustrations, `background_images` as backdrops (`pictures.ts`). Converted
+ * on the tree's terms, with no row of their own: the story's row counts what
+ * came, and says what did not.
+ */
+export const STORY_PICTURE_TABLES = ['embedded_images', 'background_images'] as const;
+
+/**
  * ***The tables whose rows this reader turns into candidates***, in the order
  * it emits them — P13.6's tags, then P13.4's lorebooks, then P13.3's
  * characters, then P13.5's scenarios: §1.7's order, complete. The order is
@@ -235,6 +250,7 @@ export const CONVERTED_TABLES = [
   SCENARIO_TABLE,
   ...STORY_TREE_TABLES,
   ...STORY_WORLD_TABLES,
+  ...STORY_PICTURE_TABLES,
 ] as const;
 
 /**
@@ -282,6 +298,12 @@ export interface AventurasReaderOptions {
    * building a portrait that size.
    */
   maxPortraitBytes?: number;
+  /**
+   * The largest story picture carried, decoded — [P13.13], the portrait's
+   * bound and its default, and a seam of its own so a test can meet it with
+   * one picture of a story and leave the portraits alone.
+   */
+  maxPictureBytes?: number;
 }
 
 /** The names the per-story counts go by: the params of `storyRecorded`. */
@@ -303,7 +325,9 @@ type StoryCount =
  * the registry gains is a type error here until somebody decides. Both image
  * tables are one number: whether a picture was drawn into the story or behind
  * it is Part 2's to tell apart (P13.13), and the question a person has before
- * that is how many there are.
+ * that is how many there are. *P13.13 tells them apart where it carries them*
+ * — on the row of a story brought across, by what each became — and leaves
+ * this count as it was, for a sweep that does not ask.
  *
  * `null` is *counted per table and not per story*: `time_anchors`,
  * `kept_separate` and `world_state_snapshots` are all derived from the rest,
@@ -347,6 +371,7 @@ export class AventurasReader implements SourceReader {
   readonly #layout: Layout;
   readonly #seams: SnapshotSeams;
   readonly #maxPortraitBytes: number;
+  readonly #maxPictureBytes: number;
   readonly #stories: boolean;
   #owned: OwnedDatabase | null;
   #surveyed: Promise<SourceSurvey> | null = null;
@@ -361,6 +386,7 @@ export class AventurasReader implements SourceReader {
     this.#layout = layout;
     this.#seams = options.seams ?? {};
     this.#maxPortraitBytes = options.maxPortraitBytes ?? DEFAULT_MAX_PORTRAIT_BYTES;
+    this.#maxPictureBytes = options.maxPictureBytes ?? DEFAULT_MAX_PORTRAIT_BYTES;
     this.#stories = options.stories === true;
     this.#owned = options.owned ?? null;
   }
@@ -423,7 +449,10 @@ export class AventurasReader implements SourceReader {
       yield* vaultScenarioItems(held.db, { database: AVENTURAS_DATABASE });
     }
     yield* packRows(held.db, { database: AVENTURAS_DATABASE, tables: held.tables });
-    yield* storyRows(held, this.#stories, this.#maxPortraitBytes);
+    yield* storyRows(held, this.#stories, {
+      maxPortraitBytes: this.#maxPortraitBytes,
+      maxPictureBytes: this.#maxPictureBytes,
+    });
   }
 
   /**
@@ -620,10 +649,11 @@ function* tableRows(held: Held): Iterable<SourceItem> {
  * story at a time so a library of two hundred stories is never in memory at
  * once, for the Writer to hand to the story producer (`story.ts`). What the
  * story holds that this build does not bring — ~~its world~~, its chapters,
- * its pictures — rides on the candidate as `storyWorldRecorded`, so the row
+ * ~~its pictures~~ — rides on the candidate as `storyWorldRecorded`, so the row
  * that says *imported* also says what stayed behind. *Since P13.12* the world
  * is read with the tree (`story-rows.ts`) and comes across, so it is no longer
- * in that sentence. A story the database lists but cannot give back — gone
+ * in that sentence; *since P13.13* the pictures are read with it too, and
+ * leave it as well. A story the database lists but cannot give back — gone
  * between the list and the read — is left out, which it would also be from
  * Aventuras.
  *
@@ -636,7 +666,11 @@ function* tableRows(held: Held): Iterable<SourceItem> {
  * See {@link entitiesOnly} for the rows left out, and for the rows that are
  * still counted once per branch.
  */
-function* storyRows(held: Held, asked: boolean, maxPortraitBytes: number): Iterable<SourceItem> {
+function* storyRows(
+  held: Held,
+  asked: boolean,
+  bounds: { maxPortraitBytes: number; maxPictureBytes: number },
+): Iterable<SourceItem> {
   if (!held.tables.has('stories')) return;
 
   const tallies = new Map<string, Record<StoryCount, number>>();
@@ -669,20 +703,24 @@ function* storyRows(held: Held, asked: boolean, maxPortraitBytes: number): Itera
     const tally = tallies.get(id) ?? emptyTally();
 
     if (asked) {
-      const rows = readStoryRows(held.db, id, held.tables, {
-        maxPortraitBytes,
-      });
+      const rows = readStoryRows(held.db, id, held.tables, bounds);
       if (rows === null) continue;
       // *Since P13.12* the world comes with the story — its cast and its
-      // lorebook, which the Writer says on the row — so what stays behind is
-      // the chapters, the checkpoints and the pictures, P13.13's and P13.14's.
-      const { chapters, checkpoints, images } = tally;
+      // lorebook, which the Writer says on the row — ~~so what stays behind is
+      // the chapters, the checkpoints and the pictures, P13.13's and P13.14's~~
+      // *and since P13.13 its pictures*, which the Writer counts on the row as
+      // it carries them, and the few it cannot carry with them
+      // (`aventuras/pictures.ts`). So what stays behind here is the chapters
+      // and the checkpoints, P13.14's and nobody's yet; the `images` count
+      // leaves this sentence and stays in `storyRecorded`, which a sweep that
+      // does not ask still says.
+      const { chapters, checkpoints } = tally;
       const behindNote: ImportNote = {
         key: 'import.aventuras.storyWorldRecorded',
-        params: { story, chapters, checkpoints, images },
+        params: { story, chapters, checkpoints },
         level: 'info',
       };
-      const behind = chapters + checkpoints + images;
+      const behind = chapters + checkpoints;
       yield {
         outcome: 'candidate',
         candidate: {

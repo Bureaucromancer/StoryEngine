@@ -29,6 +29,7 @@ import { convertCharacter } from './aventuras/character.js';
 import { convertAventurasLorebook, type ConvertedAventurasLorebook } from './aventuras/lorebook.js';
 import { AVENTURAS_DATABASE, AventurasReader } from './aventuras/reader.js';
 import { convertScenario, type ConvertedScenario } from './aventuras/scenario.js';
+import { carryPictures, planPictures, type CarriedPictures } from './aventuras/pictures.js';
 import { produceStory, STORY_FORMAT } from './aventuras/story.js';
 import type { AventurasStoryRows } from './aventuras/story-rows.js';
 import { produceWorld, type WorldProduction } from './aventuras/world.js';
@@ -228,7 +229,17 @@ export interface SweepRequest {
    * checker keeps them together. Every door that sweeps passes it when its
    * request says `stories`.
    */
-  stories?: { sessions: SessionContext };
+  stories?: {
+    sessions: SessionContext;
+    /**
+     * The largest story picture carried, decoded ([P13.13]) — the Aventuras
+     * reader's `maxPictureBytes`, sixty-four megabytes when absent. On the
+     * story context because only a story reads it, and there so a test can
+     * meet the bound through the Writer without a sixty-four-megabyte
+     * fixture; no door sets it.
+     */
+    maxPictureBytes?: number;
+  };
 }
 
 export type SweepOutcome =
@@ -396,6 +407,9 @@ function readerFor(kind: string, request: SweepRequest): SourceReader | null {
       // Told whether it was asked for stories, and nothing else about them:
       // the sessions are the Writer's to write.
       stories: request.stories !== undefined,
+      ...(request.stories?.maxPictureBytes === undefined
+        ? {}
+        : { maxPictureBytes: request.stories.maxPictureBytes }),
     });
   }
   return null;
@@ -643,11 +657,23 @@ class Writer {
     }
     if (links.lore !== null) session['lore'] = [links.lore];
     const alsoProduced = links.written;
-    const said = [...produced.notes, ...world.notes, ...stored];
+
+    /**
+     * ***And its pictures*** (P13.13) — records beside the turns, their bytes
+     * read now to say what they are and read again by `importSession` as it
+     * writes them into the session it has just made (`pixels`). Nothing is
+     * written here: a refusal below leaves no picture anywhere, because the
+     * reader refuses before the session's folder exists.
+     */
+    const plan = planPictures(rows, produced.placement, story);
+    const pictures = carryPictures(plan, rows.pictures.read, rows.pictures.maxBytes, story);
+    produced.document.renditions = pictures.renditions;
+    const said = [...produced.notes, ...world.notes, ...plan.notes, ...pictures.notes, ...stored];
 
     const result = await importSession(stories, handle, produced.document, {
       originalFilename: source,
       requireLinks: true,
+      pixels: pictures.pixels,
     });
     if (result.ok) {
       // Aventuras' word on its way into the ledger, so clamped; at the pin it
@@ -665,6 +691,7 @@ class Writer {
             level: 'info',
           },
           ...worldSaid(story, world, links),
+          ...picturesSaid(story, pictures),
           ...said,
         ],
       };
@@ -1801,6 +1828,32 @@ function linksOf(session: SessionFile): string[] {
     ...(session.lore ?? []),
   ];
   return ids.filter((id): id is string => typeof id === 'string' && id !== '');
+}
+
+/**
+ * ***The pictures that came with a story, said on its row*** — [P13.13].
+ * How many of each purpose, and — rarely — how many lost their pixels between
+ * the two reads (`aventuras/pictures.ts`), which arrive as their recipes.
+ */
+function picturesSaid(story: string, pictures: CarriedPictures): ImportNote[] {
+  const notes: ImportNote[] = [];
+  const { illustrations, backgrounds } = pictures;
+  if (illustrations + backgrounds > 0) {
+    notes.push({
+      key: 'import.aventuras.storyPictures',
+      params: { story, illustrations, backgrounds },
+      level: 'info',
+    });
+  }
+  const lost = pictures.lost();
+  if (lost > 0) {
+    notes.push({
+      key: 'import.aventuras.picturesWithoutPixels',
+      params: { story, count: lost },
+      level: 'warn',
+    });
+  }
+  return notes;
 }
 
 /**

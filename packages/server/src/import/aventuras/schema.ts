@@ -339,7 +339,32 @@ export const AVENTURAS_REQUIRED: Readonly<Record<string, TableRequirement>> = {
     ],
     late: WORLD_LATE,
   },
-  embedded_images: { since: 11, columns: ['story_id'] },
+  //
+  // ***Since P13.13 the two picture tables are read too*** — the columns
+  // `mapEmbeddedImage` reads, less `width` and `height` (a picture's size is
+  // its bytes', and this reads the bytes), and `background_images` whole, as
+  // `getBackgroundForBranch` reads it. **Neither has a late column**: each
+  // table was made whole by the migration that created it (011, 024) and no
+  // migration since has touched either, so a database with the table has
+  // every column below, and one past its migration without one is the torn
+  // layout `unknown-format` exists for. `image_data` is selected only by its
+  // length and a short prefix until a picture is about to be written
+  // (`story-rows.ts`), as a portrait is.
+  embedded_images: {
+    since: 11,
+    columns: [
+      'id',
+      'story_id',
+      'entry_id',
+      'source_text',
+      'prompt',
+      'style_id',
+      'model',
+      'image_data',
+      'status',
+      'created_at',
+    ],
+  },
   branches: {
     since: 13,
     columns: ['id', 'story_id', 'name', 'parent_branch_id', 'fork_entry_id', 'created_at'],
@@ -347,7 +372,10 @@ export const AVENTURAS_REQUIRED: Readonly<Record<string, TableRequirement>> = {
     // lineage to resolve it (`world.ts`).
     late: { snapshot_complete: 29 },
   },
-  background_images: { since: 24, columns: ['story_id'] },
+  background_images: {
+    since: 24,
+    columns: ['id', 'story_id', 'branch_id', 'checkpoint_id', 'image_data', 'created_at'],
+  },
 };
 
 /** What the gate decided. */

@@ -236,7 +236,20 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
   /** P13.12: the story's own lorebook, through the converter every Aventuras lorebook takes. */
   entries: 'converted',
   //
-  // The rest wait on their stage — P13.13 the pictures, P13.14 the chapters.
+  // ***P13.13: the pictures.*** Each carried as a finished rendition of the
+  // session, never a job: an embedded image on the turn that holds its entry,
+  // on whichever branch, as an `illustration`; the backdrop a branch was
+  // showing on the turn its line ends on, as a `background`, carried and not
+  // selected (`aventuras/pictures.ts` says why). Converted on the tree's terms
+  // — when a sweep asks for stories, with no row of their own; each story's
+  // row counts what came and says what did not (a picture never finished, one
+  // past the bound, one that is not a picture, a checkpoint's backdrop).
+  /** P13.13: `illustration` renditions, on the turn that holds each entry. */
+  embedded_images: 'converted',
+  /** P13.13: `background` renditions, on the turn each branch's line ends on; a checkpoint's stays with it. */
+  background_images: 'converted',
+  //
+  // The rest wait on their stage — ~~P13.13 the pictures~~, P13.14 the chapters.
   // Recorded, and counted per story on each story's row. The derived ones —
   // checkpoints, snapshots, time anchors, `kept_separate` — are "recorded or
   // skipped, with a count" in the phase's own words; recorded here until their
@@ -244,8 +257,6 @@ export const AVENTURAS_DISPOSITIONS: Readonly<Record<string, ImportDisposition>>
   // decision nobody has made yet.
   chapters: 'recorded',
   checkpoints: 'recorded',
-  embedded_images: 'recorded',
-  background_images: 'recorded',
   time_anchors: 'recorded',
   kept_separate: 'recorded',
   world_state_snapshots: 'recorded',

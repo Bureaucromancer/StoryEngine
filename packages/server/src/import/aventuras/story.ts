@@ -121,6 +121,10 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
  * like this one, and **the Writer** adds its links to this document once it
  * has stored what they name — so this file still never learns that a cast
  * exists, and the tree is untouched by it.
+ *
+ * *And at P13.13* the pictures are `pictures.ts`'s, on the same terms: this
+ * file says where each entry landed ({@link StoryPlacement}) and nothing
+ * more, and the renditions join the document's `renditions` beside the turns.
  */
 
 /** The candidate format a story row is emitted as. */
@@ -172,10 +176,32 @@ export type StoryProduction =
       branches: number;
       /** What Aventuras called the mode, for the note: `adventure` when it said nothing. */
       mode: string;
+      /** Where each entry landed, and where each line ends — for the pictures ([P13.13]). */
+      placement: StoryPlacement;
       notes: ImportNote[];
     }
   /** A story with no entries this can place: nothing to import, and `importSession` would refuse it. */
   | { ok: false; reason: 'empty'; notes: ImportNote[] };
+
+/**
+ * ***Which turn each entry became, and which turn each line ends on*** —
+ * [P13.13](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
+ * for what hangs off a turn without being one: the pictures (`pictures.ts`).
+ *
+ * **An entry is looked up on its own line first**, which is the pairing's
+ * lookup and matters once: a forked action re-paired on a branch is the input
+ * of a turn there *and* of the turn it was answered in on the line it was
+ * written on. Its own line is where it was written, so that is its turn — a
+ * picture Aventuras drew into it belongs where the person first saw it. An
+ * entry no turn holds — a kind this build does not know, or one on a branch
+ * with no row — is not here.
+ */
+export interface StoryPlacement {
+  /** An Aventuras entry's id → the id of the turn that holds it. */
+  turnOf: ReadonlyMap<string, string>;
+  /** A branch's id, or `null` for the main line → the id of the turn its line ends on. */
+  headOf: ReadonlyMap<string | null, string>;
+}
 
 /** One turn's worth of entries, before it is a turn. */
 interface Pair {
@@ -400,6 +426,16 @@ export function produceStory(rows: AventurasStoryRows, key: StoryKey): StoryProd
     });
   }
 
+  const entryTurns = new Map<string, string>();
+  for (const entry of entryById.values()) {
+    const placed = lookup(entry.branchId ?? MAIN, entry.id);
+    if (placed !== undefined) entryTurns.set(entry.id, placed.turn.id);
+  }
+  const headOf = new Map<string | null, string>();
+  for (const [line, at] of heads) {
+    if (at !== null) headOf.set(line === MAIN ? null : line, at);
+  }
+
   const lastSelectedChild = pathTo(turns, head);
   const document: SessionExport = {
     schema: SESSION_EXPORT_SCHEMA,
@@ -426,6 +462,7 @@ export function produceStory(rows: AventurasStoryRows, key: StoryKey): StoryProd
     document,
     branches: branchRefs.length === 0 ? 0 : branchRefs.length - 1,
     mode: story.mode ?? 'adventure',
+    placement: { turnOf: entryTurns, headOf },
     notes,
   };
 }

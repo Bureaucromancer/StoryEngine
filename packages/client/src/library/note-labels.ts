@@ -329,8 +329,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * answer are one turn, Aventuras' branches are named branches, and the
    * session opens where the person left the story. These say what came, what
    * was re-read to make it a tree, and what stayed in Aventuras — ~~the
-   * world,~~ the chapters and the pictures, which later stages bring (the
-   * world came at P13.12, below), and a narrator
+   * world,~~ the chapters ~~and the pictures~~, which a later stage brings (the
+   * world came at P13.12, and the pictures at P13.13, below), and a narrator
    * prompt of the story's own, which is written for Aventuras' prompt layout
    * the way its prompt packs are (`packRecorded` says why those stay).
    *
@@ -341,7 +341,7 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
   'import.aventuras.storyImported':
     '“{story}” is now a session of {turns} turns, with {branches} named branches besides the main line, opening where the story was left. It was an Aventuras {mode} story, and plays here in this server’s default mode.',
   'import.aventuras.storyWorldRecorded':
-    'Not brought across yet from “{story}”: {chapters} chapters, {checkpoints} checkpoints and {images} images. They are still in Aventuras.',
+    'Not brought across yet from “{story}”: {chapters} chapters and {checkpoints} checkpoints. They are still in Aventuras.',
   /**
    * ***And its world*** — [P13.12]. The characters, places, items, story
    * beats and lorebook entries of the branch the session opens on: the
@@ -355,7 +355,8 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    *
    * `storyWorldRecorded` keeps its key and loses the world from its sentence,
    * so a review saved before this stage still reads — with the older counts
-   * it carried simply not named.
+   * it carried simply not named. *And at P13.13 it loses the images*, below,
+   * on the same terms.
    */
   'import.aventuras.storyWorld':
     '“{story}” came with its world: {characters} characters in its cast, and a lorebook of its own with {lore} lorebook entries, {locations} locations, {items} items and {beats} story beats, as they stood on the branch the story was left on.',
@@ -367,6 +368,32 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'In “{story}”, {branches} other branches hold a different world from the one brought across — {entities} characters, places, items, beats or entries differ in at least one of them. Only the branch the story was left on came across; the others are still in Aventuras.',
   'import.aventuras.worldFieldsUnreadable':
     'In “{story}”, {count} saved details of its characters, places, items, beats or entries could not be read and were left out. Everything else about them was brought across.',
+  /**
+   * ***And its pictures*** — [P13.13]. Each picture Aventuras drew into an
+   * entry is on the turn that entry became, on whichever branch, and each
+   * branch's backdrop on the turn its line ends on. *"Not shown until you
+   * choose it"*: the import names no mode, and which backdrop is showing is
+   * something a mode that stages one keeps, so a backdrop comes across as a
+   * picture and not as a choice. `pictureModels` is the one place the model
+   * that drew them is said: this server has no connection that drew them, and
+   * a record claiming one would be a request that never happened.
+   */
+  'import.aventuras.storyPictures':
+    '“{story}” came with its pictures: {illustrations} drawn into its text, each beside the turn it illustrates, and {backgrounds} backgrounds, each on the last turn of the branch it belonged to — not shown until you choose it, in a mode that shows a background.',
+  'import.aventuras.pictureModels':
+    'The pictures in “{story}” were drawn in Aventuras by {models}. They came with the prompts they were drawn from; drawing one again here uses this server’s own image model.',
+  'import.aventuras.picturesUnfinished':
+    'In “{story}”, {count} pictures Aventuras never finished drawing have nothing to bring across, and were left out.',
+  'import.aventuras.picturesUnplaced':
+    'In “{story}”, {count} pictures belong to entries or branches the database no longer has, so there is no turn to put them beside; they were left out.',
+  'import.aventuras.checkpointBackgrounds':
+    'In “{story}”, {count} backgrounds saved with checkpoints stay with the checkpoints, which are not brought across. They are still in Aventuras.',
+  'import.aventuras.pictureTooLarge':
+    'In “{story}”, {count} pictures are larger than {limit} MB and were left out. The rest of the story was brought across.',
+  'import.aventuras.pictureUnreadable':
+    'In “{story}”, {count} pictures could not be read as PNG, JPEG or WebP images — or are links, which are never fetched — and were left out. The rest of the story was brought across.',
+  'import.aventuras.picturesWithoutPixels':
+    'In “{story}”, {count} pictures could not be written and came across as the prompts they were drawn from, which can be drawn again here.',
   'import.aventuras.storyAlreadyHere':
     '“{story}” was brought across before and is already a session here, so it was not imported again. Anything written in it in Aventuras since then is not brought across.',
   'import.aventuras.storyEmpty':

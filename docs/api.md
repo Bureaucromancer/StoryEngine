@@ -707,8 +707,8 @@ time, Aventuras' own token count of the answer) and never to `request`;
 reasoning to `output.reasoning`; saved suggestions to `suggestions`. The
 session names no mode, and plays in the server's default mode;
 `import.aventuras.storyImported` says which mode it had in Aventuras, and
-`import.aventuras.storyWorldRecorded` counts the chapters, checkpoints and
-pictures that stayed behind. **Since
+`import.aventuras.storyWorldRecorded` counts the chapters and checkpoints
+that stayed behind (the pictures, until P13.13, below). **Since
 [P13.12](design/workplan/30-p13-aventuras-import.md) its world comes too**:
 `characters`, `locations`, `items`, `story_beats` and `entries` are resolved
 for the branch the session opens on — a branch's edit (`overrides_id`) in
@@ -727,8 +727,33 @@ own (`import.aventuras.storyBeatsAsLore`). Entry ids are derived from the
 story, the table and the row, so no other book shares one. These objects
 have no rows of their own: the story's row names them in `alsoProduced`, and
 `import.aventuras.storyWorld` counts them. `import.aventuras.worldBranchesDiffer`
-counts the other branches whose world differs, which stay in Aventuras. A
-story's own narrator prompt (`settings.customSystemPrompt`) is not carried,
+counts the other branches whose world differs, which stay in Aventuras.
+**Since [P13.13](design/workplan/30-p13-aventuras-import.md) its pictures
+come too**, as finished renditions of the session — `ready`, with their
+bytes, and never queued as jobs: each `embedded_images` row an
+`illustration` on the turn that holds its entry, on whichever branch (a
+forked action's is on the turn of the line it was written on), anchored by
+Aventuras' `source_text`; and each branch's newest `background_images` row
+a `background` on the turn its line ends on, **carried and not selected**
+— the import names no mode, and the `se.backdrop` selection is a mode's —
+so it is chosen by hand in a mode that shows one. Their ids are the turn's
+and an ordinal (`<turnId>.<n>`), their `prompt` is Aventuras' prompt as one
+fragment (a background's is empty), their `provenance` names no binding
+and no seed, and `foreign` is `{ source: "aventuras", id }`. The bytes are
+sniffed, not taken from the data URL's type: a PNG, JPEG or WebP is served
+by `GET /sessions/:id/renditions/:renditionId/asset` as any rendition is;
+anything else, or a link, is left out (`import.aventuras.pictureUnreadable`,
+`warn`), as is one past the 64 MB bound, measured before it is read
+(`import.aventuras.pictureTooLarge`, `warn`) — and the rest of the story
+imports. `import.aventuras.storyPictures` counts what came,
+`import.aventuras.pictureModels` names the Aventuras models that drew them,
+and `import.aventuras.picturesUnfinished`, `import.aventuras.picturesUnplaced`
+and `import.aventuras.checkpointBackgrounds` count the ones never finished,
+the ones whose entry or branch is gone, and the ones a checkpoint saved,
+which stay with it. The bytes are written by the session import itself, into
+the session it has just made, so a story it refuses leaves no picture
+anywhere; one whose bytes cannot be written arrives as its recipe, with no
+asset, and `import.aventuras.picturesWithoutPixels` counts it. A story's own narrator prompt (`settings.customSystemPrompt`) is not carried,
 for the reason packs are not: `import.aventuras.customNarratorPrompt` at
 `warn` names its length. A story with no entries is `skipped`
 (`import.aventuras.storyEmpty`). **A story brought across before is

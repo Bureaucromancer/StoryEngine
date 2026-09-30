@@ -6,7 +6,12 @@ import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
 import type { ImportNote } from '@storyengine/shared';
 
 import { columnsOf, quoted } from './schema.js';
-import { DEFAULT_MAX_PORTRAIT_BYTES, portraitOf, textLimit } from './vault-character.js';
+import {
+  decodePortrait,
+  DEFAULT_MAX_PORTRAIT_BYTES,
+  portraitOf,
+  textLimit,
+} from './vault-character.js';
 import { integer } from './vault-row.js';
 
 /**
@@ -65,6 +70,17 @@ import { integer } from './vault-row.js';
  * the Writer is about to store the actor it belongs to, bounded as a vault
  * portrait is ([P13.3]). A `.avt` reader answers the same question from its
  * JSON.
+ *
+ * - *Since P13.13*, **the story's pictures** — `embedded_images`, drawn into an
+ *   entry's text, and `background_images`, the backdrop a branch (or a
+ *   checkpoint) was showing — as `mapEmbeddedImage` and
+ *   `getBackgroundForBranch` read them, *without the pixels*, for the
+ *   portrait's reason and a larger one: a story's pictures are what an
+ *   install's size is made of after its entries, and Aventuras itself keeps
+ *   them off its hot paths (`getEmbeddedImageMetaForStory`, written after
+ *   whole-story reads crashed Android builds). Each row carries its stored
+ *   length instead, and {@link AventurasPictures.read} reads one picture's
+ *   bytes when the Writer is about to carry it, bounded as a portrait is.
  */
 
 /** A `stories` row, as `mapStory` returns the fields this reads. */
@@ -223,6 +239,80 @@ export interface AventurasWorld {
   portrait: PortraitReader;
 }
 
+/**
+ * ***A picture a story holds, before its bytes are read*** — [P13.13]. What
+ * both tables share: the row, when it was made, and how long its stored
+ * `image_data` is — the measure the bound is checked against before anything
+ * is loaded, as a portrait's `octet_length` is.
+ */
+interface AventurasPictureRow {
+  id: string;
+  /** Milliseconds since the epoch; `0` for a row that has no time. */
+  createdAt: number;
+  /** `octet_length(image_data)`: `null` or `0` for a row with no picture in it. */
+  octets: number | null;
+}
+
+/**
+ * An `embedded_images` row — a picture Aventuras drew into one entry's text,
+ * as `mapEmbeddedImageMeta` returns it, less `width` and `height`.
+ */
+export interface AventurasIllustration extends AventurasPictureRow {
+  table: 'embedded_images';
+  /** The entry whose text it illustrates — see `pictures.ts` for which turn that is. */
+  entryId: string;
+  /**
+   * The text in the entry it belongs beside, matched case-insensitively by
+   * Aventuras — or the whole `<pic …>` tag, for an image the model asked for
+   * inline. Either way a quote of the entry, which is what an anchor is.
+   */
+  sourceText: string | null;
+  /** *"Full generation prompt"*: what Aventuras sent its image model. */
+  prompt: string;
+  styleId: string | null;
+  model: string | null;
+  /** `pending`, `generating`, `complete` or `failed` at the pin. */
+  status: string | null;
+}
+
+/**
+ * A `background_images` row — the backdrop one branch was showing
+ * (`checkpointId` null), or the one a checkpoint saved. `branchId` null is
+ * the main line, as everywhere in Aventuras.
+ */
+export interface AventurasBackground extends AventurasPictureRow {
+  table: 'background_images';
+  branchId: string | null;
+  checkpointId: string | null;
+}
+
+export type AventurasPicture = AventurasIllustration | AventurasBackground;
+
+/**
+ * One picture's bytes, asked for — or why there are none: `too-large` past
+ * the bound, measured and never loaded; `unreadable` for a value that is not
+ * base64 — a link, which is never fetched, or a data URL that is not base64 —
+ * or that decodes to nothing; `absent` for a row that holds no picture at
+ * all, which is what an unfinished one holds.
+ */
+export type PictureRead = Uint8Array | 'too-large' | 'unreadable' | 'absent';
+
+/** Every picture of a story, on every branch — [P13.13]. */
+export interface AventurasPictures {
+  illustrations: AventurasIllustration[];
+  backgrounds: AventurasBackground[];
+  /** The bound {@link read} holds a picture to, decoded — for the note that names it. */
+  maxBytes: number;
+  /**
+   * ***One picture's bytes, read now***, bounded before it is loaded — SQLite
+   * is asked for the length first, and a value past the bound is never
+   * selected. Asked once per picture by the Writer as it builds the record,
+   * and again as `importSession` writes the bytes, so a story's gallery is
+   * never in memory at once.
+   */
+  read: (picture: AventurasPicture) => PictureRead;
+}
+
 /** Everything the producer reads of one story. */
 export interface AventurasStoryRows {
   story: AventurasStory;
@@ -230,6 +320,8 @@ export interface AventurasStoryRows {
   branches: AventurasBranch[];
   /** The story's world — [P13.12]. Empty on a database older than every table of it. */
   world: AventurasWorld;
+  /** The story's pictures — [P13.13]. Empty on a database older than both tables. */
+  pictures: AventurasPictures;
   /**
    * How many JSON fields did not parse — the settings blob, an entry's
    * metadata. Counted rather than refused: each costs its own field and
@@ -251,7 +343,7 @@ export function readStoryRows(
   db: DatabaseSync,
   storyId: string,
   tables: ReadonlySet<string>,
-  options: { maxPortraitBytes?: number } = {},
+  options: { maxPortraitBytes?: number; maxPictureBytes?: number } = {},
 ): AventurasStoryRows | null {
   let unreadable = 0;
   const json = (value: SQLOutputValue | undefined): unknown => {
@@ -344,7 +436,119 @@ export function readStoryRows(
   }
 
   const world = readWorld(db, storyId, tables, options.maxPortraitBytes);
-  return { story, entries, branches, world, unreadable };
+  const pictures = readPictures(db, storyId, tables, options.maxPictureBytes);
+  return { story, entries, branches, world, pictures, unreadable };
+}
+
+/**
+ * ***The story's pictures, without their pixels*** — [P13.13].
+ *
+ * `octet_length(image_data)` rather than the column, for the file header's
+ * reason; SQLite answers it from the stored value's header for text, so a
+ * gallery of large pictures costs a walk of its rows and not a read of them.
+ * *In time order, then by id*, which is the order Aventuras shows an entry's
+ * pictures in (`getEmbeddedImagesForEntry`) and so the order their ordinals
+ * are given in (`pictures.ts`).
+ */
+function readPictures(
+  db: DatabaseSync,
+  storyId: string,
+  tables: ReadonlySet<string>,
+  maxBytes = DEFAULT_MAX_PORTRAIT_BYTES,
+): AventurasPictures {
+  const illustrations: AventurasIllustration[] = [];
+  if (tables.has('embedded_images')) {
+    const listed = db.prepare(
+      'select id, entry_id, source_text, prompt, style_id, model, status, created_at, ' +
+        'octet_length(image_data) as octets ' +
+        'from embedded_images where story_id = ? order by created_at, id',
+    );
+    listed.setReadBigInts(true);
+    for (const row of listed.iterate(storyId)) {
+      const id = text(row['id']);
+      const entryId = text(row['entry_id']);
+      // No id, or no entry: nothing a turn could hold, and nothing Aventuras
+      // could have drawn (both columns are `NOT NULL` at the pin).
+      if (id === null || entryId === null) continue;
+      illustrations.push({
+        table: 'embedded_images',
+        id,
+        entryId,
+        createdAt: number(row['created_at']) ?? 0,
+        octets: integer(row['octets']),
+        sourceText: text(row['source_text']),
+        prompt: typeof row['prompt'] === 'string' ? row['prompt'] : '',
+        styleId: text(row['style_id']),
+        model: text(row['model']),
+        status: text(row['status']),
+      });
+    }
+  }
+
+  const backgrounds: AventurasBackground[] = [];
+  if (tables.has('background_images')) {
+    const listed = db.prepare(
+      'select id, branch_id, checkpoint_id, created_at, octet_length(image_data) as octets ' +
+        'from background_images where story_id = ? order by created_at, id',
+    );
+    listed.setReadBigInts(true);
+    for (const row of listed.iterate(storyId)) {
+      const id = text(row['id']);
+      if (id === null) continue;
+      backgrounds.push({
+        table: 'background_images',
+        id,
+        branchId: text(row['branch_id']),
+        checkpointId: text(row['checkpoint_id']),
+        createdAt: number(row['created_at']) ?? 0,
+        octets: integer(row['octets']),
+      });
+    }
+  }
+
+  /**
+   * One statement per table, prepared once, selecting the value only when its
+   * stored length is under the bound — `portraitOf`'s rule, so a picture past
+   * it is measured and never loaded. The length is asked again rather than
+   * taken from the listing, because this is the read the bytes come from and
+   * the two are one statement.
+   */
+  const statementFor = (table: AventurasPicture['table']) =>
+    tables.has(table)
+      ? db.prepare(
+          'select case when octet_length(image_data) <= ? then image_data end as image_data, ' +
+            `octet_length(image_data) as octets from ${quoted(table)} ` +
+            'where id = ? and story_id = ?',
+        )
+      : null;
+  const statements = {
+    embedded_images: statementFor('embedded_images'),
+    background_images: statementFor('background_images'),
+  };
+  for (const statement of Object.values(statements)) statement?.setReadBigInts(true);
+
+  const read = (picture: AventurasPicture): PictureRead => {
+    const row = statements[picture.table]?.get(textLimit(maxBytes), picture.id, storyId);
+    if (row === undefined) return 'absent';
+    const octets = integer(row['octets']);
+    if (octets === null || octets === 0) return 'absent';
+    if (octets > textLimit(maxBytes)) return 'too-large';
+    const value = row['image_data'];
+    if (typeof value === 'string' && value.trim().length === 0) return 'absent';
+    // The stored text is a data URL or bare base64, as a portrait's is, and
+    // is decoded by the same function; a blob somebody else's tool wrote is
+    // taken as the bytes it is.
+    const bytes =
+      typeof value === 'string'
+        ? decodePortrait(value)
+        : value instanceof Uint8Array && value.byteLength > 0
+          ? value
+          : null;
+    if (bytes === null) return 'unreadable';
+    return bytes.byteLength > maxBytes ? 'too-large' : bytes;
+  };
+
+  return { illustrations, backgrounds, maxBytes, read };
 }
 
 /**
