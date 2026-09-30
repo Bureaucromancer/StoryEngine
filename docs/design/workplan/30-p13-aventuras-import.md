@@ -5,12 +5,14 @@
 Part 1 — P13.1 to P13.9, P13.9 closed `recorded` — and Part 2 — P13.10 to
 P13.15, scheduled by the person on 2026-09-29
 ([§0.3](#03-how-this-sits-with-25-e4)), P13.14 closed `recorded` — are each
-cited below by commit, as of 2026-09-30, on the branch and not yet on `main`.
+cited below by commit, and on `main` since 2026-09-30.
 **Neither gate is walked** ([§3](#3--the-exit-gate)); a green suite closes a
 stage, not a phase. P13.0 done — `34b3174` (the failing tests), `75c56ca` (the
 fix), 2026-09-28, and the fix set aside for main's own at the merge of
 2026-09-29 ([§0.4](#04-what-the-survey-found-in-our-own-tree)).** *Merged to `main` a
-second time, 2026-09-30, after [P14](31-p14-scene-and-session-import.md)*, which
+second time, 2026-09-30, at `6f55e6e`, after
+[P14](31-p14-scene-and-session-import.md)* — main taken into the branch at
+`f8c9998` — which
 had indexed the same `session.origin_filename` at the same schema version 12 for
 its chat sync: one column and one lookup (`sessionByOrigin`) now serve both, so
 a producer's re-import is refused `already-here` naming the session, and a chat
