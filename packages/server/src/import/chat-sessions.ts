@@ -1025,6 +1025,8 @@ async function importMarinaraChats(
           // The root's tracker switches, for its group settings' reason —
           // [P13 §2.6], [P13.5a]. Written on the opening turns.
           ...(root.chat.state.length === 0 ? {} : { state: root.chat.state }),
+          // The root's secret plot, on the head the session opens at — [P13.5b].
+          ...(root.chat.plot.length === 0 ? {} : { headState: root.chat.plot }),
         },
         notes: [...plan.chats.flatMap(({ chat }) => chat.notes), ...plan.notes],
       },
@@ -1074,5 +1076,6 @@ function tablesOf(payload: unknown): MarinaraTables {
     characters: rows('characters'),
     personas: rows('personas'),
     snapshots: rows('snapshots'),
+    memory: rows('memory'),
   };
 }

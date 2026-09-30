@@ -17,6 +17,7 @@ import {
   initialValue,
   keyBelongsTo,
   registerChannel,
+  revealed,
   splitChannelKey,
   stateEnabled,
   type ChannelSurface,
@@ -493,7 +494,12 @@ export function modeSurfaces(
   for (const contribution of mode.definition.surfaces) {
     if (!channelInPlay(contribution.channelId, modeId)) continue;
     const definition = channelDefinition(contribution.channelId);
-    if (definition === null || definition.visibility === 'hidden') continue;
+    /**
+     * ***Hidden has no surface — until it is revealed*** — [06 §7.3]'s reveal
+     * affordance, [P13.5b]: a hidden channel declaring `reveal` is drawn while
+     * its reveal switch is on, and one that declares none never is.
+     */
+    if (definition === null || !revealed(definition, channels)) continue;
     /**
      * ***A switched-off channel has no surface*** — `EstablishedState.enabledBy`,
      * [P13.5a]. The declaration already says the channel is *"rendered

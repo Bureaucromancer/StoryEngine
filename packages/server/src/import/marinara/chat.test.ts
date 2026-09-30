@@ -326,7 +326,8 @@ describe('a Marinara chat, joined from its tables', () => {
           {
             summary: 'They met.',
             enableAgents: true,
-            activeAgentIds: ['world-state', 'director'],
+            // Not the director, whose push and plot are carried since [P13.5b].
+            activeAgentIds: ['world-state', 'prose-guardian'],
           },
         ),
       ],

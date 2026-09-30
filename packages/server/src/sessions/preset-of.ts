@@ -23,10 +23,11 @@ import type { Mode } from '@storyengine/sdk';
  *
  * **What follows is additions, by presence.** A copy that carries the mode's
  * own id gains each shipped block whose id it lacks — at the shipped position,
- * after the nearest shipped block it does have — and each of the three level
- * lists it has none of. Nothing it has is touched: a block switched off stays
- * off, an edited block keeps the edit, and a library preset, whose id is its
- * own, is never read against a mode at all. *Presence is the whole test*, and
+ * after the nearest shipped block it does have — each of the three level
+ * lists it has none of, and the push texts ([P13.5b]) when it has none.
+ * Nothing it has is touched: a block switched off stays off, an edited block
+ * keeps the edit, and a library preset, whose id is its own, is never read
+ * against a mode at all. *Presence is the whole test*, and
  * it is exact for what the product can do to a copy, because nothing in it
  * deletes a block from one — the panel edits a block in place, and a switch
  * replaces the whole pack. A block that is missing was therefore shipped after
@@ -56,7 +57,9 @@ export function presetOf(stored: Preset | undefined, mode: Mode): Preset {
   const levels = LEVEL_LISTS.filter(
     (field) => stored[field] === undefined && shipped[field] !== undefined,
   );
-  if (!missing && levels.length === 0) return stored;
+  // The push texts ([P13.5b]) come the same way: by presence, whole.
+  const push = stored.pushDirections === undefined && shipped.pushDirections !== undefined;
+  if (!missing && levels.length === 0 && !push) return stored;
 
   const blocks = [...stored.blocks];
   shipped.blocks.forEach((block, at) => {
@@ -69,6 +72,9 @@ export function presetOf(stored: Preset | undefined, mode: Mode): Preset {
   for (const field of levels) {
     const list = shipped[field];
     if (list !== undefined) next[field] = structuredClone(list);
+  }
+  if (push && shipped.pushDirections !== undefined) {
+    next.pushDirections = structuredClone(shipped.pushDirections);
   }
   return next;
 }

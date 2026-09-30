@@ -1866,6 +1866,95 @@ Marinara user looking for a tracker model finds the note and no setting.
 direction call falls back to the fixed text and says so; the secret plot is in
 the prompt and not in the transcript until revealed.
 
+*As built, 2026-09-29.* The three claims are `routes/director.test.ts`,
+through the submission and the channel routes; the director's own claims are
+`turns/direct.test.ts`, the plot pass's `modes/scene/src/plot.test.ts`, and the
+import's `import/marinara/plot.test.ts` over the shared fixture, which now
+carries `agent_memory` rows and a director that keeps a plot
+(`fixtures/test-marinara.ts`). What the stage decided that §1.9.3 left open:
+
+- **Push.** `push: 'natural' | 'random'` on `POST /turns` (`TurnPayload.push`)
+  puts `push` in the turn's armed set — **the first producer
+  `StepCondition.armed` has had**, recorded at [25 C17] with why it does not
+  close C17 — and `se.scene.direct` (`turns/direct.ts`, engine-owned) is
+  `{ when: 'armed', flag: 'push' }`. The runner plans it only on a pushed turn
+  (the suggester's rule) and still evaluates its condition. **After the mode's
+  own `pre` steps**, so a plot pass that just wrote a fresh arc is the one the
+  direction reads. One plain-text call over its own candidates — the task, the
+  secret if the session keeps one, the last eight visible messages and the
+  move — capped at 600 characters; the task words are the engine's (they make
+  the answer a direction, as the hook selector's make its answer a hook), and
+  the fallback is the pack's: a new optional `Preset.pushDirections { natural,
+  random }`, which Scene ships in its own words and `presetOf` brings to an
+  existing session's copy by presence, as it brings the level lists.
+- **The record.** `StepOutcome.direction { push, by: 'model' | 'fallback',
+  text? }` on the director's outcome, beside the smart pick's `speakers` and
+  for its reason; a fallback is the outcome `failed`/`warn` with the error
+  beside it, and an empty answer is a failure, not a direction. The words
+  reach the guidance slot as a third producer, `se.guidance.direction`
+  (`CollectContext.direction`), after the person's box and a fired hook.
+  **A rewrite keeps the push** (read off the redone turn's outcome, as
+  force-talk is read off `input.speakers`) and asks the director again; an
+  edit refuses it (`conflicting-gesture`). *Not `Turn.input.push`*: a *let
+  them talk* turn has no input to hang it on, and the outcome already says it.
+- **The secret plot** is Scene's (`plot.ts`): `se.plot.secret` (hidden,
+  `model-proposed`, `null` until a pass writes one), its switch
+  `se.plot.secret.on` and reveal `se.plot.secret.reveal` (user-only, off), and
+  `se.plot.secret.cadence { everyNTurns: 4 }` — Marinara's per-chat run
+  interval, which §1.9.3's *default* implies a person can set. The pass,
+  `se.scene.plot`, is a `pre` step declared first: due with no arc, with a
+  completed one, or on the cadence (story turns over `transcript`); a pass
+  that completes the arc is followed at once by a second, both written as
+  effects; **a failed follow-up keeps the completion** (the next turn is due
+  because the arc is completed) rather than failing the step and losing it; a
+  completed arc renders nothing. The slot is `se.plot.secret`, a `{ of:
+  'channel' }` block after the samples with `appliesTo: ['narrate']` — the
+  suggester, impersonation and the judge write things the player reads, and
+  none may know where the story is secretly heading.
+- **The contract grew two fields rather than the engine naming a channel.**
+  `ChannelDefinition.enabledBy` is `EstablishedState.enabledBy` for a channel
+  that is not established state (the slot, the surfaces and the digests go
+  silent while the plot is off; the value stays on the tree), and
+  `ChannelDefinition.reveal` is [06 §7.3]'s *reveal affordance*: a hidden
+  channel declaring one is drawn while its switch is on, never otherwise, and
+  is kept out of `renderedChannels` (a picture is shown) until revealed. The
+  director reads *every switched-on hidden channel that declares a reveal*
+  (`secretChannels`), so the engine names no plot. An empty channel slot whose
+  switch is off now reads `disabled` in the record.
+- **The surface.** A *Push the story* select in the composer (not this turn /
+  naturally / with a surprise), one-shot like *who speaks next*, a chat's
+  alone. The plot's switch and cadence are under *Agents* in settings; the
+  reveal and the revealed card are in the panel under *Director*, both drawn by
+  `ModeRegion` knowing no plot. **The entry bundle is 319.85 kB gzip against
+  the 320 kB ceiling** (319.65 before): 0.15 kB left.
+- **The import** (`import/marinara/plot.ts`): the root chat's latest
+  `overarchingArc` is `se.plot.secret` on the **head** turn — Marinara keeps
+  one arc per chat rewritten in place, so what it states is the arc as of now
+  — as an applied engine effect through a new `ChatSettings.headState`, the
+  head cache the head path's replay as before. `narrativeDirectorSecretPlotEnabled`
+  is the switch **only when the director ran** (`enableAgents` and `director`
+  in `activeAgentIds`, the trackers' rule), and the run interval is half as
+  many story turns. The director is no longer an `agentsNotCarried` agent (its
+  push is a per-turn flag here); `agent_memory` is `converted`. *Not carried*:
+  a branch chat's own arc (the session opens on the root's head), and the
+  director's global `secretPlotEnabled` default (an agent config, not per chat).
+
+*Corrections the stage made to code it did not own.* `previewStepFor` read
+*the first `prose`-role step*, which is a model binding and not what a step
+writes; with the plot pass declared ahead of the narrator the context meter
+and impersonation measured the plot's call. It now prefers the first
+`prose`-role step that writes messages (`preview.test.ts`). And
+`runner.test.ts` and `recovery.test.ts` read the narrator's outcome by id
+rather than as `steps[0]`.
+
+*Left for its owner.* A switch or arc changed in Marinara after the first
+import does not arrive on a sync, for the trackers' reason (§2.7 grafts
+presence only). The director's and the plot's models are the session's
+`stepRoles` at `se.scene.direct` and `se.scene.plot`, which still have no
+control (`PUT …/roles`, P7B §1.12). And every Scene turn now carries a third
+dead `ok` row, the plot pass switched off — [25 C17], now past its *decide
+with the second instance*.
+
 #### P13.5c — The editor and the echo chamber
 
 - `se.scene.edit`: style edits applied before commit, per message, with the

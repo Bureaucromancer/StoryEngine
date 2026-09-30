@@ -934,6 +934,22 @@ worse with every mode that gets another. **Decide with the second instance**, or
 when a phase is measuring turn cost, since (c)'s price is paid in the record
 rather than in tokens. *[06 §6, 22 §4.1]*
 
+*`armed` has a producer since 2026-09-29*
+([P13.5b](workplan/30-p13-scene-and-session-import.md)): a submission's
+`push` (Push story) puts `push` in the turn's armed set, and the engine's
+director step, `se.scene.direct`, is `{ when: 'armed', flag: 'push' }`. The
+runner still plans that step only on a pushed turn (the suggester's rule) and
+evaluates its condition as the belt, so the arm is exercised by a real flag
+rather than only by `steps.test.ts`. **It does not answer this question**: the
+flag is a person's, per turn, and what C17 asks for is a mode keeping its own
+step out on a *session* setting. The same stage adds the **third** instance of
+the dead row — Scene's secret-plot pass (`se.scene.plot`, `pre`), off by
+default, reading one switch and returning — beside the stager and the trackers,
+and `runner.test.ts` and `recovery.test.ts` now read the narrator's outcome by
+id rather than by position because a `pre` step moved it off `steps[0]`. (a)
+is still the answer that adds no vocabulary; the count is now three steps, and
+"decide with the second instance" is past due.
+
 **C18. Three `post` steps make three calls over the same prose. — OPEN, noted
 rather than solved** (2026-09-13, [P7.12](workplan/23-p7-implementation.md)). The
 goal judge asks *was the goal met*, the suggester asks *what could they do next*,

@@ -482,10 +482,13 @@ const CHATS = [
     'roleplay',
     ['char_vera'],
     {
-      // Three trackers on, and only when asked — [P13.5a].
+      // Three trackers on, and only when asked — [P13.5a]; and the director
+      // keeping a secret plot, revisited every ten messages — [P13.5b].
       enableAgents: true,
-      activeAgentIds: ['world-state', 'character-tracker', 'inventory-tracker'],
+      activeAgentIds: ['world-state', 'character-tracker', 'inventory-tracker', 'director'],
       manualTrackers: true,
+      narrativeDirectorSecretPlotEnabled: true,
+      narrativeDirectorSecretPlotRunInterval: 10,
     },
     0,
   ),
@@ -522,6 +525,45 @@ const CHATS = [
     10,
   ),
   chatRow('chat_dm', 'Vera (DMs)', 'conversation', ['char_vera'], {}, 20),
+];
+
+/**
+ * ***The director's memory*** — [P13.5b], [P13 §2.6]'s *"`agent_memory`
+ * `overarchingArc` → `se.plot.secret` on the root chat's head turn"*. The
+ * arc is JSON text, as `setMemory` stores it; the branch's own arc does not
+ * come (the session opens on the root's head), and a row of the director's
+ * bookkeeping goes nowhere.
+ */
+const AGENT_MEMORY = [
+  {
+    id: 'mem_1',
+    agentConfigId: 'agent_director',
+    chatId: 'chat_1',
+    key: 'overarchingArc',
+    value: JSON.stringify({
+      description:
+        'Lund Harrow runs contraband through the harbour office, and Vera keeps his books.',
+      protagonistArc: 'The Inspector learns that the forms are not the law.',
+      completed: false,
+    }),
+    updatedAt: at(5),
+  },
+  {
+    id: 'mem_2',
+    agentConfigId: 'agent_director',
+    chatId: 'chat_1',
+    key: 'secretPlotLastAssistantMessageId',
+    value: 'msg_04',
+    updatedAt: at(5),
+  },
+  {
+    id: 'mem_3',
+    agentConfigId: 'agent_director',
+    chatId: 'chat_2',
+    key: 'overarchingArc',
+    value: JSON.stringify({ description: 'The warehouse is the Guild’s.', completed: false }),
+    updatedAt: at(8),
+  },
 ];
 
 /** Two more characters for the group, stored as Vera is. */
@@ -574,6 +616,7 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
           0,
         ),
         game_state_snapshots: SNAPSHOTS.length,
+        agent_memory: AGENT_MEMORY.length,
       },
     }),
     // A `.bak` beside the manifest, which holds the same rows rather than more
@@ -619,6 +662,8 @@ export function marinaraFixture(): Record<string, Uint8Array | string> {
     'storage/tables/messages/chat_dm.json': json(DM.messages),
     // The trackers' state ([P13.5a]), flat.
     'storage/tables/game_state_snapshots.json': json(SNAPSHOTS),
+    // The director's secret plot ([P13.5b]), flat.
+    'storage/tables/agent_memory.json': json(AGENT_MEMORY),
     'storage/tables/messages/orphaned-rows.json': json([
       {
         id: 'msg_orphan',

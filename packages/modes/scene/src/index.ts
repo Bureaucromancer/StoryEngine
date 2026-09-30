@@ -18,6 +18,18 @@ export {
 } from './mode.js';
 export { SE_SCENE_STAGE, STAGE_STEP, stage } from './staging.js';
 export {
+  PLOT_CADENCE,
+  PLOT_CHANNELS,
+  PLOT_EVERY,
+  PLOT_ON,
+  PLOT_STEP,
+  PLOT_SURFACES,
+  REVEAL,
+  SE_SCENE_PLOT,
+  SECRET_PLOT,
+  plot,
+} from './plot.js';
+export {
   CADENCE,
   CHARACTER,
   CUSTOM,

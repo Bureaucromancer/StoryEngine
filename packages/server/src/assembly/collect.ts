@@ -119,6 +119,14 @@ export interface CollectContext {
    */
   hookGuidance?: string;
   /**
+   * ***A push's direction, for the same slot*** — [06 §5.1]'s *"or a step such
+   * as a Narrative Director push"*, [P13 §1.9.3], [P13.5b]: the words
+   * `se.scene.direct` wrote, or the pack's fixed push text when its call
+   * failed. Handed in by the runner for `hookGuidance`'s reason; absent on
+   * every turn nobody pushed.
+   */
+  direction?: string;
+  /**
    * The goal this session is on — [06 §7.3.3], [P7.6].
    *
    * **Resolved by the caller**, which is the rule this context follows for the
@@ -915,9 +923,18 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
       if (block.source.part === 'tone') return 'no-producer';
       return context.carriers === undefined ? 'no-producer' : 'empty-source';
 
-    case 'channel':
-      // No producer at this phase.
+    /**
+     * ~~No producer at this phase.~~ The producer has been the channel's own
+     * `render` since [P7.1]; what [P13.5b] adds is the one empty that is a
+     * person's doing — a channel whose switch is off (`enabledBy`) — which is
+     * `disabled`'s sentence. Every other empty keeps the old answer, which the
+     * record has carried for five phases and nothing here needs to move.
+     */
+    case 'channel': {
+      const definition = channelDefinition(block.source.channelId);
+      if (definition !== null && !stateEnabled(definition, context.channels)) return 'disabled';
       return 'no-producer';
+    }
 
     /**
      * ***`goal` left that list at [P7.6]***, and the change of meaning is the
@@ -1508,15 +1525,21 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * and it is the new arm that takes the suffix — the user's block has
        * carried the bare block id since P2 and it is in saved records.
        */
-      if (context.hookGuidance === undefined) return fromUser;
+      /**
+       * ***And the third, a push*** ([P13.5b]) — the same arm, under its own
+       * suffix, for the hook's reasons: the director is a step, which step is
+       * answerable from its outcome's `direction`, and absent is *nobody
+       * pushed*. After the hook, so a person's box, then the authored beat,
+       * then the push read in the order of who asked most specifically.
+       */
+      const fromSteps = [
+        ...(context.hookGuidance === undefined ? [] : [['hook', context.hookGuidance] as const]),
+        ...(context.direction === undefined ? [] : [['direction', context.direction] as const]),
+      ];
       return [
         ...fromUser,
-        ...emit(
-          block,
-          context.hookGuidance,
-          { kind: 'guidance', producer: 'step' },
-          `${block.id}.hook`,
-          names,
+        ...fromSteps.flatMap(([suffix, text]) =>
+          emit(block, text, { kind: 'guidance', producer: 'step' }, `${block.id}.${suffix}`, names),
         ),
       ];
     }
@@ -2042,6 +2065,13 @@ function emit(
 function channelText(channelId: string, context: CollectContext): string {
   const definition = channelDefinition(channelId);
   if (definition === null) return '';
+  /**
+   * ***Switched off is silent*** — `ChannelDefinition.enabledBy`, [P13.5b]: a
+   * secret plot a person switched off stops steering the narrator from the next
+   * call, and its value stays on the tree for when it is switched back on. The
+   * established-state block's rule, for a slot that names one channel.
+   */
+  if (!stateEnabled(definition, context.channels)) return '';
   const state = context.channels[channelId];
   return renderWithin(definition, state === undefined ? initialValue(channelId) : state.value);
 }

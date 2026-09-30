@@ -7,6 +7,7 @@ import {
   outputFromMessages,
   remedyFor,
   type OutputMessage,
+  type Direction,
   type Ref,
   type SpeakerPick,
 } from '@storyengine/shared';
@@ -28,6 +29,7 @@ import {
   readClock,
   renderedChannels,
   SE_CLOCK,
+  secretChannels,
 } from '../sessions/channels.js';
 import { applyEffects, readSession } from '../sessions/store.js';
 import type {
@@ -90,6 +92,7 @@ import { selectedBackdrop } from '../renditions/backdrop.js';
 import { summarise, summaryPlanFor, type SummariseReport } from './summarise.js';
 import type { Mentionable } from './mentions.js';
 import { hookSelector, type HookSelectorReport } from './hook-selector.js';
+import { direct, PUSH_FLAG, SE_SCENE_DIRECT, type Push } from './direct.js';
 import { SE_SPEAKERS_SMART, smartSpeakers } from './smart-speakers.js';
 import { pacingProse, readHookState, readPacing, SE_HOOK } from '../sessions/hooks.js';
 import { SE_GOAL } from '../sessions/goals.js';
@@ -279,6 +282,22 @@ export interface TurnPayload {
    * and a record field for it would outweigh it.
    */
   hidden?: true | readonly number[];
+  /**
+   * ***Push story*** — the flavour a person armed for this one turn,
+   * [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.5b]: Marinara's director push, `natural` or `random`.
+   *
+   * **It arms `se.scene.direct`** (`turns/direct.ts`) — the runner raises
+   * `PUSH_FLAG` in the turn's armed set, which is the first thing that has
+   * ever put anything there. Absent is every turn nobody pushed, whose plan
+   * has no director in it at all.
+   *
+   * *A rewrite restores it from the redone turn's outcome* (the route reads
+   * `direction.push` off the record), for force-talk's reason: who asked for
+   * a push is part of the request, not the sentence. In memory with the rest,
+   * so a job recovered after a crash runs unpushed, `replay`'s exposure.
+   */
+  push?: Push;
 }
 
 export interface RunnerOptions {
@@ -710,6 +729,14 @@ export class TurnRunner {
      */
     const smart: { pick: SpeakerPick | null } = { pick: null };
     /**
+     * ***What a push directed*** — [P13 §1.9.3], [P13.5b]. The ninth report
+     * cell, up here for the paragraph above's reason (`write()` closes over it
+     * to put the direction on the step's outcome), and a cell for the hook
+     * selector's: the words are guidance, which a step may not hand back, and
+     * they must reach the slot the pack positioned.
+     */
+    const directed: { report: Direction | null } = { report: null };
+    /**
      * ***The round — every message a speaking call has written this turn*** —
      * [P13 §1.4](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
      * [P13.2]. The ninth cell, and a different kind from the eight above: those
@@ -811,6 +838,11 @@ export class TurnRunner {
       if (smart.pick !== null) {
         const outcome = steps.find((step) => step.stepId === SE_SPEAKERS_SMART);
         if (outcome !== undefined) outcome.speakers = smart.pick;
+      }
+      // The push's direction, on the director's outcome — the same arrangement.
+      if (directed.report !== null) {
+        const outcome = steps.find((step) => step.stepId === SE_SCENE_DIRECT);
+        if (outcome !== undefined) outcome.direction = directed.report;
       }
       draft.effects = effects;
       /**
@@ -1271,7 +1303,7 @@ export class TurnRunner {
         ? { treatment: inputs.lore.treatment.treatment }
         : {}),
     });
-    const plan: TurnPlan = selects
+    const hooked: TurnPlan = selects
       ? {
           steps: [
             hookSelector({
@@ -1298,6 +1330,47 @@ export class TurnRunner {
           ],
         }
       : declaredPlan;
+
+    /**
+     * ***The director, when a push armed it*** — [P13 §1.9.3], [P13.5b], and
+     * the ninth engine-owned step.
+     *
+     * **Planned only on a pushed turn**, the suggester's rule: a director row
+     * on every turn nobody pushed would be an outcome that means *this feature
+     * exists*. Its `when` still names the armed flag, and the loop still asks
+     * — the belt the suggester wears — so a plan built elsewhere cannot run it
+     * unpushed.
+     *
+     * ***After the mode's own `pre` steps and before everything else***: the
+     * direction reads the secret plot, and a plot pass that just wrote a fresh
+     * arc (Scene's `se.scene.plot`, a `pre` step) is the one it should read;
+     * and it is `pre`, so the slot is filled before any step assembles. *Never
+     * on a setup turn*, whose parts run before there is a story to push.
+     */
+    const pushing = payload.setup === true ? undefined : payload.push;
+    const plan: TurnPlan =
+      pushing === undefined
+        ? hooked
+        : {
+            steps: afterPre(
+              hooked.steps,
+              direct({
+                push: pushing,
+                fallback: inputs.preset.pushDirections?.[pushing] ?? null,
+                secrets: secretChannels(running),
+                player: cast.persona?.actor.name ?? null,
+                names: new Map(
+                  [...cast.actors, ...(cast.persona === null ? [] : [cast.persona])].map(
+                    (member) => [member.actor.id, member.actor.name],
+                  ),
+                ),
+                hidden: chat.hidden,
+                report: (report) => {
+                  directed.report = report;
+                },
+              }),
+            ),
+          };
 
     /**
      * ***The summariser, prepended*** — [07 §5.1], [P8.1], and the fifth
@@ -1706,11 +1779,17 @@ export class TurnRunner {
      * had shifted the modulus to, and could skip a whole stretch.
      */
     const turnsOnPath = storyDepth(history);
+    /**
+     * ***What a person armed for this turn*** — [25 C17]'s `armed`, with a
+     * producer at last ([P13.5b]): a submission's `push` raises `PUSH_FLAG`.
+     * Empty on every other turn, as it has been since P2.
+     */
+    const armed: ReadonlySet<string> = new Set(pushing === undefined ? [] : [PUSH_FLAG]);
     for (const { definition, run } of withSpeakers.steps) {
       const decision = evaluateCondition(definition.when, {
         turnsOnPath,
         stages: new Set<string>(),
-        armed: new Set<string>(),
+        armed,
       });
       if (!decision.ok) {
         steps.push({
@@ -1885,6 +1964,11 @@ export class TurnRunner {
                       ...(hooks.report?.guidance === undefined
                         ? {}
                         : { hookGuidance: hooks.report.guidance }),
+                      // The push's direction ([P13.5b]) — the director is `pre`,
+                      // so it has reported by the time anything assembles.
+                      ...(directed.report?.text === undefined
+                        ? {}
+                        : { direction: directed.report.text }),
                       // The story above the window — [07 §5.1], [P8.1]. Filled by
                       // the summariser, which is `pre` for the selector's reason
                       // and has therefore run before this loop reached anything
@@ -3219,6 +3303,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * firing has not been applied yet: the runner writes it after the loop, and the
  * extract step runs inside it.
  */
+/**
+ * A plan's steps with one inserted after its leading `pre` steps — where the
+ * director goes ([P13.5b]): behind every `pre` step already planned, the
+ * engine's and the mode's, and ahead of the first step that is not one.
+ */
+function afterPre(steps: TurnPlan['steps'], step: TurnPlan['steps'][number]): TurnPlan['steps'] {
+  const at = steps.findIndex((one) => one.definition.stage !== 'pre');
+  return at === -1 ? [...steps, step] : [...steps.slice(0, at), step, ...steps.slice(at)];
+}
+
 function pendingIntroduction(
   hooks: { report: HookSelectorReport | null },
   pool: readonly PooledHook[],

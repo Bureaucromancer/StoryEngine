@@ -167,13 +167,35 @@ const registered = new Map<string, ChannelDefinition>();
  * `init`, and every tracker's is `false` — [00 §4]'s *"RPG systems are opt-in
  * channels"*. A channel with no switch is always on, which is every channel
  * that is not a tracker.
+ *
+ * ***Either switch*** since [P13.5b]: `ChannelDefinition.enabledBy`, the same
+ * switch said for a channel that is not established state (the secret plot),
+ * or the tracker's own on `state`. A channel declaring both waits on both.
  */
 export function stateEnabled(
   definition: ChannelDefinition,
   channels: Readonly<Record<string, ChannelState>>,
 ): boolean {
-  const toggle = definition.state?.enabledBy;
-  if (toggle === undefined) return true;
+  return [definition.enabledBy, definition.state?.enabledBy].every(
+    (toggle) => toggle === undefined || switchOn(toggle, channels),
+  );
+}
+
+/**
+ * ***Whether a hidden channel has been shown to the player*** —
+ * `ChannelDefinition.reveal`, [06 §7.3], [P13.5b]. A `player` channel is always
+ * shown; a hidden one only while its reveal switch reads `true`, and never
+ * when it declares none.
+ */
+export function revealed(
+  definition: ChannelDefinition,
+  channels: Readonly<Record<string, ChannelState>>,
+): boolean {
+  if (definition.visibility !== 'hidden') return true;
+  return definition.reveal !== undefined && switchOn(definition.reveal, channels);
+}
+
+function switchOn(toggle: string, channels: Readonly<Record<string, ChannelState>>): boolean {
   return (channels[toggle]?.value ?? initialValue(toggle)) === true;
 }
 
@@ -836,6 +858,15 @@ export function renderedChannels(
     // feeds an illustration's prompt, and a character's thoughts from before
     // the switch went off are not the picture's to draw.
     if (!stateEnabled(definition, channels)) continue;
+    /**
+     * ***A secret is not a picture's to draw until it is shown*** — [P13.5b].
+     * The paragraph above holds for hidden *bookkeeping*, which is what every
+     * hidden channel was until then; a channel that declares a `reveal` is a
+     * secret the player has not been shown, and a picture is shown. So it is
+     * left out until revealed — and a hidden channel with no `reveal` is still
+     * in, as before.
+     */
+    if (definition.reveal !== undefined && !revealed(definition, channels)) continue;
 
     // Every key the channel owns, for `channelSurfaces`' reason: a per-actor
     // channel has one value per actor, and a prompt built from the unscoped key
@@ -855,6 +886,34 @@ export function renderedChannels(
   }
 
   return out.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/**
+ * ***The session's secrets, as their channels render them*** — [P13 §1.9.3],
+ * [P13.5b]: what the director is told about where the story is secretly
+ * heading.
+ *
+ * **Declared rather than named**: a secret is a hidden channel that declares a
+ * `reveal`, switched on, with a template — so the engine reads Scene's secret
+ * plot without spelling its id, as the state block reads the trackers. Every
+ * key it holds, rendered and trimmed; blank is nothing. Revealed or not, since
+ * the director is not the player.
+ */
+export function secretChannels(channels: Readonly<Record<string, ChannelState>>): string[] {
+  const out: string[] = [];
+  for (const definition of registeredChannels()) {
+    if (definition.visibility !== 'hidden' || definition.reveal === undefined) continue;
+    if (definition.render === undefined || !stateEnabled(definition, channels)) continue;
+    const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
+    for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
+      const rendered = renderChannelValue(
+        definition.render,
+        channels[key]?.value ?? initialValue(definition.id),
+      );
+      if (rendered.ok && rendered.text.trim() !== '') out.push(rendered.text.trim());
+    }
+  }
+  return out;
 }
 
 export function divergenceTurn(

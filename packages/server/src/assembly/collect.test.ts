@@ -1676,6 +1676,56 @@ describe('a channel slot', () => {
     expect(long.startsWith(candidates[0]?.text ?? '')).toBe(true);
   });
 
+  /**
+   * ***Switched off is silent*** — `ChannelDefinition.enabledBy`, [P13.5b]: a
+   * secret plot a person switched off stops reaching the narrator, whatever
+   * its value, and the record says a person did it.
+   */
+  it('says nothing while the channel’s switch is off, and calls that disabled', () => {
+    registerChannel({
+      id: 'example.switch',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'user-only',
+      visibility: 'player',
+      budget: null,
+      schema: { type: 'boolean' },
+      init: { kind: 'literal', value: false },
+    });
+    registerChannel({
+      id: 'example.secret',
+      owner: 'example.mode',
+      version: 1,
+      scope: 'session',
+      update: 'model-proposed',
+      visibility: 'hidden',
+      budget: 20,
+      render: '{{ value }}',
+      schema: { type: 'string' },
+      init: { kind: 'literal', value: '' },
+      enabledBy: 'example.switch',
+    });
+    const slotted = preset([
+      block({ kind: 'slot', id: 'se.x', source: { of: 'channel', channelId: 'example.secret' } }),
+    ]);
+    const held = { 'example.secret': { version: 1, value: 'the vault is empty' } };
+
+    const off = collectCandidates(context({ preset: slotted, channels: held }));
+    expect(off.candidates).toHaveLength(0);
+    expect(off.notFilled).toEqual([
+      expect.objectContaining({ blockId: 'se.x', reason: 'disabled' }),
+    ]);
+
+    const on = collectCandidates(
+      context({
+        preset: slotted,
+        channels: { ...held, 'example.switch': { version: 1, value: true } },
+      }),
+    );
+    expect(on.candidates[0]?.text).toBe('the vault is empty');
+  });
+
   it('says nothing for a template that will not compile, rather than taking the turn down', () => {
     // A refusal is a value, the same way `renderTemplate`'s caller treats one: a
     // preset is somebody else's authored file and so is a mode's declaration.

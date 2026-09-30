@@ -978,7 +978,8 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 22 since the established-state slot ([P13.5a]), 21
+    // gains a block — 23 since the secret plot's slot ([P13.5b]), 22 since
+    // the established-state slot ([P13.5a]), 21
     // since the embodied instruction and the card's three
     // prompt slots ([P13.3]), 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
     // from the goal slot ([06 §7.3.3]'s *always injected*, [P7.6]), 15 from the
@@ -991,7 +992,7 @@ describe('a session with a cast assembles the whole preset', () => {
     // an absolute count of a shipped object is a number that changes whenever
     // anything ships — the lesson [P7B.0]'s scan-count assertion learned. So the
     // block below names the slot instead, which is the claim that survives.
-    expect(created.body.session.preset.blocks).toHaveLength(22);
+    expect(created.body.session.preset.blocks).toHaveLength(23);
     expect(created.body.session.preset.blocks.map((block: { id: string }) => block.id)).toContain(
       'se.summary',
     );

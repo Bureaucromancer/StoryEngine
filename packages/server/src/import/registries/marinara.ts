@@ -214,10 +214,12 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // (`import.chat.agentModelsNotCarried`).
   agent_configs: 'recorded',
   agent_runs: 'recorded',
-  // Holds the narrative director's secret plot ([P13 §2.6]: `overarchingArc`
-  // → `se.plot.secret`), which waits on [P13.5b]'s channel as the trackers wait
-  // on [P13.5a]'s.
-  agent_memory: 'recorded',
+  // Holds the narrative director's secret plot. ~~Waits on [P13.5b]'s channel
+  // as the trackers wait on [P13.5a]'s.~~ ***`converted` at [P13.5b]***: a
+  // roleplay root chat's `overarchingArc` is `se.plot.secret` on its session's
+  // head turn (`marinara/plot.ts`, [P13 §2.6]). Its other keys are the
+  // director's bookkeeping and go nowhere.
+  agent_memory: 'converted',
   capability_documents: 'recorded',
   // Rule-shaped, deferred with the rule vocabulary to 2.0 ([25 C7]).
   regex_scripts: 'recorded',

@@ -322,6 +322,15 @@ export interface ChatSettings {
    * opening is the one node every branch of the family inherits from.
    */
   state?: readonly ChatStateValue[];
+  /**
+   * ***State the source keeps as of now*** — Marinara's secret plot
+   * (`agent_memory`'s `overarchingArc`), added at [P13.5b]. Written on the
+   * **head** turn rather than the openings: the source keeps one value per
+   * chat, rewritten in place with no record of the message it was revised at,
+   * so what it states is the value at the head — and the head cache, folded
+   * from the head path, carries it.
+   */
+  headState?: readonly ChatStateValue[];
 }
 
 /**

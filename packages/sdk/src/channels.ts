@@ -449,6 +449,41 @@ export interface ChannelDefinition {
    */
   state?: EstablishedState;
   /**
+   * ***The switch this channel waits on, wherever it is read*** —
+   * [P13 §1.9.3](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.5b]: the id of a boolean channel whose value must be `true`
+   * for this one to reach a prompt slot, a channel digest or a surface.
+   *
+   * **{@link EstablishedState.enabledBy}, for a channel that is not established
+   * state.** The trackers' switch rides on `state` because the state block was
+   * the one place they are read; a secret plot is read through an ordinary `{
+   * of: 'channel' }` slot among the system blocks, and giving it a `state` to
+   * reach the switch would put it in the *what the story has established* block
+   * too — which a plot the story has not reached is exactly not. So the switch
+   * is said here, once, and the engine reads either (`stateEnabled`).
+   *
+   * *Switched off is silent, not cleared*: the value stays on the tree, so a
+   * plot switched back on resumes where it was. Absent means always read.
+   */
+  enabledBy?: string;
+  /**
+   * ***The reveal affordance*** — [06 §7.3](../../../docs/design/06-modes-and-turn-pipeline.md):
+   * *"Hidden GM state (… the Narrative Director's Secret Plot) is a channel
+   * with `visibility: "hidden"` and a reveal affordance."* Added at [P13.5b].
+   *
+   * The id of a boolean channel a person switches: while it is `true`, this
+   * hidden channel's surfaces are drawn as though it were `player`, and while
+   * it is not, it is kept from every surface **and from the channel digests
+   * that feed a picture** — a secret drawn into an illustration is a secret
+   * shown. The narrator is told either way; `visibility` is about the player
+   * ([04 §7.1]'s *hidden is the GM's arc*).
+   *
+   * *Only meaningful on a `hidden` channel*: a `player` channel has nothing to
+   * reveal. Absent is hidden for good, which is every hidden channel before
+   * this — bookkeeping, not a secret.
+   */
+  reveal?: string;
+  /**
    * Where the value starts. See {@link InitPolicy}.
    *
    * **Required, and that is the point of adding it.** `CLOCK_START` and

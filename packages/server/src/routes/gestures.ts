@@ -46,6 +46,7 @@ export interface GestureBody {
   input?: unknown;
   guidance?: string;
   speakers?: string[];
+  push?: string;
   fromMessage?: number;
   continueOf?: string;
   editOf?: string;
@@ -103,7 +104,7 @@ export interface Gesture {
  * ***Which fields cannot be sent together***, as one sentence per clash.
  *
  * - **An edit makes no call**, so everything that steers one — an input
- *   beside it (the edit carries its own), guidance, force-talk, a redo, a
+ *   beside it (the edit carries its own), guidance, force-talk, a push, a redo, a
  *   rewrite, a swipe, a continue — is a request it cannot honour.
  * - **A swipe and a continue carry their input** from the turn they name, so
  *   an `input` beside either would be a sibling answering a different move
@@ -123,7 +124,16 @@ function clashOf(body: GestureBody): string | null {
   }
   if (body.authored !== undefined) {
     const steering = (
-      ['input', 'guidance', 'speakers', 'rewriteOf', 'redoOf', 'fromMessage', 'continueOf'] as const
+      [
+        'input',
+        'guidance',
+        'speakers',
+        'push',
+        'rewriteOf',
+        'redoOf',
+        'fromMessage',
+        'continueOf',
+      ] as const
     ).filter((field) => body[field] !== undefined);
     if (steering.length > 0) {
       return `A turn written by hand makes no call, so it cannot be sent with ${steering.join(', ')}.`;

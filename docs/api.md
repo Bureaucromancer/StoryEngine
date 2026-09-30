@@ -1856,7 +1856,7 @@ that caption with a placeholder where the picture would be.
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
   rewriteOf?: string, redoOf?: string,
   input: { text, actorId?, kind?, attachments?: [{ digest, caption? }] },
-  guidance?, speakers?: string[] }
+  guidance?, speakers?: string[], push?: "natural"|"random" }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
@@ -1955,6 +1955,18 @@ sent beside `rewriteOf` wins over the record. A reroll keeps nothing and plays
 the session's policy; a client that wants the same member again sends
 `speakers` again.
 
+**`push` is Push story**
+([P13 §1.9.3](design/workplan/30-p13-scene-and-session-import.md), P13.5b):
+the narrative director armed for this one turn — `natural` moves the story on
+through what it already has, `random` brings in something plausible nobody saw
+coming. It runs `se.scene.direct` before the reply, one small call whose
+direction reaches the guidance slot (as `se.guidance.direction`, a `step`
+producer); when that call fails, the session's pack's own push text for the
+flavour stands in. Any other value is `400`, and beside `authored` it is `422
+conflicting-gesture`. **A rewrite keeps it**: a `rewriteOf` submission without
+`push` is pushed as the redone turn was, read off that turn's director outcome;
+`push` sent beside `rewriteOf` wins.
+
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
 ([06 §5.1](design/06-modes-and-turn-pipeline.md)): typed into the action it lands in history
@@ -2001,6 +2013,15 @@ call). **A fallback is a `failed` outcome under `failure: "warn"`**, whose
 `error` says why and whose `speakers` says who spoke instead; the turn itself
 completes. `because` is the model's one line for that member and is absent on a
 fallback or a rewrite, where nobody was asked.
+
+**A `se.scene.direct` outcome in `turn.steps` says what a push directed**
+([P13 §1.9.3](design/workplan/30-p13-scene-and-session-import.md), P13.5b),
+present only on a pushed turn. It carries `direction: { push, by, text? }`:
+`by` is `model` when the director answered and `fallback` when the pack's fixed
+text stood in — a `failed` outcome under `failure: "warn"`, whose `error` says
+why; the turn completes. `text` is the words the guidance slot carried, absent
+only when the call failed and the pack ships no push text, so the turn ran
+undirected.
 
 `turn.spans` is what the engine understood about the turn's text — [06 §8.2],
 [03 §8](design/03-data-model.md), [10 §13.1](design/10-ui-surfaces.md). Each span

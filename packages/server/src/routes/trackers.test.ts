@@ -491,7 +491,11 @@ describe('what the tracker panel reads', () => {
     const { surfaces, actions } = await read(sessionId);
     expect(surfaces.filter((one) => one.kind === 'record' && one.region === 'panel')).toEqual([]);
     expect(actions).toEqual([]);
-    const switches = surfaces.filter((one) => one.region === 'settings' && one.kind === 'toggle');
+    // The trackers' six — the secret plot's switch beside them is [P13.5b]'s.
+    const switches = surfaces.filter(
+      (one) =>
+        one.region === 'settings' && one.kind === 'toggle' && one.channelId.startsWith('se.track.'),
+    );
     expect(switches).toHaveLength(6);
     for (const one of switches) {
       expect(one.group).toBe('Agents');

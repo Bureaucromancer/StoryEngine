@@ -326,12 +326,14 @@ export function buildSession(
     }
   }
 
-  const sessionTime = headOf(walked, nodes)?.time ?? 0;
+  const headNode = headOf(walked, nodes);
+  const sessionTime = headNode?.time ?? 0;
   const sessionId = uuidv7Shaped(sessionTime, sessionKey(context.account, family.key));
   const muted = mutedMembers(family, settings, resolution, cast, notes);
   const effectsOf = stateEffects(ordered, id, {
     muted,
     opening: settings.state ?? [],
+    head: { key: headNode?.key ?? null, state: settings.headState ?? [] },
     resolution,
     cast,
     notes,
@@ -941,6 +943,9 @@ function mutedEffects(node: Node, turnId: string, muted: readonly Muted[]): Chan
  *   presence, for {@link mutedEffects}' argument about where a chat-wide fact
  *   goes; then the opening's lines. The mutes stay first and are never
  *   deduplicated: [P13.10a]'s sync reads them as the source's word on the path.
+ * - ***On the head, the state the source keeps as of now*** —
+ *   `ChatSettings.headState`, the secret plot ([P13.5b]): last, after the
+ *   head's own lines, since it is the source's value at the head.
  * - ***`proposedBy: engine`, applied, `before` the value at the parent*** —
  *   what `acceptEffect` records, built here for {@link mutedEffects}' reason
  *   (it mints a random id), with the id from `effectKey` over the turn's key,
@@ -956,6 +961,8 @@ function stateEffects(
   on: {
     muted: readonly Muted[];
     opening: readonly ChatStateValue[];
+    /** `ChatSettings.headState`, for the head node alone ([P13.5b]). */
+    head: { key: string | null; state: readonly ChatStateValue[] };
     resolution: ChatResolution;
     cast: readonly string[];
     notes: ImportNote[];
@@ -1013,6 +1020,8 @@ function stateEffects(
       ...(opening ? on.opening : []),
       ...(node.input?.state ?? []),
       ...node.lines.flatMap((line) => line.state ?? []),
+      // Last, so the source's word as of now is the head's end state.
+      ...(node.key === on.head.key ? on.head.state : []),
     ];
     for (const from of said) {
       let scopeKey: string | null = null;

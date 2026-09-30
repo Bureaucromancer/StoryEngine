@@ -64,6 +64,17 @@ describe('the step a preview is about', () => {
     expect(previewStepFor(mode)).toBeNull();
   });
 
+  it('is the step that writes the messages, not a prose-role pass declared ahead of it', () => {
+    // [P13.5b]: Scene's secret-plot pass is `pre`, asks `prose` and writes an
+    // effect; the meter measures the narrator's call behind it.
+    const mode = modeOf([
+      step({ id: 'se.scene.plot', role: 'prose', callKind: 'plot', contributes: 'effects' }),
+      step({ id: 'se.narrate', role: 'prose', callKind: 'narrate' }),
+    ]);
+
+    expect(previewStepFor(mode)?.id).toBe('se.narrate');
+  });
+
   it('finds Scene’s narrate step, which is the one the meter measures today', () => {
     expect(previewStepFor(TEST_MODE)?.id).toBe('se.narrate');
   });

@@ -38,6 +38,10 @@ const WORDS = labels('play.chat-composer', {
     'Sends an empty message whenever the chat has been quiet this long. Typing or Stop turns it off.',
   autoSeconds: 'Seconds of quiet',
   letThemTalk: 'Let them talk',
+  push: 'Push the story',
+  pushNone: 'Not this turn',
+  pushNatural: 'Naturally',
+  pushRandom: 'With a surprise',
   nobody:
     'Nobody here can reply: everyone is muted or gone. Name somebody, or unmute them in the cast.',
 });
@@ -92,6 +96,37 @@ export function WhoSpeaksNext(props: {
             {one.name}
           </option>
         ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * ***Push story*** — [P13 §1.9.3], [P13.5b]: Marinara's director push, armed
+ * for the next turn only. *Naturally* moves the story on through what it has;
+ * *with a surprise* brings in something plausible nobody saw coming. One-shot,
+ * like who speaks next: the page clears it when the turn is sent.
+ */
+export function PushStory(props: {
+  value: '' | 'natural' | 'random';
+  onChange: (push: '' | 'natural' | 'random') => void;
+  disabled: boolean;
+}): JSX.Element {
+  return (
+    <label className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+      {WORDS.push}
+      <select
+        className="rounded-control border border-line bg-surface p-1 text-ink"
+        value={props.value}
+        disabled={props.disabled}
+        onChange={(event) => {
+          const next = event.target.value;
+          props.onChange(next === 'natural' || next === 'random' ? next : '');
+        }}
+      >
+        <option value="">{WORDS.pushNone}</option>
+        <option value="natural">{WORDS.pushNatural}</option>
+        <option value="random">{WORDS.pushRandom}</option>
       </select>
     </label>
   );

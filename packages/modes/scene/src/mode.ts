@@ -13,6 +13,7 @@ import type {
   StepResult,
 } from '@storyengine/sdk';
 
+import { PLOT_CHANNELS, PLOT_STEP, PLOT_SURFACES, plot } from './plot.js';
 import { SCENE_PRESET } from './preset.js';
 import { STAGE_STEP, stage } from './staging.js';
 import { TRACK_STEP, TRACKING_CHANNELS, TRACKING_SURFACES, track } from './tracking.js';
@@ -555,7 +556,12 @@ export const SCENE: ModeDefinition = {
    * and both reading what the narrator wrote. After, because staging is the
    * cheaper question and neither reads the other.
    */
-  steps: [NARRATE, STAGE_STEP, TRACK_STEP],
+  /**
+   * ***Four since [P13.5b]***: the secret plot's pass first, because it is
+   * `pre` — an arc it writes steers this turn's reply, and the runner puts the
+   * engine's director after it so a push reads the fresh arc.
+   */
+  steps: [PLOT_STEP, NARRATE, STAGE_STEP, TRACK_STEP],
   /**
    * ~~**A declaration the engine does not yet consult**~~ — **consulted since
    * [P7.0]**: `registerMode` installs a mode's declared channels, so this array
@@ -585,6 +591,8 @@ export const SCENE: ModeDefinition = {
      * staging. Recorded rather than resolved.
      */
     ...TRACKING_CHANNELS,
+    // The secret plot, its switch, its reveal and its cadence — [P13.5b], `plot.ts`.
+    ...PLOT_CHANNELS,
   ],
   /**
    * One kind, matching what the wire already defaults to — so nothing that
@@ -653,6 +661,8 @@ export const SCENE: ModeDefinition = {
     },
     // The trackers' cards and their switches — [P13.5a], see `tracking.ts`.
     ...TRACKING_SURFACES,
+    // The secret plot's switch, cadence, reveal and card — [P13.5b], `plot.ts`.
+    ...PLOT_SURFACES,
   ],
   /**
    * ***What Scene wants of pictures before anybody says otherwise*** —
@@ -679,5 +689,10 @@ export const SCENE: ModeDefinition = {
 
 export const SCENE_MODE: Mode = {
   definition: SCENE,
-  run: { [NARRATE.id]: narrate, [STAGE_STEP.id]: stage, [TRACK_STEP.id]: track },
+  run: {
+    [PLOT_STEP.id]: plot,
+    [NARRATE.id]: narrate,
+    [STAGE_STEP.id]: stage,
+    [TRACK_STEP.id]: track,
+  },
 };

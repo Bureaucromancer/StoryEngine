@@ -100,6 +100,7 @@ import { authoredMessages, editedFrom, gestureOf, type Gesture } from './gesture
 import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
 import { keptSpeakers } from '../turns/smart-speakers.js';
+import { SE_SCENE_DIRECT, type Push } from '../turns/direct.js';
 import { forceRefusal, type ForceRefusal } from '../turns/speakers.js';
 import { previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
@@ -806,6 +807,21 @@ const SubmitBody = Type.Object(
         uniqueItems: true,
       }),
     ),
+    /**
+     * ***Push story*** — [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * added at [P13.5b]: Marinara's director push, armed for this one turn.
+     * `natural` moves the story on through what it already has; `random`
+     * brings in something plausible nobody saw coming. It arms the engine's
+     * `se.scene.direct`, whose direction reaches the guidance slot and whose
+     * outcome records it; when that call fails the pack's own push text stands
+     * in, and the outcome says so.
+     *
+     * ***Kept by a rewrite***, as force-talk is: a `rewriteOf` submission that
+     * leaves it out is pushed as the redone turn was, read off that turn's
+     * director outcome. Sent beside `rewriteOf`, this wins. An edit makes no
+     * call, so it refuses one (`conflicting-gesture`).
+     */
+    push: Type.Optional(Type.Union([Type.Literal('natural'), Type.Literal('random')])),
     /**
      * ***Swipe*** — regenerate message *k* of the turn `redoOf` or `rewriteOf`
      * names, [P13 §1.6](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
@@ -3354,6 +3370,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         };
         guidance?: string;
         speakers?: string[];
+        push?: Push;
         fromMessage?: number;
         continueOf?: string;
         editOf?: string;
@@ -3412,6 +3429,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * somebody now is a newer request than the one on the record.
        */
       let forced: string[] | undefined;
+      /**
+       * ***And whether it was pushed*** — [P13.5b]: the redone turn's
+       * `direction.push`, for force-talk's reason. The body's own wins.
+       */
+      let pushed: Push | undefined;
       if (body.rewriteOf !== undefined) {
         const rewritten = await readTurnById(
           services.sessions,
@@ -3434,6 +3456,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             : swipeReplay(rewritten.tape, body.fromMessage);
         kept = keptSpeakers(rewritten);
         forced = forcedOn(rewritten);
+        pushed = pushedOn(rewritten);
       }
 
       /**
@@ -3637,6 +3660,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         replay,
         kept,
         forced,
+        pushed,
         // A guided swipe's attempt is the one message it redoes ([P13.4]).
         attempt: gesture.attempt ?? attempt,
         attachments,
@@ -3831,6 +3855,7 @@ function payloadOf(
     input?: { text: string; actorId?: string | null; kind?: string };
     guidance?: string;
     speakers?: readonly string[];
+    push?: Push;
   },
   /**
    * What the route read off the record on the submission's behalf — the tape
@@ -3844,6 +3869,8 @@ function payloadOf(
     kept?: readonly string[] | undefined;
     /** Who a rewrite's redone turn was forced to speak for — its `input.speakers`. */
     forced?: readonly string[] | undefined;
+    /** Whether a rewrite's redone turn was pushed — its director outcome's `direction.push`. */
+    pushed?: Push | undefined;
     attempt?: { turnId: string; text: string } | undefined;
     /** The move's pictures, as the store described them — never the client's claim. */
     attachments?: TurnAttachment[] | undefined;
@@ -3876,6 +3903,7 @@ function payloadOf(
   // again by the selector when the turn runs — see `TurnPayload.speakers`.
   // A carried move keeps the force-talk it recorded ([P13.4]).
   const speakers = body.speakers ?? fromRecord.forced ?? gesture.recorded;
+  const push = body.push ?? fromRecord.pushed;
   /**
    * ***The move***: the gesture's, when it carries one — already a record's
    * input, pictures and all — else the body's, else none: a turn with no
@@ -3901,9 +3929,21 @@ function payloadOf(
     ...(fromRecord.replay === undefined ? {} : { replay: fromRecord.replay }),
     ...(fromRecord.kept === undefined ? {} : { keptSpeakers: fromRecord.kept }),
     ...(speakers === undefined ? {} : { speakers }),
+    ...(push === undefined ? {} : { push }),
     ...(gesture.carry === undefined ? {} : { carry: gesture.carry }),
     ...hidden,
   };
+}
+
+/**
+ * ***The push a turn was given***, as a rewrite restores it — the flavour on
+ * its director's outcome ([P13.5b]), or `undefined` for a turn nobody pushed.
+ * Shape-guarded for `forcedOn`'s reason: the record is a file.
+ */
+function pushedOn(turn: Turn): Push | undefined {
+  const outcome = turn.steps?.find((step) => step.stepId === SE_SCENE_DIRECT);
+  const push: unknown = outcome?.direction?.push;
+  return push === 'natural' || push === 'random' ? push : undefined;
 }
 
 /**

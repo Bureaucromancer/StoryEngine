@@ -2224,6 +2224,11 @@ export interface SubmitTurn {
    * ([P13 §1.3]): the cast panel's *speak* and the composer's *who speaks next*.
    */
   speakers?: string[];
+  /**
+   * ***Push story*** — arms the director for this one turn ([P13 §1.9.3]):
+   * `natural` moves the story on, `random` brings in something unexpected.
+   */
+  push?: 'natural' | 'random';
   /** ***Swipe*** — regenerate message *k* of the turn `rewriteOf`/`redoOf` names. */
   fromMessage?: number;
   /** ***Continue*** — append to the last message of this turn, as a sibling of it. */
@@ -2274,6 +2279,7 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
     ...(submission.speakers === undefined || submission.speakers.length === 0
       ? {}
       : { speakers: submission.speakers }),
+    ...(submission.push === undefined ? {} : { push: submission.push }),
     ...(submission.fromMessage === undefined ? {} : { fromMessage: submission.fromMessage }),
     ...(submission.continueOf === undefined ? {} : { continueOf: submission.continueOf }),
     ...(submission.editOf === undefined ? {} : { editOf: submission.editOf }),

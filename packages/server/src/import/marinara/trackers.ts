@@ -4,6 +4,7 @@
 import type { ImportNote } from '@storyengine/shared';
 
 import type { ChatStateValue, ForeignRef } from '../chat/types.js';
+import { plotSwitches } from './plot.js';
 
 /**
  * ***Marinara's agent state, as Scene's tracker channels*** —
@@ -176,13 +177,21 @@ export function trackerSwitches(
     notes.push({ key: 'import.chat.manualTrackersPerAgent', params: { chat }, level: 'info' });
   }
   /**
-   * *Agents that are not trackers* — the director, the prose guardian, the echo
-   * chamber, the secret plot — come with [P13.5b] and [P13.5c]; until then
-   * their switches are a note, which is what `agentsNotCarried` has said since
-   * [P13.10], now about the rest rather than all of them.
+   * ***The director*** ([P13.5b]): its push is a per-turn flag here, available
+   * whatever the chat had on, so there is nothing of it to carry — and its
+   * secret plot's switch and cadence are `plotSwitches`'.
    */
-  const others = active.filter((agent) => AGENT_TRACKERS[agent] === undefined);
-  if (others.length > 0 || metadata['narrativeDirectorSecretPlotEnabled'] === true) {
+  out.push(...plotSwitches(metadata, active));
+  /**
+   * *Agents that are neither trackers nor the director* — the prose guardian,
+   * the echo chamber — come with [P13.5c]; until then their switches are a
+   * note, which is what `agentsNotCarried` has said since [P13.10], now about
+   * the rest rather than all of them.
+   */
+  const others = active.filter(
+    (agent) => AGENT_TRACKERS[agent] === undefined && agent !== 'director',
+  );
+  if (others.length > 0) {
     notes.push({ key: 'import.chat.agentsNotCarried', params: { chat }, level: 'info' });
   }
   if (on.size > 0) {

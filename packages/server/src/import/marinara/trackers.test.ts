@@ -244,9 +244,10 @@ describe('the switches', () => {
       ['se.track.custom.on', true],
       ['se.track.cadence', { everyNTurns: 1, manual: true }],
     ]);
+    // The director is no longer a note ([P13.5b]): its push is per turn here,
+    // and a chat that kept no secret plot has nothing else of it to carry.
     expect(notes.map((note) => note.key)).toEqual([
       'import.chat.manualTrackersPerAgent',
-      'import.chat.agentsNotCarried',
       'import.chat.agentModelsNotCarried',
     ]);
     // Per-agent manual, for only some of the trackers that ran: those stay
@@ -353,6 +354,9 @@ describe('a Marinara roleplay with trackers, swept', () => {
       ['se.track.character.on', true],
       ['se.track.inventory.on', true],
       ['se.track.cadence', { everyNTurns: 1, manual: true }],
+      // The director's secret plot, switched on, every ten messages — [P13.5b].
+      ['se.plot.secret.on', true],
+      ['se.plot.secret.cadence', { everyNTurns: 5 }],
     ]);
 
     // The first round is the active swipe's: the office, Vera and the ledger.
@@ -379,6 +383,8 @@ describe('a Marinara roleplay with trackers, swept', () => {
       'se.track.character',
       'se.track.locks',
       'se.track.hidden',
+      // The head, so the director's arc as of now — [P13.5b], `plot.test.ts`.
+      'se.plot.secret',
     ]);
     expect(tracked(next)[0]?.after).toMatchObject({ weather: 'rain' });
     expect(tracked(next)[1]?.after).toMatchObject({ mood: 'curt' });

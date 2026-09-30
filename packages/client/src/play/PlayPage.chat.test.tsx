@@ -455,6 +455,39 @@ describe('the composer in a chat', () => {
     });
   });
 
+  /**
+   * ***Push story*** — [P13 §1.9.3], [P13.5b]: the director armed for one
+   * turn, sent as the submission's `push` and cleared once it is.
+   */
+  it('pushes the story for one turn, then forgets it', async () => {
+    renderPage();
+    await lineOf('"Aye."');
+    const push = await screen.findByRole<HTMLSelectElement>('combobox', {
+      name: 'Push the story',
+    });
+    expect(push.value).toBe('');
+    await userEvent.selectOptions(push, 'random');
+    await userEvent.click(screen.getByRole('button', { name: 'Let them talk' }));
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledWith(expect.objectContaining({ push: 'random' }));
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole<HTMLSelectElement>('combobox', { name: 'Push the story' }).value,
+      ).toBe('');
+    });
+  });
+
+  it('sends no push when none was chosen', async () => {
+    renderPage();
+    await lineOf('"Aye."');
+    await userEvent.click(screen.getByRole('button', { name: 'Let them talk' }));
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledTimes(1);
+    });
+    expect(submitTurn.mock.calls[0]?.[0]).not.toHaveProperty('push');
+  });
+
   it('says nobody can reply rather than sending, when everyone is muted', async () => {
     answerSession({ cast: [row(VERA.id, false), row(LUND.id, false)] });
     renderPage();
@@ -469,6 +502,7 @@ describe('the composer in a chat', () => {
     renderPage();
     await screen.findByText('The door opens.');
     expect(screen.queryByRole('combobox', { name: 'Who speaks next' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Push the story' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(submitTurn).not.toHaveBeenCalled();
   });

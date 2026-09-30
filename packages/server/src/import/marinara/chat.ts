@@ -12,6 +12,7 @@ import type {
   ForeignRef,
 } from '../chat/types.js';
 import { parseTimestamp } from '../sillytavern/chat.js';
+import { secretPlotOf } from './plot.js';
 import { snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
 
 /**
@@ -51,8 +52,9 @@ import { snapshotStates, trackerSwitches, unreadKeys } from './trackers.js';
  * snapshot established (`ChatMessage.state`, `ChatSwipe.state`, read by
  * `trackers.ts`), the builder writes it as effects on the turn holding it, and
  * the chat's tracker switches travel as {@link MarinaraChat.state}.
- * `agent_memory`'s secret plot still waits on [P13.5b]'s channel, and a chat
- * running agents that are not trackers still says so
+ * ~~`agent_memory`'s secret plot still waits on [P13.5b]'s channel~~ — it
+ * came at [P13.5b] (`plot.ts`, {@link MarinaraChat.plot}); a chat running
+ * agents that are neither trackers nor the director still says so
  * (`import.chat.agentsNotCarried`).
  */
 
@@ -82,6 +84,11 @@ export interface MarinaraTables {
    * ([P13.5a]). Absent is a store that never ran them.
    */
   snapshots?: readonly Row[];
+  /**
+   * `agent_memory` — the director's secret plot, `overarchingArc` per chat
+   * ([P13.5b], `plot.ts`). Absent is a store whose director kept none.
+   */
+  memory?: readonly Row[];
 }
 
 /**
@@ -124,6 +131,12 @@ export interface MarinaraChat {
    * group settings.
    */
   state: ChatStateValue[];
+  /**
+   * ***The chat's secret plot, as of its head*** — `agent_memory`'s
+   * `overarchingArc` as `se.plot.secret` ([P13.5b], `plot.ts`). The session
+   * pass takes the root's and the builder writes it on the head turn.
+   */
+  plot: ChatStateValue[];
 }
 
 /** A chat that is not `roleplay`, recorded by the pass rather than imported. */
@@ -241,15 +254,16 @@ export function parseMarinaraChats(tables: MarinaraTables): MarinaraChats {
       other.push({ id, name, mode: mode === '' ? 'unknown' : mode });
       continue;
     }
-    chats.push(
-      chatOf(
+    chats.push({
+      ...chatOf(
         row,
         messagesOf.get(id) ?? [],
         swipesOf,
         { characterNames, personaNames },
         snapshotsOf,
       ),
-    );
+      plot: secretPlotOf(tables.memory ?? [], id),
+    });
   }
 
   return { chats, other, orphans: { messages: orphanMessages, swipes: orphanSwipes } };
@@ -267,7 +281,7 @@ function chatOf(
   swipesOf: ReadonlyMap<string, readonly Row[]>,
   names: Names,
   snapshotsOf: ReadonlyMap<string, readonly Row[]>,
-): MarinaraChat {
+): Omit<MarinaraChat, 'plot'> {
   const id = str(row['id']);
   const title = str(row['name']) || id;
   const metadata = recordOf(row['metadata']);

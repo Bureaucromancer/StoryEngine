@@ -908,6 +908,23 @@
         }
       }
     },
+    "pushDirections": {
+      "type": "object",
+      "required": [
+        "natural",
+        "random"
+      ],
+      "properties": {
+        "natural": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "random": {
+          "minLength": 1,
+          "type": "string"
+        }
+      }
+    },
     "variables": {
       "type": "array",
       "items": {

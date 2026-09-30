@@ -699,6 +699,30 @@ export const Preset = Type.Object(
      */
     pacingLevels: Type.Optional(Type.Array(DifficultyLevel)),
 
+    /**
+     * ***What a push says when nobody could be asked*** —
+     * [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * added at [P13.5b].
+     *
+     * A person arms *Push story* for one turn, `natural` or `random`, and the
+     * engine's `se.scene.direct` makes one small call for a direction. When that
+     * call fails, **this is the direction** — the pack's fixed words for the
+     * flavour, which is what Marinara's individual group mode sends in place of
+     * its director's (`generate.routes.ts:5754-5763`). It reaches the guidance
+     * slot like any direction, and the step's outcome says it stood in.
+     *
+     * ***The pack's rather than the engine's***, for the pacing prose's reason:
+     * how a push should read to a model is prompt content, and a pack that
+     * wants a gentler nudge says so here. *Omitted*, a failed push has nothing to
+     * stand in and the turn runs undirected, with the failure on the record.
+     */
+    pushDirections: Type.Optional(
+      Type.Object({
+        natural: Type.String({ minLength: 1 }),
+        random: Type.String({ minLength: 1 }),
+      }),
+    ),
+
     variables: Type.Array(PresetVariable),
 
     tags: Type.Array(Type.String()),

@@ -470,6 +470,41 @@ export const SCENE_PRESET: Preset = {
       },
     },
     /**
+     * ***The secret plot*** — [P13 §1.9.3](../../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+     * added at [P13.5b]: *"it reaches the narrator through a channel slot
+     * placed with the system blocks"*. Marinara puts its *Secret plot* system
+     * message just before the first chat message
+     * (`appendSecretPlotSystemMessage`); here that is the last of the system
+     * blocks, after the samples and before the story so far.
+     *
+     * ***`narrate` only***, and that is what keeps a secret one: the suggester's
+     * offers, a drafted move in the player's own voice and a judge's verdict
+     * all reach the player, and none of them may be written knowing where the
+     * story is secretly heading. The narrator is the one reader it steers.
+     * *Empty until the plot is switched on and a pass has written one*, so
+     * `omitWhenEmpty` keeps every session without it byte-identical.
+     */
+    {
+      id: 'se.plot.secret',
+      label: 'secret plot',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 55,
+      appliesTo: ['narrate'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      wrapper:
+        '[A hidden arc this story is building toward. The player does not know it: let it shape what happens, and never announce it.]\n\n{{content}}',
+      source: {
+        of: 'channel',
+        channelId: 'se.plot.secret',
+      },
+    },
+    /**
      * ***The story above the window*** — [07 §5.1](../../../../docs/design/07-branching.md),
      * [25 E1](../../../../docs/design/25-open-questions.md), added at
      * [P8.1](../../../../docs/design/workplan/25-p8-implementation.md).
@@ -870,6 +905,19 @@ export const SCENE_PRESET: Preset = {
       ],
     },
   ],
+  /**
+   * ***What a push says when the director could not be asked*** — [P13.5b],
+   * `Preset.pushDirections`. Marinara's two fixed directives
+   * (`generate.routes.ts:5754-5763`), in this pack's words: the scene has
+   * stalled, so move it on — through what it already has, or through
+   * something nobody saw coming.
+   */
+  pushDirections: {
+    natural:
+      'The scene has been standing still. In your next reply, move the story on: take it into a new scene, or push it forward through the tensions, goals and loose threads it already has.',
+    random:
+      'The scene has been standing still. In your next reply, bring in something unexpected — one event that is plausible, fits the scene and everything established so far, and that nobody saw coming.',
+  },
   variables: [],
   tags: [],
   provenance: {

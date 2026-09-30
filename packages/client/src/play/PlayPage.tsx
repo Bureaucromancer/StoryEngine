@@ -53,6 +53,7 @@ import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
 import {
   AutoMode,
+  PushStory,
   autoDelayMs,
   letThemTalkLabel,
   NobodyWouldReply,
@@ -271,6 +272,8 @@ export function PlayPage({
   const actorObjects = library.data?.objects ?? [];
   /** Who speaks next — force-talk from the composer, one-shot (see `WhoSpeaksNext`). */
   const [forced, setForced] = useState('');
+  /** Push story — the director armed for the next turn, one-shot (see `PushStory`). */
+  const [push, setPush] = useState<'' | 'natural' | 'random'>('');
   /**
    * ***Whether the characters speak for themselves*** — the one voice under
    * which naming a speaker changes anything. A narrator speaks for nobody, so
@@ -377,12 +380,14 @@ export function PlayPage({
             }),
         guidance,
         ...(forced === '' || !embodied ? {} : { speakers: [forced] }),
+        ...(push === '' || chat === undefined ? {} : { push }),
       }),
     onSuccess: (accepted) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
       setDraft('');
       clearPictures();
       setForced('');
+      setPush('');
       setNobody(false);
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([06 §5.1]).
@@ -1202,6 +1207,11 @@ export function PlayPage({
             order={state.order}
             running={running}
           />
+        )}
+        {/* **Push story** — [P13.5b]: made before the words, like the two
+            above, and a chat's alone. */}
+        {chat === undefined ? null : (
+          <PushStory value={push} onChange={setPush} disabled={running || send.isPending} />
         )}
         <div className="flex gap-2">
           <label className="flex-1">

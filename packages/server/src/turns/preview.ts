@@ -96,13 +96,28 @@ export interface PreviewRequest {
 }
 
 /**
- * The step a preview is about: the first that asks the prose role.
+ * The step a preview is about: the first that asks the prose role ***and
+ * writes the turn's messages***, else the first that asks the prose role.
  *
  * One function so P7's per-step surfaces have a single place to change, and so
  * the answer's `stepId` and the call it previewed cannot come apart.
+ *
+ * *Corrected 2026-09-29, at [P13.5b]*: `role` is which model a step binds,
+ * not what it writes, and every Scene step asks `prose` for [25 C15]'s reason.
+ * While the narrator was Scene's first step the two readings agreed; the
+ * secret plot's `pre` pass, declared ahead of it, is a `prose`-role call that
+ * writes an effect, and the preview measured that instead of the prompt a
+ * person is about to send. The fallback keeps a mode whose prose step
+ * contributes nothing declared previewing what it did.
  */
 export function previewStepFor(mode: Mode): StepDefinition | null {
-  return mode.definition.steps.find((step) => step.role === 'prose') ?? null;
+  return (
+    mode.definition.steps.find(
+      (step) => step.role === 'prose' && step.contributes === 'messages',
+    ) ??
+    mode.definition.steps.find((step) => step.role === 'prose') ??
+    null
+  );
 }
 
 export async function previewAssembly(

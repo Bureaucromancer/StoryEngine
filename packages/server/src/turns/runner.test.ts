@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
-import type { OutputMessage, PlotHook } from '@storyengine/shared';
+import type { OutputMessage, PlotHook, StepOutcome } from '@storyengine/shared';
 
 import { DEFAULT_CONFIG, type Config } from '../config.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
@@ -337,7 +337,19 @@ async function runNextTurn(): Promise<Turn> {
  * shape of the gap rather than a thing to fix under a stage. Recorded at
  * [25 C17].
  */
-const SCENE_STEPS = ['se.narrate', 'se.scene.stage', 'se.scene.track'];
+/*
+ * *The fourth is [P13.5b]'s secret-plot pass*, and the note applies to it too —
+ * the plot is off by default, so the step reads one boolean and returns. It is
+ * first because it is `pre`, which moves the narrator off `steps[0]`: the
+ * assertions below that meant *the narrator's outcome* read it by id
+ * ({@link narrator}) rather than by position.
+ */
+const SCENE_STEPS = ['se.scene.plot', 'se.narrate', 'se.scene.stage', 'se.scene.track'];
+
+/** The narrator's outcome on a Scene turn — by id, since [P13.5b] put a `pre` step first. */
+function narrator(turn: Turn | undefined): StepOutcome | undefined {
+  return turn?.steps?.find((step) => step.stepId === 'se.narrate');
+}
 
 describe('a turn goes all the way through', () => {
   it('commits, with the record of what actually ran', async () => {
@@ -346,6 +358,8 @@ describe('a turn goes all the way through', () => {
     expect(turn.status).toBe('complete');
     expect(turn.output?.text).toBe('The rain had not stopped for three days.');
     expect(turn.steps).toMatchObject([
+      // The secret plot's pass, [P13.5b]: off, so the same one-read `ok`.
+      { stepId: 'se.scene.plot', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       { stepId: 'se.narrate', state: 'ok' },
       // `ok` and contributing nothing, which is the whole of `SCENE_STEPS`'s note.
       { stepId: 'se.scene.stage', state: 'ok', contributed: { blocks: 0, effects: 0 } },
@@ -769,7 +783,7 @@ describe('the three failure modes are three', () => {
 
     expect(provider.requests).toHaveLength(0);
     expect(turn.status).toBe('failed');
-    expect(turn.steps?.[0]).toMatchObject({
+    expect(narrator(turn)).toMatchObject({
       state: 'failed',
       error: { reason: 'window-too-small' },
     });
@@ -879,7 +893,7 @@ describe('what the provider did, and what it cost', () => {
     const { turn } = await runTurn();
 
     // `unbound` and `dangling` are told apart because the remedies differ.
-    expect(turn.steps?.[0]).toMatchObject({ state: 'failed', error: { reason: 'unbound' } });
+    expect(narrator(turn)).toMatchObject({ state: 'failed', error: { reason: 'unbound' } });
     expect(provider.requests).toHaveLength(0);
   });
 });
@@ -1088,7 +1102,7 @@ describe('cancellation', () => {
     );
     expect(written).toHaveLength(1);
     expect(written[0]?.turn.status).toBe('failed');
-    expect(written[0]?.turn.steps?.[0]?.error?.reason).toBe('cancelled');
+    expect(narrator(written[0]?.turn)?.error?.reason).toBe('cancelled');
   });
 
   /**
@@ -2770,7 +2784,7 @@ describe('the privateConnections capability', () => {
      * — the binding is untouched and correct, and it is the *permission* that
      * moved — so a UI reading this record offers the right sentence.
      */
-    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+    expect(narrator(turn)?.error?.reason).toBe('dangling');
   });
 
   /**
@@ -2852,7 +2866,7 @@ describe('the privateConnections capability', () => {
     const turn = await runNextTurn();
 
     expect(turn.status).toBe('failed');
-    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+    expect(narrator(turn)?.error?.reason).toBe('dangling');
   });
 });
 
@@ -2932,7 +2946,7 @@ describe('the install default bindings', () => {
     // Both states are reachable and they are different, which is the whole
     // reason `resolveRole` tells them apart.
     expect(turn.status).toBe('failed');
-    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+    expect(narrator(turn)?.error?.reason).toBe('dangling');
   });
 });
 

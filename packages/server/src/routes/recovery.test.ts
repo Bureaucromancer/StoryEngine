@@ -624,7 +624,16 @@ describe('the log alone reconstructs a killed turn', () => {
      * satisfy itself.
      */
     const chain = ['job.running', 'step.started', 'call.started', 'job.committed', 'job.recovered'];
-    const events = mine.map((line) => String(line['event']));
+    /*
+     * *The narrator's step lines*, since Scene declares a `pre` step ahead of
+     * it ([P13.5b]'s secret-plot pass, which reads its switch and returns on
+     * every session that has not turned it on — [25 C17]'s dead row). That
+     * step's started and finished lines are the turn's too, and not the
+     * lifecycle this chain is about.
+     */
+    const events = mine
+      .filter((line) => line['stepId'] === undefined || line['stepId'] === 'se.narrate')
+      .map((line) => String(line['event']));
     expect(events.filter((event) => chain.includes(event))).toEqual(chain);
     // `job.committed` before `job.recovered` is not an accident of writing
     // order: `reconcile` logs the recovery *after* `finaliseTurn` returns,
@@ -768,8 +777,11 @@ describe('the log alone reconstructs a killed turn', () => {
      * step finished; the killed one's did neither and needed a recovery the
      * ordinary one has no line for.
      */
-    const killedEvents = killedLines.map((line) => String(line['event']));
-    const secondEvents = secondLines.map((line) => String(line['event']));
+    // The narrator's lines, for the chain's reason above ([P13.5b]).
+    const narrating = (line: Record<string, unknown>): boolean =>
+      line['stepId'] === undefined || line['stepId'] === 'se.narrate';
+    const killedEvents = killedLines.filter(narrating).map((line) => String(line['event']));
+    const secondEvents = secondLines.filter(narrating).map((line) => String(line['event']));
     expect(secondEvents).toContain('call.finished');
     expect(secondEvents).toContain('step.finished');
     expect(secondEvents).not.toContain('job.recovered');

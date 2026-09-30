@@ -59,7 +59,11 @@ export interface ConditionContext {
   turnsOnPath: number;
   /** Stage flags the mode has raised. Empty until P2.6 supplies a mode. */
   stages: ReadonlySet<string>;
-  /** Flags the user armed for this turn. */
+  /**
+   * Flags the user armed for this turn — ***produced at last*** ([P13.5b],
+   * [25 C17]): a submission's `push` arms `push`, which the director's step
+   * waits on (`turns/direct.ts`). Empty on every other turn.
+   */
   armed: ReadonlySet<string>;
 }
 

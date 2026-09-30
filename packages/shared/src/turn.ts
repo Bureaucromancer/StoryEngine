@@ -1106,6 +1106,36 @@ export interface StepOutcome {
    * turn. Optional under the [P11.10] freeze, like every field this record grows.
    */
   round?: { kept: number; lost: Ref; cut?: true };
+  /**
+   * ***The direction a push gave this turn*** — present on the outcome of
+   * `se.scene.direct` alone,
+   * [P13 §1.9.3](../../../docs/design/workplan/30-p13-scene-and-session-import.md),
+   * added at [P13.5b]. *"A pushed turn's record shows the direction it was
+   * given."*
+   *
+   * On the outcome for {@link speakers}' reason: what the turn *says* is the
+   * prose, and this is the working behind it — which flavour was asked for, the
+   * words the guidance slot carried, and whether a model wrote them or the
+   * pack's fixed text stood in. *Present on a failed outcome too*, beside the
+   * error: a warned push that fell back is still a push, and [00 §3.3] asks
+   * that a person see it happened. Absent `text` is a failure with nothing to
+   * stand in (a pack that ships no push text), so the turn ran undirected.
+   */
+  direction?: Direction;
+}
+
+/**
+ * ***What a push asked for and what it said*** — {@link StepOutcome.direction}.
+ *
+ * `push` is the flavour the person armed: *natural*, the story moving through
+ * what it already has, or *random*, something plausible nobody saw coming —
+ * Marinara's two director modes. `by` is `model` when the direction call
+ * answered and `fallback` when the pack's fixed text stood in for it.
+ */
+export interface Direction {
+  push: 'natural' | 'random';
+  by: 'model' | 'fallback';
+  text?: string;
 }
 
 /**
