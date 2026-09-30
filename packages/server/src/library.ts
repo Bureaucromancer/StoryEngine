@@ -1009,8 +1009,13 @@ export async function readCardPixels(
   handle: string,
   id: string,
   inKind?: PortableSchemaId,
+  /**
+   * ***Which copy*** (2026-09-28), as `read` takes it: a download of a shadowed
+   * copy's card hands over that copy's file, not the winner's.
+   */
+  address?: ObjectAddress,
 ): Promise<{ bytes: Uint8Array; contentHash: string }> {
-  const current = read(context, handle, id, inKind);
+  const current = read(context, handle, id, inKind, address);
   if (current.schemaId !== ACTOR_SCHEMA) {
     throw new LibraryError('not-found', 'Only actors have a card image.');
   }

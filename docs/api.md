@@ -1072,8 +1072,22 @@ No `suggestions` here — the plan step is where advice can still be acted on.
 
 ### `GET /api/library/:kind/:id/download`
 
-**The object as stored, byte for byte** → `200`, `application/json`, with a
-`content-disposition` naming an ASCII-slugged file. Works for every kind.
+**The object as stored, byte for byte** → `200`, with a `content-disposition`
+naming an ASCII-slugged file. Works for every kind. ~~`application/json`~~ —
+**an actor is its card** (2026-09-28): `image/png` and `.png`, the file the
+actor is stored as. The route served the index's JSON of it, which is not what
+is stored for an actor: the portrait is the card's pixels and every expression
+rides inside it as a chunk the JSON only names, so the download had every
+picture missing and said nothing. Every other kind is `application/json`, the
+file as stored; a folder kind's pictures — a lorebook's gallery and its
+entries' strips, a treatment's cover — live in `assets/` beside it and stay
+behind.
+
+**A card of ours comes back as ours.** `POST /api/import/file`, and a sweep
+that meets one in `characters/`, read a card carrying our envelope as the
+object it carries — under its own id, pictures and all. Before 2026-09-28 a
+card with no SillyTavern chunk in it was *a picture without a card*, so the
+card this route now hands over could not have come back.
 
 **`?source=&slug=` downloads one specific copy of a duplicated id**, exactly as
 it reads one on [`GET /api/library/:kind/:id`](#get-apilibrarykindid). Without

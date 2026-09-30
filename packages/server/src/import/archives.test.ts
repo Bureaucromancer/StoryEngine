@@ -249,6 +249,54 @@ describe('a CHARX', () => {
   });
 
   /**
+   * ***Downloaded, and brought back*** (2026-09-28). "Download this actor"
+   * handed over the index's JSON: the portrait is the card's pixels and every
+   * expression rides inside the card, so the file had every picture missing.
+   * The card goes whole now, and a card of ours reads back as ours — where it
+   * read as *a picture without a card*, having no SillyTavern chunk to find.
+   */
+  it('downloads as its card, byte for byte, and comes back from it, pictures and all', async () => {
+    const charx = makeZip([
+      { name: 'card.json', body: JSON.stringify(V3_CARD) },
+      { name: 'assets/avatar.png', body: makePng() },
+      { name: 'assets/sprites/neutral.png', body: makePng(4, 7) },
+    ]);
+    await upload('Vera.charx', charx);
+    const id = (await ownObjects(server, 'actors')).objects[0]?.id ?? '';
+
+    const cookie = [...server.cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+    const get = (url: string) => server.app.inject({ method: 'GET', url, headers: { cookie } });
+    const downloaded = await get(`/api/library/actors/${id}/download`);
+    expect(downloaded.statusCode).toBe(200);
+    expect(downloaded.headers['content-type']).toBe('image/png');
+    expect(String(downloaded.headers['content-disposition'])).toMatch(/\.png"$/);
+    // The card as it is stored — the same bytes the portrait is served from.
+    const card = await get(`/api/library/actors/${id}/avatar`);
+    expect(downloaded.rawPayload.equals(card.rawPayload)).toBe(true);
+
+    const held = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/library/actors/${id}`,
+      headers: { 'if-match': String(held.body.contentHash) },
+    });
+    expect(removed.status).toBeLessThan(300);
+
+    const back = await upload('Vera Solano.png', new Uint8Array(downloaded.rawPayload));
+    expect(back.body.item.disposition).toBe('converted');
+    expect(back.body.item.objectId).toBe(id);
+    const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const media = (actor.body.object as { media: { id: string; role: string }[] }).media;
+    const neutral = media.find((one) => one.role === 'expression');
+    expect(neutral).toBeDefined();
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${id}/media/${neutral?.id ?? ''}`,
+    });
+    expect(served.status).toBe(200);
+  });
+
+  /**
    * ***A portrait that will not read costs the portrait, not the expressions***
    * (2026-09-27). The unreadable portrait returned before the expressions
    * were read, and RisuAI's archives often lead with a JPEG.

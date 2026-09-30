@@ -1047,6 +1047,13 @@ class Writer {
     return {
       source: candidate.source,
       disposition: Writer.dispositionOf(outcome),
+      /**
+       * ***Named, as every other arm's row is*** (2026-09-28). This one alone
+       * left its object unnamed, so the review could not link it and the
+       * object's page could not find what its import said — unnoticed while
+       * only a backup reached it, and not once a downloaded card comes back.
+       */
+      ...(outcome === 'failed' ? {} : { objectId: object.id }),
       notes,
     };
   }

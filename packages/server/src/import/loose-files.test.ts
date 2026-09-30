@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { newActor } from '@storyengine/shared';
 
 import { openLocalSource } from '../storage/local-source.js';
 import { base64TextChunk, makePng, withChunks } from '../storage/card/test-png.js';
@@ -222,6 +224,49 @@ describe('and a real SillyTavern tree is unaffected', () => {
     const plugin = report.items.find((item) => item.source === 'plugins/Vera.png');
     expect(plugin?.disposition).toBe('unrecognised');
     expect(await count('actors')).toBe(1);
+  });
+});
+
+describe('a card of ours, dropped into a SillyTavern tree', () => {
+  /**
+   * ***Comes back as ours*** (2026-09-28). An actor downloads as its card, and
+   * the natural place to put a downloaded card is `characters/`. The walker's
+   * card arm read the SillyTavern chunk and nothing else, which a card of ours
+   * need not carry, so it said *a picture without a card* of a whole actor —
+   * the upload door's defect, met from the folder's side.
+   */
+  it('imports the object the card carries, under its own id', async () => {
+    const actor = newActor('Mireille');
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: actor,
+    });
+    expect(created.status).toBe(201);
+    const slug = created.body.slug as string;
+    const stored = join(server.dataDir, 'users', 'ned', 'library', 'actors', slug, 'card.png');
+    const bytes = new Uint8Array(await readFile(stored));
+    const held = await server.request({ method: 'GET', url: `/api/library/actors/${actor.id}` });
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/library/actors/${actor.id}`,
+      headers: { 'if-match': String(held.body.contentHash) },
+    });
+    expect(removed.status).toBeLessThan(300);
+
+    const report = await run({
+      'settings.json': '{}',
+      'characters/Mireille.png': bytes,
+      'worlds/Harbour lore.json': BOOK,
+    });
+
+    expect(report.source).toBe('sillytavern');
+    const row = report.items.find((item) => item.source === 'characters/Mireille.png');
+    expect(row?.disposition).toBe('converted');
+    expect(row?.objectId).toBe(actor.id);
+    const back = await server.request({ method: 'GET', url: `/api/library/actors/${actor.id}` });
+    expect(back.status).toBe(200);
+    expect(back.body.name).toBe('Mireille');
   });
 });
 

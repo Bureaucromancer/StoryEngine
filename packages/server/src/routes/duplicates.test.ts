@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { cp, mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newLorebook, uuidv7 } from '@storyengine/shared';
+import { newActor, newLorebook, uuidv7 } from '@storyengine/shared';
 
 import { rebuild } from '../index-db/rebuild.js';
 import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
@@ -200,6 +200,56 @@ describe('a duplicated id', () => {
       url: `/api/library/lorebooks/${id}/export/aventuras.lorebook?source=user&slug=no-such-folder`,
     });
     expect(nowhere.status).toBe(404);
+  });
+
+  /**
+   * ***And an actor's copy is that copy's card*** (2026-09-28). An actor
+   * downloads as its card now, read through `readCardPixels`, which took no
+   * address — so the address above had to reach that read too, or a copy's
+   * page would hand over the winner's card under the copy's name.
+   */
+  it("downloads a shadowed actor copy's own card", async () => {
+    const actor = newActor('Vera');
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: actor,
+    });
+    expect(created.status).toBe(201);
+    const winner = created.body.slug as string;
+    const actorRoot = join(server.dataDir, 'users', 'ned', 'library', 'actors');
+    const shadowed = 'zz-copy-of-vera';
+    await cp(join(actorRoot, winner), join(actorRoot, shadowed), { recursive: true });
+    await rebuild(server.services.index.db, server.services.layout);
+
+    // The winner moves on, and the copy keeps the card it was copied with.
+    const held = await server.request({ method: 'GET', url: `/api/library/actors/${actor.id}` });
+    const written = await server.request({
+      method: 'PUT',
+      url: `/api/library/actors/${actor.id}`,
+      payload: {
+        object: { ...(held.body.object as Record<string, unknown>), name: 'Vera Solano' },
+        contentHash: held.body.contentHash as string,
+      },
+    });
+    expect(written.status).toBe(200);
+
+    const cookie = [...server.cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+    const download = (at: string) =>
+      server.app.inject({
+        method: 'GET',
+        url: `/api/library/actors/${actor.id}/download${at}`,
+        headers: { cookie },
+      });
+    const copy = await download(`?source=user&slug=${shadowed}`);
+    const plain = await download('');
+    expect(copy.statusCode).toBe(200);
+    expect(copy.headers['content-disposition']).toBe('attachment; filename="Vera.png"');
+    expect(copy.rawPayload.equals(await readFile(join(actorRoot, shadowed, 'card.png')))).toBe(
+      true,
+    );
+    expect(plain.rawPayload.equals(await readFile(join(actorRoot, winner, 'card.png')))).toBe(true);
+    expect(copy.rawPayload.equals(plain.rawPayload)).toBe(false);
   });
 
   it('does not make the shadowed copy writable', async () => {

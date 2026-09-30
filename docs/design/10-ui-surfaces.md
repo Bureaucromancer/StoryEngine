@@ -1003,6 +1003,17 @@ does not keep it.
   lost — this is the primitive, and it is available for every kind. *As stored*
   ([polish §2](workplan/06-polish.md)) already shows these bytes in a fold; this
   is the same bytes with somewhere to put them.
+
+  *Corrected 2026-09-28.* ~~No conversion, so nothing lost~~ — for an actor the
+  route served the index's JSON, and that is not what is stored: an actor is its
+  card image, the portrait its pixels and every expression a chunk inside it
+  ([03 §5.2](03-data-model.md)), so the download lost every picture and said
+  nothing. It hands over the card now, and the import door reads a card of ours
+  back as ours. So *the same bytes* as the fold holds for every kind but the
+  actor, whose fold shows its JSON reading of the card. And a folder kind's
+  pictures live in `assets/` beside its JSON, so for a lorebook's gallery and
+  its entries' strips *nothing lost* holds of the object and not of its
+  pictures, which a download leaves behind.
 - **Export as…** are **writers**, built from a shared table of formats. A writer
   loses something by definition; what it must do is *say* what, in the same
   `{ key, params }` vocabulary the import review uses — because an export leaves

@@ -4,7 +4,7 @@
 import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
 
 import { codecFor } from '../../storage/card/index.js';
-import { looksLikeCard, readUpload } from '../upload.js';
+import { looksLikeCard, ourCardPayload, readUpload } from '../upload.js';
 import type {
   FileSource,
   ImportCandidate,
@@ -253,7 +253,19 @@ export class SillyTavernReader implements SourceReader {
     }
 
     try {
-      const legacy = codec.read(bytes).legacy;
+      const contents = codec.read(bytes);
+      // One of ours, dropped into this folder, comes back as ours (2026-09-28)
+      // — the upload door's reading, for the same file met here.
+      const ours = ourCardPayload(contents);
+      if (ours !== null) {
+        return candidate({
+          source: path,
+          format: 'storyengine.object',
+          payload: ours,
+          assets: [path],
+        });
+      }
+      const legacy = contents.legacy;
       if (legacy === null) {
         return observed(path, 'unrecognised', [
           { key: 'import.file.pictureWithoutACard', params: { file: path }, level: 'warn' },

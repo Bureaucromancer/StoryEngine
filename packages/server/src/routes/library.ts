@@ -45,6 +45,7 @@ import {
 } from '../library.js';
 import type { VersionRecord } from '../storage/history.js';
 import { PathEscapeError } from '../storage/paths.js';
+import { codecFor } from '../storage/card/index.js';
 
 /**
  * Library CRUD — **one handler set, not six**.
@@ -442,6 +443,16 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    *
    * **`?source=&slug=` reaches one copy of a duplicated id**, as it does on the
    * read above: the bytes a person downloads from a copy's page are that copy's.
+   *
+   * ***An actor is its card*** (2026-09-28). ~~It serves what is stored~~ — it
+   * served the index's JSON, and an actor is stored as a card image: the
+   * portrait is the file's pixels, and every expression and embedded picture
+   * rides inside it as a chunk the JSON only names. So "Download this actor"
+   * handed over a file with every picture missing and no word of it. The card
+   * goes whole now, byte for byte, and our own import reads it back as ours
+   * (`import/upload.ts`). Every other kind is still the JSON it is stored as,
+   * and a folder kind's pictures — a lorebook's gallery, its entries' strips —
+   * live in `assets/` beside it and stay behind.
    */
   app.get(
     '/library/:kind/:id/download',
@@ -454,13 +465,26 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
       if (!schemaId) return;
 
       try {
-        const row = read(
-          services.library,
-          account.handle,
-          (request.params as { id: string }).id,
-          schemaId,
-          addressOf(request.query as Static<typeof ObjectQuery>),
-        );
+        const id = (request.params as { id: string }).id;
+        const address = addressOf(request.query as Static<typeof ObjectQuery>);
+        const row = read(services.library, account.handle, id, schemaId, address);
+        if (schemaId === ACTOR_SCHEMA) {
+          const { bytes } = await readCardPixels(
+            services.library,
+            account.handle,
+            id,
+            schemaId,
+            address,
+          );
+          const codec = codecFor(bytes);
+          return await reply
+            .header('content-type', codec?.mime ?? 'application/octet-stream')
+            .header(
+              'content-disposition',
+              `attachment; filename="${downloadName(row.name, codec?.extension ?? '.png')}"`,
+            )
+            .send(Buffer.from(bytes));
+        }
         return await reply
           .header('content-type', 'application/json; charset=utf-8')
           .header(

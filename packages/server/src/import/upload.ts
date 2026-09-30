@@ -8,7 +8,7 @@ import {
   type ImportNote,
 } from '@storyengine/shared';
 
-import { codecFor } from '../storage/card/index.js';
+import { codecFor, type CardContents } from '../storage/card/index.js';
 
 import { AVT_FORMAT, readAvt } from './aventuras/avt.js';
 import { isAventurasLorebook, isVaultCharacter, isVaultScenario } from './aventuras/shapes.js';
@@ -308,6 +308,18 @@ export function readAvtUpload(filename: string, bytes: Uint8Array): SourceItem |
 }
 
 /**
+ * The object a card of ours carries, or null for a card that is not one of ours
+ * — **the envelope's payload, when it names one of our schemas.** Shared by the
+ * upload door and the SillyTavern reader's card arm (2026-09-28), which meet the
+ * same file: a downloaded card dropped into a `characters/` folder is as much
+ * one of ours as one uploaded.
+ */
+export function ourCardPayload(contents: CardContents): unknown {
+  const payload = contents.envelope?.payload;
+  return schemaIdOf(payload)?.startsWith('storyengine.') === true ? payload : null;
+}
+
+/**
  * A picture with a payload in it, or a picture.
  *
  * The three outcomes are the walker's three, in its own note vocabulary
@@ -323,7 +335,24 @@ function readCard(
   codec: NonNullable<ReturnType<typeof codecFor>>,
 ): SourceItem {
   try {
-    const legacy = codec.read(bytes).legacy;
+    const contents = codec.read(bytes);
+    /**
+     * ***One of ours comes back as ours*** (2026-09-28). An actor downloads as
+     * its card now, and that card carries our envelope and no SillyTavern
+     * chunk — so it read as *a picture without a card*, and the download could
+     * not be brought back at all. Read first, because a card of ours may carry
+     * a legacy chunk too, and ours is the object as it was.
+     */
+    const ours = ourCardPayload(contents);
+    if (ours !== null) {
+      return candidate({
+        source: filename,
+        format: 'storyengine.object',
+        payload: ours,
+        assets: [filename],
+      });
+    }
+    const legacy = contents.legacy;
     if (legacy === null) {
       return observed(filename, 'unrecognised', [
         { key: 'import.file.pictureWithoutACard', params: { file: filename }, level: 'warn' },
