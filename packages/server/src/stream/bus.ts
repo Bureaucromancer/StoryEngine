@@ -52,6 +52,9 @@ export interface Listener {
    * client that applies these by upsert converges on the same map whatever order
    * they arrive in and however many it missed. `Snapshot.renditions` is what
    * makes a late attach whole, which is why there is no second cursor.
+   * *Corrected 2026-09-28:* ~~`Snapshot.renditions`~~ — the snapshot never had
+   * such a field. The client's refetch of the set on a re-attach is what makes
+   * it whole, and that is still why there is no second cursor.
    */
   onRendition(rendition: Rendition): void;
   /**

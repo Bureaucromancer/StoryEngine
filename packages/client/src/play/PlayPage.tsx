@@ -30,6 +30,7 @@ import {
 import {
   liveKey,
   previewKey,
+  renditionsKey,
   useAuthState,
   usePreview,
   useRefreshPreview,
@@ -268,7 +269,9 @@ export function PlayPage({
    * tests, and a query per turn would be one per message here.
    *
    * **Two sources, and the live one wins.** The query is the set as it stood
-   * when the page loaded; the stream's map is every record announced since.
+   * when the page loaded; the stream's map is every record announced since
+   * the stream last attached (2026-09-28: it was every record since the page
+   * opened, drops and all — the reducer's `renditions` has why).
    * Overlaying rather than invalidating is what the whole-record frame bought
    * ([P9.2]) — a picture that finishes long after its turn did appears without
    * a refetch, which the `running → finished` invalidation effect below
@@ -930,6 +933,18 @@ export function PlayPage({
     void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
     void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
   }, [state.status, sessionId, queryClient]);
+
+  /**
+   * ***The pictures, read again when the stream comes back*** (2026-09-28). A
+   * re-attach empties the reducer's map (`PlayState.renditions` says why), so
+   * the set is asked for again: a frame sent while the stream was down reached
+   * nobody, and this is how what it said arrives. Not on the first attach,
+   * which is the page opening with the set just read.
+   */
+  useEffect(() => {
+    if (state.attached < 2) return;
+    void queryClient.invalidateQueries({ queryKey: renditionsKey(sessionId) });
+  }, [state.attached, sessionId, queryClient]);
 
   /**
    * The turn being taken, mirrored where the panel can read it — [P3.5].
@@ -1603,7 +1618,10 @@ function IllustratedProse({
  * reducer, exactly as `text` and `seen` already survive it. An id from another
  * session could never match a turn in this one, so this guard buys clarity
  * rather than correctness; it costs one comparison and removes the need to
- * reason about that every time somebody reads this.
+ * reason about that every time somebody reads this. *Corrected 2026-09-28:*
+ * ~~the reducer's map outlives a change of `sessionId`~~ — the page is keyed
+ * by session now (`42aba38`), so a session starts with a fresh reducer; the
+ * guard stays for the rest of the reason.
  *
  * *Sorted by `ordering` then id*, which is the order they were made in: the
  * chooser numbers them from this, and a set that reordered itself between

@@ -587,3 +587,31 @@ describe('the round, message by message', () => {
     expect(next.order).toBeNull();
   });
 });
+
+/**
+ * ***The pictures start afresh at every attach*** (2026-09-28). The page lets
+ * this map outrank its query, which is right only while the map has heard
+ * everything: a frame sent while the stream was down reached nobody, and a
+ * failure the map still held outlived every refetch.
+ */
+describe('the pictures across an attach', () => {
+  const picture = (state: string) => ({
+    event: 'rendition',
+    data: { id: 't-1.0', turnId: 't-1', sessionId: 's', state, purpose: 'illustration' },
+  });
+
+  it('forgets what it heard before a snapshot, and counts the attach', () => {
+    const heard = run(INITIAL, [snapshot(), picture('failed')]);
+    expect(heard.renditions['t-1.0']?.state).toBe('failed');
+    expect(heard.attached).toBe(1);
+
+    const back = run(heard, [snapshot()]);
+    expect(back.renditions).toEqual({});
+    expect(back.attached).toBe(2);
+  });
+
+  it('takes a frame after the snapshot as the newest word', () => {
+    const state = run(INITIAL, [snapshot(), picture('failed'), picture('pending')]);
+    expect(state.renditions['t-1.0']?.state).toBe('pending');
+  });
+});

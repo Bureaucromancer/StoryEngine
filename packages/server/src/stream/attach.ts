@@ -89,6 +89,15 @@ export type StreamFrame =
    * read arrives a second time as a live frame and lands on the same value.
    * That is the property `progress` cannot have — an event is a delta against a
    * draft — and it is why this kind needs neither a sequence nor a cursor.
+   *
+   * *Corrected 2026-09-28.* ~~So the current set is delivered as frames
+   * instead, right after attaching~~ — nothing delivered it, and it could not
+   * be done as written: a set read after attaching and delivered after a live
+   * frame for the same id would put that id back, so *order does not matter*
+   * holds among live frames only. A reattach is made whole on the client: each
+   * snapshot starts its map afresh and a re-attach refetches the set
+   * (`client/play/reducer.ts`), so the set covers what was missed and a frame
+   * after the snapshot is the newest word.
    */
   | { kind: 'rendition'; rendition: Rendition }
   /**

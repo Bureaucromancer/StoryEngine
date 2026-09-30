@@ -16,7 +16,12 @@ import { Layout } from '../storage/layout.js';
 import { eventually } from '../test-server.js';
 import { jobForRendition, reconcileRenditionJobs } from './jobs.js';
 import { readRendition, writeRendition } from './store.js';
-import { dispatchRenditions, recoverRenditions, type RenditionWorkerContext } from './worker.js';
+import {
+  dispatchRenditions,
+  recoverRenditions,
+  retryRendition,
+  type RenditionWorkerContext,
+} from './worker.js';
 
 /**
  * ***A rendition's record always has a job behind it, and an open page hears
@@ -179,6 +184,24 @@ describe('a rendition dispatched', () => {
 
   it('tells an open page it is pending before anything says it finished', async () => {
     await dispatchRenditions(context, ACCOUNT, sessionId, [pending('t-1.0')], 't-1');
+    await eventually(() => Promise.resolve(frames.length >= 2));
+
+    expect(frames).toEqual(['pending', 'failed']);
+  });
+});
+
+/**
+ * ***A retry says so too*** (2026-09-28). An open page held the `failed` frame
+ * it had been sent, and the stream's record outranks a refetch there, so the
+ * failure and its Try again stayed on screen through the whole retry: the
+ * retry rewrote the record and told nobody.
+ */
+describe('a rendition retried', () => {
+  it('tells an open page it is pending again before the try ends', async () => {
+    const failed: Rendition = { ...pending('t-1.0'), state: 'failed', error: 'no-binding' };
+    await writeRendition(context.layout, ACCOUNT, sessionId, failed);
+
+    await retryRendition(context, ACCOUNT, sessionId, failed);
     await eventually(() => Promise.resolve(frames.length >= 2));
 
     expect(frames).toEqual(['pending', 'failed']);

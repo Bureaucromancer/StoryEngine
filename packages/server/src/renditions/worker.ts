@@ -352,6 +352,14 @@ export async function retryRendition(
       throw error;
     },
   );
+  /**
+   * ***Said to an open page, as a dispatch says it*** (2026-09-28), and before
+   * the job starts, so `pending` reaches the page ahead of whatever the try
+   * ends as. Without it the page held the `failed` frame it had been sent, and
+   * the stream's record outranks a refetch there, so *That did not come out*
+   * and its Try again stayed on screen through the whole retry.
+   */
+  context.changed?.(sessionId, again);
   launch(context, job);
   return again;
 }

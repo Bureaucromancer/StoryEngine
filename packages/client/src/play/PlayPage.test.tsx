@@ -2084,3 +2084,79 @@ describe('pictures on a move', () => {
     });
   });
 });
+
+/**
+ * ***A picture that came out while the stream was down*** (2026-09-28). The
+ * stream's record of a picture outranks the query, and nothing re-sent the set
+ * when the stream came back: a failure the page had been told of stayed on
+ * screen through every refetch, though the picture was on disk. A re-attach
+ * now forgets what the stream said and reads the set again.
+ */
+describe('the pictures when the stream comes back', () => {
+  function picture(over: Record<string, unknown>) {
+    return {
+      schema: 'storyengine.rendition/1',
+      id: 'turn-1.0',
+      sessionId: SESSION.id,
+      turnId: 'turn-1',
+      createdAt: '2026-08-18T10:00:00.000Z',
+      kind: 'image',
+      purpose: 'illustration',
+      scope: null,
+      state: 'failed',
+      prompt: {
+        fragments: [],
+        separator: ', ',
+        budget: { maxChars: null, usefulChars: null },
+        text: 'a door',
+        kept: [],
+        dropped: [],
+        overCap: false,
+      },
+      asset: null,
+      provenance: {
+        at: null,
+        binding: { connectionId: 'c-1', modelId: 'sd' },
+        answeredAs: null,
+        seed: 7,
+        workflow: {},
+      },
+      error: 'transient',
+      digest: 'recipe-1',
+      ordering: 0,
+      ...over,
+    };
+  }
+
+  it('reads the set again, and shows what it says over what the stream said before', async () => {
+    renderPage();
+    await screen.findByText('I knock twice.');
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: null } });
+      handlers.onFrame({ event: 'rendition', data: picture({}) });
+    });
+    expect(await screen.findByText('That did not come out.')).toBeTruthy();
+    expect(readRenditions).toHaveBeenCalledTimes(1);
+
+    // Tried again from another tab while this one's stream was down.
+    readRenditions.mockResolvedValue({
+      renditions: [
+        picture({
+          state: 'ready',
+          error: null,
+          asset: { path: 'assets/turn-1.0.png', mime: 'image/png', bytes: 4, digest: 'd1' },
+        }),
+      ],
+      selection: {},
+    });
+    act(() => {
+      handlers.onFrame({ event: 'snapshot', data: { job: null } });
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('img[src*="/renditions/turn-1.0/asset"]')).toBeTruthy();
+    });
+    expect(screen.queryByText('That did not come out.')).toBeNull();
+    expect(readRenditions).toHaveBeenCalledTimes(2);
+  });
+});

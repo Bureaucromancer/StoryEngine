@@ -122,8 +122,23 @@ export interface PlayState {
    * nothing. Folding the record here fixes that without a refetch at all, which
    * is better than the invalidate this stage set out to add: the frame already
    * holds everything the surface renders.
+   *
+   * ***Started afresh by every snapshot*** (2026-09-28). The page lets this map
+   * outrank the query, which is right only while the map has heard everything
+   * since it was filled: a frame sent while the stream was down reached nobody,
+   * and nothing re-sent the set on attach (`attach.ts` has the correction), so
+   * a picture that failed and then came out elsewhere stayed failed here
+   * through every refetch. A snapshot is an attach; the map empties, the page
+   * refetches the set on any but the first (`attached`), and a frame after it
+   * is newer than anything the map held.
    */
   renditions: Readonly<Record<string, Rendition>>;
+  /**
+   * How many snapshots this stream has had — the first is the page opening, and
+   * every one after is a re-attach, on which `PlayPage` refetches the pictures
+   * the map above just forgot.
+   */
+  attached: number;
   /**
    * ***The round, message by message, as it streams*** — [P14 §1.8], [P14.5].
    *
@@ -177,6 +192,7 @@ export const INITIAL: PlayState = {
   status: 'idle',
   live: null,
   renditions: {},
+  attached: 0,
   round: FRESH_ROUND,
   order: null,
   error: null,
@@ -307,6 +323,10 @@ function applySnapshot(state: PlayState, data: unknown): PlayState {
      * The draft comes back when something can use it whole: P3.7's dry run.
      */
     live: state.live,
+    // Afresh, for `renditions`' reason: the set is refetched on a re-attach, and
+    // what this map heard before the drop may be older than what it missed.
+    renditions: {},
+    attached: state.attached + 1,
     // The pieces before this moment are in `text` and nowhere else, so a
     // snapshot that holds any means this client cannot paint the round whole.
     round: {
