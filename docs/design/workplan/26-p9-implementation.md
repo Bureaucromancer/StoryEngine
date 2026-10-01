@@ -16,9 +16,10 @@ endpoint that serves the `image` role, which is
 a judgement*, and the errand is one endpoint.
 
 *`main` as it stood immediately before the merge is `c9336b0`*, which is the
-merge commit's own first parent and is also where the `p8` branch points — so
-the tree without any of this is one checkout away and needed no marker of its
-own.
+merge commit's own first parent ~~and is also where the `p8` branch points~~
+(***corrected 2026-10-01***: the branch was deleted with the other merged
+branches) — so the tree without any of this is one checkout away and needed no
+marker of its own.
 
 Drafted 2026-08-29 alongside [P7](23-p7-implementation.md),
 [P8](25-p8-implementation.md), [P10](27-p10-implementation.md) and

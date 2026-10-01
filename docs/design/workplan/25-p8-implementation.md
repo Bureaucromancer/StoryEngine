@@ -8,8 +8,10 @@ commit; **§3.2** is the gate's results table. **The merge is not the close** �
 list is walked, and P8's is [sitting N](05-manual-testing.md), which has one row
 and no result.
 
-*`main` as it stood immediately before the merge is the `pre-p8` branch*, so the
-tree without any of this is one checkout away.
+*`main` as it stood immediately before the merge is* ~~*the `pre-p8` branch*~~
+*`af23e8d`, the merge commit's first parent* (***corrected 2026-10-01***: the
+branch was deleted with the other merged branches, and the hash is the marker),
+so the tree without any of this is one checkout away.
 
 ***The cut was taken deliberately rather than under pressure***, which is the
 whole reason §5 named one: **the chain, the pipeline, the books, manual capture
