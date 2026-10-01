@@ -149,6 +149,32 @@
   --text-story: var(--text-base);
   --text-story--line-height: 1.7;
   --container-reading: 48rem;
+
+  /* Two faces, and both of them already on the machine (2026-10-01).
+
+     **`--font-ui` is the platform's own interface face**, named rather than
+     left to `system-ui`: on Windows that keyword follows the display language,
+     and for several languages it resolves to that language's interface face —
+     Yu Gothic UI, Microsoft YaHei UI — whose Latin letters are the secondary
+     design. Naming Segoe UI, San Francisco and Noto Sans asks for the face
+     each system draws its own controls in, and leaves the other scripts to the
+     system's fallback, which is what it is for.
+
+     **`--font-story` is a book face**, for prose and nothing else: Charter on
+     macOS and iOS, Sitka Text or Cambria on Windows, Bitstream Charter or Noto
+     Serif on Linux, and the platform's serif after that. It is spent wherever
+     `text-story` is — the step and the face are one separator, §1.2's *type*,
+     and `theme.test.ts` refuses the one without the other.
+
+     **No webfont**, deliberately. A downloaded face is a request on every cold
+     load, a flash of the fallback while it arrives, and a licence to carry —
+     for a self-hosted server whose whole point is that nothing leaves the
+     house. Every stack ends in its generic family, so a machine with none of
+     the named faces still gets a serif story and a sans interface. */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Roboto, 'Helvetica Neue', Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-story: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, 'Noto Serif', Georgia, serif;
 }
 
 /* Tells the browser which way to render the things CSS does not reach: the
@@ -175,6 +201,10 @@
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);
+
+  /* The interface face, for everything; the story face is spent per element,
+     with `text-story`. Controls follow it through preflight's `font: inherit`. */
+  font-family: var(--font-ui);
 }
 
 /**

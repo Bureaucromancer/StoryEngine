@@ -222,7 +222,7 @@ function InputLine(props: {
             }}
           />
         ) : (
-          <p className="whitespace-pre-wrap text-story text-ink-subtle">{text}</p>
+          <p className="whitespace-pre-wrap text-story font-story text-ink-subtle">{text}</p>
         )}
         {props.hiddenWhole ? <Fine>{WORDS.hiddenTurn}</Fine> : null}
         <div
@@ -301,7 +301,7 @@ function MessageLine(props: {
     <MentionOverlay
       text={message.text}
       spans={props.spans}
-      className="whitespace-pre-wrap text-story text-ink"
+      className="whitespace-pre-wrap text-story font-story text-ink"
     />
   );
 

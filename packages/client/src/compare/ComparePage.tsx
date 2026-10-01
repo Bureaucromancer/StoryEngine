@@ -359,7 +359,7 @@ function Output({ label, text }: { label: string; text: string | undefined }): J
         // produced an empty string, and only one of them is worth a sentence.
         <Note>This turn produced no output.</Note>
       ) : (
-        <p className="whitespace-pre-wrap text-story text-ink">{text}</p>
+        <p className="whitespace-pre-wrap text-story font-story text-ink">{text}</p>
       )}
     </div>
   );

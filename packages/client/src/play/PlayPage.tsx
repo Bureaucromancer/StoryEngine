@@ -1540,7 +1540,7 @@ function IllustratedProse({
       <MentionOverlay
         text={text}
         spans={spans}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
     );
   }
@@ -1565,7 +1565,7 @@ function IllustratedProse({
       <MentionOverlay
         text={text}
         spans={spans}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
     );
   }
@@ -1599,7 +1599,7 @@ function IllustratedProse({
         <MentionOverlay
           text={text}
           spans={spans}
-          className="whitespace-pre-wrap text-story text-ink"
+          className="whitespace-pre-wrap text-story font-story text-ink"
         />
         {picture}
         {chooser}
@@ -1612,7 +1612,7 @@ function IllustratedProse({
       <MentionOverlay
         text={text.slice(0, at)}
         spans={spans.filter((span) => span.end <= at)}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
       {picture}
       {chooser}
@@ -1629,7 +1629,7 @@ function IllustratedProse({
         spans={spans
           .filter((span) => span.start >= at)
           .map((span) => ({ ...span, start: span.start - at, end: span.end - at }))}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
     </>
   );
@@ -1781,7 +1781,7 @@ function TurnView({
   return (
     <li className="group/turn flex flex-col gap-1">
       {chatShaped || turn.input === undefined || turn.input.text === '' ? null : (
-        <p className="text-story text-ink-subtle">{turn.input.text}</p>
+        <p className="text-story font-story text-ink-subtle">{turn.input.text}</p>
       )}
       {turn.input?.attachments === undefined ? null : (
         <MovePictures sessionId={sessionId} pictures={turn.input.attachments} />
@@ -2210,7 +2210,7 @@ function LiveTurn(props: {
       <li aria-live="polite" aria-busy="true" className="flex flex-col gap-3">
         {props.messages.map((message, index) =>
           message.speaker === null ? (
-            <p key={index} className="whitespace-pre-wrap text-story text-ink">
+            <p key={index} className="whitespace-pre-wrap text-story font-story text-ink">
               {message.text}
             </p>
           ) : (
@@ -2221,7 +2221,7 @@ function LiveTurn(props: {
               />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="text-sm font-medium text-ink">{message.speaker.name}</span>
-                <p className="whitespace-pre-wrap text-story text-ink">{message.text}</p>
+                <p className="whitespace-pre-wrap text-story font-story text-ink">{message.text}</p>
               </div>
             </div>
           ),
@@ -2232,7 +2232,7 @@ function LiveTurn(props: {
   if (props.text.length === 0) return null;
   return (
     <li aria-live="polite" aria-busy="true">
-      <p className="whitespace-pre-wrap text-story text-ink">{props.text}</p>
+      <p className="whitespace-pre-wrap text-story font-story text-ink">{props.text}</p>
     </li>
   );
 }

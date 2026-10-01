@@ -119,7 +119,7 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
         <Note>Nothing has been written in this session yet.</Note>
       ) : null}
 
-      <article className="flex flex-col gap-6 text-story text-ink">
+      <article className="flex flex-col gap-6 text-story font-story text-ink">
         {read.map((passage) => (
           <section key={passage.turnId} className="flex flex-col gap-2">
             {passage.said === null ? null : (

@@ -207,6 +207,16 @@ at looser leading against the tooling steps), **measure** (`--container-reading`
 against the shell's width), and **chrome**: the story surfaces carry no border
 and no panel background, so tool chrome cannot land on one by accident.
 
+**Type is a face as well as a step** (2026-10-01, polish 5). At body size a
+looser leading alone read as the same page set a little wider, so the story
+takes `--font-story` — a book serif from the faces each system already ships —
+wherever it takes `text-story`, against the interface's `--font-ui`. Both are
+system stacks, with no webfont: a downloaded face is a request on every cold
+load and a flash of the fallback while it arrives, on a server meant to need
+nothing from outside the house. The step and the face are one separator, so
+`theme.test.ts` refuses the step without the face, and home's changelog, which
+takes *type* for its one block of prose, takes both.
+
 ---
 
 ## 2. The surfaces, and an inspector

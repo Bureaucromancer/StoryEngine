@@ -50,3 +50,19 @@ describe('logical properties in CSS (docs/design/19-tech-stack.md §12.6)', () =
     expect(fired).toEqual([]);
   });
 });
+
+/**
+ * ***A font token is a list of names, and its names keep their case***
+ * (2026-10-01). The standard config's keyword-case rule exempts `font-family`
+ * and cannot see that `--font-story` holds the same thing; the exemption is
+ * widened to the tokens and no further, so both halves are asserted.
+ */
+describe('keyword case', () => {
+  it('leaves the family names in a font token as they are written', async () => {
+    expect(await rulesFiredIn('font-tokens.css')).toEqual([]);
+  });
+
+  it('still lower-cases a keyword in any other token', async () => {
+    expect(await rulesFiredIn('keyword-case.css')).toContain('value-keyword-case');
+  });
+});
