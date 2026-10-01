@@ -63,6 +63,22 @@ systemctl daemon-reload
 systemctl enable storyengine
 systemctl restart storyengine
 
+# **Started is not running, and this script used to say it was** (2026-10-01).
+# `Type=simple` makes the unit active the moment node is forked, so `restart`
+# returning means a process exists and nothing more: a server that died on its
+# first import a second later was reported installed while systemd restarted it
+# every five seconds. So the start-up is waited out and the question asked
+# again. A server that died since is waiting out `RestartSec`, or running again
+# under another PID, and either is a failure to say rather than a success.
+first="$(systemctl show --property=MainPID --value storyengine)"
+sleep 10
+if [ "$first" = 0 ] || ! systemctl is-active --quiet storyengine ||
+  [ "$(systemctl show --property=MainPID --value storyengine)" != "$first" ]; then
+  echo "StoryEngine is installed in ${PREFIX}, but it is not running. The end of its log:" >&2
+  journalctl -u storyengine -n 30 --no-pager >&2 || true
+  exit 1
+fi
+
 cat <<MESSAGE
 StoryEngine is installed in ${PREFIX} and its data lives in ${DATA}.
 

@@ -320,9 +320,11 @@ matters is this one. §5.4 decides its packaging list on a single question,
 skipped"*: it answers that question for every Linux that is not Debian or Arch.
 
 Every `v*` tag builds `storyengine-<version>-linux.tar.gz` beside the image. It
-contains the same tree the image runs — `dist/`, the resolved `node_modules/`,
-the built client and `build-info.json` — with a systemd unit and an install
-script beside it.
+contains the same tree the image runs — `dist/`, the resolved `node_modules/`
+with its links, the built client and `build-info.json` — with a systemd unit
+and an install script beside it. Before the workflow uploads it, it unpacks it
+somewhere fresh and starts it, and an archive whose server does not answer is
+not uploaded.
 
 ```bash
 tar xzf storyengine-1.0.0-alpha.2-linux.tar.gz
@@ -335,7 +337,10 @@ The script creates a `storyengine` service user, copies the tree to
 enables the unit, and starts it. It needs Node 26 or newer and **checks** rather
 than assuming — an unpacked tarball has no equivalent of the build's
 `engine-strict`, and a service that installs, enables and then dies on a syntax
-error is the failure worth one `if`.
+error is the failure worth one `if`. For the same reason it waits ten seconds
+after starting the service and looks again: if the server it started is no
+longer the one running, it prints the end of the journal and exits 1 rather
+than reporting an install that is restarting every five seconds.
 
 **It listens on `127.0.0.1`, where the container listens on `0.0.0.0`.** That is
 a deliberate difference rather than an oversight, and it is written into both

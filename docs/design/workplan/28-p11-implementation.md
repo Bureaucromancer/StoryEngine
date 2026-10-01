@@ -2685,6 +2685,22 @@ image**, which is the tempting shortcut: `docker cp` would tie the tarball to a
 base image's layout and make two artifacts into one artifact with two wrappers,
 which is the coupling §5.4's tier list exists to avoid.
 
+*Corrected 2026-10-01: ~~the tarball exists~~ **the tarball existed and could not
+run**, and no tag since this stage has built it, so nothing found out.* Two
+defects, either enough. The job's per-mode deploys failed before it packed
+anything, because the server's own deploy already carries the root's mode
+dependencies (`c79926d`, and the correction in
+[P7's record](23-p7-implementation.md)). And had it packed, `pack-tarball.mjs`
+walked regular files only: every link in `node_modules` was dropped — 237 in a
+real deploy, the whole layer pnpm resolves through — so the unpacked server died
+on its first `import` with `ERR_MODULE_NOT_FOUND`, in a restart loop, while
+`install.sh` printed success. **Every check this stage wrote passed that
+archive**, reproducibly, because none of them started it. The packer now writes
+links (with a PAX record for a target past ustar's 100 bytes) and refuses one
+that leaves the tree; the job unpacks the archive outside the checkout and asks
+the started server for `/api/auth/state` before it uploads anything; and
+`install.sh` waits out a start-up and reports a server that has not stayed up.
+
 ***One deliberate difference between the artifacts, written into both.*** The
 unit binds `127.0.0.1` where the image binds `0.0.0.0`.
 [P10 §1.2](27-p10-implementation.md) forbids a **hidden** difference — *"a hidden

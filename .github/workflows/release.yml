@@ -180,6 +180,16 @@ jobs:
         run: |
           pnpm --filter @storyengine/server --legacy deploy --prod build/app
           cp -r packages/client/dist build/app/client
+          # **The one link out of the tree, removed by name** (2026-10-01).
+          # pnpm hoists the deployed package's own name into the store's
+          # fallback directory as a link back to the checkout it was deployed
+          # from. Nothing resolves it — the server does not import itself by
+          # name — and unpacked anywhere else it names a path on this runner,
+          # so the packer refuses every link that leaves the tree and this is
+          # the decision that lets this one go. `-f`, because a pnpm that
+          # stops making it leaves nothing to remove; a pnpm that makes a
+          # second one fails the packer, by name, which is the point.
+          rm -f build/app/node_modules/.pnpm/node_modules/@storyengine/server
 
       # **What the loader will ask for, imported from where it will ask.** One
       # line per mode for the reason the Dockerfile gives — a loop would be a
@@ -209,6 +219,43 @@ jobs:
           node tools/pack-tarball.mjs build/app deploy/tarball build/again.tar.gz
           cmp "build/storyengine-${{ steps.names.outputs.version }}-linux.tar.gz" \
             build/again.tar.gz
+
+      # **The archive boots**, which none of the steps above can say
+      # (2026-10-01). The packer once dropped every link in `node_modules`, and
+      # the archive it made passed all of them — reproducibly — while the
+      # server in it died on its first `import`, in a restart loop, behind an
+      # `install.sh` that printed success. So the artifact is unpacked and
+      # started as the unit starts it, and asked the question a person's
+      # browser asks first.
+      #
+      # ***Unpacked under `$RUNNER_TEMP`, never inside the checkout***, which is
+      # half of what it checks: Node looks for a package in every
+      # `node_modules` above the importing file, and the checkout's own links
+      # every mode and most of the server's dependencies — so a tree unpacked
+      # under `build/` would borrow what it lacks and pass whatever it held.
+      - name: The archive boots
+        env:
+          ARCHIVE: build/storyengine-${{ steps.names.outputs.version }}-linux.tar.gz
+        run: |
+          unpacked="$RUNNER_TEMP/unpacked"
+          mkdir -p "$unpacked" "$RUNNER_TEMP/data"
+          tar -xzf "$ARCHIVE" -C "$unpacked"
+          cd "$unpacked/storyengine"
+          SE_DATA_DIR="$RUNNER_TEMP/data" SE_HOST=127.0.0.1 SE_PORT=8080 \
+            SE_CLIENT_ROOT="$PWD/client" NODE_ENV=production \
+            node dist/main.js > "$RUNNER_TEMP/boot.log" 2>&1 &
+          server=$!
+          for _ in $(seq 60); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:8080/api/auth/state; then
+              kill "$server" || true
+              exit 0
+            fi
+            kill -0 "$server" 2>/dev/null || break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/boot.log"
+          kill "$server" 2>/dev/null || true
+          exit 1
 
       - uses: actions/upload-artifact@v4
         with:
