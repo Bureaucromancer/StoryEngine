@@ -113,9 +113,20 @@ jobs:
       # §4) and are committed, so third-party tools can fetch one without
       # building anything. `pnpm build` regenerates them; if that changes a file,
       # someone edited a TypeBox schema without re-emitting.
+      #
+      # ***And if it adds one*** (2026-10-01). `git diff` compares the tree with
+      # the index, and a file the build has just written is in neither — so a
+      # new portable kind emitted and never committed passed this step, and the
+      # counts that read the directory counted CI's own output. `--intent-to-add`
+      # puts every new file in the index as an empty entry, which `git diff` then
+      # reports in full. Two plain commands rather than `test -z "$(…)"`, because
+      # the Windows leg runs this under PowerShell, and the step's result is the
+      # last command's exit code under either shell.
       - name: Emitted schemas are current
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: git diff --exit-code -- packages/shared/schemas
+        run: |
+          git add --intent-to-add -- packages/shared/schemas
+          git diff --exit-code -- packages/shared/schemas
 
       # ***Every step from here runs whatever the one before it did***, as long as
       # the build produced something to run. Under the implicit `success()` a

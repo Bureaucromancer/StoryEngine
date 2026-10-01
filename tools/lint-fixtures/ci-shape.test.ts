@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -641,5 +643,96 @@ describe('gate step 20 — the rebuild property test is a named CI step', () => 
       /fc\.asyncProperty\(/,
     );
     expect(code, 'and the rebuild is one of the two producers being compared').toMatch(/rebuild\(/);
+  });
+});
+
+/**
+ * ***The emitted schemas are checked whole, new files included*** — gap round
+ * A4.5, 2026-10-01.
+ *
+ * The step was `git diff --exit-code -- packages/shared/schemas`, and `git diff`
+ * compares the tree with the index: a file the build has just written is in
+ * neither, so a seventh portable kind emitted and never committed passed it —
+ * and the counts that read the directory (`repo-shape.test.ts`,
+ * `invariants.test.ts`) counted CI's own build output, which agreed with itself.
+ *
+ * **Run rather than read.** The step's own commands are executed, as CI would,
+ * in a throwaway repository with a committed schema in it — which is the only
+ * way to know the pair actually sees what one of them alone did not. Each
+ * command is split on spaces and run directly, which is also why the step is
+ * two plain commands: the Windows leg runs it under PowerShell, and
+ * `test -z "$(…)"` is not a thing PowerShell can run.
+ */
+describe('the emitted-schemas step sees every change the build made', () => {
+  const step = workflowSteps().find((one) => one.name === 'Emitted schemas are current');
+  const commands = (step?.run ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+
+  /** The step's commands against a repository holding one committed schema. */
+  function runStep(change: (schemas: string) => void): number | null {
+    const repo = mkdtempSync(join(tmpdir(), 'se-schemas-'));
+    try {
+      const git = (...args: string[]): void => {
+        spawnSync('git', args, { cwd: repo });
+      };
+      const schemas = join(repo, 'packages', 'shared', 'schemas');
+      mkdirSync(schemas, { recursive: true });
+      writeFileSync(join(schemas, 'storyengine.actor.1.json'), '{}\n');
+      git('init', '-q');
+      git('add', '.');
+      // Identity and signing stated, so a machine's own git config — no name,
+      // or every commit signed — cannot leave the base uncommitted and turn
+      // every case below into a new file.
+      git(
+        '-c',
+        'user.email=ci@example.invalid',
+        '-c',
+        'user.name=ci',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '-qm',
+        'base',
+      );
+
+      change(schemas);
+      let status: number | null = 0;
+      for (const command of commands) {
+        const [program = '', ...args] = command.split(' ');
+        status = spawnSync(program, args, { cwd: repo }).status;
+      }
+      return status;
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  }
+
+  it('is two commands, the second the one that decides', () => {
+    expect(commands).toEqual([
+      'git add --intent-to-add -- packages/shared/schemas',
+      'git diff --exit-code -- packages/shared/schemas',
+    ]);
+  });
+
+  it('fails on a schema the build wrote that was never committed', () => {
+    expect(
+      runStep((schemas) => {
+        writeFileSync(join(schemas, 'storyengine.rendition.1.json'), '{}\n');
+      }),
+    ).toBe(1);
+  });
+
+  it('fails on a committed schema the build changed', () => {
+    expect(
+      runStep((schemas) => {
+        writeFileSync(join(schemas, 'storyengine.actor.1.json'), '{"changed":true}\n');
+      }),
+    ).toBe(1);
+  });
+
+  it('passes when the build changed nothing', () => {
+    expect(runStep(() => undefined)).toBe(0);
   });
 });

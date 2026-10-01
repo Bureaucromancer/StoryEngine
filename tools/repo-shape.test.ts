@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -623,6 +624,30 @@ describe('a rendition is internal tier, and stays there until the export freeze'
     const emitted = readdirSync(SCHEMAS).filter((name) => name.endsWith('.json'));
     expect(emitted).toHaveLength(6);
     expect(emitted.some((name) => name.includes('rendition'))).toBe(false);
+  });
+
+  /**
+   * ***And every one the build emits is committed*** — gap round A4.5,
+   * 2026-10-01. The count above reads the directory, which after `pnpm build`
+   * is the build's own output, so it agreed with an emitted file nobody had
+   * committed; so did CI's step, which diffed only tracked files. This is the
+   * same question asked of git before a push gets the chance.
+   */
+  it('commits every schema the build emits', () => {
+    const tracked = execFileSync('git', ['ls-files', '--', 'packages/shared/schemas'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((path) => path.endsWith('.json'))
+      .map((path) => path.slice(path.lastIndexOf('/') + 1))
+      .sort();
+    const emitted = readdirSync(SCHEMAS)
+      .filter((name) => name.endsWith('.json'))
+      .sort();
+
+    expect(tracked.length, 'git listed no schemas, so the comparison is empty').toBeGreaterThan(0);
+    expect(emitted).toEqual(tracked);
   });
 });
 
