@@ -54,7 +54,12 @@ describe('the data directory lock', () => {
         refusal = error;
       }
       expect(refusal).toBeInstanceOf(InstanceLockHeld);
-      expect((refusal as Error).message).toContain(dataDir);
+      // **The layout's spelling of the directory, not `mkdtemp`'s** (2026-10-01).
+      // The layout resolves its root (F26), and on a Windows runner `tmpdir()`
+      // is the 8.3 short name — `C:\Users\RUNNER~1\…` — which resolves to the
+      // long one. The same directory, two strings: this compared the other one
+      // and was red there from the day it was written.
+      expect((refusal as Error).message).toContain(layout.dataRoot);
     } finally {
       first.release();
     }

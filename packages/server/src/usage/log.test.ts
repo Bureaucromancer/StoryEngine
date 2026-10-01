@@ -90,7 +90,11 @@ describe('the usage log', () => {
 
   it('lives in the account’s own directory', async () => {
     await recordUsage(layout, 'ned', aRecord());
-    expect(layout.usageLogFile('ned')).toBe(join(dataDir, 'users', 'ned', 'usage.jsonl'));
+    // Against the layout's own root, which it resolves (F26): on a Windows
+    // runner `tmpdir()` is an 8.3 short name — `C:\Users\RUNNER~1\…` — and the
+    // resolved root is the long one, so `dataDir` is the same directory spelled
+    // differently (2026-10-01).
+    expect(layout.usageLogFile('ned')).toBe(join(layout.dataRoot, 'users', 'ned', 'usage.jsonl'));
   });
 
   /**
