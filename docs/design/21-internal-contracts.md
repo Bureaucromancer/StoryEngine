@@ -179,7 +179,11 @@ interface ChannelEffect {
                | { kind: "engine" }
   applied: boolean
   /** Present when `applied` is false. Validation failure, an engine-computed
-   *  rule overriding a model proposal, or a policy refusal. */
+   *  rule overriding a model proposal, or a policy refusal — *and (2026-09-30)
+   *  a step's proposal its declaration does not cover*: a channel outside its
+   *  `writes` (`undeclared-write`), or a proposer it is not
+   *  (`not-its-proposer`, recorded under the step's own stamp). The engine's
+   *  classes are `EffectRefusal` in `shared`; the field stays open. */
   rejectedReason: string | null
 
   /** Schema version of the channel this was written against. [06 §4.2] */

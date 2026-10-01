@@ -77,7 +77,7 @@ import {
   WindowTooSmall,
 } from './calls.js';
 import { cleanReply } from './cleanup.js';
-import { acceptEffect } from './effects.js';
+import { acceptEffect, acceptStepEffect } from './effects.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { extractMentions, type ExtractReport } from './extract.js';
 import { goalJudge, GOAL_JUDGE_STEP, type GoalJudgeReport } from './goal-judge.js';
@@ -2448,8 +2448,28 @@ export class TurnRunner {
          * a second route is a channel whose inverse nobody computed — and the
          * inverse is what [07 §4] replays.
          */
-        for (const proposal of [...loreEffects, ...(result.effects ?? [])]) {
-          const effect = acceptEffect(job.turnId, proposal, running);
+        /**
+         * ***The step's own, held to what it declared*** (2026-09-30) —
+         * `acceptStepEffect`: a channel outside its `writes`, or a proposer it
+         * is not (anything but itself or a call it made this turn), is a
+         * recorded refusal. The lore counters above are the engine's and go
+         * as they always have.
+         */
+        const claim = {
+          id: definition.id,
+          writes: definition.writes,
+          calls: new Set(
+            calls.filter((call) => call.stepId === definition.id).map((call) => call.id),
+          ),
+        };
+        const proposed = [
+          ...loreEffects.map((proposal) => ({ proposal, fromStep: false })),
+          ...(result.effects ?? []).map((proposal) => ({ proposal, fromStep: true })),
+        ];
+        for (const { proposal, fromStep } of proposed) {
+          const effect = fromStep
+            ? acceptStepEffect(job.turnId, proposal, running, claim)
+            : acceptEffect(job.turnId, proposal, running);
           effects.push(effect);
           running = applyEffects(running, [effect]);
           contributedEffects += 1;

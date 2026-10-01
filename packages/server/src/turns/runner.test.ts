@@ -1351,6 +1351,68 @@ describe('the record says why a slot is empty', () => {
   });
 });
 
+/**
+ * ***A step held to what it declared*** (2026-09-30) — `acceptStepEffect`, in
+ * the loop that took a step's proposals as given. The step below declares the
+ * place and the hook pacing, stamps a person on the pacing (a `user-only`
+ * channel, which a person's stamp passes), and writes the clock it never
+ * declared; the place it stamps honestly with its own call.
+ */
+describe('a step held to what it declared', () => {
+  it('records a forged proposer and an undeclared write as refused, and lands its own', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: { ...TEST_STEP, writes: ['se.location', 'se.hook.pacing'] },
+            run: async (_input, host) => {
+              const result = await host.call({});
+              const set = { type: 'set', path: '/' } as const;
+              return {
+                message: { text: result.text },
+                effects: [
+                  {
+                    channelId: 'se.hook.pacing',
+                    op: set,
+                    after: 'aggressive',
+                    proposedBy: { kind: 'user' },
+                  },
+                  {
+                    channelId: SE_CLOCK,
+                    op: set,
+                    after: { day: 9, hour: 0, minute: 0 },
+                    proposedBy: { kind: 'model', callId: result.callId },
+                  },
+                  {
+                    channelId: 'se.location',
+                    op: set,
+                    after: 'the docks',
+                    proposedBy: { kind: 'model', callId: result.callId },
+                  },
+                ],
+              };
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+    const session = await readSession(sessions, ACCOUNT, sessionId);
+
+    const stepped = turn.effects.filter((effect) => effect.proposedBy.kind !== 'engine');
+    expect(stepped.map((one) => [one.channelId, one.applied, one.rejectedReason])).toEqual([
+      ['se.hook.pacing', false, 'not-its-proposer'],
+      [SE_CLOCK, false, 'undeclared-write'],
+      ['se.location', true, null],
+    ]);
+    // Recorded as the step's, which is who proposed it.
+    expect(stepped[0]?.proposedBy).toEqual({ kind: 'step', stepId: TEST_STEP.id });
+    expect(session?.channels['se.hook.pacing']).toBeUndefined();
+    expect(session?.channels['se.location']?.value).toBe('the docks');
+  });
+});
+
 describe('the engine says what it overrode', () => {
   /**
    * [10 §3]'s third effect outcome, linked rather than inferred — [P3.0]. A
@@ -1364,7 +1426,9 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: TEST_STEP,
+            // Declared (2026-09-30), so what refuses it is the clock's own
+            // policy and not the step's undeclared write — `acceptStepEffect`.
+            definition: { ...TEST_STEP, writes: [SE_CLOCK] },
             run: async (_input, host) => {
               const result = await host.call({});
               return {
@@ -1408,7 +1472,8 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: TEST_STEP,
+            // Declared, as the test above's is, for the reason given there.
+            definition: { ...TEST_STEP, writes: [SE_CLOCK] },
             run: async (_input, host) => {
               const result = await host.call({});
               return {

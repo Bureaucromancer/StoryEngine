@@ -6,10 +6,13 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { newActor, uuidv7, type Turn } from '@storyengine/shared';
+import type { StepDefinition } from '@storyengine/sdk';
 
 import { FakeProvider, type RecordedRequest, type ScriptedReply } from '../providers/fake.js';
+import { registerMode } from '../mode-registry.js';
 import { isStoryTurn } from '../sessions/depth.js';
 import { Layout } from '../storage/layout.js';
+import { TEST_MODE, TEST_MODE_DEFINITION } from '../test-mode.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
 /**
@@ -443,6 +446,75 @@ describe('manual mode, and Update trackers', () => {
     expect(updated.body).toEqual({ turn: null, callId: null });
     expect(trackerCalls()).toHaveLength(0);
     expect(await head(sessionId)).toBe(before);
+  });
+
+  /**
+   * ***The on-demand loop holds a step to what it declared*** (2026-09-30) —
+   * `acceptStepEffect`, in the second loop that took a step's proposals as
+   * given. A mode whose update step stamps a person on the hook pacing (a
+   * `user-only` channel a person's stamp passes) and writes the goal cursor
+   * it never declared: both recorded refused, and neither lands.
+   */
+  it('refuses a proposal stamped as somebody else, or for a channel not declared', async () => {
+    const update: StepDefinition = {
+      id: 'example.update',
+      stage: 'post',
+      reads: [],
+      writes: ['se.hook.pacing'],
+      contributes: 'effects',
+      callKind: 'track',
+      when: { when: 'cadence', everyNTurns: 1 },
+      failure: 'warn',
+      role: 'prose',
+      onDemand: { label: 'Update' },
+    };
+    const set = { type: 'set', path: '/' } as const;
+    registerMode({
+      definition: {
+        ...TEST_MODE_DEFINITION,
+        id: 'example.forger',
+        steps: [...TEST_MODE_DEFINITION.steps, update],
+      },
+      run: {
+        ...TEST_MODE.run,
+        [update.id]: () =>
+          Promise.resolve({
+            effects: [
+              {
+                channelId: 'se.hook.pacing',
+                op: set,
+                after: 'aggressive',
+                proposedBy: { kind: 'user' },
+              },
+              {
+                channelId: 'se.goal.current',
+                op: set,
+                after: 'g-1',
+                proposedBy: { kind: 'step', stepId: update.id },
+              },
+            ],
+          }),
+      },
+    });
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Forger', mode: 'example.forger' },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const sessionId = created.body.session.id as string;
+
+    const ran = await run(sessionId, update.id);
+
+    expect(ran.status, JSON.stringify(ran.body)).toBe(200);
+    const effects = (ran.body.turn as Turn).effects;
+    expect(effects.map((one) => [one.channelId, one.applied, one.rejectedReason])).toEqual([
+      ['se.hook.pacing', false, 'not-its-proposer'],
+      ['se.goal.current', false, 'undeclared-write'],
+    ]);
+    const held = await channels(sessionId);
+    expect(held['se.hook.pacing']).toBeUndefined();
+    expect(held['se.goal.current']).toBeUndefined();
   });
 
   it('runs only a step the mode declares on-demand', async () => {

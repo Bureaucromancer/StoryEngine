@@ -3,6 +3,8 @@
 
 import type { JSX } from 'react';
 
+import type { EffectRefusal } from '@storyengine/shared';
+
 import { formatCount, formatDuration } from '../../format.js';
 import type { LiveStep, LiveTurn } from '../../play/reducer.js';
 import { Badge, type BadgeTone } from '../../ui/Badge.js';
@@ -61,11 +63,27 @@ const SKIP_LABELS: Record<string, string> = labels('workbench.live.skip', {
  * vocabulary, so a person reading the live view and then the record is not
  * told the same fact twice in two different sentences.
  */
-const REFUSAL_LABELS: Record<string, string> = labels('workbench.live.refusal', {
+const REFUSAL_LABELS: Readonly<Record<EffectRefusal, string>> = labels('workbench.live.refusal', {
   'engine-computed': 'refused — the engine computes this channel',
   'user-only': 'refused — only a person may change it',
   'unknown-channel': 'refused — no channel by this name',
+  'needs-confirmation': 'refused — a person has to confirm this',
+  schema: 'refused — the value does not fit the channel',
+  'undeclared-write': 'refused — the step never declared it writes this channel',
+  'not-its-proposer': 'refused — the step named a proposer it is not',
 });
+
+/**
+ * A refusal in words — the table read open, because an extension's own class,
+ * or a newer build's, is shown as written rather than not at all. *Typed closed
+ * over the engine's classes* (2026-09-30, `EffectRefusal`): typed open, two of
+ * the five shipped with no words and showed as their raw class
+ * (`needs-confirmation`, `schema`), and a new class would have too.
+ */
+function refusalWords(reason: string): string {
+  const words: Readonly<Partial<Record<string, string>>> = REFUSAL_LABELS;
+  return words[reason] ?? reason;
+}
 
 export function LiveSubject({
   live,
@@ -145,9 +163,7 @@ export function LiveSubject({
                 {/* [P3.5]'s precondition, rendered: the live view says *which*
                     policy refused, in the record's own words, so reading one
                     after the other tells one story. */}
-                {effect.reason === null ? null : (
-                  <Fine>{REFUSAL_LABELS[effect.reason] ?? effect.reason}</Fine>
-                )}
+                {effect.reason === null ? null : <Fine>{refusalWords(effect.reason)}</Fine>}
               </li>
             ))}
           </ul>

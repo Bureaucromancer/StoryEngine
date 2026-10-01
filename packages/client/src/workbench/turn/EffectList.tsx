@@ -3,7 +3,7 @@
 
 import type { JSX } from 'react';
 
-import type { ChannelEffect } from '@storyengine/shared';
+import type { ChannelEffect, EffectRefusal } from '@storyengine/shared';
 
 import { Badge } from '../../ui/Badge.js';
 import { Fine, SubsectionTitle } from '../../ui/Text.js';
@@ -18,11 +18,27 @@ import { labels } from '../../i18n/catalogue.js';
  * link the record made rather than an adjacency the view guessed.
  */
 
-const REFUSAL_LABELS: Record<string, string> = labels('workbench.effect.refusal', {
+const REFUSAL_LABELS: Readonly<Record<EffectRefusal, string>> = labels('workbench.effect.refusal', {
   'engine-computed': 'refused — the engine computes this channel',
   'user-only': 'refused — only a person may change it',
   'unknown-channel': 'refused — no channel by this name',
+  'needs-confirmation': 'refused — a person has to confirm this',
+  schema: 'refused — the value does not fit the channel',
+  'undeclared-write': 'refused — the step never declared it writes this channel',
+  'not-its-proposer': 'refused — the step named a proposer it is not',
 });
+
+/**
+ * A refusal in words — the table read open, because an extension's own class,
+ * or a newer build's, is shown as written rather than not at all. *Typed closed
+ * over the engine's classes* (2026-09-30, `EffectRefusal`): typed open, two of
+ * the five shipped with no words and showed as their raw class
+ * (`needs-confirmation`, `schema`), and a new class would have too.
+ */
+function refusalWords(reason: string): string {
+  const words: Readonly<Partial<Record<string, string>>> = REFUSAL_LABELS;
+  return words[reason] ?? reason;
+}
 
 const PROPOSER_LABELS: Record<ChannelEffect['proposedBy']['kind'], string> = labels(
   'workbench.proposer',
@@ -65,7 +81,7 @@ export function EffectList({ effects }: { effects: ChannelEffect[] }): JSX.Eleme
                 <span className="text-ink-muted">{PROPOSER_LABELS[effect.proposedBy.kind]}</span>
               </span>
               {effect.rejectedReason === null ? null : (
-                <Fine>{REFUSAL_LABELS[effect.rejectedReason] ?? effect.rejectedReason}</Fine>
+                <Fine>{refusalWords(effect.rejectedReason)}</Fine>
               )}
               {effect.supersedes === null ? null : (
                 <Fine>Replaced a refused proposal from this turn.</Fine>

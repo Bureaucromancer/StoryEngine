@@ -233,6 +233,16 @@ export interface EffectProposal {
   scopeKey?: string | null;
   op: EffectOp;
   after: unknown;
+  /**
+   * ***Who proposed it — and from a step, only the step itself or a model call
+   * it made*** (2026-09-30). The type is the record's whole union because the
+   * engine's own proposals share it (its clock, a person's write); **from a
+   * step**, `{ kind: 'step', stepId }` naming another step, a `model` call it
+   * did not make, `user` or `engine` is recorded refused, `not-its-proposer`,
+   * under the step's own stamp — and a channel outside the step's `writes` is
+   * refused `undeclared-write`. Not narrowed here, so the engine keeps one
+   * proposal type; the refusal is what holds the line.
+   */
   proposedBy: ChannelEffect['proposedBy'];
 }
 

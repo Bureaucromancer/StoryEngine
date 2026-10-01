@@ -21,7 +21,7 @@ import {
 import type { ChannelEffect, ModelCall, SessionFile, Turn } from '../sessions/types.js';
 import { fromModelCall, recordUsage } from '../usage/log.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved, WindowTooSmall } from './calls.js';
-import { acceptEffect } from './effects.js';
+import { acceptStepEffect } from './effects.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
 import { castEntries, costOf } from './runner.js';
 import { filterReads, type EffectProposal, type TurnStep } from './steps.js';
@@ -260,10 +260,18 @@ export async function runOnDemand(
       }
       // Chained over the running state, as the runner applies a step's
       // effects: a second proposal on one key carries the first's `after`.
+      // ***And held to what the step declared***, as the runner holds them
+      // (2026-09-30, `acceptStepEffect`) — the second loop that took a step's
+      // proposals as given.
+      const claim = {
+        id: definition.id,
+        writes: definition.writes,
+        calls: new Set(calls.map((call) => call.id)),
+      };
       let state = running;
       const effects: ChannelEffect[] = [];
       for (const proposal of proposals) {
-        const effect = acceptEffect(turnId, proposal, state);
+        const effect = acceptStepEffect(turnId, proposal, state, claim);
         effects.push(effect);
         state = applyEffects(state, [effect]);
       }

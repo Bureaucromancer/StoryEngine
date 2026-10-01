@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { EffectProposal } from '@storyengine/sdk';
-import { uuidv7 } from '@storyengine/shared';
+import { uuidv7, type EffectRefusal } from '@storyengine/shared';
 
 import { schemaFailure } from '../sessions/channel-schema.js';
 import { channelDefinition, channelKey } from '../sessions/channels.js';
@@ -137,6 +137,66 @@ export function acceptEffect(
 }
 
 /**
+ * ***A step's proposal, held to what the step declared*** (2026-09-30) —
+ * [06 §6], and the SDK's own header: *"the declaration is what the engine
+ * enforces, rather than a convention the step is trusted to follow"*.
+ *
+ * {@link acceptEffect} holds a proposal to its channel's policy against the
+ * proposal's own stamp, and nothing held the channel or the stamp to the step
+ * that returned it. So a step could write a channel its `writes` never named,
+ * and could stamp `{ kind: 'user' }` — what `user-only` admits, and what the
+ * workbench reads as *written by you* — or `{ kind: 'engine' }`, which
+ * `engine-computed` admits: the dials, the staging switch and every one of
+ * Scene's switches are `user-only`, and the clock is the engine's. **Latent**:
+ * every shipped step writes what it declares and stamps a call it made. It is
+ * the line an extension's step would cross, and [06 §5.2]'s guidance firewall
+ * rests on steps being what they declare.
+ *
+ * ***Refused, and recorded as every refusal is*** ([21 §1.2]), before the
+ * channel's own policy, because these are about the step rather than the
+ * value. *Not the step's failure*, which is how the runner answers a
+ * `revisions` it did not declare: an effect is decided one at a time, and the
+ * rest of what the step returned — its text, its other effects — is not made
+ * suspect by one proposal the engine can simply decline.
+ *
+ * - `undeclared-write` — a channel outside `writes`.
+ * - `not-its-proposer` — any stamp but its own step id or a model call it
+ *   made. **Recorded under the step's own stamp**, because the record's
+ *   proposer says who proposed it, and the one the step named did not.
+ */
+export interface StepClaim {
+  /** `StepDefinition.id`. */
+  id: string;
+  /** `StepDefinition.writes` — the channels it declared it writes. */
+  writes: readonly string[];
+  /** The ids of the model calls this step made, which it may stamp. */
+  calls: ReadonlySet<string>;
+}
+
+export function acceptStepEffect(
+  turnId: string,
+  proposal: EffectProposal,
+  running: Record<string, ChannelState>,
+  step: StepClaim,
+): ChannelEffect {
+  const by = proposal.proposedBy;
+  const its =
+    (by.kind === 'step' && by.stepId === step.id) ||
+    (by.kind === 'model' && step.calls.has(by.callId));
+  const effect = acceptEffect(
+    turnId,
+    its ? proposal : { ...proposal, proposedBy: { kind: 'step', stepId: step.id } },
+    running,
+  );
+  const refusal: EffectRefusal | null = !step.writes.includes(proposal.channelId)
+    ? 'undeclared-write'
+    : its
+      ? null
+      : 'not-its-proposer';
+  return refusal === null ? effect : { ...effect, applied: false, rejectedReason: refusal };
+}
+
+/**
  * The `update` policy, enforced — the first consumer `ChannelDefinition` has.
  *
  * A channel declares who may change it, and until now nothing checked. The
@@ -147,7 +207,7 @@ export function acceptEffect(
 function refuse(
   definition: ReturnType<typeof channelDefinition>,
   proposal: EffectProposal,
-): string | null {
+): EffectRefusal | null {
   if (definition === null) {
     // Not fatal. An extension or a mode that is not loaded may own it, and a
     // turn that failed because of an unknown channel id would be a worse

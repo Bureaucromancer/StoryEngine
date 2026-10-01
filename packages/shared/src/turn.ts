@@ -1307,6 +1307,30 @@ export interface TurnCost {
  * what a branch replays and what undo inverts — which is why `before` is
  * stored rather than derived.
  */
+/**
+ * ***Why the engine refused an effect*** (2026-09-30) — every class
+ * `acceptEffect` and `acceptStepEffect` record, named so the workbench's words
+ * for them are checked against the list at compile time; two of the five had
+ * shipped with no words and showed as their raw class. `rejectedReason` stays
+ * a string, because an extension's refusal, or a newer build's, is a word this
+ * build shows as written.
+ *
+ * - `unknown-channel` — no channel by that id ([P3.0]).
+ * - `engine-computed`, `user-only` — the channel's update policy ([P3.0]).
+ * - `needs-confirmation` — a loaded value a model may not set alone ([P7.2]).
+ * - `schema` — the value does not fit the channel ([P7.1]).
+ * - `undeclared-write` — a step's proposal for a channel outside its `writes`.
+ * - `not-its-proposer` — a step's proposal stamped with a proposer it is not.
+ */
+export type EffectRefusal =
+  | 'unknown-channel'
+  | 'engine-computed'
+  | 'user-only'
+  | 'needs-confirmation'
+  | 'schema'
+  | 'undeclared-write'
+  | 'not-its-proposer';
+
 export interface ChannelEffect {
   id: string;
   turnId: string;
@@ -1325,9 +1349,11 @@ export interface ChannelEffect {
     | { kind: 'engine' };
   applied: boolean;
   /**
-   * Present when `applied` is false. The two shipped refusals are classes —
+   * Present when `applied` is false. ~~The two shipped refusals are classes —
    * `'engine-computed'` and `'user-only'` name *which* update policy refused,
-   * plus `'unknown-channel'` ([P3.0]). Open vocabulary for extensions.
+   * plus `'unknown-channel'` ([P3.0]).~~ *The engine's classes are
+   * {@link EffectRefusal} (2026-09-30), which grew past that list at [P7.1]
+   * and [P7.2] without it.* Open vocabulary for extensions.
    */
   rejectedReason: string | null;
   /**
