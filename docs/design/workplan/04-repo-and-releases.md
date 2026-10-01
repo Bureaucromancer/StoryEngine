@@ -222,7 +222,9 @@ commit on `main`* — a prerelease is a tag on `main`
 ([P6A §1.6](19-p6a-alpha-1.md)) — *gated on a human deciding*, which a tag is.
 So every `v*` tag also pushes the image as `:testing`, the unraid template
 follows that tag, and `compose.yaml` stays pinned to the version — the build
-you can go back to. **`latest` still names nothing**, and it stays that way
+you can go back to. *The tag stays the human decision; since 2026-10-01 it has a
+mechanical backstop — the release workflow re-runs the Linux check and the
+changelog check on the tagged commit, and moves nothing until both pass.* **`latest` still names nothing**, and it stays that way
 until a release is actually cut. The reason is concrete rather than tidy —
 `updates.channel` already ships as a closed union defaulting to `latest`, and
 both unraid's auto-update and watchtower track exactly that alias, so moving it

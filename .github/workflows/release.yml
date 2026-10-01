@@ -38,7 +38,78 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ***Nothing publishes until the tagged commit has passed*** (2026-10-01).
+  #
+  # The tag is the human gate for `testing` — docs/design/workplan/04-repo-and-releases.md
+  # §4's *"a chosen commit on `main`, gated on a human deciding"* — and it stays
+  # that. What it had no backstop for was the human being wrong: no job here
+  # ran a test, none had a `needs:`, and the image moved `testing` before the
+  # changelog check that could have refused it. Two alpha cuts were made while
+  # `main`'s CI was red (docs/design/workplan/05-manual-testing.md §9) — on
+  # failures only the Windows runner saw, which this gate would not have
+  # stopped and is not for. What nothing stopped is a Linux failure, in an
+  # artifact the unraid template then offers as an update.
+  #
+  # **`ci.yml`'s Linux check, replayed on the tag**, rather than a wait for
+  # CI's own run of the commit: a tag pushed with its commit finds that run
+  # still going, and both artifacts are Linux ones, so a failure only Windows
+  # sees is not theirs to answer for. `tools/release.test.ts` holds the
+  # commands here to the ones `ci.yml` runs, so the two cannot quietly
+  # disagree about what passing means.
+  verify:
+    runs-on: ubuntu-latest
+    # The suite is the tagged commit's own code, so the token it holds writes
+    # nothing: the workflow's `packages: write` is for the image's push, and a
+    # job inherits it unless it says otherwise.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm build
+
+      # The same two commands as `ci.yml`'s step of this name, for its reasons.
+      - name: Emitted schemas are current
+        run: |
+          git add --intent-to-add -- packages/shared/schemas
+          git diff --exit-code -- packages/shared/schemas
+
+      - run: pnpm test
+
+      # **Before anything moves, and the heading whole.** This ran after the
+      # image, when `testing` already pointed at the build it was about to
+      # refuse; and it matched a prefix, so `1.0.0` passed on
+      # `## 1.0.0-alpha.4 — …`. Now the heading has to be the version and then a
+      # space or nothing, and it has to end in a date: docs/deploy.md's step 2 is
+      # replacing **unreleased** with one, and a heading without it is that step
+      # not done.
+      - name: The tag has a dated changelog entry
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          line="$(awk -v h="## ${version}" 'index($0, h " ") == 1 || $0 == h { print; exit }' CHANGELOG.md)"
+          if [ -z "$line" ]; then
+            echo "CHANGELOG.md has no '## ${version}' entry." >&2
+            exit 1
+          fi
+          case "$line" in
+            *[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+            *)
+              echo "CHANGELOG.md's ${version} heading carries no date: ${line}" >&2
+              exit 1
+              ;;
+          esac
+
   image:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -79,9 +150,15 @@ jobs:
         with:
           context: .
           push: true
+          # `SOURCE` because an image build has no `.git` to ask where its source
+          # is, and without it the image carried no link at all while the
+          # tarball, built from a checkout, carried one — a second difference
+          # between the artifacts, and a hidden one (2026-10-01). The repository
+          # the tag was pushed to is the honest answer, a fork's included.
           build-args: |
             COMMIT=${{ github.sha }}
             VERSION=${{ steps.names.outputs.version }}
+            SOURCE=${{ github.server_url }}/${{ github.repository }}
           # **Two tags: the immutable version, and `testing`.** The version tag
           # is the build you can go back to; `testing` is the channel
           # docs/design/workplan/04-repo-and-releases.md §4 defines as *a chosen
@@ -101,18 +178,6 @@ jobs:
           # matter are `pnpm install` and `pnpm build`.
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # A tag with no changelog entry is a release nobody can read
-      # (docs/design/workplan/04-repo-and-releases.md §7). Checked after the
-      # image so a missing entry does not hide a build failure, and before
-      # anything else could depend on the tag being good.
-      - name: The tag has a changelog entry
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          grep -q "^## ${version}" CHANGELOG.md || {
-            echo "CHANGELOG.md has no '## ${version}' entry." >&2
-            exit 1
-          }
 
   # ***Tier 2, added at P11.9*** — docs/design/09-server-multiuser-deployment.md
   # §5.4, docs/design/workplan/01-work-plan.md §8.
@@ -138,6 +203,7 @@ jobs:
   # list. The steps below are the Dockerfile's build stage in plain commands,
   # deliberately, so a change to one is visibly a change to the other.
   tarball:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -165,7 +231,8 @@ jobs:
       - name: The build identity
         run: |
           node tools/write-build-info.mjs --commit "${{ github.sha }}" \
-            --expect-version "${{ steps.names.outputs.version }}"
+            --expect-version "${{ steps.names.outputs.version }}" \
+            --source "${{ github.server_url }}/${{ github.repository }}"
 
       # The same deploy the image does, into a plain directory. `--legacy`
       # because pnpm 10 and later refuse the non-injected form otherwise.

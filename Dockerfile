@@ -11,10 +11,14 @@
 # decision to publish the repository at the same instant; §4 says so, and says it
 # there so that it cannot happen by way of a registry visibility toggle.
 #
-# Build it with the two arguments the release workflow passes:
+# Build it with the three arguments the release workflow passes:
 #
 #   docker build --build-arg COMMIT=$(git rev-parse HEAD) \
-#                --build-arg VERSION=1.0.0-alpha.1 -t storyengine .
+#                --build-arg VERSION=1.0.0-alpha.1 \
+#                --build-arg SOURCE=https://github.com/<owner>/<repo> -t storyengine .
+#
+# `SOURCE` may be left out, and the image then carries no Source link — which is
+# honest, because nothing in it can say where its source is.
 
 ARG NODE_VERSION=26
 
@@ -58,11 +62,19 @@ RUN pnpm build
 # argument and `--expect-version` refuses a tag that disagrees with the root
 # `package.json`. Both are required: an image that cannot say which commit it is
 # defeats the phase it belongs to (§1.5).
+#
+# ***And where its source is*** (2026-10-01), for the same missing `.git`:
+# `write-build-info.mjs` asks the `origin` remote, which this context does not
+# have, so `--source` says it instead. Until the release passed it, the image
+# carried no AGPL §13 link while the tarball, built from a checkout, carried
+# one. Optional, like `VERSION`, and for the reason the header gives.
 ARG COMMIT
 ARG VERSION
+ARG SOURCE
 RUN test -n "$COMMIT" || (echo 'COMMIT build-arg is required.' >&2; exit 1)
 RUN node tools/write-build-info.mjs --commit "$COMMIT" \
-    ${VERSION:+--expect-version "$VERSION"}
+    ${VERSION:+--expect-version "$VERSION"} \
+    ${SOURCE:+--source "$SOURCE"}
 
 # **The prune story.** `pnpm deploy` copies one workspace package and its
 # production dependencies into a self-contained tree, resolving the `workspace:*`

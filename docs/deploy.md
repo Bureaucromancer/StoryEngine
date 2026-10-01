@@ -261,10 +261,13 @@ source for the version you are actually running, which is a different thing from
 the newest source ([09 §7](design/09-server-multiuser-deployment.md)).
 
 The link comes from the build, not from this program: `tools/write-build-info.mjs`
-writes the `origin` remote of whatever repository the build was cut from. **If
-you fork this and ship your own image, your image links to your source**, with
-no code change and nothing to remember. A build made from a clone with no remote
-carries no link, which is honest — it cannot say where its source is.
+writes the `origin` remote of whatever repository the build was cut from. An
+image build has no `.git` to ask, so the release workflow passes the repository
+the tag was pushed to as `--build-arg SOURCE=…`. **If you fork this and ship your
+own image, your image links to your source**, with no code change and nothing to
+remember. A build that cannot say — a clone with no remote, or a `docker build`
+without `SOURCE` — carries no link, which is honest, and Settings → About says
+so rather than pointing at a link that is not there.
 
 Settings → About states the licence boundary in the same words for everybody:
 the program and anything that imports its SDK are AGPL-3.0; **what you write is
@@ -381,10 +384,13 @@ otherwise identical build stops being identical.
 3. Commit, then tag `v<version>` and push the tag. The tag moves `testing` too.
 
 `.github/workflows/release.yml` fires on `v*` — filtered, because the only other
-tag in this repository is `p1` and phase tags are a habit here. It builds the
-image, passing the tag and the commit, and `tools/write-build-info.mjs` refuses
-if the tag and `package.json` disagree. So the three places a version is written
-agree, or the release stops.
+tag in this repository is `p1` and phase tags are a habit here. **Before it
+publishes anything** it runs the Linux half of CI on the tagged commit and
+checks that `CHANGELOG.md` has a dated heading for exactly this version; a red
+suite or a missing date stops it with nothing pushed. Then it builds the image,
+passing the tag, the commit and the repository, and `tools/write-build-info.mjs`
+refuses if the tag and `package.json` disagree. So the three places a version is
+written agree, or the release stops.
 
 ## Backing up
 
