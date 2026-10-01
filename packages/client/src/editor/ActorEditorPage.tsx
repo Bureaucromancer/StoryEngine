@@ -417,8 +417,17 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                     hint="Off keeps it on the card without spending a turn on it."
                   />
                   <div>
+                    {/* ***Says which sample*** (2026-10-01, polish 11): two
+                        samples were two buttons called *Remove this sample*,
+                        which is no name at all in a list of buttons. Its
+                        title, or its place while it has none. */}
                     <TwoStep
                       label="Remove this sample"
+                      name={
+                        sample.title.trim() === ''
+                          ? `Remove sample ${String(index + 1)}`
+                          : `Remove ${sample.title.trim()}`
+                      }
                       question="Remove this sample from the card? Nothing is written until you save."
                       confirm="Remove"
                       onConfirm={() => {

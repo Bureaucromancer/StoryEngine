@@ -235,6 +235,26 @@ describe('the restart banner', () => {
   });
 });
 
+/**
+ * ***A way past the header*** (2026-10-01, polish 11). Nine controls stood
+ * between the top of every page and the page, for every keyboard on every
+ * page. The link is the first stop, and what it does is the claim: the
+ * keyboard lands in `<main>`, not merely the scroll.
+ */
+describe('the skip link', () => {
+  it('is the first stop for the keyboard, and hands the keyboard to the page', async () => {
+    renderShell('user');
+    await screen.findByRole('button', { name: 'Sign out' });
+
+    await userEvent.tab();
+    const skip = screen.getByRole('link', { name: 'Skip to the page' });
+    expect(document.activeElement).toBe(skip);
+
+    await userEvent.keyboard('{Enter}');
+    expect(document.activeElement).toBe(screen.getByRole('main'));
+  });
+});
+
 describe('the navigation', () => {
   it('has one settings entry once somebody is signed in', async () => {
     renderShell('user');

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TurnRecord } from '../api.js';
@@ -20,6 +20,8 @@ import type { TurnRecord } from '../api.js';
 let turns: TurnRecord[] = [];
 let sessionName = 'The harbour';
 let unreadable = false;
+/** What `readRenditions` answers — none, unless a test is about a picture. */
+let renditions: unknown[] = [];
 
 /**
  * The router mocked wholesale, `ComparePage.test.tsx`-style: a link keeps an
@@ -54,7 +56,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   readTranscript: () =>
     unreadable ? Promise.reject(new Error('no such turn')) : Promise.resolve({ turns }),
   readSession: () => Promise.resolve({ session: { id: 's1', name: sessionName } }),
-  readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
+  readRenditions: () => Promise.resolve({ renditions, selection: {} }),
   listLibrary: () => Promise.resolve({ objects: [{ id: 'actor-vera', name: 'Vera' }] }),
   api: { listLibrary: () => Promise.resolve({ objects: [{ id: 'actor-vera', name: 'Vera' }] }) },
 }));
@@ -73,6 +75,7 @@ function renderPage(from?: string): void {
 beforeEach(() => {
   sessionName = 'The harbour';
   unreadable = false;
+  renditions = [];
   turns = [
     {
       id: 't1',
@@ -154,5 +157,47 @@ describe('reading a session', () => {
     turns = [];
     renderPage();
     expect(await screen.findByText(/Nothing has been written/)).toBeTruthy();
+  });
+
+  /**
+   * ***No landmark of its own, and the paper's width*** (2026-10-01, polish
+   * 11). The page was a `<main>` nested in the shell's; the print stylesheet
+   * released its width and padding by that landmark, so as a `div` it releases
+   * them itself.
+   */
+  it('is no landmark of its own, and gives the paper its width back', async () => {
+    renderPage();
+    const title = await screen.findByRole('heading', { level: 1 });
+
+    expect(screen.queryByRole('main')).toBeNull();
+    expect(title.parentElement?.classList.contains('print:max-w-none')).toBe(true);
+    expect(title.parentElement?.classList.contains('print:p-0')).toBe(true);
+  });
+
+  /**
+   * ***A picture is not its sentence twice*** (2026-10-01, polish 11). The alt
+   * was the anchor — the sentence the picture sits right after — so a screen
+   * reader read the sentence, then the picture as the same sentence.
+   */
+  it('gives an illustration the empty alt the play surface gives it', async () => {
+    renditions = [
+      {
+        id: 'r1',
+        turnId: 't1',
+        purpose: 'illustration',
+        state: 'ready',
+        asset: { digest: 'sha256:abc' },
+        scope: { anchor: 'The keeper points north.' },
+      },
+    ];
+    renderPage();
+    await screen.findByText('The keeper points north.');
+
+    const picture = await waitFor(() => {
+      const found = document.querySelector('article img');
+      if (found === null) throw new Error('no picture yet');
+      return found;
+    });
+    expect(picture.getAttribute('alt')).toBe('');
   });
 });

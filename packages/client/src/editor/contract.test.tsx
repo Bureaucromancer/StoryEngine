@@ -470,9 +470,8 @@ describe('assists that finish after other edits', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add a writing sample' }));
     await userEvent.type(text('Sample', 0), 'The first.');
     await startAssist(text('Sample', 1));
-    const [first] = screen.getAllByRole('button', { name: 'Remove this sample' });
-    if (first === undefined) throw new Error('no sample to remove');
-    await userEvent.click(first);
+    // By its place: both samples are untitled, so that is their name (polish 11).
+    await userEvent.click(screen.getByRole('button', { name: 'Remove sample 1' }));
     await userEvent.click(
       screen.getByRole('button', { name: 'Remove', description: /^Remove this sample/ }),
     );

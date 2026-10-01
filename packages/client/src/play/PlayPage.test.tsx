@@ -1167,6 +1167,54 @@ describe('drafting your own next message', () => {
   });
 
   /**
+   * ***And the box takes the keyboard*** (2026-10-01, polish 11). The draft
+   * appeared where an eye would find it and nowhere a screen reader would read,
+   * with the keyboard left on the button — so the next keystroke went to the
+   * button, not the draft. Landing in the box is how it is heard, and the caret
+   * goes after the words, where an edit or Enter starts.
+   */
+  it('hands the keyboard to the box, at the end of the draft', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('I knock twice.');
+
+    await user.click(screen.getByRole('button', { name: 'Draft my next message' }));
+
+    const box = await screen.findByDisplayValue<HTMLTextAreaElement>('I would not go in there.');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    expect(box.selectionStart).toBe('I would not go in there.'.length);
+  });
+
+  /** The same for a suggestion, the second of the three controls that fill the box. */
+  it('hands the keyboard to the box when a suggestion fills it', async () => {
+    const user = userEvent.setup();
+    readSession.mockResolvedValue({ session: SESSION, activeJob: null, suggesting: true });
+    readTranscript.mockResolvedValue({ turns: [{ ...TURN, suggestions: ['Try the side door.'] }] });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Try the side door.' }));
+
+    const box = screen.getByDisplayValue<HTMLTextAreaElement>('Try the side door.');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    expect(submitTurn).not.toHaveBeenCalled();
+
+    // The same one again, with the caret moved and the keyboard elsewhere:
+    // the words do not change, so only a second fill — a count, not a flag —
+    // brings the keyboard back, and only placing the caret puts it at the end.
+    box.setSelectionRange(0, 0);
+    await user.click(screen.getByRole('button', { name: 'Try the side door.' }));
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(box);
+    });
+    expect(box.selectionStart).toBe('Try the side door.'.length);
+  });
+
+  /**
    * ***Re-rolling is pressing it again*** — §3.1's *"re-rollable without
    * ceremony"* read literally. The second draft replaces the first, which is
    * what a second press means: somebody who wanted to keep the first would have

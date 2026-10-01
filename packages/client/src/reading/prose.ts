@@ -49,6 +49,13 @@ export interface Passage {
     text: string;
     who: string | null;
     /**
+     * ***The move was nobody's but the player's*** — no actor on it, which is
+     * a move made with no persona (2026-10-01, polish 11). Kept apart from
+     * `who: null`, which is also an actor the library no longer has: the first
+     * is *you*, and the second is somebody this view cannot name.
+     */
+    yours: boolean;
+    /**
      * The pictures on the move — [25 E15]. A move that was only a picture is a
      * move, so a blank `text` with pictures is kept rather than read as *no
      * input*; the HTML shows them, and the two text copies say them in words.
@@ -105,6 +112,7 @@ export function passages(
               kind: input.kind,
               text: input.text,
               who: input.actorId === null ? null : nameOf(input.actorId),
+              yours: input.actorId === null,
               pictures: input.attachments ?? [],
             },
       prose: text.trim() === '' ? null : text,
@@ -165,7 +173,26 @@ const MOVES: Record<string, string> = labels('reading.move', {
 });
 
 /**
+ * ***The player's own moves, as whole sentences*** (2026-10-01, polish 11).
+ * Whole rather than *You* and a verb, because *you* is the word a translation
+ * conjugates for: French says *vous dites* where it says *Vera dit*.
+ */
+const YOURS: Record<string, string> = labels('reading.move-yours', {
+  do: 'You did',
+  say: 'You said',
+  think: 'You thought',
+  story: 'You wrote',
+  choice: 'You chose',
+});
+
+/**
  * The line above a player's words — *Vera said*, *You did*, or just *said*.
+ *
+ * ~~*You did*~~ was promised here and never made (2026-10-01, polish 11): a
+ * move with no persona has no actor, so it reached the bare verb meant for an
+ * actor the library has lost, and the reading view headed the player's own
+ * *Look around.* with *DID* — where the chat heads the same move *You*. The
+ * bare verb is that lost actor's alone now.
  *
  * **Assembled here rather than in JSX**, which the sentence-assembly lint rule
  * requires and which is right anyway: a name and a verb joined by a space is a
@@ -174,6 +201,7 @@ const MOVES: Record<string, string> = labels('reading.move', {
  */
 export function attribution(said: NonNullable<Passage['said']>): string {
   const verb = MOVES[said.kind] ?? said.kind;
+  if (said.yours) return YOURS[said.kind] ?? verb;
   return said.who === null ? verb : `${said.who} ${verb}`;
 }
 

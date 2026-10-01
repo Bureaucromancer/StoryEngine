@@ -75,6 +75,14 @@ export const MACHINE_FRENCH: Record<string, Record<string, string>> = {
     choice: 'choisit',
   },
 
+  'reading.move-yours': {
+    do: 'Vous faites',
+    say: 'Vous dites',
+    think: 'Vous pensez',
+    story: 'Vous racontez',
+    choice: 'Vous choisissez',
+  },
+
   'settings.role': {
     prose: 'Rédaction de l’histoire',
     reasoning: 'Réflexion et raisonnement',

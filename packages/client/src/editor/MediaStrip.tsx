@@ -43,9 +43,12 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.media', {
   add: 'Add a picture',
   adding: 'Adding…',
   replace: 'Replace',
+  'replace-named': 'Replace picture {n}',
   remove: 'Remove',
+  'remove-named': 'Remove picture {n}',
   'remove-question': 'Remove this picture? Nothing is written until you save.',
   cover: 'Use as the cover',
+  'cover-named': 'Use picture {n} as the cover',
   isCover: 'The cover',
   role: 'Role',
   label: 'Label',
@@ -63,6 +66,18 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.media', {
    */
   unused: 'Pictures are stored with the book and are never sent to a model.',
 });
+
+/**
+ * ***A picture's buttons say which picture*** (2026-10-01, polish 11). Every
+ * picture in the strip has a *Replace*, a *Remove* and a *Use as the cover*,
+ * so four pictures were twelve buttons a screen reader's list of buttons
+ * showed as three names four times — a list nobody can choose from. By number,
+ * as the composer's pictures already are: a label is the author's and may be
+ * blank or shared, and the number is the order on the screen.
+ */
+function numbered(key: string, n: number): string {
+  return (WORDS[key] ?? '').replace('{n}', String(n));
+}
 
 const ROLES: readonly MediaRole[] = [
   'reference',
@@ -251,7 +266,7 @@ export function MediaStrip(props: {
         <Note>{WORDS['empty']}</Note>
       ) : (
         <ul className="flex flex-wrap gap-3">
-          {props.media.map((one) => (
+          {props.media.map((one, index) => (
             <li key={one.id} className="flex w-44 flex-col gap-1">
               <img
                 src={`/api/library/${props.kind}/${props.objectId}/media/${one.id}`}
@@ -297,6 +312,7 @@ export function MediaStrip(props: {
                   <Button
                     type="button"
                     disabled={busy}
+                    aria-label={numbered('replace-named', index + 1)}
                     onClick={() => {
                       setReplacing(one.id);
                       picker.current?.click();
@@ -307,6 +323,7 @@ export function MediaStrip(props: {
                 )}
                 <TwoStep
                   label={WORDS['remove'] ?? ''}
+                  name={numbered('remove-named', index + 1)}
                   question={WORDS['remove-question'] ?? ''}
                   variant="quiet"
                   onConfirm={() => {
@@ -324,6 +341,7 @@ export function MediaStrip(props: {
                   <Button
                     type="button"
                     variant="quiet"
+                    aria-label={numbered('cover-named', index + 1)}
                     onClick={() => {
                       props.onCover?.(one.id);
                     }}

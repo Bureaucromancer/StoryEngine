@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useEffect, useId, useRef, useState, type JSX, type RefObject } from 'react';
 
 import {
   ApiError,
@@ -272,9 +272,36 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
   const state = hookState(row);
   const committed = row.state === 'committed';
 
+  /**
+   * ***The question keeps the keyboard*** (2026-10-01, polish 11), as
+   * `TwoStep`'s does and for its reasons. Commit is replaced by the question
+   * it asks, so the keyboard fell to the page; and the question was a live
+   * region inserted already holding its words, which most screen readers never
+   * read. Now the keyboard goes to Cancel, both answers are described by the
+   * question — arriving there is how it is heard — and closing it gives the
+   * keyboard back to the row's button. Not `TwoStep` itself: Commit asks only
+   * past a refusal, and its answer is not a destructive one.
+   */
+  const questionId = useId();
+  const cancel = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const returning = useRef(false);
+  useEffect(() => {
+    if (asking) {
+      cancel.current?.focus();
+    } else if (returning.current) {
+      returning.current = false;
+      trigger.current?.focus();
+    }
+  }, [asking]);
+  const stopAsking = (): void => {
+    returning.current = true;
+    setAsking(false);
+  };
+
   function commit(): void {
     write.mutate({ key: `se.hook#${row.hookId}`, value: 'committed' });
-    setAsking(false);
+    stopAsking();
   }
 
   return (
@@ -311,22 +338,22 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
       )}
 
       {asking ? (
-        <Alert tone="warning" role="status" className="flex flex-col gap-2">
-          <span>
+        <Alert tone="warning" className="flex flex-col gap-2">
+          <span id={questionId}>
             {row.refusal === null
               ? 'Commit this hook?'
               : `${hookWords(row.refusal)}. Commit it anyway?`}
           </span>
           <div className="flex gap-2">
-            <Button type="button" onClick={commit} disabled={write.isPending}>
-              Commit
-            </Button>
             <Button
               type="button"
-              onClick={() => {
-                setAsking(false);
-              }}
+              onClick={commit}
+              disabled={write.isPending}
+              aria-describedby={questionId}
             >
+              Commit
+            </Button>
+            <Button ref={cancel} type="button" onClick={stopAsking} aria-describedby={questionId}>
               Cancel
             </Button>
           </div>
@@ -335,6 +362,7 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
         <Controls
           sessionId={props.sessionId}
           row={row}
+          trigger={trigger}
           pending={write.isPending || hooks.isPending}
           onCommit={commit}
           onAsk={() => {
@@ -383,6 +411,8 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
 function Controls(props: {
   sessionId: string;
   row: HookRow;
+  /** Commit or Release, whichever shows: where a closed question returns the keyboard. */
+  trigger: RefObject<HTMLButtonElement | null>;
   pending: boolean;
   onCommit: () => void;
   onAsk: () => void;
@@ -391,18 +421,35 @@ function Controls(props: {
 }): JSX.Element {
   const { row } = props;
   const gone = row.state === 'fired' || row.state === 'provisional';
+  /**
+   * ***Each button says which hook*** (2026-10-01, polish 11). A pool of five
+   * hooks was five *Commit*s and five *Remove*s, which a screen reader's list
+   * of buttons cannot tell apart; the editor's hook list has named its own by
+   * title since it was built.
+   */
+  const title = row.title.trim() === '' ? 'Untitled hook' : row.title.trim();
 
   return (
     <div className="flex flex-wrap items-start gap-2">
+      {/* One element for both, so a commit that lands while the keyboard is on
+          it keeps the keyboard as its words turn to Release. */}
       {gone ? null : row.state === 'committed' ? (
-        <Button type="button" onClick={props.onRelease} disabled={props.pending}>
+        <Button
+          ref={props.trigger}
+          type="button"
+          onClick={props.onRelease}
+          disabled={props.pending}
+          aria-label={`Release ${title}`}
+        >
           Release
         </Button>
       ) : (
         <Button
+          ref={props.trigger}
           type="button"
           onClick={row.refusal === null ? props.onCommit : props.onAsk}
           disabled={props.pending}
+          aria-label={`Commit ${title}`}
         >
           Commit
         </Button>
@@ -413,6 +460,7 @@ function Controls(props: {
           first click. */}
       <TwoStep
         label="Remove"
+        name={`Remove ${title}`}
         question="Remove this hook from the story?"
         size="default"
         disabled={props.pending}

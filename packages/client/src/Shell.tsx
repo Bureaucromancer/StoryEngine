@@ -119,6 +119,30 @@ export function Shell(): JSX.Element {
     // lets `flex-1` below mean "the rest of it" and makes `<main>` the scroll
     // container instead of the document ([P3.−1]).
     <div className="flex h-dvh flex-col print:block print:h-auto">
+      {/* ***A way past the header*** (2026-10-01, polish 11). Nine controls
+          sit above every page once somebody is signed in — the wordmark, the
+          three surfaces, the two panels, the bell, Settings and Sign out — so
+          a keyboard reached the page's own first control on the tenth press
+          of Tab, on every page, every time. The first stop is now this,
+          hidden until it has the keyboard; it hands the keyboard to `<main>`,
+          from where Tab goes on into the page.
+
+          *Focused by hand rather than followed as a fragment*: `#main` is
+          what it says with scripts off, but a fragment navigation is the
+          router's to see, and whether a browser moves focus to the target of
+          one has varied — the scroll moved and the keyboard stayed behind.
+          `main` takes `tabIndex={-1}` so it can be focused without becoming
+          a Tab stop of its own. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:start-3 focus:top-3 focus:z-50 focus:rounded-control focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-ink focus:outline-2 focus:outline-focus print:hidden"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Skip to the page
+      </a>
       <header className="border-b border-line bg-surface">
         {/* **It folds.** Eight controls in one row on every page of the app,
             and nothing let them wrap — so a narrow window pushed Sign out past
@@ -249,10 +273,12 @@ export function Shell(): JSX.Element {
             refetches when the dock closes again. */}
         <main
           ref={mainRef}
+          id="main"
+          tabIndex={-1}
           className={
             workbenchOpen || assistantOpen
-              ? 'min-w-0 flex-1 overflow-y-auto max-sm:hidden print:overflow-visible'
-              : 'min-w-0 flex-1 overflow-y-auto print:overflow-visible'
+              ? 'min-w-0 flex-1 overflow-y-auto focus:outline-none max-sm:hidden print:overflow-visible'
+              : 'min-w-0 flex-1 overflow-y-auto focus:outline-none print:overflow-visible'
           }
         >
           <Outlet />

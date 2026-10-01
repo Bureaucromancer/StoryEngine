@@ -47,6 +47,7 @@ describe('turns become passages', () => {
       kind: 'say',
       text: 'Where is the lighthouse?',
       who: 'Vera',
+      yours: false,
       pictures: [],
     });
     expect(read[0]?.prose).toBe('The keeper points north.');
@@ -110,6 +111,29 @@ describe('turns become passages', () => {
     );
     expect(read[0]?.said?.who).toBeNull();
     expect(attribution(read[0]!.said!)).toBe('did');
+  });
+
+  /**
+   * ***A move with no persona is the player's*** (2026-10-01, polish 11). It
+   * has no actor, and it reached the bare verb kept for an actor the library
+   * has lost: the player's own *Look around.* was headed *DID*, where the chat
+   * heads the same move *You*. In both copies, too, which share the line.
+   */
+  it('heads a move nobody was playing as with the player, in the view and the copies', () => {
+    const read = passages(
+      [
+        turn({
+          id: 't1',
+          input: { actorId: null, kind: 'do', text: 'Look around.', raw: '' },
+          output: { text: 'Fog, and a bell somewhere.' },
+        }),
+      ],
+      nameOf,
+    );
+
+    expect(attribution(read[0]!.said!)).toBe('You did');
+    expect(toMarkdown(read, { title: 'The harbour' })).toContain('> **You did**');
+    expect(toPlainText(read, { title: 'The harbour' })).toContain('You did:\nLook around.');
   });
 
   it('marks a failed turn rather than leaving a gap', () => {

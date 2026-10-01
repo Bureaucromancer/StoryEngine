@@ -423,6 +423,35 @@ export function PlayPage({
    */
   const composer = useRef<HTMLTextAreaElement | null>(null);
 
+  /**
+   * ***A fill hands the box the keyboard*** (2026-10-01, polish 11).
+   *
+   * Three controls write into the composer — *Draft my next message*, a
+   * starter, a suggestion — and none of them said so. The words appeared where
+   * an eye would find them and nowhere a screen reader would read, and the
+   * keyboard stayed on the button, so the next keystroke went to it rather than
+   * to the draft it had just asked for. The box takes the keyboard now, with
+   * the caret after what arrived: arriving there is the announcement — a field
+   * is read with its contents as focus lands on it, the way `TwoStep` announces
+   * its question — and it is where the next keystroke belongs, editing the
+   * draft or Enter to send it.
+   *
+   * A count rather than a flag, so the same suggestion picked twice is two
+   * fills; and an effect, so the caret is placed in the value that has
+   * rendered rather than in the one that is about to.
+   */
+  const [fills, setFills] = useState(0);
+  const fill = (text: string): void => {
+    setDraft(text);
+    setFills((count) => count + 1);
+  };
+  useEffect(() => {
+    const box = composer.current;
+    if (fills === 0 || box === null) return;
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+  }, [fills]);
+
   const send = useMutation({
     /**
      * `null` is *let them talk* — [P14 §1.6]: a turn with **no input**, not
@@ -1443,13 +1472,7 @@ export function PlayPage({
           }}
         />
         {nobody ? <NobodyWouldReply /> : null}
-        <Impersonate
-          sessionId={sessionId}
-          disabled={running}
-          onDrafted={(text) => {
-            setDraft(text);
-          }}
-        />
+        <Impersonate sessionId={sessionId} disabled={running} onDrafted={fill} />
         {chat === undefined ? null : (
           <AutoMode on={auto} seconds={autoSeconds} onToggle={setAuto} onSeconds={setAutoSeconds} />
         )}
@@ -1463,13 +1486,13 @@ export function PlayPage({
             what it is for — and the session's own suggestions take the row from
             the first turn onward. */}
         {starters === undefined || (transcript.data?.turns.length ?? 0) > 0 ? null : (
-          <Starters actions={starters} disabled={running} onPick={setDraft} />
+          <Starters actions={starters} disabled={running} onPick={fill} />
         )}
         <Suggestions
           sessionId={sessionId}
           actions={transcript.data?.turns.at(-1)?.suggestions ?? []}
           disabled={running}
-          onPick={setDraft}
+          onPick={fill}
         />
         <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
       </form>

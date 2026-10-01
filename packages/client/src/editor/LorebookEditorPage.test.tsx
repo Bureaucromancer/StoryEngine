@@ -1873,7 +1873,9 @@ describe('image slots on a book and its entries', () => {
       await Promise.resolve();
     });
 
-    await userEvent.click(await within(gallery).findByRole('button', { name: 'Use as the cover' }));
+    await userEvent.click(
+      await within(gallery).findByRole('button', { name: 'Use picture 1 as the cover' }),
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Saved.');
     await settled(client);
@@ -2037,7 +2039,7 @@ describe('image slots on a book and its entries', () => {
 
     const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
     if (gallery === null) throw new Error('no gallery section');
-    await userEvent.click(within(gallery).getByRole('button', { name: 'Remove' }));
+    await userEvent.click(within(gallery).getByRole('button', { name: 'Remove picture 1' }));
     await userEvent.click(
       within(gallery).getByRole('button', { name: 'Remove', description: /^Remove this picture/ }),
     );
@@ -2048,6 +2050,31 @@ describe('image slots on a book and its entries', () => {
     const saved = server.stored();
     expect(saved.media).toEqual([]);
     expect(saved.primaryMediaId).toBeNull();
+  });
+
+  /**
+   * ***A picture's buttons say which picture*** (2026-10-01, polish 11). Two
+   * pictures were six buttons with three names between them, which a list of
+   * buttons cannot tell apart.
+   */
+  it('names every picture’s buttons by its number', async () => {
+    server.handEdit({ ...makeBook(), media: [picture(MAP, 'map'), picture(SKETCH, 'sketch')] });
+    renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    for (const n of [1, 2]) {
+      expect(
+        within(gallery).getByRole('button', { name: `Replace picture ${String(n)}` }),
+      ).toBeTruthy();
+      expect(
+        within(gallery).getByRole('button', { name: `Remove picture ${String(n)}` }),
+      ).toBeTruthy();
+      expect(
+        within(gallery).getByRole('button', { name: `Use picture ${String(n)} as the cover` }),
+      ).toBeTruthy();
+    }
   });
 
   /**
@@ -2081,9 +2108,9 @@ describe('image slots on a book and its entries', () => {
     const [first] = within(gallery).getAllByRole('textbox', { name: 'Label' });
     if (first === undefined) throw new Error('no label field');
     await userEvent.type(first, 'The coast');
-    const removes = within(gallery).getAllByRole('button', { name: 'Remove' });
-    if (removes[1] === undefined) throw new Error('no second picture');
-    await userEvent.click(removes[1]);
+    // By the name the second picture's button carries now (polish 11), not by
+    // its place in a list of eight buttons called *Remove*.
+    await userEvent.click(within(gallery).getByRole('button', { name: 'Remove picture 2' }));
     await userEvent.click(
       within(gallery).getByRole('button', { name: 'Remove', description: /^Remove this picture/ }),
     );

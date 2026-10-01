@@ -69,19 +69,28 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
   const turns: TurnRecord[] = transcript.data?.turns ?? [];
   const read = passages(turns, nameOf);
 
+  // ***`div`s, not landmarks*** (2026-10-01, polish 11) — the shell owns the
+  // routed app's one `<main>`, and both of these were a second one inside it.
+  // `shell-layout.test.tsx` counts this page now; it never visited it before.
+  //
+  // *And the column releases its own width and padding for print*, which the
+  // print stylesheet's `main` rule did while this was a `main`: on paper the
+  // page's margins are the measure, and the screen's column inside them would
+  // be a narrower page inside the page.
+  const column = `${page.reading} print:max-w-none print:p-0`;
   if (transcript.isError) {
     return (
-      <main className={page.reading}>
+      <div className={column}>
         <p role="alert" className="text-danger-ink">
           That part of the story could not be read. The link may name a turn that is not there.
         </p>
         <BackToSession sessionId={props.sessionId} />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className={page.reading}>
+    <div className={column}>
       {/* ***One heading, for the screen and the page.*** It used to be two — a
           `SectionTitle` inside the controls row, and a second `<h1>` spelled
           `hidden text-title print:block` underneath it, because the row it sat
@@ -168,7 +177,7 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
           </section>
         ))}
       </article>
-    </main>
+    </div>
   );
 }
 
@@ -216,7 +225,15 @@ function Illustrated(props: {
   const picture = (
     <img
       src={renditionAssetUrl(props.sessionId, shown.id, shown.asset?.digest ?? '')}
-      alt={shown.scope?.anchor ?? ''}
+      /**
+       * ***Empty, as the play surface's is*** (2026-10-01, polish 11). It was
+       * the anchor — the sentence the picture is of, which the picture sits
+       * directly after — so a screen reader read that sentence and then read
+       * it again as the picture. `RenditionView` says why empty is the honest
+       * alt for a generated picture: the record holds what was asked for, not
+       * what came back, and the moment it shows is in the words beside it.
+       */
+      alt=""
       /**
        * **Bounded by the measure, not stretched to it.** `w-full` set every
        * illustration to the reading column's 48rem whatever its own size, so a

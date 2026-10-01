@@ -585,6 +585,27 @@ describe("a writing sample's priority", () => {
 });
 
 /**
+ * ***Each sample's Remove says which*** (2026-10-01, polish 11). Two samples
+ * were two buttons called *Remove this sample*; a list of buttons could not
+ * tell them apart.
+ */
+describe("a writing sample's Remove", () => {
+  it('names the sample by its title, or by its place while it has none', async () => {
+    renderApp();
+    await openTheEditor();
+    await userEvent.click(screen.getByRole('button', { name: 'Add a writing sample' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a writing sample' }));
+    // The sample's own Title, inside its fieldset: the sections have Titles too.
+    const [first] = screen.getAllByRole('group', { name: 'Untitled sample' });
+    if (first === undefined) throw new Error('no sample');
+    await userEvent.type(within(first).getByRole('textbox', { name: 'Title' }), 'The rain');
+
+    expect(screen.getByRole('button', { name: 'Remove The rain' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove sample 2' })).toBeTruthy();
+  });
+});
+
+/**
  * [polish §2]'s editor pane, discharged at [P3.3]: the fold shows the *saved*
  * object and says so, because showing unsaved form state as "as stored" would
  * be a lie in the one place a user came for the truth. The falsifying

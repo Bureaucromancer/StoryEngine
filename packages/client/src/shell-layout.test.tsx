@@ -117,6 +117,7 @@ vi.mock('./api.js', async (importOriginal) => {
     listSessions: () => Promise.resolve({ sessions: [SESSION] }),
     readSession: () => Promise.resolve({ session: SESSION, activeJob: null }),
     readTranscript: () => Promise.resolve({ turns: [TURN] }),
+    readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
   };
 });
 
@@ -179,6 +180,22 @@ const PAGES: RoutedPage[] = [
     path: '/settings',
     go: () => router.navigate({ to: '/settings' }),
     marker: () => screen.findByRole('heading', { name: 'Settings', level: 1 }),
+  },
+  /*
+   * ***The two this list did not visit*** (2026-10-01, polish 11), and both
+   * had a `<main>` of their own inside the shell's — found by reading, which
+   * is the failure this file exists to replace.
+   */
+  {
+    path: '/search',
+    go: () => router.navigate({ to: '/search', search: {} }),
+    marker: () => screen.findByRole('heading', { name: 'Search', level: 1 }),
+  },
+  {
+    path: '/read/$sessionId',
+    go: () =>
+      router.navigate({ to: '/read/$sessionId', params: { sessionId: SESSION_ID }, search: {} }),
+    marker: () => screen.findByRole('button', { name: 'Copy as Markdown' }),
   },
 ];
 
