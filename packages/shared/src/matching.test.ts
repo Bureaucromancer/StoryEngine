@@ -63,6 +63,31 @@ describe('literalSpans', () => {
   });
 
   /**
+   * ***A combining mark is part of its word*** (2026-09-30) — UAX #29's WB4,
+   * and the rule `turns/speakers.ts` reads names by. A Devanagari vowel sign
+   * is a mark, not a letter, so *राम* (Ram) matched inside *रामायण* (the
+   * Ramayana) — after it on one side, and *मायण* inside it on the other.
+   */
+  it('counts a combining mark as part of the word on either side', () => {
+    expect(literalSpans('रामायण पढ़ो', 'राम', WHOLE)).toEqual([]);
+    expect(literalSpans('रामायण', 'मायण', WHOLE)).toEqual([]);
+    expect(literalSpans('राम ने कहा', 'राम', WHOLE)).toEqual([{ start: 0, end: 3 }]);
+    // Latin written decomposed has the same seam: an acute on the next letter.
+    expect(literalSpans('cafe\u0301s', 'caf', WHOLE)).toEqual([]);
+  });
+
+  /**
+   * ***A letter outside the Basic Multilingual Plane is one character***
+   * (2026-09-30): two UTF-16 units, either of which alone is no letter, so a
+   * match beside one read as bounded.
+   */
+  it('reads the whole character on each side, astral letters included', () => {
+    expect(literalSpans('\u{20000}abc', 'abc', WHOLE)).toEqual([]);
+    expect(literalSpans('abc\u{20000}', 'abc', WHOLE)).toEqual([]);
+    expect(literalSpans('\u{20000} abc', 'abc', WHOLE)).toEqual([{ start: 3, end: 6 }]);
+  });
+
+  /**
    * A rejected candidate must not stop the search: the *next* occurrence may
    * well be at a boundary, and a scan that gave up would report the whole text
    * as a miss because of its first false start.

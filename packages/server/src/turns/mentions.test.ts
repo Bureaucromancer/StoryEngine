@@ -83,6 +83,18 @@ describe('who a turn’s text was about', () => {
   });
 
   /**
+   * ***In every script*** (2026-09-30) — a vowel sign after a name is part of
+   * the longer word it makes, not the end of the name: *राम* is not mentioned
+   * in *रामायण*.
+   */
+  it('does not find a name inside a longer word that a combining mark continues', () => {
+    const ram = vera({ name: 'राम', terms: ['राम'] });
+
+    expect(mentionSpans('उसने रामायण पढ़ी', 'output', [ram])).toEqual([]);
+    expect(mentionSpans('राम घर गया', 'output', [ram])).toHaveLength(1);
+  });
+
+  /**
    * *Case-insensitive*, which differs from the lore-entry scanner and is right
    * here: an alias is a **name**, and a narrator writing it at the start of a
    * sentence has not named somebody else.

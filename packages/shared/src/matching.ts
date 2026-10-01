@@ -33,8 +33,19 @@ import type { LoreEntry } from './schema/lorebook.js';
  * scanner would catch it.
  */
 
-/** Characters that count as being inside a word, for whole-word matching. */
-const WORD = /[\p{L}\p{N}_]/u;
+/**
+ * Characters that count as being inside a word, for whole-word matching.
+ *
+ * ***Combining marks included*** (2026-09-30) — UAX #29's WB4, *a mark belongs
+ * to the character before it*, and the definition `turns/speakers.ts` already
+ * reads names with, so the engine has one idea of a word rather than two.
+ * Without `\p{M}` a vowel sign was a boundary: in Devanagari, *राम* matched
+ * inside *रामायण*, because the *ा* after it is a mark, not a letter — so a lore
+ * key fired inside a longer word, and a name was found (and scrubbed from a
+ * picture's prompt) inside another. Latin text written decomposed has the same
+ * seam at every accent.
+ */
+const WORD = /[\p{L}\p{M}\p{N}_]/u;
 
 /**
  * ***Where something is in a text, and nothing about what*** — named at
@@ -103,9 +114,9 @@ export function literalSpans(
   const spans: Span[] = [];
   let at = hay.indexOf(needle);
   while (at !== -1) {
-    const before = at === 0 ? '' : hay.charAt(at - 1);
-    const after = hay.charAt(at + needle.length);
-    const bounded = !isWordCharacter(before) && !isWordCharacter(after);
+    const bounded =
+      !isWordCharacter(codePointBefore(hay, at)) &&
+      !isWordCharacter(codePointAt(hay, at + needle.length));
     if (!options.wholeWords || bounded) {
       spans.push({ start: at, end: at + needle.length });
       at = hay.indexOf(needle, at + needle.length);
@@ -114,6 +125,25 @@ export function literalSpans(
     }
   }
   return spans;
+}
+
+/**
+ * ***The whole character on each side of a match*** (2026-09-30), not the
+ * UTF-16 unit `charAt` gave: a letter outside the Basic Multilingual Plane —
+ * CJK's extensions, a historic script — is two units, and either half alone
+ * fails `\p{L}`, so such a letter beside a match read as a boundary.
+ */
+function codePointBefore(text: string, at: number): string {
+  if (at === 0) return '';
+  const low = text.charCodeAt(at - 1);
+  const high = at >= 2 ? text.charCodeAt(at - 2) : 0;
+  const pair = low >= 0xdc00 && low <= 0xdfff && high >= 0xd800 && high <= 0xdbff;
+  return text.slice(pair ? at - 2 : at - 1, at);
+}
+
+function codePointAt(text: string, at: number): string {
+  const point = text.codePointAt(at);
+  return point === undefined ? '' : String.fromCodePoint(point);
 }
 
 /** Whether a literal term appears at all — the boolean the retriever asks for. */
