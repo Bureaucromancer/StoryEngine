@@ -1390,7 +1390,10 @@ type SlotSource =
    *  everyone present under `merged` or on a narrator's call. It is what a
    *  card's own prompts and example dialogue need ([P14 §1.5]), and it is not
    *  a partition with the other two. */
-  | { of: "lore"; phase: "before" | "after" }
+  /** `outlet` since [P5.6](workplan/17-p5-implementation.md) (written in
+   *  2026-10-01): an outlet a lore entry names, positioned by this slot —
+   *  matched exactly; absent is the ordinary entries for the phase. */
+  | { of: "lore"; phase: "before" | "after"; outlet?: string }
   | { of: "history" }
   /** Writing samples — §3.1, [14 §4](14-writing-samples.md). **Renamed from
    *  `examples`**, which named ST's `mes_example` rather than the thing it
@@ -1399,6 +1402,12 @@ type SlotSource =
    *  treatment → lore → actor. */
   | { of: "samples"; from?: "actor" | "treatment" | "lore"; scope?: "speaker" | "others" | "voiced" }
   | { of: "channel"; channelId: ChannelId }
+  /** ([P14.5a](workplan/31-p14-scene-and-session-import.md); written in
+   *  2026-10-01.) What the story has established: every channel that declares
+   *  itself established state, scoped values included, as one block — not one
+   *  `channel` slot each, because a character tracker is a value per
+   *  character. Added rather than substituted; an older build skips it. */
+  | { of: "state" }
   | { of: "treatment"; part: "framing" | "tone" }
   /** *Added 2026-09-30.* A text answer the session was set up with —
    *  `mode.config[field]`, from the mode's wizard or the Setup it began from —
@@ -1408,6 +1417,14 @@ type SlotSource =
    *  prompt. A widening of this closed union, recorded as one. */
   | { of: "setup"; field: string }
   | { of: "goal" }                          // [06 §7.3.3]
+  /** ([P7.8](workplan/23-p7-implementation.md); written in 2026-10-01.) The two
+   *  dials' prose: the engine resolves which level, and the slot says where
+   *  its fragments go — one candidate per fragment, so a cap drops the
+   *  lowest-ranked rather than cutting one. Two arms because the two are
+   *  separable ([06 §7.3.2]); a preset with no levels fills them with nothing,
+   *  and says why. */
+  | { of: "difficulty" }
+  | { of: "directedness" }
   /** The guidance slot. [06 §5.1] positions this one by preset explicitly; the
    *  producer is recorded on the block, not chosen by the slot. */
   | { of: "guidance" }
@@ -1420,10 +1437,15 @@ type SlotSource =
   /** The player's current action — not `history`, which is turns that already
    *  happened. Every preset decides where it sits relative to the lore. */
   | { of: "input" }
-  // (2026-09-30) Behind the schema: `summary` ([P8.1]), `difficulty` and
-  // `directedness` ([P7.8]) and `state` ([P14.5a]) are arms of the shipped
-  // `SlotSource` this list never gained. Recorded with the audit's record
-  // items rather than written in here piecemeal.
+  /** ([P8.1](workplan/25-p8-implementation.md); written in 2026-10-01.) The
+   *  story above the history window, as a chain of summaries, one candidate
+   *  per link — not a bigger `history`, which is the window's verbatim turns;
+   *  the two never overlap. */
+  | { of: "summary" }
+  // ~~(2026-09-30) Behind the schema: `summary`, `difficulty`, `directedness`
+  // and `state` are arms of the shipped `SlotSource` this list never gained.~~
+  // Written in 2026-10-01 (the audit's record, [main audit §4](workplan/32-main-audit.md)),
+  // with lore's `outlet`, which it had not gained either.
 
 // SlotSource is BlockSource ([21 §1.1](21-internal-contracts.md)) minus its ~~two~~
 // three assembler-only origins — `preset`, because a preset's own prose *is* a
@@ -1432,7 +1454,13 @@ type SlotSource =
 // 2026-09-29, at P14.2) `round`, this turn's earlier speakers' replies, which
 // the collector places after the input and no pack positions. One vocabulary, used
 // from both ends: a slot names a source, the assembler fills it, and the block
-// it produces records the same source back.
+// it produces records the same source back. *(2026-10-01)* **Five**, by the
+// server's own derivation (`assembly/types.ts`): `note` (P14.3) and `continue`
+// (P14.4) joined `preset`, `step` and `round`. And the correspondence is by
+// meaning rather than by shape — a slot's `{ of }` is what its block records as
+// `{ kind }`, except that both dial arms record one `difficulty` source whose
+// `axis` says which, and `schema`, the engine's own JSON instruction, is
+// recorded by no slot at all.
 
 /** Prose the preset author wrote. */
 interface TextBlock extends BlockCommon {

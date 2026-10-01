@@ -202,7 +202,12 @@ it:
   second send continues the line from the head, which is precisely the thing a
   branch is not. **The difference does not appear in a request count** — both
   shapes post one turn — so a test written the wrong way passes, and what it
-  then protects is the wrong claim.
+  then protects is the wrong claim. *(2026-10-01, `d66ad2b`: still Redo, and
+  since P14 the alternatives are counted on the message they differ at, so the
+  step reads the message's* Previous reply *rather than the turn strip's*
+  Previous version*. The journeys were red on `main` from P14 until then —
+  that, and the transcript collapsing under P14's controls at 1280×720 — and
+  nobody saw, because CI had not run since K.)*
 - ***Open the workbench* needs an assertion about what is in it.** The dock's
   landmark role is a claim an empty panel satisfies, and an empty workbench over
   a turn that happened is exactly the wiring failure this tier exists to catch.

@@ -1855,6 +1855,14 @@ It buys three things, the third of which is the interesting one:
   actually write?" becomes answerable. No source offers this, and it is a real
   trust feature rather than a novelty.
 
+*A known gap, recorded 2026-09-27 (`c3522f4`):* **the map keeps a path whose
+row has gone.** Remove an actor's sample, a lorebook's entry or a hook, and its
+`generated` entries stay in the file, keyed by a path nothing has any more — and
+a reader that walks the map, such as the library-wide view above, would count
+them. Pruning needs a per-kind map from form paths to object paths (an actor's
+`sections.<id>` is `profile.sections` on disk), which is why it waited; a late
+assist answering a removed row is one more way in.
+
 ### 11.2a Version history, in every editor
 
 Every library object keeps an edit history automatically

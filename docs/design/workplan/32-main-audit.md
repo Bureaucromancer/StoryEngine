@@ -20,7 +20,7 @@ this document, and it is short on purpose: the commits are the detail.
 
 **Two facts came before anybody read a line.** `main`'s CI had been red for
 seventeen runs: Windows since 2026-09-15 (`system-library.test.ts`, `EBUSY` on
-`index.sqlite`), Linux since P10.3b on 2026-09-16 (the runner is a systemd
+`index.sqlite`), Linux since P10.3's restart work on 2026-09-16 (the runner is a systemd
 service, and `supervisionOf(process.env)` inherited its `INVOCATION_ID`). Every
 merge since 2026-09-15 had landed on a red gate, and every named gate step after
 `pnpm test` read *skipped* the whole time. And the checkout the audit was
@@ -94,8 +94,13 @@ commit and each reversible:
   (`263ddcc`).
 - **The SDK's step-side cast member is `StepCastMember`** (`09f35b3`), not
   `CastEntry`, which shadowed the treatment's row of that name.
-- **A2.S2 stays a recorded decision**: the assistant pack's priority order was
-  not changed, because no test showed the inversion biting.
+- **A dial's fragments are budgeted at their block's priority** and ranked
+  within it by their order (A2.S2). So a fragment its pack ranks at 30 can
+  outlive the persona at 70 — though only once the budget has dropped
+  everything ranked below the block. `collect.ts` documents it as deliberate,
+  and no test showed it biting, so it stands as that decision rather than as
+  the lower of the two numbers. [21 §1.1](../21-internal-contracts.md) says so
+  beside the record's `difficulty` source.
 
 ---
 
@@ -218,15 +223,44 @@ commit message, and a message cannot be struck:
 - `78c6c8d`'s says CI's runs *"165 onward"* were its first real ones since K.
   Run 155 was (§6).
 
-**The corrections inside other documents** — dated where they stand, and no
-gate step edited — land in their own commit, and are listed here when they do.
+**And inside the documents themselves**, each dated where it stands, and no
+gate step edited (`2026-10-01`, the commit after the one that wrote this
+document):
+
+- [Manual testing](05-manual-testing.md): M6 (the quarantine did not retire
+  manual gate §3.5 until `3f97526`), B9 (its third clause was false until
+  `868384f`), O3 (no generated backdrop was drawn until `75f88d0`), R3 (the
+  assistant's context and proposals, `4aed877` and `0ceb5ff`), S1 to S5
+  (restore, refusal and import underneath them, and S2's undo path), and the
+  §5 rows for P9's money row and P11's journeys.
+- [P7B §3.2](24-p7b-presets-and-prompts.md)'s row 15 and
+  [manual gate §3.5](11-p2-manual-gate.md), for the quarantine.
+- [P9 §3.2](26-p9-implementation.md)'s row 10: true of the count, not the
+  step, until `75f88d0`.
+- [P11 §3.2](28-p11-implementation.md)'s rows 4 and 8, and a paragraph the
+  docs-lorebook commit had pasted into its record twice.
+- [Testing §3.5](03-testing.md)'s *branch is Redo*, since P14's chat.
+- [P2A](09-p2a-configuration-surface.md)'s walk of step 15, and
+  [P12](29-p12-implementation.md)'s P12.12 *Ends at*, for the undo's path.
+- [P13 §0.5](30-p13-aventuras-import.md) and its P13.6 record, for the
+  re-minted tag.
+- [P7](23-p7-implementation.md) and [19 §10](../19-tech-stack.md), for the
+  per-mode deploys that failed every build from P7.0; and [19 §9](../19-tech-stack.md)
+  for the `fs` ban's `import()` gap.
+- [04 §8.2](../04-schemas.md) and [21 §1.1](../21-internal-contracts.md): the
+  slot and block sources written in — `state`, `difficulty`, `directedness` and
+  `summary` in the first; `state`, `difficulty`, `summary`, `schema` and
+  `continue` in the second; lore's `outlet` and `bookId` and preset's
+  `presetId` — and both derivations corrected to the five a slot cannot name,
+  as `preset.ts`'s docstring is.
+- [10 §11.2](../10-ui-surfaces.md), for the `generated` map's known gap.
 
 ---
 
 ## 5. What it left, and where
 
 - **The `generated` map keeps paths whose rows are gone** (deferred at
-  `ff675e0`). An actor's `sections.<id>` is `profile.sections` on disk, so
+  `c3522f4`; [10 §11.2](../10-ui-surfaces.md) now says so). An actor's `sections.<id>` is `profile.sections` on disk, so
   pruning needs a per-kind map from form paths to object paths. Already true of
   any removal before the audit; a late assist is one more way in.
 - **The `import()` half of the `fs` ban** (`d7ac703`). A dynamic import of
@@ -236,7 +270,8 @@ gate step edited — land in their own commit, and are listed here when they do.
   question to the owner at [25 B16](../25-open-questions.md), before the first
   release that exports native objects.
 - **A renamed Aventuras tag is minted again by a re-sweep** of the same
-  database — P13's ([P13](30-p13-aventuras-import.md)), found at `921de13`.
+  database — P13's, found beside `921de13` and recorded in
+  [P13 §0.5](30-p13-aventuras-import.md).
 - **`30d1e96`'s subject overstates**: only `isAdopted` became the real path;
   `resolveWorld` stays a test seam, documented as one.
 - **The entry budget's remedy** — the first `React.lazy`, or the note sentences

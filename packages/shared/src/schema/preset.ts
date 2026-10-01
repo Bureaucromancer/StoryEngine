@@ -138,9 +138,13 @@ export type ActorScope = Static<typeof ActorScope>;
  * channels — which is one of the four reasons this schema is `/0` (§8.5).
  *
  * This is `BlockSource` ([21 §1.1](../../../../docs/design/21-internal-contracts.md)) minus
- * its two assembler-only origins: `preset`, because a preset's own prose *is* a
+ * its ~~two~~ assembler-only origins: `preset`, because a preset's own prose *is* a
  * TextBlock rather than a reference to one, and `step`, because a step's
- * contribution did not exist when the preset was authored.
+ * contribution did not exist when the preset was authored — ***and since P14,
+ * `round`, `note` and `continue`***, five in all, which is what the server's
+ * `assembly/types.ts` derives (2026-10-01). By meaning rather than by shape: an
+ * `{ of }` here is what its block records as `{ kind }`, except that the two
+ * dial arms record one `difficulty` source, and `schema` is recorded by no slot.
  */
 export const SlotSource = Type.Union(
   [

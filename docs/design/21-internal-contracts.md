@@ -49,7 +49,9 @@ type BlockSource =
   /** contentHash since P3.0 — the cast is a link read fresh each turn, so the
    *  id resolves to the actor as it is now; the hash to the actor as sent. */
   | { kind: "actor"; actorId: ActorId; contentHash: string; sectionId?: string; field?: "traits" | "visual" }
-  | { kind: "lore"; entryId: string; phase: "before" | "after" }
+  /** `bookId` since [P8.4] (written in 2026-10-01): the book an entry came
+   *  from, so a memory book's entry names its origin; absent before then. */
+  | { kind: "lore"; entryId: string; phase: "before" | "after"; bookId?: string }
   /** turnId is the identity (P3.0); the window-relative range stays as display
    *  information — where in this prompt the turn sat. `part` is which half of
    *  the turn, and `attachment` (2026-09-27, [25 E15]) is one picture on its
@@ -62,11 +64,23 @@ type BlockSource =
    *  carries one — the carrier is a link read fresh every turn. */
   | { kind: "samples"; owner: { kind: "actor" | "treatment" | "lore"; id: string; contentHash: string }; sampleId: string }
   | { kind: "channel"; channelId: ChannelId }
+  /** ([P14.5a](workplan/31-p14-scene-and-session-import.md); written in
+   *  2026-10-01.) What the story has established: every channel declaring
+   *  itself established state, scoped values included, as one block; `keys`
+   *  names the channels it read. */
+  | { kind: "state"; keys: string[] }
   | { kind: "treatment"; part: "framing" | "tone" }
   /** *Added 2026-09-30*, with the slot of the same name ([04 §8.2]): a text
    *  answer the session was set up with; `field` is the wizard field's id. */
   | { kind: "setup"; field: string }
   | { kind: "goal"; goalId: string }
+  /** ([P7.8](workplan/23-p7-implementation.md); written in 2026-10-01.) One
+   *  fragment of a dial's level — the `difficulty` and `directedness` slots
+   *  both record here, `axis` saying which; `fragmentIndex` is its place in
+   *  the level, which has no ids. Each fragment is budgeted at its block's
+   *  priority and ranked within it by its order — deliberate, and recorded as
+   *  a decision by [main audit §2](workplan/32-main-audit.md). */
+  | { kind: "difficulty"; axis: "difficulty" | "directedness"; levelId: string; fragmentIndex: number }
   /** The guidance slot ([06 §5.1](06-modes-and-turn-pipeline.md)). `producer` because that
    *  section is explicit that one slot has several — the user's box, a rule's
    *  `giveGuidance`, a Narrative Director push — and the workbench should be
@@ -81,8 +95,19 @@ type BlockSource =
    *  and this is the one that is happening. With `part: "attachment"`, one
    *  picture on it ([25 E15]); absent is the words. */
   | { kind: "input"; part?: "attachment"; attachmentId?: string }
-  // ── ~~The two~~ ~~The three~~ The four a slot can never name, because no preset positions them ──
-  | { kind: "preset"; blockId: string }   // a TextBlock: authored prose
+  /** ([P8.1](workplan/25-p8-implementation.md); written in 2026-10-01.) One
+   *  link of the summary chain: `linkKey` is its content address, `range` the
+   *  stretch of story it covers. One candidate per link, so the budgeter drops
+   *  the oldest stretch first. */
+  | { kind: "summary"; linkKey: string; range: [number, number] }
+  /** ([P7.4](workplan/23-p7-implementation.md); written in 2026-10-01.) The
+   *  engine's own JSON instruction, for an endpoint that cannot be handed a
+   *  schema — protocol rather than content, and named by no slot. */
+  | { kind: "schema" }
+  // ── ~~The two~~ ~~The three~~ ~~The four~~ The five a slot can never name, because no preset positions them ──
+  /** `presetId` since P4.4 (written in 2026-10-01): the preset the block was
+   *  authored in, which a session's copy keeps. */
+  | { kind: "preset"; blockId: string; presetId?: string }   // a TextBlock: authored prose
   | { kind: "step"; stepId: StepId }      // contributed at runtime
   /** ([P14.2](workplan/31-p14-scene-and-session-import.md), corrected
    *  2026-09-29.) One reply of a round that has not been committed yet — an
@@ -94,10 +119,13 @@ type BlockSource =
    *  session's author's note, placed by the collector at its own depth on
    *  every `every`-th input — never by a pack. */
   | { kind: "note" }
-  // (2026-09-30) Behind the shipped type: `summary` ([P8.1]), `schema`
-  // ([P7.4]), `difficulty` ([P7.8]), `state` ([P14.5a]) and `continue`
-  // ([P14.4]) are arms of `BlockSource` this list never gained. Recorded with
-  // the audit's record items rather than written in here piecemeal.
+  /** ([P14.4](workplan/31-p14-scene-and-session-import.md), 2026-09-29;
+   *  written in 2026-10-01.) The continue nudge, which the engine puts last. */
+  | { kind: "continue" }
+  // ~~(2026-09-30) Behind the shipped type: `summary`, `schema`, `difficulty`,
+  // `state` and `continue` are arms of `BlockSource` this list never gained.~~
+  // Written in 2026-10-01 (the audit's record, [main audit §4](workplan/32-main-audit.md)),
+  // with lore's `bookId` and preset's `presetId`, which it had not gained either.
 ```
 
 **`preset` and `step` are the asymmetry**, and naming it is the point. A slot
@@ -115,7 +143,12 @@ to opt into would be a round in which each member answered the player alone.
 `note`, the author's note, is the fourth, for the round's second reason — a
 note a pack had to position would be a setting that did nothing in every pack
 written before it. The `history` arm gained an optional `message` index at the
-same stage, for a turn's `output.messages` entries.
+same stage, for a turn's `output.messages` entries. *And at
+[P14.4](workplan/31-p14-scene-and-session-import.md), 2026-09-29* (written in
+here 2026-10-01): `continue`, the nudge the engine puts last, is the fifth —
+which is what `assembly/types.ts` excludes. `schema`, the engine's own JSON
+instruction, is named by no slot either, and the derivation leaves it in: no
+pack arm can produce it, so excluding it would guard nothing.
 
 **`guidance` and `input` were added at P2.5, and their absence was a real
 gap rather than an omission.** [06 §5.1](06-modes-and-turn-pipeline.md) says the guidance

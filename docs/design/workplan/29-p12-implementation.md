@@ -499,8 +499,9 @@ that moved aside **is** the undo, and *your previous data is safe* without
 saying where would be worse than saying nothing.
 
 *Ends at:* a restored install serves the sessions the archive was taken from,
-with the index rebuilt rather than carried — and `data.replaced-<uuid>` sitting
-beside it, which is the undo.
+with the index rebuilt rather than carried — and ~~`data.replaced-<uuid>`
+sitting beside it~~ `.restore/<id>/replaced` inside it *(2026-09-27, as above)*,
+which is the undo.
 
 ### P12.13 — The restore control, and Part 2's corpus
 

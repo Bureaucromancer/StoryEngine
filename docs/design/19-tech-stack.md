@@ -719,7 +719,10 @@ Given the threat model in [09 §4.1](09-server-multiuser-deployment.md):
 - **CSRF token on state-changing routes.**
 - **One audited path-resolution helper** used by every filesystem-touching route
   — the single most important piece of security code in the project, per
-  [10 §4.4](10-ui-surfaces.md).
+  [10 §4.4](10-ui-surfaces.md). *The lint rule that keeps `fs` behind it has a
+  known gap (2026-10-01, `d7ac703`):* it catches a static import of `fs` outside
+  the storage layer and not a dynamic `import('node:fs')`, which would need the
+  rule's fs-aware syntax restated in every block of it.
 
 An identity-provider interface should exist from the start even with one
 implementation, so Tailscale identity ([09 §5.2](09-server-multiuser-deployment.md))
@@ -751,9 +754,11 @@ builds, and no stage had said where it lands; it lands here.
 
 And `modes/scene/` is real as of P7.0 rather than aspirational. Its package is
 named **`@storyengine/mode-scene`** — the class is in the name so that the
-distribution's manifest, the image's deploy steps and the loader's built-in list
-can be checked against each other rather than maintained in parallel
-(`tools/repo-shape.test.ts`). *The nesting is one level deeper than the other
+distribution's manifest, ~~the image's deploy steps~~ the builds' import of each
+mode from the deployed tree *(2026-10-01, `c79926d`: a per-mode deploy failed
+every image and tarball build from P7.0 on, because the server's own deploy
+already carries them)* and the loader's built-in list can be checked against
+each other rather than maintained in parallel (`tools/repo-shape.test.ts`). *The nesting is one level deeper than the other
 packages, which is not free: `packages/*` globs in `vitest.config.ts` and
 `eslint.config.js` do not reach it, and the first of those fails silently — a
 mode test that lints, typechecks and never runs. That file has the measurement.*

@@ -2028,7 +2028,9 @@ the manner this paragraph asked for and in `tools/` rather than in
 the lint rules. It also covers three drifts this paragraph did not name and
 neither `pnpm lint` nor `pnpm typecheck` can: a mode in the server's *manifest*
 (eslint reads imports, not manifests), a mode in the server's tsconfig
-references, and a built-in in the loader's list that the image does not deploy.
+references, and a built-in in the loader's list that the image does not ~~deploy~~
+carry *(2026-10-01: the builds import each mode from the deployed tree rather
+than deploying it — see the correction above)*.
 
 ### P7.1 — Channels as a general mechanism
 
@@ -4034,7 +4036,9 @@ and `packages/server/src/modes/` gone, with a check that fails if it returns.
 `@storyengine/sdk` from its first line by something that could not reach past it.
 The five-place workspace edit is done — the workspace glob already admitted
 `packages/modes/*`, and the root dependency, both tsconfig references,
-`BUILT_IN_MODE_PACKAGES` and the `Dockerfile` deploy step are new — and
+`BUILT_IN_MODE_PACKAGES` and the `Dockerfile` deploy step are new *(the deploy
+step failed every build from here on and was replaced by an import check,
+2026-10-01, `c79926d`)* — and
 `tools/repo-shape.test.ts` runs its boundary probes against both packages now,
 which is the *"an import from a mode package to `server` fails the build rather
 than a review"* half of gate step 1 covering a package nobody wrote it for.

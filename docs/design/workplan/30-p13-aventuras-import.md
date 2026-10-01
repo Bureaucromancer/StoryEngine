@@ -295,6 +295,13 @@ which a rebuild or a correction recovers without anything having been lost.
   Aventuras seeds the table from its objects' tags only while it is empty
   (`ensureTagsMigrated`), so an object can carry a name the table never had;
   tags are open, so it renders neutral, and nothing is lost.
+- **A minted tag renamed here is minted again by the next sweep** — found
+  2026-09-30, beside the tag rename that asks first (`921de13`). The merge
+  matches a `vault_tags` row by name (`sameTag`), and the registry entry it
+  minted now carries the new name, so the same database swept again mints the
+  old name beside it; nothing ties a minted entry to the row it came from.
+  Recorded for P13, whose record says a second sweep mints nothing — which
+  holds while nobody has renamed what the first one minted.
 - **Neither zip reader checks CRCs** — noted at P13.8. Both trust the inflate
   and the database's own `quick_check` afterwards; recorded in
   `storage/zip-file.ts`'s header.
@@ -817,7 +824,8 @@ here, lands on a different swatch. Rows report `converted` when their tag is
 new to the sweep and `unchanged` otherwise, with no `objectId`. No imported
 object carries `tagIds`. `SweepRequest.tags` is required, and every door that
 sweeps passes it. *Ended at:* a second sweep is all `unchanged`, mints nothing
-and writes nothing. ~~[§1.8](#18-tags-merge-and-are-never-adopted).
+and writes nothing *(while nobody has renamed a tag it minted — §0.5, found
+2026-09-30)*. ~~[§1.8](#18-tags-merge-and-are-never-adopted).
 `SweepRequest` gains the tag store.~~
 
 ### ~~P13.7 — The other transports~~ Done
