@@ -57,12 +57,23 @@
 
   /* One action colour. `on-accent` exists for the second theme's sake: the
      accent flips from dark-on-light to light-on-dark, so a button that spells
-     its label `text-white` is a button that breaks. */
-  --color-accent: var(--color-slate-800);
-  --color-accent-hover: var(--color-slate-700);
-  --color-accent-muted: var(--color-slate-400);
+     its label `text-white` is a button that breaks.
+
+     **Indigo, not ink** (2026-10-01, polish 6). The accent was slate-800 —
+     the same family as every word on the page, one step off the darkest ink —
+     so a primary button read as a heavier paragraph, and a selected chip, the
+     lorebook's drop line and the keyboard's ring were all more grey on grey.
+     The one colour that means *you can do this* is a colour now. The steps
+     keep the slate ones' lightness where it mattered: `muted` sits where
+     slate-400 did, so a disabled button looks exactly as disabled as it did,
+     and `focus` stays the mid-ramp step that clears 3:1 against every
+     surface. contrast.test.ts measures the label on the fill and the ring and
+     the accent against the surfaces, in both themes. */
+  --color-accent: var(--color-indigo-700);
+  --color-accent-hover: var(--color-indigo-600);
+  --color-accent-muted: var(--color-indigo-400);
   --color-on-accent: var(--color-white);
-  --color-focus: var(--color-slate-500);
+  --color-focus: var(--color-indigo-500);
 
   /* Refusal — a destruction, or a write the server rejected. */
   --color-danger: var(--color-red-700);
@@ -286,11 +297,11 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
     --color-ink-faint: var(--color-slate-400);
     --color-line: var(--color-slate-800);
     --color-line-strong: var(--color-slate-700);
-    --color-accent: var(--color-slate-200);
-    --color-accent-hover: var(--color-slate-100);
-    --color-accent-muted: var(--color-slate-700);
+    --color-accent: var(--color-indigo-300);
+    --color-accent-hover: var(--color-indigo-200);
+    --color-accent-muted: var(--color-indigo-800);
     --color-on-accent: var(--color-slate-900);
-    --color-focus: var(--color-slate-400);
+    --color-focus: var(--color-indigo-400);
     --color-danger: var(--color-red-600);
     --color-danger-ink: var(--color-red-300);
     --color-danger-line: var(--color-red-800);
@@ -358,12 +369,13 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
 
   /* The accent flips end for end — a light button on a dark page. This is what
      `on-accent` was for: every label on an accent surface follows it, and no
-     component had to know. */
-  --color-accent: var(--color-slate-200);
-  --color-accent-hover: var(--color-slate-100);
-  --color-accent-muted: var(--color-slate-700);
+     component had to know. Indigo here too, the light ramp's steps mirrored:
+     300 to fill, 200 to hover, 800 for the muted step slate-700 held. */
+  --color-accent: var(--color-indigo-300);
+  --color-accent-hover: var(--color-indigo-200);
+  --color-accent-muted: var(--color-indigo-800);
   --color-on-accent: var(--color-slate-900);
-  --color-focus: var(--color-slate-400);
+  --color-focus: var(--color-indigo-400);
 
   /* Refusal keeps its hue and swaps its role: the fill stays saturated enough
      to read as a button, while ink and surface trade ends of the ramp. */
