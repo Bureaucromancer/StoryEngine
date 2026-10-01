@@ -27,6 +27,7 @@ import { Field } from '../ui/Field.js';
 import { Fine } from '../ui/Text.js';
 import { hookState, hookWords } from './hookWords.js';
 import { disclosure } from '../ui/classes.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * The hook panel — [10 §10.1](../../../../docs/design/10-ui-surfaces.md),
@@ -185,12 +186,16 @@ function AddHook(props: { sessionId: string }): JSX.Element {
       }}
     >
       <Field label="Something you want to happen" value={title} onChange={setTitle} />
+      {/* Marked, because Add waits for it (2026-10-01, polish 9): a button
+          disabled for a reason the form does not show is a button that looks
+          broken. */}
       <Field
         label="What happens"
         value={premise}
         onChange={setPremise}
         multiline
         rows={2}
+        required
         hint="The selector decides when. It is never shown until it fires."
       />
       <div>
@@ -201,6 +206,7 @@ function AddHook(props: { sessionId: string }): JSX.Element {
           Add
         </Button>
       </div>
+      <WriteFailed error={hooks.error} />
     </form>
   );
 }
@@ -222,24 +228,27 @@ function Pacing(props: { sessionId: string; level: string }): JSX.Element {
   const level = props.level;
 
   return (
-    <label className="flex items-center gap-2 text-sm text-ink-muted">
-      <span>How often hooks fire</span>
-      <select
-        className="rounded-control border border-line bg-surface p-1 text-ink"
-        value={level}
-        disabled={write.isPending}
-        onChange={(event) => {
-          write.mutate({ key: 'se.hook.pacing', value: event.target.value });
-        }}
-      >
-        {/* The vocabulary the channel's schema accepts. A value this list did
-            not offer would be a control that produces a recorded refusal. */}
-        <option value="sparse">Rarely</option>
-        <option value="normal">Now and then</option>
-        <option value="aggressive">Often</option>
-        <option value="manual-only">Only when I say</option>
-      </select>
-    </label>
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-2 text-sm text-ink-muted">
+        <span>How often hooks fire</span>
+        <select
+          className="rounded-control border border-line bg-surface p-1 text-ink"
+          value={level}
+          disabled={write.isPending}
+          onChange={(event) => {
+            write.mutate({ key: 'se.hook.pacing', value: event.target.value });
+          }}
+        >
+          {/* The vocabulary the channel's schema accepts. A value this list did
+              not offer would be a control that produces a recorded refusal. */}
+          <option value="sparse">Rarely</option>
+          <option value="normal">Now and then</option>
+          <option value="aggressive">Often</option>
+          <option value="manual-only">Only when I say</option>
+        </select>
+      </label>
+      <WriteFailed error={write.error} />
+    </div>
   );
 }
 
@@ -341,6 +350,10 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
           }}
         />
       )}
+      {/* A commit, a release or a removal the server refused said nothing
+          (2026-10-01, polish 9) — the one panel 62787df's note claimed and
+          did not reach. */}
+      <WriteFailed error={write.error ?? hooks.error} />
     </div>
   );
 }

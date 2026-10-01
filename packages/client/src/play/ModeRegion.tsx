@@ -5,10 +5,10 @@ import type { JSX } from 'react';
 
 import type { ModeAction, ModeSurface } from '../api.js';
 import { useRunStep, useWriteChannel } from '../queries.js';
-import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { labels } from '../i18n/catalogue.js';
 import { Meter, RecordCard } from './RecordCard.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * What a mode asked to have shown, in the region it asked for —
@@ -157,7 +157,7 @@ export function ModeActions(props: {
           {ACTION_WORDS.nothing}
         </span>
       ) : null}
-      {run.isError ? <AlertNote role="alert">{ACTION_WORDS.failed}</AlertNote> : null}
+      <WriteFailed error={run.error} otherwise={ACTION_WORDS.failed} />
     </div>
   );
 }
@@ -240,16 +240,21 @@ function Toggle(props: { surface: ModeSurface; sessionId: string }): JSX.Element
   const write = useWriteChannel(props.sessionId);
 
   return (
-    <label className="flex items-center gap-2 text-sm text-ink-muted">
-      <input
-        type="checkbox"
-        checked={props.surface.on ?? false}
-        disabled={write.isPending}
-        onChange={(event) => {
-          write.mutate({ key: props.surface.key, value: event.target.checked });
-        }}
-      />
-      <span>{props.surface.label}</span>
-    </label>
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-2 text-sm text-ink-muted">
+        <input
+          type="checkbox"
+          checked={props.surface.on ?? false}
+          disabled={write.isPending}
+          onChange={(event) => {
+            write.mutate({ key: props.surface.key, value: event.target.checked });
+          }}
+        />
+        <span>{props.surface.label}</span>
+      </label>
+      {/* A switch that sprang back said nothing about why (2026-10-01,
+          polish 9). */}
+      <WriteFailed error={write.error} />
+    </div>
   );
 }

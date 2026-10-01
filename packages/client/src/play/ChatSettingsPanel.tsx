@@ -6,12 +6,12 @@ import { useEffect, useState, type JSX } from 'react';
 import type { ChatSettings, SpeakerPolicy } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { useLibrary, useSession, useSetChatSettings } from '../queries.js';
-import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
 import { disclosure } from '../ui/classes.js';
 import { CardPrompts } from './CardPrompts.js';
 import { ModeRegion } from './ModeRegion.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * ***How this chat plays*** —
@@ -259,7 +259,7 @@ function Settings(props: {
 
         {props.declared}
 
-        {write.isError ? <AlertNote role="alert">{WORDS.failed}</AlertNote> : null}
+        <WriteFailed error={write.error} otherwise={WORDS.failed} />
       </div>
     </details>
   );

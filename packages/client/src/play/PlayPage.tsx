@@ -2,8 +2,9 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { control, page, reveal } from '../ui/classes.js';
+import { control, link, page, reveal } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 
 import { outputMessagesOf, remedyFor, uuidv7 } from '@storyengine/shared';
 import type { StepFailureReason, TextSpan } from '@storyengine/shared';
@@ -35,6 +36,7 @@ import {
   usePreview,
   useRefreshPreview,
   useIllustrateTurn,
+  useMyRoles,
   useRenditions,
   useRetryRendition,
   useSelectRendition,
@@ -87,9 +89,10 @@ import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
-import { Fine, SectionTitle } from '../ui/Text.js';
+import { Note, SectionTitle } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
+import { writeFailed } from './WriteFailed.js';
 
 import { labels } from '../i18n/catalogue.js';
 
@@ -120,6 +123,15 @@ const HELD_WORDS: Record<'no-binding' | 'no-moment' | 'no-place', string> = labe
     'no-place': 'The story has not said where this is yet, so there is no place to draw.',
   },
 );
+
+/**
+ * A request that failed outright — not a held answer, which is a 200 — read by
+ * class: `busy` says to wait for the turn, anything else that it could not
+ * start. Both said where it was asked (`illustrateNote`), 2026-10-01.
+ */
+const ILLUSTRATE_WORDS = labels('play.rendition.request', {
+  failed: 'That picture could not be started.',
+});
 
 /**
  * The play surface — a deliberately thin chat view
@@ -296,6 +308,26 @@ export function PlayPage({
    * setting somebody has not done yet look like a fault.
    */
   const held = illustrate.data?.held;
+  /**
+   * ***The answer goes where the question was asked*** (2026-10-01, polish 9).
+   * Both buttons ask the same route — *Set the scene* for the head with
+   * `purpose: 'background'`, each turn's *Illustrate* for that turn — and the
+   * answer was drawn only beside *Set the scene*: an Illustrate pressed forty
+   * turns down was answered at the top of the page, or, in a mode with no
+   * stage and so no *Set the scene*, nowhere. And a request that failed
+   * outright said nothing in either place. So the note is matched to the
+   * request it answers, by purpose and by turn.
+   */
+  const illustrateNote = (
+    purpose: 'background' | 'illustration',
+    turnId?: string,
+  ): string | null => {
+    const asked = illustrate.variables;
+    if (asked?.purpose !== purpose) return null;
+    if (purpose === 'illustration' && asked.turnId !== turnId) return null;
+    if (illustrate.isError) return writeFailed(illustrate.error, ILLUSTRATE_WORDS.failed);
+    return held === undefined ? null : HELD_WORDS[held];
+  };
   const picturesByTurn = renditionsByTurn(sessionId, renditions.data, state.renditions);
 
   const running = state.status === 'running';
@@ -1145,7 +1177,7 @@ export function PlayPage({
           >
             Set the scene
           </Button>
-          {held === undefined ? null : <Fine>{HELD_WORDS[held]}</Fine>}
+          <IllustrateNote note={illustrateNote('background')} />
         </div>
       )}
 
@@ -1182,6 +1214,7 @@ export function PlayPage({
             onIllustrate={(turnId) => {
               illustrate.mutate({ turnId, purpose: 'illustration' });
             }}
+            illustrateNote={illustrateNote('illustration', turn.id)}
             turn={turn}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
             swipes={transcript.data?.swipes?.[turn.id]}
@@ -1255,6 +1288,8 @@ export function PlayPage({
           {`${String(abandoned.turns)} ${abandoned.turns === 1 ? 'turn is' : 'turns are'} no longer on this line, and ${String(abandoned.escapedEffects)} ${abandoned.escapedEffects === 1 ? 'thing it wrote' : 'things they wrote'} outside the session ${abandoned.escapedEffects === 1 ? 'stays' : 'stay'} written — memories are kept where they were saved.`}
         </AlertNote>
       )}
+
+      <NoModelYet />
 
       <form
         className="flex flex-col gap-2"
@@ -1707,6 +1742,7 @@ function TurnView({
   onSelectRendition,
   illustrating,
   onIllustrate,
+  illustrateNote,
 }: {
   turn: TurnRecord;
   siblings: string[];
@@ -1740,6 +1776,8 @@ function TurnView({
   /** Whether this session makes pictures at all — [06 §10.6]. */
   illustrating: boolean;
   onIllustrate: (turnId: string) => void;
+  /** What the last Illustrate pressed on this turn answered, if it was this one. */
+  illustrateNote: string | null;
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
   // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
@@ -1933,6 +1971,7 @@ function TurnView({
             Illustrate
           </Button>
         ) : null}
+        <IllustrateNote note={illustrateNote} />
         {/* ***Remember this*** — [08 §2.1], [P8.3]'s cut form. Beside the other
             per-message gestures because that is what it is: a thing you do to
             one message, on the message. */}
@@ -2385,4 +2424,37 @@ function pushOf(turn: TurnRecord): { push?: 'natural' | 'random' } {
   const push: unknown = turn.steps?.find((step) => step.stepId === 'se.scene.direct')?.direction
     ?.push;
   return push === 'natural' || push === 'random' ? { push } : {};
+}
+
+/** An illustrate request's answer, where it was asked — or nothing. */
+function IllustrateNote(props: { note: string | null }): React.JSX.Element | null {
+  return props.note === null ? null : <Note role="status">{props.note}</Note>;
+}
+
+/**
+ * ***Said before the first Send, not after it*** (2026-10-01, polish 9).
+ *
+ * A fresh install has no model bound to write with, and the play page waited
+ * for somebody to type a move and press Send to say so — as a failed turn, in
+ * the transcript, after the fact. The roles answer already knows: a `prose` row
+ * that is not `ok` is every turn this page could take failing the same way. So
+ * it says so above the box, with the way to Settings, and says nothing once a
+ * model is there.
+ *
+ * `prose` alone, deliberately: it is the role every mode's turn writes with
+ * (P2C's fallback chain ends there), and the others — a picture, a summary —
+ * fail on their own, later, in their own places.
+ */
+function NoModelYet(): React.JSX.Element | null {
+  const roles = useMyRoles();
+  const prose = roles.data?.roles.find((row) => row.role === 'prose');
+  if (prose === undefined || prose.ok) return null;
+  return (
+    <AlertNote tone="warning" role="status">
+      <span>No model is set up to write with yet, so a move cannot be sent. </span>
+      <Link to="/settings" hash="my-roles" className={link.inline}>
+        Choose one in Settings
+      </Link>
+    </AlertNote>
+  );
 }

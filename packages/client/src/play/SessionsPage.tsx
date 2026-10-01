@@ -85,6 +85,14 @@ import { labels } from '../i18n/catalogue.js';
  * what is not asked for or to clear on every change, and dropping is the one
  * that does not lose work.
  */
+/** What the list says when it is not one — see the list's own comment. */
+const LIST_WORDS = labels('play.sessions-list', {
+  loading: 'Loading the sessions…',
+  failed: 'The sessions could not be read. Try reloading the page.',
+  none: 'No sessions yet. Start one above.',
+  noneShown: 'No sessions yet. Start one above — archived sessions are hidden.',
+});
+
 const routeApi = getRouteApi('/play');
 
 /**
@@ -695,6 +703,19 @@ export function SessionsPage(): React.JSX.Element {
         // Distinct from having no sessions, the Library's shelf-versus-filter
         // rule: the answer here is widening the bar, not starting one.
         <Note>No sessions of this kind.</Note>
+      ) : null}
+
+      {/* ***The list says what it is when it is not a list*** (2026-10-01,
+          polish 9). Loading, unreadable and empty all rendered the same
+          nothing: an install with no sessions yet looked exactly like a server
+          that had not answered, and a person could not tell whether to start
+          one or wait. Empty says which way the archive toggle stands, because
+          an install whose every session is archived is empty only on one side
+          of it. */}
+      {sessions.isPending ? <Note>{LIST_WORDS.loading}</Note> : null}
+      {sessions.isError ? <AlertNote role="alert">{LIST_WORDS.failed}</AlertNote> : null}
+      {sessions.data?.sessions.length === 0 ? (
+        <Note>{showArchived ? LIST_WORDS.none : LIST_WORDS.noneShown}</Note>
       ) : null}
 
       <CheckboxField

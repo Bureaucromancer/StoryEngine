@@ -8,6 +8,7 @@ import type { MemoryConfig } from '../api.js';
 import { useMemoryPanel, useSetMemoryConfig } from '../queries.js';
 import { Fine, Note } from '../ui/Text.js';
 import { disclosure } from '../ui/classes.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * ***The UI, as the requirement describes it*** —
@@ -168,11 +169,9 @@ export function MemorySection(props: { sessionId: string }): JSX.Element {
               </div>
             )}
 
-            {save.isError ? (
-              <p role="alert" className="text-sm text-danger-ink">
-                That did not save.
-              </p>
-            ) : null}
+            {/* The reason kept (2026-10-01, polish 9): *That did not save* was
+                the sentence for a turn in flight as much as for a fault. */}
+            <WriteFailed error={save.error} otherwise="That did not save." />
           </>
         )}
       </div>

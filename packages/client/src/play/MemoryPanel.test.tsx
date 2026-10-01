@@ -26,6 +26,7 @@ vi.mock('../api.js', async (importOriginal) => ({
 }));
 
 const { MemorySection } = await import('./MemoryPanel.js');
+const { ApiError } = await import('../api.js');
 
 const PANEL = {
   config: { share: true, intake: true, acrossPersonas: false, associations: {} },
@@ -72,5 +73,35 @@ describe('the memory switches', () => {
       expect(setMemoryConfig).toHaveBeenCalledTimes(2);
     });
     expect(setMemoryConfig.mock.calls[1]?.[1]).toMatchObject({ share: false, intake: false });
+  });
+});
+
+/**
+ * ***The reason kept*** — polish 9 (2026-10-01). *That did not save* was the
+ * sentence for a turn in flight as much as for a fault.
+ */
+describe('a switch the server refused', () => {
+  it('says that a turn is running rather than that it did not save', async () => {
+    setMemoryConfig.mockRejectedValue(new ApiError(409, 'busy', 'In flight.'));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemorySection sessionId="s-1" />
+      </QueryClientProvider>,
+    );
+    const fold = screen.getByText('Memories').closest('details');
+    if (fold === null) throw new Error('the memories fold is not a disclosure');
+    act(() => {
+      fold.setAttribute('open', '');
+      fold.dispatchEvent(new Event('toggle'));
+    });
+
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /Share memories from this session/ }),
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'A turn is running. Try again when it has finished.',
+    );
   });
 });

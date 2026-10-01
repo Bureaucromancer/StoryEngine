@@ -7,6 +7,7 @@ import type { CardPromptPart, ChatSettings } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { useSetChatSettings } from '../queries.js';
 import { CARD_PARTS, cardSwitch, skippedParts } from './chat.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * ***A card's own prompt fields, one switch each*** —
@@ -62,6 +63,8 @@ export function CardPrompts(props: {
           {WORDS[part]}
         </label>
       ))}
+      {/* Said, rather than a box that springs back (2026-10-01, polish 9). */}
+      <WriteFailed error={write.error} />
     </fieldset>
   );
 }

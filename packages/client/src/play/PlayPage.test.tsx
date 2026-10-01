@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -48,6 +48,8 @@ const setSessionLore = vi.fn();
 const impersonateAs = vi.fn();
 const uploadPicture = vi.fn();
 const readRenditions = vi.fn();
+const illustrateTurn = vi.fn();
+const readMyRoles = vi.fn();
 const listLibrary = vi.fn();
 const patchPrefs = vi.fn();
 let prefsStore: Record<string, unknown> = {};
@@ -83,6 +85,8 @@ vi.mock('../api.js', async (importOriginal) => {
     // Since [P9.4] the page reads the session's pictures, which is one more
     // fetch into jsdom on every test in the file if it is left real.
     readRenditions: (...a: unknown[]) => readRenditions(...a) as unknown,
+    // Polish 9: an Illustrate's answer is drawn where it was asked.
+    illustrateTurn: (...a: unknown[]) => illustrateTurn(...a) as unknown,
     // Since [P11.4] the composer offers a draft of the player's own next
     // message, which is a model call and must never be a real one here.
     impersonateAs: (...a: unknown[]) => impersonateAs(...a) as unknown,
@@ -91,6 +95,8 @@ vi.mock('../api.js', async (importOriginal) => {
     api: {
       ...actual.api,
       listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
+      // Polish 9: the page says when no model is bound, which it reads here.
+      readMyRoles: (...a: unknown[]) => readMyRoles(...a) as unknown,
       authState: () => Promise.resolve({ setupRequired: false, account: null }),
       readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
       patchPrefs: (patch: Record<string, unknown>) => {
@@ -229,6 +235,8 @@ beforeEach(() => {
   setSessionLore.mockResolvedValue({ session: SESSION });
   listLibrary.mockResolvedValue({ objects: [] });
   readRenditions.mockResolvedValue({ renditions: [], selection: {} });
+  illustrateTurn.mockResolvedValue({ held: 'no-binding' });
+  readMyRoles.mockResolvedValue(rolesWith({ role: 'prose', tier: 'hi', ok: true }));
   impersonateAs.mockResolvedValue({ text: 'I would not go in there.' });
   uploadPicture.mockResolvedValue({ digest: DIGEST, mime: 'image/webp', bytes: 12 });
   // jsdom has no object URLs; the thumbnail only needs one to exist.
@@ -237,6 +245,11 @@ beforeEach(() => {
 });
 
 const DIGEST = `sha256:${'f'.repeat(64)}`;
+
+/** A roles answer holding the rows given and nothing else. */
+function rolesWith(...roles: { role: string; tier: 'hi' | 'lo' | 'unset'; ok: boolean }[]) {
+  return { roles, connections: [], disabled: [], bindings: {}, contentHash: 'sha256:roles' };
+}
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -2239,5 +2252,62 @@ describe('the pictures when the stream comes back', () => {
     });
     expect(screen.queryByText('That did not come out.')).toBeNull();
     expect(readRenditions).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * ***The play surface answers*** — polish 9 (2026-10-01).
+ */
+describe('what the page says before and after a request', () => {
+  /**
+   * The answer to an Illustrate was drawn only beside *Set the scene* — which
+   * this session, having no stage, does not have — so the turn's own button
+   * was answered nowhere.
+   */
+  it('answers an Illustrate beside the turn it was pressed on', async () => {
+    renderPage();
+    const turn = (await screen.findByText('The door opens a handspan.')).closest('li');
+    if (turn === null) throw new Error('the turn is not a list item');
+
+    await userEvent.click(within(turn).getByRole('button', { name: 'Illustrate' }));
+
+    expect(await within(turn).findByText('Nothing is set up to make pictures yet.')).toBeTruthy();
+    expect(illustrateTurn).toHaveBeenCalledWith(SESSION.id, 'turn-1', 'illustration');
+  });
+
+  it('says why an Illustrate was refused, there too', async () => {
+    illustrateTurn.mockRejectedValue(new ApiError(409, 'busy', 'A turn is in flight.'));
+    renderPage();
+    const turn = (await screen.findByText('The door opens a handspan.')).closest('li');
+    if (turn === null) throw new Error('the turn is not a list item');
+
+    await userEvent.click(within(turn).getByRole('button', { name: 'Illustrate' }));
+
+    expect(
+      await within(turn).findByText('A turn is running. Try again when it has finished.'),
+    ).toBeTruthy();
+  });
+
+  /**
+   * A fresh install has no model to write with, and the page waited for a
+   * Send to say so — as a failed turn, after the fact.
+   */
+  it('says before the first Send that no model is bound, and where to bind one', async () => {
+    readMyRoles.mockResolvedValue(rolesWith({ role: 'prose', tier: 'hi', ok: false }));
+    renderPage();
+
+    expect(await screen.findByText(/No model is set up to write with yet/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Choose one in Settings' }).getAttribute('href')).toBe(
+      '/settings',
+    );
+  });
+
+  it('says nothing about it once a model is bound', async () => {
+    renderPage();
+    await screen.findByText('The door opens a handspan.');
+    await waitFor(() => {
+      expect(readMyRoles).toHaveBeenCalled();
+    });
+    expect(screen.queryByText(/No model is set up/)).toBeNull();
   });
 });

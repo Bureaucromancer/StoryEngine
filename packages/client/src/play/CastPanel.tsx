@@ -7,7 +7,7 @@ import type { CastRow, ChatSettings, LibraryObject } from '../api.js';
 import { formatPercent } from '../format.js';
 import { labels } from '../i18n/catalogue.js';
 import { useLibrary, useSaveObject, useSession, useSetCast, useWriteChannel } from '../queries.js';
-import { Alert, AlertNote } from '../ui/Alert.js';
+import { Alert } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import { disclosure } from '../ui/classes.js';
@@ -16,6 +16,7 @@ import { CardPrompts } from './CardPrompts.js';
 import { castBadge, isTerminalBadge, partyBadge } from './castBadge.js';
 import { canSpeak, talkativenessOf, withTalkativeness } from './chat.js';
 import { Portrait } from './Portrait.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * The panel's words, through the catalogue ([P11.8]). The status options below
@@ -38,6 +39,7 @@ const WORDS = labels('play.cast', {
   always: 'Whenever they can',
   cardPrompts: 'Card prompts',
   castFailed: 'The cast could not be changed.',
+  talkativenessFailed: 'The card could not be saved.',
 });
 
 /** The steps a talkativeness select offers: SillyTavern's slider, in tenths. */
@@ -196,7 +198,7 @@ function AddMember(props: {
           {WORDS.add}
         </Button>
       </div>
-      {cast.isError ? <AlertNote role="alert">{WORDS.castFailed}</AlertNote> : null}
+      <WriteFailed error={cast.error} otherwise={WORDS.castFailed} />
     </div>
   );
 }
@@ -366,7 +368,10 @@ function CastMember(props: {
           </div>
         </details>
       ) : null}
-      {cast.isError ? <AlertNote role="alert">{WORDS.castFailed}</AlertNote> : null}
+      <WriteFailed error={cast.error} otherwise={WORDS.castFailed} />
+      {/* The row's own writes — the mute, the status, a ruling on a refused
+          death — said nothing when refused (2026-10-01, polish 9). */}
+      <WriteFailed error={write.error} />
     </div>
   );
 }
@@ -423,6 +428,7 @@ function Talkativeness(props: {
         </select>
       </label>
       <Fine>{WORDS.talkativenessHint}</Fine>
+      <WriteFailed error={save.error} otherwise={WORDS.talkativenessFailed} />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { Button } from '../ui/Button.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { Note } from '../ui/Text.js';
 import { disclosure } from '../ui/classes.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * ***A structured value, read and edited field by field*** — the `record`
@@ -507,7 +508,7 @@ export function RecordCard(props: {
           </div>
         )}
         {refused === null ? null : <AlertNote role="alert">{refused}</AlertNote>}
-        {write.isError ? <AlertNote role="alert">{WORDS.failed}</AlertNote> : null}
+        <WriteFailed error={write.error} otherwise={WORDS.failed} />
       </div>
     </details>
   );

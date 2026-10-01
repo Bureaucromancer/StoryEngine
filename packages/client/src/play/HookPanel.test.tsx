@@ -635,3 +635,44 @@ describe('the hook panel', () => {
     });
   });
 });
+
+/**
+ * ***The panel answers*** — polish 9 (2026-10-01). A commit, a release, a
+ * removal or an add the server refused said nothing; and the premise Add waits
+ * for was not marked as needed, so the button looked broken.
+ */
+describe('what the hook panel says', () => {
+  it('marks the premise required, because Add waits for it', async () => {
+    answerWith([WAR]);
+    await renderPanel();
+
+    const premise = await screen.findByRole('textbox', { name: 'What happens' });
+    expect(premise.getAttribute('aria-required')).toBe('true');
+  });
+
+  it('says why a commit was refused', async () => {
+    writeSessionChannel.mockRejectedValue(new ApiError(409, 'busy', 'In flight.'));
+    answerWith([WAR]);
+    await renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Commit' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'A turn is running. Try again when it has finished.',
+    );
+  });
+
+  it('says why a hook could not be added', async () => {
+    addSessionHook.mockRejectedValue(new ApiError(400, 'invalid', 'body/title must be string'));
+    answerWith([WAR]);
+    await renderPanel();
+
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'What happens' }),
+      'The old bridge gives way in the storm.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('That could not be saved.');
+  });
+});

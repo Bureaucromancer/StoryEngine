@@ -826,3 +826,25 @@ describe('picking the characters', () => {
     expect(screen.queryByRole('group', { name: 'Characters' })).toBeNull();
   });
 });
+
+/**
+ * ***The list says what it is when it is not a list*** — polish 9 (2026-10-01).
+ * Loading, unreadable and empty all rendered the same nothing.
+ */
+describe('a list with nothing in it', () => {
+  it('says there are no sessions yet, and that archived ones are hidden', async () => {
+    renderPage();
+    expect(
+      await screen.findByText('No sessions yet. Start one above — archived sessions are hidden.'),
+    ).toBeTruthy();
+  });
+
+  it('says so when the list could not be read, rather than looking empty', async () => {
+    listSessions.mockRejectedValue(new Error('offline'));
+    renderPage();
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The sessions could not be read. Try reloading the page.',
+    );
+    expect(screen.queryByText(/No sessions yet/)).toBeNull();
+  });
+});
