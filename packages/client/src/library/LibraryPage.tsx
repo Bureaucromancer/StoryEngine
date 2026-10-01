@@ -29,6 +29,7 @@ import { matches } from './search.js';
 import { folderRows, insideClosedFolder } from '../tags/folders.js';
 import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilterBar.js';
 import { Note } from '../ui/Text.js';
+import { useFocusOnReveal } from '../ui/useFocusOnReveal.js';
 
 /**
  * The library list, as P1.6 built it: one surface for all six kinds with a kind
@@ -312,6 +313,8 @@ function ObjectTable(props: {
   const searchId = useId();
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
+  /** Into the box when *Search* opens it — polish 10, `useFocusOnReveal`. */
+  const searchBox = useFocusOnReveal<HTMLDivElement>(searching);
   /**
    * The tag filter — [05 §5](../../../../docs/design/05-tagging.md).
    *
@@ -357,7 +360,7 @@ function ObjectTable(props: {
         {props.several
           ? // Not the empty-library sentence: the library may be full, just
             // not of these.
-            'There is nothing of these kinds in the library yet. An import may bring some.'
+            'There is nothing of these kinds in the library yet. Make one above, or import some.'
           : emptyMessage(props.kind)}
       </Note>
     );
@@ -464,7 +467,7 @@ function ObjectTable(props: {
       />
 
       {searching ? (
-        <div id={searchId} className="mb-4">
+        <div id={searchId} ref={searchBox} className="mb-4">
           <Field
             label="Search this shelf"
             value={query}

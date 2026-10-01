@@ -257,9 +257,16 @@ export function applyForm(base: Record<string, unknown>, form: ActorForm): Recor
       // Blank means *inherit the block's priority*, so it must delete rather
       // than coerce — `Number('')` is 0, which would be the lowest priority
       // in the pack rather than no opinion at all.
-      const priority = Number.parseInt(sample.priorityText.trim(), 10);
-      if (Number.isFinite(priority)) next.priority = priority;
-      else delete next.priority;
+      //
+      // ***And a box that is not a number keeps what was there*** (2026-10-01,
+      // polish 10). `parseInt` read *12abc* as 12, and anything it could not
+      // read at all deleted the priority — so a typo in the box quietly
+      // dropped a stored 40 to *inherit* on the next Save. The field says
+      // what is wrong (`priorityProblem`); the file keeps its number until
+      // the box holds one.
+      const priority = priorityOf(sample.priorityText);
+      if (priority === 'blank') delete next.priority;
+      else if (priority !== 'unreadable') next.priority = priority;
 
       return next;
     });
@@ -357,4 +364,24 @@ export function reapplyEdits(pristine: ActorForm, edited: ActorForm, fresh: Acto
         ? fresh.samples
         : edited.samples,
   };
+}
+
+/**
+ * What a sample's priority box holds — a whole number, nothing (inherit), or
+ * neither. Strict, because `parseInt` is not: it reads *12abc* as 12.
+ */
+function priorityOf(text: string): number | 'blank' | 'unreadable' {
+  const trimmed = text.trim();
+  if (trimmed === '') return 'blank';
+  return /^-?\d+$/.test(trimmed) ? Number(trimmed) : 'unreadable';
+}
+
+/**
+ * The priority box's complaint, or null — said where the box is, because a
+ * number the form cannot read is one the Save would otherwise have to guess at.
+ */
+export function priorityProblem(text: string): string | null {
+  return priorityOf(text) === 'unreadable'
+    ? 'A whole number, or blank to use the preset’s. The saved priority is kept until then.'
+    : null;
 }

@@ -166,6 +166,13 @@ export function EditorFrame<F>(props: {
               about Save — a control that cannot work explains nothing. */}
           {editor.unsaved ? null : (
             <span className="ms-auto flex flex-wrap items-center gap-3">
+              {/* ***Says which way it goes*** (2026-10-01, polish 10). The panel
+                  opens below *As stored*, a screen or more away on a long
+                  object, so a press showed nothing where it was made and read
+                  as a button that did nothing. The panel now takes the keyboard
+                  when it opens (`HistoryPanel`), which brings it into view, and
+                  this says *Hide history* while it is open — the shelf's
+                  *Search* / *Hide search*. */}
               <Button
                 type="button"
                 aria-expanded={editor.historyOpen}
@@ -173,7 +180,7 @@ export function EditorFrame<F>(props: {
                   editor.setHistoryOpen((open) => !open);
                 }}
               >
-                History
+                {editor.historyOpen ? 'Hide history' : 'History'}
               </Button>
               <DeleteObject
                 kind={descriptor.kind}

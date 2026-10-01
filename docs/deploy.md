@@ -208,7 +208,7 @@ reach something it never needed.
 An HTTP answer of any kind counts as *the internet works*, including a refusal.
 Only a connection that goes nowhere is read as offline.
 
-## Notifications, and the one thing plain HTTP costs you
+## Notifications, and what plain HTTP costs you
 
 StoryEngine tells you when a turn finishes, when one fails, when a picture is
 ready, and when a saved setting needs a restart. Four of those reach you in the
@@ -235,6 +235,12 @@ reverse proxy above is the fix — and Tailscale gets HTTPS more or less for fre
 
 Nothing is lost either way: a notification is stored until you read it, so the
 count is there when you come back even if the browser was closed.
+
+**The clipboard is the other thing.** The browser's rule covers copying too, so
+over plain HTTP the **Copy** buttons — the reading view's two, a lorebook's
+**Copy as Markdown**, and the raw object under **As stored** — say *This browser
+would not copy* and leave the text on screen for you to select. The same
+reverse proxy fixes both.
 
 ## What this build is
 

@@ -507,6 +507,32 @@ describe('renaming', () => {
     expect(screen.queryByText(/gates on this name/)).toBeNull();
   });
 
+  /**
+   * ***Rename puts the keyboard in New name*** (2026-10-01, polish 10). The
+   * prompt opens below the table, off screen under a long one, and the
+   * keyboard stayed on the row's button, so what was typed went nowhere. A
+   * second row's Rename, pressed while the first prompt is open, is a second
+   * reveal: the prompt is now about another tag.
+   */
+  it('puts the keyboard in New name, for each row it is opened from', async () => {
+    open([
+      entry({ id: 'tag-1', name: 'noir' }),
+      entry({ id: 'tag-2', name: 'city', sortOrder: 1 }),
+    ]);
+
+    await userEvent.click(
+      within(await rowFor('noir')).getByRole('button', { name: 'Rename noir' }),
+    );
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'New name' }));
+
+    await userEvent.click(
+      within(await rowFor('city')).getByRole('button', { name: 'Rename city' }),
+    );
+    const box = screen.getByRole('textbox', { name: 'New name' });
+    expect(document.activeElement).toBe(box);
+    expect((box as HTMLInputElement).value).toBe('city');
+  });
+
   it('will not send an empty name', async () => {
     open([entry({ id: 'tag-1', name: 'noir' })]);
     const row = await rowFor('noir');

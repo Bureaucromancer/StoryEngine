@@ -44,6 +44,7 @@ import { labels } from '../i18n/catalogue.js';
 import { KIND_LABELS, ShadowedBadge, SourceBadge } from './labels.js';
 import { sentence } from './note-labels.js';
 import { fileErrorFor, reasonWords } from './QuarantinePanel.js';
+import { COPY_WORDS, copyText } from '../ui/copy.js';
 
 /**
  * The detail view. Read-only at this stage — editing is P1.7, and keeping the
@@ -756,19 +757,9 @@ function BookDocumentControls(props: { book: Lorebook }): JSX.Element {
       <Button
         type="button"
         onClick={() => {
-          const clipboard = navigator.clipboard as Clipboard | undefined;
-          if (clipboard === undefined) {
-            setSaid(NO_CLIPBOARD);
-            return;
-          }
-          void clipboard
-            .writeText(bookToMarkdown(props.book))
-            .then(() => {
-              setSaid('Copied.');
-            })
-            .catch(() => {
-              setSaid(NO_CLIPBOARD);
-            });
+          void copyText(bookToMarkdown(props.book)).then((copied) => {
+            setSaid(copied ? COPY_WORDS.copied : COPY_WORDS.refused);
+          });
         }}
       >
         Copy as Markdown
@@ -781,8 +772,6 @@ function BookDocumentControls(props: { book: Lorebook }): JSX.Element {
     </div>
   );
 }
-
-const NO_CLIPBOARD = 'This browser would not copy. Select the text and copy it yourself.';
 
 /**
  * The page's critical controls, held against the bottom of the scrollport

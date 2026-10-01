@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { ApiError, type LibraryKind, type ObjectVersion } from '../api.js';
 import { diffObjects, type FieldChange } from '../diff.js';
@@ -53,6 +53,16 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
 
   const diffQuery = useVersionPayload(props.kind, props.id, diffVersionId);
 
+  /**
+   * Mounted only when opened, so mounting is opening: the heading takes the
+   * keyboard, and focusing it scrolls the panel into view — it opens a screen
+   * or more below the button that opened it (2026-10-01, polish 10).
+   */
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
+
   function handleRestore(version: ObjectVersion): void {
     setError(null);
     restore.mutate(
@@ -99,7 +109,9 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
 
   return (
     <section aria-label="Version history" className="rounded-md border border-line bg-surface p-4">
-      <h2 className="mb-3 text-section text-ink">History</h2>
+      <h2 ref={heading} tabIndex={-1} className="mb-3 text-section text-ink">
+        History
+      </h2>
 
       {error !== null ? (
         <Alert tone="error" role="alert" className="mb-3">

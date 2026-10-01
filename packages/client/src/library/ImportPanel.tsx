@@ -267,6 +267,12 @@ export function ImportPanel(): JSX.Element {
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /**
+   * The word given and the import running — narrower than `busy`, which a
+   * re-ask sets too, and a Cancel during a re-ask is one the panel keeps
+   * (P1c). Only the commit makes Cancel a promise it cannot keep (polish 10).
+   */
+  const [importing, setImporting] = useState(false);
+  /**
    * ***How far the word's upload has got*** — [P13.8]. `null` when nothing is
    * being sent. An Aventuras backup can be a gigabyte, and an Import button
    * that stays pressed for ten minutes with nothing moving reads as a page that
@@ -495,6 +501,7 @@ export function ImportPanel(): JSX.Element {
   const commit = async (): Promise<void> => {
     if (outcome?.kind !== 'preview') return;
     setBusy(true);
+    setImporting(true);
     setError(null);
     try {
       const result = await api.importFile(
@@ -524,6 +531,7 @@ export function ImportPanel(): JSX.Element {
       setError(cause instanceof Error ? cause.message : 'The import failed.');
     } finally {
       setBusy(false);
+      setImporting(false);
       setProgress(null);
     }
   };
@@ -927,6 +935,7 @@ export function ImportPanel(): JSX.Element {
           preview={outcome.preview}
           onConflict={outcome.onConflict}
           busy={busy}
+          importing={importing}
           progress={progress}
           onPolicy={(onConflict) => {
             setOutcome({ ...outcome, onConflict });
@@ -1218,6 +1227,8 @@ function Preview(props: {
   preview: ImportPreview;
   onConflict: PreviewPolicy;
   busy: boolean;
+  /** The import itself is running — the one state Cancel cannot undo. */
+  importing: boolean;
   /** The word's upload, while it is being sent. */
   progress: UploadProgress | null;
   onPolicy: (policy: PreviewPolicy) => void;
@@ -1377,7 +1388,18 @@ function Preview(props: {
         >
           Import
         </Button>
-        <Button type="button" variant="secondary" size="compact" onClick={props.onCancel}>
+        {/* ***Not live while the import runs*** (2026-10-01, polish 10). A
+            Cancel pressed mid-commit put the preview away and stopped nothing:
+            the import went on, and its report arrived over a panel that had
+            said it was cancelled. The folder question's Cancel already waits;
+            this one does now too. */}
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          onClick={props.onCancel}
+          disabled={props.importing}
+        >
           Cancel
         </Button>
       </div>

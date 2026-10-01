@@ -105,3 +105,20 @@ describe('the dates', () => {
     expect(await screen.findByText((text) => text.includes(german))).toBeTruthy();
   });
 });
+
+/**
+ * ***A trash that could not be read is not an empty one*** — polish 10
+ * (2026-10-01). Both said *Nothing has been deleted*, the one sentence on the
+ * page a person acts on by giving up looking.
+ */
+describe('a trash that could not be read', () => {
+  it('says so, and does not claim to be empty', async () => {
+    readTrash.mockRejectedValue(new Error('offline'));
+    renderPanel();
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The trash could not be read. Try reloading the page.',
+    );
+    expect(screen.queryByText('Nothing has been deleted.')).toBeNull();
+  });
+});

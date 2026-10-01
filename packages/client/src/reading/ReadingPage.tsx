@@ -14,6 +14,7 @@ import {
 import { useLibrary, useRenditions, useSession, type RenditionSet } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { link, page } from '../ui/classes.js';
+import { COPY_WORDS, copyText } from '../ui/copy.js';
 import { Note, PageTitle } from '../ui/Text.js';
 import { MovePictures } from '../play/Pictures.js';
 import { anchorOffset } from '../play/Rendition.js';
@@ -247,15 +248,6 @@ function Illustrated(props: {
 }
 
 /**
- * ***Copy, with the failure said out loud.***
- *
- * `navigator.clipboard` needs a secure context, which a LAN install served over
- * plain HTTP does not have — the caveat `docs/deploy.md` already carries a table
- * about. So this reports rather than silently doing nothing, which is what an
- * unchecked `void writeText()` would do on exactly the deployment this project
- * is for.
- */
-/**
  * ***The way back*** (2026-10-01). The reading view is opened from a story's
  * session panel, and offered no way back to it: the header's Play goes to the
  * list of sessions, so returning to *this* story meant the browser's Back, or
@@ -275,6 +267,15 @@ function BackToSession(props: { sessionId: string }): JSX.Element {
   );
 }
 
+/**
+ * ***Copy, with the failure said out loud.***
+ *
+ * `navigator.clipboard` needs a secure context, which a LAN install served over
+ * plain HTTP does not have — the cost `docs/deploy.md` names beside the
+ * notifications one. So this reports rather than silently doing nothing, which
+ * is what an unchecked `void writeText()` would do on exactly the deployment
+ * this project is for.
+ */
 function CopyButton(props: { label: string; text: () => string }): JSX.Element {
   const [said, setSaid] = useState<string | null>(null);
   return (
@@ -282,26 +283,10 @@ function CopyButton(props: { label: string; text: () => string }): JSX.Element {
       <Button
         type="button"
         onClick={() => {
-          /**
-           * **Read off `navigator` rather than assumed**, because the types say
-           * it is always there and a browser on a plain-HTTP LAN install says
-           * otherwise: `clipboard` is a secure-context API, and this project's
-           * own `docs/deploy.md` carries a table about exactly that deployment.
-           * An optional chain would typecheck and still throw.
-           */
-          const clipboard = navigator.clipboard as Clipboard | undefined;
-          if (clipboard === undefined) {
-            setSaid(NO_CLIPBOARD);
-            return;
-          }
-          void clipboard
-            .writeText(props.text())
-            .then(() => {
-              setSaid('Copied.');
-            })
-            .catch(() => {
-              setSaid(NO_CLIPBOARD);
-            });
+          // `ui/copy.ts` says why the clipboard is asked rather than assumed.
+          void copyText(props.text()).then((copied) => {
+            setSaid(copied ? COPY_WORDS.copied : COPY_WORDS.refused);
+          });
         }}
       >
         {props.label}
@@ -314,5 +299,3 @@ function CopyButton(props: { label: string; text: () => string }): JSX.Element {
     </span>
   );
 }
-
-const NO_CLIPBOARD = 'This browser would not copy. Select the text and copy it yourself.';

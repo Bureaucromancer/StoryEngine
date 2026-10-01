@@ -8,6 +8,7 @@ import { useTags, useWriteTags } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { TwoStep } from '../ui/TwoStep.js';
+import { useFocusOnReveal } from '../ui/useFocusOnReveal.js';
 import { Dialog } from '../ui/Dialog.js';
 import { table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
@@ -156,6 +157,9 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
     write.mutate({ kind: 'order', ids: order });
   }
 
+  /** Into *New name* when a row's Rename opens the prompt below the table — polish 10. */
+  const renameBox = useFocusOnReveal<HTMLDivElement>(renaming?.id ?? null);
+
   return (
     <Dialog role="dialog" labelledBy={heading} onDismiss={props.onDismiss} size="large">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -277,7 +281,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
         <Alert tone="warning" role="status">
           <p className="mb-2">{renamePrompt(renaming.from)}</p>
           <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1">
+            <div className="flex-1" ref={renameBox}>
               <Field
                 label="New name"
                 value={renaming.to}

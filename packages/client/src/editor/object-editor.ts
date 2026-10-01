@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useNavigate } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { uuidv7, type GeneratedFieldProvenance } from '@storyengine/shared';
 
@@ -213,6 +213,23 @@ export interface ObjectEditor<F> {
   markReviewed: (path: string) => void;
 }
 
+/**
+ * ***The first Save's answer, carried across the page it causes*** (2026-10-01,
+ * polish 10).
+ *
+ * Every Save after the first says *Saved.* where Save is. The first is a create
+ * on a *New …* page, and it navigates to the new object's own editor — a
+ * different page, mounted fresh, whose notice starts empty. So the one Save a
+ * person is least sure of was the one that said nothing, and the page it
+ * landed on said *No changes to save.*, which is true and is not an answer.
+ *
+ * The id goes in here before the navigation and the editor it lands on reads
+ * it as its first notice. Read in the state initialiser and cleared in an
+ * effect, not deleted in the initialiser, because StrictMode runs initialisers
+ * twice and the second would find nothing.
+ */
+const createdJustNow = new Set<string>();
+
 export function useObjectEditor<F>(
   descriptor: EditorKind<F>,
   initial: LibraryObject,
@@ -227,7 +244,12 @@ export function useObjectEditor<F>(
    */
   const [pristineForm, setPristineForm] = useState<F>(() => descriptor.formOf(initial.object));
   const [conflict, setConflict] = useState<LibraryObject | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(() =>
+    createdJustNow.has(initial.id) ? 'Saved.' : null,
+  );
+  useEffect(() => {
+    createdJustNow.delete(initial.id);
+  }, [initial.id]);
   const [historyOpen, setHistoryOpen] = useState(false);
   /**
    * Why the last Save did not write — [10 §11.1a].
@@ -320,6 +342,7 @@ export function useObjectEditor<F>(
         { kind: descriptor.kind, object: withGenerated(descriptor.apply(base.object, form)) },
         {
           onSuccess: (result) => {
+            createdJustNow.add(result.id);
             // `ignoreBlocker`: the edits have just been written, and the guard
             // is measuring them against a base this route never had.
             void navigate({

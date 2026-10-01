@@ -490,6 +490,36 @@ describe('renaming a session from the list', () => {
     expect(renameSession).not.toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Rain City' })).toBeTruthy();
   });
+
+  /**
+   * ***The keyboard goes with the prompt, and comes back*** (2026-10-01,
+   * polish 10). *Rename* is replaced by the box it opens and the box by
+   * *Rename* again, and each swap took the focused element with it: the
+   * keyboard fell to the page on the way in and on the way out.
+   */
+  it('puts the keyboard in the box, and gives it back to Rename on Cancel', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', 'Rain City')] });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Rain City' }));
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Session name' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename Rain City' }));
+  });
+
+  it('gives the keyboard back to Rename when the name is saved', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', 'Rain City')] });
+    renameSession.mockResolvedValue({ session: aSession('s-1', 'Rain City') });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Rain City' }));
+    await userEvent.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename Rain City' }));
+    });
+  });
 });
 
 /**

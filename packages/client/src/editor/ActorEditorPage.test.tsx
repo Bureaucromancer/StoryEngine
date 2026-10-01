@@ -139,7 +139,14 @@ function makeLibrary() {
       revision += 1;
     },
 
-    readObject: (): Promise<LibraryObject> => Promise.resolve(envelope()),
+    /**
+     * Under the id it was asked for — which for every route here but one is
+     * `ACTOR_ID`. The one is the first Save's landing page, which asks for the
+     * id `createObject` answered; an envelope carrying another id there would
+     * be a page holding a different object than its address (polish 10).
+     */
+    readObject: (id?: unknown): Promise<LibraryObject> =>
+      Promise.resolve({ ...envelope(), id: typeof id === 'string' ? id : ACTOR_ID }),
 
     updateObject(
       _kind: unknown,
@@ -227,7 +234,7 @@ vi.mock('../api.js', async (importOriginal) => {
       // stateless pair keeps it deterministic — every test starts folded.
       readPrefs: () => Promise.resolve({ prefs: {} }),
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
-      readObject: () => server.readObject(),
+      readObject: (_kind: unknown, id: unknown) => server.readObject(id),
       updateObject: (
         kind: unknown,
         id: unknown,
@@ -553,6 +560,31 @@ describe('what a save says', () => {
 });
 
 /**
+ * ***A priority the form cannot read is said where it is typed*** (2026-10-01,
+ * polish 10). `parseInt` read *12abc* as 12 and anything else as *inherit*, so
+ * a typo dropped a stored priority without a word. What a Save then does with
+ * it is `form.test.ts`'s; this is that the box says so, and stops saying so.
+ */
+describe("a writing sample's priority", () => {
+  it('says when the box does not hold a whole number', async () => {
+    renderApp();
+    await openTheEditor();
+    await userEvent.click(screen.getByRole('button', { name: 'Add a writing sample' }));
+
+    const box = screen.getByRole('textbox', { name: 'Priority' });
+    await userEvent.type(box, '12abc');
+
+    expect(box.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText(/^A whole number, or blank/).getAttribute('role')).toBe('alert');
+
+    await userEvent.clear(box);
+    await userEvent.type(box, '12');
+
+    expect(screen.queryByText(/^A whole number, or blank/)).toBeNull();
+  });
+});
+
+/**
  * [polish §2]'s editor pane, discharged at [P3.3]: the fold shows the *saved*
  * object and says so, because showing unsaved form state as "as stored" would
  * be a lie in the one place a user came for the truth. The falsifying
@@ -712,5 +744,25 @@ describe('a new actor', () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe(`/library/actors/${SERVER_ID}/edit`);
     });
+  });
+
+  /**
+   * ***The first Save says Saved too*** (2026-10-01, polish 10). It navigates
+   * to the new object's own editor, a page mounted fresh, and the notice the
+   * Save set went with the page it was set on: the one Save a person is least
+   * sure of landed on *No changes to save.*, true and not an answer.
+   */
+  it('says Saved. on the page the first Save lands on', async () => {
+    renderApp();
+    await openNew();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Vera Kohl');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/library/actors/${SERVER_ID}/edit`);
+    });
+    const status = await screen.findByText('Saved.');
+    expect(status.getAttribute('role')).toBe('status');
   });
 });

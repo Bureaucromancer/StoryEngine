@@ -121,7 +121,9 @@ describe('the as-stored fold', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Copy' }));
 
-    expect(await screen.findByText('The clipboard refused.')).toBeTruthy();
+    expect(
+      await screen.findByText('This browser would not copy. Select the text and copy it yourself.'),
+    ).toBeTruthy();
   });
 
   it('bounds the height so a long object scrolls inside the fold', () => {

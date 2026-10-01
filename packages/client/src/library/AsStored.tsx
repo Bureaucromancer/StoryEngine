@@ -8,6 +8,7 @@ import { Button } from '../ui/Button.js';
 import { Panel } from '../ui/Panel.js';
 import { Note } from '../ui/Text.js';
 import { disclosure } from '../ui/classes.js';
+import { COPY_WORDS, copyText } from '../ui/copy.js';
 
 /**
  * The object's bytes, behind a fold — [polish §2](../../../../docs/design/workplan/06-polish.md)'s
@@ -92,30 +93,18 @@ export function AsStored({
               variant="quiet"
               size="tiny"
               onClick={() => {
-                // Typed as optional through a cast, because lib.dom promises
-                // the clipboard unconditionally and the runtime does not: the
-                // feature check is the truth the guard has to follow.
-                const clipboard = (
-                  navigator as { clipboard?: { writeText: (data: string) => Promise<void> } }
-                ).clipboard;
-                if (clipboard === undefined) {
-                  setCopyState('refused');
-                  return;
-                }
-                clipboard.writeText(text).then(
-                  () => {
-                    setCopyState('copied');
-                  },
-                  () => {
-                    setCopyState('refused');
-                  },
-                );
+                void copyText(text).then((copied) => {
+                  setCopyState(copied ? 'copied' : 'refused');
+                });
               }}
             >
               Copy
             </Button>
-            {copyState === 'copied' ? <Note role="status">Copied.</Note> : null}
-            {copyState === 'refused' ? <Note role="status">The clipboard refused.</Note> : null}
+            {/* The two sentences every copy in the client says (polish 10):
+                this one said *The clipboard refused*, which tells nobody what
+                to do instead. */}
+            {copyState === 'copied' ? <Note role="status">{COPY_WORDS.copied}</Note> : null}
+            {copyState === 'refused' ? <Note role="status">{COPY_WORDS.refused}</Note> : null}
           </div>
           <Panel variant="inset" className="max-h-96 overflow-auto">
             <pre className="text-xs">{text}</pre>

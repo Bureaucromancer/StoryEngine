@@ -46,6 +46,14 @@ const listMyConnections = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  /**
+   * ***The trash*** — mocked for `listMyConnections`' reason, which it met on
+   * 2026-10-01: until then a trash that could not be read claimed to be empty
+   * and rendered no alert, so this file never had to answer the query (polish
+   * 10). An unmocked read rejects now, `Trash` says so in a `role=alert`, and
+   * every `findByRole('alert')` on this page finds two.
+   */
+  readTrash: () => Promise.resolve({ entries: [], retentionDays: 30 }),
   api: {
     authState: (...a: unknown[]) => authState(...a) as unknown,
     readMe: (...a: unknown[]) => readMe(...a) as unknown,

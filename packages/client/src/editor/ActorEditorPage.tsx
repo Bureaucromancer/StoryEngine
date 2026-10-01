@@ -13,6 +13,7 @@ import {
   applyForm,
   formChanges,
   formFromActor,
+  priorityProblem,
   reapplyEdits,
   withoutRow,
   withRow,
@@ -404,6 +405,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                     onChange={(priorityText) => {
                       patchThis({ priorityText });
                     }}
+                    error={priorityProblem(sample.priorityText)}
                     hint="Blank inherits the preset's. Higher survives longer under a full context."
                   />
                   <CheckboxField

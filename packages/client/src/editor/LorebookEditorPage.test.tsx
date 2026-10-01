@@ -1271,6 +1271,35 @@ describe('the critical controls in the lorebook editor', () => {
       screen.getByRole('button', { name: 'Save' }).closest('form'),
     );
   });
+
+  /**
+   * ***History says which way it goes, and its panel takes the keyboard***
+   * (2026-10-01, polish 10). The panel opens below *As stored*, a screen or
+   * more under the button on a long book, so a press showed nothing where it
+   * was made and read as a button that did nothing.
+   */
+  it('takes the keyboard to the History it opens, and offers to hide it', async () => {
+    const history = vi.spyOn(api, 'history').mockResolvedValue({ versions: [] });
+    try {
+      renderApp();
+      await openEditor(HARBOUR);
+
+      await userEvent.click(screen.getByRole('button', { name: 'History' }));
+
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'History' }));
+      const toggle = screen.getByRole('button', { name: 'Hide history' });
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+      await userEvent.click(toggle);
+
+      expect(screen.queryByRole('region', { name: 'Version history' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'History' }).getAttribute('aria-expanded')).toBe(
+        'false',
+      );
+    } finally {
+      history.mockRestore();
+    }
+  });
 });
 
 /**

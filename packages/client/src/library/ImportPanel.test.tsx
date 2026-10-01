@@ -806,6 +806,25 @@ describe('answers that arrive after the question changed', () => {
     expect(choice).toHaveProperty('disabled', true);
   });
 
+  /**
+   * ***Cancel is not offered while the import runs*** (2026-10-01, polish 10).
+   * Pressed mid-commit it put the preview away and stopped nothing: the import
+   * went on, and its report arrived over a panel that had said it was
+   * cancelled. A Cancel during a re-ask is still one the panel keeps (above).
+   */
+  it('takes Cancel away while the import itself runs', async () => {
+    vi.spyOn(api, 'importFilePreview').mockResolvedValue({ preview: PREVIEW });
+    vi.spyOn(api, 'importFile').mockImplementation(() => new Promise(() => undefined));
+    render(mount());
+
+    await userEvent.upload(fileInput(), png());
+    const cancel = await screen.findByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveProperty('disabled', false);
+    await userEvent.click(screen.getByRole('button', { name: /^import$/i }));
+
+    expect(cancel).toHaveProperty('disabled', true);
+  });
+
   it('does not let a report opened earlier replace a preview asked for since', async () => {
     vi.spyOn(api, 'importJobs').mockResolvedValue({ jobs: [JOB] });
     let arrive: (value: Awaited<ReturnType<typeof api.importJob>>) => void = () => undefined;

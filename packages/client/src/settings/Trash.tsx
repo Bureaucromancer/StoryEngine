@@ -56,7 +56,16 @@ export function Trash(props: {
 
       {trash.isPending ? <Note>Loading…</Note> : null}
 
-      {!trash.isPending && entries.length === 0 ? <Note>Nothing has been deleted.</Note> : null}
+      {/* ***A trash that could not be read is not an empty one*** (2026-10-01,
+          polish 10). Both rendered *Nothing has been deleted.* — the one
+          sentence on this page a person acts on by giving up looking. */}
+      {trash.isError ? (
+        <p role="alert" className="text-danger-ink">
+          The trash could not be read. Try reloading the page.
+        </p>
+      ) : null}
+
+      {trash.isSuccess && entries.length === 0 ? <Note>Nothing has been deleted.</Note> : null}
 
       {entries.length === 0 ? null : (
         <ul className="flex flex-col gap-2">

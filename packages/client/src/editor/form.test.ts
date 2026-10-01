@@ -11,6 +11,7 @@ import {
   applyForm,
   formChanges,
   formFromActor,
+  priorityProblem,
   reapplyEdits,
   rowIndex,
   splitLines,
@@ -254,7 +255,7 @@ describe('writing samples, the first list the form can grow and shrink', () => {
     // `Number('')` is 0, which is the *lowest* priority in the pack rather
     // than "inherit the block's" — a coercion here would quietly make every
     // sample the first thing dropped from a full context.
-    // Mutation: replace the `Number.isFinite` guard with `Number(...)`.
+    // Mutation: drop `priorityOf`'s blank arm.
     const base = actorWithSamples();
     const form = formFromActor(base);
     expect(form.samples[0]?.priorityText).toBe('40');
@@ -263,6 +264,42 @@ describe('writing samples, the first list the form can grow and shrink', () => {
     const applied = applyForm(base, form) as { writingSamples: Record<string, unknown>[] };
 
     expect(Object.hasOwn(applied.writingSamples[0]!, 'priority')).toBe(false);
+  });
+
+  /**
+   * ***A box that is not a number keeps what was stored*** (2026-10-01,
+   * polish 10). `parseInt` read *12abc* as 12 and anything it could not read
+   * at all as *inherit*, so a typo dropped a stored 40 on the next Save with
+   * nothing said. The box now complains (`priorityProblem`), and the file keeps
+   * its number until the box holds one.
+   */
+  it('keeps the stored priority while the box holds something that is not a number', () => {
+    const base = actorWithSamples();
+    for (const typed of ['12abc', '4o', '1.5', '1e3']) {
+      const form = formFromActor(base);
+      form.samples[0] = { ...form.samples[0]!, priorityText: typed };
+      const applied = applyForm(base, form) as { writingSamples: Record<string, unknown>[] };
+
+      expect(applied.writingSamples[0]?.['priority'], typed).toBe(40);
+      expect(priorityProblem(typed), typed).toMatch(/^A whole number, or blank/);
+    }
+  });
+
+  it('reads a whole number, signed and padded, and has nothing to say about it', () => {
+    const base = actorWithSamples();
+    for (const [typed, read] of [
+      [' 55 ', 55],
+      ['-3', -3],
+      ['0', 0],
+    ] as const) {
+      const form = formFromActor(base);
+      form.samples[0] = { ...form.samples[0]!, priorityText: typed };
+      const applied = applyForm(base, form) as { writingSamples: Record<string, unknown>[] };
+
+      expect(applied.writingSamples[0]?.['priority'], typed).toBe(read);
+      expect(priorityProblem(typed), typed).toBeNull();
+    }
+    expect(priorityProblem('')).toBeNull();
   });
 
   it('keeps a hand-written sample missing `enabled` switched on', () => {
