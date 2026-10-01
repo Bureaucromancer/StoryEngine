@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Candidate, StepDefinition, StepHost, StepInput, StepResult } from '@storyengine/sdk';
+import {
+  LIBRARY_DIRECTORIES,
+  type Candidate,
+  type StepDefinition,
+  type StepHost,
+  type StepInput,
+  type StepResult,
+} from '@storyengine/sdk';
 
 /**
  * ***Propose, then apply*** —
@@ -45,7 +52,7 @@ export const PROPOSE_STEP: StepDefinition = {
    * thing just said, and a step that reread forty turns would be paying for
    * context to re-answer a question the last paragraph answers.
    */
-  reads: ['output', 'se.assistant.context'],
+  reads: ['output', 'se.assistant.context', 'se.assistant.proposal'],
   writes: ['se.assistant.proposal'],
   callKind: 'effects',
   when: { when: 'cadence', everyNTurns: 1 },
@@ -68,7 +75,16 @@ const TASK = [
   'changes. A change the user has to decide between two versions of is not one',
   'either: propose the one the answer recommends, or null.',
   '',
-  'Fields are dotted paths into the object — "name", "summary", "sections.0.body".',
+  /*
+   * ***Honest about the paths*** (2026-09-30). This said `"summary"` and
+   * `"sections.0.body"` were paths into the object; on an actor neither is —
+   * the summary is a section under `profile` — and the model, which is never
+   * shown the object, followed the examples. *Apply* then wrote a dead
+   * top-level field and said it had worked. The client now shows and applies
+   * only a path the object already holds as text, and this says so.
+   */
+  'Fields are dotted paths to text the object already holds, such as "name". A change',
+  'to a path the object does not have is dropped, so name only fields you are sure of.',
 ].join('\n');
 
 const SCHEMA = {
@@ -139,21 +155,40 @@ function proposalOf(value: unknown, about: { kind: string; id: string } | null):
    */
   const kind = about?.kind ?? (typeof row.kind === 'string' ? row.kind : '');
   const id = about?.id ?? (typeof row.id === 'string' ? row.id : '');
-  if (kind === '' || id === '') return null;
+  if (kind === '' || id === '' || !isLibraryKind(kind)) return null;
 
   return { kind, id, changes, ...(typeof row.why === 'string' ? { why: row.why } : {}) };
+}
+
+/**
+ * ***A library object's kind, as its folder is named*** — the only kind a
+ * proposal can be applied to, because applying is a library write.
+ */
+function isLibraryKind(kind: string): boolean {
+  return (Object.values(LIBRARY_DIRECTORIES) as string[]).includes(kind);
 }
 
 export async function propose(input: StepInput, host: StepHost): Promise<StepResult> {
   const answer = input.output?.text ?? '';
   if (answer.trim() === '') return {};
 
+  /**
+   * ***What is on screen, when it is something a proposal can change***
+   * (2026-09-30). Open over a session, the panel discloses that session — a
+   * `session` kind and its id — and this took it as the target, so every
+   * proposal made there was addressed to a session, which no library route
+   * writes and the panel never shows: a mid-session proposal could not be
+   * seen at all. Anything but a library object is no context, which is the
+   * reading `proposalOf` already gives a session that disclosed nothing.
+   */
   const seen = input.channels['se.assistant.context']?.value;
   const about =
     typeof seen === 'object' && seen !== null
       ? (() => {
           const row = seen as { kind?: unknown; id?: unknown };
-          return typeof row.kind === 'string' && typeof row.id === 'string'
+          return typeof row.kind === 'string' &&
+            typeof row.id === 'string' &&
+            isLibraryKind(row.kind)
             ? { kind: row.kind, id: row.id }
             : null;
         })()
@@ -167,8 +202,28 @@ export async function propose(input: StepInput, host: StepHost): Promise<StepRes
     schema: SCHEMA,
   });
 
+  /**
+   * ***An answer that proposes nothing withdraws the last offer*** (2026-09-30).
+   * The panel shows the newest proposal on the path, so one made three
+   * questions ago stood under every answer since — and came back after a
+   * reload, which forgets *No thanks*. Each turn now states the current offer:
+   * this one, or none.
+   */
   const proposal = proposalOf(result.object, about);
-  if (proposal === null) return {};
+  if (proposal === null) {
+    const standing = input.channels['se.assistant.proposal']?.value;
+    if (standing === undefined || standing === null) return {};
+    return {
+      effects: [
+        {
+          channelId: 'se.assistant.proposal',
+          op: { type: 'set', path: '/' },
+          after: null,
+          proposedBy: { kind: 'model', callId: result.callId },
+        },
+      ],
+    };
+  }
 
   return {
     effects: [

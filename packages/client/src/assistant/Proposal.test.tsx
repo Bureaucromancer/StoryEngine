@@ -21,6 +21,7 @@ import type { TurnRecord } from '../api.js';
 
 let turns: TurnRecord[] = [];
 const readObject = vi.fn();
+const updateObject = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -28,6 +29,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   api: {
     ...(await importOriginal<typeof import('../api.js')>()).api,
     readObject: (...a: unknown[]) => readObject(...a) as unknown,
+    updateObject: (...a: unknown[]) => updateObject(...a) as unknown,
   },
 }));
 
@@ -35,7 +37,9 @@ const { Proposal } = await import('./Proposal.js');
 
 const ACTOR = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
 
-function proposing(): TurnRecord {
+function proposing(
+  changes: Record<string, string> = { description: 'Tall, and tired.' },
+): TurnRecord {
   return {
     id: 't1',
     sessionId: 's1',
@@ -48,7 +52,7 @@ function proposing(): TurnRecord {
       {
         channelId: 'se.assistant.proposal',
         applied: true,
-        after: { kind: 'actors', id: ACTOR, changes: { description: 'Tall, and tired.' } },
+        after: { kind: 'actors', id: ACTOR, changes },
       },
     ],
   } as unknown as TurnRecord;
@@ -112,5 +116,46 @@ describe('a proposal from the assistant', () => {
     expect(screen.queryByText('Now: Tall.')).toBeNull();
     // Nothing mounted watches it any more, so nothing polls it.
     expect(watching(client)).toBe(0);
+  });
+});
+
+/**
+ * ***Only what the object holds as text is offered, and only that is written***
+ * (2026-09-30). A model shown no object guesses paths — `summary`, on an actor
+ * whose summary is a section — and the panel showed *Now: —* for it and wrote a
+ * dead top-level field on *Apply*. A change the object cannot take is dropped
+ * before it is shown; an offer with nothing left is no offer.
+ */
+describe('a proposal for fields the object does not hold', () => {
+  it('offers and writes only the ones it does', async () => {
+    updateObject.mockResolvedValue({ contentHash: 'sha256:w' });
+    turns = [proposing({ description: 'Tall, and tired.', summary: 'A fence.' })];
+    renderPanel();
+
+    expect(await screen.findByText('Now: Tall.')).toBeTruthy();
+    expect(screen.queryByText('summary')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Apply it' }));
+
+    await vi.waitFor(() => {
+      expect(updateObject).toHaveBeenCalledTimes(1);
+    });
+    const written = updateObject.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(written['description']).toBe('Tall, and tired.');
+    expect(Object.hasOwn(written, 'summary')).toBe(false);
+    expect(Object.keys(written['generated'] as object)).toEqual(['description']);
+  });
+
+  it('offers nothing when it holds none of them', async () => {
+    turns = [proposing({ summary: 'A fence.' })];
+    const client = renderPanel();
+
+    // Until the object is in, nothing shows either way; after it, the offer
+    // would have — so the absence below is about the fields, not the timing.
+    await vi.waitFor(() => {
+      expect(client.getQueryData(['library', 'actors', ACTOR, 'winner'])).toBeDefined();
+    });
+    expect(screen.queryByRole('region', { name: 'A change it suggests' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Apply it' })).toBeNull();
   });
 });
