@@ -75,29 +75,39 @@ RUN node tools/write-build-info.mjs --commit "$COMMIT" \
 # somebody has to remember.
 RUN pnpm --filter @storyengine/server --legacy deploy --prod /app
 
-# **The modes are deployed beside the server, not through it** — P7.0.
+# **The modes are not in the server's manifest** — P7.0.
 #
-# `pnpm deploy` walks one package's dependency closure, and a mode package is
-# deliberately not in the server's: docs/design/19-tech-stack.md §10 makes
-# "built-in modes consume the SDK and not the server" a build error, and a
-# manifest edge would have been the one direction the lint rules cannot see.
-# `mode-loader.ts` resolves each by bare specifier at run time instead, so what
-# the image owes it is the package on the server's resolution path — which is
-# what deploying into `/app/node_modules/<name>` is. Nothing in `/app/dist`
-# imports it; Node finds it the same way it finds any other dependency.
+# docs/design/19-tech-stack.md §10 makes "built-in modes consume the SDK and not
+# the server" a build error, and a manifest edge would have been the one
+# direction the lint rules cannot see. `mode-loader.ts` resolves each by bare
+# specifier at run time instead, so what the image owes it is the package on the
+# server's resolution path. Nothing in `/app/dist` imports one; Node finds it the
+# same way it finds any other dependency.
 #
-# **One `RUN` per mode, on purpose.** A loop over a list would be a third place
-# the shipped set is written — after the root `package.json` and
-# `mode-loader.ts`'s `BUILT_IN_MODE_PACKAGES` — and the failure it would hide is
-# the one that matters: a mode in the loader's list and not in the image starts a
-# server that refuses every turn. Explicit lines make the omission visible in a
-# diff, and `mode-loader.test.ts` is what catches it before the diff.
-RUN pnpm --filter @storyengine/mode-scene --legacy deploy --prod \
-    /app/node_modules/@storyengine/mode-scene
-RUN pnpm --filter @storyengine/mode-freeform --legacy deploy --prod \
-    /app/node_modules/@storyengine/mode-freeform
-RUN pnpm --filter @storyengine/mode-assistant --legacy deploy --prod \
-    /app/node_modules/@storyengine/mode-assistant
+# ~~The modes are deployed beside the server, not through it: `pnpm deploy`
+# walks one package's dependency closure, and the server's does not include
+# them, so each is deployed into `/app/node_modules/<name>` by name.~~
+# ***They arrive with the server's deploy*** (2026-10-01). The root
+# `package.json` declares them, and the pinned pnpm's legacy deploy carries the
+# root's dependencies into the deployed tree — measured: `/app/node_modules/
+# @storyengine/mode-*` are links after the line above. So the per-mode deploys
+# that stood here met a path that was not empty and failed the build
+# (`ERR_PNPM_DEPLOY_DIR_NOT_EMPTY`). Nothing noticed because nothing built: only
+# a `v*` tag runs this file, and P7.0 added the root dependency a day after
+# `v1.0.0-alpha.4`, the last one.
+#
+# **What the image owes the loader is checked instead, one `RUN` per mode.**
+# Each mode is imported from `/app` as the server will import it; a pnpm that
+# stopped carrying the root's dependencies fails here, at build time, rather
+# than shipping a server whose `loadModes` refuses to start. A loop over a list
+# would be a third place the shipped set is written — after the root
+# `package.json` and `mode-loader.ts`'s `BUILT_IN_MODE_PACKAGES` — so the lines
+# are explicit, and `tools/repo-shape.test.ts` holds them to the loader's list.
+WORKDIR /app
+RUN node --input-type=module -e "await import('@storyengine/mode-scene')"
+RUN node --input-type=module -e "await import('@storyengine/mode-freeform')"
+RUN node --input-type=module -e "await import('@storyengine/mode-assistant')"
+WORKDIR /src
 
 # The client is a separate package and not a dependency of the server, so it is
 # copied rather than deployed. `SE_CLIENT_ROOT` below points at it.

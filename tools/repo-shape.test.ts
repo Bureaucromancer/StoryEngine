@@ -49,8 +49,11 @@ import { BUILT_IN_MODE_PACKAGES } from '../packages/server/src/mode-loader.js';
  *   which §0.1a names as *"the obvious move and the wrong one"*.
  * - A second mode package whose `tsconfig.spec.json` nobody references from the
  *   root, so its tests typecheck against nothing.
- * - A mode in `BUILT_IN_MODE_PACKAGES` that the image does not deploy, which
- *   starts a server that refuses every turn.
+ * - A mode in `BUILT_IN_MODE_PACKAGES` that ~~the image does not deploy, which
+ *   starts a server that refuses every turn~~ the image or the release tarball
+ *   does not check for, which ships a server whose `loadModes` refuses to start
+ *   — and, since 2026-10-01, a mode deployed by name beside the server, which
+ *   fails the build that ships it.
  * - The eslint resolver losing the nested `tsconfig.json`, which does not fail
  *   anything — an import the resolver cannot resolve classifies as unknown, and
  *   an unknown import is *permitted*.
@@ -238,17 +241,60 @@ describe('the server does not acquire the edge it may not have', () => {
   });
 });
 
-describe('the image ships what the loader will ask for', () => {
+/**
+ * **The image and the tarball ship what the loader will ask for.**
+ *
+ * ~~Each mode is deployed by name beside the server, because `pnpm deploy` walks
+ * one package's dependency closure and the server's excludes the modes.~~
+ * ***The server's deploy already carries them*** (2026-10-01): the pinned pnpm's
+ * legacy deploy brings the root's dependencies into the deployed tree, so the
+ * per-mode deploys this block used to require met a path that was not empty and
+ * failed both builds — unseen, because only a `v*` tag runs either and none has
+ * been pushed since P7.0. What each build owes the loader now is a check, not a
+ * copy: every mode imported from the deployed tree, as `loadModes` will import
+ * it, before anything ships.
+ */
+describe('the image and the tarball ship what the loader will ask for', () => {
   const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8');
+  const release = readFileSync(join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
 
-  it.each(BUILT_IN_MODE_PACKAGES)('deploys %s beside the server', (specifier) => {
-    // **The one whose failure is a server that starts and then refuses every
-    // turn.** `pnpm deploy` walks one package's dependency closure and the
-    // server's deliberately excludes the modes, so each has to be deployed by
-    // name — and a mode added to the loader's list without a line here is an
-    // image that boots, registers nothing, and throws `assertModesRunnable`'s
-    // refusal at whoever presses Send.
-    expect(dockerfile).toContain(`pnpm --filter ${specifier} --legacy deploy`);
+  /** The line both builds run, once per mode, spelled once here. */
+  const importCheck = (specifier: string): string =>
+    `node --input-type=module -e "await import('${specifier}')"`;
+
+  it.each(BUILT_IN_MODE_PACKAGES)('the image imports %s from /app', (specifier) => {
+    // **Where the line runs is half of what it checks.** The build stage's
+    // `WORKDIR` is the workspace, whose own `node_modules` links every mode
+    // because the root declares them — so the same import from `/src` passes
+    // whatever `/app` holds, and a check that cannot fail is the thing this
+    // file exists to notice.
+    const at = dockerfile.indexOf(`RUN ${importCheck(specifier)}`);
+    expect(at).toBeGreaterThan(-1);
+
+    const workdirs = [...dockerfile.slice(0, at).matchAll(/^WORKDIR (.+)$/gm)];
+    expect(workdirs.at(-1)?.[1]).toBe('/app');
+  });
+
+  it.each(BUILT_IN_MODE_PACKAGES)('the release tarball imports %s from build/app', (specifier) => {
+    // The same check over the same tree, run where `pack-tarball.mjs` is about
+    // to read it; the step's `working-directory` is the half that matters, for
+    // the reason the image's `WORKDIR` is.
+    const at = release.indexOf(importCheck(specifier));
+    expect(at).toBeGreaterThan(-1);
+
+    const step = release.slice(release.lastIndexOf('\n      - ', at), at);
+    expect(step).toMatch(/^\s+working-directory: build\/app$/m);
+  });
+
+  it("deploys no mode by name, which the server's own deploy already did", () => {
+    // **The regression this block was rewritten for.** A second `pnpm deploy`
+    // into `node_modules/@storyengine/mode-*` fails on the link already there,
+    // and fails only at a tag — the one moment nobody is watching a build that
+    // has passed every check before it.
+    const byName = /--filter @storyengine\/mode-[\w-]+ --legacy deploy/;
+
+    expect(dockerfile).not.toMatch(byName);
+    expect(release).not.toMatch(byName);
   });
 });
 

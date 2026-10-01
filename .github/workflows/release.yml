@@ -168,19 +168,31 @@ jobs:
             --expect-version "${{ steps.names.outputs.version }}"
 
       # The same deploy the image does, into a plain directory. `--legacy`
-      # because pnpm 10 and later refuse the non-injected form otherwise, and
-      # one `deploy` per mode for the reason the Dockerfile gives: a loop would
-      # be a third place the shipped set is written.
+      # because pnpm 10 and later refuse the non-injected form otherwise.
+      # ~~And one `deploy` per mode for the reason the Dockerfile gives: a loop
+      # would be a third place the shipped set is written.~~ **The modes arrive
+      # with the server's deploy** (2026-10-01): the pinned pnpm carries the
+      # root's dependencies into the deployed tree, so the per-mode deploys that
+      # stood here met a path that was not empty and would have failed this job
+      # (`ERR_PNPM_DEPLOY_DIR_NOT_EMPTY`) on the first tag since P7.0. There has
+      # not been one; the Dockerfile says the rest.
       - name: The runnable tree
         run: |
           pnpm --filter @storyengine/server --legacy deploy --prod build/app
-          pnpm --filter @storyengine/mode-scene --legacy deploy --prod \
-            build/app/node_modules/@storyengine/mode-scene
-          pnpm --filter @storyengine/mode-freeform --legacy deploy --prod \
-            build/app/node_modules/@storyengine/mode-freeform
-          pnpm --filter @storyengine/mode-assistant --legacy deploy --prod \
-            build/app/node_modules/@storyengine/mode-assistant
           cp -r packages/client/dist build/app/client
+
+      # **What the loader will ask for, imported from where it will ask.** One
+      # line per mode for the reason the Dockerfile gives — a loop would be a
+      # third place the shipped set is written — and `tools/repo-shape.test.ts`
+      # holds these to `BUILT_IN_MODE_PACKAGES` as it does the image's. A pnpm
+      # that stopped carrying the root's dependencies fails here, naming the
+      # mode, rather than in somebody's restart loop.
+      - name: The modes came with it
+        working-directory: build/app
+        run: |
+          node --input-type=module -e "await import('@storyengine/mode-scene')"
+          node --input-type=module -e "await import('@storyengine/mode-freeform')"
+          node --input-type=module -e "await import('@storyengine/mode-assistant')"
 
       - name: The archive
         run: |

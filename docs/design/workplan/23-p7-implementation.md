@@ -1917,9 +1917,17 @@ the entry export, and `SE_CLOCK` against the id Scene declares — were proven b
 mutating the built package.
 
 **§0.1a's item 6 resolved toward the loader.** The root `package.json` declares
-the shipped modes, because the root is the distribution; the Dockerfile deploys
+the shipped modes, because the root is the distribution; ~~the Dockerfile deploys
 each into `/app/node_modules/` beside the server, because `pnpm deploy` walks one
-package's closure and the server's deliberately excludes them. A manifest edge in
+package's closure and the server's deliberately excludes them.~~ ***the server's
+own deploy carries them*** *(corrected 2026-10-01). The pinned pnpm's legacy
+deploy brings the root's dependencies into the deployed tree, so the per-mode
+deploys written here — in the Dockerfile and, from P11.9, in the release job's
+tarball — met a path that was not empty and failed with
+`ERR_PNPM_DEPLOY_DIR_NOT_EMPTY`. Only a `v*` tag runs either, and none has been
+pushed since this stage, so neither failure was ever seen. Both now import each
+mode from the deployed tree instead, and `tools/repo-shape.test.ts` holds those
+lines to `BUILT_IN_MODE_PACKAGES`.* A manifest edge in
 `packages/server/package.json` would have worked and would have put a mode in the
 server's dependencies, which is the one direction eslint cannot see.
 
