@@ -56,6 +56,7 @@ halves and refuses a work-plan file that has no name in the registry.
 | [playable log-playable-log.md](21-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](17-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
 | [manual testing-manual-testing.md](05-manual-testing.md) | **What a person still owes, and what they did about it — standing, and it does not complete.** Every gate’s state, the sittings walked and outstanding, the prerequisites with long lead times, what a test now covers, what should be a test and is not, and every deferral with a name beside it. A phase that closes lands its gate here |
 | [refinements-walkthrough-refinements.md](22-walkthrough-refinements.md) | The eleven refinements from the 2026-09-08 walkthrough, graded against the code and the design corpus — eight of them are not what the note says. Where each goes, what it costs, and the four decisions a person has to make first |
+| [main audit-main-audit.md](32-main-audit.md) | **The audit of `main`, 2026-09-25 to 2026-10-01**, after it landed: how it ran, what was decided and by whom, the 103 commits by tier, the records it corrects, what it left, CI across it, and the changelog entry the next release owes — the one place the audit's own record lives, because its plan and its verdicts were working files outside the repository |
 
 ## How to read them
 
