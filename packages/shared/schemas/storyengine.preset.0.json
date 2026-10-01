@@ -392,6 +392,22 @@
                   {
                     "type": "object",
                     "required": [
+                      "of",
+                      "field"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "setup",
+                        "type": "string"
+                      },
+                      "field": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
                       "of"
                     ],
                     "properties": {

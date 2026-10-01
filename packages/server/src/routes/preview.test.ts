@@ -199,6 +199,40 @@ describe('a preview for a session with its own model', () => {
   });
 });
 
+/**
+ * ***A Freeform preview shows the premise*** (2026-09-30) — the `setup` slot,
+ * filled through the same gather the turn uses, so the meter measures the
+ * prompt the narrator will actually get.
+ */
+describe('a Freeform preview', () => {
+  it('shows the premise the narrator will be told', async () => {
+    await bindProse();
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Drowned city',
+        mode: 'storyengine.freeform',
+        modeConfig: {
+          premise: 'A smuggler owes the wrong people.',
+          difficulty: 'even',
+          directedness: 'following',
+        },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    sessionId = created.body.session.id as string;
+
+    const answer = (await preview({ input: { text: 'Look around.' } })).body.preview as {
+      blocks: { id: string; text: string }[];
+    };
+
+    expect(answer.blocks.find((block) => block.id === 'se.premise')?.text).toBe(
+      'What this story is about: A smuggler owes the wrong people.',
+    );
+  });
+});
+
 describe('a preview with nothing bound', () => {
   it('is unmeasurable rather than an error, and says which way', async () => {
     // The state every install is in before it is configured. A 4xx would push

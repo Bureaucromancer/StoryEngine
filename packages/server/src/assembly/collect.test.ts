@@ -2397,6 +2397,47 @@ describe('the time and the place', () => {
  * session playing Scene advances.
  */
 /**
+ * ***A setup answer, slotted by the field it answers*** (2026-09-30) — the
+ * `setup` slot. Freeform's wizard requires a premise, and no prompt carried it:
+ * the answers were a record field no slot could name.
+ */
+describe('a setup answer', () => {
+  const slot = block({
+    kind: 'slot',
+    id: 'se.premise',
+    source: { of: 'setup', field: 'premise' },
+    wrapper: 'What this story is about: {{content}}',
+  });
+
+  it('fills the slot with the answer it names, framed, and says whose it is', () => {
+    const { candidates } = collectCandidates(
+      context({
+        preset: preset([slot]),
+        setup: { premise: 'A smuggler owes the wrong people.', difficulty: 'even' },
+      }),
+    );
+
+    expect(candidates.map(({ text, source }) => ({ text, source }))).toEqual([
+      {
+        text: 'What this story is about: A smuggler owes the wrong people.',
+        source: { kind: 'setup', field: 'premise' },
+      },
+    ]);
+  });
+
+  it('says why it is empty: an unanswered field, or no answers gathered at all', () => {
+    const unanswered = collectCandidates(
+      context({ preset: preset([slot]), setup: { difficulty: 'even' } }),
+    );
+    const ungathered = collectCandidates(context({ preset: preset([slot]) }));
+
+    expect(unanswered.candidates).toEqual([]);
+    expect(unanswered.notFilled.map((row) => row.reason)).toEqual(['empty-source']);
+    expect(ungathered.notFilled.map((row) => row.reason)).toEqual(['no-producer']);
+  });
+});
+
+/**
  * ***The assistant says what it can see*** (2026-09-30) — the real pack, and
  * the channel the assistant panel writes.
  *

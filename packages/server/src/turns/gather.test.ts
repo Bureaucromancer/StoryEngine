@@ -358,6 +358,41 @@ describe('the mode the collector is told', () => {
 });
 
 /**
+ * ***The answers a session was set up with reach the pack that names them***
+ * (2026-09-30) — through `collectFor`, the one call the turn, the preview and
+ * impersonation assemble with, so none of them can leave the premise out.
+ */
+describe('the setup answers the collector is given', () => {
+  async function premiseSaid(config: Record<string, unknown>): Promise<string | undefined> {
+    const created = await createSession(sessions, ACCOUNT, {
+      name: 'Freeform',
+      mode: { id: 'storyengine.freeform', config },
+    });
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+    );
+    const collected = collectFor(inputs, {
+      callKind: 'narrate',
+      voice: 'narrator',
+      lore: [],
+    });
+    return collected.candidates.find((candidate) => candidate.id === 'se.premise')?.text;
+  }
+
+  it('gives Freeform’s narrator the premise, as written and trimmed', async () => {
+    expect(
+      await premiseSaid({ premise: '  A smuggler owes the wrong people.\n', difficulty: 'even' }),
+    ).toBe('What this story is about: A smuggler owes the wrong people.');
+  });
+
+  it('gives it nothing for a premise left blank, or one that is not words', async () => {
+    expect(await premiseSaid({ premise: '   ' })).toBeUndefined();
+    expect(await premiseSaid({ premise: 3 })).toBeUndefined();
+  });
+});
+
+/**
  * ***A session copied before a block shipped is assembled with it***
  * (2026-09-27) — `presetOf`, through the gather every turn and every preview
  * calls. The file on disk is exactly what a session begun on the first alpha

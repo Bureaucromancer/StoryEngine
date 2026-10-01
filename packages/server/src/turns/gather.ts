@@ -150,6 +150,27 @@ export interface AssemblyInputs {
 }
 
 /**
+ * ***The text answers the session was set up with*** (2026-09-30) — what a
+ * `setup` slot names by field id ([04 §8.2]).
+ *
+ * *Read here, not in the collector*, for the dials' reason below: `mode.config`
+ * is a record field [04 §7] keeps opaque to the host, and this does not open
+ * it — it hands the pack what the pack asked for by name, without reading what
+ * any answer means. **Own string fields only, trimmed**: a blank answer is an
+ * empty one, which the slot's `omitWhenEmpty` decides about as it does for a
+ * blank framing, and never a heading over whitespace. A config that is not an
+ * object is none.
+ */
+function setupAnswers(config: unknown): Record<string, string> {
+  const answers: Record<string, string> = {};
+  if (typeof config !== 'object' || config === null || Array.isArray(config)) return answers;
+  for (const [field, value] of Object.entries(config)) {
+    if (typeof value === 'string') answers[field] = value.trim();
+  }
+  return answers;
+}
+
+/**
  * Both dials, over the pack in play.
  *
  * **A loop over the two axes rather than two near-identical blocks**, because
@@ -355,6 +376,7 @@ type FromGather =
   | 'actors'
   | 'channels'
   | 'modeId'
+  | 'setup'
   | 'carriers'
   | 'goal'
   | 'dials'
@@ -410,6 +432,7 @@ export function collectFor(
     actors: inputs.cast.actors,
     channels: inputs.channels,
     modeId: inputs.mode.definition.id,
+    setup: setupAnswers(inputs.session?.mode?.config),
     carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
     ...(inputs.goals.current === null
       ? {}

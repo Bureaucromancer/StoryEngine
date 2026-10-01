@@ -3177,6 +3177,53 @@ describe('the pack a session reply shows', () => {
 });
 
 /**
+ * ***A Freeform story's premise reaches its narrator*** (2026-09-30). The
+ * wizard requires it and promises *"The narrator opens from it"*; until the
+ * `setup` slot it was stored on the session and sent to no model.
+ */
+describe('a Freeform story’s premise', () => {
+  it('is on the wire of its first turn, and the record says where it came from', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Drowned city',
+        mode: 'storyengine.freeform',
+        modeConfig: {
+          premise: 'A smuggler owes the wrong people.',
+          difficulty: 'even',
+          directedness: 'following',
+        },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.session.id as string;
+
+    const submitted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${id}/turns`,
+      payload: { idempotencyKey: 'premise-1', headTurnId: null, input: { text: 'Look around.' } },
+    });
+    expect(submitted.status, JSON.stringify(submitted.body)).toBe(202);
+    const stream = await server.stream({ url: `/api/sessions/${id}/stream` });
+    await stream.until(finished, TURN_FINISHES_MS);
+    await stream.abort();
+
+    const sent = provider.requests.map((request) =>
+      request.messages.map((message) => message.content).join('\n'),
+    );
+    expect(sent.join('\n')).toContain(
+      'What this story is about: A smuggler owes the wrong people.',
+    );
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+    const sources = (turns.body.turns[0].request.calls[0].blocks as { source: unknown }[]).map(
+      (block) => block.source,
+    );
+    expect(sources).toContainEqual({ kind: 'setup', field: 'premise' });
+  });
+});
+
+/**
  * ***A session naming a mode this build does not have is shown the mode it
  * plays*** (2026-09-30) — `resolvedMode`, [00 §3.3].
  *

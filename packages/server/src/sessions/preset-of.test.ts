@@ -82,6 +82,19 @@ describe('a copy of the mode’s own pack', () => {
     expect(ids(read).indexOf('se.attempt')).toBe(ids(read).indexOf('se.guidance') + 1);
   });
 
+  /**
+   * ***Freeform's premise slot*** (2026-09-30), which every Freeform story
+   * begun before it lacks: gained beside the treatment's framing, so a story
+   * already running is told its premise from its next turn.
+   */
+  it('gains Freeform’s premise slot after the treatment', () => {
+    const freeform = 'storyengine.freeform';
+    const read = presetOf(copiedWithout(['se.premise'], freeform), mode(freeform));
+
+    expect(ids(read)).toEqual(ids(shipped(freeform)));
+    expect(ids(read).indexOf('se.premise')).toBe(ids(read).indexOf('se.treatment') + 1);
+  });
+
   it('gains a block even when none of those before it survived', () => {
     // The nearest earlier block is the anchor; with none, the start is.
     const read = presetOf(copiedWithout(['se.instruction']), mode());

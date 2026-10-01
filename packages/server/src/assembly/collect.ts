@@ -207,6 +207,15 @@ export interface CollectContext {
    */
   carriers?: SampleCarriers;
   /**
+   * ***The text answers the session was set up with*** (2026-09-30) —
+   * `mode.config`'s string fields, from the mode's wizard or the Setup it
+   * began from, which a `setup` slot names by field id. *Read by the gather*,
+   * for the dials' reason: `mode.config` is a record field, and a collector
+   * that read it would be doing the gather's job somewhere a preview and a
+   * turn could disagree about it. Absent means none was gathered.
+   */
+  setup?: Readonly<Record<string, string>>;
+  /**
    * ***The member this call speaks as*** — an actor id, [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
    * point 1, [P14.2]. `StepCallRequest.speaker`, handed through by the runner.
    *
@@ -933,6 +942,15 @@ function emptyReason(block: PresetBlock, context: CollectContext): NotFilledReas
     case 'treatment':
       if (block.source.part === 'tone') return 'no-producer';
       return context.carriers === undefined ? 'no-producer' : 'empty-source';
+
+    /**
+     * ***`setup` from its first line*** (2026-09-30), treatment's reading: a
+     * gathered set of answers without this one is a session set up without
+     * it — a Setup that carried no premise, or a mode that never asked — and
+     * a collect that gathered none is waiting on the engine.
+     */
+    case 'setup':
+      return context.setup === undefined ? 'no-producer' : 'empty-source';
 
     /**
      * ~~No producer at this phase.~~ The producer has been the channel's own
@@ -1894,6 +1912,17 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         undefined,
         names,
       );
+    }
+
+    /**
+     * ***What the person set the session up with*** (2026-09-30) — Freeform's
+     * premise, which its wizard requires and no prompt carried. The answer as
+     * written; `emit` drops a blank one, as it drops a blank framing.
+     */
+    case 'setup': {
+      const answer = context.setup?.[source.field];
+      if (answer === undefined) return [];
+      return emit(block, answer, { kind: 'setup', field: source.field }, undefined, names);
     }
 
     default:

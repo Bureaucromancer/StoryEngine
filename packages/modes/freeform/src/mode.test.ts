@@ -219,6 +219,28 @@ describe('what this mode declares that Scene could not', () => {
   });
 
   /**
+   * ***The premise reaches the narrator*** (2026-09-30). The wizard requires
+   * it and its hint promises *"The narrator opens from it"*; it was stored on
+   * the session and slotted by nothing. And **every setup slot names a field
+   * the wizard asks for**, so renaming a field cannot quietly leave a slot
+   * reading an answer nobody gives.
+   */
+  it('slots the premise its wizard requires, and only answers it asks for', () => {
+    const fields = FREEFORM.setup.kind === 'declared' ? FREEFORM.setup.fields : [];
+    const slotted = FREEFORM_PRESET.blocks.flatMap((block) =>
+      block.kind === 'slot' && block.source.of === 'setup' ? [block.source.field] : [],
+    );
+
+    expect(slotted).toEqual(['premise']);
+    for (const field of slotted) {
+      expect(
+        fields.map((one) => one.id),
+        field,
+      ).toContain(field);
+    }
+  });
+
+  /**
    * ***Declares no channel it cannot write*** — [25 C16], and the assertion is
    * written this way round on purpose.
    *

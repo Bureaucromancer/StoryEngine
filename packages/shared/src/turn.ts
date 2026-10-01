@@ -329,6 +329,12 @@ export type BlockSource =
    */
   | { kind: 'state'; keys: string[] }
   | { kind: 'treatment'; part: 'framing' | 'tone' }
+  /**
+   * ***A text answer the session was set up with*** (2026-09-30) — the
+   * `setup` slot ([04 §8.2]): `field` is the wizard field's id, so the record
+   * says which answer the block carried.
+   */
+  | { kind: 'setup'; field: string }
   | { kind: 'goal'; goalId: string }
   /**
    * One fragment of one dial's level — [06 §7.3.1], [06 §7.3.2], [P7.8].

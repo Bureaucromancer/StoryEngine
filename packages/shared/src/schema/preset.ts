@@ -255,6 +255,24 @@ export const SlotSource = Type.Union(
       of: Type.Literal('treatment'),
       part: Type.Union([Type.Literal('framing'), Type.Literal('tone')]),
     }),
+    /**
+     * ***A text answer the session was set up with*** (2026-09-30) —
+     * `mode.config[field]`, from the mode's wizard or the Setup the session
+     * began from ([04 §7], [06 §9]), named by the wizard field's id.
+     *
+     * Freeform's wizard requires a premise — *"A sentence or two. The narrator
+     * opens from it"* — and nothing could carry it to a prompt: the answers
+     * are a record field handed to steps as `input.setup`, Freeform's one step
+     * reads nothing, no slot named them, and a block template's namespace is
+     * names and never bodies (`renderTemplate`). A slot is how content reaches
+     * a prompt, so the pack names the answer and the collector fills it. *Read
+     * by the gather*, as the dials' rung is, so a preview and a turn cannot
+     * disagree about it. **A string answer only**, trimmed; a choice's option
+     * id is a string too, and a pack that slots one is saying it wants the id.
+     *
+     * *A widening of this closed union*, as `state` was — recorded as one.
+     */
+    Type.Object({ of: Type.Literal('setup'), field: Type.String() }),
     Type.Object({ of: Type.Literal('goal') }),
     /**
      * ***The two dials' prose*** — [06 §7.3.1], [06 §7.3.2], built at

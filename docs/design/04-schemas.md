@@ -1394,6 +1394,13 @@ type SlotSource =
   | { of: "samples"; from?: "actor" | "treatment" | "lore"; scope?: "speaker" | "others" | "voiced" }
   | { of: "channel"; channelId: ChannelId }
   | { of: "treatment"; part: "framing" | "tone" }
+  /** *Added 2026-09-30.* A text answer the session was set up with —
+   *  `mode.config[field]`, from the mode's wizard or the Setup it began from —
+   *  named by the wizard field's id and read by the gather (§7's record field
+   *  is opened for the pack that asks, never interpreted). Freeform slots its
+   *  required premise here; before, no slot could name it and it reached no
+   *  prompt. A widening of this closed union, recorded as one. */
+  | { of: "setup"; field: string }
   | { of: "goal" }                          // [06 §7.3.3]
   /** The guidance slot. [06 §5.1] positions this one by preset explicitly; the
    *  producer is recorded on the block, not chosen by the slot. */
@@ -1407,6 +1414,10 @@ type SlotSource =
   /** The player's current action — not `history`, which is turns that already
    *  happened. Every preset decides where it sits relative to the lore. */
   | { of: "input" }
+  // (2026-09-30) Behind the schema: `summary` ([P8.1]), `difficulty` and
+  // `directedness` ([P7.8]) and `state` ([P14.5a]) are arms of the shipped
+  // `SlotSource` this list never gained. Recorded with the audit's record
+  // items rather than written in here piecemeal.
 
 // SlotSource is BlockSource ([21 §1.1](21-internal-contracts.md)) minus its ~~two~~
 // three assembler-only origins — `preset`, because a preset's own prose *is* a

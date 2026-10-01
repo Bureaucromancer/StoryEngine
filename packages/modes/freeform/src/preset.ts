@@ -83,6 +83,36 @@ export const FREEFORM_PRESET: Preset = {
       },
     },
     /**
+     * ***What the story is about*** (2026-09-30) — the premise the wizard
+     * requires, *"A sentence or two. The narrator opens from it"*, which until
+     * now reached no prompt at all: stored on the session, read by nothing.
+     * Beside the treatment's framing because it answers the same question for
+     * this one story, and above it (65 against 60) because the person typed it
+     * for this story rather than chose it from a shelf. Every call, as the
+     * framing is. *A session begun before this block gains it* (`presetOf`),
+     * so a Freeform story already running is told its premise from the next
+     * turn.
+     */
+    {
+      id: 'se.premise',
+      label: 'premise',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 65,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'setup',
+        field: 'premise',
+      },
+      wrapper: 'What this story is about: {{content}}',
+    },
+    /**
      * *Whose block is whose* (2026-09-27): the persona and actor wrappers
      * name who each block is about, for the reasons Scene's pack gives beside
      * its own.

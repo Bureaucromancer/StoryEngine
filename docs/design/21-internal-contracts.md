@@ -63,6 +63,9 @@ type BlockSource =
   | { kind: "samples"; owner: { kind: "actor" | "treatment" | "lore"; id: string; contentHash: string }; sampleId: string }
   | { kind: "channel"; channelId: ChannelId }
   | { kind: "treatment"; part: "framing" | "tone" }
+  /** *Added 2026-09-30*, with the slot of the same name ([04 §8.2]): a text
+   *  answer the session was set up with; `field` is the wizard field's id. */
+  | { kind: "setup"; field: string }
   | { kind: "goal"; goalId: string }
   /** The guidance slot ([06 §5.1](06-modes-and-turn-pipeline.md)). `producer` because that
    *  section is explicit that one slot has several — the user's box, a rule's
@@ -91,6 +94,10 @@ type BlockSource =
    *  session's author's note, placed by the collector at its own depth on
    *  every `every`-th input — never by a pack. */
   | { kind: "note" }
+  // (2026-09-30) Behind the shipped type: `summary` ([P8.1]), `schema`
+  // ([P7.4]), `difficulty` ([P7.8]), `state` ([P14.5a]) and `continue`
+  // ([P14.4]) are arms of `BlockSource` this list never gained. Recorded with
+  // the audit's record items rather than written in here piecemeal.
 ```
 
 **`preset` and `step` are the asymmetry**, and naming it is the point. A slot
