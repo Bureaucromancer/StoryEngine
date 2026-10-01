@@ -1149,7 +1149,21 @@ export function PlayPage({
         </div>
       )}
 
-      <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
+      {/*
+        ***The story keeps room of its own*** (2026-10-01). `flex-1` with
+        `overflow-y-auto` lets a flex item shrink to nothing, and since P14 put
+        the cast, five session panels and the two scene switches above it, at a
+        1280×720 window — the e2e journeys' size, and a common laptop's — the
+        transcript was exactly that: zero pixels tall, the story invisible
+        between the controls and the composer, and every button in it covered
+        by whatever sat on top. A floor of half the viewport means the page
+        scrolls past the controls instead; on a tall window nothing changes,
+        because `flex-1` was already giving it more.
+      */}
+      <ol
+        className="flex min-h-[50dvh] flex-1 flex-col gap-4 overflow-y-auto"
+        aria-label="Transcript"
+      >
         {(transcript.data?.turns ?? []).map((turn) => (
           <TurnView
             key={turn.id}
