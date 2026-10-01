@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { rename, rm, stat } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { readdir, rename, rm, stat } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Removes a data directory, or removes nothing — F31.
@@ -32,7 +33,31 @@ import { basename, dirname, join, resolve } from 'node:path';
  * Not a test helper. Tests use their own temporary directories and never this.
  */
 
-const RESERVED = new Set(['/', '.', '..']);
+/**
+ * ~~`RESERVED = new Set(['/', '.', '..'])`~~ — **a guard that could not match**
+ * (2026-10-01). It was tested against the *resolved* path, and `resolve('.')` is
+ * the working directory's absolute path, never `.`; so `--data .` removed the
+ * directory the command was typed in — from the repository root, the checkout.
+ * What it meant is two questions, asked of where the path *lands*: is it the
+ * repository, the working directory, or above either (below), and does it look
+ * like a data directory at all (`DATA_MARKERS`).
+ */
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * ***What a data directory has and a stray one does not.*** `state/` and
+ * `index/` are made on a server's first start, `accounts.json` on its first
+ * account ([03 §5](../docs/design/03-data-model.md)). **Not `config.json`**: a
+ * checkout can hold a gitignored one at its root, which is exactly the
+ * directory this must never mistake for an install.
+ */
+const DATA_MARKERS = ['state', 'index', 'accounts.json'];
+
+/** Whether `inner` is `outer` or somewhere beneath it. */
+function holds(outer, inner) {
+  const path = relative(outer, inner);
+  return path === '' || (!path.startsWith('..') && !isAbsolute(path));
+}
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -41,10 +66,17 @@ async function main() {
     return;
   }
 
-  const at = resolve(valueOf(argv, '--data') ?? './data');
+  // The repository's own `data/` when none is named, rather than the working
+  // directory's: the package script runs at the root, where the two agree, and
+  // anywhere else `./data` named whatever happened to be there.
+  const given = valueOf(argv, '--data');
+  const at = resolve(given ?? join(ROOT, 'data'));
 
-  if (RESERVED.has(at) || dirname(at) === at) {
-    fail(`Refusing to remove ${at}. That is not a data directory.`);
+  if (dirname(at) === at || holds(at, ROOT) || holds(at, process.cwd())) {
+    fail(
+      `Refusing to remove ${at}: it is, or contains, the repository or the directory\n` +
+        'this was run from. A data directory is never either.',
+    );
   }
 
   const there = await stat(at).catch(() => null);
@@ -54,6 +86,17 @@ async function main() {
   }
   if (!there.isDirectory()) {
     fail(`${at} is not a directory.`);
+  }
+
+  // **Empty, or shaped like an install** — anything else is a directory somebody
+  // pointed this at by mistake, and the cost of refusing is one flag.
+  const entries = await readdir(at);
+  const shaped = entries.length === 0 || entries.some((name) => DATA_MARKERS.includes(name));
+  if (!shaped && !argv.includes('--force')) {
+    fail(
+      `${at} does not look like a StoryEngine data directory (no state/, index/ or\n` +
+        'accounts.json), so nothing was removed. Pass --force if it is one.',
+    );
   }
 
   // Named so a leftover is recognisable rather than mysterious, and beside the
@@ -91,10 +134,14 @@ async function main() {
 function usage() {
   console.log(
     [
-      'Usage: node tools/reset-data.mjs [--data <dir>]',
+      'Usage: node tools/reset-data.mjs [--data <dir>] [--force]',
       '',
       'Removes a data directory completely, or refuses and removes nothing.',
-      'Stop the server first.',
+      "Stop the server first. Without --data it is the repository's data/.",
+      '',
+      'It refuses the repository, the directory it is run from and anything',
+      'above them, and a directory that is neither empty nor holds state/,',
+      'index/ or accounts.json — --force removes that last kind anyway.',
       '',
       'To keep one instead of removing it — for a finding worth reproducing:',
       '  1. stop the server',
@@ -111,7 +158,8 @@ function valueOf(argv, flag) {
   const index = argv.indexOf(flag);
   if (index === -1) return undefined;
   const value = argv[index + 1];
-  if (value === undefined || value.startsWith('--')) {
+  // An empty string is a missing value: `resolve('')` is the working directory.
+  if (value === undefined || value === '' || value.startsWith('--')) {
     fail(`${flag} needs a value.`);
   }
   return value;

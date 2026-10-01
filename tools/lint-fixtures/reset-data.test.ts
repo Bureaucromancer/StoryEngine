@@ -57,9 +57,18 @@ async function dataDir(): Promise<string> {
   return at;
 }
 
-async function reset(at: string): Promise<{ code: number; out: string }> {
+async function reset(
+  at: string,
+  options: { cwd?: string; extra?: string[] } = {},
+): Promise<{ code: number; out: string }> {
   try {
-    const { stdout } = await run(process.execPath, [SCRIPT, '--data', at]);
+    const { stdout } = await run(
+      process.execPath,
+      [SCRIPT, '--data', at, ...(options.extra ?? [])],
+      {
+        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+      },
+    );
     return { code: 0, out: stdout };
   } catch (error) {
     const failure = error as { code?: number; stdout?: string; stderr?: string };
@@ -118,5 +127,94 @@ describe('resetting a data directory', () => {
 
     expect(code).toBe(0);
     expect(out).toContain('Nothing to remove');
+  });
+});
+
+/**
+ * ***It removes a data directory and nothing else*** — 2026-10-01.
+ *
+ * The guard it had (`RESERVED = ['/', '.', '..']`) was tested against the
+ * resolved path, where `.` is never `.`, so `--data .` removed whatever directory
+ * it was run from — at the repository root, the checkout. And the default
+ * removed any `./data` without asking whether it was one.
+ *
+ * ***Every case here runs somewhere disposable.*** The working directory is a
+ * fresh temporary one whenever the case is about the working directory, and
+ * each directory that would go if the guard broke is a throwaway with a marker
+ * in it — so a regression costs a temp directory, never this checkout. The
+ * repository half of the guard is the same function and is not driven here for
+ * that reason.
+ */
+describe('what it will remove', () => {
+  /** A disposable directory, optionally shaped like an install. */
+  async function scratch(shaped: boolean): Promise<string> {
+    const at = await mkdtemp(join(tmpdir(), 'se-reset-guard-'));
+    made.push(at);
+    await writeFile(join(at, 'notes.txt'), 'somebody else’s');
+    if (shaped) await mkdir(join(at, 'state'), { recursive: true });
+    return at;
+  }
+
+  it('refuses a directory that does not look like a data directory, and keeps it', async () => {
+    const at = await scratch(false);
+
+    const { code, out } = await reset(at);
+
+    expect(code).toBe(1);
+    expect(out).toContain('does not look like a StoryEngine data directory');
+    expect(await readdir(at)).toContain('notes.txt');
+  });
+
+  it('removes that directory when told it is one', async () => {
+    const at = await scratch(false);
+
+    const { code } = await reset(at, { extra: ['--force'] });
+
+    expect(code).toBe(0);
+    await expect(readdir(at)).rejects.toThrow();
+  });
+
+  it('removes an empty directory, which is what a server makes before its first start', async () => {
+    const at = await mkdtemp(join(tmpdir(), 'se-reset-empty-'));
+    made.push(at);
+
+    expect((await reset(at)).code).toBe(0);
+    await expect(readdir(at)).rejects.toThrow();
+  });
+
+  /**
+   * ***The case the old guard was written for and never caught.*** The
+   * directory is shaped like an install, so only the working-directory rule can
+   * stop it — and it has to.
+   */
+  it('refuses the directory it is run from, given as `.`', async () => {
+    const at = await scratch(true);
+
+    const { code, out } = await reset('.', { cwd: at });
+
+    expect(code).toBe(1);
+    expect(out).toContain('Refusing to remove');
+    expect(await readdir(at)).toContain('notes.txt');
+  });
+
+  it('refuses a directory above the one it is run from', async () => {
+    const at = await scratch(true);
+    const below = join(at, 'somewhere', 'deeper');
+    await mkdir(below, { recursive: true });
+
+    const { code } = await reset('../..', { cwd: below });
+
+    expect(code).toBe(1);
+    expect(await readdir(at)).toContain('notes.txt');
+  });
+
+  it('refuses an empty value, which would resolve to the working directory', async () => {
+    const at = await scratch(true);
+
+    const { code, out } = await reset('', { cwd: at });
+
+    expect(code).toBe(1);
+    expect(out).toContain('--data needs a value');
+    expect(await readdir(at)).toContain('notes.txt');
   });
 });
