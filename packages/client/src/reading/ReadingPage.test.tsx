@@ -19,10 +19,40 @@ import type { TurnRecord } from '../api.js';
 
 let turns: TurnRecord[] = [];
 let sessionName = 'The harbour';
+let unreadable = false;
+
+/**
+ * The router mocked wholesale, `ComparePage.test.tsx`-style: a link keeps an
+ * assertable destination without standing a router up.
+ */
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    params,
+    className,
+  }: {
+    children: React.ReactNode;
+    to?: string;
+    params?: Record<string, string>;
+    className?: string;
+  }) => {
+    let href = to ?? '#';
+    for (const [key, value] of Object.entries(params ?? {})) {
+      href = href.replace(`$${key}`, value);
+    }
+    return (
+      <a href={href} className={className}>
+        {children}
+      </a>
+    );
+  },
+}));
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
-  readTranscript: () => Promise.resolve({ turns }),
+  readTranscript: () =>
+    unreadable ? Promise.reject(new Error('no such turn')) : Promise.resolve({ turns }),
   readSession: () => Promise.resolve({ session: { id: 's1', name: sessionName } }),
   readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
   listLibrary: () => Promise.resolve({ objects: [{ id: 'actor-vera', name: 'Vera' }] }),
@@ -42,6 +72,7 @@ function renderPage(from?: string): void {
 
 beforeEach(() => {
   sessionName = 'The harbour';
+  unreadable = false;
   turns = [
     {
       id: 't1',
@@ -95,6 +126,28 @@ describe('reading a session', () => {
   it('says when it is showing a point in the past rather than the current line', async () => {
     renderPage('t1');
     expect(await screen.findByText(/as it stood at one point/)).toBeTruthy();
+  });
+
+  /**
+   * ***A way back to the story*** (2026-10-01). Opened from the session panel,
+   * the view offered no route back to the session but the browser's own — and
+   * none at all to somebody who arrived on a pasted link. Not on paper: the
+   * link sits with the controls a print drops.
+   */
+  it('offers the way back to the session, and keeps it off the page', async () => {
+    renderPage();
+    const back = await screen.findByRole('link', { name: 'Back to the session' });
+    expect(back.getAttribute('href')).toBe('/play/s1');
+    expect(back.closest('.print\\:hidden')).toBeTruthy();
+  });
+
+  it('offers it when the story could not be read, too', async () => {
+    unreadable = true;
+    renderPage('t-missing');
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Back to the session' }).getAttribute('href')).toBe(
+      '/play/s1',
+    );
   });
 
   it('says so rather than rendering nothing when the session is empty', async () => {

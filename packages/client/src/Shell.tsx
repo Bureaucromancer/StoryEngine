@@ -175,8 +175,20 @@ export function Shell(): JSX.Element {
                 Assistant
               </Button>
               <NotificationBell state={notifications} locale={account.locale ?? undefined} />
-              {/* One entry, which is all [P2A §3] asks for. */}
-              <Link to="/settings" className="text-sm text-ink-muted hover:underline">
+              {/* One entry, which is all [P2A §3] asks for — **drawn as the
+                  surfaces' entries are** (2026-10-01). It was a bare link with
+                  no current state, so Settings was the one place in the app
+                  where nothing in the header said where you were, and the only
+                  link in it with no focus ring. Its place stays with the
+                  account; its look is `navLink`'s. */}
+              <Link
+                to="/settings"
+                activeProps={{
+                  className: `${navLink.base} ${navLink.active} font-medium`,
+                  'aria-current': 'page',
+                }}
+                inactiveProps={{ className: `${navLink.base} ${navLink.idle}` }}
+              >
                 Settings
               </Link>
               {/* Bounded and titled: a display name is somebody's to choose,

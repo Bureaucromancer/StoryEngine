@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { newActor } from '@storyengine/shared';
@@ -127,6 +127,7 @@ vi.mock('./play/stream.js', () => ({
 }));
 
 const { router } = await import('./router.js');
+const { navLink } = await import('./ui/classes.js');
 const { applyCatalogue } = await import('./i18n/catalogue.js');
 const { MACHINE_FRENCH } = await import('./i18n/fr-x-machine.js');
 
@@ -260,5 +261,34 @@ describe('a change of language', () => {
       });
     }
     expect(await screen.findByPlaceholderText('What do you do?')).toBeTruthy();
+  });
+});
+
+/**
+ * ***Settings says it is where you are*** (2026-10-01). The three surfaces in
+ * the header are lit while you are in them; Settings was a bare link with no
+ * current state, so it was the one page in the app where nothing in the header
+ * said where you were. Held on the real router, because `activeProps` is the
+ * router's to apply and a mocked `Link` would apply nothing either way.
+ */
+describe('the header', () => {
+  it('lights Settings while you are in it, and only then', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/settings' });
+    });
+    await screen.findByRole('heading', { name: 'Settings', level: 1 });
+    const here = within(screen.getByRole('banner')).getByRole('link', { name: 'Settings' });
+    expect(here.getAttribute('aria-current')).toBe('page');
+    expect(here.className).toContain(navLink.active);
+
+    await act(async () => {
+      await router.navigate({ to: '/library', search: {} });
+    });
+    await screen.findByRole('heading', { name: 'Library', level: 1 });
+    const away = within(screen.getByRole('banner')).getByRole('link', { name: 'Settings' });
+    expect(away.getAttribute('aria-current')).toBeNull();
+    expect(away.className).not.toContain(navLink.active);
+    expect(away.className).toContain(navLink.idle);
   });
 });

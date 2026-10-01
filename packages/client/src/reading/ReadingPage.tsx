@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
 import {
@@ -12,7 +13,7 @@ import {
 } from '../api.js';
 import { useLibrary, useRenditions, useSession, type RenditionSet } from '../queries.js';
 import { Button } from '../ui/Button.js';
-import { page } from '../ui/classes.js';
+import { link, page } from '../ui/classes.js';
 import { Note, PageTitle } from '../ui/Text.js';
 import { MovePictures } from '../play/Pictures.js';
 import { anchorOffset } from '../play/Rendition.js';
@@ -73,6 +74,7 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
         <p role="alert" className="text-danger-ink">
           That part of the story could not be read. The link may name a turn that is not there.
         </p>
+        <BackToSession sessionId={props.sessionId} />
       </main>
     );
   }
@@ -93,6 +95,7 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
           for: a page of controls is not part of the story, and the browser's
           own print-to-PDF is the whole of §12.2's PDF story. */}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <BackToSession sessionId={props.sessionId} />
         <div className="ms-auto flex flex-wrap gap-2">
           <CopyButton label="Copy as Markdown" text={() => toMarkdown(read, { title })} />
           <CopyButton label="Copy as text" text={() => toPlainText(read, { title })} />
@@ -252,6 +255,26 @@ function Illustrated(props: {
  * unchecked `void writeText()` would do on exactly the deployment this project
  * is for.
  */
+/**
+ * ***The way back*** (2026-10-01). The reading view is opened from a story's
+ * session panel, and offered no way back to it: the header's Play goes to the
+ * list of sessions, so returning to *this* story meant the browser's Back, or
+ * finding it again in the list — and a reading view opened from a pasted link
+ * had no Back at all. Compare had the same need and already answers it this
+ * way, so this is that link, in the same words.
+ *
+ * In the controls row, so printing drops it with them; and under the failure
+ * too, where a link naming a turn that is not there leaves a person most in
+ * need of somewhere to go.
+ */
+function BackToSession(props: { sessionId: string }): JSX.Element {
+  return (
+    <Link to="/play/$sessionId" params={{ sessionId: props.sessionId }} className={link.back}>
+      Back to the session
+    </Link>
+  );
+}
+
 function CopyButton(props: { label: string; text: () => string }): JSX.Element {
   const [said, setSaid] = useState<string | null>(null);
   return (
