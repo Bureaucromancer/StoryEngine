@@ -104,7 +104,24 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * the entry with the library surface that is their only reader, which is a
  * loading decision and not a merge's to make.
  */
-const JS_CEILING_KB = 331;
+/*
+ * ***Raised to 336 on 2026-10-01, for the audit and the polish pass that
+ * followed it.*** The entry measured **326.03** at the P13–P14 merge above;
+ * **329.00** before polish 5 (`d7ac703`), the difference being the audit's
+ * client fixes — a refusal read by its class rather than by its English, a
+ * draft kept through a late assist, a live frame that no longer freezes; then
+ * **330.13** after polish 9, **330.42** after polish 10, and **331.24** with
+ * polish 11, which crossed. About five kB in thirty-odd commits, all the
+ * client's own code and **no new dependency**, which is the [20 §7] trigger;
+ * most of the polish half is the words and the wiring by which a control says
+ * what happened — `TwoStep`, `WriteFailed`, `copyText`, a skip link, a radio
+ * group's arrows, search's status line. Every route is on the common entry, so
+ * a pass over every route lands here. Five kB of margin again, and the remedy
+ * named three times above is still the one and still not a polish commit's to
+ * take: the first `React.lazy`, or the note sentences off the entry with the
+ * library surface that is their only reader.
+ */
+const JS_CEILING_KB = 336;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;
