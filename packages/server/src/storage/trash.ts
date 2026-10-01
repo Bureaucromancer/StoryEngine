@@ -10,6 +10,7 @@ import type { Logger } from '../state/commit.js';
 import { watchWallClock, type WallClockWatch } from '../wall-clock.js';
 import type { Layout } from './layout.js';
 import { moveTree } from './files.js';
+import { KeyedQueue } from './keyed-queue.js';
 
 /**
  * ***The retention window, swept*** —
@@ -160,17 +161,42 @@ export async function sweepTrash(
 ): Promise<string[]> {
   if (retentionDays <= 0) return [];
 
-  const taken: string[] = [];
-  for (const entry of await listTrash(layout, handle, retentionDays)) {
-    if (entry.expiresAt === null || entry.expiresAt > now) continue;
-    // `resolveWithin` is what makes the id safe to join: it came from a
-    // `readdir` of the trash and is put back through the audited resolver
-    // rather than concatenated.
-    await rm(trashEntryPath(layout, handle, entry.id), { recursive: true, force: true });
-    taken.push(entry.id);
-  }
-  return taken;
+  return moves.run(handle, async () => {
+    const taken: string[] = [];
+    for (const entry of await listTrash(layout, handle, retentionDays)) {
+      if (entry.expiresAt === null || entry.expiresAt > now) continue;
+      // `resolveWithin` is what makes the id safe to join: it came from a
+      // `readdir` of the trash and is put back through the audited resolver
+      // rather than concatenated.
+      await rm(trashEntryPath(layout, handle, entry.id), { recursive: true, force: true });
+      taken.push(entry.id);
+    }
+    return taken;
+  });
 }
+
+/**
+ * ***One move of an account's trash at a time*** (2026-10-01).
+ *
+ * Two restores of one entry at once — two tabs, or a double press — both find
+ * it and its place free, and both rename it. On POSIX the second rename finds
+ * the path empty and fails, and `restoreFromTrash`'s catch turns that into the
+ * refusal it is. **On Windows it does not fail.** A rename there opens the
+ * source and renames the open handle, so when both had opened the folder
+ * before either moved it, the second moved it from where the first had put it
+ * to the same place — a success — and both callers were told *restored*. The
+ * object came back once and nothing was lost; what each request was told was
+ * wrong, and the test that says so went red on the first Windows run in four
+ * days (run 171).
+ *
+ * The sweep raced a restore the same way, with more at stake: its recursive
+ * delete and a restore of an entry at the very end of its window could
+ * interleave, and bring back a folder missing whatever had already gone.
+ *
+ * So both run on one queue per account. Restores and sweeps are rare, and the
+ * queue costs nothing between them.
+ */
+const moves = new KeyedQueue();
 
 /**
  * Where one trash entry is, resolved through the layout.
@@ -216,6 +242,10 @@ export async function restoreFromTrash(
   handle: string,
   id: string,
 ): Promise<RestoreOutcome> {
+  return moves.run(handle, () => restoreNow(layout, handle, id));
+}
+
+async function restoreNow(layout: Layout, handle: string, id: string): Promise<RestoreOutcome> {
   const [kind, entry] = splitTrashId(id);
   const from = trashEntryPath(layout, handle, id);
   if (!(await exists(from))) return { ok: false, reason: 'not-found' };
@@ -248,11 +278,13 @@ export async function restoreFromTrash(
     await moveTree(from, to);
   } catch (error) {
     /**
-     * ***Two restores of one entry at once*** (2026-09-27): two tabs, or a
-     * double press. Both find the entry, both find its place free, and the
-     * second rename finds nothing left to move. That is the answer the first
-     * look would have given a moment later, so it is given now, and a rename
-     * that failed for any other reason is still the failure it was.
+     * ***Something moved it between the look and the rename*** (2026-09-27).
+     * ~~Two restores of one entry at once~~ — those queue now (`moves`, and
+     * why: on Windows the second rename did not fail). What is left is a
+     * rename that found its source gone or its place taken by something
+     * outside this queue — a hand edit, a file manager. That is the answer the
+     * first look would have given a moment later, so it is given now, and a
+     * rename that failed for any other reason is still the failure it was.
      */
     if (!(await exists(from))) return { ok: false, reason: 'not-found' };
     if (await exists(to)) return { ok: false, reason: 'occupied' };

@@ -256,4 +256,27 @@ describe('restoring', () => {
     const refused = answers.find((answer) => answer?.ok === false);
     expect(['not-found', 'occupied']).toContain(refused?.ok === false ? refused.reason : null);
   });
+
+  /**
+   * ***A sweep and a restore of one entry, one after the other*** (2026-10-01).
+   * The sweep's recursive delete and a restore at the very end of an entry's
+   * window could interleave — and a rename halfway through a delete brings
+   * back a folder missing whatever had already gone. They queue now: what was
+   * asked first happens first, whole.
+   */
+  it('does not let a restore run through the middle of a sweep', async () => {
+    const id = await deleted('actors', 'vera', 1_757_000_000_000);
+    const folder = join(layout.trashRoot('ned'), id);
+    for (let index = 0; index < 50; index += 1) {
+      await writeFile(join(folder, `asset-${String(index)}.bin`), 'x');
+    }
+
+    const [taken, restored] = await Promise.all([
+      sweepTrash(layout, 'ned', 30, 1_757_000_000_000 + 31 * DAY),
+      restoreFromTrash(layout, 'ned', id),
+    ]);
+
+    expect(taken).toEqual([id]);
+    expect(restored).toEqual({ ok: false, reason: 'not-found' });
+  });
 });
