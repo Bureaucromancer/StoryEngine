@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type {
-  CastEntry,
+  StepCastMember,
   StepCondition,
   StepDefinition,
   StepImplementation,
@@ -36,7 +36,7 @@ import type { ChannelState, StepSkipReason, Turn, TurnAttachment } from '../sess
  */
 export type {
   Candidate,
-  CastEntry,
+  StepCastMember,
   EffectProposal,
   StepCallRequest,
   StepCallResult,
@@ -159,7 +159,7 @@ export function filterReads(
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
     output?: StepInput['output'];
-    cast?: readonly CastEntry[];
+    cast?: readonly StepCastMember[];
     /** A person's run between turns ([P14.5a]) — see `StepInput.onDemand`. */
     onDemand?: true;
   },

@@ -3,7 +3,7 @@
 
 import type {
   Candidate,
-  CastEntry,
+  StepCastMember,
   ChannelDefinition,
   MessageRevision,
   OutputMessage,
@@ -444,7 +444,7 @@ function replyText(message: OutputMessage): string {
   return [`The reply to edit, written as ${who}:`, '', message.text].join('\n');
 }
 
-function recentText(input: StepInput, cast: readonly CastEntry[]): string {
+function recentText(input: StepInput, cast: readonly StepCastMember[]): string {
   const player = cast.find((member) => member.persona === true)?.name ?? 'The player';
   const turns: readonly Pick<TranscriptTurn, 'input' | 'output'>[] = [
     ...(input.transcript ?? []).slice(-RECENT_TURNS),

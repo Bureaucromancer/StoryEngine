@@ -23,7 +23,7 @@ import { fromModelCall, recordUsage } from '../usage/log.js';
 import { CallFailed, Cancelled, performCall, RoleUnresolved, WindowTooSmall } from './calls.js';
 import { acceptStepEffect } from './effects.js';
 import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
-import { castEntries, costOf } from './runner.js';
+import { stepCast, costOf } from './runner.js';
 import { filterReads, type EffectProposal, type TurnStep } from './steps.js';
 
 /**
@@ -170,7 +170,7 @@ export async function runOnDemand(
             }),
         voice: chat.voice,
         dispatch: chat.dispatch,
-        cast: castEntries(inputs.cast, {
+        cast: stepCast(inputs.cast, {
           channels: inputs.channels,
           castIsPresent: castIsPresentFor(chat, inputs.mode.definition),
         }),

@@ -3,7 +3,7 @@
 
 import { RENDITION_SCHEMA, type Rendition, type RenditionPurpose } from '@storyengine/shared';
 
-import type { CastEntry } from '@storyengine/sdk';
+import type { StepCastMember } from '@storyengine/sdk';
 
 import { assemblePrompt, fragmentsFor } from './assemble.js';
 import { recipeDigest } from './digest.js';
@@ -60,7 +60,7 @@ export interface ManualRequest {
   purpose: RenditionPurpose;
   /** The turn's own prose, for an illustration. Empty for a backdrop. */
   moment: string;
-  cast: readonly CastEntry[];
+  cast: readonly StepCastMember[];
   channels: readonly { id: string; text: string }[];
   tone: string | null;
   image: { binding: Binding; capabilities: ProviderCapabilities };

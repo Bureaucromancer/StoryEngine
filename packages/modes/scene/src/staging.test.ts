@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type {
-  CastEntry,
+  StepCastMember,
   StepCallRequest,
   StepCallResult,
   StepHost,
@@ -33,7 +33,7 @@ import { STAGE_STEP, stage } from './staging.js';
  */
 
 /** Somebody with faces to choose from. */
-function member(over: Partial<CastEntry> = {}): CastEntry {
+function member(over: Partial<StepCastMember> = {}): StepCastMember {
   return {
     actorId: 'a-vera',
     name: 'Vera',

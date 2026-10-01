@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type {
-  CastEntry,
+  StepCastMember,
   Candidate,
   StepDefinition,
   StepHost,
@@ -142,10 +142,10 @@ function backdropOn(channels: StepInput['channels']): boolean {
  *
  * ***In the room*** since 2026-09-30: a muted member is out of the scene by the
  * mode's own reading of presence, which the host says on the entry
- * (`CastEntry.present`) — the reading the plot and the trackers already take —
+ * (`StepCastMember.present`) — the reading the plot and the trackers already take —
  * and a face chosen for somebody who is not there is a face nobody sees.
  */
-function withFaces(cast: readonly CastEntry[]): CastEntry[] {
+function withFaces(cast: readonly StepCastMember[]): StepCastMember[] {
   return cast.filter(
     (member) =>
       member.present !== false &&
@@ -153,7 +153,7 @@ function withFaces(cast: readonly CastEntry[]): CastEntry[] {
   );
 }
 
-function facesOf(member: CastEntry): { id: string; label: string }[] {
+function facesOf(member: StepCastMember): { id: string; label: string }[] {
   return member.media
     .filter((one) => one.role === 'expression' && one.label !== undefined)
     .map((one) => ({ id: one.id, label: one.label ?? '' }));
@@ -258,7 +258,7 @@ export async function stage(input: StepInput, host: StepHost): Promise<StepResul
  * schema, was asked twice more, and lost the place with it. A number is in the
  * prompt beside the name, and it is not a uuid to copy.
  */
-function rosterOf(cast: readonly CastEntry[]): string {
+function rosterOf(cast: readonly StepCastMember[]): string {
   return cast
     .map(
       (member, at) =>
@@ -283,7 +283,7 @@ function rosterOf(cast: readonly CastEntry[]): string {
  * dropped with the place beside it; now it costs that face. And *leave it out*
  * may be written `null`, which the place's own instruction invites.
  */
-function schemaFor(cast: readonly CastEntry[]): Record<string, unknown> {
+function schemaFor(cast: readonly StepCastMember[]): Record<string, unknown> {
   const properties: Record<string, unknown> = {
     place: { type: ['string', 'null'], maxLength: 120 },
   };
@@ -312,7 +312,7 @@ function schemaFor(cast: readonly CastEntry[]): Record<string, unknown> {
  */
 function readAnswer(
   object: unknown,
-  cast: readonly CastEntry[],
+  cast: readonly StepCastMember[],
 ): { faces: Record<string, string>; place: string | null } {
   const faces: Record<string, string> = {};
   if (typeof object !== 'object' || object === null) return { faces, place: null };

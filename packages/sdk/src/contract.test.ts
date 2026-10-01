@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CastEntry,
   joinMessageTexts,
   PRESET_SCHEMA,
   type Candidate,
@@ -13,6 +14,7 @@ import {
   type StepHost,
   type StepImplementation,
   type StepInput,
+  type StepCastMember,
   type StepResult,
   type SurfaceContribution,
   type WidgetSpec,
@@ -281,5 +283,29 @@ describe('a mode can be written against the SDK alone', () => {
     // the preset's own business — it is the one portable kind still declaring
     // itself unstable — and reading it through this package is the assertion.
     expect(PRESET_SCHEMA).toBe('storyengine.preset/0');
+  });
+
+  /**
+   * ***One name, one thing*** (2026-09-30). The step's view of a cast member was
+   * exported as `CastEntry`, which shadowed the Treatment's cast row re-exported
+   * from `shared` at the type level only: the name was this shape as a type
+   * and the Treatment schema as a value. Renamed `StepCastMember`, `CastEntry`
+   * here is the Treatment's again, as a type and as the schema both.
+   */
+  it('names the step’s cast member apart from the Treatment’s cast row', () => {
+    const row: CastEntry = {
+      ref: { id: '0199c000-0000-7000-8000-00000000a1b2', name: 'Vera' },
+      billing: 'npc',
+      note: 'the fence',
+    };
+    const member: StepCastMember = {
+      actorId: 'actor-vera',
+      name: 'Vera',
+      kind: 'actors',
+      media: [],
+    };
+
+    expect(CastEntry.title).toBe('CastEntry');
+    expect(row.ref.name).toBe(member.name);
   });
 });

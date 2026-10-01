@@ -513,7 +513,7 @@ export interface ModeSurface {
  * a person *writes* a value that may not exist yet — a character the tracker
  * has not reached — so it walks the people it could be about instead: every
  * present member but the persona, whose own tracker is a different shape
- * (`CastEntry.persona`, and the character tracker skips them for the same
+ * (`StepCastMember.persona`, and the character tracker skips them for the same
  * reason). A key the map holds for somebody not listed is somebody who left
  * the room, and their card closes with them; the value stays on the tree.
  *

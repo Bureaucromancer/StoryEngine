@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createValidator } from '@storyengine/sdk';
 import type {
-  CastEntry,
+  StepCastMember,
   StepCallRequest,
   StepCallResult,
   StepHost,
@@ -32,16 +32,16 @@ import { SCENE_ID } from './mode.js';
  * decides**; **a malformed answer fails the step**.
  */
 
-const NED: CastEntry = {
+const NED: StepCastMember = {
   actorId: 'a-ned',
   name: 'Ned',
   kind: 'actors',
   media: [],
   persona: true,
 };
-const VERA: CastEntry = { actorId: 'a-vera', name: 'Vera', kind: 'actors', media: [] };
-const MARLOW: CastEntry = { actorId: 'a-marlow', name: 'Marlow', kind: 'actors', media: [] };
-const MUTED: CastEntry = {
+const VERA: StepCastMember = { actorId: 'a-vera', name: 'Vera', kind: 'actors', media: [] };
+const MARLOW: StepCastMember = { actorId: 'a-marlow', name: 'Marlow', kind: 'actors', media: [] };
+const MUTED: StepCastMember = {
   actorId: 'a-ida',
   name: 'Ida',
   kind: 'actors',

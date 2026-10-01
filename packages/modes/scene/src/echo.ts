@@ -3,7 +3,7 @@
 
 import type {
   Candidate,
-  CastEntry,
+  StepCastMember,
   ChannelDefinition,
   StepDefinition,
   StepHost,
@@ -233,7 +233,7 @@ const TASK = [
 
 function reactionsOf(
   answer: unknown,
-  present: readonly CastEntry[],
+  present: readonly StepCastMember[],
 ): { name: string; value: string }[] {
   const list =
     typeof answer === 'object' && answer !== null && !Array.isArray(answer)
@@ -254,7 +254,7 @@ function reactionsOf(
   return out;
 }
 
-function recentText(input: StepInput, said: string, cast: readonly CastEntry[]): string {
+function recentText(input: StepInput, said: string, cast: readonly StepCastMember[]): string {
   const player = cast.find((member) => member.persona === true)?.name ?? 'The player';
   const turns: readonly Pick<TranscriptTurn, 'input' | 'output'>[] = [
     ...(input.transcript ?? []).slice(-RECENT_TURNS),

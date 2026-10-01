@@ -424,7 +424,7 @@ export function render(context: RenderContext): {
            * [06 §10.3]. The whole cast was drawn, the dead and the departed and
            * the muted with it, and a name the moment call or a tracker's line
            * wrote reached the image model as written. The host says who is out
-           * of the room (`CastEntry.present`); every name becomes *someone*
+           * of the room (`StepCastMember.present`); every name becomes *someone*
            * (`withoutNames`); and the moment is told the room the rest leaves it
            * (`roomForMoment`) rather than the whole budget.
            */

@@ -547,7 +547,7 @@ function pendingStatuses(path: readonly Turn[]): Map<string, string> {
  * but the persona, [P14.5a]'s *"each present character"*.
  *
  * *The persona is left out* because the player has a tracker of their own, a
- * different shape (`CastEntry.persona`); a character card for them would be
+ * different shape (`StepCastMember.persona`); a character card for them would be
  * the same person described twice, which the character tracker's step already
  * refuses to do. *Present*, read off the rows, so it is presence as the mode
  * reads it — a member nobody muted in an embodied chat is in the room.

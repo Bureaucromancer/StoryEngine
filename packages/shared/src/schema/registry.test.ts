@@ -96,6 +96,17 @@ describe('the registry', () => {
     }
   });
 
+  /**
+   * ***A kind named like the prototype is still a kind it has not heard of***
+   * (2026-09-30): the table was indexed bare, so `constructor` reached Ajv as a
+   * function and `validate` threw.
+   */
+  it('accepts a kind named like an Object.prototype member rather than throwing', () => {
+    for (const schema of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+      expect(validate({ schema, anything: 1 }), schema).toEqual({ valid: true });
+    }
+  });
+
   it('accepts a kind it has never heard of rather than rejecting it', () => {
     // A Package may legitimately contain a kind this build does not know —
     // Campaign, at 2.0. Rejecting it is the stranding §2 forbids: the object

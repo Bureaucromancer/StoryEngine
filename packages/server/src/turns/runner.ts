@@ -110,7 +110,7 @@ import { storyDepth } from '../sessions/depth.js';
 import { loreReached, retrieve, settleTiming } from '../retrieval/retrieve.js';
 import type { EffectProposal } from './effects.js';
 import { channelInPlay, inPlayFor, planFor, setupPlanFor } from '../mode-registry.js';
-import { evaluateCondition, filterReads, type CastEntry, type TurnPlan } from './steps.js';
+import { evaluateCondition, filterReads, type StepCastMember, type TurnPlan } from './steps.js';
 import { TALKATIVENESS_DEFAULT, talkativenessMap, turnSelection } from './speakers.js';
 import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
 import { isTerminal, readPresence, readStatus } from '../sessions/cast.js';
@@ -1953,7 +1953,7 @@ export class TurnRunner {
              * `filterReads` drops it for a step that did not declare `cast`, so
              * this is the whole cast and the filter is where it narrows.
              */
-            cast: castEntries(cast, {
+            cast: stepCast(cast, {
               channels: running,
               castIsPresent: castIsPresentFor(chat, mode.definition),
             }),
@@ -3732,7 +3732,7 @@ function castTerms(
  * a mode staging a scene has no reason to leave the player's own character out
  * of it.
  */
-export function castEntries(
+export function stepCast(
   cast: {
     persona: CastMember | null;
     actors: readonly CastMember[];
@@ -3749,7 +3749,7 @@ export function castEntries(
     channels: Readonly<Record<string, { value: unknown; degraded?: unknown }>>;
     castIsPresent: boolean;
   },
-): CastEntry[] {
+): StepCastMember[] {
   const everyone = cast.persona === null ? cast.actors : [cast.persona, ...cast.actors];
   const muted = (member: CastMember): boolean =>
     presence !== undefined &&
@@ -3771,7 +3771,7 @@ export function castEntries(
     actorId: member.actor.id,
     name: member.actor.name,
     kind: 'actors',
-    // Said rather than left to position ([P14.5a]) — see `CastEntry.persona`.
+    // Said rather than left to position ([P14.5a]) — see `StepCastMember.persona`.
     ...(member === cast.persona ? { persona: true as const } : {}),
     ...(muted(member) || gone(member) ? { present: false as const } : {}),
     media: member.actor.media.map((one) => ({

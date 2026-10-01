@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { CastEntry } from '@storyengine/sdk';
+import type { StepCastMember } from '@storyengine/sdk';
 import {
   literalSpans,
   type AssembledPrompt,
@@ -57,7 +57,7 @@ export interface FragmentInputs {
   /** The turn's finished prose. Empty for a background, which never reads it. */
   moment: string;
   /** Who is in the scene, with their descriptors — `reads: ['cast']`. */
-  cast: readonly CastEntry[];
+  cast: readonly StepCastMember[];
   /** Rendered channel values, keyed by channel id, in the mode's own order. */
   channels: readonly { id: string; text: string }[];
   /** The treatment's `tone`, and any style profile beside it. */
@@ -277,7 +277,7 @@ export function fragmentsFor(purpose: RenditionPurpose, inputs: FragmentInputs):
  *
  * [06 §10.3]'s first assembler rule, enforced here rather than asked of a model:
  * *"the image model does not know who Elena is; it knows what a woman with
- * cropped grey hair looks like."* `CastEntry.name` is right there and is
+ * cropped grey hair looks like."* `StepCastMember.name` is right there and is
  * deliberately not read — [04 §3] built `VisualDescriptors` *"precisely so the
  * substitution is mechanical"*, and a mechanical substitution is one that cannot
  * be forgotten under deadline.
@@ -294,14 +294,14 @@ export function fragmentsFor(purpose: RenditionPurpose, inputs: FragmentInputs):
  * refuse to write a name at all, which makes the count a question about
  * descriptors rather than about people.
  */
-function describeCast(cast: readonly CastEntry[]): string {
+function describeCast(cast: readonly StepCastMember[]): string {
   return cast
     .map((entry) => describeOne(entry))
     .filter((described) => described !== '')
     .join('; ');
 }
 
-function describeOne(entry: CastEntry): string {
+function describeOne(entry: StepCastMember): string {
   const visual = entry.visual;
   if (visual === undefined) return '';
   // The order is the schema's, which reads head to hem and is the order a person

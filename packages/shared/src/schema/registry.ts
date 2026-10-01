@@ -138,8 +138,16 @@ function validatorFor(schemaId: string): ValidateFunction | null {
   const cached = compiled.get(schemaId);
   if (cached) return cached;
 
-  const schema = PORTABLE_SCHEMAS[schemaId as PortableSchemaId] as TSchema | undefined;
-  if (!schema) return null;
+  /**
+   * ***An own key, or no schema*** (2026-09-30). Indexed bare, the table
+   * answered for its prototype too: a kind named `constructor`, `toString` or
+   * `valueOf` handed Ajv a function, which throws *"schema must be object or
+   * boolean"* — so a file naming such a kind threw out of `validate` instead of
+   * being an unknown kind, which [04 §2] says is never a failure. The SDK
+   * re-exports this, so an extension validating what it was handed met it.
+   */
+  if (!isKnownSchema(schemaId)) return null;
+  const schema = PORTABLE_SCHEMAS[schemaId] as TSchema;
 
   const validate = ajv.compile(schema);
   compiled.set(schemaId, validate);

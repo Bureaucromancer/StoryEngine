@@ -3,7 +3,7 @@
 
 import type {
   Candidate,
-  CastEntry,
+  StepCastMember,
   ChannelDefinition,
   EffectProposal,
   StepDefinition,
@@ -364,7 +364,7 @@ const TASK = [
   'Never write scene prose or dialogue, and never decide what the player’s character says or does.',
 ].join('\n');
 
-function castText(cast: readonly CastEntry[]): string {
+function castText(cast: readonly StepCastMember[]): string {
   const player = cast.find((member) => member.persona === true)?.name;
   const others = cast
     .filter((member) => member.persona !== true && member.present !== false)
@@ -375,7 +375,7 @@ function castText(cast: readonly CastEntry[]): string {
   ].join('\n');
 }
 
-function recentText(input: StepInput, cast: readonly CastEntry[]): string {
+function recentText(input: StepInput, cast: readonly StepCastMember[]): string {
   const player = cast.find((member) => member.persona === true)?.name ?? 'The player';
   const turns: readonly Pick<TranscriptTurn, 'input' | 'output'>[] = [
     ...(input.transcript ?? []).slice(-RECENT_TURNS),

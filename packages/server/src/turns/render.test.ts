@@ -186,7 +186,7 @@ describe('the illustration branch', () => {
 
   /**
    * ***Only who is in the room*** (2026-09-30) — [06 §8.1]. The host marks a
-   * member muted, dead or departed as out of it (`CastEntry.present`); the
+   * member muted, dead or departed as out of it (`StepCastMember.present`); the
    * whole cast was drawn.
    */
   it('does not draw somebody who is out of the room', async () => {

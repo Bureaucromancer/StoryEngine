@@ -199,11 +199,14 @@ interface StepContext {
   output?: string                       // only at `extract` / `post`
   speakers?: ActorId[]                  // P7.3 — unfiltered; the mode's own policy
   setup?: Record<string, unknown>       // P7.4 — unfiltered, for the same reason
-  cast?: CastEntry[]                    // P7.12 — filtered; declared by `reads`
+  cast?: StepCastMember[]               // P7.12 — filtered; declared by `reads`
   transcript?: TranscriptTurn[]         // P8.1 — filtered; what was said, never the record
   config: unknown                       // the extension's own settings
   host: HostApi                         // async, narrow, typed
 }
+// (2026-09-30) `StepCastMember` was named `CastEntry` until the SDK's name
+// was found to shadow the Treatment's cast row ([04 §3.1]'s `CastEntry`),
+// which the SDK re-exports from `shared`; the step's is the one renamed.
 
 interface StepResult {
   candidates?: Candidate[]              // not blocks — the assembler makes those

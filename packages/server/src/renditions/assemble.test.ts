@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { CastEntry } from '@storyengine/sdk';
+import type { StepCastMember } from '@storyengine/sdk';
 
 import { capPrompt, type PromptFragment } from '../providers/prompt-caps.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
@@ -36,7 +36,7 @@ const CAPS: ProviderCapabilities = capabilitiesFor('fake', {
   usefulPromptChars: 80,
 });
 
-const ELENA: CastEntry = {
+const ELENA: StepCastMember = {
   actorId: 'a-1',
   name: 'Elena',
   kind: 'actors',
@@ -44,7 +44,7 @@ const ELENA: CastEntry = {
   visual: { hair: 'cropped grey hair', build: 'a tall woman', clothing: 'an oilskin coat' },
 };
 
-const NAMELESS: CastEntry = {
+const NAMELESS: StepCastMember = {
   actorId: 'a-2',
   name: 'The Harbourmaster',
   kind: 'actors',

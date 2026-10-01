@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createValidator } from '@storyengine/sdk';
 import type {
-  CastEntry,
+  StepCastMember,
   StepCallRequest,
   StepCallResult,
   StepHost,
@@ -37,8 +37,8 @@ import { SCENE_PRESET } from './preset.js';
  * server's (`routes/director.test.ts`).
  */
 
-const VERA: CastEntry = { actorId: 'a-vera', name: 'Vera', kind: 'actors', media: [] };
-const NED: CastEntry = {
+const VERA: StepCastMember = { actorId: 'a-vera', name: 'Vera', kind: 'actors', media: [] };
+const NED: StepCastMember = {
   actorId: 'a-ned',
   name: 'Ned',
   kind: 'actors',

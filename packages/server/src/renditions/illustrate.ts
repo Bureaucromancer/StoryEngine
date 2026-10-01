@@ -13,7 +13,7 @@ import type { SessionContext } from '../sessions/store.js';
 import { performCall, resolveStepRole, RoleUnresolved } from '../turns/calls.js';
 import { gatherAssemblyInputs } from '../turns/gather.js';
 import { momentCall, readMoment, RENDER_STEP } from '../turns/render.js';
-import { castEntries } from '../turns/runner.js';
+import { stepCast } from '../turns/runner.js';
 import { fromModelCall, recordUsage } from '../usage/log.js';
 import { illustrationFragments, placeOf, roomForMoment, toneOf, withoutNames } from './assemble.js';
 import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
@@ -157,11 +157,11 @@ export async function illustrateTurn(
 
   /**
    * ***Who is in the room, read as the turn reads it*** (2026-09-30) — the
-   * same `castEntries` reading the render step is handed, where this passed
+   * same `stepCast` reading the render step is handed, where this passed
    * none and so drew the dead, the departed and the muted. The step's rules
    * follow it here, because **Illustrate** is the same step pressed by hand.
    */
-  const everyone = castEntries(inputs.cast, {
+  const everyone = stepCast(inputs.cast, {
     channels: inputs.channels,
     castIsPresent: castIsPresentFor(
       chatSettingsOf(inputs.session, inputs.mode.definition),

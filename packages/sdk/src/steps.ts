@@ -278,8 +278,18 @@ export interface EffectProposal {
  * and forty fields, and handing one to every step that wants a name would make
  * the payload filter meaningless. This is what a step can act on: who they are,
  * and what pictures travel with them.
+ *
+ * ***`StepCastMember`, where it was `CastEntry`*** (2026-09-30). This package
+ * re-exports `@storyengine/shared`, whose `CastEntry` is a Treatment's cast
+ * row — a TypeBox schema, so a value as well as a type — and this interface's
+ * name shadowed it at the type level only: `CastEntry` from here was this
+ * shape as a type and the Treatment schema as a value, with nothing in common.
+ * Both had live users (the Scene steps here, the Aventuras scenario import
+ * there), so one had to move, and the contract's is the newer name. *Not
+ * `CastMember`*, which the engine already spends on a resolved actor
+ * (`turns/cast.ts`); this is a cast member as a step is shown one.
  */
-export interface CastEntry {
+export interface StepCastMember {
   actorId: string;
   name: string;
   /** The object kind that carries the media, for addressing it. Actors today. */
@@ -290,7 +300,7 @@ export interface CastEntry {
    * added at [P9.1](../../../docs/design/workplan/26-p9-implementation.md).
    *
    * **The field this type was missing for the one consumer it was built to
-   * serve.** [P7.12] added `CastEntry` so a step could do *expression selection*
+   * serve.** [P7.12] added `StepCastMember` so a step could do *expression selection*
    * and handed over ids, names and a media manifest; [06 §10.3] asks a rendition
    * step for *"present actors' `VisualDescriptors` and their `reference`
    * media"*, and only the second half was here. A step that had to fetch the
@@ -325,7 +335,7 @@ export interface CastEntry {
   /**
    * ***This entry is the player's own character*** — added at [P14.5a].
    *
-   * `castEntries` has put the persona first in this list since [P7.12]
+   * `stepCast` has put the persona first in this list since [P7.12]
    * (*"the persona is an actor too"*), and nothing could tell it from the
    * others: position is a convention a step would be trusting, and a session
    * with no persona puts somebody else first. The trackers are the first step
@@ -467,7 +477,7 @@ export interface StepInput {
    * handed one — which is what `reads` is for, and what keeps a step's payload
    * the thing it said it needed.
    */
-  cast?: readonly CastEntry[];
+  cast?: readonly StepCastMember[];
   /**
    * **What the mode's wizard was answered with** — [06 §7.3], [P7.4].
    *

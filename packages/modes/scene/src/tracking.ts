@@ -3,7 +3,7 @@
 
 import type {
   Candidate,
-  CastEntry,
+  StepCastMember,
   ChannelDefinition,
   EffectProposal,
   RecordField,
@@ -633,8 +633,8 @@ function cadenceOf(channels: StepInput['channels']): { everyNTurns: number; manu
  * The characters the tracker follows, each under a name the model can read.
  *
  * *Everyone present in the cast but the persona*, who has a tracker of their
- * own ({@link CastEntry.persona}). *Present* is the host's word
- * ({@link CastEntry.present}), the reading the prompt's cards and the panel's
+ * own ({@link StepCastMember.persona}). *Present* is the host's word
+ * ({@link StepCastMember.present}), the reading the prompt's cards and the panel's
  * use: a muted member is out of the room, and Marinara's character tracker
  * follows only the characters in the scene (correction, 2026-09-29 — this
  * asked about everyone, a call's share every turn about somebody the player
@@ -642,7 +642,7 @@ function cadenceOf(channels: StepInput['channels']): { everyNTurns: number; manu
  * number, because the answer is keyed by name and a collision would write one
  * person's mood onto the other.
  */
-function charactersOf(cast: readonly CastEntry[]): { actorId: string; label: string }[] {
+function charactersOf(cast: readonly StepCastMember[]): { actorId: string; label: string }[] {
   const seen = new Map<string, number>();
   return cast
     .filter((member) => member.persona !== true && member.present !== false)

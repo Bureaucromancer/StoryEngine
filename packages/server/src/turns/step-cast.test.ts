@@ -4,10 +4,10 @@
 import { newActor, type Actor } from '@storyengine/shared';
 import { describe, expect, it } from 'vitest';
 
-import { castEntries } from './runner.js';
+import { stepCast } from './runner.js';
 
 /**
- * ***Who a step is told is in the room*** — `castEntries`, the host's one
+ * ***Who a step is told is in the room*** — `stepCast`, the host's one
  * reading for every step that declares `cast`.
  *
  * *Written out is out of the room* (2026-09-30), under either reading of
@@ -29,7 +29,7 @@ function outOfTheRoom(
   channels: Record<string, { value: unknown }>,
   castIsPresent: boolean,
 ): string[] {
-  return castEntries(
+  return stepCast(
     {
       persona,
       actors: [vera.actor, marlow.actor, lund.actor].map((actor) => ({ actor, contentHash: 'h' })),
@@ -58,7 +58,7 @@ describe('who is out of the room', () => {
   });
 
   it('is nobody for a caller that reads no scene', () => {
-    const entries = castEntries({ persona: null, actors: [marlow] });
+    const entries = stepCast({ persona: null, actors: [marlow] });
     expect(entries.map((entry) => entry.present)).toEqual([undefined]);
   });
 });
