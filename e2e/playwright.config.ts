@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -38,6 +42,36 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4598;
 const FAKE_PORT = 4599;
+
+/**
+ * ***The run's data directory, made here and removed when the run ends*** —
+ * 2026-10-01.
+ *
+ * It was `$(mktemp -d)` inside the server's command, which only a POSIX shell
+ * runs and which nothing ever removed: one directory leaked per run. **Made in
+ * the runner, once**: Playwright evaluates this file in the runner and again in
+ * every worker it forks, and the workers inherit the variable set here, so only
+ * the first evaluation makes a directory and registers its removal.
+ *
+ * *On the runner's exit rather than in a `globalTeardown`*, because Playwright
+ * runs that before it stops the web servers — while `index.sqlite` is still
+ * open, which Windows refuses to delete. Best effort, with retries: a
+ * directory that cannot be removed is a leak, not a failed run.
+ */
+const DATA_DIR =
+  process.env['SE_E2E_DATA_DIR'] ??
+  ((): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'se-e2e-'));
+    process.env['SE_E2E_DATA_DIR'] = dir;
+    process.on('exit', () => {
+      try {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      } catch {
+        // A leak, said nowhere: the run has already reported what it found.
+      }
+    });
+    return dir;
+  })();
 
 export default defineConfig({
   testDir: '.',
@@ -93,19 +127,24 @@ export default defineConfig({
     {
       /**
        * ***A fresh data directory per run***, which is what makes *first-run
-       * setup* a journey rather than a thing that worked once. `mktemp -d` is
-       * the whole of it: the server creates everything it needs under an empty
-       * directory, which is the claim [P6A](../docs/design/workplan/19-p6a-alpha-1.md)'s
-       * image makes and this is the cheapest place it is checked.
+       * setup* a journey rather than a thing that worked once. ~~`mktemp -d` is
+       * the whole of it~~ — `DATA_DIR` above is, since 2026-10-01: the server
+       * creates everything it needs under an empty directory, which is the claim
+       * [P6A](../docs/design/workplan/19-p6a-alpha-1.md)'s image makes and this
+       * is the cheapest place it is checked.
+       *
+       * ***The command is a program and its arguments, and nothing a shell has
+       * to read.*** It was `SE_DATA_DIR="$(mktemp -d)" … node …` — POSIX
+       * assignments and a command substitution — which `cmd.exe` cannot run, so
+       * `pnpm test:e2e` failed on Windows, the platform this is developed on.
+       * The variables travel in `env`, where no shell quotes them; a Windows
+       * temporary path can hold a space.
        *
        * **Loopback, so no setup token is needed** — [09 §5.1]'s own rule: the
        * token exists for an install reachable from elsewhere, and a run on
        * `127.0.0.1` is not one.
        */
-      command:
-        'SE_DATA_DIR="$(mktemp -d)" SE_HOST=127.0.0.1 ' +
-        `SE_PORT=${String(PORT)} SE_CLIENT_ROOT=packages/client/dist ` +
-        'node packages/server/dist/main.js',
+      command: 'node packages/server/dist/main.js',
       url: `http://127.0.0.1:${String(PORT)}/api/auth/state`,
       reuseExistingServer: false,
       /**
@@ -115,7 +154,14 @@ export default defineConfig({
        * and offer *Restart now* to a browser that nothing would bring back.
        * Empty is unset — [21 §4]'s rule, which `supervisionOf` follows.
        */
-      env: { INVOCATION_ID: '', SE_SUPERVISED: '' },
+      env: {
+        INVOCATION_ID: '',
+        SE_SUPERVISED: '',
+        SE_DATA_DIR: DATA_DIR,
+        SE_HOST: '127.0.0.1',
+        SE_PORT: String(PORT),
+        SE_CLIENT_ROOT: 'packages/client/dist',
+      },
       cwd: '..',
       stdout: 'pipe',
       stderr: 'pipe',

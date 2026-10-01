@@ -251,6 +251,18 @@ export default tseslint.config(
     },
   },
 
+  // **The end-to-end harness's config**, on the test files' terms below
+  // (2026-10-01). It makes the run's scratch data directory and removes it when
+  // the run ends, which is test setup; the shell's `$(mktemp -d)` that did it
+  // before could not run on Windows and never removed anything. One file, so
+  // the journeys themselves keep the rule.
+  {
+    files: ['e2e/playwright.config.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports({ allowFs: true }),
+    },
+  },
+
   // Tests may touch the filesystem directly, and it is the point rather than a
   // concession. The rule keeps *production* code behind one audited resolver;
   // a storage test is playing the part of the user with a file manager —
