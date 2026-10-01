@@ -91,8 +91,6 @@ export const DISPOSITION_HELP: Record<string, string> = labels('import.dispositi
 const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   sillytavern: 'A SillyTavern library. Ready to import.',
   marinara: 'A Marinara data folder. Ready to import.',
-  'marinara-archive': 'A Marinara profile archive. Ready to import.',
-  'marinara-envelope': 'A Marinara export file. Ready to import.',
   charx: 'An unpacked CHARX character card. Ready to import.',
   'storyengine-backup':
     'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',

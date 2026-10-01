@@ -130,12 +130,6 @@ export function scopeOf(object: unknown): MemoryScope | null {
   return { actor: scope.actor, persona };
 }
 
-/** Whether a book is derived from play at all, marking aside from scope. */
-export function isMemoryBook(object: unknown): boolean {
-  if (typeof object !== 'object' || object === null) return false;
-  return (object as { provenance?: { source?: unknown } }).provenance?.source === 'session';
-}
-
 export function sameScope(one: MemoryScope, other: MemoryScope): boolean {
   return one.actor === other.actor && one.persona === other.persona;
 }

@@ -281,9 +281,12 @@ export function entryDataStart(header: Uint8Array, entry: ZipEntry): number | nu
   return entry.offset + 30 + nameLength + extraLength;
 }
 
-/** The two compression methods read here: stored, and deflate. */
+/**
+ * The stored method's number, for `zip-file.ts`, which streams a stored entry
+ * through untouched. ~~`ZIP_DEFLATED` beside it~~ had no reader, and went
+ * (2026-10-01): deflate is the other branch of the same test.
+ */
 export const ZIP_STORED = STORED;
-export const ZIP_DEFLATED = DEFLATED;
 
 /**
  * The bytes of one entry, or null if the archive lied about them.

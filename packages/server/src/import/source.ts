@@ -141,8 +141,6 @@ export interface LandedFile {
 export type ImportSourceKind =
   | 'sillytavern'
   | 'marinara'
-  | 'marinara-archive'
-  | 'marinara-envelope'
   /** The V3 spec's zip container: one `card.json`, and its assets beside it. */
   | 'charx'
   /** A directory of files somebody assembled by hand. The walker's plain mode. */

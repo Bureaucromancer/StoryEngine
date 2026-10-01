@@ -41,26 +41,6 @@ export type ProgressKey =
   | 'turn.finished'
   | 'job.progress';
 
-const KEYS: ReadonlySet<string> = new Set<ProgressKey>([
-  'turn.started',
-  'step.started',
-  'call.started',
-  'call.streaming',
-  'call.finished',
-  'step.finished',
-  'step.failed',
-  'step.skipped',
-  'effect.applied',
-  'speakers.picked',
-  'turn.finished',
-  'job.progress',
-]);
-
-/** Whether a key read back from the store is one this build knows. */
-export function isProgressKey(key: string): key is ProgressKey {
-  return KEYS.has(key);
-}
-
 /** An event before it has a sequence number — the store allocates that. */
 export interface EventDraft {
   key: ProgressKey;

@@ -259,7 +259,7 @@ export function resolveTagNames(
   tagIds: readonly string[] | undefined,
   registry: TagList,
 ): string[] {
-  if (tagIds === undefined) return [...tags];
+  if (!isAdopted(tagIds)) return [...tags];
   if (tagIds.length !== tags.length) return [...tags];
 
   const names: string[] = [];
@@ -277,6 +277,6 @@ export function resolveTagNames(
  * array is *yes, and it has no tags*, which is exactly what `tagIds === []`
  * means and exactly what a `?.length` test would get wrong.
  */
-export function isAdopted(tagIds: readonly string[] | undefined): boolean {
+export function isAdopted(tagIds: readonly string[] | undefined): tagIds is readonly string[] {
   return tagIds !== undefined;
 }

@@ -56,9 +56,6 @@
  * to decide is when a real locale and a real plural exist, not before.
  */
 
-/** Every namespace's English, registered as its module loads. */
-const ENGLISH = new Map<string, Readonly<Record<string, string>>>();
-
 /**
  * The active locale's catalogues, or empty for English.
  *
@@ -91,7 +88,6 @@ export function labels<T extends Record<string, string>>(
   namespace: string,
   english: T,
 ): Readonly<T> {
-  ENGLISH.set(namespace, english);
   return new Proxy(english, {
     get: (target, key) => {
       if (typeof key !== 'string') return Reflect.get(target, key) as unknown;
@@ -105,11 +101,6 @@ export function labels<T extends Record<string, string>>(
     has: (target, key) => Reflect.has(target, key),
     ownKeys: (target) => Reflect.ownKeys(target),
   });
-}
-
-/** Every namespace declared so far, with its English. For the tooling. */
-export function englishCatalogue(): Record<string, Record<string, string>> {
-  return Object.fromEntries([...ENGLISH.entries()].map(([ns, map]) => [ns, { ...map }]));
 }
 
 /**

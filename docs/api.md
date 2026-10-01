@@ -921,8 +921,10 @@ unpacked CHARX card), `storyengine-backup` (an unpacked backup, whose library is
 imported and whose sessions, tags and settings are listed and left), `aventuras`
 (a folder holding `aventura.db` — Aventuras' config directory, or an unzipped
 backup of it), or `loose-files` for a folder that matches nothing. Those are the
-six a directory can produce — `marinara-archive` and `marinara-envelope` are
-members of the same vocabulary but are never produced by pointing at a folder.
+six a directory can produce. ~~`marinara-archive` and `marinara-envelope` are
+members of the same vocabulary but are never produced by pointing at a folder.~~
+*Corrected 2026-10-01: they were never produced by anything, and are gone from
+the vocabulary.*
 
 **`aventuras` is decided by the name alone**, and so is every verdict here: the
 database is not opened to answer this. Whether this build can read it is the

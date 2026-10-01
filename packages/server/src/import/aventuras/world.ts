@@ -208,6 +208,12 @@ type Line = string | null;
 /**
  * ***The head's world*** — see the file header for the rules and where they
  * come from. `head` is a branch id, or `null` for main.
+ *
+ * *The resolution's own entry, which its tests drive directly* (2026-10-01:
+ * the audit read it as dead). `produceWorld` does not call it because it needs
+ * the same `Lines` again afterwards, for the note that says how the branches
+ * differ, and building that index twice to share one line would be the worse
+ * trade.
  */
 export function resolveWorld(
   world: AventurasWorld,

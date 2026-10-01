@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { MemoryFileSource } from '../memory-source.js';
-import type { FileSource, ImportSourceKind } from '../source.js';
+import type { FileSource } from '../source.js';
 
 /**
  * Marinara's single-file export formats
@@ -188,9 +188,4 @@ export function singleObjectAsFileSource(envelope: MarinaraEnvelope): FileSource
       // caller with the class that says when, not converted here.
       return null;
   }
-}
-
-/** Which source kind an envelope reads as, for the review's `source` field. */
-export function envelopeKind(envelope: MarinaraEnvelope): ImportSourceKind {
-  return envelope.type === 'marinara_profile' ? 'marinara' : 'marinara-envelope';
 }
