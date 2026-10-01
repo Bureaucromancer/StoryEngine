@@ -21,3 +21,36 @@ export function historyWindowFor(mode: string, session: { modeId: string }): num
       return 2;
   }
 }
+
+// The shapes the engine's own data takes (2026-10-01): a session stores
+// `mode?: { id, config }`, so these are the switches somebody would write.
+// Four reports: the optional chain, the property chain, the bare object, and a
+// `case` naming a mode id under a discriminant that names nothing.
+export function windowFor(
+  session: { mode?: { id: string } },
+  declared: { mode: { id: string } },
+  mode: { id: string },
+  kind: string,
+): number {
+  switch (session.mode?.id) {
+    default:
+      return 1;
+  }
+
+  switch (declared.mode.id) {
+    default:
+      return 2;
+  }
+
+  switch (mode.id) {
+    default:
+      return 3;
+  }
+
+  switch (kind) {
+    case "storyengine.assistant":
+      return 4;
+    default:
+      return 5;
+  }
+}

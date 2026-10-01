@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
+import { forbiddenPackages } from '../eslint.rules.js';
 import { BUILT_IN_MODE_PACKAGES } from '../packages/server/src/mode-loader.js';
 
 /**
@@ -519,7 +520,7 @@ describe('the engine names no mode', () => {
       // and this file is about what the engine *does*.
       const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
       for (const match of code.matchAll(
-        /['"`]storyengine\.(scene|freeform|campaign|messages)[^'"`]*['"`]/g,
+        /['"`]storyengine\.(scene|freeform|assistant|campaign|messages)[^'"`]*['"`]/g,
       )) {
         named.push(`${file} → ${match[0]}`);
       }
@@ -856,5 +857,44 @@ describe('the assistant, which must not be a second chat', () => {
     };
     walk(join(ROOT, 'packages', 'server', 'src'));
     expect(named).toEqual([]);
+  });
+});
+
+/**
+ * ***A file-level lint exemption narrows one rule, and keeps the rest*** —
+ * 2026-10-01.
+ *
+ * A flat config's later block **replaces** a rule's options rather than
+ * merging into them — F25's trap, which `eslint.config.js` explains where the
+ * test files restate their package bans. The blocks that exempt one file from
+ * the randomness or filesystem ban rebuild `no-restricted-imports` from
+ * scratch, and `packages/shared/src/ids.ts`'s rebuilt it without its package's
+ * bans: the one file in `shared` free to import the server, with every check
+ * green. So the resolved config is asked, per exempted file, whether the
+ * package bans survived the exemption.
+ */
+describe('the lint exemptions keep their package bans', () => {
+  const eslint = new ESLint({ cwd: ROOT });
+
+  const EXEMPT: readonly [string, keyof typeof forbiddenPackages][] = [
+    ['packages/shared/src/ids.ts', 'shared'],
+    ['packages/server/src/rng/source.ts', 'server'],
+    ['packages/server/src/rng/rng.ts', 'server'],
+    ['packages/server/src/auth/secrets.ts', 'server'],
+    ['packages/server/src/storage/files.ts', 'server'],
+  ];
+
+  it.each(EXEMPT)('%s still refuses what %s may not import', async (path, from) => {
+    const config = (await eslint.calculateConfigForFile(join(ROOT, path))) as {
+      rules?: Record<string, unknown>;
+    };
+    const rule = config.rules?.['no-restricted-imports'] as
+      [unknown, { paths?: { name: string }[] }] | undefined;
+    const banned = (rule?.[1]?.paths ?? []).map((entry) => entry.name);
+
+    expect(banned.length, `${path} resolved no import rule at all`).toBeGreaterThan(0);
+    for (const name of forbiddenPackages[from]) {
+      expect(banned, `${path} lost the ban on ${name}`).toContain(name);
+    }
   });
 });

@@ -377,10 +377,20 @@ export default tseslint.config(
   // The syntax rule is relaxed alongside the import rule because this file
   // draws through the *Web Crypto* global — `shared` runs in the browser too
   // (the client → shared edge), and `node:crypto` would break that bundle.
+  //
+  // ***The package bans restated*** (2026-10-01). This block *replaces*
+  // `packageOverride('shared', …)`'s import rule for this file rather than
+  // merging into it — F25's trap, which the test-file blocks below explain at
+  // length — and it used to say `restrictedImports({ allowRandomness: true })`
+  // alone, so `ids.ts` was the one file in `shared` free to import the server.
+  // `tools/repo-shape.test.ts` now holds every exemption to its package's bans.
   {
     files: ['packages/shared/src/ids.ts'],
     rules: {
-      'no-restricted-imports': restrictedImports({ allowRandomness: true }),
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('shared'),
+      }),
       'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
