@@ -204,6 +204,12 @@ type MediaRole =
 // same thing about a *generated* image ([06 §10.1a]: "two fields because there
 // are two questions"). Corrected 2026-09-13.
 //
+// And it widened a closed union inside `actor/1` — which §2's round-trip rule
+// cannot survive for any closed portable union: a build without the arm fails
+// a file that uses it, whole. No released build can meet one (alpha.1–4 export
+// and import no native object), so the cost starts with the first release that
+// does; whether to open this union before then is in 25. Corrected 2026-10-01.
+//
 // `expression` and `pose` are the two arms a *set* is chosen from rather than
 // a single canonical image, which is why `label` matters on them and on almost
 // nothing else: Scene's stager matches a model's answer against those labels

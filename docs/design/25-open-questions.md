@@ -435,6 +435,22 @@ and a field nobody sets should not default to the widest answer. There is also
 no surface for changing it; a book's scope is visible only in *As stored*.
 *[04 §5](04-schemas.md), [03 §3.4](03-data-model.md)*
 
+**B16. A closed portable union widened inside its version — OPEN, for the owner,
+and due before the first release that exports native objects.** Three arms have
+been added to closed unions in published schemas without a version bump:
+`MediaRole`'s `background` in `actor/1` (P7.9), and the preset block source's
+`{ of: 'state' }` (P14) and `{ of: 'setup' }` (the audit's T-c, 2026-10-01) in
+`preset/0`. A build without an arm fails a file that uses it, **whole** — the
+emitted schema is an `anyOf` of the known shapes — so [04 §2](04-schemas.md)'s
+round-trip rule cannot hold for any closed portable union that grows. *Nothing
+has met it yet*: alpha.1 to alpha.4 export and import no native object, so no
+file this build writes reaches them. The next release is the first that does.
+The choices: **open the unions** before then (an unknown role or source kept
+and ignored, which is what `ActorRole` and `CallKind` already do); **bump the
+version** at each widening, with a migration; or **accept** that an older build
+refuses a newer file, and say so where exports are offered. *[04 §2–§3](04-schemas.md),
+[21 §7](21-internal-contracts.md)*
+
 ---
 
 ## C. Mode and pipeline questions
