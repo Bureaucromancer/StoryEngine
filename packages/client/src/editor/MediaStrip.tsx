@@ -8,6 +8,7 @@ import { uuidv7, type EmbeddedMedia, type MediaRole } from '@storyengine/shared'
 import { api, errorCode, type LibraryKind } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
 import { CommaField } from './ListField.js';
@@ -43,6 +44,7 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.media', {
   adding: 'Adding…',
   replace: 'Replace',
   remove: 'Remove',
+  'remove-question': 'Remove this picture? Nothing is written until you save.',
   cover: 'Use as the cover',
   isCover: 'The cover',
   role: 'Role',
@@ -303,10 +305,11 @@ export function MediaStrip(props: {
                     {WORDS['replace']}
                   </Button>
                 )}
-                <Button
-                  type="button"
+                <TwoStep
+                  label={WORDS['remove'] ?? ''}
+                  question={WORDS['remove-question'] ?? ''}
                   variant="quiet"
-                  onClick={() => {
+                  onConfirm={() => {
                     props.onChange((media) => media.filter((row) => row.id !== one.id));
                     // A cover that has been removed is no cover — the schema
                     // tolerates a dangling id and nothing is served by leaving
@@ -314,9 +317,7 @@ export function MediaStrip(props: {
                     // than over it: see `onChange`.
                     if (props.coverId === one.id) props.onCover?.(null);
                   }}
-                >
-                  {WORDS['remove']}
-                </Button>
+                />
                 {props.onCover === undefined ? null : props.coverId === one.id ? (
                   <Fine>{WORDS['isCover']}</Fine>
                 ) : (

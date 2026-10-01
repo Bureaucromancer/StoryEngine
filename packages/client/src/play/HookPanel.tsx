@@ -22,6 +22,7 @@ import {
 import { Alert, AlertNote } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { Field } from '../ui/Field.js';
 import { Fine } from '../ui/Text.js';
 import { hookState, hookWords } from './hookWords.js';
@@ -393,9 +394,17 @@ function Controls(props: {
           Commit
         </Button>
       )}
-      <Button type="button" onClick={props.onRemove} disabled={props.pending}>
-        Remove
-      </Button>
+      {/* ***Asked first*** (2026-10-01, polish 8). The one removal on the
+          play surface that writes at once — the hook leaves this story's pool
+          on the server, and nothing here puts it back — and it went at the
+          first click. */}
+      <TwoStep
+        label="Remove"
+        question="Remove this hook from the story?"
+        size="default"
+        disabled={props.pending}
+        onConfirm={props.onRemove}
+      />
       <SaveTo sessionId={props.sessionId} row={row} pending={props.pending} />
     </div>
   );

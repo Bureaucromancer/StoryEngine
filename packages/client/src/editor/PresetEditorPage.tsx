@@ -9,7 +9,7 @@ import { newPreset, PRESET_SCHEMA, uuidv7 } from '@storyengine/shared';
 import { ApiError, type LibraryObject } from '../api.js';
 import { isRequiredField } from '../library/fields.js';
 import { useEditorBase, useLibrary } from '../queries.js';
-import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { nudge } from '../ui/reorder.js';
@@ -370,9 +370,14 @@ function BlockRow(props: {
         >
           ↓
         </button>
-        <Button type="button" variant="quiet" onClick={props.onRemove}>
-          Remove
-        </Button>
+        <TwoStep
+          label="Remove"
+          name={`Remove ${block.id}`}
+          question="Remove this block from the pack? Nothing is written until you save."
+          confirm="Remove"
+          variant="quiet"
+          onConfirm={props.onRemove}
+        />
       </div>
 
       {isSlot ? (

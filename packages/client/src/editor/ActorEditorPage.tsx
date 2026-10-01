@@ -20,6 +20,7 @@ import {
 } from './form.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { page } from '../ui/classes.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
@@ -414,17 +415,17 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                     hint="Off keeps it on the card without spending a turn on it."
                   />
                   <div>
-                    <Button
-                      type="button"
-                      onClick={() => {
+                    <TwoStep
+                      label="Remove this sample"
+                      question="Remove this sample from the card? Nothing is written until you save."
+                      confirm="Remove"
+                      onConfirm={() => {
                         editor.patch((previous) => ({
                           ...previous,
                           samples: withoutRow(previous.samples, sample.id, index),
                         }));
                       }}
-                    >
-                      Remove this sample
-                    </Button>
+                    />
                   </div>
                 </div>
               </fieldset>

@@ -7,6 +7,7 @@ import type { PlotHook } from '@storyengine/shared';
 
 import { useLibrary } from '../queries.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { Field } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { nudge } from '../ui/reorder.js';
@@ -135,16 +136,16 @@ export function HookList(props: {
               >
                 ↓
               </button>
-              <Button
-                type="button"
+              <TwoStep
+                label={removeLabel(hook)}
+                question="Remove this hook? Nothing is written until you save."
+                confirm="Remove"
                 variant="dangerOutline"
                 size="tiny"
-                onClick={() => {
+                onConfirm={() => {
                   props.onChange((hooks) => removeHook(hooks, hook.id));
                 }}
-              >
-                {removeLabel(hook)}
-              </Button>
+              />
             </div>
           </div>
 

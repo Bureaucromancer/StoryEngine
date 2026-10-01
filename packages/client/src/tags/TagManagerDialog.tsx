@@ -7,6 +7,7 @@ import { useId, useMemo, useState, type JSX } from 'react';
 import { useTags, useWriteTags } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { Dialog } from '../ui/Dialog.js';
 import { table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
@@ -265,6 +266,7 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
                 onDelete={() => {
                   write.mutate({ kind: 'delete', id: tag.id });
                 }}
+                busy={write.isPending}
               />
             ))}
           </tbody>
@@ -426,15 +428,20 @@ export function TagManagerDialog(props: TagManagerDialogProps): JSX.Element {
          * filtered shelf.
          */}
         <span className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
+          {/* ***Asked first*** (2026-10-01, polish 8). Every unused entry at
+              once, from one click on a button whose label is a count, was the
+              largest thing this dialog could do and the only thing it did
+              without saying what. */}
+          <TwoStep
+            label={pruneLabel(unused.length)}
+            question={pruneQuestion(unused.map((tag) => tag.name))}
+            confirm="Prune"
+            size="default"
             disabled={write.isPending || unused.length === 0}
-            onClick={() => {
+            onConfirm={() => {
               for (const tag of unused) write.mutate({ kind: 'delete', id: tag.id });
             }}
-          >
-            {pruneLabel(unused.length)}
-          </Button>
+          />
           {/*
            * **The one deliberate write across the library** — [05 §3]. Until it
            * runs, a rename reaches nothing: an object with no ids works from its
@@ -477,6 +484,8 @@ interface TagRowProps {
   onPatch: (patch: { swatch?: string | null; folder?: string; hidden?: boolean }) => void;
   onRename: () => void;
   onDelete: () => void;
+  /** A write is out, so this row's Remove waits for it. */
+  busy: boolean;
 }
 
 function TagRow(props: TagRowProps): JSX.Element {
@@ -601,9 +610,19 @@ function TagRow(props: TagRowProps): JSX.Element {
           >
             Rename
           </Button>
-          <Button type="button" size="tiny" onClick={props.onDelete}>
-            Remove
-          </Button>
+          {/* ***Named, asked, and held while a write is out*** (2026-10-01,
+              polish 8). Every row's button was called *Remove* — a column a
+              screen reader cannot choose from, where *Rename* beside it says
+              whose — and it went at the first click, during another write as
+              readily as not. */}
+          <TwoStep
+            label="Remove"
+            name={removeLabel(props.tag.name)}
+            question={removeQuestion(props.tag.name)}
+            size="tiny"
+            disabled={props.busy}
+            onConfirm={props.onDelete}
+          />
         </span>
       </td>
     </tr>
@@ -665,6 +684,25 @@ function pruneLabel(count: number): string {
 
 function renameLabel(name: string): string {
   return `Rename ${name}`;
+}
+
+function removeLabel(name: string): string {
+  return `Remove ${name}`;
+}
+
+/**
+ * What a removal costs, said before it: the entry's colour, folder and place go,
+ * and the tag itself stays wherever it is carried (`DELETE /api/tags/:id`).
+ */
+function removeQuestion(name: string): string {
+  return `Remove the entry for ${name}? It stays on everything that carries it.`;
+}
+
+/** Every name, so a prune never takes one somebody did not see. */
+function pruneQuestion(names: readonly string[]): string {
+  return names.length === 1
+    ? `Remove the entry for ${names[0] ?? ''}? Nothing carries it.`
+    : `Remove ${String(names.length)} entries nothing carries: ${names.join(', ')}?`;
 }
 
 function renamePrompt(from: string): string {

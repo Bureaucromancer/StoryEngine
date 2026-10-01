@@ -209,6 +209,7 @@ export function EditorFrame<F>(props: {
             currentObject={editor.base.object}
             contentHash={editor.base.contentHash}
             locale={locale}
+            unsaved={editor.changed}
             onRestored={(result) => {
               editor.adopt(
                 result.object,

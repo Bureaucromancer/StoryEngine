@@ -228,6 +228,29 @@ describe('editing the sentence that makes a mode a narrator', () => {
     ]);
   });
 
+  /**
+   * ***A block goes when asked twice*** (2026-10-01, polish 8). It went at
+   * the first click — a block can hold a long template — where a lorebook's
+   * entry had always asked; the four editors ask the same way now.
+   */
+  it('removes a block only once asked, and the file then lacks it', async () => {
+    renderEditor();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Remove se.lore' }));
+    expect(screen.getByRole('button', { name: 'Move se.lore up' })).toBeTruthy();
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Remove',
+        description: 'Remove this block from the pack? Nothing is written until you save.',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    const [, , object] = updateObject.mock.calls[0] as [string, string, Record<string, unknown>];
+    expect((object['blocks'] as { id: string }[]).map((b) => b.id)).toEqual(['se.instruction']);
+  });
+
   it('refuses to open a shipped pack, and says what to do instead', async () => {
     readObject.mockResolvedValue(stored(pack(SYSTEM_ID, 'Scene'), 'system'));
     renderEditor();

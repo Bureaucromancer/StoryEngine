@@ -364,6 +364,14 @@ describe('the hook panel', () => {
     await renderPanel();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    // It leaves the story's pool on the server, so it asks first (polish 8).
+    expect(removeSessionHook).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: 'Remove',
+        description: 'Remove this hook from the story?',
+      }),
+    );
 
     await waitFor(() => {
       expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war', {
@@ -390,6 +398,12 @@ describe('the hook panel', () => {
     const removes = await screen.findAllByRole('button', { name: 'Remove' });
     expect(removes).toHaveLength(2);
     await userEvent.click(removes[1]!);
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: 'Remove',
+        description: 'Remove this hook from the story?',
+      }),
+    );
 
     await waitFor(() => {
       expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war', {

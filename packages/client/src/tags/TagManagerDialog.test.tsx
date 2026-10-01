@@ -184,9 +184,37 @@ describe('a row', () => {
     open([entry({ id: 'tag-1', name: 'noir' })]);
     const row = await rowFor('noir');
 
-    await userEvent.click(within(row).getByRole('button', { name: 'Remove' }));
+    await userEvent.click(within(row).getByRole('button', { name: 'Remove noir' }));
+    // Asked first, in words that say the tag itself stays (polish 8).
+    expect(deleteTag).not.toHaveBeenCalled();
+    await userEvent.click(
+      within(row).getByRole('button', {
+        name: 'Remove',
+        description: 'Remove the entry for noir? It stays on everything that carries it.',
+      }),
+    );
 
     expect(deleteTag).toHaveBeenCalledWith('tag-1');
+  });
+
+  /**
+   * ***Which one, and not mid-write*** (2026-10-01, polish 8). Every row's
+   * button was called *Remove* — a column of identical names, where *Rename*
+   * beside it says whose — and it could be pressed while another write was
+   * still out.
+   */
+  it('names the tag it removes, and waits for a write already out', async () => {
+    patchTag.mockReturnValue(new Promise(() => undefined));
+    open([entry({ id: 'tag-1', name: 'noir' }), entry({ id: 'tag-2', name: 'city' })]);
+    const row = await rowFor('noir');
+    const remove = within(row).getByRole('button', { name: 'Remove noir' });
+    expect(remove).toHaveProperty('disabled', false);
+
+    await userEvent.click(within(row).getByRole('checkbox', { name: 'Show noir on cards' }));
+
+    await waitFor(() => {
+      expect(remove).toHaveProperty('disabled', true);
+    });
   });
 });
 
@@ -318,6 +346,14 @@ describe('prune', () => {
     await rowFor('noir');
 
     await userEvent.click(screen.getByRole('button', { name: 'Prune 2 unused' }));
+    // Named before they go, every one of them (polish 8).
+    expect(deleteTag).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: 'Prune',
+        description: 'Remove 2 entries nothing carries: city, ronin?',
+      }),
+    );
 
     expect(deleteTag.mock.calls.map((call) => call[0]).sort()).toEqual(['b', 'c']);
   });

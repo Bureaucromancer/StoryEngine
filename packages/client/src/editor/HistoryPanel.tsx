@@ -8,6 +8,7 @@ import { diffObjects, type FieldChange } from '../diff.js';
 import { RevisionList } from '../library/RevisionList.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import {
   useAmendVersion,
   useObjectHistory,
@@ -33,6 +34,12 @@ export interface HistoryPanelProps {
   contentHash: string;
   locale: string | undefined;
   onRestored: (result: { object: Record<string, unknown>; contentHash: string }) => void;
+  /**
+   * Whether the form holds edits nothing has written. A restore replaces the
+   * form with the version, so those edits go — said before the click, not
+   * discovered after it.
+   */
+  unsaved?: boolean;
 }
 
 export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
@@ -150,16 +157,34 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
               )}
 
               <div className="mt-2 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="tiny"
-                  disabled={restore.isPending}
-                  onClick={() => {
-                    handleRestore(version);
-                  }}
-                >
-                  Restore
-                </Button>
+                {/* ***Guarded when it would cost something*** (2026-10-01,
+                    polish 8). A restore replaces the form, so over unsaved
+                    edits it threw them away at the first click — the saved
+                    state goes into history, the typing goes nowhere. It asks
+                    then, and only then: a restore over a clean form loses
+                    nothing, and the state it leaves is the newest entry here. */}
+                {props.unsaved === true ? (
+                  <TwoStep
+                    label="Restore"
+                    question="Restore this version? Your unsaved edits are lost."
+                    size="tiny"
+                    disabled={restore.isPending}
+                    onConfirm={() => {
+                      handleRestore(version);
+                    }}
+                  />
+                ) : (
+                  <Button
+                    type="button"
+                    size="tiny"
+                    disabled={restore.isPending}
+                    onClick={() => {
+                      handleRestore(version);
+                    }}
+                  >
+                    Restore
+                  </Button>
+                )}
                 <Button
                   type="button"
                   size="tiny"

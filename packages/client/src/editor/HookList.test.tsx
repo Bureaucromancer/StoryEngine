@@ -283,6 +283,10 @@ describe('the list', () => {
     await screen.findAllByLabelText('Title');
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove The war' }));
+    // Asked first since polish 8, and answered here.
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove', description: /^Remove this hook/ }),
+    );
 
     expect(latest.map((each) => each.title)).toEqual(['The marriage']);
   });
@@ -493,6 +497,9 @@ describe('introduces', () => {
      * to use, which is worse than no favourite at all.
      */
     await userEvent.click(screen.getByRole('button', { name: 'Remove Through the rain' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove', description: /^Remove this entrance/ }),
+    );
     expect(latest[0]?.introduces?.entrances).toEqual([]);
     expect(latest[0]?.introduces?.primaryEntranceId).toBeNull();
 
@@ -572,6 +579,9 @@ describe('an answer that arrives after other edits', () => {
     const text = heldSubject(`hooks.${one.id}.introduces.entrances.entrance-rain.text`);
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove Through the rain' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove', description: /^Remove this entrance/ }),
+    );
     await userEvent.selectOptions(
       screen.getByRole('combobox', { name: 'Primary entrance' }),
       'entrance-door',

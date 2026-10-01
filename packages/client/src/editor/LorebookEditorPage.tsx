@@ -30,6 +30,7 @@ import { landing, nudge } from '../ui/reorder.js';
 import { useAuthState, useEditorBase } from '../queries.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { disclosure, page, reveal, table } from '../ui/classes.js';
 import { CheckboxField, Field, NumberField } from '../ui/Field.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
@@ -320,7 +321,6 @@ function Editor(props: EditorProps): JSX.Element {
   const { base, form: draft, missing } = editor;
 
   /** Entry-list state, which is this page's and not the shell's. */
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [folder, setFolder] = useState<FolderChoice>(null);
   /**
    * ***The library's bulk selection, one level down*** — [10 §11.2c]. Two pieces
@@ -370,7 +370,6 @@ function Editor(props: EditorProps): JSX.Element {
    * caller decides which, because only it knows whether this book has a file.
    */
   function select(id: string | undefined): void {
-    setConfirmingDelete(false);
     props.onSelectEntry(id);
   }
 
@@ -588,39 +587,21 @@ function Editor(props: EditorProps): JSX.Element {
           />
 
           <div className="flex items-center gap-3 text-sm">
-            {confirmingDelete ? (
-              <>
-                <span className="text-ink-subtle">Remove this entry from the book?</span>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    edit((current) => withoutEntry(current, selected.id));
-                    setConfirmingDelete(false);
-                    select(undefined);
-                  }}
-                >
-                  Remove
-                </Button>
-                <Button
-                  type="button"
-                  variant="quiet"
-                  onClick={() => {
-                    setConfirmingDelete(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <Button
-                type="button"
-                onClick={() => {
-                  setConfirmingDelete(true);
-                }}
-              >
-                Remove this entry
-              </Button>
-            )}
+            {/* The shared two-step since polish 8 (2026-10-01), keyed by the
+                entry: a question asked of one entry must not be standing
+                there, answered, after another has been selected — which is
+                what the page-level flag it replaced had to be reset for. */}
+            <TwoStep
+              key={selected.id}
+              label="Remove this entry"
+              question="Remove this entry from the book?"
+              confirm="Remove"
+              onConfirm={() => {
+                const id = selected.id;
+                edit((current) => withoutEntry(current, id));
+                select(undefined);
+              }}
+            />
             {/*
              * Said where the control is, because it is the thing that makes
              * the confirmation mild: nothing has left the file until Save,

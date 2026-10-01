@@ -473,6 +473,9 @@ describe('assists that finish after other edits', () => {
     const [first] = screen.getAllByRole('button', { name: 'Remove this sample' });
     if (first === undefined) throw new Error('no sample to remove');
     await userEvent.click(first);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove', description: /^Remove this sample/ }),
+    );
     await answer(0, 'Rain on the tin roof, all night.');
 
     await waitFor(() => {

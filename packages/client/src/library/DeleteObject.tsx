@@ -7,7 +7,7 @@ import { useUsedBy, usedByLine } from './UsedBy.js';
 import { useState, type JSX } from 'react';
 
 import { api, type LibraryKind } from '../api.js';
-import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 
 /**
  * **Delete, which the server has been able to do since P1 and no surface could
@@ -50,7 +50,6 @@ export function DeleteObject(props: {
 }): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const remove = async (): Promise<void> => {
@@ -103,7 +102,6 @@ export function DeleteObject(props: {
       // A 412 here means somebody edited it while this page was open, which is
       // exactly when a delete should stop and say so.
       setError(cause instanceof Error ? cause.message : 'It could not be deleted.');
-      setConfirming(false);
     }
   };
 
@@ -112,9 +110,9 @@ export function DeleteObject(props: {
     <span className={props.className === undefined ? classes : `${props.className} ${classes}`}>
       {/*
        * **The message lives outside both branches, and that is a fix.** It used
-       * to render only inside the confirming row — but the `catch` above calls
-       * `setConfirming(false)`, so the branch that would have shown it had just
-       * been replaced by the one that would not. A refused delete rendered
+       * to render only inside the confirming row — but the `catch` above closed
+       * the question, so the branch that would have shown it had just been
+       * replaced by the one that would not. A refused delete rendered
        * nothing at all: the 412 the comment in `remove` calls *exactly when a
        * delete should stop and say so* stopped, silently, and read as a click
        * that did not register. Announced, because it appears in reaction to
@@ -125,58 +123,34 @@ export function DeleteObject(props: {
           {error}
         </span>
       ) : null}
-      {confirming ? (
-        <>
-          <span className="text-ink-subtle">
-            {props.unsaved === true
-              ? 'Move to trash? Unsaved edits are not kept.'
-              : 'Move to trash?'}
-          </span>
-          {/*
-            ***What this object is used by, before the click*** —
-            [03 §10.1](../../../../docs/design/03-data-model.md), [P11.7].
-            §10.1 asks for it here by name — *referenced by 12 sessions, 3
-            treatments and 1 package* — and [03 §10.2]'s posture is why it is a
-            sentence rather than a refusal: delete is a **move** until the
-            retention window closes, so the count informs a decision it must not
-            make.
-          */}
-          <ReferenceCount kind={props.kind} id={props.id} />
-          {/*
-           * Delete first and Cancel last, so the button that answers the
-           * question is not the pixels the question was asked from: the first
-           * Delete sat at the strip's end, and after the click that place holds
-           * Cancel. A second click that arrives before the eye has caught up
-           * lands on the harmless answer.
-           */}
-          <Button type="button" variant="danger" size="compact" onClick={() => void remove()}>
-            Delete
-          </Button>
-          <Button
-            type="button"
-            variant="quiet"
-            onClick={() => {
-              setConfirming(false);
-            }}
-          >
-            Cancel
-          </Button>
-        </>
-      ) : (
-        <Button
-          type="button"
-          variant="dangerOutline"
-          size="compact"
-          onClick={() => {
-            // Clearing here rather than on the next attempt: a stale message
-            // beside a fresh question is worse than no message.
-            setError(null);
-            setConfirming(true);
-          }}
-        >
-          Delete
-        </Button>
-      )}
+      {/*
+       * ***The shared two-step*** (2026-10-01, polish 8) — `ui/TwoStep.tsx`
+       * was cut from this control's own: the destructive answer first and
+       * Cancel where the trigger was. What it adds is what this one lacked:
+       * the question is announced, and the keyboard is not dropped to the page
+       * when the button it was on turns into the question.
+       *
+       * ***What this object is used by, before the click*** —
+       * [03 §10.1](../../../../docs/design/03-data-model.md), [P11.7]. §10.1
+       * asks for it here by name — *referenced by 12 sessions, 3 treatments and
+       * 1 package* — and [03 §10.2]'s posture is why it is a sentence rather
+       * than a refusal: delete is a **move** until the retention window closes,
+       * so the count informs a decision it must not make.
+       */}
+      <TwoStep
+        label="Delete"
+        question={
+          props.unsaved === true ? 'Move to trash? Unsaved edits are not kept.' : 'Move to trash?'
+        }
+        variant="dangerOutline"
+        aside={<ReferenceCount kind={props.kind} id={props.id} />}
+        // Cleared on asking rather than on the next attempt: a stale message
+        // beside a fresh question is worse than no message.
+        onAsk={() => {
+          setError(null);
+        }}
+        onConfirm={remove}
+      />
     </span>
   );
 }

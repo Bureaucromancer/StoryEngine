@@ -14,6 +14,7 @@ import {
 import { ReadOnlyField } from '../library/ByField.js';
 import { choicesOf, fieldsOf, labelFor, plotHookSchema, type FieldRow } from '../library/fields.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
 import { TokenField, type TokenOption } from '../ui/TokenField.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
@@ -697,16 +698,16 @@ function Entrances(props: {
         >
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium text-ink">{entranceHeading(at)}</p>
-            <Button
-              type="button"
+            <TwoStep
+              label={removeEntranceLabel(entrance)}
+              question="Remove this entrance? Nothing is written until you save."
+              confirm="Remove"
               variant="quiet"
               size="tiny"
-              onClick={() => {
+              onConfirm={() => {
                 props.onChange((all) => all.filter((each) => each.id !== entrance.id));
               }}
-            >
-              {removeEntranceLabel(entrance)}
-            </Button>
+            />
           </div>
           <Field
             label="Label"

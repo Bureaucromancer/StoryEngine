@@ -1736,6 +1736,10 @@ describe('entries travelling on their own', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'History' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+    // The import is unsaved, so the restore asks first (polish 8).
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Restore', description: /^Restore this version/ }),
+    );
     await screen.findByText(/^Version restored\./);
 
     await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Isles');
@@ -2005,6 +2009,9 @@ describe('image slots on a book and its entries', () => {
     const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
     if (gallery === null) throw new Error('no gallery section');
     await userEvent.click(within(gallery).getByRole('button', { name: 'Remove' }));
+    await userEvent.click(
+      within(gallery).getByRole('button', { name: 'Remove', description: /^Remove this picture/ }),
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Saved.');
     await settled(client);
@@ -2048,6 +2055,9 @@ describe('image slots on a book and its entries', () => {
     const removes = within(gallery).getAllByRole('button', { name: 'Remove' });
     if (removes[1] === undefined) throw new Error('no second picture');
     await userEvent.click(removes[1]);
+    await userEvent.click(
+      within(gallery).getByRole('button', { name: 'Remove', description: /^Remove this picture/ }),
+    );
 
     await act(async () => {
       arrive({
@@ -2474,6 +2484,9 @@ describe('the hooks a lorebook carries', () => {
 
     await userEvent.click(
       screen.getByRole('button', { name: 'Remove The Flower Kingdom declares war' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove', description: /^Remove this hook/ }),
     );
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
