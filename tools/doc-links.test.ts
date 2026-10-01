@@ -37,13 +37,29 @@ import { describe, expect, it } from 'vitest';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Tracked text files. Binaries and the lockfile carry no citations. */
+/**
+ * Tracked text files. Binaries and the lockfile carry no citations.
+ *
+ * ***By name as well as by extension*** (2026-10-01). Rule (e) below says it
+ * reads the bare paths in `Dockerfile` and `.gitignore`, and the filter here
+ * admitted neither — an extension list cannot name a file with no extension —
+ * so the renumbering left twelve dead `docs/design/` paths in `Dockerfile`,
+ * `.dockerignore`, `.gitignore` and `.gitattributes` under a rule that said it
+ * was watching them. The deploy scripts and the unit are named for the same
+ * reason.
+ */
 function trackedFiles(): string[] {
   const out = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
   return out
     .split('\0')
     .filter(Boolean)
-    .filter((path) => /\.(md|ts|tsx|mjs|cjs|js|json|yml|yaml|css|html|xml)$/.test(path))
+    .filter(
+      (path) =>
+        /\.(md|ts|tsx|mjs|cjs|js|json|yml|yaml|css|html|xml|sh|service)$/.test(path) ||
+        /(?:^|\/)(?:Dockerfile|\.dockerignore|\.gitignore|\.gitattributes|\.prettierignore|\.npmrc)$/.test(
+          path,
+        ),
+    )
     .filter((path) => path !== 'pnpm-lock.yaml');
 }
 

@@ -38,7 +38,7 @@
  * Imported from the built output because this script is plain Node run against a
  * built server; `pnpm build` is a prerequisite either way.
  */
-const { newActor, newLorebook, newLoreEntry, newTreatment } =
+const { CONVENTIONAL_SECTION_IDS, newActor, newLorebook, newLoreEntry, newTreatment, uuidv7 } =
   await import('../packages/shared/dist/index.js');
 
 const BASE = valueOf('--url') ?? 'http://127.0.0.1:8080';
@@ -130,11 +130,37 @@ async function main() {
     ],
   });
 
+  /**
+   * ***Written where an actor keeps it*** (2026-10-01). This said
+   * `description`, `personality` and `greeting` — SillyTavern's card fields,
+   * which an actor does not have — and the schema keeps unknown keys rather
+   * than refusing them ([04 §2]), so the seed succeeded and Mara arrived with
+   * four empty sections and no opening: every `se.actor.*` block in the
+   * seeded session rendered nothing. Her summary is the summary section, and
+   * her greeting is a written opening.
+   */
+  const mara = newActor('Mara Vance');
+  const greeting = uuidv7();
   const actor = await ensure('actors', 'mara-vance', {
-    ...newActor('Mara Vance'),
-    description: 'Harbourmaster. Keeps the tide tables and most of the town’s secrets.',
-    personality: 'Dry, unhurried, and harder to surprise than she looks.',
-    greeting: '"You picked a wet day for it."',
+    ...mara,
+    profile: {
+      ...mara.profile,
+      sections: mara.profile.sections.map((section) =>
+        section.id === CONVENTIONAL_SECTION_IDS.summary
+          ? {
+              ...section,
+              body:
+                'Harbourmaster. Keeps the tide tables and most of the town’s secrets. ' +
+                'Dry, unhurried, and harder to surprise than she looks.',
+            }
+          : section,
+      ),
+    },
+    openings: {
+      ...mara.openings,
+      written: [{ id: greeting, label: 'At the harbour', text: '"You picked a wet day for it."' }],
+      primaryWrittenId: greeting,
+    },
     // A reference carries the name as well as the id — for display, and so a
     // link survives an id it cannot resolve ([04 §3]).
     lore: [{ id: lorebook, name: 'Rain City' }],

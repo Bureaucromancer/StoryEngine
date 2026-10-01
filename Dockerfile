@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 StoryEngine contributors
 #
-# Alpha 1's image — docs/design/workplan/23-p6a-alpha-1.md §2, P6A.4.
+# Alpha 1's image — docs/design/workplan/19-p6a-alpha-1.md §2, P6A.4.
 #
 # **An artifact, not a distribution.** The repository is private, the registry
 # package is private, and nobody else runs this (§0.1). That is what keeps
-# docs/design/workplan/11-repo-and-releases.md §0's deferral of release
+# docs/design/workplan/04-repo-and-releases.md §0's deferral of release
 # engineering intact, and what keeps AGPL §13 from attaching
-# (docs/design/04-server-multiuser-deployment.md §7). Publishing this image is a
+# (docs/design/09-server-multiuser-deployment.md §7). Publishing this image is a
 # decision to publish the repository at the same instant; §4 says so, and says it
 # there so that it cannot happen by way of a registry visibility toggle.
 #
@@ -26,7 +26,7 @@ ARG NODE_VERSION=26
 #
 # `slim` rather than `alpine`, and it is a deliberate few tens of megabytes:
 # this server formats numbers and dates against a user's locale
-# (docs/design/04-server-multiuser-deployment.md §4.2), and a musl base with a
+# (docs/design/09-server-multiuser-deployment.md §4.2), and a musl base with a
 # trimmed ICU is exactly the sort of difference that shows up as one wrong
 # separator in one language rather than as a build failure. Nothing here needs a
 # native compiler — SQLite is `node:sqlite`, built in — so the usual reason to
@@ -129,11 +129,11 @@ RUN cp -r packages/client/dist /app/client
 FROM node:${NODE_VERSION}-slim AS runtime
 
 # **`0.0.0.0`, by the documented variable and not by a different build.**
-# docs/design/workplan/21-p10-implementation.md §1.2 forbids the image shipping
+# docs/design/workplan/27-p10-implementation.md §1.2 forbids the image shipping
 # a baked default the bare-metal build does not have: *a hidden difference
 # between artifacts is a support burden shaped like a security feature*. This is
 # a line anybody can read and override with `-e SE_HOST=…`, and the port mapping
-# is the operator's explicit act (docs/design/04-server-multiuser-deployment.md
+# is the operator's explicit act (docs/design/09-server-multiuser-deployment.md
 # §5.3). What makes that safe rather than merely unavoidable is the setup token,
 # which this bind is precisely the condition for (§5.1).
 ENV NODE_ENV=production \
@@ -146,7 +146,7 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app /app
 
 # `/data` is the whole of the install: library, sessions, accounts, config
-# (docs/design/02-data-model.md §5). Created and owned before the volume is
+# (docs/design/03-data-model.md §5). Created and owned before the volume is
 # declared, so an anonymous volume inherits the ownership; a bind mount does
 # not, and the deploy page says so.
 RUN mkdir -p /data && chown node:node /data
