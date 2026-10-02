@@ -9,14 +9,16 @@ Studio is enough — and about ten minutes.
 the container image with `compose.yaml`, the unraid template, and a tarball with a systemd
 unit. The [README](../../README.md#running-it) covers running it from source.
 
-By default the server is at port 8080: `http://localhost:8080` on the machine itself, or
-`http://storyengine.local:8080` from elsewhere on your network once it listens beyond its own
-machine.
+By default the server is at port 8080: `http://localhost:8080` on the machine itself, or —
+once it listens beyond its own machine — that machine's address and port 8080 from elsewhere
+on your network. It also advertises `http://storyengine.local:8080`, though a container on
+Docker's default network usually cannot reach the rest of the house with that name. (Run from
+source with `pnpm dev`, the page is at `http://127.0.0.1:5173`; port 8080 is the API alone.)
 
 ## 2. Create the first account
 
 The first time you open StoryEngine it asks for the first administrator: a **Handle** (lowercase
-letters, digits and hyphens; it can never be changed), an optional **Display name**, and a
+letters, digits and hyphens; it can never be changed), a **Display name (optional)**, and a
 **Password**. If the server can be reached from your network, it also asks for the **Setup
 token**, which the server prints in its log on every start until an account exists — for the
 container, `docker compose logs storyengine | grep 'setup token'`.
@@ -31,7 +33,9 @@ Settings → **Administration** → **Connections** → **Add a connection**:
 - **Address** — the endpoint's OpenAI-compatible base, including `/v1`: for Ollama usually
   `http://localhost:11434/v1`, for LM Studio `http://localhost:1234/v1`. If StoryEngine runs in
   a container, `localhost` means the container: use the address of the machine the model runs
-  on instead.
+  on instead — and make the model server listen beyond its own machine, which neither does by
+  default (Ollama with `OLLAMA_HOST=0.0.0.0`, LM Studio with its **Serve on Local Network**
+  setting).
 - **Key** — only if the endpoint needs one.
 - **Models** — press **Ask the endpoint what it offers** and tick the models you want, or type
   their names.
@@ -69,13 +73,15 @@ the story's first turn.
 
 Type in the box at the bottom and press **Enter**. The reply streams in.
 
-Then try:
+Then try the controls under each turn, which appear when you point at the turn (or move to it
+with the keyboard; on a touch screen they are always shown):
 
-- **Redo**, under the reply, for another attempt. The first is kept; **‹ 1 of 2 ›** steps between
-  them.
+- **Redo**, under the reply, for another attempt. The page moves to the new attempt and keeps the
+  first; **‹ 2 of 2 ›** steps between them.
 - **Continue from here**, on an earlier turn, to take the story another way from there. Nothing is
   lost.
-- **Workbench**, in the header (or **Ctrl+`**), to see exactly what was sent to the model and why.
+- **Workbench**, in the header, to see exactly what was sent to the model and why. (**Ctrl+`**
+  toggles it too, but not while the keyboard is in the message box.)
 
 ## Where next
 

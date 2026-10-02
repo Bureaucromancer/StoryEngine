@@ -63,10 +63,11 @@ code.
 
 ## How this guide is written
 
-- Words in **bold** are what the screen says: a button, a heading, a field.
+- Words in **bold** are what the screen says — a button, a heading, a field — except where
+  they introduce a term or lead a list item.
   *Settings → Administration → Accounts* is a path through the app.
 - *Administrators only* marks what an ordinary account does not see.
 - `Code` is a configuration key, a file, or something you type.
 - In the app, the **Assistant** in the header can answer many of the same questions
-  from a built-in help lorebook, and the [HTTP API](../api.md) documents every route
+  from a built-in help lorebook, and the [HTTP API](../api.md) documents most routes
   for anyone scripting an install.

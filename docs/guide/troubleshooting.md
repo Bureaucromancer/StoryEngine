@@ -3,8 +3,10 @@
 What the common refusals and failures mean, and what to do about them, roughly in the order
 people meet them. Two places tell you most of what is going on:
 
-- **The workbench** (**Ctrl+`**) — over a turn, every step with what it did, every model call
-  with what was sent and how it ended, and why lore did or did not fire.
+- **The workbench** (**Workbench** in the header, or **Ctrl+`** when the keyboard is not in a
+  text box) — over a turn, every step with what it did, every model call with what was sent
+  and how it ended, and why each lore entry that went in fired. The entries that did *not*
+  fire, and why, are listed only in its preview while you type a move.
 - **The server's log** — `docker compose logs storyengine` for the container, `journalctl -u
   storyengine` for the systemd install. A provider's own error messages go here, never to the
   page. Setting `log.level` to `debug`, under Settings → Administration → **This install**,
@@ -18,25 +20,28 @@ When you report a problem, Settings shows the **Version** and **Commit** at the 
 | --- | --- |
 | *That handle and password were not recognised.* | Check the handle, which is lowercase. The same words are shown for a wrong password and for an account that has been turned off. |
 | *This install needs the setup token from the server console.* | Copy the token from the server's log, or from `state/setup.token` in the data directory. See [Running a built StoryEngine](../deploy.md#first-run). |
-| Signing in seems to work and you are still signed out | `server.cookieSecure` is on while the site is reached over plain HTTP, so the browser drops the sign-in. Turn it off in `config.json` and restart. |
-| *Your sign-in has ended.* | It expired (sign-ins last 14 days), or you signed out elsewhere, or an administrator turned the account off. Copy anything unsaved, then **Sign in again**. |
-| *The server could not be reached.* | The server is not running, or not at that address. **Try again** once it is. |
+| Signing in seems to work and you are still signed out | `server.cookieSecure` is on while the site is reached over plain HTTP from another machine, so the browser drops the sign-in. Turn it off in `config.json` and restart. |
+| *Your sign-in has ended.* | It expired (sign-ins last 14 days), you signed out in another tab of this browser, or an administrator turned the account off. Copy anything unsaved before you leave the page or switch tabs, then **Sign in again**. |
+| *The server could not be reached.* | The app loaded but the server did not answer — it has stopped or is restarting. **Try again** once it is back. (If the server is not running at all, the browser shows its own error page instead.) |
 | Nobody can sign in as an administrator | Reset a password from the server's console: see [Lost passwords](settings-and-accounts.md#lost-passwords). |
 
 ## A turn did not finish
 
 A failed turn stays in the story as *This turn did not finish.* with a sentence saying why.
-Fix the cause, then **Redo** the turn.
+That sentence is worked out from the kind of failure alone; the notification for the turn —
+sent only if you were not on the session's page — can say more. Fix the cause, then **Redo**
+the turn.
 
 | The sentence | Check |
 | --- | --- |
-| *No connection is set up for the model this step needs.* | Settings → **Which models your stories use**: *Writing the story* needs a model. If it shows one, its connection may be gone or barred to you. |
-| *Nothing answered at the model endpoint on this network. The model server is probably not running.* | Start Ollama, LM Studio or whatever serves the model. In a container, `localhost` is the container: use the host's address in the connection. |
-| *The model endpoint did not answer, though this server's internet is working. Check the address in Settings.* | The connection's **Address**, including `/v1`. |
-| *This server appears to have no internet access* | The server cannot reach the internet; a model on your own network would still work. |
-| *The model endpoint refused the request. Check the key, the model name and the permissions in Settings.* | A wrong key, or a model name the endpoint does not serve — **Ask the endpoint what it offers** lists the ones it does. In the transcript a stalled call can read like this too; the notification says which it was. |
+| *No connection is set up for the model this step needs.* | Settings → **Which models your stories use**: *Writing the story* needs a model. If the row names one now, it was set after this turn failed: **Redo** the turn. If it says *Nothing — this will fail*, or that the connection has been removed, choose another model there. |
+| *Nothing answered at the model endpoint. Check that it is running and that the address is right.* | Start Ollama, LM Studio or whatever serves the model, and check the connection's **Address**, including `/v1`. In a container, `localhost` is the container: use the host's address — and the model server must listen beyond its own machine (Ollama does only with `OLLAMA_HOST=0.0.0.0`; LM Studio needs its **Serve on Local Network** setting). |
+| In the notification: *Nothing answered at the model endpoint on this network. The model server is probably not running.* | As above, for an address on your own network. |
+| In the notification: *The model endpoint did not answer, though this server's internet is working. Check the address in Settings.* | The connection's **Address**, including `/v1`. |
+| In the notification: *This server appears to have no internet access* | The server cannot reach the internet; a model on your own network would still work. |
+| *The model endpoint refused the request. Check the key, the model name and the permissions in Settings.* | A wrong key, or a model name the endpoint does not serve — **Ask the endpoint what it offers** lists the ones it does. A stalled call reads like this in the story too; the notification says which it was. |
 | *The model endpoint is busy or having trouble. Try again in a moment.* | Rate-limited or failing at the provider's end, after two retries. |
-| *The model endpoint accepted the request and then went quiet.* | Nothing arrived for `limits.providerTimeoutMs` (five minutes). A slow local model may need it raised, or `0` for no limit. |
+| In the notification: *The model endpoint accepted the request and then went quiet.* | Nothing arrived for `limits.providerTimeoutMs` (five minutes). A slow local model may need it raised, or `0` for no limit. |
 | *The model's context window is too small to hold anything beside its reply.* | Raise the connection's **Context window**, or lower the session's **Maximum reply length**. |
 | *The server could not finish the turn. Nothing is wrong with your connection.* | Also what a turn you stopped yourself says. Otherwise, the workbench and the log say what failed. |
 
@@ -49,11 +54,12 @@ move cannot be sent.* before you even try. See [Connections and models](connecti
 | --- | --- |
 | *This session already has a turn in flight.* | A turn is running — perhaps started in another tab or on another device. Wait for it, or **Stop** it. |
 | *A turn is running. Try again when it has finished.* | The same, for a change made from a panel. |
-| *The session has moved on since this was composed.* | Another tab or device moved the story on. Your text is kept: reload, then send again. |
+| *The session has moved on since this was composed.* | Another tab or device moved the story on. Your text is still in the box, but a reload empties it: copy it first, or switch to another tab and back, which brings the page up to date without losing it. Then send again. |
 | *This server is restarting. Your next turn will go through once it is back.* | Wait a few seconds. |
-| *Nobody here can reply: everyone is muted or gone.* | In a Scene, unmute someone in the cast, name somebody with **Who speaks next**, or type a line. |
-| Your line is recorded and nobody answers | In a Scene with **Who replies** set to **Only who I ask…**, a typed line gets no reply; use **Speak** or **Who speaks next**. |
+| *Nobody here can reply: everyone is muted or gone.* | In a Scene, unmute someone in the cast, or name somebody with **Who speaks next** or **Speak**. A line you type now is recorded, but nobody answers it either. |
+| Your line is recorded and nobody answers | In a Scene with **Who replies** set to **Only who I ask, or one at random when I let them talk**, a typed line gets no reply; use **Speak** or **Who speaks next**. |
 | *That turn changed no channel state.* | **Undo** reverses a turn's changes to the story's state, not its text. To drop a reply, use **Continue from here** on the turn before. |
+| *Something has written those channels since. Branch instead.* | A later turn changed the same state. In Scene every turn moves the clock on, so **Undo** works only on the newest turn there. |
 
 ## The model seems not to see something
 
@@ -138,8 +144,9 @@ See [Backups, restore and the trash](backups-and-trash.md).
 - **Files the library could not read**, above the library list, names files that are not valid
   objects — usually a hand edit gone wrong. Nothing was deleted: fix the file, or delete the
   object, and the panel clears itself. See [The library](library.md#files-on-disk).
-- **The connection file changed on disk**, **The lorebook changed while you were editing** and
-  the like mean something else wrote the file after your page loaded it. Reload and reapply your
-  edits, or save as a copy.
+- **The lorebook changed while you were editing** and the like mean something else wrote the
+  file after your page loaded it: load the newer version and reapply your edits, or save yours
+  as a copy. **The connection file changed on disk** offers only **Load what is on disk**, which
+  drops what you typed, or **Overwrite with mine**.
 - **A second server on the same data directory** stops at once with *Another StoryEngine server
   is using …*. Give each server its own data directory.

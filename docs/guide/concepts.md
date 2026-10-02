@@ -7,7 +7,9 @@ it is covered properly.
 
 A StoryEngine **install** is one server with one data directory. Several people can share
 it, each with an **account** of their own: their own library, stories, model choices,
-backups and trash, which nobody else on the install can see — administrators included.
+backups and trash. Nobody else can open them in the app, administrators included — though
+a full install backup, which an administrator takes and can download, holds every
+account's library, stories and model choices.
 
 **Administrators** also look after the install: its accounts, the model connections
 everybody shares, its configuration and its backups. What every account shares is the
@@ -30,11 +32,11 @@ Your **library** is your story material. It holds six kinds of object:
 
 A treatment is how a world is handled — its lorebooks hold the world itself; a setup is
 one playthrough's starting arrangement in it. If you find yourself copying a treatment to
-change who is in it, you wanted a setup.
+change who is in it, you wanted a setup. (The app cannot yet start a session from a setup.)
 
 Every object is a folder of files on the server's disk, which you can edit by hand while
-the server runs. Every save keeps the version it replaced, so any earlier version can be
-restored; deleting moves the object to your trash, from where it can be put back.
+the server runs. Every save keeps the version it replaced (the newest 50 per object, unless
+an administrator changed that), so an earlier version can be restored; deleting moves the object to your trash, from where it can be put back.
 
 See [The library](library.md).
 
@@ -52,7 +54,8 @@ A session's turns form a **tree**, not a list:
   on — and your next move starts a new **branch** from there.
 
 Nothing is deleted. Every version and every branch you leave is kept, and search finds them.
-The play page shows the **line** from the start of the story to the head.
+A **line** runs from the start of the story to the head; the play page shows its most recent
+100 turns.
 
 See [Playing a session](playing.md).
 
@@ -66,7 +69,8 @@ puts the state back as it was. Changing state from a panel is recorded as a turn
 which is why rewinding undoes it.
 
 Some settings belong to the session as a whole instead, and are the same on every branch:
-its lorebooks, its prompt pack, a Scene chat's settings, its cast.
+its lorebooks, its prompt pack, a Scene chat's settings (apart from its agents' switches,
+which are state), its cast.
 
 ## Modes
 
@@ -88,7 +92,8 @@ also decides what to drop when the prompt is too long for the model's window: th
 important blocks go first, oldest history first among them.
 
 Each session plays from its own copy of a preset, so editing the library's preset does not
-change a story already under way.
+change a story already under way. (A session imported from another application's chat has
+no copy, and uses its mode's preset as shipped until you pick one.)
 
 See [Presets and prompts](presets.md).
 

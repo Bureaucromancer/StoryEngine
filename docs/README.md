@@ -28,7 +28,8 @@
   it is built today, from a first turn through the library, lore, presets,
   importing, pictures, connections, accounts and backups, with a page of
   troubleshooting. Written 2026-10-01 against `main`, from the code rather than
-  from the design notes.
+  from the design notes, and checked claim by claim against the code on
+  2026-10-02.
 
 Documentation of code that actually exists will live here, alongside `design/`
 rather than inside it. Where the two disagree, this directory is right and the

@@ -14,12 +14,14 @@ the assistant is in [Modes](modes.md); pictures are in [Pictures](pictures.md).
 
 ## The sessions page
 
-**Play**, in the header, lists your sessions, most recently played first. Each row
-has the session's name — *Untitled session* if it has none — and **Rename**.
+**Play**, in the header, lists your sessions, most recently changed first — renaming a
+session, archiving it or changing one of its settings moves it to the top as a turn
+does. Each row has the session's name — *Untitled session* if it has none — and
+**Rename**.
 
-- **Filter by mode** narrows the list to **Scenes**, **Freeform** or **Assistant**
-  sessions; **Select several** picks more than one. The bar is hidden when only one
-  mode is installed.
+- The mode chips over the list narrow it to **Scenes**, **Freeform** or **Assistant**
+  sessions (**All sessions** shows every one); **Select several** picks more than one.
+  The chips are hidden when only one mode is installed.
 - **Show archived sessions** includes the ones you archived, marked **Archived**.
   Archived sessions are only hidden from this list: they stay playable from their
   address, and search still finds them.
@@ -77,8 +79,9 @@ the persona and the lorebooks — not the characters or their openings. (The app
 no control yet for starting a session from a saved setup.)
 
 If the treatment you chose is one you have played before, the page says so: memories
-from the earlier sessions can reach this one, twists included. **Start isolated**
-turns memory sharing off for the new session; **Keep memories on** leaves it. See
+from the earlier sessions can reach this one, twists included. **Start isolated** stops
+the new session using memories from other sessions and sharing its own; **Keep memories
+on** leaves both on. See
 [Lorebooks and memory](lorebooks-and-memory.md#memory).
 
 **Load a session or a chat** brings in a StoryEngine session export or a SillyTavern
@@ -112,21 +115,24 @@ words…*.
 - **An empty box.** In a Scene chat, sending nothing means **Let them talk**: the cast
   carries on without you. Anywhere else, an empty Send does nothing.
 - **Guidance for this turn**, folded under the composer, is a note to the model about
-  this one turn — *keep this short; not part of the story*. It is sent beside your
+  this one turn — *Keep this short. Not part of the story.* It is sent beside your
   move rather than in it, and cleared once the turn is sent.
 - **Pictures**: **Attach a picture** adds up to four pictures to a move, each with a
   caption. See [Pictures](pictures.md#showing-the-model-a-picture).
 - **Stop** replaces **Send** while a turn runs. A stopped turn stays in the story as a
   failed turn with whatever it had written, and raises no notification.
 
-The **context meter** above the box shows how much of the model's window the next
-turn would use, re-measured as you type; it changes colour at 85%. Click it to open
-the workbench and see what would be sent.
+The **context meter** above the box shows how much of the room the prompt may use the
+next turn would take — the room being the model's window, less the share the pack holds
+back and the space kept for the reply. It is re-measured as you type and changes colour
+at 85% of that room. Click it to open the workbench; with something typed, it shows what
+would be sent.
 
 A turn runs **on the server**, not in your browser. Closing the tab mid-turn is safe:
 the turn finishes, and when you come back the page picks up where it was — or a
-notification is waiting. If the server itself stops mid-turn, the turn is recorded
-as failed when it starts again.
+notification is waiting. If the server itself stops mid-turn, a turn that had started
+writing is recorded as failed when it starts again; one caught before it had written
+anything leaves no turn behind, so send the move again.
 
 ### Help with your own move
 
@@ -155,8 +161,11 @@ actions for that turn:
   hook firing) by adding a new turn that puts the old values back. It does **not**
   remove the turn's text: to drop a reply, **Continue from here** on the turn before
   it, or redo it. Undo is refused for a turn that changed no state — *That turn changed
-  no channel state.* — which is most ordinary turns, and for one whose state a later
-  turn has changed since.
+  no channel state.*, which in Freeform and the assistant is most ordinary turns — and
+  for one whose state a later turn has changed since: *Something has written those
+  channels since. Branch instead.* In Scene every turn moves the story clock on, so Undo
+  on the newest turn turns the clock back and leaves the text, and on any earlier turn it
+  is refused.
 
 A turn with more than one version carries **‹ 2 of 3 ›**: step between the versions,
 and play resumes from wherever you last were on that line. **Name this line** gives a
@@ -165,9 +174,13 @@ version a name (the app does not yet list named lines anywhere).
 A turn that failed stays in the transcript as *This turn did not finish.* with the
 reason; **Redo** tries it again. See [Troubleshooting](troubleshooting.md).
 
-Changes you make from the panels — a dial, a hook's pacing, someone's presence, a
-goal — are recorded as turns too, with no text of their own. That is what lets you
-rewind them, and why they appear as empty rows in the transcript. Things a session
+Changes to the story's state from the panels — a dial, a hook's pacing or commitment,
+someone's presence or status, a goal's progress, the suggestions and pictures
+switches — are recorded as turns too, with no text of their own. That is what lets you
+rewind them, and why they appear as empty rows in the transcript. The session's
+settings are not turns, and rewinding does not change them: its lorebooks, prompt pack,
+temperature and reply length, memories, a chat's cast list, and the hooks you add or
+remove. Things a session
 writes **outside itself**, such as memories saved to a character's book, are not
 undone by rewinding; the page says so when you move away from a line that wrote
 some.
@@ -179,11 +192,14 @@ some.
 Everyone in the story, each with a badge — **Here**, **Elsewhere**, **Dead**,
 **Departed** — and, where it applies, **You write them**, **Companion** or **With
 you**; someone not yet met says *not yet met*. Each row has **In the scene** and a
-**Status** (**Alive**, **Dead**, **Departed**). These are part of the story's state,
+status list (**Alive**, **Dead**, **Departed**). These are part of the story's state,
 so a character can be dead on one branch and alive on another. Nothing in play
-changes them for you: they change when you change them. A status that arrived with
-an imported chat and still needs your say-so shows *The narrator has … as dead* with
-**Confirm** or **Not so**.
+changes them for you: they change when you change them.
+
+A character counts as met only once their presence has been set on this line, and
+nothing in play sets it: until you tick **In the scene** (or, in a chat where the
+characters speak for themselves, mute and unmute them), the row says *not yet met*,
+and every plot hook about them is held as *Someone it is about is not here*.
 
 In a Scene chat the cast panel does more — making someone speak, muting them, adding
 and removing members, how readily each joins in. See
@@ -201,8 +217,9 @@ copies: edit a lorebook and the session uses the new text at the next turn. See
 - **Prompt pack** — keep the session's copy, switch to the mode's own, or switch to a
   preset from your library. Switching copies the pack into the session; turns already
   taken keep what they were built from.
-- **Temperature** and **Maximum reply length** for this session. Blank leaves them to
-  the preset or the provider. Each saves when you leave the box or press Enter.
+- **Temperature** and **Maximum reply length** for this session, starting from the
+  pack's own values. Blank leaves them to the provider. Each saves when you leave the
+  box or press Enter.
 - **Read it as a story**, **Export this session**, **Archive this session** and
   **Delete this session** — see [Reading a story](#reading-a-story) and
   [Archiving, deleting and exporting](#archiving-deleting-and-exporting).
@@ -218,8 +235,8 @@ pack**). See [Presets and prompts](presets.md#a-sessions-own-copy).
 
 ### Goals
 
-A story can have an objective, or a chain of them — set by a treatment or setup, or
-by you. The panel's heading says where things stand: *Working toward: …*, *Playing on,
+A story can have an objective, or a chain of them, written into a setup or set by you.
+The app cannot yet start a session from a setup, so in practice you set it here. The panel's heading says where things stand: *Working toward: …*, *Playing on,
 with no objective*, *The story has ended*.
 
 - **Set an objective** and **Set** adds one and points play at it. The narrator sees
@@ -239,9 +256,10 @@ session's lorebooks when the session starts, and you can add your own. The headi
 says how many are eligible now.
 
 - **How often hooks fire**: **Rarely**, **Now and then** (the usual default), **Often**,
-  or **Only when I say**. A judgement — one more model call — runs every few story
-  turns and decides whether one fires; after one fires there is a pause before the
-  next.
+  or **Only when I say**. A judgement — one more model call — decides whether one fires.
+  It runs every sixth story turn at **Rarely**, every third at **Now and then**, every
+  turn at **Often**, and never at **Only when I say**; after one fires it waits 20, 10 or
+  4 story turns. A committed hook is judged every turn whatever the setting.
 - Each hook says where it came from, whether it is eligible, and if not, why: *Already
   fired*, *Waiting for a later turn*, *Someone it is about is not here*, *Its lorebook
   is not in this session*, and so on. What a hook says will happen stays hidden until
@@ -252,8 +270,8 @@ says how many are eligible now.
 - **Remove** takes a hook out of this session only.
 - **Save this to…** copies a hook into the session's treatment, setup or one of its
   lorebooks, for future stories. The session is unchanged.
-- **Add a hook**: *Something you want to happen* and *What happens*; the judgement
-  decides when.
+- **Add** a hook of your own: *Something you want to happen* and *What happens*; the
+  judgement decides when.
 
 To fire a particular hook on the next turn without waiting, use **Audition a hook** in
 the [workbench](#the-workbench).
@@ -267,8 +285,9 @@ change is a turn, so rewinding undoes it.
 ## The workbench
 
 The workbench is a panel beside the page that shows what a turn was made of. Open it
-from **Workbench** in the header, with **Ctrl+`**, or by clicking the context meter;
-**Close** or **Escape** shuts it. Its width can be dragged, and whether it is open is
+from **Workbench** in the header, with **Ctrl+`** (when the keyboard is not in a text
+box), or by clicking the context meter; **Close** shuts it, and so does **Escape** while
+the keyboard is inside it. Its width can be dragged, and whether it is open is
 remembered for your account. On a phone-sized screen it takes over the page.
 
 Over a session it shows, by default, the turn beneath the page:
@@ -290,7 +309,8 @@ Over a session it shows, by default, the turn beneath the page:
   and by whom), its **pictures**, its **steps** (ran, skipped or failed, with reasons),
   and its **cost** in tokens and time. Money is never priced.
 
-**Showing** picks any earlier turn on the line. **Compare with the turn before it**
+**Showing** picks any of the last 100 turns on the line, numbered from the oldest of
+those. **Compare with the turn before it**
 opens the two turns' records side by side: the pair, an aligned block table marking
 what changed, what was asked and what came out.
 
@@ -319,8 +339,12 @@ and **In your lorebooks**. A story result opens the reading view ending at that 
 By default only matches on the line you are on are shown; **Also show … hits on
 branches you left** adds the rest, marked *On a branch you left*.
 
-Search understands quoted phrases and trailing `*` for word starts. Unbalanced quotes
-and similar give *That search could not be run. Try different words.*
+Search understands quoted phrases and trailing `*` for word starts. Punctuation — an
+apostrophe as in `Vera's`, a hyphen as in `half-elf`, a comma or full stop — works only
+inside double quotes (`"Vera's"`); unquoted, like unbalanced quotes, it gives *That
+search could not be run. Try different words.* Each group shows at most 50 results,
+best matches first, and the count of hits on branches you left is taken from within
+those.
 
 ## Archiving, deleting and exporting
 
@@ -335,16 +359,21 @@ All three are in the session panel.
 - **Export this session** downloads a `.session.json` file with every turn on every
   branch. Pictures travel as their descriptions, not their pixels; a
   [backup](backups-and-trash.md) carries the pictures themselves. **Load a session or a
-  chat** on the sessions page brings such a file back, as a new session.
+  chat** on the sessions page loads such a file as a new session — on another install,
+  or on this one once the session it came from has been deleted. While that session is
+  still here it is refused: *That session is already here…*
 
 ## When the story will not move
 
 - *This session already has a turn in flight.* — one turn at a time per session,
-  including one started in another tab or on another device. Panels say *A turn is
-  running. Try again when it has finished.*
+  including one started in another tab or on another device. Most panels say *A turn is
+  running. Try again when it has finished.*; the goals panel says *That could not be
+  saved.*
 - *The session has moved on since this was composed.* — another tab or device moved
   the story on (a turn, **Continue from here**, a panel change) and this page is
-  behind. Your draft is kept: reload, then send again.
+  behind. Your draft is kept: switch to another tab and back so the page catches up,
+  then send again. Reloading also works, but it empties the box — copy your draft
+  first.
 - *This server is restarting. Your next turn will go through once it is back.*
 - *No model is set up to write with yet, so a move cannot be sent.* — nothing is bound
   to *Writing the story*; **Choose one in Settings** goes there. See
@@ -362,7 +391,7 @@ is reloaded or refocused.
 | --- | --- |
 | A move | 100,000 characters |
 | Guidance for one turn | 4,000 characters |
-| Pictures on one move | 4, each up to 8 MB, PNG, JPEG or WebP |
+| Pictures on one move | 4, PNG, JPEG or WebP of any size: each is scaled down to 1,568 pixels on its longer side before it is sent |
 | Lorebooks in a session | 64 |
 | Characters in a session | Scene 32, Freeform 6, the assistant 1 |
 | A session's name | 200 characters |
@@ -370,8 +399,10 @@ is reloaded or refocused.
 ## Keyboard
 
 - **Enter** sends; **Shift+Enter** is a new line.
-- The **What kind of turn** buttons are one stop for Tab: the arrow keys move between
-  them, **Home** and **End** jump to the ends.
-- **Ctrl+`** opens and closes the workbench; **Escape** closes it.
+- Freeform's move buttons (**Do**, **Say**, **Think**, **Story**) are one stop for Tab:
+  the arrow keys move between them, **Home** and **End** jump to the ends.
+- **Ctrl+`** opens and closes the workbench when the keyboard is not in a text box;
+  **Escape** closes it while the keyboard is inside it.
 - **Skip to the page**, the first Tab stop on every page, jumps past the header.
-- Confirmation questions put the focus on **Cancel**.
+- The plot-hook questions put the focus on **Cancel**; **Delete this session** does
+  not.
