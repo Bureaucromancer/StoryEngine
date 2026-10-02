@@ -9,19 +9,22 @@ prompt a model receives on each turn. It is an ordered list of **blocks**:
 
 A preset also holds the budget rules — how much of the model's window the prompt may
 use, and how much is kept for the reply — and generation settings such as temperature.
-Each mode ships one, and every session plays from **its own copy** of a preset.
+Each mode ships one. A session started here plays from **its own copy** of a preset; one
+imported from another application's chat has none, and plays from its mode's preset as
+shipped (see [A session's own copy](#a-sessions-own-copy)).
 
 ## The shipped presets
 
 | Preset | Blocks | Temperature | Replies up to |
 | --- | --- | --- | --- |
-| **Scene** | 27 | 0.85 | 800 tokens |
+| **Scene** | 25 | 0.85 | 800 tokens |
 | **Freeform** | 27 | 0.85 | 800 tokens |
 | **Assistant** | 9 | 0.4 | 900 tokens |
 
 They are **System** objects: read-only for everyone, and rewritten whenever a new build
 changes them. To change one, open it in the library and **Copy to my library**; your
-copy is yours, and later releases do not touch it. [Modes](modes.md) describes what
+copy is yours, and later releases do not touch it. Rename your copy: it keeps the shipped
+name, and the lists show the shipped one and yours under the same name. [Modes](modes.md) describes what
 Scene's and Freeform's presets send.
 
 **New preset**, on the library page, starts from a copy of the **Assistant** preset — not
@@ -38,15 +41,27 @@ The session panel (*Prompted with …*) works on that copy:
 - **Prompt pack** — **Keep the one this session has**, **Switch to the mode's own**, or
   **Switch to** a preset from your library. Switching takes a fresh copy and discards any
   edits made to the old one. Turns already taken keep the blocks they were built from,
-  and rewinding past a switch does not switch back.
-- **Temperature** and **Maximum reply length** — blank leaves them to the preset or the
-  provider. These apply to **every** model call made for the session, not just the
-  story's replies: summaries, trackers, judges, suggestions and pictures use them too.
-  The reply length is also what is held back from the window for the reply.
+  and rewinding past a switch does not switch back. Every preset is offered, other modes'
+  included, without a warning: a Scene switched to Freeform's pack loses Scene's time,
+  place and secret-plot blocks.
+- **Temperature** and **Maximum reply length** — the session copy's own settings, so they
+  start at the preset's (0.85 and 800 tokens in Scene). Blank removes the setting and
+  leaves it to the provider. These apply to **every** model call made for the session,
+  not just the story's replies: summaries, trackers, judges, suggestions and the picture
+  prompt use them too — except the **Smart** choice of who replies, which always asks at
+  a temperature of 0.2. The reply length is also what is held back from the window for
+  the reply; with none, the preset's reserve (1024 tokens in the shipped presets) is held
+  back instead.
 - **Editing one block's text.** In the [workbench](playing.md#the-workbench), over a
   finished turn, a block from the preset has **Edit in the pack**. It opens the session
   panel on that block — *Block: …* — with **Save this block**. The change applies from
-  the next turn; **Reroll** to see the difference. Only text blocks have words to edit.
+  the next turn; **Redo** the turn to see the difference. Only text blocks have words to
+  edit.
+
+A session imported from a SillyTavern or Marinara chat, or an Aventuras story, has no copy
+of its own: the panel says it *has no pack of its own and is assembled from whatever its
+mode ships*, and shows neither **Temperature** nor **Maximum reply length**, and **Edit in
+the pack** has nothing to edit. Pick a preset under **Prompt pack** to give it a copy.
 
 Sessions on the mode's own preset also pick up **blocks added** to that preset by later
 releases. Changed wording in blocks they already have does not reach them, and sessions
@@ -63,16 +78,18 @@ session fully up to date, at the cost of its edits.
   save).
   - A text block has its **Template**, with **Assist**.
   - A slot says what it positions — *Positions history.* — and has an **Outlet**: the name
-    lorebook entries use to land in this slot specifically (see
+    lorebook entries use to land in this slot specifically. Only a lore slot reads it, and
+    a lore slot given an outlet takes **only** that outlet's entries — set it on a copy's
+    main lore slot and ordinary lore stops landing anywhere (see
     [Lorebooks and memory](lorebooks-and-memory.md#where-an-entry-lands)).
 - **Blurb**, **Modes**, **Tags** and **Tag ids**.
 - **Budget**, **Params** and the level lists, shown as stored.
 
 The editor cannot add a block, rename one, or change a block's role, whether it is
 enabled, its priority, its placement, which calls it applies to, or a slot's wrapper;
-the budget and the generation settings are read-only too. The preset's page in the
-library, and **As stored**, are the only places that show those, and a disabled block
-looks like any other in the editor. To change them, edit the preset's `preset.json` by
+the budget and the generation settings are read-only too. As settings, these are shown
+only on the preset's page in the library and under **As stored** (the workbench shows how
+one turn used them), and a disabled block looks like any other in the editor. To change them, edit the preset's `preset.json` by
 hand — the library notices the change while the server runs.
 
 ## How a prompt is put together
@@ -80,8 +97,8 @@ hand — the library notices the change while the server runs.
 ### Order
 
 Blocks go in list order. A block placed **in the history** is spliced in at a depth,
-counted in messages from the newest (each past turn is at least two messages: your move
-and the reply). Neighbouring blocks with the same role are merged into one message.
+counted in messages back from the last reply (a past turn is usually two messages, your
+move and the reply — an opening is one, and a reply in several voices is one per voice). Neighbouring blocks with the same role are merged into one message.
 
 A block can apply only to some calls: to the story's replies (`narrate`) or to **Draft my
 next message** (`impersonate`); to one kind of move, such as Freeform's **Say**; or to
@@ -121,8 +138,9 @@ one.
 1. **The window** is the connection's context window, or `limits.contextTokens` (8192)
    when the connection does not say. A preset can set a lower ceiling.
 2. **The preset's share** of it — 75% in every shipped preset.
-3. **Less room for the reply**: **Maximum reply length** if the session sets one, else
-   the preset's reserve, else `limits.reservedCompletionTokens` (1024).
+3. **Less room for the reply**: the session's **Maximum reply length** — which starts at
+   the preset's own, 800 tokens in Scene — or, when that is blank, the preset's reserve
+   (1024 tokens in every shipped preset).
 
 With the defaults and the Scene preset that is 8192 × 0.75 − 800 = **5,344 tokens** of
 prompt. Tokens are estimated as one per four characters.
@@ -153,14 +171,16 @@ Text blocks, and the words a slot's wrapper puts around its content, are
 | `user` | Your persona's name, or *the player*. |
 | `group` | Every character in the cast, comma-separated. |
 | `charIfNotGroup` | `char` in a cast of one, otherwise `group`. |
-| `notChar` | Everyone but the speaker — your persona first. |
+| `notChar` | Everyone but the speaker, your persona first; on a call that speaks for nobody — a narrated reply, **Draft my next message** — your persona alone. |
 | `dispatch` | `per-actor` or `merged`. |
 
 Liquid's own tags and filters work; unknown variables render as nothing. A slot's wrapper
 marks the slot's content with exactly `{{content}}`, without spaces. A template that
 cannot be rendered — a syntax error, or one that runs too long — is sent as its own text,
-braces and all, so literal `{{` in the messages the workbench shows means a template
-failed. Character cards, lore and history are never treated as templates.
+braces and all, so literal `{{` from one of the preset's own blocks, in the messages the
+workbench shows, means that template failed. Character cards, lore and history are never
+treated as templates, so braces in them go out as written — an imported card keeps its
+`{{user}}`.
 
 ## Generation settings
 
@@ -179,12 +199,14 @@ per session.
   lore is drawn fresh each time, only the first speaker's call in a round is shown, and a
   guided redo, a fired hook or a push are not included.
 - **For a finished turn**, the workbench shows each call's blocks with where each came
-  from and what the budget did with it, the settings sent, and the messages exactly as
-  sent, each marked with the blocks it was made from.
+  from and what the budget did with it, the settings the call asked for (some are never
+  sent — see [Generation settings](#generation-settings)), and the messages as assembled,
+  each marked with the blocks it was made from; system text after the history is shown
+  as system, though it went as user text.
 
-**Collected nothing** lists slots that produced nothing, with why: *switched off in the
-preset*, *not for this kind of call*, *nothing produces this yet*, *its source had
-nothing to give*.
+**Collected nothing** lists the preset's blocks — text as well as slots — that produced
+nothing, with why: *switched off in the preset*, *not for this kind of call*, *nothing
+produces this yet*, *its source had nothing to give*.
 
 ## Imported presets
 
@@ -210,7 +232,8 @@ nothing to give*.
   any keys or addresses in the file are removed.
 
 **SillyTavern system prompts** become a preset of a system prompt, the history, and the
-post-history instructions. **Text-completion presets** carry their sampler settings only.
+post-history instructions. **Text-completion presets** carry their sampler settings, and
+their context size where the file makes it clear, which becomes the preset's ceiling.
 Instruct, context and reasoning templates are recognised but not converted.
 
 **Marinara presets** become blocks in their sections, wrapped as Marinara wraps them, with
@@ -221,7 +244,9 @@ Three things to know about imported presets:
 
 - **Every block arrives at the same priority**, so when a long story fills the window,
   the main prompt and character blocks are dropped before most of the history. A larger
-  context window on the connection helps.
+  context window on the connection helps, up to the preset's own ceiling, which an
+  imported SillyTavern preset takes from its maximum context: raise
+  `budget.maxContextTokens` in the preset's file too, or set it to `null`.
 - **Blocks imported switched off** cannot be switched on in the app; set `"enabled": true`
   in the preset's file.
 - **Known problem: an imported SillyTavern or Marinara preset has no slot for your current
@@ -245,4 +270,6 @@ Three things to know about imported presets:
   }
   ```
 
-  then switch the session to the edited preset.
+  then switch the session to the edited preset. One difference from SillyTavern remains:
+  an imported prompt placed in the chat at depth 0 lands just before your move here,
+  where SillyTavern puts it after.
