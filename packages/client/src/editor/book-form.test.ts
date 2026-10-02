@@ -144,6 +144,18 @@ describe('creating and removing an entry', () => {
     expect((after['entries'] as LoreEntry[]).map((each) => each.name)).toEqual(['Harbour']);
     expect(bytes(after, keep.id)).toBe(bytes(book([keep]), keep.id));
   });
+  /**
+   * *Twins* (2026-09-27): two entries sharing an id is a state importers can
+   * produce, and *Remove this entry* took both — one entry on screen, two gone
+   * from the file.
+   */
+  it('removes the first of two entries sharing an id, never both', () => {
+    const first = entry('Harbour', { id: 'twin' });
+    const second = entry('Harbour, again', { id: 'twin' });
+    const after = withoutEntry(book([first, second]), 'twin');
+
+    expect((after['entries'] as LoreEntry[]).map((each) => each.name)).toEqual(['Harbour, again']);
+  });
 });
 
 describe('the folder gate', () => {
@@ -419,12 +431,82 @@ describe('moving an entry', () => {
     expect(moveEntryBefore(book, 'c', null)).toBe(book);
   });
 
+  /**
+   * *Twins* (2026-09-27): the move took every entry with the id out and put one
+   * back, so nudging one of two twins deleted the other.
+   */
+  it('moves one of two twins and keeps the other', () => {
+    const twins: Draft = {
+      entries: [
+        { ...newLoreEntry('Harbour'), id: 'a' },
+        { ...newLoreEntry('Bridge'), id: 'b' },
+        { ...newLoreEntry('Cathedral'), id: 'c' },
+        { ...newLoreEntry('Harbour, again'), id: 'a' },
+      ],
+      folders: [],
+    };
+
+    expect(names(moveEntryBefore(twins, 'a', 'c'))).toEqual([
+      'Bridge',
+      'Harbour',
+      'Cathedral',
+      'Harbour, again',
+    ]);
+  });
+
   it('refuses to move against a target that is not there', () => {
     // Appending would turn a caller's bug into a silent move to the end of a
     // two-hundred-entry book.
     const book = threeEntries();
     expect(moveEntryBefore(book, 'a', 'gone')).toBe(book);
     expect(moveEntryBefore(book, 'gone', 'a')).toBe(book);
+  });
+});
+
+/**
+ * ***Two entries sharing an id, and nothing lost to either*** —
+ * [P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * `withEntry` already acts on the first match, and its comment says why: ids
+ * are not unique in practice. Removing and moving did not, and both run on save
+ * — removing one twin removed every entry with its id, and dragging one filtered
+ * both out and put back one. The twins here differ in content, which is what an
+ * Aventuras book imported before `distinctIds` holds: two entries named alike, and
+ * saying different things.
+ */
+describe('twins, removed and moved', () => {
+  function twins(): { draft: Draft; id: string } {
+    const first = { ...newLoreEntry('The Harbour'), content: 'The old quay.' };
+    return {
+      id: first.id,
+      draft: {
+        entries: [
+          first,
+          { ...newLoreEntry('Bridge'), id: 'b' },
+          { ...newLoreEntry('The Harbour'), id: first.id, content: 'The new quay.' },
+        ],
+        folders: [],
+      },
+    };
+  }
+  const contents = (book: Draft): string[] => entryList(book).map((entry) => entry.content);
+
+  it('removes the first, which is the one the form shows, and keeps the other', () => {
+    const { draft, id } = twins();
+    expect(entryOf(draft, id)?.content).toBe('The old quay.');
+    expect(contents(withoutEntry(draft, id))).toEqual(['', 'The new quay.']);
+  });
+
+  it('moves one and keeps both', () => {
+    const { draft, id } = twins();
+    const moved = moveEntryBefore(draft, id, null);
+    expect(contents(moved).sort()).toEqual(['', 'The new quay.', 'The old quay.']);
+    expect(contents(moved).at(-1)).toBe('The old quay.');
+  });
+
+  it('still returns the same book for a move that changes nothing', () => {
+    const { draft, id } = twins();
+    expect(moveEntryBefore(draft, id, 'b')).toBe(draft);
   });
 });
 

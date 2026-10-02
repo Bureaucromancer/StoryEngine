@@ -12,7 +12,13 @@ import { FakeProvider } from '../providers/fake.js';
 import { readRenditions } from '../renditions/store.js';
 import { listNotifications } from '../state/notifications.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * The producers, through a whole server — [09 §3.5](../../../../docs/design/09-server-multiuser-deployment.md),
@@ -145,6 +151,8 @@ async function takeATurn(): Promise<void> {
     const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
     return now !== null && now !== before;
   });
+  // Not when the head moves: when the turn, and what it dispatched, are done.
+  await settled(server);
 
   const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
   head = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
@@ -167,14 +175,19 @@ describe('a turn that ran through a whole server', () => {
     // The turn's own, by class. The picture's arrives separately and is waited
     // for below rather than raced against here.
     //
-    // **Waited for rather than read once**, because `takeATurn` returns when
+    // ~~**Waited for rather than read once**, because `takeATurn` returns when
     // the session's head has moved and this notification is written by a
-    // producer reacting to the same completion — a different listener, so the
-    // head moving does not mean the row is there yet. Reading once passed on an
-    // unloaded machine and failed on the Windows runner and under a full-suite
-    // run, which is the shape of every race this file has already paid for
-    // twice below.
-    await eventually(() => Promise.resolve(held().some((one) => one.class === 'turn.complete')));
+    // producer reacting to the same completion.~~ (2026-10-02, the merge of
+    // origin's main) **Read once, and that is now right.** The race was real —
+    // reading once passed on an unloaded machine and failed on the Windows
+    // runner and under a full-suite run — and it was fixed on both sides of the
+    // merge: here by polling for the row, on main by making `takeATurn` await
+    // `settled(server)`. The second is the cause rather than the symptom.
+    // `runner.settle()` waits for the job's whole promise, the job is still live
+    // until `#announce` has run, and `#announce` calls `notify`, which routes
+    // into `state.db` synchronously — so when `takeATurn` returns the row is
+    // there, and a poll would pass on its first look while describing a helper
+    // that no longer exists.
     const completion = held().find((one) => one.class === 'turn.complete');
     expect(completion).toBeDefined();
     expect(completion?.params['sessionName']).toBe('The harbour');
@@ -208,16 +221,6 @@ describe('a turn that ran through a whole server', () => {
       // successfully for a picture that was never asked for.
       return all.length > 0 && all.every((one) => one.state !== 'pending');
     });
-    const tr = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
-    console.log(
-      'STEPS',
-      JSON.stringify((tr.body as { turns: { steps?: unknown }[] }).turns.map((x) => x.steps)),
-    );
-    console.log(
-      'RENDITIONS',
-      JSON.stringify((await renditionsOf()).map((r) => [r.state, r.purpose, r.error])),
-    );
-    console.log('NOTIFS', JSON.stringify(held().map((n) => [n.class, n.params])));
     await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')));
 
     const picture = held().find((one) => one.class === 'artifact.ready');

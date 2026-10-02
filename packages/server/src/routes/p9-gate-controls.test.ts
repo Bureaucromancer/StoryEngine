@@ -1,17 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { Rendition } from '@storyengine/shared';
+import { newActor, type Rendition } from '@storyengine/shared';
 
 import { FakeProvider } from '../providers/fake.js';
+import { jobForRendition, pendingRenditionJobs } from '../renditions/jobs.js';
 import { readRenditions, writeRendition } from '../renditions/store.js';
+import { assetPath } from '../renditions/worker.js';
+import { readTurns } from '../sessions/store.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * ***Gate steps 4, 8, 12 and 14*** —
@@ -62,12 +71,13 @@ let head: string | null = null;
  * `image` role is **unset**, which is the state [19 §5.1] leaves every install
  * in *"because there is no sensible text-model fallback for it"*.
  */
-async function boot(options: { bindImage: boolean }): Promise<void> {
+async function boot(options: { bindImage: boolean; moment?: string }): Promise<void> {
   dataDir = await mkdtemp(join(tmpdir(), 'se-p9-controls-'));
   counter = 0;
   head = null;
+  const moment = options.moment ?? MOMENT;
   fake = new FakeProvider({
-    script: [{ text: MOMENT, object: JSON.parse(MOMENT) as unknown }],
+    script: [{ text: moment, object: JSON.parse(moment) as unknown }],
     images: [{}],
     capabilities: { rendersImages: true, supportsStructuredOutput: true },
   });
@@ -136,6 +146,8 @@ async function takeATurn(): Promise<string> {
     const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
     return now !== null && now !== before;
   });
+  // Not when the head moves: when the turn, and what it dispatched, are done.
+  await settled(server);
 
   const transcript = await server.request({
     method: 'GET',
@@ -328,12 +340,44 @@ describe('Illustrate, pressed by hand', () => {
   });
 
   /**
+   * ***The moment call's figures go to the usage log*** — [10 §11.4]. It is on
+   * no turn's tape because there is no turn, which is `illustrate.ts`'s *one
+   * honest cost*; the account's log is where a call that makes no turn is
+   * recorded.
+   */
+  it('records the moment call in the account’s usage log', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+
+    const lines = (await readFile(join(dataDir, 'users', 'ned', 'usage.jsonl'), 'utf8'))
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ purpose: 'illustrate', sessionId });
+  });
+
+  /**
    * ***The backdrop branch makes no call at all*** — [06 §10.3]'s *"a backdrop
    * is a place and a place has no moment"*. So **Set the scene** is free, and
    * the assertion is a count on the text log rather than on what came back.
    */
   it('makes no moment call for Set the scene', async () => {
     await boot({ bindImage: true });
+    // A place to draw — since 2026-09-30 a backdrop of no place is refused.
+    const placed = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.location`,
+      payload: { value: 'the taproom' },
+    });
+    head = (placed.body as { session: { headTurnId: string | null } }).session.headTurnId;
     const turnId = await takeATurn();
     const before = fake.requests.length;
 
@@ -352,6 +396,122 @@ describe('Illustrate, pressed by hand', () => {
     // fire-and-forget by design ([P9.2]), so a test that walked away mid-write
     // would race its own `rm` rather than assert anything.
     await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+  });
+
+  /**
+   * ***By hand, the same rules as the step*** (2026-09-30): only who is in the
+   * room is drawn, by appearance, and nobody is named. **Illustrate** handed
+   * the step's cast no reading of presence, so it drew the dead with the
+   * living, and a name the moment call wrote went to the image model as it
+   * was written.
+   */
+  it('draws who is in the room, by appearance and never by name', async () => {
+    await boot({
+      bindImage: true,
+      moment: JSON.stringify({ subject: 'Elena and Marlow on a wet quay', anchor: 'Rain.' }),
+    });
+    const anActor = async (name: string, hair: string): Promise<string> => {
+      const actor = newActor(name);
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/library/actors',
+        payload: { ...actor, profile: { ...actor.profile, visual: { hair } } },
+      });
+      expect(created.status, JSON.stringify(created.body)).toBe(201);
+      return actor.id;
+    };
+    const elena = await anActor('Elena', 'cropped grey hair');
+    const marlow = await anActor('Marlow', 'a shaved head');
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'The quay', cast: { persona: null, actors: [elena, marlow] } },
+    });
+    sessionId = (created.body as { session: { id: string } }).session.id;
+    const killed = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent(`se.status#${marlow}`)}`,
+      payload: { value: 'dead' },
+    });
+    expect(killed.status, JSON.stringify(killed.body)).toBe(200);
+    head = (killed.body as { session: { headTurnId: string | null } }).session.headTurnId;
+    const turnId = await takeATurn();
+
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    expect(asked.status, JSON.stringify(asked.body)).toBe(202);
+
+    const [made] = await renditionsOf();
+    expect(made?.prompt.text).toContain('cropped grey hair');
+    expect(made?.prompt.text).not.toContain('a shaved head');
+    expect(made?.prompt.text).not.toMatch(/elena|marlow/i);
+    await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+  });
+
+  /**
+   * ***Where the story has named no place, it says so*** (2026-09-30). The
+   * recipe is the place and the tone, so with no place the button paid for a
+   * picture of the tone alone. It answers with the class instead, as it does
+   * for no binding, and makes nothing.
+   */
+  /**
+   * ***A picture is told only what its session's mode keeps*** (2026-09-30) —
+   * `renderedChannels`' `inPlay`. Scene's clock sits in the registry beside
+   * every other mode's declarations, and a Freeform picture was told the hour:
+   * the starting time for ever, since only a session playing Scene moves it.
+   */
+  it('tells a Freeform picture nothing of Scene’s clock', async () => {
+    await boot({ bindImage: true });
+    const scene = sessionId;
+    const sceneTurn = await takeATurn();
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Freeform',
+        mode: 'storyengine.freeform',
+        modeConfig: { premise: 'Rain on the quay.', difficulty: 'even', directedness: 'following' },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    sessionId = created.body.session.id as string;
+    head = null;
+    const freeformTurn = await takeATurn();
+
+    const told = async (session: string, turnId: string): Promise<string> => {
+      const asked = await server.request({
+        method: 'POST',
+        url: `/api/sessions/${session}/turns/${turnId}/illustrate`,
+        payload: { purpose: 'illustration' },
+      });
+      expect(asked.status, JSON.stringify(asked.body)).toBe(202);
+      const id = (asked.body as { rendition: Rendition }).rendition.id;
+      const held = await readRenditions(server.services.sessions.layout, 'ned', session);
+      return JSON.stringify(held.get(id)?.prompt.fragments ?? null);
+    };
+
+    expect(await told(scene, sceneTurn)).toContain('Day 1, 08:05');
+    expect(await told(sessionId, freeformTurn)).not.toMatch(/Day \d/);
+    await settled(server);
+  });
+
+  it('refuses Set the scene where the story has named no place', async () => {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'background' },
+    });
+
+    expect(asked.status).toBe(200);
+    expect(asked.body).toEqual({ held: 'no-place' });
+    expect(await renditionsOf()).toEqual([]);
+    expect(fake.images).toHaveLength(0);
   });
 });
 
@@ -390,6 +550,17 @@ describe('the recipe outlives the pixels', () => {
     });
     expect(asked.status).toBe(202);
     await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+    /**
+     * **And its job finished**, not only its file. The worker writes the record
+     * and then marks the job, and the write awaits a `stat` after its rename —
+     * so a retry pressed on the file alone can land while the first try is still
+     * live, and a retry is claimed against live jobs: it would be answered by
+     * the try that is finishing, and this test's retry would make no picture.
+     * `renditions/retry.test.ts` states the window; this closes it here.
+     */
+    await eventually(() =>
+      Promise.resolve(pendingRenditionJobs(server.services.state.db, sessionId).length === 0),
+    );
 
     const [made] = await renditionsOf();
     expect(made).toBeDefined();
@@ -438,5 +609,130 @@ describe('the recipe outlives the pixels', () => {
     expect(remade?.prompt.text).toBe(before.text);
     expect(remade?.provenance.seed).toBe(before.seed);
     expect(remade?.asset).not.toBeNull();
+
+    /**
+     * ***And the retry is on the books as a second try.*** Until 2026-09-27 the
+     * finished job was run again under attempt 1, so the store could not say a
+     * picture had been paid for twice — which is what the column is for.
+     */
+    expect(jobForRendition(server.services.state.db, sessionId, made.id)?.attempt).toBe(2);
+  });
+});
+
+/**
+ * ***What the list says, what a retry may do, and what a look may not***
+ * (2026-09-30) — audit S2: an evicted picture listed as one, a retry that
+ * never overwrites pixels that are there, and the picture reads off the
+ * session reconcile.
+ */
+describe('the pictures on disk', () => {
+  /** A finished illustration, its job settled, its file on disk. */
+  async function aPicture(): Promise<Rendition> {
+    await boot({ bindImage: true });
+    const turnId = await takeATurn();
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/illustrate`,
+      payload: { purpose: 'illustration' },
+    });
+    expect(asked.status).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.state === 'ready');
+    await eventually(() =>
+      Promise.resolve(pendingRenditionJobs(server.services.state.db, sessionId).length === 0),
+    );
+    const [made] = await renditionsOf();
+    if (made === undefined) throw new Error('the picture never landed');
+    return made;
+  }
+
+  function fileOf(made: Rendition): string {
+    const path = assetPath(server.services.sessions.layout, 'ned', sessionId, made);
+    if (path === null) throw new Error('a ready picture has a file');
+    return path;
+  }
+
+  async function listed(): Promise<Rendition[]> {
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${sessionId}/renditions`,
+    });
+    return (read.body as { renditions: Rendition[] }).renditions;
+  }
+
+  /**
+   * ***A picture whose file was deleted is listed as one with no pixels*** —
+   * [25 E3]'s *"a picture that can be made again"*, which the page renders as
+   * a placeholder with a retry. It went out as stored, and the page drew a
+   * broken image.
+   */
+  it('lists a picture whose file is gone as one with no pixels, and runs it again', async () => {
+    const made = await aPicture();
+    expect((await listed())[0]?.asset).not.toBeNull();
+
+    await unlink(fileOf(made));
+    const [shown] = await listed();
+    expect(shown?.state).toBe('ready');
+    expect(shown?.asset).toBeNull();
+
+    const again = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/renditions/${made.id}/retry`,
+      payload: {},
+    });
+    expect(again.status).toBe(202);
+    await eventually(async () => (await renditionsOf())[0]?.state !== 'pending');
+  });
+
+  /**
+   * ***Never over pixels that are here*** — [06 §10.7]. A retry runs the record
+   * again under the same file name, so pressed from a stale view it overwrote
+   * a finished picture.
+   */
+  it('refuses to run a picture again while its pixels are there', async () => {
+    const made = await aPicture();
+    const images = fake.images.length;
+    const bytes = await readFile(fileOf(made));
+
+    const again = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/renditions/${made.id}/retry`,
+      payload: {},
+    });
+
+    expect(again.status).toBe(409);
+    expect((again.body as { error: string }).error).toBe('has-pixels');
+    await settled(server);
+    expect(fake.images).toHaveLength(images);
+    expect(await readFile(fileOf(made))).toEqual(bytes);
+  });
+
+  /**
+   * ***A look is not a reconcile*** — `readMine`, the preview's door. These are
+   * read whenever a picture is drawn or arrives, and a reconcile each time took
+   * the session's lock and could append a divergence turn under a page that
+   * was only looking. The session read still reconciles, which is what shows
+   * the hand edit was there to find.
+   */
+  it('serves the pictures without reconciling a hand edit', async () => {
+    const made = await aPicture();
+    const file = join(dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    stored['channels'] = { 'se.clock': { version: 1, value: { day: 9, hour: 9, minute: 9 } } };
+    await writeFile(file, JSON.stringify(stored, null, 2));
+    const count = async (): Promise<number> =>
+      (await readTurns(server.services.sessions, 'ned', sessionId)).size;
+    const before = await count();
+
+    const looks = [
+      `/api/sessions/${sessionId}/renditions`,
+      `/api/sessions/${sessionId}/renditions/${made.id}/asset`,
+      `/api/sessions/${sessionId}/turns/${made.turnId}`,
+      `/api/sessions/${sessionId}/attachments/sha256:${'0'.repeat(64)}`,
+    ];
+    for (const url of looks) await server.request({ method: 'GET', url });
+    expect(await count()).toBe(before);
+
+    await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(await count()).toBe(before + 1);
   });
 });

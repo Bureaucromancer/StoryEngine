@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { classifyRoot, MARINARA_LIVE_MARKS } from './detect.js';
+import { classifyRoot, MARINARA_LIVE_MARKS, probeMarks } from './detect.js';
+import { marinaraFixture } from './fixtures/test-marinara.js';
+import { sillyTavernFixture } from './fixtures/test-sillytavern.js';
 import { MARINARA_KNOWN_FORMAT } from './marinara/store-format.js';
 import { MARINARA_TABLES } from './registries/marinara.js';
 import { MemoryFileSource } from './memory-source.js';
@@ -149,5 +154,97 @@ describe('classifying a root', () => {
         kind: 'marinara',
       });
     }
+  });
+});
+
+/**
+ * ***An Aventuras install is its database*** —
+ * [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * The probe asks for `aventura.db` and nothing else, which is only safe if no
+ * other kind's root can carry that name and no Aventuras root can carry another
+ * kind's marks. **Two probes matching refuses**, so a collision would not
+ * misread anybody's library — it would refuse it, which is the failure these
+ * tests exist to keep from shipping.
+ */
+describe('classifying an Aventuras root', () => {
+  /** Every kind the probe table knows, which is what the ambiguity check walks. */
+  const KINDS = ['sillytavern', 'marinara', 'charx', 'storyengine-backup', 'aventuras'] as const;
+
+  /** A root of each kind, as its own fixture or its own minimal marks build it. */
+  const ROOTS: Record<(typeof KINDS)[number], () => MemoryFileSource> = {
+    sillytavern: () => new MemoryFileSource(sillyTavernFixture()),
+    marinara: () => new MemoryFileSource(marinaraFixture()),
+    charx: () => new MemoryFileSource({ 'card.json': '{}', 'assets/icon/images/main.png': 'png' }),
+    'storyengine-backup': () => new MemoryFileSource({ 'backup.json': '{}' }),
+    aventuras: () => new MemoryFileSource({ 'aventura.db': 'SQLite format 3\0' }),
+  };
+
+  it('knows a folder by its database alone', async () => {
+    expect(await classifyRoot(ROOTS.aventuras())).toEqual({ ok: true, kind: 'aventuras' });
+  });
+
+  it('knows a backup, and a config directory with Aventuras still open in it', async () => {
+    const backup = new MemoryFileSource({ 'aventura.db': 'x', 'metadata.json': '{}' });
+    const running = new MemoryFileSource({
+      'aventura.db': 'x',
+      'aventura.db-wal': 'x',
+      'aventura.db-shm': 'x',
+    });
+
+    expect(await classifyRoot(backup)).toEqual({ ok: true, kind: 'aventuras' });
+    // A `-wal` is never a refusal (§1.2): every open app and every crash leaves one.
+    expect(await classifyRoot(running)).toEqual({ ok: true, kind: 'aventuras' });
+  });
+
+  it('reads an old backup of `.avt` files and no database as loose files, which it is', async () => {
+    const old = new MemoryFileSource({ 'stories/bell.avt': '{}', 'metadata.json': '{}' });
+
+    expect(await classifyRoot(old)).toEqual({ ok: true, kind: 'loose-files' });
+  });
+
+  it.each(KINDS)('matches only its own probe for a %s root', async (kind) => {
+    const root = ROOTS[kind]();
+    const matched: string[] = [];
+    for (const probe of KINDS) {
+      if (await probeMarks(root, probe)) matched.push(probe);
+    }
+
+    expect(matched).toEqual([kind]);
+    expect(await classifyRoot(root)).toMatchObject({ ok: true, kind });
+  });
+
+  it('walks every kind the probe table has, so the next probe cannot skip this check', () => {
+    // Read off the table itself, the way the client's verdict test does: a
+    // probe added without a root above would otherwise never be asked whether
+    // it collides with this one.
+    const source = readFileSync(join(import.meta.dirname, 'detect.ts'), 'utf8');
+    const probed = [...source.matchAll(/\{ kind: '([a-z-]+)', requires:/g)].map((m) => m[1]);
+
+    expect([...probed].sort()).toEqual([...KINDS].sort());
+  });
+
+  it('never reads the database to classify it — the folder plan has names and no bytes', async () => {
+    // A declared path answers `exists` and reads `null`, which is exactly what
+    // the directory plan hands the classifier.
+    const named = new MemoryFileSource({}, ['aventura.db', 'metadata.json']);
+
+    expect(await classifyRoot(named)).toEqual({ ok: true, kind: 'aventuras' });
+  });
+});
+
+/**
+ * ~~`readMarinaraFormat`~~ went at [P4 §7.18] (2026-09-22): the manifest is read
+ * once, by `marinara/store.ts`'s `readMarinaraManifest`, which falls back to the
+ * `.bak` as Marinara's own gate does, and whose absent, unparseable and
+ * non-numeric cases are tested beside it. What is left to say here is the
+ * pre-flight's half — that a manifest it cannot read is not a refusal, since the
+ * application recovers one — which the old describe only implied.
+ */
+describe('a Marinara manifest the pre-flight cannot read', () => {
+  it('is not a refusal when it will not parse, because Marinara recovers one', async () => {
+    const torn = marinaraRoot({ 'storage/manifest.json': '{ broken' });
+
+    expect(await classifyRoot(torn)).toEqual({ ok: true, kind: 'marinara' });
   });
 });

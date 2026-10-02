@@ -167,8 +167,9 @@ describe('a call through the adapter', () => {
 
 describe('the system prompt', () => {
   it('travels as instructions, not as a message', async () => {
-    // Found by writing this suite: AI SDK 7 *refuses* a `system` role inside
-    // `messages`. Above the adapter the engine keeps thinking in
+    // ~~Found by writing this suite: AI SDK 7 *refuses* a `system` role inside
+    // `messages`.~~ *Corrected 2026-09-27: by default only* (see
+    // `splitForSdk`). Above the adapter the engine keeps thinking in
     // `RenderedMessage` including its system blocks, because that is what the
     // record and the workbench show; the translation stops here.
     let sent: { messages: { role: string; content: string }[] } | undefined;
@@ -210,6 +211,113 @@ describe('the system prompt', () => {
     expect(sent?.messages[0]?.role).toBe('user');
     // Both texts, in order, in the one message.
     expect(sent?.messages[0]?.content).toBe('You are a narrator.\n\nIt is raining.');
+  });
+});
+
+/**
+ * ***A system block after the history is sent where it sits*** (2026-09-27).
+ *
+ * Every system message used to be joined into the leading system prompt, so a
+ * preset's guidance, goal and depth-injected text, and the impersonation
+ * instruction, reached the model above the whole history rather than where the
+ * record placed them. Only the leading run is the system prompt now; a later
+ * one is user text in its place.
+ */
+describe('a system block inside the conversation', () => {
+  async function sentFor(
+    rendered: RenderedMessage[],
+    capabilities: Partial<Connection['capabilities']> = {},
+  ): Promise<{ role: string; content: string }[]> {
+    let sent: { messages: { role: string; content: string }[] } | undefined;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as typeof sent;
+        return completion('ok');
+      },
+    });
+    await provider.generate({ modelId: 'llama-local', messages: rendered, params: {} });
+    return sent?.messages ?? [];
+  }
+
+  const block = (role: RenderedMessage['role'], content: string): RenderedMessage => ({
+    role,
+    content,
+    fromBlocks: [content],
+  });
+
+  it('goes in front of the player’s line, not above the history', async () => {
+    const sent = await sentFor([
+      block('system', 'You are a narrator.'),
+      block('user', 'I open the door.'),
+      block('assistant', 'Rain comes in.'),
+      block('system', 'Guidance: keep it quiet.'),
+      block('user', 'I step outside.'),
+    ]);
+
+    expect(sent).toEqual([
+      { role: 'system', content: 'You are a narrator.' },
+      { role: 'user', content: 'I open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+      { role: 'user', content: 'Guidance: keep it quiet.\n\nI step outside.' },
+    ]);
+  });
+
+  it('joins the user message before it when that is where it sits', async () => {
+    const sent = await sentFor([
+      block('system', 'You are a narrator.'),
+      block('user', 'I open the door.'),
+      block('system', 'Depth four: the city is flooding.'),
+      block('assistant', 'Rain comes in.'),
+      block('user', 'I step outside.'),
+    ]);
+
+    expect(sent.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(sent[1]?.content).toBe('I open the door.\n\nDepth four: the city is flooding.');
+  });
+
+  it('stands alone at the end, and wherever the endpoint wants roles kept apart', async () => {
+    const last = await sentFor([
+      block('system', 'You are a narrator.'),
+      block('user', 'I open the door.'),
+      block('assistant', 'Rain comes in.'),
+      block('system', 'Write Vera’s next message.'),
+    ]);
+    expect(last.at(-1)).toEqual({ role: 'user', content: 'Write Vera’s next message.' });
+
+    const apart = await sentFor(
+      [
+        block('system', 'You are a narrator.'),
+        block('user', 'I open the door.'),
+        block('assistant', 'Rain comes in.'),
+        block('system', 'Guidance: keep it quiet.'),
+        block('user', 'I step outside.'),
+      ],
+      { mergeSameRole: 'never' },
+    );
+    expect(apart.slice(-2)).toEqual([
+      { role: 'user', content: 'Guidance: keep it quiet.' },
+      { role: 'user', content: 'I step outside.' },
+    ]);
+  });
+
+  it('keeps its place when the leading run is folded into the first user message', async () => {
+    const sent = await sentFor(
+      [
+        block('system', 'You are a narrator.'),
+        block('user', 'I open the door.'),
+        block('assistant', 'Rain comes in.'),
+        block('system', 'Guidance: keep it quiet.'),
+        block('user', 'I step outside.'),
+      ],
+      { systemMessage: 'fold-into-first-user' },
+    );
+
+    expect(sent).toEqual([
+      { role: 'user', content: 'You are a narrator.\n\nI open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+      { role: 'user', content: 'Guidance: keep it quiet.\n\nI step outside.' },
+    ]);
   });
 });
 
@@ -544,6 +652,31 @@ describe('classifying a failure with no status', () => {
     expect(error?.class).toBe('transient');
   });
 
+  /**
+   * ***A transport that gave up on a quiet endpoint is a stall*** (2026-09-27).
+   * undici's header and body limits end with *Headers Timeout Error*, which the
+   * `/timeout/` route took for a connection that did not work, so the ladder
+   * asked twice more. Terminal, and marked as the stall it is.
+   */
+  it('reads undici’s own timeouts as a stall, not as a connection that failed', async () => {
+    for (const code of ['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']) {
+      const quiet = Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('Headers Timeout Error'), { code }),
+      });
+      const provider = new OpenAICompatibleProvider({
+        connection: connectionWith(),
+        fetch: async () => {
+          throw quiet;
+        },
+      });
+
+      const { error } = await collect(provider);
+
+      expect(error?.class, code).toBe('terminal');
+      expect(error?.stalled, code).toBe(true);
+    }
+  });
+
   it('is terminal when nothing says otherwise', async () => {
     // The floor. Without this, a classifier that returned `transient` for
     // everything would satisfy every test above.
@@ -744,6 +877,25 @@ describe('which sampler settings reach the model', () => {
     return sent as Record<string, unknown>;
   }
 
+  it('sends no seed for a negative one, which every sampler panel means as random', async () => {
+    // Presets imported before the converters knew this carry SillyTavern's
+    // `-1`, and it went out as a fixed seed (2026-09-27).
+    let sent: Record<string, unknown> = {};
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as Record<string, unknown>;
+        return completion('ok');
+      },
+    });
+
+    await provider.generate({ modelId: 'llama-local', messages, params: { seed: -1 } });
+    expect(sent).not.toHaveProperty('seed');
+
+    await provider.generate({ modelId: 'llama-local', messages, params: { seed: 0 } });
+    expect(sent['seed']).toBe(0);
+  });
+
   it('sends exactly the ones the constant names', async () => {
     const body = await bodyWithEveryParam();
 
@@ -809,6 +961,60 @@ describe('asking for a shape', () => {
     required: ['name'],
     additionalProperties: false,
   };
+
+  /**
+   * ***The same, streamed*** (2026-09-27). The streaming call left the shape
+   * out, so nothing asked for JSON on the wire and the object came back as the
+   * reply's text: a streamed call with a schema failed validation every time.
+   */
+  async function streaming(
+    pieces: string[],
+    capabilities: Partial<Connection['capabilities']> = {},
+  ): Promise<{ body: Record<string, unknown>; text: string; result: GenerationResult }> {
+    let sent: Record<string, unknown> = {};
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { ...capabilities } }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as Record<string, unknown>;
+        return sse(
+          pieces.map((piece, at) => delta(piece, at === pieces.length - 1 ? 'stop' : undefined)),
+        );
+      },
+    });
+    const stream = provider.stream({
+      modelId: 'llama-local',
+      messages,
+      params: {},
+      schema: SCHEMA,
+    });
+    let text = '';
+    let next = await stream.next();
+    while (next.done !== true) {
+      text += next.value.text;
+      next = await stream.next();
+    }
+    return { body: sent, text, result: next.value };
+  }
+
+  it('asks for the shape when streaming too, and hands back the object', async () => {
+    const declared = await streaming(['{"name":', '"Vera"}'], { supportsStructuredOutput: true });
+    expect(declared.body['response_format']).toMatchObject({ type: 'json_schema' });
+    expect(declared.text).toBe('{"name":"Vera"}');
+    expect(declared.result.object).toEqual({ name: 'Vera' });
+
+    const plain = await streaming(['{"name":"Vera"}']);
+    expect(plain.body['response_format']).toEqual({ type: 'json_object' });
+    expect(plain.result.object).toEqual({ name: 'Vera' });
+  });
+
+  it('keeps the streamed text when it does not parse, with no object', async () => {
+    const { text, result } = await streaming(['Here you go: ', '{"name":"Vera"'], {
+      supportsStructuredOutput: true,
+    });
+
+    expect(text).toBe('Here you go: {"name":"Vera"');
+    expect(result.object).toBeUndefined();
+  });
 
   /** Runs one call against a scripted reply and hands back the body and the result. */
   async function asking(
@@ -947,5 +1153,287 @@ describe('asking for a shape', () => {
     // Absent rather than undefined-valued: *nobody asked* and *asked and missed*
     // are different facts, and the engine reads the difference.
     expect('object' in result).toBe(false);
+  });
+});
+
+/**
+ * ***A picture on the wire*** — [25 E15], R1.
+ *
+ * **The wire test the design asked for before anything else**, because this SDK
+ * has dropped a field in silence before ([polish §8]): a picture that never
+ * left would look, from every record on this side, exactly like one that did.
+ * So the assertion is on the request body — an `image_url` carrying a `data:`
+ * URL, in order after the words that introduce it.
+ *
+ * And the other half, which is what keeps a text-only model working: a message
+ * with no picture in it stays a **string**. Some endpoints reject array content
+ * outright, so building parts where none were needed would break a model that
+ * has never seen a picture.
+ */
+describe('a picture on the wire', () => {
+  const PIXELS = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const DIGEST = `sha256:${'a'.repeat(64)}`;
+
+  const withPicture: RenderedMessage[] = [
+    { role: 'system', content: 'You are a narrator.', fromBlocks: ['b1'] },
+    {
+      role: 'user',
+      content: 'Look at this.\n\n[Picture: the harbour at dusk]',
+      fromBlocks: ['b2', 'b3'],
+      parts: [
+        { kind: 'text', text: 'Look at this.\n\n[Picture: the harbour at dusk]' },
+        { kind: 'image', blockId: 'b3', digest: DIGEST, mime: 'image/png' },
+      ],
+    },
+  ];
+
+  it('sends the bytes as a data URL, after the words that introduce them', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('A harbour, yes.');
+      },
+    });
+
+    await provider.generate({
+      modelId: 'llama-local',
+      messages: withPicture,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+
+    const body = sent as {
+      messages: { role: string; content: string | Record<string, unknown>[] }[];
+    };
+    const user = body.messages.find((message) => message.role === 'user');
+    expect(Array.isArray(user?.content)).toBe(true);
+    const parts = user?.content as Record<string, unknown>[];
+    expect(parts[0]).toMatchObject({ type: 'text', text: expect.stringContaining('harbour') });
+    const url = (parts[1]?.['image_url'] as { url?: string } | undefined)?.url ?? '';
+    expect(parts[1]?.['type']).toBe('image_url');
+    expect(url.startsWith('data:image/png;base64,')).toBe(true);
+    expect(url.slice('data:image/png;base64,'.length)).toBe(Buffer.from(PIXELS).toString('base64'));
+  });
+
+  it('keeps a message with no picture a plain string', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('The rain had not stopped.');
+      },
+    });
+
+    await provider.generate({
+      modelId: 'llama-local',
+      messages,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+
+    const body = sent as { messages: { role: string; content: unknown }[] };
+    for (const message of body.messages) expect(typeof message.content).toBe('string');
+  });
+
+  /**
+   * ***Parts without their bytes are words.*** The caller never hands over a
+   * message naming a picture it did not load, but if one arrived the adapter
+   * must still send a message a text-only endpoint accepts.
+   */
+  it('falls back to the text when the bytes were not handed over', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith(),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('Words only.');
+      },
+    });
+
+    await provider.generate({ modelId: 'llama-local', messages: withPicture, params: {} });
+
+    const body = sent as { messages: { role: string; content: unknown }[] };
+    const user = body.messages.find((message) => message.role === 'user');
+    expect(user?.content).toBe('Look at this.\n\n[Picture: the harbour at dusk]');
+  });
+
+  it('folds a system prompt into a picture message as a leading text part', async () => {
+    let sent: unknown;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { systemMessage: 'fold-into-first-user' } }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init));
+        return completion('Folded.');
+      },
+    });
+
+    await provider.generate({
+      modelId: 'llama-local',
+      messages: withPicture,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+
+    const body = sent as { messages: { role: string; content: unknown }[] };
+    expect(body.messages.some((message) => message.role === 'system')).toBe(false);
+    const parts = body.messages[0]?.content as Record<string, unknown>[];
+    expect(parts[0]).toMatchObject({ type: 'text', text: 'You are a narrator.\n\n' });
+    expect(parts.some((part) => part['type'] === 'image_url')).toBe(true);
+  });
+
+  /**
+   * Freeform's shape with a picture on the move, as `render` hands it over: the
+   * player's words and the picture's merged into one user message whose parts
+   * put the picture after the words that introduce it.
+   */
+  const MOVE = 'I step outside.\n\n[Picture: the harbour at dusk]';
+  const freeform: RenderedMessage[] = [
+    { role: 'system', content: 'You are a narrator.', fromBlocks: ['b1'] },
+    { role: 'user', content: 'I open the door.', fromBlocks: ['b2'] },
+    { role: 'assistant', content: 'Rain comes in.', fromBlocks: ['b3'] },
+    { role: 'system', content: 'Guidance: keep it quiet.', fromBlocks: ['b4'] },
+    {
+      role: 'user',
+      content: MOVE,
+      fromBlocks: ['b5', 'b6'],
+      parts: [
+        { kind: 'text', text: MOVE },
+        { kind: 'image', blockId: 'b6', digest: DIGEST, mime: 'image/png' },
+      ],
+    },
+    { role: 'system', content: 'The player acts.', fromBlocks: ['b7'] },
+  ];
+  const IMAGE = {
+    type: 'image_url',
+    image_url: { url: `data:image/png;base64,${Buffer.from(PIXELS).toString('base64')}` },
+  };
+
+  async function wireFor(
+    capabilities: Partial<Connection['capabilities']> = {},
+  ): Promise<{ role: string; content: unknown }[]> {
+    let sent: { messages: { role: string; content: unknown }[] } | undefined;
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities }),
+      fetch: async (_url, init) => {
+        sent = JSON.parse(bodyOf(init)) as typeof sent;
+        return completion('The harbour, quiet.');
+      },
+    });
+    await provider.generate({
+      modelId: 'llama-local',
+      messages: freeform,
+      params: {},
+      images: new Map([[DIGEST, { bytes: PIXELS, mime: 'image/png' }]]),
+    });
+    return sent?.messages ?? [];
+  }
+
+  /**
+   * ***Freeform's shape, with a picture on the move*** — the leading system
+   * prompt, a turn of history, the guidance box before the player's line, the
+   * player's line with its picture, and a system instruction after it. Every
+   * one of `splitForSdk`'s joins lands on the picture message at once: the
+   * guidance is carried in front of it (`before`) and the trailing instruction
+   * appended after it (`after`).
+   *
+   * **Parts, never a string join.** A message carrying a picture is an array
+   * whose order is the order the picture was placed in; concatenating system
+   * text onto it would have nowhere to put the picture, and either the text or
+   * the picture would go. So each join is a text part of its own, with the
+   * separator on the side that faces the move — which is also what makes the
+   * text parts, read in order, the same string a text-only model would have
+   * been sent.
+   *
+   * Falsified by: `before`/`after` concatenating (the array is lost or the
+   * content becomes `[object Object]`); either join dropping its text; the
+   * trailing system text going out as a `system` message mid-conversation; or
+   * the image part moving from after the words that introduce it.
+   */
+  it('joins the guidance before a picture move and the instruction after it as parts', async () => {
+    const sent = await wireFor();
+
+    // Only the leading run is the system prompt.
+    expect(sent.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(sent.slice(0, 3)).toEqual([
+      { role: 'system', content: 'You are a narrator.' },
+      { role: 'user', content: 'I open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+    ]);
+    expect(sent.at(-1)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Guidance: keep it quiet.\n\n' },
+        { type: 'text', text: MOVE },
+        IMAGE,
+        { type: 'text', text: '\n\nThe player acts.' },
+      ],
+    });
+  });
+
+  /**
+   * The same conversation for an endpoint that wants consecutive user messages
+   * kept apart (`mergeSameRole: 'never'`). Nothing joins: each system text is a
+   * plain-string user message in its place, and the picture message keeps its
+   * array. Pinned separately because this branch never reaches `before` or
+   * `after`, so the test above says nothing about it — and a system text that
+   * went out as an array, or a picture message that went out as its string, is
+   * the kind of shape a strict endpoint rejects or a vision one silently
+   * answers without the picture.
+   *
+   * Falsified by: joining under `never` (the texts appear inside the array); a
+   * system text built as an array; or the picture message flattened to its
+   * string `content`.
+   */
+  it('keeps the system texts apart from a picture move when the endpoint merges nothing', async () => {
+    const sent = await wireFor({ mergeSameRole: 'never' });
+
+    expect(sent).toEqual([
+      { role: 'system', content: 'You are a narrator.' },
+      { role: 'user', content: 'I open the door.' },
+      { role: 'assistant', content: 'Rain comes in.' },
+      { role: 'user', content: 'Guidance: keep it quiet.' },
+      { role: 'user', content: [{ type: 'text', text: MOVE }, IMAGE] },
+      { role: 'user', content: 'The player acts.' },
+    ]);
+  });
+
+  /**
+   * ***No deprecation on the way out.*** The adapter builds a `file` part with
+   * an image media type rather than the SDK's `image` part, because this SDK
+   * version deprecated `image` and warned through `process.emitWarning` on
+   * every call that used one — a line per picture in the server's stderr, and
+   * nowhere in its log. Both reach the wire as the same `image_url`, so the wire
+   * test above cannot tell them apart; the SDK's own warning hook can.
+   *
+   * `AI_SDK_LOG_WARNINGS` is the SDK's documented seam: a function there
+   * receives every warning in place of `process.emitWarning`. Restored in a
+   * `finally`, because it is a global and a test that leaked it would silence
+   * the SDK's warnings for the rest of the file.
+   *
+   * Falsified by: building `{ type: 'image', image, mediaType }` in
+   * `contentFor`, which the SDK then reports as `deprecated`.
+   */
+  it('builds the picture without a part the SDK warns is deprecated', async () => {
+    const warnings: { type: string }[] = [];
+    const global = globalThis as { AI_SDK_LOG_WARNINGS?: unknown };
+    const had = Object.prototype.hasOwnProperty.call(global, 'AI_SDK_LOG_WARNINGS');
+    const previous = global.AI_SDK_LOG_WARNINGS;
+    global.AI_SDK_LOG_WARNINGS = (options: { warnings: { type: string }[] }) => {
+      warnings.push(...options.warnings);
+    };
+    try {
+      const sent = await wireFor();
+      // The picture went through the SDK's conversion, so an empty list below
+      // is an absence rather than a path this call never took.
+      expect(sent.at(-1)?.content).toContainEqual(IMAGE);
+    } finally {
+      if (had) global.AI_SDK_LOG_WARNINGS = previous;
+      else delete global.AI_SDK_LOG_WARNINGS;
+    }
+
+    expect(warnings.filter((warning) => warning.type === 'deprecated')).toEqual([]);
   });
 });

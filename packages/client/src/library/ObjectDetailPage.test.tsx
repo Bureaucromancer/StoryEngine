@@ -2,9 +2,9 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The detail page's first test file. P4.4 built the delete control and shipped
@@ -27,8 +27,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const readObject = vi.fn();
 const deleteObject = vi.fn();
+const takeFile = vi.fn();
+const libraryErrors = vi.fn();
 const createObject = vi.fn();
 const authState = vi.fn();
+const listSessions = vi.fn();
 const navigate = vi.fn();
 
 const ACTOR_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
@@ -40,11 +43,14 @@ let search: { slug?: string; source?: 'user' | 'system' } = {};
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
   api: {
     readObject: (...a: unknown[]) => readObject(...a) as unknown,
     deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
     createObject: (...a: unknown[]) => createObject(...a) as unknown,
     authState: (...a: unknown[]) => authState(...a) as unknown,
+    takeFile: (...a: unknown[]) => takeFile(...a) as unknown,
+    libraryErrors: (...a: unknown[]) => libraryErrors(...a) as unknown,
   },
 }));
 
@@ -102,6 +108,8 @@ beforeEach(() => {
   deleteObject.mockResolvedValue(undefined);
   createObject.mockResolvedValue({ id: COPY_ID, slug: 'vera-kohl-2', contentHash: 'sha256:def' });
   authState.mockResolvedValue({ account: { handle: 'ned', locale: null } });
+  listSessions.mockResolvedValue({ sessions: [] });
+  libraryErrors.mockResolvedValue({ errors: [] });
 });
 
 function renderPage(): void {
@@ -210,6 +218,356 @@ describe('deleting a library object', () => {
       'The object has changed since it was read.',
     );
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ***It leaves first, and does not read again what it deleted*** —
+   * 2026-09-27. The refresh ran before the navigation and reset the entry this
+   * page was watching, so the object just deleted was read again — a `404`,
+   * retried a second later — and the page showed *Loading…* for it until the
+   * navigation finally ran. Reddened by putting the reset back.
+   */
+  it('leaves for the library without re-reading what it deleted', async () => {
+    renderPage();
+    const user = await askToDelete();
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await vi.waitFor(() => {
+      expect(navigate).toHaveBeenCalled();
+    });
+    // TanStack starts a refetch on a timer, so its absence needs one to pass.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(readObject).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **And the shelf it lands on is read fresh**, not shown from a cached list
+   * that still holds the row just deleted. Reddened by dropping the
+   * inactive-entry removal.
+   */
+  it('does not hand the shelf a cached list with the deleted object in it', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(['library', 'actors'], { objects: [actor()] });
+    render(
+      <QueryClientProvider client={client}>
+        <ObjectDetailPage />
+      </QueryClientProvider>,
+    );
+    const user = await askToDelete();
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await vi.waitFor(() => {
+      expect(navigate).toHaveBeenCalled();
+    });
+
+    expect(client.getQueryData(['library', 'actors'])).toBeUndefined();
+  });
+});
+
+/**
+ * ***The file a copy's page hands over is that copy*** (2026-09-27).
+ *
+ * An id resolves to the winner, and these are plain anchors to routes keyed by
+ * id — so on the page of a shadowed copy, which is reached through
+ * `?source=&slug=` and shows the right file, *Download* and *Export* handed over
+ * the other one under this one's heading. The address travels now, and only
+ * where it changes the answer.
+ */
+describe('taking an object with you', () => {
+  const SHADOWED = `?source=user&slug=vera-kohl-2`;
+
+  function hrefOf(name: string): string | null {
+    return screen.getByRole('link', { name }).getAttribute('href');
+  }
+
+  it('downloads and exports the shadowed copy on screen, not the winner', async () => {
+    search = { source: 'user', slug: 'vera-kohl-2' };
+    readObject.mockResolvedValue(actor({ shadowed: true, slug: 'vera-kohl-2' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(hrefOf('Download this actor')).toBe(
+      `/api/library/actors/${ACTOR_ID}/download${SHADOWED}`,
+    );
+    expect(hrefOf('Export as Aventuras character')).toBe(
+      `/api/library/actors/${ACTOR_ID}/export/aventuras.character${SHADOWED}`,
+    );
+  });
+
+  it('names the id alone when the copy on screen is the one it resolves to', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(hrefOf('Download this actor')).toBe(`/api/library/actors/${ACTOR_ID}/download`);
+  });
+
+  /**
+   * The package route takes an id and nothing narrower, so from a shadowed
+   * copy it would bundle the winner — offered nowhere rather than wrongly.
+   */
+  it('offers a package bundle only on the copy its id resolves to', async () => {
+    params = { kind: 'packages', id: ACTOR_ID };
+    const pack = {
+      schema: 'storyengine.package/1',
+      name: 'Harbour set',
+      slug: 'harbour-set',
+      object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+    };
+    readObject.mockResolvedValue(actor(pack));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Export this package' })).toBeTruthy();
+  });
+
+  it('withholds the package bundle on a shadowed copy', async () => {
+    params = { kind: 'packages', id: ACTOR_ID };
+    search = { source: 'user', slug: 'harbour-set-2' };
+    readObject.mockResolvedValue(
+      actor({
+        schema: 'storyengine.package/1',
+        name: 'Harbour set',
+        slug: 'harbour-set-2',
+        shadowed: true,
+        object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Export this package' })).toBeNull();
+    // The object itself still downloads, as that copy.
+    expect(hrefOf('Download this package')).toBe(
+      `/api/library/packages/${ACTOR_ID}/download?source=user&slug=harbour-set-2`,
+    );
+  });
+});
+
+/**
+ * ***A file that broke after it was read, said where it is opened***
+ * (2026-09-28) — gap round A5.8.
+ *
+ * The index keeps the last good version of an object whose file stops reading,
+ * so this page showed it as current, offered Edit, and said nothing; the panel
+ * over the list was the only place that knew. The row is matched by where the
+ * file is, which is all a broken file still has.
+ */
+describe('an object whose file could not be read', () => {
+  function brokenRow(over: Record<string, unknown> = {}) {
+    return {
+      path: 'users/ned/library/actors/vera-kohl/card.png',
+      source: 'user',
+      kind: 'storyengine.actor/1',
+      slug: 'vera-kohl',
+      reason: 'schema',
+      detail: '/name must be string',
+      seenAt: 0,
+      ...over,
+    };
+  }
+
+  it('says so where it is opened, withholds Edit, and keeps Delete', async () => {
+    libraryErrors.mockResolvedValue({ errors: [brokenRow()] });
+    renderPage();
+
+    expect(
+      await screen.findByText(/The file on disk could not be read, so this is the last version/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'It is this kind of object with something missing, or something of the wrong type.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('/name must be string')).toBeTruthy();
+    expect(screen.getByText('users/ned/library/actors/vera-kohl/card.png')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+  });
+});
+
+/**
+ * ***What the answer said, said*** (2026-09-28) — gap round A5.4 and A5.5.
+ *
+ * These were plain links, so the answer went to the browser: an export's notes
+ * and a package's missing count were headers nothing read, and a refused
+ * download was a JSON body saved as the file. A plain click is fetched now,
+ * and each test here is one thing the page could not say before.
+ */
+describe('what a download or an export says', () => {
+  /** jsdom has no object URLs and no real downloads, so both are captured. */
+  function captureSaves(): string[] {
+    const names: string[] = [];
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:fake');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
+    return names;
+  }
+
+  function taken(over: Record<string, unknown> = {}) {
+    return { blob: new Blob(['{}']), fileName: 'Vera-Kohl.json', notes: [], missing: 0, ...over };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('says what an export left out, under the link it came from', async () => {
+    const saved = captureSaves();
+    takeFile.mockResolvedValue(
+      taken({
+        notes: [
+          { key: 'export.aventuras.sectionsFolded', params: { count: 2, sections: 'Voice, Past' } },
+        ],
+      }),
+    );
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('link', { name: 'Export as Aventuras character' }));
+
+    expect(takeFile).toHaveBeenCalledWith(
+      `/api/library/actors/${ACTOR_ID}/export/aventuras.character`,
+    );
+    expect((await screen.findByRole('status')).textContent).toBe(
+      '2 sections were folded into one description: Voice, Past.',
+    );
+    expect(saved).toEqual(['Vera-Kohl.json']);
+  });
+
+  it('says how many objects a package export could not include', async () => {
+    captureSaves();
+    params = { kind: 'packages', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      actor({
+        schema: 'storyengine.package/1',
+        name: 'Harbour set',
+        slug: 'harbour-set',
+        object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+      }),
+    );
+    takeFile.mockResolvedValue(taken({ fileName: 'Harbour-set.sepack', missing: 2 }));
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('link', { name: 'Export this package' }));
+
+    expect(takeFile).toHaveBeenCalledWith(`/api/library/packages/${ACTOR_ID}/export`);
+    expect((await screen.findByRole('status')).textContent).toBe(
+      '2 objects this package names are not in your library, so the file does not carry them.',
+    );
+  });
+
+  it('says why a download failed, and saves nothing', async () => {
+    const saved = captureSaves();
+    takeFile.mockRejectedValue(new ApiError(404, 'not-found', 'That object is not there.'));
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('link', { name: 'Download this actor' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'That is not here any more, so there was nothing to download.',
+    );
+    expect(saved).toEqual([]);
+  });
+
+  it('leaves a modified click to the browser', async () => {
+    captureSaves();
+    takeFile.mockResolvedValue(taken());
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'Download this actor' });
+    // jsdom would try to follow the link, which it cannot; the page's own
+    // handler has run by the time this one does.
+    const stay = (event: Event): void => {
+      event.preventDefault();
+    };
+    document.addEventListener('click', stay);
+    fireEvent.click(link, { ctrlKey: true });
+    document.removeEventListener('click', stay);
+    // A mutation runs its function a tick after it is asked, so *not called*
+    // straight after the click would pass either way. A plain click after it
+    // is fetched; had the first been taken, it would be the only call.
+    fireEvent.click(screen.getByRole('link', { name: 'Export as Aventuras character' }));
+
+    await vi.waitFor(() => {
+      expect(takeFile).toHaveBeenCalled();
+    });
+    expect(takeFile.mock.calls).toEqual([
+      [`/api/library/actors/${ACTOR_ID}/export/aventuras.character`],
+    ]);
+  });
+
+  it("says a lorebook's pictures stay behind, counting its entries' too", async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    const row = (id: string) => ({
+      id,
+      role: 'map',
+      mime: 'image/png',
+      digest: 'sha256:00',
+      bytes: 4,
+      ref: `assets/${id}.png`,
+      tags: [],
+    });
+    readObject.mockResolvedValue(
+      actor({
+        schema: 'storyengine.lorebook/1',
+        name: 'Ardent',
+        object: {
+          schema: 'storyengine.lorebook/1',
+          id: ACTOR_ID,
+          name: 'Ardent',
+          description: '',
+          enabled: true,
+          scanDepth: 2,
+          tokenBudget: 2048,
+          entryLimit: 100,
+          recursiveScanning: false,
+          maxRecursionDepth: 3,
+          tags: [],
+          folders: [],
+          media: [row('m1')],
+          entries: [
+            {
+              id: 'e1',
+              name: 'Harbour',
+              content: 'Cranes.',
+              keys: [],
+              enabled: true,
+              media: [row('m2')],
+            },
+          ],
+        },
+      }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        'Its 2 pictures stay behind: the file names them and does not carry them.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it("says nothing of an actor's pictures, which its card carries", async () => {
+    readObject.mockResolvedValue(
+      actor({
+        object: {
+          schema: 'storyengine.actor/1',
+          id: ACTOR_ID,
+          name: 'Vera Kohl',
+          media: [{ id: 'x', ref: 'blob:1' }],
+        },
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(screen.queryByText(/stays? behind/)).toBeNull();
   });
 });
 
@@ -455,6 +813,52 @@ describe('a lorebook on the detail route', () => {
     expect(screen.queryByRole('link', { name: 'Edit' })).toBeNull();
   });
 
+  /**
+   * ***A memory remembered from an archived session names it*** (2026-09-27).
+   * The page read the live list of sessions, so an origin that had only been
+   * archived — restorable, one control away on its own page — read *a session
+   * you have deleted*, of a session nobody had deleted.
+   */
+  it('names the session a memory came from when that session is archived', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    listSessions.mockImplementation((options?: { archived?: boolean }) =>
+      Promise.resolve({
+        sessions:
+          options?.archived === true
+            ? [
+                {
+                  id: 's-dry',
+                  name: 'The dry year',
+                  createdAt: '2026-09-08T00:00:00Z',
+                  updatedAt: '2026-09-20T00:00:00Z',
+                  headTurnId: null,
+                  archivedAt: '2026-09-20T00:00:00Z',
+                },
+              ]
+            : [],
+      }),
+    );
+    readObject.mockResolvedValue(
+      lorebook({
+        provenance: { source: 'session' },
+        entries: [
+          {
+            id: 'e-1',
+            name: 'Harbour',
+            content: 'Cranes.',
+            keys: [],
+            enabled: true,
+            metadata: { 'se.memory': { sessionId: 's-dry', at: null } },
+          },
+        ],
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'The dry year' })).toBeTruthy();
+    expect(screen.queryByText('a session you have deleted')).toBeNull();
+  });
+
   it('falls back to the field list when the file is not a book, rather than failing', async () => {
     params = { kind: 'lorebooks', id: ACTOR_ID };
     readObject.mockResolvedValue(lorebook({ entries: 'someone hand-edited this' }));
@@ -522,6 +926,9 @@ describe('copying a system object into your own library', () => {
     expect(written['somethingLater']).toEqual({ kept: true });
     expect(written['id']).not.toBe(ACTOR_ID);
     expect(typeof written['id']).toBe('string');
+    // Naming the shipped actor, so the copy is written into its card — the
+    // portrait and expressions a JSON copy left behind (2026-09-27).
+    expect(createObject.mock.calls[0]?.[2]).toBe(ACTOR_ID);
   });
 
   it('goes to the copy rather than leaving the reader on the original', async () => {

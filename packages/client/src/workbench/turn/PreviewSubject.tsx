@@ -48,6 +48,13 @@ const UNMEASURABLE: Record<UnmeasurableReason, string> = labels('workbench.unmea
    * different remedy: this one resolves itself by taking a turn.
    */
   'not-this-turn': 'This turn will not narrate, so there is no prompt to assemble.',
+  /**
+   * *A window that holds nothing beside the reply* (2026-09-27): the turn is
+   * refused rather than sent with every block dropped, and the panel says so
+   * with the remedy, which is a setting.
+   */
+  'window-too-small':
+    'The model’s context window is no larger than the room kept for its reply, so nothing would fit. Raise the context window in the connection, or lower the reply length.',
 });
 
 export function PreviewSubject({
@@ -72,7 +79,7 @@ export function PreviewSubject({
             the failure that made the numbers unmeasurable — and an
             unconfigured install is exactly where somebody is asking why their
             world is not appearing. */}
-        <LoreReportView lore={preview.lore} />
+        <LoreReportView lore={preview.lore} locale={locale} />
       </div>
     );
   }
@@ -91,7 +98,7 @@ export function PreviewSubject({
        * *what is in the prompt*, then *what is not and why*, which is the order
        * somebody arrives at the question in.
        */}
-      <LoreReportView lore={preview.lore} />
+      <LoreReportView lore={preview.lore} locale={locale} />
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
         <MetadataRow label="Step">

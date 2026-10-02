@@ -92,7 +92,8 @@ tested by use rather than completed on paper. Alpha 1 is being cut before it,
 under the rule [P6A §5](docs/design/workplan/19-p6a-alpha-1.md) sets: *it may
 be cut before PLAYABLE; it does not go public before it.*
 
-Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
+Start with [`docs/guide/`](docs/guide/README.md) if you want to use it as it is
+built today, [`docs/design/README.md`](docs/design/README.md) if you want to know
 what this is going to be, and [`docs/design/00-stance.md`](docs/design/00-stance.md)
 if you want to know why.
 
@@ -317,7 +318,7 @@ boundary the lint graph enforces in code.
 | `pnpm dev:client` | Vite on 5173, proxying `/api` to 8080 |
 | `pnpm dev:logged` | The API alone, stdout copied to a dated file in `./logs`, provider exchanges recorded to `./captures` |
 | `pnpm seed` | A known library and a playable session, over HTTP. Idempotent |
-| `pnpm reset-data` | Removes the data directory, or removes nothing. Stop the server first |
+| `pnpm reset-data` | Removes the data directory, or removes nothing — and refuses a directory that is not one (`--force` overrides that check) or that holds the checkout. Stop the server first |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
 | `pnpm format:check` | The same, checking rather than writing — what CI runs |
 

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { CastEntry } from '@storyengine/sdk';
+import type { StepCastMember } from '@storyengine/sdk';
 
 import { capPrompt, type PromptFragment } from '../providers/prompt-caps.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
@@ -13,6 +13,7 @@ import {
   backdropFragments,
   fragmentsFor,
   illustrationFragments,
+  withoutNames,
   type FragmentInputs,
 } from './assemble.js';
 
@@ -35,7 +36,7 @@ const CAPS: ProviderCapabilities = capabilitiesFor('fake', {
   usefulPromptChars: 80,
 });
 
-const ELENA: CastEntry = {
+const ELENA: StepCastMember = {
   actorId: 'a-1',
   name: 'Elena',
   kind: 'actors',
@@ -43,7 +44,7 @@ const ELENA: CastEntry = {
   visual: { hair: 'cropped grey hair', build: 'a tall woman', clothing: 'an oilskin coat' },
 };
 
-const NAMELESS: CastEntry = {
+const NAMELESS: StepCastMember = {
   actorId: 'a-2',
   name: 'The Harbourmaster',
   kind: 'actors',
@@ -276,5 +277,28 @@ describe('a prompt over the cap drops its lowest-ranked fragment and says which'
 
     expect(prompt.overCap).toBe(true);
     expect(prompt.kept).toEqual(['moment']);
+  });
+});
+
+/**
+ * ***Nobody's name, wherever the words came from*** (2026-09-30) — the scrub
+ * the moment and the channels go through before they reach an image prompt.
+ */
+describe('a name in a prompt', () => {
+  // Shortest first on purpose: the scrub has to put the full name first itself.
+  const cast = [{ name: 'Vera' }, { name: 'Lund' }, { name: 'Vera Kohl' }];
+
+  it('becomes someone, whole words and any case, the full name before its first word', () => {
+    expect(withoutNames('Vera Kohl greets VERA and lund by the door', cast)).toBe(
+      'someone greets someone and someone by the door',
+    );
+  });
+
+  it('leaves a word that only contains a name alone', () => {
+    expect(withoutNames('Veracity at Lundy', cast)).toBe('Veracity at Lundy');
+  });
+
+  it('keeps a possessive readable', () => {
+    expect(withoutNames('Vera’s office', cast)).toBe('someone’s office');
   });
 });

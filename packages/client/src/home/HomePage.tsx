@@ -129,7 +129,7 @@ export function HomePage({ release }: { release?: string }): JSX.Element {
               control and sits beside the dock, so it keeps the shell's width
               and gives only its prose the story measure. `ui/classes.ts`'s
               `page` docstring carries the argument. */}
-          <article className="mt-2 flex max-w-reading flex-col gap-3 text-story text-ink-muted">
+          <article className="mt-2 flex max-w-reading flex-col gap-3 text-story font-story text-ink-muted">
             <ChangelogDocument body={shown.body} />
           </article>
         </section>

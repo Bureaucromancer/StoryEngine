@@ -1226,7 +1226,9 @@ routes whose only callers are their own tests, green in CI the whole time
 [P8](25-p8-implementation.md)***~~ ~~***Built on §5's fallback cut***~~
 ***Merged into `main` 2026-09-16 at `4a6e377`, and open*** — six stages, each
 with a *Done* block naming its commit, and **§3.2** as the gate's results table.
-*`main` as it stood immediately before the merge is the `pre-p8` branch.*
+*`main` as it stood immediately before the merge is* ~~*the `pre-p8` branch*~~
+*`af23e8d`, the merge commit's first parent* (***corrected 2026-10-01***: merged
+branches are closed rather than kept, so the hash is the marker).
 
 ***The cut was taken deliberately rather than under pressure***, which is why §5
 named one: the chain, the pipeline, the books, **manual capture** and the
@@ -1473,10 +1475,11 @@ against; [P10.0](27-p10-implementation.md) is what is left.*
 **The branch is `p10` for both phases**, which is why one merge carries two — it
 was opened for P10 and P11 together, and P11's own status line above says so
 rather than implying a `p11` that never existed. [P11 §3.2](28-p11-implementation.md) is the record and
-[sitting R](05-manual-testing.md) is the list. **Five criticals, two of them desk
+[sitting R](05-manual-testing.md) is the list. **~~Five~~ Six criticals, two of them desk
 work**, and the phase does not close until they have results — which is
 [manual testing §0](05-manual-testing.md)'s rule and, here, the rule that decides
-when *beta* may be said.
+when *beta* may be said. *The sixth, R6, arrived 2026-09-22 with the hook
+addendum to [P11.2](28-p11-implementation.md).*
 
 ***What it does not have is named rather than absorbed***, which is the part of
 this row worth reading twice. ~~Four~~ ~~**Three**~~ ~~**Two**~~ ~~**One**~~
@@ -1563,9 +1566,13 @@ both moved to the roadmap.
 
 ***Written 2026-09-22 at the same sitting as [10 §1.3](../10-ui-surfaces.md), and
 it is the phase between P12 and the beta declaration.*** Skeleton:
-[P12A](30-p12a-the-look.md). *Written as P11A, on a branch cut before
+[P12A](33-p12a-the-look.md). *Written as P11A, on a branch cut before
 [P12](29-p12-implementation.md) existed, and renamed when P12 — backups, which
-has no row in this section — merged first on 2026-09-23.*
+has no row in this section — merged first on 2026-09-23. Filed at 33 since
+2026-10-02, after [P13](30-p13-aventuras-import.md),
+[P14](31-p14-scene-and-session-import.md) and the
+[main audit](32-main-audit.md), which have no rows here either and all ran
+before it; it is still the last phase before beta is said.*
 
 **Why there is a phase after the beta-hardening phase**, since that reads as a
 contradiction and the answer is mechanical. A directive to push the client
@@ -1584,7 +1591,9 @@ column, faces wherever the engine claims an identity
 ([00 §3.6](../00-stance.md)), and the play column that has grown seven
 disclosures above the prose. Around them: the tokens the appearance layer never
 got ([polish §6](06-polish.md) stopped at colour, radius and type step, which was
-right then), a reading face, five named motions with the
+right then), a reading face — *built on `main` first, 2026-10-01, at
+[polish §17](06-polish.md), so what P12A keeps of it is a measure check* — five
+named motions with the
 `prefers-reduced-motion` story the client does not have, section jumps in the
 editors, and two phone rules that were written and never enforced.
 
@@ -1737,7 +1746,7 @@ bar nobody owns is a wish.
 
 | | What | Where it stands, 2026-09-17 |
 |---|---|---|
-| 1 | **CI that builds, tests and produces artifacts on every merge** | `ci.yml` builds and tests on every push; the on-tag tier produces the artifacts. *Merge-time artifacts are deliberately not built* — a private alpha has nobody to hand them to, and an artifact nobody fetches is a cache with a retention policy. |
+| 1 | **CI that builds, tests and produces artifacts on every merge** | `ci.yml` builds and tests on every push; the on-tag tier produces the artifacts — *and, since 2026-10-01, replays the Linux check and the changelog check on the tagged commit before it publishes either.* *Merge-time artifacts are deliberately not built* — a private alpha has nobody to hand them to, and an artifact nobody fetches is a cache with a retention policy. |
 | 2 | **Reproducible builds of the container and the tarball, from a tag** | The tarball is reproducible **and checked**: packed twice in the workflow and compared, with `tools/pack-tarball.test.ts` making the same claim over a fixture. The container's half is [P11 §3](28-p11-implementation.md)'s row 9 — it wants a daemon and two runs. |
 | 3 | **The release cut automated: tag → build → publish → changelog** | Done for the image at [P6A](19-p6a-alpha-1.md) and for the tarball at [P11.9](28-p11-implementation.md). ~~one artifact's chain, built once for real; five to go~~ **Two, and one tag cuts both.** |
 | 4 | **Channels wired and *boring*** | `testing` moves with every `v*` tag and the unraid template follows it; `latest` moves nowhere, deliberately, because unraid's auto-update and watchtower both track that alias and an alpha is not something to hand an auto-updater. **`nightly` does not exist and should not until somebody is reading it** — [releases §4](04-repo-and-releases.md): a nightly that is often broken is worse than none. |

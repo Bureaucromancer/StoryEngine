@@ -17,6 +17,60 @@ export {
   STAGING_CHANNEL,
 } from './mode.js';
 export { SE_SCENE_STAGE, STAGE_STEP, stage } from './staging.js';
+export {
+  PLOT_CADENCE,
+  PLOT_CHANNELS,
+  PLOT_EVERY,
+  PLOT_ON,
+  PLOT_STEP,
+  PLOT_SURFACES,
+  REVEAL,
+  SE_SCENE_PLOT,
+  SECRET_PLOT,
+  plot,
+} from './plot.js';
+export {
+  CADENCE,
+  CHARACTER,
+  CUSTOM,
+  HIDDEN,
+  INVENTORY,
+  LOCKS,
+  PERSONA,
+  QUESTS,
+  SE_SCENE_TRACK,
+  TRACK_STEP,
+  TRACKERS,
+  TRACKING_CHANNELS,
+  TRACKING_SURFACES,
+  WORLD,
+  track,
+  trackerPath,
+  writeBack,
+} from './tracking.js';
+export {
+  CONTINUITY_APPLY,
+  CONTINUITY_ON,
+  EDIT_CHANNELS,
+  EDIT_STEP,
+  EDIT_SURFACES,
+  HOLD,
+  SE_SCENE_EDIT,
+  STYLE,
+  STYLE_ON,
+  edit,
+} from './edit.js';
+export {
+  ECHO,
+  ECHO_CADENCE,
+  ECHO_CHANNELS,
+  ECHO_EVERY,
+  ECHO_ON,
+  ECHO_STEP,
+  ECHO_SURFACES,
+  SE_SCENE_ECHO,
+  echo,
+} from './echo.js';
 export { SCENE_PRESET } from './preset.js';
 
 /**

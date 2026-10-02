@@ -2,6 +2,8 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  MutationCache,
+  QueryCache,
   QueryClient,
   skipToken,
   useMutation,
@@ -13,6 +15,7 @@ import {
 
 import type { TagEntry } from '@storyengine/shared';
 
+import { endsTheSession, markSessionEnded } from './auth/session-ended.js';
 import type { LiveTurn } from './play/reducer.js';
 import {
   addSessionGoal,
@@ -34,10 +37,15 @@ import {
   retryRendition,
   selectRendition,
   type Rendition,
+  setChatSettings,
   setMemoryConfig,
   setSessionArchived,
+  setSessionCast,
+  setTurnHidden,
+  type ChatPatch,
   setSessionLore,
   setSessionPreset,
+  runSessionStep,
   writeSessionChannel,
   type Account,
   type AccountPatch,
@@ -46,6 +54,7 @@ import {
   type Binding,
   type BindingsState,
   type MyRoles,
+  type TaskRoles,
   type ConnectionInput,
   type RoleRow,
   type ConfigView,
@@ -54,6 +63,7 @@ import {
   type Credentials,
   type IndexRow,
   type LibraryKind,
+  type LibraryFileError,
   type LibraryObject,
   type ObjectAddress,
   type ObjectImportNotes,
@@ -83,8 +93,37 @@ import {
 
 const LIBRARY_POLL_MS = 2000;
 
-export const queryClient = new QueryClient({
+export const queryClient: QueryClient = new QueryClient({
+  /**
+   * ***A 401 anywhere says the sign-in has ended*** (2026-09-27) — see
+   * `auth/session-ended.ts`, which has the argument and the one code it means.
+   * On the caches rather than in each hook, because the claim is about every
+   * request this client makes and a hook that forgot would be the one page that
+   * went on failing in silence.
+   */
+  queryCache: new QueryCache({
+    onError: (failure) => {
+      if (endsTheSession(failure)) markSessionEnded(queryClient);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (failure) => {
+      if (endsTheSession(failure)) markSessionEnded(queryClient);
+    },
+  }),
   defaultOptions: {
+    /**
+     * ***`always` for writes too*** (2026-09-27), for the reason the queries'
+     * comment below gives. A mutation's default is `online` as well, and it
+     * does not refuse a write when the browser says it is offline: it *pauses*
+     * it, silently, until the browser says otherwise. So a laptop with its
+     * Wi-Fi off, talking to the box in the next room over a cable, pressed
+     * Save and saw it spin forever — the write never sent, never failed, and
+     * waiting for an event about the internet that has nothing to do with it.
+     */
+    mutations: {
+      networkMode: 'always',
+    },
     queries: {
       retry: 1,
       /**
@@ -138,6 +177,21 @@ export function useLibraryObject(
   return useQuery({
     queryKey: ['library', kind, id, at ? `${at.source}:${at.slug}` : 'winner'],
     queryFn: () => api.readObject(kind, id, at),
+    refetchInterval: LIBRARY_POLL_MS,
+  });
+}
+
+/**
+ * ***What the library holds and could not read*** (2026-09-28) — one query for
+ * the panel over the list and for the page of an object whose file broke after
+ * it was read, so the two cannot disagree about a file. Polled like the
+ * library it describes: a file repaired in a text editor clears itself from
+ * both, where the panel's own query waited for a refocus.
+ */
+export function useLibraryErrors(): UseQueryResult<{ errors: LibraryFileError[] }> {
+  return useQuery({
+    queryKey: ['library', 'errors'],
+    queryFn: () => api.libraryErrors(),
     refetchInterval: LIBRARY_POLL_MS,
   });
 }
@@ -234,12 +288,16 @@ export function useSaveObject(): UseMutationResult<
 export function useCreateObject(): UseMutationResult<
   { id: string; slug: string; contentHash: string },
   Error,
-  { kind: LibraryKind; object: Record<string, unknown> }
+  { kind: LibraryKind; object: Record<string, unknown>; copyOf?: string }
 > {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: { kind: LibraryKind; object: Record<string, unknown> }) =>
-      api.createObject(input.kind, input.object),
+    // Passed only when there is one, so a plain create is called exactly as it
+    // always was.
+    mutationFn: (input: { kind: LibraryKind; object: Record<string, unknown>; copyOf?: string }) =>
+      input.copyOf === undefined
+        ? api.createObject(input.kind, input.object)
+        : api.createObject(input.kind, input.object, input.copyOf),
     onSuccess: () => client.invalidateQueries({ queryKey: ['library'] }),
   });
 }
@@ -341,6 +399,10 @@ export function useUpdateMe(): UseMutationResult<
       // the header keeps the old name until a reload — the exact "did that
       // work?" moment gate step 2 is written to catch.
       void client.invalidateQueries({ queryKey: ['auth', 'state'] });
+      // And an admin's own row in the account list says the same name and the
+      // same gallery choice (2026-09-28). For anyone else there is no such
+      // entry, and invalidating nothing asks nothing.
+      void client.invalidateQueries({ queryKey: ['admin', 'accounts'] });
     },
   });
 }
@@ -391,9 +453,11 @@ export function useGallery(): UseQueryResult<{ accounts: GalleryEntry[] }> {
 /**
  * Setting or clearing your own face — [12 §5.2].
  *
- * Both invalidate `auth/state` as well as the gallery, because the signed-in
- * surfaces render the same face and a save that only refreshed the sign-in
- * screen would leave the person looking at their old one.
+ * Both invalidate ~~`auth/state`~~ `['me']` as well as the gallery, because
+ * the signed-in surfaces render the same face and a save that only refreshed
+ * the sign-in screen would leave the person looking at their old one.
+ * (Corrected 2026-09-28: an `Account` carries no face, so the auth state was
+ * never the one to refresh, and the code never did.)
  */
 export function useUploadAvatar(): UseMutationResult<{ avatar: string }, Error, File> {
   const client = useQueryClient();
@@ -449,7 +513,7 @@ export type TagWrite =
     }
   | { kind: 'delete'; id: string }
   | { kind: 'order'; ids: string[] }
-  | { kind: 'rename'; id: string; to: string; rewriteGates: boolean }
+  | { kind: 'rename'; id: string; to: string; rewriteGates: boolean; dryRun?: boolean }
   | { kind: 'adopt' };
 
 /**
@@ -463,6 +527,10 @@ export type TagWrite =
 export interface TagWriteResult {
   tags: TagEntry[];
   gatesFound?: { book: string; entry: string }[];
+  /** A rename's: the actors it renames, and what it did to the gates when asked. */
+  actorsRenamed?: number;
+  booksRewritten?: string[];
+  skipped?: { id: string; name: string; reason: string }[];
 }
 
 export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrite> {
@@ -478,7 +546,11 @@ export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrit
       if (write.kind === 'patch') return api.patchTag(write.id, write.patch);
       if (write.kind === 'delete') return api.deleteTag(write.id);
       if (write.kind === 'rename') {
-        return api.renameTag(write.id, { to: write.to, rewriteGates: write.rewriteGates });
+        return api.renameTag(write.id, {
+          to: write.to,
+          rewriteGates: write.rewriteGates,
+          ...(write.dryRun === true ? { dryRun: true } : {}),
+        });
       }
       if (write.kind === 'adopt') return api.adoptTags();
       return api.orderTags(write.ids);
@@ -493,7 +565,8 @@ export function useWriteTags(): UseMutationResult<TagWriteResult, Error, TagWrit
        * nothing would refetch on its own and the shelf would go on showing the
        * old name until something else happened to reload it.
        */
-      if (write.kind === 'rename' || write.kind === 'adopt') {
+      // A dry run changed nothing, so there is nothing to refetch.
+      if ((write.kind === 'rename' && write.dryRun !== true) || write.kind === 'adopt') {
         void client.invalidateQueries({ queryKey: ['library'] });
       }
     },
@@ -579,20 +652,6 @@ export function useSession(
 }
 
 /**
- * Point a session at a treatment and a set of books — [P6B.0].
- *
- * **The three keys a head move refreshes, for the same reason it refreshes
- * them**: the session file changed, so the entry Play and the workbench both
- * read is stale, and the preview is an answer about a prompt whose contents
- * just moved. The preview is *reset* rather than invalidated because it has no
- * `queryFn` of its own ([P3.4]) — invalidating an entry nothing can refetch
- * leaves the old number on screen, which after attaching a book is a meter
- * confidently reporting a prompt that no longer exists.
- *
- * The transcript is deliberately not in the set: turns already taken are what
- * they were, and retrieval changes the *next* one.
- */
-/**
  * The three session verbs that had routes and no controls — [P7B.2].
  *
  * All three invalidate `['sessions']` as well as the session's own entry: the
@@ -605,17 +664,49 @@ export function useSetSessionPreset(
 ): UseMutationResult<
   { session: SessionSummary },
   Error,
-  { presetId: string } | { preset: Record<string, unknown> }
+  { presetId: string } | { preset: Record<string, unknown> },
+  { previous: { session: SessionSummary } | undefined }
 > {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: { presetId: string } | { preset: Record<string, unknown> }) =>
       setSessionPreset(sessionId, body),
-    onSuccess: () => {
+    /**
+     * ***The pack as written, at once*** (2026-09-27) — `usePatchPrefs`' pattern.
+     *
+     * Every write here sends the whole pack, built from the session in this
+     * cache. The cache used to catch up only when the refetch after the write
+     * landed, so a second write made before then — the maximum length changed
+     * just after the temperature, or a block saved just after either — was
+     * built from the pack as it was before the first, and put the first back.
+     * The pack the person sent is the cache's until the server's answer
+     * replaces it, and a write that fails puts the old one back.
+     *
+     * *Only for a pack sent whole.* Switching to a library preset is the
+     * server's copy to make, and there is nothing to show until it has.
+     */
+    onMutate: async (body) => {
+      if (!('preset' in body)) return { previous: undefined };
+      await client.cancelQueries({ queryKey: ['session', sessionId] });
+      const previous = client.getQueryData<{ session: SessionSummary }>(['session', sessionId]);
+      client.setQueryData<{ session: SessionSummary }>(['session', sessionId], (held) =>
+        held === undefined ? held : { ...held, session: { ...held.session, preset: body.preset } },
+      );
+      return { previous };
+    },
+    onError: (_failure, _body, context) => {
+      if (context?.previous !== undefined) {
+        client.setQueryData(['session', sessionId], context.previous);
+      }
+    },
+    onSettled: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
       // The pack decides what the next turn assembles from, so a composed
       // preview built over the old one is stale the moment this lands.
-      void client.invalidateQueries({ queryKey: ['preview', sessionId] });
+      // ***Reset, as `useSetSessionLore`'s is*** (2026-09-28): the preview has
+      // no `queryFn`, so invalidating it refetched nothing and the meter went
+      // on reporting the old pack's budget — the longer reply reserved, not.
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
     },
   });
 }
@@ -701,7 +792,13 @@ export function useRetryRendition(
   const client = useQueryClient();
   return useMutation({
     mutationFn: (renditionId: string) => retryRendition(sessionId, renditionId),
-    onSuccess: () => {
+    /**
+     * ***Settled, not only succeeded*** (2026-09-30). A retry is refused over
+     * pixels that are here (`409 has-pixels`), which is what a press from a
+     * stale view meets — and the stale view is what the set, read again,
+     * corrects.
+     */
+    onSettled: () => {
       void client.invalidateQueries({ queryKey: renditionsKey(sessionId) });
     },
   });
@@ -752,7 +849,33 @@ export function useSetMemoryConfig(
   const client = useQueryClient();
   return useMutation({
     mutationFn: (config: MemoryConfig) => setMemoryConfig(sessionId, config),
-    onSuccess: () => {
+    onSuccess: (answer) => {
+      /**
+       * ***The switches read the answer before they are live again***
+       * (2026-09-27). This settles, and the switches re-enable, as soon as the
+       * write lands — and the next write is built whole from this cache entry,
+       * so while it still held the config from before, a second switch sent the
+       * first one straight back: *Share memories* turned on and then, one click
+       * later, off again with nothing on screen saying so.
+       *
+       * The config and each row's association come from the answer. `effective`
+       * and the books are left for the refetch: they are derived on the server,
+       * and deriving them here is what `panel.ts` warns against. An entry this
+       * cache does not hold stays absent, which covers *Start isolated*, whose
+       * page has no panel.
+       */
+      client.setQueryData<MemoryPanel>(['session-memory', sessionId], (held) =>
+        held === undefined
+          ? held
+          : {
+              ...held,
+              config: answer.memory,
+              others: held.others.map((row) => ({
+                ...row,
+                association: answer.memory.associations[row.sessionId] ?? 'auto',
+              })),
+            },
+      );
       // The panel, because `effective` is derived from what just changed; and
       // the session, because the file did.
       void client.invalidateQueries({ queryKey: ['session-memory', sessionId] });
@@ -769,6 +892,20 @@ export function useDeleteSession(sessionId: string): UseMutationResult<void, Err
   });
 }
 
+/**
+ * Point a session at a treatment and a set of books — [P6B.0].
+ *
+ * **The three keys a head move refreshes, for the same reason it refreshes
+ * them**: the session file changed, so the entry Play and the workbench both
+ * read is stale, and the preview is an answer about a prompt whose contents
+ * just moved. The preview is *reset* rather than invalidated because it has no
+ * `queryFn` of its own ([P3.4]) — invalidating an entry nothing can refetch
+ * leaves the old number on screen, which after attaching a book is a meter
+ * confidently reporting a prompt that no longer exists.
+ *
+ * The transcript is deliberately not in the set: turns already taken are what
+ * they were, and retrieval changes the *next* one.
+ */
 export function useSetSessionLore(
   sessionId: string,
 ): UseMutationResult<
@@ -788,6 +925,79 @@ export function useSetSessionLore(
 }
 
 /**
+ * ***A chat's settings, its roster and its hide map*** — [P14 §1.8], [P14.5].
+ *
+ * Three writes to the session file, and each refreshes what `useWriteChannel`
+ * refreshes and for its reason: the entry Play and the workbench read is
+ * stale, and a preview assembled over the old settings is an answer about a
+ * prompt that no longer exists. *The transcript is refreshed by a hide too* —
+ * the ghost is drawn from the session's map, but the siblings a hide rides
+ * onto are the transcript's.
+ */
+export function useSetChatSettings(
+  sessionId: string,
+): UseMutationResult<Awaited<ReturnType<typeof setChatSettings>>, Error, ChatPatch> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: ChatPatch) => setChatSettings(sessionId, patch),
+    /**
+     * ***Pending until the refetched settings are in the cache.*** A card's
+     * prompt switch sends the member's whole entry computed from the cached
+     * `chat`, so a second toggle made before the refetch lands would be computed
+     * from the stale one and undo the first. Returning the invalidation keeps
+     * `isPending` — and the controls it disables — true until it has.
+     */
+    onSuccess: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+export function useSetCast(
+  sessionId: string,
+): UseMutationResult<
+  Awaited<ReturnType<typeof setSessionCast>>,
+  Error,
+  { persona: string | null; actors: string[] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (cast: { persona: string | null; actors: string[] }) =>
+      setSessionCast(sessionId, cast),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['session', sessionId] });
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+}
+
+export function useSetHidden(
+  sessionId: string,
+): UseMutationResult<
+  Awaited<ReturnType<typeof setTurnHidden>>,
+  Error,
+  { turnId: string; hidden: boolean | number[] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (write: { turnId: string; hidden: boolean | number[] }) =>
+      setTurnHidden(sessionId, write.turnId, write.hidden),
+    /**
+     * ***Pending until the refetched hide entries are in the cache***, for
+     * `useSetChatSettings`' reason: a hide sends the turn's whole entry
+     * (`hideSent`) computed from the cached session, so two quick hides on one
+     * turn would otherwise each write their own index and the second erase the
+     * first.
+     */
+    onSuccess: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
+/**
  * Recovering one degraded channel — [06 §4.2], [P7.1].
  *
  * **Invalidates the session and resets the preview**, the same two keys
@@ -798,6 +1008,26 @@ export function useSetSessionLore(
  * *No `onError` special-casing, because a refusal is not an error*: the route
  * answers 200 with an unapplied effect, and the caller decides what to say.
  */
+/**
+ * ***Update trackers*** — a declared on-demand step, run between turns
+ * ([P14.5a]). It writes an engine turn under the head — the shape a channel
+ * write writes, and no transcript row — so it refreshes what a channel write
+ * refreshes. *Pending until the refetch lands*, as the chat settings' write
+ * is: the button stays disabled until the cards show what it wrote.
+ */
+export function useRunStep(
+  sessionId: string,
+): UseMutationResult<Awaited<ReturnType<typeof runSessionStep>>, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (stepId: string) => runSessionStep(sessionId, stepId),
+    onSuccess: () => {
+      void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
+    },
+  });
+}
+
 export function useWriteChannel(
   sessionId: string,
 ): UseMutationResult<
@@ -807,13 +1037,31 @@ export function useWriteChannel(
 > {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: channelWriteKey(sessionId),
     mutationFn: (write: { key: string; value: unknown }) =>
       writeSessionChannel(sessionId, write.key, write.value),
+    /**
+     * ***The refetch is part of the write*** (2026-09-29, the [P14.5a] review):
+     * returned, so `isPending` — and `useIsMutating` over
+     * {@link channelWriteKey} — lasts until the session read holds the value
+     * just written. A control that re-enabled before that would build its next
+     * write from the value the person saw *before* this one, and the second
+     * write would quietly undo the first: a lock toggled twice fast, or a Save
+     * over a tracker the model updated meanwhile.
+     */
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['session', sessionId] });
       void client.resetQueries({ queryKey: previewKey(sessionId) });
+      return client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
   });
+}
+
+/**
+ * The key every channel write for a session shares, so a card can wait for
+ * any of them — a lock set is one value that several cards write.
+ */
+export function channelWriteKey(sessionId: string): readonly unknown[] {
+  return ['channel-write', sessionId];
 }
 
 /**
@@ -832,14 +1080,18 @@ export function useSessionHooks(
 ): UseMutationResult<
   { session: SessionSummary },
   Error,
-  { add: Record<string, unknown> } | { remove: string }
+  { add: Record<string, unknown> } | { remove: string; from?: HookRow['source'] }
 > {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (change: { add: Record<string, unknown> } | { remove: string }) =>
+    mutationFn: (
+      change: { add: Record<string, unknown> } | { remove: string; from?: HookRow['source'] },
+    ) =>
       'add' in change
         ? addSessionHook(sessionId, change.add)
-        : removeSessionHook(sessionId, change.remove),
+        : change.from === undefined
+          ? removeSessionHook(sessionId, change.remove)
+          : removeSessionHook(sessionId, change.remove, change.from),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['session', sessionId] });
     },
@@ -939,7 +1191,7 @@ export function useRenameSession(
 
 export function useTranscript(
   sessionId: string,
-): UseQueryResult<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
+): UseQueryResult<Awaited<ReturnType<typeof readTranscript>>> {
   return useQuery({
     queryKey: ['transcript', sessionId],
     queryFn: () => readTranscript(sessionId),
@@ -1095,7 +1347,25 @@ export function useUpdateAccount(): UseMutationResult<
     // can be refused (the last-admin guard), and showing it as taken while the
     // server is about to say no is the failure the editor's unpolled base
     // exists to avoid.
-    onSuccess: () => client.invalidateQueries({ queryKey: ['admin', 'accounts'] }),
+    /**
+     * ***Your own row refreshes you*** (2026-09-28). The settings page, the
+     * shell and the You form decide what to show from the auth state and
+     * `['me']`, and an admin ticking *May schedule automatic backups* on their
+     * own row saw no schedule form until a reload. Asked first, so a demotion
+     * or a disable of yourself — which leaves nothing admin on the page — does
+     * not then ask the admin list again, to be refused.
+     */
+    onSuccess: async (_answer, input) => {
+      const self = client.getQueryData<AuthState>(['auth', 'state'])?.account?.handle;
+      if (input.handle === self) {
+        await Promise.all([
+          client.invalidateQueries({ queryKey: ['auth', 'state'] }),
+          client.invalidateQueries({ queryKey: ['me'] }),
+        ]);
+        if (input.patch.role === 'user' || input.patch.enabled === false) return;
+      }
+      await client.invalidateQueries({ queryKey: ['admin', 'accounts'] });
+    },
   });
 }
 
@@ -1215,6 +1485,21 @@ export function useMyRoles(): UseQueryResult<MyRoles> {
  * `GET /api/me/roles` exists to avoid. So the answer is awaited and the table
  * re-read.
  */
+/**
+ * Choosing which role field assist asks for — awaited and re-read, for
+ * `useWriteMyBindings`'s reason: the row it points at is a resolution the
+ * server computes.
+ */
+export function useWriteMyTaskRoles(): UseMutationResult<{ tasks: TaskRoles }, Error, TaskRoles> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (tasks: TaskRoles) => api.writeMyTaskRoles(tasks),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['me', 'roles'] });
+    },
+  });
+}
+
 export function useWriteMyBindings(): UseMutationResult<
   BindingsState,
   Error,
@@ -1361,6 +1646,11 @@ export function useWriteConfig(): UseMutationResult<
       // The banner is above the outlet on every page, so it has to hear about
       // this without the settings page telling it directly.
       void client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+      // The auth state carries two live keys, `auth.loginScreen` and
+      // `auth.minPasswordLength` (2026-09-28): switching the install to the
+      // gallery left the You form without its gallery toggle, and every row
+      // saying nobody is shown to anybody, until a reload.
+      void client.invalidateQueries({ queryKey: ['auth', 'state'] });
     },
   });
 }
@@ -1402,6 +1692,11 @@ export function useNotices(enabled: boolean): UseQueryResult<{
  * the last thing this process sends: the drain runs behind it and then the
  * process exits, so a refetch would race a socket that is closing. What updates
  * the surface is the reconnection — the page comes back and asks again.
+ *
+ * *And what it asks has to outrank this answer* (2026-09-28). The notices
+ * came back and the mutation's success did not go anywhere, so the banner
+ * went on reading it; `RestartBanner` now takes it as *draining* only until
+ * the notices have been answered since it was sent.
  */
 export function useRestart(): UseMutationResult<{ draining: boolean }, Error, void> {
   return useMutation({ mutationFn: () => adminApi.restart() });

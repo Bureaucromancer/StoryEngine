@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { validate } from '@storyengine/shared';
 
+import { MACRO_NOTE_LIMIT } from '../macros.js';
 import { malformedInputs } from '../parse.js';
 import { convertSyspromptPreset } from './sysprompt.js';
 import { convertTextCompletionPreset } from './text-completion.js';
@@ -26,7 +27,10 @@ const TEXT_COMPLETION = {
   top_p: 0.92,
   top_k: 40,
   rep_pen: 1.1,
-  max_length: 400,
+  // As SillyTavern saves a text-generation panel: the reply in `genamt`, the
+  // context in `max_length`.
+  genamt: 400,
+  max_length: 8192,
   dry_multiplier: 0.8,
   dry_base: 1.75,
   dry_allowed_length: 2,
@@ -74,12 +78,51 @@ describe('a sysprompt preset', () => {
     expect(notes.map((n) => n.key)).toContain('import.preset.postHistoryIsAfterNotAtDepth');
   });
 
+  it('names a bounded number of macros across both of its fields', () => {
+    const many = (prefix: string) =>
+      Array.from({ length: MACRO_NOTE_LIMIT }, (_, at) => `{{${prefix}_${String(at)}}}`).join(' ');
+    const result = convertSyspromptPreset(
+      { name: 'Harbour', content: many('first'), post_history: many('second') },
+      'Harbour',
+    );
+    if (!result.ok) throw new Error('refused');
+
+    expect(result.value.notes.filter((n) => n.key === 'import.macro.unrecognised')).toHaveLength(
+      MACRO_NOTE_LIMIT,
+    );
+    expect(result.value.notes.find((n) => n.key === 'import.macro.unlisted')?.params).toEqual({
+      count: MACRO_NOTE_LIMIT,
+    });
+  });
+
   it('converts the macros in it', () => {
     const content = preset.blocks[0];
 
     expect(content?.kind === 'text' ? content.template : '').toBe(
       'You are {{ char }}. Write the scene.',
     );
+  });
+
+  /**
+   * ***A macro taken out is said*** (2026-09-27): this converter reported the
+   * unrecognised ones only, so a `{{date}}` left the prompt without a word.
+   */
+  it('says which macros it took out, and why', () => {
+    const result = convertSyspromptPreset(
+      { ...SYSPROMPT, content: 'Today is {{date}}. Mood: {{mood}}.' },
+      'Dated',
+    );
+    if (!result.ok) throw new Error('refused');
+    const { preset: converted, notes } = result.value;
+
+    const content = converted.blocks[0];
+    expect(content?.kind === 'text' ? content.template : '').toBe('Today is . Mood: {{mood}}.');
+    expect(notes.find((n) => n.key === 'import.macro.refused')?.params).toEqual({
+      macro: 'date',
+      block: 'st.sysprompt.content',
+      because: 'time-is-not-reproducible',
+    });
+    expect(notes.find((n) => n.key === 'import.macro.unrecognised')?.params['macro']).toBe('mood');
   });
 
   for (const { label, input } of malformedInputs(SYSPROMPT, ['content'])) {
@@ -98,6 +141,70 @@ describe('a text-completion preset', () => {
     expect(validate(preset).valid).toBe(true);
     expect(preset.params.temperature).toBe(0.85);
     expect(preset.params.maxTokens).toBe(400);
+  });
+
+  /**
+   * ***`max_length` is whichever length the backend means*** (2026-09-27). It
+   * was read as the reply beside `genamt`, so a panel's context size went
+   * nowhere; and a NovelAI panel, where it *is* the reply, must not become a
+   * 150-token context.
+   */
+  it('reads max_length as the context size when genamt is beside it', () => {
+    expect(preset.budget.maxContextTokens).toBe(8192);
+    expect(preset.compat).not.toHaveProperty('max_length');
+    expect(notes.find((n) => n.key === 'import.preset.contextCeilingWasAbsolute')?.params).toEqual({
+      tokens: 8192,
+    });
+  });
+
+  it('reads it as the reply when the panel is NovelAI’s, with max_context beside it', () => {
+    const nai = convertTextCompletionPreset(
+      { temperature: 1, max_length: 150, max_context: 8000 },
+      'N',
+    );
+    if (!nai.ok) throw new Error('refused');
+
+    expect(nai.value.preset.params.maxTokens).toBe(150);
+    expect(nai.value.preset.budget.maxContextTokens).toBe(8000);
+  });
+
+  it('keeps it aside, and says so, when nothing says which it is', () => {
+    const alone = convertTextCompletionPreset({ temperature: 1, max_length: 2048 }, 'Alone');
+    if (!alone.ok) throw new Error('refused');
+
+    expect(alone.value.preset.params.maxTokens).toBeUndefined();
+    expect(alone.value.preset.budget.maxContextTokens).toBeNull();
+    expect(alone.value.preset.compat?.['max_length']).toBe(2048);
+    expect(
+      alone.value.notes.find((n) => n.key === 'import.preset.maxLengthUnclear')?.params,
+    ).toEqual({ tokens: 2048 });
+  });
+
+  it('sends no seed for SillyTavern’s -1, which means random', () => {
+    const random = convertTextCompletionPreset({ temp: 0.8, seed: -1 }, 'Random');
+    const fixed = convertTextCompletionPreset({ temp: 0.8, seed: 42 }, 'Fixed');
+    if (!random.ok || !fixed.ok) throw new Error('refused');
+
+    expect(random.value.preset.params).not.toHaveProperty('seed');
+    expect(fixed.value.preset.params.seed).toBe(42);
+  });
+
+  it('keeps a field named like a property of every object in compat', () => {
+    // A plain index found `Object` for `constructor` and `Object.prototype`'s
+    // method for `toString`, read them as fields of ours, and so dropped them
+    // from `compat` without a word (2026-09-27).
+    const odd = convertTextCompletionPreset(
+      { ...TEXT_COMPLETION, constructor: 'kept', toString: 'kept too' },
+      'Local',
+    );
+    if (!odd.ok) throw new Error('refused');
+    const kept = (key: string): unknown =>
+      Object.hasOwn(odd.value.preset.compat ?? {}, key)
+        ? odd.value.preset.compat?.[key]
+        : undefined;
+
+    expect(kept('constructor')).toBe('kept');
+    expect(kept('toString')).toBe('kept too');
   });
 
   it('keeps the backend-specific samplers in compat rather than dropping them', () => {

@@ -6,6 +6,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { MACRO_REASONS, sentence } from './note-labels.js';
+
 /**
  * Every note class the server emits has a sentence here
  * ([P4 §1.4](../../../../docs/design/workplan/16-p4-implementation.md),
@@ -73,6 +75,14 @@ function allSources(): string[] {
      */
     join(SERVER, 'backup', 'import.ts'),
     join(SERVER, 'routes', 'backups.ts'),
+    /**
+     * ***And the snapshot's*** —
+     * [P13.1](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+     * `import.aventuras.walCopied` is decided in `storage/`, because only the
+     * code that made the copy knows it replayed a log; the Aventuras reader
+     * passes the note on as it arrived.
+     */
+    join(SERVER, 'storage', 'sqlite-snapshot.ts'),
   ];
 }
 /**
@@ -190,5 +200,71 @@ describe('the review vocabulary', () => {
     const labelled = keysIn(readFileSync(LABELS, 'utf8'), LABELLED);
     const orphaned = [...labelled].filter((key) => !emitted.has(key)).sort();
     expect(orphaned, 'these labels name a note no converter emits any more').toEqual([]);
+  });
+});
+
+/**
+ * ***Every kind of root a folder can be named as has a sentence*** —
+ * [P13.0](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * The same drift as the notes, one table over. `ImportPanel`'s verdict labels
+ * fall back to the raw kind, so a CHARX folder was announced as `charx` and an
+ * unpacked backup as `storyengine-backup` — both kinds the server's probe table
+ * learned after the labels were written, and nothing noticed, because the
+ * fallback is exactly what a version skew should do.
+ *
+ * *One direction only.* The other would fail on two Marinara labels whose kinds
+ * the server declares and no route sends; whether they go is a question about
+ * the server's union, and not this test's to answer.
+ */
+describe('the import panel’s verdicts', () => {
+  const DETECT = join(SERVER_IMPORT, 'detect.ts');
+  const PANEL = join(HERE, 'ImportPanel.tsx');
+
+  it('has a sentence for every kind the probe table can classify', () => {
+    const probed = [...readFileSync(DETECT, 'utf8').matchAll(/\{ kind: '([a-z-]+)', requires:/g)]
+      .map((match) => match[1]!)
+      // The walker's plain mode — what every folder is that no probe matched.
+      .concat('loose-files');
+    expect(
+      probed.length,
+      'the probe pattern matched nothing, so it checked nothing',
+    ).toBeGreaterThan(3);
+
+    const panel = readFileSync(PANEL, 'utf8');
+    const start = panel.indexOf("labels('import.verdict', {");
+    const table = panel.slice(start, panel.indexOf('});', start));
+    const labelled = new Set([...table.matchAll(/^\s*'?([a-z-]+)'?:/gm)].map((match) => match[1]!));
+
+    const missing = probed.filter((kind) => !labelled.has(kind)).sort();
+    expect(missing, 'these kinds are announced to a person as their raw name').toEqual([]);
+  });
+});
+
+/**
+ * ***A macro taken out is said to be taken out, and why, in words***
+ * (2026-09-27). The sentence said *left as written* of the one kind of macro
+ * that never is, and printed the converter's code as the reason.
+ */
+describe('a refused macro, in words', () => {
+  it('says it was taken out, never that it was left, and gives a reason', () => {
+    const said = sentence({
+      key: 'import.macro.refused',
+      params: { macro: 'date', block: 'Main', because: 'time-is-not-reproducible' },
+    });
+
+    expect(said).toContain('taken out');
+    expect(said).not.toContain('left as written');
+    expect(said).not.toContain('time-is-not-reproducible');
+  });
+
+  it('has words for every reason the converter can give', () => {
+    const source = readFileSync(join(SERVER_IMPORT, 'macros.ts'), 'utf8');
+    const reasons = new Set(
+      [...source.matchAll(/because: '([a-z-]+)'/g)].map((match) => match[1] ?? ''),
+    );
+
+    expect(reasons.size).toBeGreaterThanOrEqual(4);
+    expect([...reasons].filter((reason) => MACRO_REASONS[reason] === undefined)).toEqual([]);
   });
 });

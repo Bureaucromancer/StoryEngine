@@ -600,7 +600,13 @@ mechanical part.
   a bug in the driver costs a rebuild, not data. Fall back to `better-sqlite3`,
   which is mature and has the same synchronous ergonomics, if anything bites.
 - **`chokidar`** for the filesystem watcher feeding the index, which is also what
-  makes [10 §4](10-ui-surfaces.md)'s file access safe.
+  makes [10 §4](10-ui-surfaces.md)'s file access safe. *Patched, 2026-09-27*
+  (`patches/chokidar@5.0.0.patch`): 5.0.0 met a new directory by reading it and
+  only then watching it, so a folder made inside one it was still discovering
+  was never watched, and a tree copied into the library faster than it was
+  discovered lost every hand edit under it until the next start's reconcile.
+  The patch moves the watch ahead of the read in `_handleDir` and nothing else;
+  it goes when a release of chokidar does the same.
 - **`write-file-atomic`** for every canonical write (temp + rename). SillyTavern
   already uses it; the failure it prevents is a truncated character card.
 - **`png-chunks-extract` + `png-chunk-text`** — the pair SillyTavern's card
@@ -620,7 +626,10 @@ mechanical part.
   SillyTavern's macros *into* Liquid, so without a renderer a converted preset's
   `{{char}}` reaches the model as literal braces, and PLAYABLE would be testing
   prompt garbage. **What makes it a safe dependency is the fence rather than the
-  library**: rendering is block-scoped over a closed namespace of two names, so
+  library**: rendering is block-scoped over a closed namespace of ~~two names~~
+  five (*corrected 2026-09-29, at
+  [P14.2](workplan/31-p14-scene-and-session-import.md)*: `group`,
+  `charIfNotGroup` and `notChar` beside `char` and `user`), so
   the surface we depend on is `parseAndRenderSync` and nothing else. Swapping it
   would be a day's work, which is the test §6 applies to the framework.
 - **`@fastify/multipart`** for the one upload route. The first non-JSON body this
@@ -710,7 +719,10 @@ Given the threat model in [09 §4.1](09-server-multiuser-deployment.md):
 - **CSRF token on state-changing routes.**
 - **One audited path-resolution helper** used by every filesystem-touching route
   — the single most important piece of security code in the project, per
-  [10 §4.4](10-ui-surfaces.md).
+  [10 §4.4](10-ui-surfaces.md). *The lint rule that keeps `fs` behind it has a
+  known gap (2026-10-01, `d7ac703`):* it catches a static import of `fs` outside
+  the storage layer and not a dynamic `import('node:fs')`, which would need the
+  rule's fs-aware syntax restated in every block of it.
 
 An identity-provider interface should exist from the start even with one
 implementation, so Tailscale identity ([09 §5.2](09-server-multiuser-deployment.md))
@@ -742,9 +754,11 @@ builds, and no stage had said where it lands; it lands here.
 
 And `modes/scene/` is real as of P7.0 rather than aspirational. Its package is
 named **`@storyengine/mode-scene`** — the class is in the name so that the
-distribution's manifest, the image's deploy steps and the loader's built-in list
-can be checked against each other rather than maintained in parallel
-(`tools/repo-shape.test.ts`). *The nesting is one level deeper than the other
+distribution's manifest, ~~the image's deploy steps~~ the builds' import of each
+mode from the deployed tree *(2026-10-01, `c79926d`: a per-mode deploy failed
+every image and tarball build from P7.0 on, because the server's own deploy
+already carries them)* and the loader's built-in list can be checked against
+each other rather than maintained in parallel (`tools/repo-shape.test.ts`). *The nesting is one level deeper than the other
 packages, which is not free: `packages/*` globs in `vitest.config.ts` and
 `eslint.config.js` do not reach it, and the first of those fails silently — a
 mode test that lints, typechecks and never runs. That file has the measurement.*

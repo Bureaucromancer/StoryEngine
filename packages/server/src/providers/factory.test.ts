@@ -90,3 +90,64 @@ describe('invalidate', () => {
     expect(factory(connection())).toBe(held);
   });
 });
+
+/**
+ * ***The memo notices a connection that says something new*** (2026-09-27).
+ *
+ * Only the form's writes invalidated it, so a hand edit to a connection file
+ * (a new base URL, a rotated key) was ignored by every turn until a restart,
+ * and two files claiming one id in two accounts shared whichever provider was
+ * built first, key and endpoint included. `wrapFetch` is called once per built
+ * provider with the connection it was built from, which is what these read.
+ */
+describe('what the memo was built from', () => {
+  function recording(): {
+    factory: ReturnType<typeof createProviderFactory>;
+    builtFrom: Connection[];
+  } {
+    const builtFrom: Connection[] = [];
+    const factory = createProviderFactory({
+      wrapFetch: (inner, from) => {
+        builtFrom.push(from);
+        return inner;
+      },
+    });
+    return { factory, builtFrom };
+  }
+
+  it('builds from a hand-edited connection on the next call, without being told', () => {
+    const { factory, builtFrom } = recording();
+    const before = factory(connection());
+
+    const after = factory(connection({ baseUrl: 'https://second.example.invalid/v1' }));
+
+    expect(after).not.toBe(before);
+    expect(builtFrom.at(-1)?.baseUrl).toBe('https://second.example.invalid/v1');
+  });
+
+  it('gives two connections sharing an id each a provider built from its own key', () => {
+    const { factory, builtFrom } = recording();
+
+    factory(connection({ apiKey: 'sk-mine', scope: 'user' }));
+    factory(connection({ apiKey: 'sk-theirs', scope: 'user' }));
+
+    expect(builtFrom.map((from) => from.apiKey)).toEqual(['sk-mine', 'sk-theirs']);
+  });
+
+  it('does not rebuild for the same connection read again in another key order', () => {
+    const { factory, builtFrom } = recording();
+    const first = factory(connection({ capabilities: { maxContextTokens: 4096 } }));
+    const reordered = {
+      capabilities: { maxContextTokens: 4096 },
+      baseUrl: 'https://first.example.invalid/v1',
+      models: ['gpt-hi'],
+      scope: 'system' as const,
+      provider: 'openai-compatible',
+      label: 'The house key',
+      id: 'house',
+    };
+
+    expect(factory(reordered)).toBe(first);
+    expect(builtFrom).toHaveLength(1);
+  });
+});

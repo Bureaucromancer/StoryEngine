@@ -5,7 +5,14 @@ import { useState } from 'react';
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ApiError, createSession, listModes, listSessions, type PublicMode } from '../api.js';
+import {
+  ApiError,
+  createSession,
+  listModes,
+  listSessions,
+  type LibraryObject,
+  type PublicMode,
+} from '../api.js';
 import { useCreateObject, useLibrary, useSetMemoryConfig } from '../queries.js';
 import { parseList } from '../search-lists.js';
 import { AlertNote } from '../ui/Alert.js';
@@ -78,6 +85,14 @@ import { labels } from '../i18n/catalogue.js';
  * what is not asked for or to clear on every change, and dropping is the one
  * that does not lose work.
  */
+/** What the list says when it is not one — see the list's own comment. */
+const LIST_WORDS = labels('play.sessions-list', {
+  loading: 'Loading the sessions…',
+  failed: 'The sessions could not be read. Try reloading the page.',
+  none: 'No sessions yet. Start one above.',
+  noneShown: 'No sessions yet. Start one above — archived sessions are hidden.',
+});
+
 const routeApi = getRouteApi('/play');
 
 /**
@@ -95,6 +110,60 @@ const routeApi = getRouteApi('/play');
  * `displayName` directly, which is the same rule bent one step further; it
  * predates this table.)
  */
+/**
+ * ***Who is in it, and how each of them opens*** — [P14 §1.8]'s *"creation
+ * picks characters. The form picks a persona only today, and every session it
+ * makes has an empty cast. Scene's form picks one or more characters and each
+ * member's opening"*, built at [P14.5].
+ *
+ * **Outside the disclosure**, unlike the persona, because for a chat it is the
+ * first question rather than a refinement: a Scene with nobody in it is a
+ * narrator talking to an empty room. It shows for a mode that seats more than
+ * one, and the openings only for a mode that writes an opening turn
+ * (`PublicMode.openingTurn`) — a choice nothing reads is a control that lies.
+ */
+const CAST_WORDS = labels('sessions.cast', {
+  legend: 'Characters',
+  hint: 'Who is in the scene. In a chat they reply to you, and to each other.',
+  opening: 'How {name} opens',
+  primary: '{label} (their usual)',
+  tooMany: 'This mode seats at most {max}.',
+});
+
+/** A card's written openings, shape-guarded — the library sends the object as it is on disk. */
+function writtenOpenings(actor: LibraryObject | undefined): {
+  primary: string | null;
+  written: { id: string; label: string; text: string }[];
+} {
+  const openings = actor?.object['openings'];
+  if (typeof openings !== 'object' || openings === null) return { primary: null, written: [] };
+  const held = openings as Record<string, unknown>;
+  const written = Array.isArray(held['written'])
+    ? (held['written'] as unknown[]).flatMap((one) => {
+        if (typeof one !== 'object' || one === null) return [];
+        const { id, label, text } = one as Record<string, unknown>;
+        return typeof id === 'string'
+          ? [
+              {
+                id,
+                label: typeof label === 'string' ? label : '',
+                text: typeof text === 'string' ? text : '',
+              },
+            ]
+          : [];
+      })
+    : [];
+  const primary = typeof held['primaryWrittenId'] === 'string' ? held['primaryWrittenId'] : null;
+  return { primary: primary ?? written[0]?.id ?? null, written };
+}
+
+/** What an opening is called in the picker: its label, or the start of its text. */
+function openingName(opening: { label: string; text: string }): string {
+  if (opening.label.trim() !== '') return opening.label;
+  const text = opening.text.trim();
+  return text.length > 60 ? `${text.slice(0, 60)}…` : text;
+}
+
 const MODE_PLURALS: Record<string, string> = labels('play.mode-plural', {
   'storyengine.scene': 'Scenes',
   'storyengine.freeform': 'Freeform',
@@ -145,6 +214,10 @@ export function SessionsPage(): React.JSX.Element {
   const [persona, setPersona] = useState('');
   const [lore, setLore] = useState<string[]>([]);
   const [mode, setMode] = useState('');
+  /** The characters, in the order picked — which is the cast's order, and a `list` round's. */
+  const [members, setMembers] = useState<string[]>([]);
+  /** Actor id to the opening chosen for them; absent is their primary. */
+  const [openings, setOpenings] = useState<Record<string, string>>({});
   /**
    * **Keyed by field id and not cleared when the mode changes.** Switching modes
    * to look at a wizard and switching back should not lose what was typed, and
@@ -159,7 +232,19 @@ export function SessionsPage(): React.JSX.Element {
     others: { sessionId: string; name: string }[];
   } | null>(null);
 
-  const sessions = useQuery({ queryKey: ['sessions'], queryFn: listSessions });
+  /**
+   * ***The archived ones, when asked for*** (2026-09-27). Archiving is
+   * restorable by design ([03 §10.3]), and un-archiving is a control on the
+   * session's own page — which nothing linked to once the session had left this
+   * list, so the one way back was its address. Off by default, because an
+   * archive is what a person put out of the way; its own key, so the default
+   * list is never the one that grew.
+   */
+  const [showArchived, setShowArchived] = useState(false);
+  const sessions = useQuery({
+    queryKey: showArchived ? ['sessions', 'with-archived'] : ['sessions'],
+    queryFn: () => listSessions(showArchived ? { archived: true } : undefined),
+  });
   const modes = useQuery({ queryKey: ['modes'], queryFn: listModes });
   const books = useLibrary('lorebooks');
   const treatments = useLibrary('treatments');
@@ -236,6 +321,21 @@ export function SessionsPage(): React.JSX.Element {
    */
   const saveSetup = useCreateObject();
 
+  /**
+   * The cast the Start button would seat: the picked characters the chosen
+   * mode can seat, the persona left out of the list (they are sent as the
+   * persona), and each member's opening only where it is not their usual.
+   */
+  const seats = chosen?.participants.maxActors ?? 1;
+  const casting = seats > 1;
+  const seating = casting ? members.filter((id) => id !== persona).slice(0, seats) : [];
+  const chosenOpenings: Record<string, string> = {};
+  for (const id of seating) {
+    const picked = openings[id];
+    const usual = writtenOpenings(actors.data?.objects.find((one) => one.id === id)).primary;
+    if (picked !== undefined && picked !== usual) chosenOpenings[id] = picked;
+  }
+
   const create = useMutation({
     mutationFn: () =>
       createSession({
@@ -251,6 +351,13 @@ export function SessionsPage(): React.JSX.Element {
         // asked* and *asked and answered with nothing* are different, and only
         // one of them belongs on the wire.
         ...spreadSetup(answersFor(chosen, setup)),
+        // The whole cast, persona included, when anybody was picked — the
+        // route's `CastBody` takes both members. Nobody picked sends what it
+        // always did: the persona alone, or nothing.
+        ...(seating.length === 0
+          ? {}
+          : { cast: { persona: persona === '' ? null : persona, actors: seating } }),
+        ...(chosen?.openingTurn === true ? { openings: chosenOpenings } : {}),
       }),
     onSuccess: (created) => {
       setName('');
@@ -259,6 +366,8 @@ export function SessionsPage(): React.JSX.Element {
       setPersona('');
       setLore([]);
       setSetup({});
+      setMembers([]);
+      setOpenings({});
       /**
        * ***Replaying a treatment you have played*** — [08 §6], [P8.5].
        *
@@ -372,6 +481,57 @@ export function SessionsPage(): React.JSX.Element {
             Start
           </Button>
         </div>
+
+        {casting ? (
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium text-ink-muted">{CAST_WORDS.legend}</legend>
+            <Fine>{CAST_WORDS.hint}</Fine>
+            {(actors.data?.objects ?? [])
+              .filter((one) => one.id !== persona)
+              .map((actor) => {
+                const picked = members.includes(actor.id);
+                const own = writtenOpenings(actor);
+                return (
+                  <div key={actor.id} className="flex flex-wrap items-center gap-3">
+                    <CheckboxField
+                      label={actor.name}
+                      checked={picked}
+                      onChange={(checked) => {
+                        setMembers(
+                          checked
+                            ? [...members, actor.id]
+                            : members.filter((id) => id !== actor.id),
+                        );
+                      }}
+                    />
+                    {picked && chosen?.openingTurn === true && own.written.length > 1 ? (
+                      <label className="flex items-center gap-2 text-sm text-ink-muted">
+                        {CAST_WORDS.opening.replace('{name}', () => actor.name)}
+                        <select
+                          className="rounded-control border border-line bg-surface p-1 text-ink"
+                          value={openings[actor.id] ?? own.primary ?? ''}
+                          onChange={(event) => {
+                            setOpenings({ ...openings, [actor.id]: event.target.value });
+                          }}
+                        >
+                          {own.written.map((opening) => (
+                            <option key={opening.id} value={opening.id}>
+                              {opening.id === own.primary
+                                ? CAST_WORDS.primary.replace('{label}', () => openingName(opening))
+                                : openingName(opening)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                  </div>
+                );
+              })}
+            {members.filter((id) => id !== persona).length > seats ? (
+              <Fine>{CAST_WORDS.tooMany.replace('{max}', () => String(seats))}</Fine>
+            ) : null}
+          </fieldset>
+        ) : null}
 
         {/* ***Beside Start, because it makes the same thing*** — [P11 §3]'s row
             10. A session export loads as a new session with every branch, which
@@ -545,6 +705,25 @@ export function SessionsPage(): React.JSX.Element {
         <Note>No sessions of this kind.</Note>
       ) : null}
 
+      {/* ***The list says what it is when it is not a list*** (2026-10-01,
+          polish 9). Loading, unreadable and empty all rendered the same
+          nothing: an install with no sessions yet looked exactly like a server
+          that had not answered, and a person could not tell whether to start
+          one or wait. Empty says which way the archive toggle stands, because
+          an install whose every session is archived is empty only on one side
+          of it. */}
+      {sessions.isPending ? <Note>{LIST_WORDS.loading}</Note> : null}
+      {sessions.isError ? <AlertNote role="alert">{LIST_WORDS.failed}</AlertNote> : null}
+      {sessions.data?.sessions.length === 0 ? (
+        <Note>{showArchived ? LIST_WORDS.none : LIST_WORDS.noneShown}</Note>
+      ) : null}
+
+      <CheckboxField
+        label="Show archived sessions"
+        checked={showArchived}
+        onChange={setShowArchived}
+      />
+
       <ul className="flex flex-col gap-2" aria-label="Sessions">
         {listed.map((session) => (
           <li key={session.id} className="flex items-center gap-2">
@@ -558,6 +737,7 @@ export function SessionsPage(): React.JSX.Element {
               {sessionLabel(session.name)}
             </Link>
             <RenameSession sessionId={session.id} name={session.name} />
+            {session.archivedAt === undefined ? null : <Fine>Archived</Fine>}
           </li>
         ))}
       </ul>

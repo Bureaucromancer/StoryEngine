@@ -116,16 +116,17 @@ const MAX_VALUE_CHARS = 24;
  * its default — so *use regex* already says the whole thing, and *match whole
  * words* alone would not.
  */
-function token(row: OffDefault): string {
+function token(row: OffDefault, locale: string | undefined): string {
   const named = row.label.charAt(0).toLowerCase() + row.label.slice(1);
   const value = row.value;
 
   if (typeof value === 'boolean') return value ? named : `${named} off`;
-  if (typeof value === 'number' && Number.isFinite(value)) return `${named} ${formatCount(value)}`;
+  if (typeof value === 'number' && Number.isFinite(value))
+    return `${named} ${formatCount(value, locale)}`;
   if (typeof value === 'string' && value !== '')
     return value.length > MAX_VALUE_CHARS ? `${named} set` : `${named} ${value}`;
   if (Array.isArray(value))
-    return value.length === 0 ? `${named} none` : `${named} ${formatCount(value.length)}`;
+    return value.length === 0 ? `${named} none` : `${named} ${formatCount(value.length, locale)}`;
   if (value === null || value === undefined) return `${named} not set`;
   return `${named} set`;
 }
@@ -156,11 +157,15 @@ function token(row: OffDefault): string {
  * cannot be told apart from *this surface does not annotate*, and the whole
  * purpose of the line is to answer *is it safe to leave this closed*.
  */
-export function groupSummary(group: FieldGroup, entry: unknown): string {
+export function groupSummary(
+  group: FieldGroup,
+  entry: unknown,
+  locale: string | undefined,
+): string {
   const title = group.title;
   if (title === null) return '';
 
   const off = offDefaults(group.fields, entry);
   if (off.length === 0) return `${title} (all at default)`;
-  return `${title} (${off.map(token).join(', ')})`;
+  return `${title} (${off.map((row) => token(row, locale)).join(', ')})`;
 }

@@ -142,20 +142,33 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // filesystem rather than this comment, which is why the claim could sit here
   // wrong for three weeks without a test noticing.
   characters: 'converted',
-  character_images: 'converted',
   personas: 'converted',
-  persona_images: 'converted',
   lorebooks: 'converted',
   lorebook_entries: 'converted',
   lorebook_folders: 'converted',
   lorebook_character_links: 'converted',
-  lorebook_persona_links: 'converted',
   prompt_presets: 'converted',
   prompt_sections: 'converted',
-  prompt_groups: 'converted',
   choice_blocks: 'converted',
-  /** Becomes tags on whatever it organises; `Lorebook.category` was removed deliberately ([24 §2d]). */
-  library_folders: 'converted',
+
+  // ── Recorded: the library half nothing reads yet ──────────────────────────
+  //
+  // *Corrected 2026-09-27.* These five were marked `converted`, and the reader
+  // skips a converted table in the review because the objects it produced
+  // stand for it. Nothing read them: the two image tables were loaded and
+  // thrown away, and the other three never loaded. So an import said nothing
+  // at all about a character's sprites, a persona's pictures, a book's persona
+  // links, prompt groups or library folders. `recorded` is the honest arm:
+  // named in the review, waiting on a reader. `marinara.test.ts` now holds
+  // every `converted` table to one a sweep opens.
+  character_images: 'recorded',
+  persona_images: 'recorded',
+  lorebook_persona_links: 'recorded',
+  // Read with its presets since 2026-09-27: a disabled group switches its
+  // sections off, which is the part of a group a block can carry.
+  prompt_groups: 'converted',
+  /** Would become tags on whatever it organises; `Lorebook.category` was removed deliberately ([24 §2d]). */
+  library_folders: 'recorded',
 
   // ── Credential: never lands, not even in `compat` ([P4 §1.1]) ─────────────
   //
@@ -180,9 +193,18 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // tractable where ST's is not — and a Marinara *branch* is a copied chat with
   // a back-pointer, not a tree edge, so a family of them imports as duplicated
   // prefixes unless it is reassembled whole ([18 §2.2]).
-  chats: 'recorded',
-  messages: 'recorded',
-  message_swipes: 'recorded',
+  //
+  // ***`chats`, `messages` and `message_swipes` are converted since [P14.10]***
+  // (2026-09-29): the reader hands the three to the session pass as one
+  // candidate (`marinara/reader.ts`, `#chats`), each `roleplay` chat's family
+  // becomes one session with its prefix once (`marinara/families.ts`), and the
+  // review has a row per chat — `storage/tables/chats.json#<id>` — where it had
+  // a `recorded` row per message shard. `conversation` and `game` chats are
+  // still rows, `recorded` with a note ([P14 §2.6]), and a message whose chat
+  // is not in the store is counted in a note rather than dropped unsaid.
+  chats: 'converted',
+  messages: 'converted',
+  message_swipes: 'converted',
   chat_folders: 'recorded',
   chat_presets: 'recorded',
   conversation_notes: 'recorded',
@@ -190,7 +212,13 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // Party- and mode-shaped: P7 ([P7 §1.10]).
   character_groups: 'recorded',
   persona_groups: 'recorded',
-  game_state_snapshots: 'recorded',
+  // Tracker state, per message and swipe. ~~Stays `recorded` past [P14.10]:
+  // it needs [P14.5a]'s channels to write.~~ ***`converted` at [P14.5a]***:
+  // each roleplay chat's snapshots are effects on the turn holding their
+  // message's swipe, with the field locks and hidden fields as the trackers'
+  // two sets (`marinara/trackers.ts`, [P14 §2.6]). A snapshot of a
+  // conversation or game chat goes where its chat goes — recorded.
+  game_state_snapshots: 'converted',
   game_engine_state: 'recorded',
   game_checkpoints: 'recorded',
   game_scene_videos: 'recorded',
@@ -199,9 +227,18 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   game_dice_pools: 'recorded',
   spatial_context_snapshots: 'recorded',
   // Agent- and extension-shaped: waiting on the extension host P7 makes real.
+  // *And never the source of a tracker's model* ([P14 §2.6]): Marinara's
+  // per-agent connection is global, not per chat, so a chat's trackers run on
+  // the session's `stepRoles` here and the chat row says so
+  // (`import.chat.agentModelsNotCarried`).
   agent_configs: 'recorded',
   agent_runs: 'recorded',
-  agent_memory: 'recorded',
+  // Holds the narrative director's secret plot. ~~Waits on [P14.5b]'s channel
+  // as the trackers wait on [P14.5a]'s.~~ ***`converted` at [P14.5b]***: a
+  // roleplay root chat's `overarchingArc` is `se.plot.secret` on its session's
+  // head turn (`marinara/plot.ts`, [P14 §2.6]). Its other keys are the
+  // director's bookkeeping and go nowhere.
+  agent_memory: 'converted',
   capability_documents: 'recorded',
   // Rule-shaped, deferred with the rule vocabulary to 2.0 ([25 C7]).
   regex_scripts: 'recorded',

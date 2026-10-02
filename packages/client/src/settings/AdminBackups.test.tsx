@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -30,6 +30,7 @@ const readInstallManifest = vi.fn();
 const restoreInstall = vi.fn();
 const cancelRestore = vi.fn();
 const notices = vi.fn();
+const takeInstall = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -38,7 +39,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     readInstallManifest: (...a: unknown[]) => readInstallManifest(...a) as unknown,
     restoreInstall: (...a: unknown[]) => restoreInstall(...a) as unknown,
     cancelRestore: (...a: unknown[]) => cancelRestore(...a) as unknown,
-    takeInstall: vi.fn(),
+    takeInstall: (...a: unknown[]) => takeInstall(...a) as unknown,
     deleteInstall: vi.fn(),
     importInstall: vi.fn(),
   },
@@ -48,7 +49,9 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
+const { ApiError } = await import('../api.js');
 const { AdminBackups } = await import('./AdminBackups.js');
+const { formatTimestamp } = await import('../format.js');
 
 const ID = '0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60';
 
@@ -73,13 +76,18 @@ const MANIFEST = {
   omitted: [],
 };
 
-function supervised(canRestart: boolean, restorePending = false): void {
+function supervised(
+  canRestart: boolean,
+  restorePending = false,
+  draining = false,
+  others = 0,
+): void {
   notices.mockResolvedValue({
     pendingRestart: [],
     canRestart,
     supervision: canRestart ? 'declared' : 'none',
-    interrupts: { mine: 0, others: 0 },
-    draining: false,
+    interrupts: { mine: 0, others },
+    draining,
     restorePending,
     updates: {
       state: 'disabled',
@@ -100,13 +108,28 @@ beforeEach(() => {
   supervised(true);
 });
 
-function renderPanel(): void {
+function renderPanel(locale: string | undefined = 'en-US'): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <AdminBackups />
+      <AdminBackups locale={locale} />
     </QueryClientProvider>,
   );
+  return client;
+}
+
+/**
+ * The notices asked again, as the page does when the server comes back — a
+ * few milliseconds on, so the answer is plainly later than the press.
+ */
+async function askedAgain(client: QueryClient): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+    // The cache tells its observers on a timer of its own; waited out here, so
+    // an assertion that nothing changed reads the page the answer left.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
 }
 
 /** Picks the archive, and waits for the manifest the confirmation is built on. */
@@ -151,6 +174,35 @@ describe('restoring the install', () => {
     });
   });
 
+  /**
+   * ***The word typed back survives the panel asking again*** (2026-09-28).
+   * The notices are asked again every thirty seconds, and each answer
+   * re-rendered the panel behind the dialog; the focus trap re-subscribed on
+   * every render and handed focus back to *Restore this install…*, so the rest
+   * of the word went to that button and the confirmation never enabled.
+   */
+  it('keeps the typing in the dialog when the notices are asked again', async () => {
+    const user = userEvent.setup();
+    const client = renderPanel();
+    await chooseArchive(user);
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    const field = screen.getByLabelText('Type restore to confirm');
+
+    await user.click(field);
+    await user.keyboard('re');
+    // Somebody else starts a turn, which is the kind of change a poll brings:
+    // an answer the same as the last would leave the panel as it was.
+    supervised(true, false, false, 1);
+    await askedAgain(client);
+    await user.keyboard('store');
+
+    expect(document.activeElement).toBe(field);
+    expect(screen.getByRole('button', { name: 'Stop the server and restore' })).toHaveProperty(
+      'disabled',
+      false,
+    );
+  });
+
   it('says what a redacted archive would leave, and sends the flag that accepts it', async () => {
     readInstallManifest.mockResolvedValue({ manifest: { ...MANIFEST, contents: 'redacted' } });
     const user = userEvent.setup();
@@ -187,9 +239,109 @@ describe('restoring the install', () => {
     });
   });
 
+  /**
+   * ***A restore that failed as it started, seen from the tab that asked***
+   * (2026-09-28). The press's success outlived the restart it reported, so
+   * this tab kept saying *The server is stopping* and hid *Call it off* — the
+   * one way out of a failed restore on an install with no shell.
+   */
+  it('offers Call it off on the tab that asked, once a new process has the marker', async () => {
+    const user = userEvent.setup();
+    const client = renderPanel();
+    await chooseArchive(user);
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    await user.type(screen.getByLabelText('Type restore to confirm'), 'restore');
+    await user.click(screen.getByRole('button', { name: 'Stop the server and restore' }));
+    expect(await screen.findByText(/The server is stopping/)).toBeTruthy();
+
+    // The old process, still draining with its marker written: not a failure.
+    supervised(true, true, true);
+    await askedAgain(client);
+    expect(screen.queryByRole('button', { name: 'Call it off' })).toBeNull();
+    expect(screen.getByText(/The server is stopping/)).toBeTruthy();
+
+    // A new process that found the marker and refused it.
+    supervised(true, true);
+    await askedAgain(client);
+    expect(await screen.findByRole('button', { name: 'Call it off' })).toBeTruthy();
+    expect(screen.queryByText(/The server is stopping/)).toBeNull();
+  });
+
   it('says nothing about a pending restore when there is none', async () => {
     renderPanel();
     await screen.findByLabelText('Which archive to become');
     expect(screen.queryByRole('button', { name: 'Call it off' })).toBeNull();
+  });
+
+  /**
+   * ***By the class, whatever the server's sentence says*** (2026-09-27). The
+   * panel searched the refusal's English for `free space`, so this refusal —
+   * the same class in other words — would have read as a restore that simply
+   * *could not be started*. Reddened by putting the search back.
+   */
+  it('says why a restore was refused by its class, not by its wording', async () => {
+    restoreInstall.mockRejectedValue(new ApiError(507, 'no-space', 'Not enough room to unpack.'));
+    const user = userEvent.setup();
+    renderPanel();
+    await chooseArchive(user);
+
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    await user.type(screen.getByLabelText('Type restore to confirm'), 'restore');
+    await user.click(screen.getByRole('button', { name: 'Stop the server and restore' }));
+
+    expect(
+      await screen.findByText(
+        'There is not enough free space to unpack that archive. Delete some archives and try again.',
+      ),
+    ).toBeTruthy();
+  });
+});
+
+describe('taking an install backup', () => {
+  /**
+   * The admin half reaches the same route code as the account half, and had
+   * no sentence for a full disk at all (2026-09-27).
+   */
+  it('says when the disk had no room for it', async () => {
+    takeInstall.mockRejectedValue(new ApiError(507, 'no-space', 'No room.'));
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(await screen.findByRole('button', { name: 'Back up now' }));
+
+    expect(
+      await screen.findByText('There was not enough room on the disk for that backup.'),
+    ).toBeTruthy();
+  });
+});
+
+/**
+ * ***When each install backup was taken, in the account's format***
+ * (2026-09-28) — the panel was handed no locale and wrote the browser's.
+ */
+describe('the dates', () => {
+  it('are written in the account’s format', async () => {
+    renderPanel('de-DE');
+    const german = formatTimestamp(new Date(ROW.takenAt).toISOString(), 'de-DE');
+    expect(german).not.toBe(formatTimestamp(new Date(ROW.takenAt).toISOString(), 'en-US'));
+    expect(await screen.findByText(`Taken ${german}.`)).toBeTruthy();
+  });
+
+  it('writes the restore’s own dates in it too', async () => {
+    const user = userEvent.setup();
+    renderPanel('de-DE');
+    const taken = formatTimestamp(new Date(ROW.takenAt).toISOString(), 'de-DE');
+    const archived = formatTimestamp(MANIFEST.takenBy.at, 'de-DE');
+    expect(archived).not.toBe(formatTimestamp(MANIFEST.takenBy.at, 'en-US'));
+
+    const picker = await screen.findByLabelText('Which archive to become');
+    const offered = [...(picker as HTMLSelectElement).options].map((one) => one.text);
+    expect(offered.some((text) => text.startsWith(`${taken} — `))).toBe(true);
+
+    await chooseArchive(user);
+    expect(screen.getByText((text) => text.startsWith(`Taken ${archived} by`))).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Restore this install…' }));
+    expect(screen.getByText((text) => text.endsWith(`taken ${archived}.`))).toBeTruthy();
   });
 });

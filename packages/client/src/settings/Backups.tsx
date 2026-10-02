@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
-import { backupApi, type BackupRecord, type BackupSettings } from '../api.js';
+import { backupApi, errorCode, type BackupRecord, type BackupSettings } from '../api.js';
 import { formatTimestamp } from '../format.js';
 import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
@@ -61,8 +61,8 @@ function contentsLine(contents: 'full' | 'redacted'): string {
     : 'Your work, without your provider keys.';
 }
 
-function whenLine(record: BackupRecord): string {
-  return `Taken ${formatTimestamp(new Date(record.takenAt).toISOString())}.`;
+function whenLine(record: BackupRecord, locale: string | undefined): string {
+  return `Taken ${formatTimestamp(new Date(record.takenAt).toISOString(), locale)}.`;
 }
 
 function scheduleHint(settings: BackupSettings): string {
@@ -78,13 +78,27 @@ function scheduleHint(settings: BackupSettings): string {
     : `The server takes one ${every}. If the machine is off when it is due, it is taken next time the server runs.`;
 }
 
-function failureLine(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
-  if (message.includes('space')) return 'There was not enough room on the disk for that backup.';
-  return 'That backup could not be taken.';
+/**
+ * Why a backup was not taken, for either half — the admin panel shows the same
+ * line.
+ *
+ * ***The class, not the words*** (2026-09-27). This looked for `space` in the
+ * message, and the take route had no refusal that said it: a full disk was the
+ * error handler's bare 500, *The request failed.*, so the sentence below could
+ * never be reached. The route answers `507 no-space` now, and the class is what
+ * is read, so rewording the server's sentence cannot move this one.
+ */
+export function takeFailure(error: unknown): string {
+  return errorCode(error) === 'no-space'
+    ? 'There was not enough room on the disk for that backup.'
+    : 'That backup could not be taken.';
 }
 
-export function Backups(props: { capable: boolean }): JSX.Element {
+export function Backups(props: {
+  capable: boolean;
+  /** The reader's, for every date the panel writes. */
+  locale: string | undefined;
+}): JSX.Element {
   const client = useQueryClient();
   const listing = useQuery({ queryKey: ['backups', 'me'], queryFn: backupApi.readMine });
   const [contents, setContents] = useState<'full' | 'redacted'>('full');
@@ -140,7 +154,7 @@ export function Backups(props: { capable: boolean }): JSX.Element {
 
       {take.isError ? (
         <p role="alert" className="text-danger-ink">
-          {failureLine(take.error)}
+          {takeFailure(take.error)}
         </p>
       ) : null}
       {remove.isError ? (
@@ -162,7 +176,7 @@ export function Backups(props: { capable: boolean }): JSX.Element {
                 key={row.id}
                 className="flex flex-wrap items-center gap-3 rounded-panel border border-line p-3"
               >
-                <span className="text-ink">{whenLine(row)}</span>
+                <span className="text-ink">{whenLine(row, props.locale)}</span>
                 <Fine>{contentsLine(row.contents)}</Fine>
                 <Fine>{megabytes(row.bytes)}</Fine>
                 <a
@@ -236,7 +250,7 @@ export function Backups(props: { capable: boolean }): JSX.Element {
        * under a flow for a bad day is the wrong way round. It renders nothing
        * at all when there is nothing to import from.
        */}
-      <ImportBackup scope="account" rows={rows} />
+      <ImportBackup scope="account" rows={rows} locale={props.locale} />
     </section>
   );
 }

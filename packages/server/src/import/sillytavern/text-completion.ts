@@ -47,7 +47,7 @@ const PARAM_FIELDS: Readonly<Record<string, keyof Preset['params']>> = {
   rep_pen: 'repetitionPenalty',
   seed: 'seed',
   n: 'n',
-  max_length: 'maxTokens',
+  // ~~`max_length: 'maxTokens'`~~ — see `applyLengths`, which is where it went.
   genamt: 'maxTokens',
 };
 
@@ -97,16 +97,22 @@ export function convertTextCompletionPreset(
   for (const [field, target] of Object.entries(PARAM_FIELDS)) {
     const value = kept[field];
     if (typeof value !== 'number') continue;
-    // Two source names can map to one of ours — `temp` and `temperature`,
-    // `max_length` and `genamt` — so the count is of *our* fields filled, not of
-    // theirs read. Counting theirs would report seven carried from a file that
-    // set the same thing twice.
+    // `-1` is SillyTavern's *random*, and it sends no seed below zero; absent
+    // is ours (2026-09-27, and `preset.ts` says the rest).
+    if (field === 'seed' && value < 0) continue;
+    // Two source names can map to one of ours — `temp` and `temperature` — so
+    // the count is of *our* fields filled, not of theirs read. Counting theirs
+    // would report seven carried from a file that set the same thing twice.
     (preset.params as Record<string, unknown>)[target] = value;
     carried.add(target);
   }
+  const lengths = applyLengths(kept, preset, notes, carried);
 
   preset.compat = Object.fromEntries(
-    Object.entries(kept).filter(([key]) => PARAM_FIELDS[key] === undefined),
+    // Own entries: a field called `constructor` found `Object` and was dropped.
+    Object.entries(kept).filter(
+      ([key]) => !Object.hasOwn(PARAM_FIELDS, key) && !lengths.includes(key),
+    ),
   );
 
   /**
@@ -136,4 +142,59 @@ export function convertTextCompletionPreset(
   }
 
   return parsed({ preset, notes });
+}
+
+/**
+ * ***`max_length` is whichever length the backend means by it*** (2026-09-27).
+ *
+ * It was read as the reply length, beside `genamt`. SillyTavern saves a
+ * text-generation or KoboldAI panel with `genamt` for the reply and
+ * `max_length` for the **context**, so `{ genamt: 350, max_length: 16384 }`
+ * became a 350-token reply and the context size went nowhere — not the budget,
+ * not `compat`, not a note. NovelAI's panels mean the opposite: `max_length` is
+ * the reply and `max_context` the context. So the neighbours decide:
+ *
+ * - `genamt` beside it: it is the context, and becomes the budget's ceiling;
+ * - `max_context` beside it: it is the reply, and `max_context` the ceiling;
+ * - neither: nothing says which, so it stays in `compat` and the review says
+ *   so, rather than guessing a reply length that could be a whole context.
+ *
+ * A ceiling only ever narrows the window, and the review says the number was
+ * absolute, as the chat converter's does. Returns the fields it used.
+ */
+function applyLengths(
+  body: Readonly<Record<string, unknown>>,
+  preset: Preset,
+  notes: ImportNote[],
+  carried: Set<string>,
+): string[] {
+  const maxLength = body['max_length'];
+  if (typeof maxLength !== 'number' || maxLength <= 0) return [];
+
+  const ceiling = (tokens: number): void => {
+    preset.budget.maxContextTokens = Math.floor(tokens);
+    notes.push({
+      key: 'import.preset.contextCeilingWasAbsolute',
+      params: { tokens: Math.floor(tokens) },
+      level: 'info',
+    });
+  };
+
+  if (typeof body['genamt'] === 'number') {
+    ceiling(maxLength);
+    return ['max_length'];
+  }
+  const maxContext = body['max_context'];
+  if (typeof maxContext === 'number' && maxContext > 0) {
+    preset.params.maxTokens = Math.floor(maxLength);
+    carried.add('maxTokens');
+    ceiling(maxContext);
+    return ['max_length', 'max_context'];
+  }
+  notes.push({
+    key: 'import.preset.maxLengthUnclear',
+    params: { tokens: Math.floor(maxLength) },
+    level: 'info',
+  });
+  return [];
 }

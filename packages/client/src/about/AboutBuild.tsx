@@ -52,7 +52,7 @@ export function AboutBuild(props: { build: BuildInfo | null | undefined }): JSX.
           </MetadataRow>
         </dl>
       )}
-      <Licence />
+      <Licence source={props.build?.source} />
     </section>
   );
 }
@@ -70,15 +70,32 @@ export function AboutBuild(props: { build: BuildInfo | null | undefined }): JSX.
  *
  * *For every account rather than for admins.* The person who needs this
  * sentence is the one who authored something, which is everybody.
+ *
+ * ***The offer is described only where it is made*** (2026-10-01). This said
+ * *"the Source link at the foot of every page"* whatever the build carried, and
+ * the footer shows that link only when the build knows its source — which no
+ * development run does, and which no image did until the release passed one.
+ * A sentence pointing at a link that is not there is the one place on this
+ * page that could be wrong, so it now says which case this is.
  */
-function Licence(): JSX.Element {
+function Licence(props: { source: string | undefined }): JSX.Element {
   return (
     <div className="flex flex-col gap-2 text-sm text-ink-muted">
       <p>
         StoryEngine is free software under the GNU Affero General Public License, version 3 or
-        later. The <strong>Source</strong> link at the foot of every page leads to the source for
-        the exact build this install is running.
+        later.
       </p>
+      {props.source === undefined ? (
+        <p>
+          This build does not say where its source is, so there is no <strong>Source</strong> link
+          at the foot of the page; a release build carries one.
+        </p>
+      ) : (
+        <p>
+          The <strong>Source</strong> link at the foot of every page leads to the source for the
+          exact build this install is running.
+        </p>
+      )}
       <p>
         <strong>Code extensions and modes are AGPL-3.0 too</strong>, because they import the SDK and
         run inside this process.

@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { newActor } from '@storyengine/shared';
@@ -117,6 +117,7 @@ vi.mock('./api.js', async (importOriginal) => {
     listSessions: () => Promise.resolve({ sessions: [SESSION] }),
     readSession: () => Promise.resolve({ session: SESSION, activeJob: null }),
     readTranscript: () => Promise.resolve({ turns: [TURN] }),
+    readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
   };
 });
 
@@ -127,6 +128,9 @@ vi.mock('./play/stream.js', () => ({
 }));
 
 const { router } = await import('./router.js');
+const { navLink } = await import('./ui/classes.js');
+const { applyCatalogue } = await import('./i18n/catalogue.js');
+const { MACHINE_FRENCH } = await import('./i18n/fr-x-machine.js');
 
 function renderApp(): void {
   // A fresh client per test, never the `queries.ts` singleton — a shared cache
@@ -177,6 +181,22 @@ const PAGES: RoutedPage[] = [
     go: () => router.navigate({ to: '/settings' }),
     marker: () => screen.findByRole('heading', { name: 'Settings', level: 1 }),
   },
+  /*
+   * ***The two this list did not visit*** (2026-10-01, polish 11), and both
+   * had a `<main>` of their own inside the shell's — found by reading, which
+   * is the failure this file exists to replace.
+   */
+  {
+    path: '/search',
+    go: () => router.navigate({ to: '/search', search: {} }),
+    marker: () => screen.findByRole('heading', { name: 'Search', level: 1 }),
+  },
+  {
+    path: '/read/$sessionId',
+    go: () =>
+      router.navigate({ to: '/read/$sessionId', params: { sessionId: SESSION_ID }, search: {} }),
+    marker: () => screen.findByRole('button', { name: 'Copy as Markdown' }),
+  },
 ];
 
 describe('one main view', () => {
@@ -225,5 +245,67 @@ describe('one main view', () => {
     await screen.findByRole('heading', { name: 'Settings', level: 1 });
 
     expect(main.scrollTop).toBe(0);
+  });
+});
+
+/**
+ * ***A change of language reaches the routed page*** (2026-09-28). The shell
+ * re-renders when a catalogue lands, and the router's `Outlet` is memoised, so
+ * the page under it went on reading the tables it had last rendered with: a
+ * switch made on a page left that page in the language it was leaving. Held on
+ * the real router, because it is the router's memo that hid it — a test that
+ * mounts a page by itself, or mocks the router, cannot see this either way.
+ */
+describe('a change of language', () => {
+  it('reaches the routed page, and comes back', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/play/$sessionId', params: { sessionId: SESSION_ID } });
+    });
+    await screen.findByRole('heading', { name: 'The Ashfall Road', level: 1 });
+    expect(await screen.findByPlaceholderText('What do you do?')).toBeTruthy();
+
+    try {
+      act(() => {
+        applyCatalogue('fr-x-machine', MACHINE_FRENCH);
+      });
+      expect(
+        await screen.findByPlaceholderText('Que faites-vous à cet instant précis ?'),
+      ).toBeTruthy();
+    } finally {
+      act(() => {
+        applyCatalogue('en', {});
+      });
+    }
+    expect(await screen.findByPlaceholderText('What do you do?')).toBeTruthy();
+  });
+});
+
+/**
+ * ***Settings says it is where you are*** (2026-10-01). The three surfaces in
+ * the header are lit while you are in them; Settings was a bare link with no
+ * current state, so it was the one page in the app where nothing in the header
+ * said where you were. Held on the real router, because `activeProps` is the
+ * router's to apply and a mocked `Link` would apply nothing either way.
+ */
+describe('the header', () => {
+  it('lights Settings while you are in it, and only then', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/settings' });
+    });
+    await screen.findByRole('heading', { name: 'Settings', level: 1 });
+    const here = within(screen.getByRole('banner')).getByRole('link', { name: 'Settings' });
+    expect(here.getAttribute('aria-current')).toBe('page');
+    expect(here.className).toContain(navLink.active);
+
+    await act(async () => {
+      await router.navigate({ to: '/library', search: {} });
+    });
+    await screen.findByRole('heading', { name: 'Library', level: 1 });
+    const away = within(screen.getByRole('banner')).getByRole('link', { name: 'Settings' });
+    expect(away.getAttribute('aria-current')).toBeNull();
+    expect(away.className).not.toContain(navLink.active);
+    expect(away.className).toContain(navLink.idle);
   });
 });

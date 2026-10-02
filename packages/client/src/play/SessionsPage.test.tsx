@@ -490,6 +490,72 @@ describe('renaming a session from the list', () => {
     expect(renameSession).not.toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Rain City' })).toBeTruthy();
   });
+
+  /**
+   * ***The keyboard goes with the prompt, and comes back*** (2026-10-01,
+   * polish 10). *Rename* is replaced by the box it opens and the box by
+   * *Rename* again, and each swap took the focused element with it: the
+   * keyboard fell to the page on the way in and on the way out.
+   */
+  it('puts the keyboard in the box, and gives it back to Rename on Cancel', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', 'Rain City')] });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Rain City' }));
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Session name' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename Rain City' }));
+  });
+
+  it('gives the keyboard back to Rename when the name is saved', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', 'Rain City')] });
+    renameSession.mockResolvedValue({ session: aSession('s-1', 'Rain City') });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Rename Rain City' }));
+    await userEvent.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename Rain City' }));
+    });
+  });
+});
+
+/**
+ * ***An archived session can be found again*** (2026-09-27). Archiving is
+ * restorable, and the control that restores it is on the session's own page —
+ * which nothing linked to once it had left this list. The server has always
+ * answered `?archived=true`; nothing asked.
+ */
+describe('archived sessions', () => {
+  it('are left out until asked for, then listed and marked as archived', async () => {
+    listSessions.mockImplementation((options?: { archived?: boolean }) =>
+      Promise.resolve({
+        sessions:
+          options?.archived === true
+            ? [
+                aSession('s-1', 'Rain City'),
+                { ...aSession('s-2', 'The dry year'), archivedAt: '2026-09-20T00:00:00Z' },
+              ]
+            : [aSession('s-1', 'Rain City')],
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'Rain City' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'The dry year' })).toBeNull();
+    expect(screen.queryByText('Archived')).toBeNull();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show archived sessions' }));
+
+    const archived = await screen.findByRole('link', { name: 'The dry year' });
+    // The marker sits on the archived row, and only there.
+    expect(archived.closest('li')?.textContent).toContain('Archived');
+    expect(
+      screen.getByRole('link', { name: 'Rain City' }).closest('li')?.textContent,
+    ).not.toContain('Archived');
+  });
 });
 
 /**
@@ -708,5 +774,107 @@ describe('saving the configuration as a setup', () => {
     // The session list does not move and no navigation happens, so without this
     // the button is a control with no feedback at all.
     expect((await screen.findByRole('status')).textContent).toContain('Rain City');
+  });
+});
+
+/**
+ * ***Creation picks characters, and each member's opening*** — [P14 §1.8],
+ * [P14.5]. Before this the form picked a persona only, so every session it
+ * made had an empty cast; a chat with nobody in it is a narrator talking to an
+ * empty room.
+ */
+describe('picking the characters', () => {
+  const CHAT_MODE = {
+    ...plainMode(),
+    voice: 'embodied',
+    dispatch: 'per-actor',
+    participants: { select: 'natural', castIsPresent: true, maxActors: 32 },
+    openingTurn: true,
+  };
+
+  function withOpenings(id: string, name: string, openings: { id: string; label: string }[]) {
+    return {
+      ...libraryObject(id, name, 'storyengine.actor.1'),
+      object: {
+        openings: {
+          written: openings.map((one) => ({ ...one, text: `${one.label} text` })),
+          seeds: [],
+          primaryWrittenId: openings[0]?.id ?? null,
+          primarySeedId: null,
+        },
+      },
+    };
+  }
+
+  beforeEach(() => {
+    listModes.mockResolvedValue({ modes: [CHAT_MODE], defaultModeId: SCENE });
+    listLibrary.mockImplementation((kind: string) =>
+      Promise.resolve({
+        objects:
+          kind === 'actors'
+            ? [
+                withOpenings('actor-vera', 'Vera', [
+                  { id: 'open-1', label: 'At the door' },
+                  { id: 'open-2', label: 'In the rain' },
+                ]),
+                withOpenings('actor-lund', 'Lund', [{ id: 'open-3', label: 'Nods' }]),
+              ]
+            : [],
+      }),
+    );
+  });
+
+  it('seats the characters picked, and sends only an opening somebody changed', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Vera' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Lund' }));
+    // Lund has one opening, so there is nothing to choose.
+    expect(screen.queryByRole('combobox', { name: 'How Lund opens' })).toBeNull();
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'How Vera opens' }),
+      'open-2',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cast: { persona: null, actors: ['actor-vera', 'actor-lund'] },
+          openings: { 'actor-vera': 'open-2' },
+        }),
+      );
+    });
+  });
+
+  it('offers no characters for a mode that seats one', async () => {
+    listModes.mockResolvedValue({ modes: [plainMode()], defaultModeId: SCENE });
+    renderPage();
+    await screen.findByRole('button', { name: 'Start' });
+    await waitFor(() => {
+      expect(listModes).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole('group', { name: 'Characters' })).toBeNull();
+  });
+});
+
+/**
+ * ***The list says what it is when it is not a list*** — polish 9 (2026-10-01).
+ * Loading, unreadable and empty all rendered the same nothing.
+ */
+describe('a list with nothing in it', () => {
+  it('says there are no sessions yet, and that archived ones are hidden', async () => {
+    renderPage();
+    expect(
+      await screen.findByText('No sessions yet. Start one above — archived sessions are hidden.'),
+    ).toBeTruthy();
+  });
+
+  it('says so when the list could not be read, rather than looking empty', async () => {
+    listSessions.mockRejectedValue(new Error('offline'));
+    renderPage();
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The sessions could not be read. Try reloading the page.',
+    );
+    expect(screen.queryByText(/No sessions yet/)).toBeNull();
   });
 });

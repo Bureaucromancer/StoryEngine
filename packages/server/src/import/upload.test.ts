@@ -3,6 +3,8 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { AVT_FORMAT } from './aventuras/avt.js';
+import { SILLYTAVERN_CHAT_FORMAT } from './sillytavern/chat.js';
 import { readUpload, type ProbeConfidence } from './upload.js';
 
 /**
@@ -184,6 +186,20 @@ describe('the probe order, adversarially', () => {
   });
 });
 
+describe('a chat preset from before the prompt manager', () => {
+  /**
+   * *(2026-09-27)* Its prompts are in three fields of its own and it carries
+   * sampler settings, so it read as a sampler panel: no blocks, and a note
+   * about sampler settings. It is a chat preset, and the converter migrates it.
+   */
+  it('is read as a chat preset, not as a sampler panel', () => {
+    const result = read({ main_prompt: 'You are the narrator.', temperature: 0.9, top_p: 1 });
+
+    if (result.outcome !== 'candidate') throw new Error('expected a candidate');
+    expect(result.candidate.format).toBe('sillytavern.preset.chat');
+  });
+});
+
 describe('the probe is not over-eager', () => {
   it('refuses a partial reasoning triple', () => {
     const result = read({ prefix: 'a', suffix: 'b' });
@@ -215,5 +231,131 @@ describe('the probe is not over-eager', () => {
 
     if (result.outcome !== 'observed') throw new Error('unreachable');
     expect(result.report.disposition).toBe('unrecognised');
+  });
+});
+
+/**
+ * ***A chat file, known by its lines*** —
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * SillyTavern's chat is JSON Lines, so it fails the document parse this file
+ * starts with, and until this stage it came back *nothing here recognised
+ * this*. Recognised by content, never by `.jsonl` — the name below is
+ * deliberately wrong to prove it.
+ */
+describe('a chat file', () => {
+  const HEADER = {
+    user_name: 'unused',
+    character_name: 'unused',
+    chat_metadata: { tainted: true },
+  };
+  const LINE = { name: 'Vera', is_user: false, mes: 'Hm.', send_date: '2026-01-01T10:00:00Z' };
+  const lines = (...rows: unknown[]): Uint8Array =>
+    new TextEncoder().encode(rows.map((row) => JSON.stringify(row)).join('\n'));
+  const format = (item: ReturnType<typeof readUpload>): string | null =>
+    item.outcome === 'candidate' ? item.candidate.format : null;
+
+  it('is two objects on two lines, and becomes a chat candidate for the session pass', () => {
+    const item = readUpload('notes.txt', lines(HEADER, LINE));
+
+    expect(format(item)).toBe('sillytavern.chat');
+  });
+
+  it('is a header alone, which is one JSON document, and still a chat', () => {
+    // The parser then refuses it for having no messages, which is the true
+    // thing to say about it; the probe's job is only to know what it is.
+    expect(format(readUpload('Vera.jsonl', lines(HEADER)))).toBe('sillytavern.chat');
+  });
+
+  it('is a chat whose second line a crashed write left half-finished', () => {
+    const bytes = new TextEncoder().encode(`${JSON.stringify(HEADER)}\n{"name":"Vera","mes":"H`);
+
+    expect(format(readUpload('Vera.jsonl', bytes))).toBe('sillytavern.chat');
+  });
+
+  it('is one message and no header, which an old group chat with only its greeting is', () => {
+    // Headerless, as a group chat written before `chat_metadata` reached
+    // groups is, and one line long, so one JSON document. The parser reads
+    // it as a group; refusing it here refused it at this door only.
+    const greeting = { ...LINE, original_avatar: 'Vera.png' };
+
+    expect(format(readUpload('Vera.jsonl', lines(greeting)))).toBe('sillytavern.chat');
+    // A folder sweep does not take one object with a text field on its word.
+    expect(readUpload('Vera.jsonl', lines(greeting), 'high').outcome).toBe('observed');
+  });
+
+  it('is a chat whose first line a crashed write left half-finished', () => {
+    // The parser reads from the first line that parses, so it costs one line.
+    const bytes = new TextEncoder().encode(
+      `{"chat_metadata":{"tai\n${JSON.stringify(LINE)}\n${JSON.stringify(LINE)}`,
+    );
+
+    expect(format(readUpload('Vera.jsonl', bytes))).toBe('sillytavern.chat');
+    expect(format(readUpload('Vera.jsonl', bytes, 'high'))).toBe('sillytavern.chat');
+  });
+
+  it('is not a first line that is not an object', () => {
+    const bytes = new TextEncoder().encode(`[1, 2]\n${JSON.stringify(LINE)}`);
+
+    expect(readUpload('Vera.jsonl', bytes).outcome).toBe('observed');
+  });
+
+  it('asks a folder sweep for a chat’s own marks, not just the shape of JSON Lines', () => {
+    // A log file is JSON Lines too. Across a folder nobody vetted, two objects
+    // in a row is a shape and not a claim.
+    const log = lines({ level: 'info', msg: 'started' }, { level: 'info', msg: 'ready' });
+
+    expect(readUpload('server.log', log, 'any').outcome).toBe('candidate');
+    expect(readUpload('server.log', log, 'high').outcome).toBe('observed');
+    expect(format(readUpload('Vera.jsonl', lines(LINE, LINE), 'high'))).toBe('sillytavern.chat');
+  });
+});
+
+/**
+ * ***The probe's order, where two branches each put a probe first*** — the
+ * merge of [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md)
+ * and [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * P13.15 put the Aventuras story-file probe ahead of every JSON shape, because
+ * a `.avt` has `entries` and the SillyTavern world probe took it for a
+ * lorebook. P14.8 put the chat probes where JSON Lines fail the document
+ * parse, and a one-line chat where the document parse succeeds. Each branch
+ * tested its own half; this holds the two together, so a later reordering
+ * that lets one take the other's file is a red test rather than a story
+ * imported as lore, or a chat imported as a story.
+ */
+describe('a story file and a chat, read by one probe', () => {
+  const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
+  const format = (item: ReturnType<typeof readUpload>): string | null =>
+    item.outcome === 'candidate' ? item.candidate.format : null;
+
+  /** The least a `.avt` is: a 1.x version, a `story` with an id, and `entries`. */
+  const AVT = JSON.stringify({
+    version: '1.10.0',
+    story: { id: 'story-1', title: 'The Lantern Fork' },
+    entries: [],
+  });
+  const HEADER = { user_name: 'You', character_name: 'Vera', chat_metadata: {} };
+  const LINE = { name: 'Vera', is_user: false, mes: 'Hm.', send_date: '2026-01-01T10:00:00Z' };
+
+  it('reads a story file as a story, at either confidence, whatever it is called', () => {
+    expect(format(readUpload('The Lantern Fork.avt', encode(AVT)))).toBe(AVT_FORMAT);
+    expect(format(readUpload('worlds.json', encode(AVT), 'high'))).toBe(AVT_FORMAT);
+    expect(format(readUpload('chat.jsonl', encode(AVT)))).toBe(AVT_FORMAT);
+  });
+
+  it('leaves a chat to the chat probes, even one whose lines say story and entries', () => {
+    // The two keys a story file is recognised by, inside a chat's line: the
+    // story probe's first look (`mayBeAvt`) finds them, and its parse then
+    // finds more than one document and lets the chat probes have it.
+    const talk = { ...LINE, mes: 'The story so far.', extra: { story: {}, entries: [] } };
+    const chat = [HEADER, LINE, talk].map((row) => JSON.stringify(row)).join('\n');
+
+    expect(format(readUpload('Vera.jsonl', encode(chat)))).toBe(SILLYTAVERN_CHAT_FORMAT);
+    expect(format(readUpload('Vera.jsonl', encode(chat), 'high'))).toBe(SILLYTAVERN_CHAT_FORMAT);
+    // A header alone is one JSON document, and still not a story file.
+    expect(format(readUpload('Vera.jsonl', encode(JSON.stringify(HEADER))))).toBe(
+      SILLYTAVERN_CHAT_FORMAT,
+    );
   });
 });

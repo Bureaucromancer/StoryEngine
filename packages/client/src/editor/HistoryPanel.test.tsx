@@ -44,20 +44,25 @@ const current = { ...before, name: 'Vera Solano, the fixer' };
 
 const useObjectHistory = vi.fn();
 const useVersionPayload = vi.fn();
+const restoreMutate = vi.fn();
 
 vi.mock('../queries.js', () => ({
   useObjectHistory: (...args: unknown[]) => useObjectHistory(...args) as unknown,
   useVersionPayload: (...args: unknown[]) => useVersionPayload(...args) as unknown,
-  useRestoreVersion: () => ({ mutate: vi.fn(), isPending: false }),
+  useRestoreVersion: () => ({
+    mutate: (...args: unknown[]) => restoreMutate(...args) as unknown,
+    isPending: false,
+  }),
   useAmendVersion: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 beforeEach(() => {
+  restoreMutate.mockClear();
   useObjectHistory.mockReturnValue({ data: { versions }, isPending: false, isError: false });
   useVersionPayload.mockReturnValue({ data: { object: before }, isPending: false });
 });
 
-function renderPanel() {
+function renderPanel(unsaved = false) {
   return render(
     <HistoryPanel
       kind="actors"
@@ -66,6 +71,7 @@ function renderPanel() {
       contentHash="sha256:ccc"
       locale={undefined}
       onRestored={vi.fn()}
+      unsaved={unsaved}
     />,
   );
 }
@@ -104,5 +110,33 @@ describe('the diff view', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Diff' }));
 
     expect(useVersionPayload).toHaveBeenCalledWith('actors', expect.any(String), 'v2');
+  });
+});
+
+/**
+ * ***A restore says what it costs, when it costs something*** (2026-10-01,
+ * polish 8). It replaces the form with the version: over a clean form that
+ * loses nothing — the state it leaves is the newest entry here — and over
+ * unsaved edits it threw them away at the first click.
+ */
+describe('restoring', () => {
+  it('restores at once when there is nothing unsaved to lose', async () => {
+    renderPanel(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(restoreMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks first over unsaved edits, and says they go', async () => {
+    renderPanel(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(restoreMutate).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: 'Restore',
+        description: 'Restore this version? Your unsaved edits are lost.',
+      }),
+    );
+    expect(restoreMutate).toHaveBeenCalledTimes(1);
   });
 });

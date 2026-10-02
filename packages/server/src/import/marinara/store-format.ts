@@ -51,11 +51,23 @@ import { isLitter } from '../litter.js';
  * of the three bumps above changed nothing a reader sees. Moving it is the same
  * procedure as the table snapshot beside it — re-take the port from the new
  * commit, run the suite, change this line in the same commit ([P4 §7.18]).
+ *
+ * ***What was checked at 7 is the library*** (recorded 2026-10-02, at the
+ * merge that brought [P14.10]'s chats here). The re-take at `459f8b85b` read
+ * the library's tables; the chat readers (`chat.ts`, `trackers.ts`, `plot.ts`,
+ * `editor.ts`, `families.ts`) were written at v2.4.3, format 4, and a format
+ * 5–7 store now reaches them through this gate unchecked. A diff of their
+ * tables found one drift that lost data — a player who played as a character,
+ * fixed in `chat.ts` — and private-turn fields that are still read as
+ * ordinary lines; [P14]'s sources table records both and the re-take owed.
  */
 export const MARINARA_KNOWN_FORMAT = 7;
 
 /** Where the tables live, relative to the data root. */
 export const TABLES = 'storage/tables/';
+
+/** The manifest, relative to the data root (`store.ts` reads it under the same name). */
+const MANIFEST_PATH = 'storage/manifest.json';
 
 /** The shard every row with no usable owner key lands in (S:563). */
 export const UNASSIGNED_SHARD_KEY = 'orphaned-rows';
@@ -209,6 +221,9 @@ export const INDIRECT_SHARD_TABLES: ReadonlySet<string> = new Set(['message_swip
 
 /**
  * The tables the reader actually converts, and what a row of each must carry.
+ * *(The library's tables, since the merge of origin's main on 2026-10-02 — the
+ * chats are read too now, and are {@link CHAT_TABLES}, kept apart for the
+ * reason given there.)*
  *
  * - `owner` is the column upstream groups the table's rows into files by, which
  *   the dedupe uses to recognise a row's canonical file.
@@ -250,32 +265,96 @@ export function isReadTable(table: string): table is ReadTable {
   return Object.hasOwn(READ_TABLES, table);
 }
 
-/** The asset trees whose files travel with a converted object. */
-export const CARRIED_ASSET_TREES = [
-  'avatars/',
-  'sprites/',
-  'lorebooks/images/',
-  'prompts/images/',
+/**
+ * ***The tables a store's chats are read from*** — [P14.10], [P14.5a],
+ * [P14.5b]: the chats, their messages and swipes, the trackers' snapshots and
+ * the director's secret plot, which the reader's `#chats` hands to the session
+ * pass as one candidate. The characters and personas it hands over with them
+ * are the library's, and are in {@link READ_TABLES}.
+ *
+ * ***Beside `READ_TABLES` rather than in it***, because that table is also the
+ * structural gate's list and the browser upload's priority, and a chat table in
+ * either means something the merge that brought the chats here (2026-10-02)
+ * did not decide: what a message row must carry above the checked format, and
+ * where chat shards rank against the library in an upload's budget. Each of
+ * those is answered where it is used — the reader opens these before its
+ * report is written, and `directory-upload.ts` ranks them after the library —
+ * and both read the names from here, so the two cannot come to disagree about
+ * which tables the chats are.
+ */
+export const CHAT_TABLES = [
+  'chats',
+  'messages',
+  'message_swipes',
+  'game_state_snapshots',
+  'agent_memory',
 ] as const;
+
+/**
+ * ***The asset tree whose files the reader opens*** — the portraits, which
+ * `reader.ts`'s `#actors` attaches to the character or persona whose
+ * `avatarPath` names them.
+ *
+ * ~~`CARRIED_ASSET_TREES`: the four trees whose files travel with a converted
+ * object.~~ *Split 2026-10-02, at the merge of origin's main.* The list was
+ * written ([P4 §7.18], 2026-09-22) while the reader reported all four trees as
+ * `converted`; origin found on 2026-09-27, on a branch this one could not see,
+ * that only the avatar was ever attached, and made the other three
+ * {@link RECORDED_ASSET_TREES}. The
+ * merge kept that reader and this ranking, and with the chats ranked after the
+ * pictures, a folder with a large `sprites/` spent the upload limit on files
+ * nothing opens and cut the message shards — every session in it gone, for
+ * bytes whose review row is the same `recorded` whether they arrived or not.
+ */
+export const CONVERTED_ASSET_TREES = ['avatars/'] as const;
+
+/**
+ * ***The asset trees the reader names and does not open*** — `recorded`,
+ * waiting on the image tables ([P4 §1.8]'s correction of 2026-09-27), and
+ * reported from the path alone. One list, read by both the reader's
+ * `assetDisposition` and {@link uploadPriority}, so the review and the upload
+ * cannot come to disagree about which pictures are read.
+ *
+ * **When a reader starts attaching one of these, it moves to the list above,
+ * and that is a ranking decision too**: a picture ranked with the library's
+ * portraits comes ahead of every chat (`directory-upload.ts`), so a tree that
+ * can be a hundred megabytes of expressions should earn that place rather
+ * than inherit it.
+ */
+export const RECORDED_ASSET_TREES = ['sprites/', 'lorebooks/images/', 'prompts/images/'] as const;
 
 /**
  * How much a browser upload should want a file from a Marinara root, lower
  * first, or `null` for a file it only needs to name ([P4 §7.18]).
  *
  * **The order is what the reader cannot do without, spent first.** The
- * manifest, then the files that hold the tables it converts, then the pictures
- * those objects carry, and last the pre-migration backups — which are read only
- * when a table has nothing else and can be as large as the whole old table.
- * Everything else under `storage/` is chats, memories and the social feed,
- * which the reader reports without opening; naming them is enough.
+ * manifest, then the files that hold the tables it converts, then ~~the
+ * pictures those objects carry~~ the portraits those objects carry
+ * ({@link CONVERTED_ASSET_TREES}), and last the pre-migration backups — which
+ * are read only when a table has nothing else and can be as large as the whole
+ * old table. *(Corrected 2026-10-02: only `avatars/` is read; the other three
+ * picture trees are {@link RECORDED_ASSET_TREES} and only need naming, so they
+ * are `null` here — declared, never in `overLimit`, and given the same
+ * `recorded` row by name as if they had come.)*
+ * ~~Everything else under `storage/` is chats, memories and the social feed,
+ * which the reader reports without opening; naming them is enough.~~
+ * (2026-10-02, the merge of origin's main) Everything else under `storage/` is
+ * what the reader reports without opening, *except* {@link CHAT_TABLES}, which
+ * [P14.10] made read: this ranks only the library's half, and
+ * `directory-upload.ts`'s `marinaraPriority` ranks the chats after all of it
+ * before asking here.
  *
  * This is not merely thrift. The reader falls back to a shard's `.bak` when the
  * primary cannot be read, and a declared file reads as nothing — so a budget
  * that happened to carry a backup and not its primary would import the backup,
- * one save stale, and say only that it had.
+ * one save stale, and say only that it had. *(2026-10-02: giving the two one
+ * rank did not prevent that — within a rank a file that does not fit is
+ * passed over for a later one that does, and a `.bak` is usually the smaller.
+ * `planUpload` now decides each backup after its primary and never carries one
+ * whose primary it cut; {@link backupPrimary} is how it knows which is which.)*
  */
 export function uploadPriority(path: string): number | null {
-  if (path === 'storage/manifest.json' || path === 'storage/manifest.json.bak') return 0;
+  if (path === MANIFEST_PATH || path === `${MANIFEST_PATH}.bak`) return 0;
   if (path.startsWith(TABLES)) {
     const found = classifyTablePath(path);
     if (found.table === null || !isReadTable(found.table)) return null;
@@ -283,7 +362,28 @@ export function uploadPriority(path: string): number | null {
     if (path.endsWith('.pre-shard')) return 3;
     return null;
   }
-  return CARRIED_ASSET_TREES.some((tree) => path.startsWith(tree)) ? 2 : null;
+  return CONVERTED_ASSET_TREES.some((tree) => path.startsWith(tree)) ? 2 : null;
+}
+
+/**
+ * ***The file a backup stands in for***, or `null` for a path that is not a
+ * backup Marinara reads in place of another — the manifest's `.bak`, and a
+ * table's `.json.bak`, sharded or single.
+ *
+ * **For the upload's budget, which must never carry the stand-in without the
+ * original** (2026-10-02). Both readers fall back by the same rule — the
+ * manifest to its `.bak` (`readMarinaraManifest`), a table file to its own
+ * (`store.ts`'s `readWithFallback`) — when the primary reads as nothing, and a
+ * declared primary does. So a primary the limit cut beside a backup it carried
+ * was the backup imported in its place, one save stale, with the only note
+ * about it on a row the route then rewrites as *over the limit*. A pre-shard
+ * backup is not one of these: it is read when its table has nothing else at
+ * all, never in place of a file that is there.
+ */
+export function backupPrimary(path: string): string | null {
+  if (path === `${MANIFEST_PATH}.bak`) return MANIFEST_PATH;
+  if (!path.startsWith(TABLES)) return null;
+  return classifyTablePath(path).role === 'backup' ? path.slice(0, -'.bak'.length) : null;
 }
 
 /** What a path under `storage/tables/` is. */

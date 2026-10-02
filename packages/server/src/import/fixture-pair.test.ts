@@ -32,7 +32,9 @@ import { sweep } from './sweep.js';
  * `notFilled` — **no `empty-source` rows for persona, actor, history or input,
  * and no `unknown-slot` rows at all**, while `lore` and `treatment` read
  * `no-producer`, which is expected until P5 and is asserted rather than
- * tolerated.
+ * tolerated. *(Both have producers now — lore from P5.6, the treatment's
+ * framing from 2026-09-27 — and each assertion below says what it reads
+ * instead.)*
  */
 
 let server: TestServer;
@@ -50,6 +52,7 @@ async function importFixture() {
   const outcome = await sweep({
     library: server.services.library,
     handle: 'ned',
+    tags: server.services.tags,
     files: new MemoryFileSource(sillyTavernFixture()),
   });
   if (!outcome.ok) throw new Error(`refused: ${outcome.refusal}`);
@@ -117,7 +120,9 @@ describe('a card and a preset imported from one directory agree', () => {
       url: `/api/sessions/${sessionId}/turns`,
       payload: {
         idempotencyKey: 'fixture-pair-1',
-        headTurnId: null,
+        // Since P14.4 a Scene session whose cast has written openings starts
+        // on its opening turn, so the head is that turn rather than null.
+        headTurnId: created.body.session.headTurnId ?? null,
         // Names one of the imported book's keys, so the turn's own prompt is
         // where the lorebook half of the pair is proved. See below.
         input: { actorId: null, kind: 'do', text: 'She knocks at the docks.' },
@@ -189,19 +194,30 @@ describe('a card and a preset imported from one directory agree', () => {
      * is now the other way round: filling is what passes, and a row of any kind
      * is what fails.
      *
-     * `treatment` still has no producer. Its row may be absent simply because
+     * ~~`treatment` still has no producer. Its row may be absent simply because
      * this preset names no treatment slot, so both are allowed — what is not
      * allowed is `empty-source`, which would mean something claimed to produce
-     * a treatment and did not.
+     * a treatment and did not.~~
+     *
+     * ***`treatment` has had a producer since 2026-09-27***, and the polarity
+     * turns over with it, the way lore's did at P5.6. The collector's arm
+     * returned nothing until then although the gather had carried the
+     * treatment since P5.6, so `no-producer` was the one reason this row could
+     * give and `empty-source` would indeed have been a lie. Now the gather's
+     * carriers reach the slot, and this session names no treatment, so a
+     * treatment slot here is honestly **empty** — and `no-producer` is the
+     * reading that would mean the carriers stopped arriving. The fixture's
+     * preset carries no `scenario` marker, so the row is usually absent; the
+     * end-to-end claim is `runner.test.ts`'s, where the session names one.
      */
     expect(
       reasonFor('lore'),
       `lore should fill from the linked book: ${JSON.stringify(notFilled)}`,
     ).toBeUndefined();
 
-    expect(reasonFor('treatment'), 'treatment has no producer yet').toBeOneOf([
+    expect(reasonFor('treatment'), 'a session with no treatment has an empty slot').toBeOneOf([
       undefined,
-      'no-producer',
+      'empty-source',
     ]);
 
     /**

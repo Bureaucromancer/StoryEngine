@@ -62,11 +62,13 @@ export function useAssistantSession(enabled: boolean): {
   failed: boolean;
   start: () => void;
   starting: boolean;
+  /** Why the last start was refused, until the next one is tried. */
+  startError: Error | null;
 } {
   const client = useQueryClient();
   const sessions = useQuery({
     queryKey: ['sessions'],
-    queryFn: listSessions,
+    queryFn: () => listSessions(),
     enabled,
   });
 
@@ -99,9 +101,13 @@ export function useAssistantSession(enabled: boolean): {
          */
         lore: [DOCS_LOREBOOK_ID],
       }),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ['sessions'] });
-    },
+    /**
+     * ***Returned, so the start stays pending until the list holds it***
+     * (2026-09-27). Fired and forgotten, the mutation settled while the list
+     * still lacked the new session, and the button came back for a moment in
+     * which a second press made a second assistant.
+     */
+    onSuccess: () => client.invalidateQueries({ queryKey: ['sessions'] }),
   });
 
   const found = sessions.data ? assistantSessionIn(sessions.data.sessions) : null;
@@ -114,5 +120,12 @@ export function useAssistantSession(enabled: boolean): {
       create.mutate();
     },
     starting: create.isPending,
+    /**
+     * ***A refusal is said*** (2026-09-27). It was dropped: a start the server
+     * refused — the assistant's mode not loaded on this server, a sign-in that
+     * had ended — put the button back as if it had never been pressed. TanStack clears it on
+     * the next `mutate`, so retrying clears the message too.
+     */
+    startError: create.isError ? create.error : null,
   };
 }

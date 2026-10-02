@@ -19,7 +19,11 @@ up, and unambiguously so, because nothing here is cited by a number.
 work-plan number, so a document can move into its right place for nothing —
 which is how these came to be in execution order at all.
 [`tools/doc-links.test.ts`](../../../tools/doc-links.test.ts) enforces both
-halves and refuses a work-plan file that has no name in the registry.
+halves and refuses a work-plan file that has no name in the registry. *(True
+from 2026-10-02, its rule (h). Until then nothing read the registry —
+`PLAN_ORDER` in [`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs)
+— and P12, P13, P14 and the main audit were each filed green without a line in
+it.)*
 
 ## The documents
 
@@ -49,12 +53,15 @@ halves and refuses a work-plan file that has no name in the registry.
 | [P10-p10-implementation.md](27-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
 | [P11-p11-implementation.md](28-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
 | [P12-p12-implementation.md](29-p12-implementation.md) | P12 — backups a person can take, list, delete, import and restore, from the web UI, on a schedule. The one phase that reverses a decision marked *Opinionated*: [25 E6](../25-open-questions.md) said *do not build a subsystem*, and §0 is the four arguments for doing it anyway — chiefly that E6 reasoned about a process on the **outside**, and from the inside `VACUUM INTO` and the atomic write path make this strictly more consistent than the script. §0.5 records two defects in what [P11.11](28-p11-implementation.md) shipped, one of which meant the derived index was in every archive ever written |
-| [P12A-p12a-the-look.md](30-p12a-the-look.md) | P12A skeleton — the look, and the last phase before beta is said: [10 §1.3](../10-ui-surfaces.md)'s direction built. Faces on the play surface, the channel HUD made editable, the backdrop's legibility mechanism, a motion vocabulary, section jumps in the editors, and the phone rules. Written 2026-09-22 as P11A, after P11 merged and before its gate was walked, and renamed on 2026-09-23 when P12 merged first |
+| [P13-p13-aventuras-import.md](30-p13-aventuras-import.md) | P13 — the whole of an Aventuras install in one import: the library now (Part 1, planned to the stage), the stories after (Part 2, ~~headed and **not scheduled**~~ **scheduled 2026-09-29**, as a producer of P11.10's session format rather than an importer of its own). ~~Design only, 2026-09-26.~~ Written 2026-09-26; merged to `main` 2026-09-29 at `7565265` and, built, at `6f55e6e` on 2026-09-30. Every stage of Parts 1 and 2 is built, and neither gate is walked. §0.4 records three findings against shipped code, one of them in P11.10's `importSession` |
+| [P14-p14-scene-and-session-import.md](31-p14-scene-and-session-import.md) | P14 — **Scene built out to [06 §7.2](../06-modes-and-turn-pipeline.md)'s spec**, a functional equivalent of a SillyTavern or Marinara roleplay chat (embodied voice, per-actor dispatch, ST's four activation strategies, greetings, swipes, continue, force-talk, edit, hide), **then session import from both into it**. §0.6 is why this finishes a mode rather than inventing one; §1.1 adds `Turn.output.messages`, the first field on the frozen record |
+| [P12A-p12a-the-look.md](33-p12a-the-look.md) | P12A skeleton — the look, and the last phase before beta is said: [10 §1.3](../10-ui-surfaces.md)'s direction built. Faces on the play surface, the channel HUD made editable, the backdrop's legibility mechanism, a motion vocabulary, section jumps in the editors, and the phone rules. Written 2026-09-22 as P11A, after P11 merged and before its gate was walked, renamed on 2026-09-23 when P12 merged first, and filed at 33 on 2026-10-02, behind P13, P14 and the main audit, which reached `main` first and ran before it |
 | [P6A-p6a-alpha-1.md](19-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed, the phase closed on its merge, and Alpha 1 was cut 2026-09-06 with its image built; the rest of the exit gate needs a person with Docker |
 | [P6B-p6b-playable.md](20-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
 | [playable log-playable-log.md](21-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](17-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
 | [manual testing-manual-testing.md](05-manual-testing.md) | **What a person still owes, and what they did about it — standing, and it does not complete.** Every gate’s state, the sittings walked and outstanding, the prerequisites with long lead times, what a test now covers, what should be a test and is not, and every deferral with a name beside it. A phase that closes lands its gate here |
 | [refinements-walkthrough-refinements.md](22-walkthrough-refinements.md) | The eleven refinements from the 2026-09-08 walkthrough, graded against the code and the design corpus — eight of them are not what the note says. Where each goes, what it costs, and the four decisions a person has to make first |
+| [main audit-main-audit.md](32-main-audit.md) | **The audit of `main`, 2026-09-25 to 2026-10-01**, after it landed: how it ran, what was decided and by whom, the 103 commits by tier, the records it corrects, what it left, CI across it, and the changelog entry the next release owes — the one place the audit's own record lives, because its plan and its verdicts were working files outside the repository |
 
 ## How to read them
 
@@ -71,9 +78,14 @@ phases arrived. 23 through 27 are skeletons — and so is 28, filed out of order
 approaches. ~~**20 is the phase in front of us** — P6B, PLAYABLE three phases
 overdue, which [P7 §0.1](23-p7-implementation.md) found blocking its own demo as
 much as the checkpoint's; P7 follows it.~~ ***Stale, corrected 2026-09-22:
-P6B through P12 have all merged, and 30 is the phase in front of us*** —
-[P12A](30-p12a-the-look.md), written after P11 merged and before its gate was
-walked, and renamed from P11A when P12 merged first. **What is still true of every one of them is the gate**: a merge is not
+P6B through P12 have all merged, and ~~30~~ 33 is the phase in front of us*** —
+[P12A](33-p12a-the-look.md), written after P11 merged and before its gate was
+walked, and renamed from P11A when P12 merged first. *Refiled 2026-10-02*:
+[P13](30-p13-aventuras-import.md) and [P14](31-p14-scene-and-session-import.md)
+were planned, built and merged on `main` while P12A sat on a local one that had
+not been pushed, and the [main audit](32-main-audit.md) ran beside them, so all
+three come before it in execution order and it moved from 30 to 33 to follow
+them. **What is still true of every one of them is the gate**: a merge is not
 a close ([manual testing §0](05-manual-testing.md)), and several of the
 documents above are open on a critical list rather than on code.
 

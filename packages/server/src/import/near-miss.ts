@@ -99,10 +99,30 @@ interface Rule extends NearMiss {
   holds(ground: Ground): Promise<boolean>;
 }
 
+/** Aventuras' bundle id, which names its config directory on every desktop platform. */
+const AVENTURAS_BUNDLE = 'com.karelian.aventura';
+
+/**
+ * Where that directory sits below a folder somebody might pick instead, beyond
+ * the one level every platform's config folder gives it. Each is a path the
+ * platform fixes, not one a person chose: from a home folder, Linux's
+ * `.config` (`$XDG_CONFIG_HOME`'s default), macOS's `Library/Application
+ * Support` and Windows' `AppData/Roaming`; from the folder between, macOS's
+ * `Library` and Windows' `AppData`. `/`-separated, as every `FileSource` path
+ * is — the space in `Application Support` is a name, not a separator.
+ */
+const AVENTURAS_DEEPER: readonly { situation: NearMissSituation; parent: string }[] = [
+  { situation: 'aventuras-home-linux', parent: '.config' },
+  { situation: 'aventuras-home-macos', parent: 'Library/Application Support' },
+  { situation: 'aventuras-home-windows', parent: 'AppData/Roaming' },
+  { situation: 'aventuras-library-folder', parent: 'Application Support' },
+  { situation: 'aventuras-appdata-folder', parent: 'Roaming' },
+];
+
 /**
  * The table, in the order it fires and in the order the findings come back.
  *
- * Every row is evidenced against the two applications' own source, and the
+ * Every row is evidenced against the applications' own source, and the
  * evidence is worth keeping beside the row because none of it is guessable:
  * these are other people's layouts and they change without telling us.
  */
@@ -431,6 +451,86 @@ const RULES: readonly Rule[] = [
     confidence: 'inferred',
     note: { key: 'import.root.marinaraTooOld', params: {}, level: 'warn' },
   },
+  /**
+   * ***Aventuras' config directory, one folder down or two or three*** —
+   * [P13.7](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * Aventuras keeps its whole install in one database, `aventura.db`, which
+   * Tauri resolves against its **app config directory** under the bundle id
+   * `com.karelian.aventura` ([01 §2](../../../../docs/design/01-source-survey.md),
+   * from `docs/architecture/persistence.md` at the pin): `~/.config/…` on
+   * Linux, `~/Library/Application Support/…` on macOS, `%APPDATA%\…` — which
+   * is `AppData\Roaming` — on Windows. Nobody types a reverse-DNS folder name
+   * from memory, so the likeliest wrong pick is the folder that *holds* it:
+   * the platform's config folder, or the home directory above that. And since
+   * `~/.config` holds a folder per application, a sweep of it is a loose walk
+   * through everybody else's settings that finds no Aventuras at all — the
+   * successful-looking wrong import this module's header exists to name.
+   *
+   * **A fixed set of places, never a search.** Six prefixes, each the bundle id
+   * under one path the platform itself fixes, and each asked one question:
+   * is `aventura.db` there. A walk looking for the bundle id at any depth
+   * would find it, and would also be a directory listing of somebody's home
+   * folder, which `inspect`'s *it never lists a directory* rules out
+   * ([10 §4.2.2](../../../../docs/design/10-ui-surfaces.md)). Somebody who
+   * picked a folder further off than these is not near.
+   *
+   * **The same mark the classifier uses, and nothing weaker.** The bundle id's
+   * folder alone is not enough: Aventuras creates it before it has written a
+   * database, and on Android the name exists and holds nothing readable. A
+   * suggestion is made only where `aventura.db` is, so following one lands on
+   * a root `classifyRoot` calls `aventuras` — `verified`, like SillyTavern's.
+   *
+   * **A link out of the picked folder is not followed**, and that is the
+   * source's rule rather than one of ours: `exists` goes through
+   * `DirectorySource`'s `#reach`, which answers `false` for a path whose real
+   * target leaves the root or enters our data directory. A `~/.config` whose
+   * `com.karelian.aventura` is a dotfile manager's link to somewhere else is
+   * therefore silent here — the price of the containment every other read
+   * pays, and cheaper than a hint that named a folder the sweep would refuse.
+   *
+   * One situation per place rather than one for all six, because a finding's
+   * situation is its identity on the client and a home folder can, rarely,
+   * hold more than one platform's layout (a Windows profile carrying a
+   * `.config` from a port, a macOS home copied onto Linux). All six speak one
+   * sentence, with the path in it.
+   */
+  {
+    situation: 'aventuras-config-folder',
+    holds: (ground) => ground.marks('aventuras', AVENTURAS_BUNDLE),
+    suggest: AVENTURAS_BUNDLE,
+    leadsTo: 'aventuras',
+    confidence: 'verified',
+    note: { key: 'import.root.aventurasBelow', params: { path: AVENTURAS_BUNDLE }, level: 'warn' },
+  },
+  ...AVENTURAS_DEEPER.map(({ situation, parent }): Rule => ({
+    situation,
+    holds: (ground) => ground.marks('aventuras', `${parent}/${AVENTURAS_BUNDLE}`),
+    suggest: `${parent}/${AVENTURAS_BUNDLE}`,
+    leadsTo: 'aventuras',
+    confidence: 'verified',
+    note: {
+      key: 'import.root.aventurasBelow',
+      params: { path: `${parent}/${AVENTURAS_BUNDLE}` },
+      level: 'warn',
+    },
+  })),
+  /**
+   * A folder inside an Aventuras root — most likely the `stories/` an older
+   * backup carries beside its database, full of `.avt` files
+   * ([P13 §1.1](../../../../docs/design/workplan/30-p13-aventuras-import.md)),
+   * which on its own sweeps as loose files and imports none of the vault. The
+   * same ascending shape as SillyTavern's and Marinara's, silent without the
+   * parent the route opens.
+   */
+  {
+    situation: 'aventuras-above',
+    holds: (ground) => ground.aboveMarks('aventuras'),
+    suggest: '..',
+    leadsTo: 'aventuras',
+    confidence: 'verified',
+    note: { key: 'import.root.aventurasAbove', params: {}, level: 'warn' },
+  },
 ];
 
 /**
@@ -469,6 +569,13 @@ export const NEAR_MISS_PROBE_PATHS: readonly string[] = [
   'pnpm-workspace.yaml',
   'tables',
   'marinara-engine.db',
+  'aventura.db',
+  'com.karelian.aventura/aventura.db',
+  '.config/com.karelian.aventura/aventura.db',
+  'Library/Application Support/com.karelian.aventura/aventura.db',
+  'AppData/Roaming/com.karelian.aventura/aventura.db',
+  'Application Support/com.karelian.aventura/aventura.db',
+  'Roaming/com.karelian.aventura/aventura.db',
 ];
 
 /** What a near-miss reading needs: the folder picked, and optionally the one above. */
@@ -498,7 +605,14 @@ export async function nearMiss(request: NearMissRequest): Promise<readonly NearM
   // The folder is already right. Checked here rather than left to the caller so
   // the module is correct standing alone: a precondition documented in two
   // places is one that rots in one of them.
-  if ((await probeMarks(picked, 'sillytavern')) || (await probeMarks(picked, 'marinara'))) {
+  //
+  // Aventuras joined the gate at P13.7, with its rules: a folder holding
+  // `aventura.db` is already the one to point at, whatever sits beneath it.
+  if (
+    (await probeMarks(picked, 'sillytavern')) ||
+    (await probeMarks(picked, 'marinara')) ||
+    (await probeMarks(picked, 'aventuras'))
+  ) {
     return [];
   }
 

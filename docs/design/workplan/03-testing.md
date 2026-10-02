@@ -202,7 +202,12 @@ it:
   second send continues the line from the head, which is precisely the thing a
   branch is not. **The difference does not appear in a request count** — both
   shapes post one turn — so a test written the wrong way passes, and what it
-  then protects is the wrong claim.
+  then protects is the wrong claim. *(2026-10-01, `d66ad2b`: still Redo, and
+  since P14 the alternatives are counted on the message they differ at, so the
+  step reads the message's* Previous reply *rather than the turn strip's*
+  Previous version*. The journeys were red on `main` from P14 until then —
+  that, and the transcript collapsing under P14's controls at 1280×720 — and
+  nobody saw, because CI had not run since K.)*
 - ***Open the workbench* needs an assertion about what is in it.** The dock's
   landmark role is a claim an empty panel satisfies, and an empty workbench over
   a turn that happened is exactly the wiring failure this tier exists to catch.
@@ -367,7 +372,14 @@ make the per-PR tier slow. Small budget every PR, large budget nightly.*
 ([releases §4](04-repo-and-releases.md)). *Built at [P6A.4](19-p6a-alpha-1.md) as
 `release.yml`, filtered to `v*`: the image to a private package, the tag checked
 against the root `package.json`, the CHANGELOG checked for the entry. Unrun
-until the first tag, which is Alpha 1's.*
+until the first tag, which is Alpha 1's.* ***And the per-PR tier first***
+*(2026-10-01): a `verify` job replays this tier's Linux leg and the changelog
+check on the tagged commit, and nothing publishes until it passes. The tag was
+the only gate, and the changelog was checked after the image had moved
+`testing`. Two alpha cuts were made while CI was red
+([manual testing §9](05-manual-testing.md)) — on failures only the Windows runner saw, which
+a Linux gate would not have stopped; it is for the Linux failure nothing
+stopped at all.*
 
 Two project-specific automations worth having beyond the usual:
 

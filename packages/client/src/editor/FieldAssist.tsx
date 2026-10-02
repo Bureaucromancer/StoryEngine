@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 
-import { assistField, type AssistFieldResult } from '../api.js';
+import { ApiError } from '../api.js';
+import { remedySentence } from '../failures.js';
 import { labels } from '../i18n/catalogue.js';
 import type { AssistSubject } from '../ui/assist.js';
 import { Button } from '../ui/Button.js';
@@ -54,7 +55,9 @@ const WORDS = labels('editor.assist', {
   working: 'Writing…',
   notBound: 'No model is set up for writing yet. Bind one in Settings.',
   noAnswer: 'The endpoint answered with nothing.',
+  stopped: 'The server stopped before the assist was written. Try again.',
   failed: 'The assist did not finish.',
+  superseded: 'A version was restored while this was being written, so it was not put in.',
 });
 
 export interface AssistHistory {
@@ -64,56 +67,48 @@ export interface AssistHistory {
   generated: string | null;
 }
 
+/**
+ * ***The control, and only the control*** (2026-09-27).
+ *
+ * The request used to live here — started, awaited and landed by this
+ * component — and that tied an assist's life to one mounted instance of one
+ * field's label. The lorebook editor does not remount when `?entry=` changes, so
+ * the instance that asked for Harbour's content went on to render Lighthouse's,
+ * and showed *Writing…* there. Keyed by path, the instance goes when its field
+ * does, and a running assist's *Writing…* and a failed one's sentence would have
+ * gone with it. So the request, whether it is running and why it failed are
+ * held per path by `useAssistFor`, which outlives every field, and this draws
+ * them: what is left here is the panel's own state — whether it is open and
+ * what has been typed into the guidance box.
+ */
 export function FieldAssist(props: {
   subject: AssistSubject;
-  /** What the object is, for the sentence the server builds — *actor*, *lorebook*. */
-  kindWord: string;
-  /** The working draft, read at click time rather than held. */
-  draftOf: () => unknown;
+  /** An assist on this field is running. */
+  busy: boolean;
+  /** Why the last assist on this field did not land, in words, or null. */
+  error: string | null;
   history: AssistHistory;
-  onAccepted: (result: AssistFieldResult, before: string) => void;
+  /** Start one, with the guidance as typed — blank asks for a fresh write. */
+  onRun: (guidance: string) => void;
   onReverted: (to: string) => void;
+  /**
+   * The value this field showed, after each render — so an answer landing later
+   * knows what it is replacing (`useAssistFor`'s `before`). After the render
+   * rather than during it, because a render may be thrown away and an effect
+   * runs only for one that was shown.
+   */
+  onShown: (value: string) => void;
 }): JSX.Element {
-  const [open, setOpen] = useState(false);
+  // Open from the start when there is something to say. A field comes back into
+  // view — the person returns to the entry — with an assist still running or
+  // one that failed while they were elsewhere, and a shut panel would hide both.
+  const [open, setOpen] = useState(() => props.busy || props.error !== null);
   const [guidance, setGuidance] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, onShown, subject } = props;
 
-  function run(withGuidance: string): void {
-    setBusy(true);
-    setError(null);
-    const before = props.subject.value;
-    assistField({
-      subject: props.kindWord,
-      path: props.subject.path,
-      label: props.subject.label,
-      draft: props.draftOf(),
-      ...(withGuidance.trim() === '' ? {} : { guidance: withGuidance, current: before }),
-    }).then(
-      (result) => {
-        setBusy(false);
-        props.subject.onChange(result.text);
-        props.onAccepted(result, before);
-      },
-      (failure: unknown) => {
-        setBusy(false);
-        /**
-         * **A class into a sentence, here rather than on the wire** — [21 §1.4],
-         * and the same split [P11.6] made for a failed turn: the server sends
-         * `not-bound`, the client owns the words, and the remedy is the one
-         * thing a person can act on.
-         */
-        const code = (failure as { body?: { error?: string } }).body?.error;
-        setError(
-          code === 'not-bound'
-            ? WORDS.notBound
-            : code === 'no-answer'
-              ? WORDS.noAnswer
-              : WORDS.failed,
-        );
-      },
-    );
-  }
+  useEffect(() => {
+    onShown(subject.value);
+  });
 
   return (
     <>
@@ -150,7 +145,7 @@ export function FieldAssist(props: {
                 variant="primary"
                 disabled={busy}
                 onClick={() => {
-                  run(guidance);
+                  props.onRun(guidance);
                 }}
               >
                 {busy ? WORDS.working : guidance.trim() === '' ? WORDS.generate : WORDS.rewrite}
@@ -196,4 +191,34 @@ export function FieldAssist(props: {
       ) : null}
     </>
   );
+}
+
+/**
+ * ***The sentence for an answer that was not put in, because a restore replaced
+ * the form it was written for*** (2026-09-27) — see `ObjectEditor.replacements`.
+ */
+export function supersededSentence(): string {
+  return WORDS.superseded;
+}
+
+/**
+ * ***The sentence for a failed assist, read off the code the server sent***
+ * (2026-09-27).
+ *
+ * This read `body.error`, which an `ApiError` does not have — the class is
+ * `code` — so every failure, an unbound role included, read *the assist did
+ * not finish*. An endpoint's failure now gets the remedy a failed turn gets
+ * ([P11.6]'s sentences), and a window with no room beside the reply gets its
+ * own, because each points at a different thing to change.
+ */
+export function assistFailure(failure: unknown): string {
+  const code = failure instanceof ApiError ? failure.code : null;
+  if (code === 'not-bound') return WORDS.notBound;
+  if (code === 'no-answer') return WORDS.noAnswer;
+  if (code === 'cancelled') return WORDS.stopped;
+  if (code === 'window-too-small') return remedySentence('window-too-small') ?? WORDS.failed;
+  if (code === 'provider-failed' && failure instanceof ApiError) {
+    return remedySentence(failure.remedy ?? null) ?? WORDS.failed;
+  }
+  return WORDS.failed;
 }

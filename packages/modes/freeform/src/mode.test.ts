@@ -117,6 +117,27 @@ describe('the preset is a real portable object', () => {
    * *A `think` must not be reacted to*, which is the whole content of the kind
    * and the one thing a pack could get wrong in a way nothing else would catch.
    */
+  /** An impersonation asks for what this forbids (2026-09-27). */
+  it('names who each persona and actor block is about, as Scene’s does', () => {
+    const named = FREEFORM_PRESET.blocks.filter(
+      (block) =>
+        block.kind === 'slot' && (block.source.of === 'persona' || block.source.of === 'actor'),
+    );
+
+    expect(named).toHaveLength(6);
+    for (const block of named) {
+      if (block.kind !== 'slot') continue;
+      const who = block.source.of === 'persona' ? '{{ user }}' : '{{ char }}';
+      expect(block.wrapper, block.id).toContain(who);
+      expect(block.wrapper, block.id).toContain('{{content}}');
+    }
+  });
+
+  it('keeps the narrator instruction to narration', () => {
+    const instruction = FREEFORM_PRESET.blocks.find((block) => block.id === 'se.instruction');
+    expect(instruction?.appliesTo).toEqual(['narrate']);
+  });
+
   it('tells the narrator that a thought was not heard', () => {
     const block = FREEFORM_PRESET.blocks.find((one) => one.id === 'se.instruction.think');
     expect(block?.kind === 'text' ? block.template : '').toMatch(/nobody in the scene heard/i);
@@ -194,6 +215,28 @@ describe('what this mode declares that Scene could not', () => {
       );
       expect(offered.length, axis).toBeGreaterThan(0);
       for (const option of offered) expect(shipped.has(option.value), option.value).toBe(true);
+    }
+  });
+
+  /**
+   * ***The premise reaches the narrator*** (2026-09-30). The wizard requires
+   * it and its hint promises *"The narrator opens from it"*; it was stored on
+   * the session and slotted by nothing. And **every setup slot names a field
+   * the wizard asks for**, so renaming a field cannot quietly leave a slot
+   * reading an answer nobody gives.
+   */
+  it('slots the premise its wizard requires, and only answers it asks for', () => {
+    const fields = FREEFORM.setup.kind === 'declared' ? FREEFORM.setup.fields : [];
+    const slotted = FREEFORM_PRESET.blocks.flatMap((block) =>
+      block.kind === 'slot' && block.source.of === 'setup' ? [block.source.field] : [],
+    );
+
+    expect(slotted).toEqual(['premise']);
+    for (const field of slotted) {
+      expect(
+        fields.map((one) => one.id),
+        field,
+      ).toContain(field);
     }
   });
 

@@ -33,6 +33,23 @@ const PORT = Number(process.env['FAKE_PORT'] ?? 4599);
 const PROSE =
   'The rain had not stopped. Vera pushed the ledger across the desk and waited for an answer.';
 
+/**
+ * ***And every reply after the first says one thing more*** (2026-10-01).
+ *
+ * The journey branches with Redo and then steps between the two answers. Since
+ * [P14.5](../docs/design/workplan/31-p14-scene-and-session-import.md) a chat
+ * counts alternatives **by what they say** — two siblings with the same words
+ * are one reply, and its counter shows nothing — so a double that answered a
+ * Redo word for word had made the branch invisible, and the step that looks
+ * for *2 of 2* could never pass. The asserted sentence stays in every reply;
+ * what follows it is the call's number, so no two replies are the same.
+ */
+let replies = 0;
+function prose() {
+  replies += 1;
+  return replies === 1 ? PROSE : `${PROSE} She had asked ${String(replies)} times now.`;
+}
+
 function chunk(text) {
   return `data: ${JSON.stringify({
     id: 'chatcmpl-fake',
@@ -82,9 +99,10 @@ const server = createServer((request, response) => {
       'cache-control': 'no-cache',
       connection: 'keep-alive',
     });
-    const half = Math.ceil(PROSE.length / 2);
-    response.write(chunk(PROSE.slice(0, half)));
-    response.write(chunk(PROSE.slice(half)));
+    const text = prose();
+    const half = Math.ceil(text.length / 2);
+    response.write(chunk(text.slice(0, half)));
+    response.write(chunk(text.slice(half)));
     response.write(
       `data: ${JSON.stringify({
         id: 'chatcmpl-fake',

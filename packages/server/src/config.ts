@@ -36,6 +36,20 @@ import { readFileBytes } from './storage/files.js';
  */
 export type ReloadTier = 'live' | 'reconnect' | 'restart';
 
+/**
+ * ***The longest delay a Node timer holds*** (2026-09-27), and the maximum of
+ * every millisecond key: `2^31 - 1`, about 24.8 days.
+ *
+ * A larger delay is not refused by Node. It warns once and **sets the delay to
+ * one millisecond**, so a keepalive of three billion milliseconds meant to be
+ * *effectively never* became a comment frame every millisecond on every open
+ * stream, a coalesce window the same became a checkpoint per chunk, and a
+ * provider timeout the same abandoned every call at once. The schema admitted
+ * all three. The form reads the bound from here (`configBounds`), so it
+ * refuses them too.
+ */
+export const TIMER_MAX_MS = 2_147_483_647;
+
 export const ConfigSchema = Type.Object(
   {
     dataDir: Type.String({ default: './data' }),
@@ -220,7 +234,7 @@ export const ConfigSchema = Type.Object(
        * is the first real consumer of that tier, which F8 found declared and
        * unused.
        */
-      streamKeepaliveMs: Type.Integer({ minimum: 1000, default: 15000 }),
+      streamKeepaliveMs: Type.Integer({ minimum: 1000, maximum: TIMER_MAX_MS, default: 15000 }),
       /**
        * How long streamed deltas accumulate before a durable checkpoint — [P2 §2.10].
        *
@@ -230,10 +244,28 @@ export const ConfigSchema = Type.Object(
        * recover. `0` in a test forces one checkpoint per chunk and makes event
        * ordering deterministic.
        */
-      streamCoalesceMs: Type.Integer({ minimum: 0, default: 250 }),
+      streamCoalesceMs: Type.Integer({ minimum: 0, maximum: TIMER_MAX_MS, default: 250 }),
     }),
     limits: Type.Object({
       maxUploadMb: Type.Integer({ minimum: 1, default: 64 }),
+      /**
+       * ***The largest archive or database the one-file import takes*** —
+       * [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md).
+       *
+       * `POST /import/file` lands a zip or a SQLite file in scratch as it
+       * arrives rather than buffering it, because an Aventuras backup is a
+       * whole install with its gallery in it as base64, and hundreds of
+       * megabytes is ordinary. This is that landing's bound, and only that
+       * one's: everything else still buffers under `maxUploadMb`.
+       *
+       * ***A separate cap, not a `max()` against `maxUploadMb`***, and that is
+       * the point of its being a key. Taking the larger of the two would leave
+       * an operator no way to *tighten* the one upload that is written to the
+       * data volume at any size — and that upload is not behind `fileAccess`,
+       * so every signed-in account can send one. So lowering this lowers it,
+       * even below `maxUploadMb`.
+       */
+      maxImportUploadMb: Type.Integer({ minimum: 1, default: 1024 }),
       extensionStorageQuotaMb: Type.Integer({ minimum: 1, default: 32 }),
       /**
        * The context window a turn may assemble into, when the endpoint does not
@@ -268,7 +300,7 @@ export const ConfigSchema = Type.Object(
        * any number here would be. That is a real case and refusing it would
        * only move the workaround somewhere less visible.
        */
-      providerTimeoutMs: Type.Integer({ minimum: 0, default: 300_000 }),
+      providerTimeoutMs: Type.Integer({ minimum: 0, maximum: TIMER_MAX_MS, default: 300_000 }),
     }),
     trash: Type.Object({
       retentionDays: Type.Integer({ minimum: 0, default: 30 }),
@@ -366,6 +398,7 @@ export const CONFIG_TIERS = {
   'sessions.streamKeepaliveMs': 'reconnect',
   'sessions.streamCoalesceMs': 'live',
   'limits.maxUploadMb': 'live',
+  'limits.maxImportUploadMb': 'live',
   'limits.extensionStorageQuotaMb': 'live',
   'limits.contextTokens': 'live',
   'limits.reservedCompletionTokens': 'live',
@@ -460,11 +493,24 @@ export const LIVE_APPLIERS = {
    * value in Settings applies to the next upload rather than to the next
    * restart, which is what `live` promised all along.
    *
-   * The constructor `bodyLimit` stays as the outer bound. Two tiers is not
+   * ~~The constructor `bodyLimit` stays as the outer bound. Two tiers is not
    * redundancy: the outer one refuses a body before it is read, the inner one
-   * is the honest number a person set.
+   * is the honest number a person set.~~ *Corrected 2026-09-27: there is no
+   * outer bound for an upload.* Fastify's `bodyLimit` applies to the bodies its
+   * own parsers read, and the multipart plugin reads none: it hands the route
+   * a stream. The per-request limit the routes pass the plugin is the only
+   * one, and it is enough, because it is the one that counts the bytes.
    */
   'limits.maxUploadMb': 'applied',
+
+  /**
+   * ***Applied from the day it was added*** — [P13.8]. Read per request by the
+   * one-file import, off the live reference, as `maxUploadMb` is: before a
+   * byte is read, against the request's declared length, and again as the
+   * landing counts what it writes. `routes/import-landing.test.ts` lowers it
+   * through the settings route and watches the next upload refused.
+   */
+  'limits.maxImportUploadMb': 'applied',
 
   // Extensions appear in no phase list. Nothing reads this.
   'limits.extensionStorageQuotaMb': 'unread',
@@ -551,6 +597,7 @@ export const DEFAULT_CONFIG: Config = {
   sessions: { snapshotEveryNTurns: 10, streamKeepaliveMs: 15000, streamCoalesceMs: 250 },
   limits: {
     maxUploadMb: 64,
+    maxImportUploadMb: 1024,
     extensionStorageQuotaMb: 32,
     contextTokens: 8192,
     reservedCompletionTokens: 1024,
@@ -940,10 +987,7 @@ export async function loadConfig(
     }
   }
 
-  // `mergeDefaults` reads its first argument as the layer underneath, which is
-  // exactly the environment's position here — the name says `defaults` because
-  // that was the only thing ever underneath a file until now.
-  const merged = validateConfigDocument(mergeDefaults(environment, parsed), path);
+  const merged = resolveConfigDocument(parsed, environment, path);
 
   const fromFile = new Set(configKeys(parsed));
   const setByEnvironment = configKeys(environment);
@@ -963,6 +1007,29 @@ export async function loadConfig(
 /** The variable name for a key, falling back to the key for anything unmapped. */
 function variableFor(key: string): string {
   return VARIABLE_OF[key] ?? key;
+}
+
+/**
+ * ***What a start would make of a document***: the defaults, then the
+ * environment, then the document, validated (2026-09-27).
+ *
+ * The one composition {@link loadConfig} boots on, exported so the settings
+ * write asks the same question. It asked {@link validateConfigDocument}, which
+ * has no environment layer, so on a container (`SE_HOST`, `SE_PORT`,
+ * `SE_CLIENT_ROOT` all set) the config a save said would run differed from
+ * the one a restart ran, and the restart notice was computed from the wrong
+ * one.
+ *
+ * `mergeDefaults` reads its first argument as the layer underneath, which is
+ * exactly the environment's position here — the name says `defaults` because
+ * that was the only thing ever underneath a file until the environment came.
+ */
+export function resolveConfigDocument(
+  document: unknown,
+  environment: Record<string, unknown> = {},
+  path = 'the config',
+): Config {
+  return validateConfigDocument(mergeDefaults(environment, document), path);
 }
 
 /**

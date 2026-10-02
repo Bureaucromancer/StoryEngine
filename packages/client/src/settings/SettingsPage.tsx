@@ -101,7 +101,7 @@ export function SettingsPage(): JSX.Element {
         it holds their sessions and their objects, and an admin reading it would
         be reading somebody's deleted stories.
       */}
-      <Trash />
+      <Trash locale={account?.locale ?? undefined} />
 
       {/**
         ***Beside the trash, and for the trash's reason*** — [25 E6], [P12.6].
@@ -113,7 +113,10 @@ export function SettingsPage(): JSX.Element {
         gated — `scheduledBackups` governs the *server* writing them on a timer,
         which is a different question and is asked inside this panel.
       */}
-      <Backups capable={account?.capabilities.scheduledBackups === true} />
+      <Backups
+        capable={account?.capabilities.scheduledBackups === true}
+        locale={account?.locale ?? undefined}
+      />
 
       {account?.role === 'admin' ? (
         <section className="flex flex-col gap-8" aria-labelledby="administration">
@@ -137,7 +140,7 @@ export function SettingsPage(): JSX.Element {
             buttons; a second copy of the schedule here would be a second thing
             to keep true.
           */}
-          <AdminBackups />
+          <AdminBackups locale={account.locale ?? undefined} />
         </section>
       ) : null}
     </div>

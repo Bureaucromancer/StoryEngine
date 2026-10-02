@@ -27,7 +27,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   api: { libraryErrors: (...a: unknown[]) => libraryErrors(...a) as unknown },
 }));
 
-const { QuarantinePanel } = await import('./QuarantinePanel.js');
+const { fileErrorFor, QuarantinePanel, REASON_WORDS } = await import('./QuarantinePanel.js');
 
 function renderPanel(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -62,7 +62,7 @@ describe('the quarantine listing', () => {
           source: 'user',
           kind: 'storyengine.actor/1',
           slug: 'vera-kohl',
-          reason: 'invalid-json',
+          reason: 'unparsable',
           detail: 'Unexpected token } at position 412',
           seenAt: 0,
         },
@@ -71,7 +71,10 @@ describe('the quarantine listing', () => {
     renderPanel();
 
     expect(await screen.findByText(/vera-kohl/)).toBeTruthy();
-    expect(screen.getByText('invalid-json')).toBeTruthy();
+    // In words (2026-09-28): it printed the code, and the fixture's code was
+    // `invalid-json`, which the server has never sent.
+    expect(screen.getByText(REASON_WORDS['unparsable'] ?? '')).toBeTruthy();
+    expect(screen.queryByText('unparsable')).toBeNull();
     // The detail is the only thing that says *where in the file* to look, which
     // is the difference between a report and an errand.
     expect(screen.getByText(/position 412/)).toBeTruthy();
@@ -85,7 +88,7 @@ describe('the quarantine listing', () => {
           source: 'user',
           kind: 'storyengine.lorebook/1',
           slug: 'rain-city',
-          reason: 'invalid-json',
+          reason: 'schema',
           detail: null,
           seenAt: 0,
         },
@@ -94,5 +97,65 @@ describe('the quarantine listing', () => {
     renderPanel();
 
     expect(await screen.findByText(/Nothing was deleted/)).toBeTruthy();
+  });
+
+  /**
+   * ***Corrected 2026-09-28.*** It said these were *not in the list above*: the
+   * panel is above the list, and a file that broke after it was read is in it,
+   * as it last read. Only a file that never read is missing.
+   */
+  it('says a file that read before is still in the list below, and one that never did is not', async () => {
+    libraryErrors.mockResolvedValue({
+      errors: [
+        {
+          path: 'users/ned/library/lorebooks/rain-city/lorebook.json',
+          source: 'user',
+          kind: 'storyengine.lorebook/1',
+          slug: 'rain-city',
+          reason: 'schema',
+          detail: null,
+          seenAt: 0,
+        },
+      ],
+    });
+    renderPanel();
+
+    const said = await screen.findByText(/Nothing was deleted/);
+    expect(said.textContent).toMatch(/still in the list below as it last read/);
+    expect(said.textContent).not.toMatch(/list above/);
+  });
+});
+
+/**
+ * ***Which file's trouble an object's page shows*** (2026-09-28). A pure
+ * function rather than a render, because the negative is the case worth a
+ * test and a render cannot hold one: the page shows Edit before the list of
+ * errors answers, so *no alert* is true whether or not the match is right.
+ */
+describe('the trouble with one object', () => {
+  const object = { source: 'user' as const, schema: 'storyengine.actor/1', slug: 'vera-kohl' };
+  const row = (over: Record<string, unknown> = {}) => ({
+    path: 'users/ned/library/actors/vera-kohl/card.png',
+    source: 'user' as const,
+    kind: 'storyengine.actor/1',
+    slug: 'vera-kohl',
+    reason: 'schema',
+    detail: null,
+    seenAt: 0,
+    ...over,
+  });
+
+  it('is the row for its own file', () => {
+    expect(fileErrorFor([row({ slug: 'other' }), row()], object)).toEqual(row());
+  });
+
+  it("is never another folder's, another kind's or another owner's", () => {
+    const others = [
+      row({ slug: 'vera-kohl-2' }),
+      row({ kind: 'storyengine.lorebook/1' }),
+      row({ source: 'system' }),
+    ];
+    expect(fileErrorFor(others, object)).toBeUndefined();
+    expect(fileErrorFor(undefined, object)).toBeUndefined();
   });
 });

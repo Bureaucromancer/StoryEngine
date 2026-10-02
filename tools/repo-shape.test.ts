@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
+import { forbiddenPackages } from '../eslint.rules.js';
 import { BUILT_IN_MODE_PACKAGES } from '../packages/server/src/mode-loader.js';
 
 /**
@@ -49,8 +51,11 @@ import { BUILT_IN_MODE_PACKAGES } from '../packages/server/src/mode-loader.js';
  *   which §0.1a names as *"the obvious move and the wrong one"*.
  * - A second mode package whose `tsconfig.spec.json` nobody references from the
  *   root, so its tests typecheck against nothing.
- * - A mode in `BUILT_IN_MODE_PACKAGES` that the image does not deploy, which
- *   starts a server that refuses every turn.
+ * - A mode in `BUILT_IN_MODE_PACKAGES` that ~~the image does not deploy, which
+ *   starts a server that refuses every turn~~ the image or the release tarball
+ *   does not check for, which ships a server whose `loadModes` refuses to start
+ *   — and, since 2026-10-01, a mode deployed by name beside the server, which
+ *   fails the build that ships it.
  * - The eslint resolver losing the nested `tsconfig.json`, which does not fail
  *   anything — an import the resolver cannot resolve classifies as unknown, and
  *   an unknown import is *permitted*.
@@ -238,17 +243,60 @@ describe('the server does not acquire the edge it may not have', () => {
   });
 });
 
-describe('the image ships what the loader will ask for', () => {
+/**
+ * **The image and the tarball ship what the loader will ask for.**
+ *
+ * ~~Each mode is deployed by name beside the server, because `pnpm deploy` walks
+ * one package's dependency closure and the server's excludes the modes.~~
+ * ***The server's deploy already carries them*** (2026-10-01): the pinned pnpm's
+ * legacy deploy brings the root's dependencies into the deployed tree, so the
+ * per-mode deploys this block used to require met a path that was not empty and
+ * failed both builds — unseen, because only a `v*` tag runs either and none has
+ * been pushed since P7.0. What each build owes the loader now is a check, not a
+ * copy: every mode imported from the deployed tree, as `loadModes` will import
+ * it, before anything ships.
+ */
+describe('the image and the tarball ship what the loader will ask for', () => {
   const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8');
+  const release = readFileSync(join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
 
-  it.each(BUILT_IN_MODE_PACKAGES)('deploys %s beside the server', (specifier) => {
-    // **The one whose failure is a server that starts and then refuses every
-    // turn.** `pnpm deploy` walks one package's dependency closure and the
-    // server's deliberately excludes the modes, so each has to be deployed by
-    // name — and a mode added to the loader's list without a line here is an
-    // image that boots, registers nothing, and throws `assertModesRunnable`'s
-    // refusal at whoever presses Send.
-    expect(dockerfile).toContain(`pnpm --filter ${specifier} --legacy deploy`);
+  /** The line both builds run, once per mode, spelled once here. */
+  const importCheck = (specifier: string): string =>
+    `node --input-type=module -e "await import('${specifier}')"`;
+
+  it.each(BUILT_IN_MODE_PACKAGES)('the image imports %s from /app', (specifier) => {
+    // **Where the line runs is half of what it checks.** The build stage's
+    // `WORKDIR` is the workspace, whose own `node_modules` links every mode
+    // because the root declares them — so the same import from `/src` passes
+    // whatever `/app` holds, and a check that cannot fail is the thing this
+    // file exists to notice.
+    const at = dockerfile.indexOf(`RUN ${importCheck(specifier)}`);
+    expect(at).toBeGreaterThan(-1);
+
+    const workdirs = [...dockerfile.slice(0, at).matchAll(/^WORKDIR (.+)$/gm)];
+    expect(workdirs.at(-1)?.[1]).toBe('/app');
+  });
+
+  it.each(BUILT_IN_MODE_PACKAGES)('the release tarball imports %s from build/app', (specifier) => {
+    // The same check over the same tree, run where `pack-tarball.mjs` is about
+    // to read it; the step's `working-directory` is the half that matters, for
+    // the reason the image's `WORKDIR` is.
+    const at = release.indexOf(importCheck(specifier));
+    expect(at).toBeGreaterThan(-1);
+
+    const step = release.slice(release.lastIndexOf('\n      - ', at), at);
+    expect(step).toMatch(/^\s+working-directory: build\/app$/m);
+  });
+
+  it("deploys no mode by name, which the server's own deploy already did", () => {
+    // **The regression this block was rewritten for.** A second `pnpm deploy`
+    // into `node_modules/@storyengine/mode-*` fails on the link already there,
+    // and fails only at a tag — the one moment nobody is watching a build that
+    // has passed every check before it.
+    const byName = /--filter @storyengine\/mode-[\w-]+ --legacy deploy/;
+
+    expect(dockerfile).not.toMatch(byName);
+    expect(release).not.toMatch(byName);
   });
 });
 
@@ -417,7 +465,7 @@ describe('the engine names no mode', () => {
   const ALLOWED = new Map<string, string>([
     [
       'mode-registry.ts',
-      "DEFAULT_MODE_ID — the distribution's choice of default, which is a fact about this build rather than knowledge about the mode. Pinned to the package's own spelling by mode-loader.test.ts, which imports neither side.",
+      "DEFAULT_MODE_ID — the distribution's choice of default, which is a fact about this build rather than knowledge about the mode. CHAT_IMPORT_MODE_ID — the mode a SillyTavern or Marinara chat is imported into (P14.8), kept apart from the default so that moving one does not move the other. Both pinned to the package's own spelling by mode-loader.test.ts, which imports neither side.",
     ],
     [
       'test-mode.ts',
@@ -472,7 +520,7 @@ describe('the engine names no mode', () => {
       // and this file is about what the engine *does*.
       const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
       for (const match of code.matchAll(
-        /['"`]storyengine\.(scene|freeform|campaign|messages)[^'"`]*['"`]/g,
+        /['"`]storyengine\.(scene|freeform|assistant|campaign|messages)[^'"`]*['"`]/g,
       )) {
         named.push(`${file} → ${match[0]}`);
       }
@@ -577,6 +625,30 @@ describe('a rendition is internal tier, and stays there until the export freeze'
     const emitted = readdirSync(SCHEMAS).filter((name) => name.endsWith('.json'));
     expect(emitted).toHaveLength(6);
     expect(emitted.some((name) => name.includes('rendition'))).toBe(false);
+  });
+
+  /**
+   * ***And every one the build emits is committed*** — gap round A4.5,
+   * 2026-10-01. The count above reads the directory, which after `pnpm build`
+   * is the build's own output, so it agreed with an emitted file nobody had
+   * committed; so did CI's step, which diffed only tracked files. This is the
+   * same question asked of git before a push gets the chance.
+   */
+  it('commits every schema the build emits', () => {
+    const tracked = execFileSync('git', ['ls-files', '--', 'packages/shared/schemas'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((path) => path.endsWith('.json'))
+      .map((path) => path.slice(path.lastIndexOf('/') + 1))
+      .sort();
+    const emitted = readdirSync(SCHEMAS)
+      .filter((name) => name.endsWith('.json'))
+      .sort();
+
+    expect(tracked.length, 'git listed no schemas, so the comparison is empty').toBeGreaterThan(0);
+    expect(emitted).toEqual(tracked);
   });
 });
 
@@ -785,5 +857,44 @@ describe('the assistant, which must not be a second chat', () => {
     };
     walk(join(ROOT, 'packages', 'server', 'src'));
     expect(named).toEqual([]);
+  });
+});
+
+/**
+ * ***A file-level lint exemption narrows one rule, and keeps the rest*** —
+ * 2026-10-01.
+ *
+ * A flat config's later block **replaces** a rule's options rather than
+ * merging into them — F25's trap, which `eslint.config.js` explains where the
+ * test files restate their package bans. The blocks that exempt one file from
+ * the randomness or filesystem ban rebuild `no-restricted-imports` from
+ * scratch, and `packages/shared/src/ids.ts`'s rebuilt it without its package's
+ * bans: the one file in `shared` free to import the server, with every check
+ * green. So the resolved config is asked, per exempted file, whether the
+ * package bans survived the exemption.
+ */
+describe('the lint exemptions keep their package bans', () => {
+  const eslint = new ESLint({ cwd: ROOT });
+
+  const EXEMPT: readonly [string, keyof typeof forbiddenPackages][] = [
+    ['packages/shared/src/ids.ts', 'shared'],
+    ['packages/server/src/rng/source.ts', 'server'],
+    ['packages/server/src/rng/rng.ts', 'server'],
+    ['packages/server/src/auth/secrets.ts', 'server'],
+    ['packages/server/src/storage/files.ts', 'server'],
+  ];
+
+  it.each(EXEMPT)('%s still refuses what %s may not import', async (path, from) => {
+    const config = (await eslint.calculateConfigForFile(join(ROOT, path))) as {
+      rules?: Record<string, unknown>;
+    };
+    const rule = config.rules?.['no-restricted-imports'] as
+      [unknown, { paths?: { name: string }[] }] | undefined;
+    const banned = (rule?.[1]?.paths ?? []).map((entry) => entry.name);
+
+    expect(banned.length, `${path} resolved no import rule at all`).toBeGreaterThan(0);
+    for (const name of forbiddenPackages[from]) {
+      expect(banned, `${path} lost the ban on ${name}`).toContain(name);
+    }
   });
 });

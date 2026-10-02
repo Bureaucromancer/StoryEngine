@@ -380,6 +380,103 @@ describe('a Marinara install, pointed at wrongly', () => {
   });
 });
 
+/** An Aventuras config directory's one mark, under a prefix. */
+function aventurasRoot(prefix: string): Record<string, string> {
+  return { [`${prefix === '' ? '' : `${prefix}/`}aventura.db`]: 'SQLite format 3\0' };
+}
+
+describe('an Aventuras install, pointed at wrongly', () => {
+  /**
+   * [P13.7]: the platform's config folder, the home folder above it, and the
+   * folder between on the two platforms that have one — each the place 01 §2
+   * reads Tauri's app config directory off, with the bundle id beneath it.
+   */
+  const places: { picked: string; situation: string; suggest: string }[] = [
+    {
+      picked: '~/.config, ~/Library/Application Support or %APPDATA%',
+      situation: 'aventuras-config-folder',
+      suggest: 'com.karelian.aventura',
+    },
+    {
+      picked: 'a Linux home folder',
+      situation: 'aventuras-home-linux',
+      suggest: '.config/com.karelian.aventura',
+    },
+    {
+      picked: 'a macOS home folder',
+      situation: 'aventuras-home-macos',
+      suggest: 'Library/Application Support/com.karelian.aventura',
+    },
+    {
+      picked: 'a Windows profile folder',
+      situation: 'aventuras-home-windows',
+      suggest: 'AppData/Roaming/com.karelian.aventura',
+    },
+    {
+      picked: '~/Library',
+      situation: 'aventuras-library-folder',
+      suggest: 'Application Support/com.karelian.aventura',
+    },
+    {
+      picked: '%USERPROFILE%\\AppData',
+      situation: 'aventuras-appdata-folder',
+      suggest: 'Roaming/com.karelian.aventura',
+    },
+  ];
+
+  for (const { picked, situation, suggest } of places) {
+    it(`sends somebody who picked ${picked} to ${suggest}`, async () => {
+      const found = await at({
+        ...aventurasRoot(suggest),
+        // Everybody else's settings beside it, which is what a config folder is.
+        'some-other-app/settings.json': '{}',
+      });
+
+      expect(found).toEqual([
+        {
+          situation,
+          suggest,
+          leadsTo: 'aventuras',
+          confidence: 'verified',
+          note: { key: 'import.root.aventurasBelow', params: { path: suggest }, level: 'warn' },
+        },
+      ]);
+    });
+  }
+
+  it('says nothing of a bundle-id folder with no database in it', async () => {
+    // Aventuras makes the folder before it writes the file, and a hint that
+    // named an empty folder would be one the sweep then swept as loose files.
+    expect(await at({ 'com.karelian.aventura/logs/today.log': 'x' })).toEqual([]);
+    expect(await at({ '.config/com.karelian.aventura/window-state.json': '{}' })).toEqual([]);
+  });
+
+  it('does not look deeper than the places the platforms fix', async () => {
+    // A bound, not an accident: somebody who picked `/home` is not near, and
+    // finding them would need a walk this module is not allowed.
+    expect(await at(aventurasRoot('bob/.config/com.karelian.aventura'))).toEqual([]);
+    expect(await at(aventurasRoot('backups/com.karelian.aventura'))).toEqual([]);
+  });
+
+  it('says nothing about a folder that already is an Aventuras root', async () => {
+    // The gate, with a rule that would otherwise fire: the root holds its own
+    // database and, beneath it, a copy somebody left in the bundle id's name.
+    expect(await at({ ...aventurasRoot(''), ...aventurasRoot('com.karelian.aventura') })).toEqual(
+      [],
+    );
+  });
+
+  it('points back up from the stories folder an older backup carries', async () => {
+    const found = await within(
+      { 'the-drowned-bell.avt': '{}' },
+      { ...aventurasRoot(''), 'stories/the-drowned-bell.avt': '{}', 'metadata.json': '{}' },
+    );
+
+    expect(situations(found)).toEqual(['aventuras-above']);
+    expect(found[0]).toMatchObject({ suggest: '..', leadsTo: 'aventuras', confidence: 'verified' });
+  });
+});
+
 describe('folders it must stay quiet about', () => {
   it('says nothing about a hand-assembled folder that happens to have characters and worlds', async () => {
     // The exact false positive the marks exist to prevent. No `settings.json`,
@@ -477,6 +574,16 @@ describe('a suggestion the classifier would agree with', () => {
     { name: 'the Marinara install root', files: marinaraStore('packages/server/data') },
     { name: 'a picked packages/server', files: marinaraStore('data') },
     { name: 'a picked packages', files: marinaraStore('server/data') },
+    { name: 'a picked ~/.config', files: aventurasRoot('com.karelian.aventura') },
+    { name: 'a Linux home folder', files: aventurasRoot('.config/com.karelian.aventura') },
+    {
+      name: 'a macOS home folder',
+      files: aventurasRoot('Library/Application Support/com.karelian.aventura'),
+    },
+    {
+      name: 'a Windows profile folder',
+      files: aventurasRoot('AppData/Roaming/com.karelian.aventura'),
+    },
   ];
 
   for (const { name, files } of cases) {
@@ -611,6 +718,68 @@ describe('against a real directory tree', () => {
     expect(retry.ok).toBe(true);
     if (!retry.ok) return;
     expect(await classifyRoot(retry.source)).toEqual({ ok: true, kind: 'sillytavern' });
+  });
+
+  it('finds Aventuras beneath a real home folder, and the suggestion classifies', async () => {
+    // [P13.7] on the filesystem: a space in `Application Support` is a name,
+    // and `DirectorySource` must agree with memory about it.
+    const home = await tree([
+      'Library/Application Support/com.karelian.aventura/aventura.db',
+      'Library/Application Support/SomethingElse/prefs.plist',
+    ]);
+    const opened = await openLocalSource(home, elsewhere);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+
+    const found = await nearMiss({ files: opened.source });
+    expect(situations(found)).toEqual(['aventuras-home-macos']);
+
+    const offered = await suggestedRoot(home, found[0]!.suggest!);
+    expect(offered).toBe(
+      join(await realpath(home), 'Library', 'Application Support', 'com.karelian.aventura'),
+    );
+    const retry = await openLocalSource(offered, elsewhere);
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    expect(await classifyRoot(retry.source)).toEqual({ ok: true, kind: 'aventuras' });
+  });
+
+  it('does not follow a link out of the picked folder to find Aventuras', async () => {
+    // The source's containment, not a rule of ours: a `~/.config` whose
+    // `com.karelian.aventura` is a link to somewhere outside it says nothing,
+    // exactly as a read through that link would be refused.
+    const outside = await tree(['com.karelian.aventura/aventura.db']);
+    const config = await tree(['some-other-app/settings.json']);
+    try {
+      await symlink(
+        join(outside, 'com.karelian.aventura'),
+        join(config, 'com.karelian.aventura'),
+        'junction',
+      );
+    } catch {
+      return;
+    }
+    const opened = await openLocalSource(config, elsewhere);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+
+    expect(await nearMiss({ files: opened.source })).toEqual([]);
+
+    // And a link that stays inside is followed, as any read through it would be.
+    const home = await tree(['dotfiles/aventura/aventura.db'], ['.config']);
+    try {
+      await symlink(
+        join(home, 'dotfiles', 'aventura'),
+        join(home, '.config', 'com.karelian.aventura'),
+        'junction',
+      );
+    } catch {
+      return;
+    }
+    const inside = await openLocalSource(home, elsewhere);
+    expect(inside.ok).toBe(true);
+    if (!inside.ok) return;
+    expect(situations(await nearMiss({ files: inside.source }))).toEqual(['aventuras-home-linux']);
   });
 
   it('refuses to open a parent inside our own data directory', async () => {

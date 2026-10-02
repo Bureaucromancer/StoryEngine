@@ -57,7 +57,12 @@ function pooled(one: PlotHook, source: PooledHook['source'] = { kind: 'treatment
   return [{ hook: one, source }];
 }
 
-/** A turn whose only effect introduces somebody, which is what `introducedOn` reads. */
+/**
+ * A turn of the story whose only effect introduces somebody, which is what
+ * `introducedOn` reads. It has prose, because the narrator's turn is where an
+ * introduction comes from, and because prose is what makes it a turn
+ * `notBefore` counts.
+ */
 function metThem(...actorIds: string[]): Turn {
   return {
     id: 't',
@@ -66,6 +71,7 @@ function metThem(...actorIds: string[]): Turn {
     createdAt: '2026-09-12T00:00:00.000Z',
     status: 'complete',
     tape: [],
+    output: { text: 'They met at the gate.' },
     effects: actorIds.map((scopeKey, index) => ({
       id: `e${String(index)}`,
       turnId: 't',
@@ -81,6 +87,19 @@ function metThem(...actorIds: string[]): Turn {
       channelVersion: 1,
       scope: 'session' as const,
     })),
+  };
+}
+
+/** A turn nothing narrated — a channel write, an undo, a backdrop choice. */
+function bookkeeping(): Turn {
+  return {
+    id: 'b',
+    sessionId: 's',
+    parentTurnId: null,
+    createdAt: '2026-09-12T00:00:00.000Z',
+    status: 'complete',
+    tape: [],
+    effects: [],
   };
 }
 
@@ -228,6 +247,20 @@ describe('blockedBy and notBefore', () => {
 
     expect(refusalOf(pool, context({ path: [metThem(), metThem()] }))).toBe('too-early');
     expect(refusalOf(pool, context({ path: [metThem(), metThem(), metThem()] }))).toBeNull();
+  });
+
+  /**
+   * ***A turn of the story, not a turn on the path*** (2026-09-27). The path
+   * holds the channel writes, undos and backdrop choices that must branch like
+   * turns, and counting them let a hook authored *not before turn 12* in at the
+   * ninth turn anybody read.
+   */
+  it('counts the turns of the story, not what the path holds between them', () => {
+    const pool = pooled(hook({ notBefore: { turn: 3 } }));
+    const padded = [bookkeeping(), metThem(), bookkeeping(), metThem(), bookkeeping()];
+
+    expect(refusalOf(pool, context({ path: padded }))).toBe('too-early');
+    expect(refusalOf(pool, context({ path: [...padded, metThem()] }))).toBeNull();
   });
 
   it('waits for another hook to have fired', () => {

@@ -145,6 +145,31 @@ describe('what it declines', () => {
     expect(readZipEntry(zip, lying)).toBeNull();
   });
 
+  it('inflates an entry to what it declared, and no further', () => {
+    /**
+     * ***The ceiling is the declared size*** (2026-09-27). The total bound adds
+     * up declared sizes, and many central entries may point at one local
+     * header, so thousands of one-byte declarations over one stream that
+     * inflates to the per-entry maximum passed every bound: about 256 GB of
+     * synchronous inflation from a 300 KB upload. An entry that inflates to
+     * anything but what it declared is refused, which makes the declared total
+     * the real one.
+     */
+    const zip = makeZip([
+      { name: 'big.bin', body: 'x'.repeat(8192), deflate: true },
+      { name: 'empty.txt', body: '', deflate: true },
+    ]);
+    const directory = readZipDirectory(zip);
+    if (!directory.ok) throw new Error('expected a directory');
+    const [big, empty] = directory.entries;
+
+    expect(readZipEntry(zip, big!)?.byteLength).toBe(8192);
+    expect(readZipEntry(zip, { ...big!, uncompressedSize: 1 })).toBeNull();
+    expect(readZipEntry(zip, { ...big!, uncompressedSize: 9000 })).toBeNull();
+    // An empty deflated entry is legitimate, and Node refuses a zero ceiling.
+    expect(readZipEntry(zip, empty!)?.byteLength).toBe(0);
+  });
+
   it('bounds the inflate itself, not only the declared size', () => {
     // The declared size is checked in the directory; a crafted archive can
     // declare a small one and inflate to something else entirely, so the

@@ -4,6 +4,7 @@
 import { readTarGz } from '../storage/tar-archive.js';
 import { DEFAULT_ZIP_LIMITS, type ZipLimits } from '../storage/zip.js';
 
+import { scope } from './memory-source.js';
 import type { FileSource } from './source.js';
 
 /**
@@ -47,6 +48,72 @@ export type BackupSourceRefusal =
 export type OpenedBackupSource =
   { ok: true; source: BackupFileSource } | { ok: false; refusal: BackupSourceRefusal };
 
+/**
+ * ***The bounds for a backup, which is not an upload*** (2026-09-27).
+ *
+ * The import used `zip.ts`'s upload limits, and counted every member of the
+ * archive against them, read or not. An account of about eighty well-edited
+ * objects is more than 4,096 files once each object's history is counted, and
+ * an install archive is past 256 MiB as soon as it has pictures in it; both
+ * were refused as *could not be read*. Now only the members the import reads
+ * are counted (see `open`'s `keep`), against limits sized for one person's
+ * work: many more entries, since they are small, and a total that still keeps
+ * the whole of what is read in memory within reach of a small server.
+ */
+export const BACKUP_IMPORT_LIMITS: ZipLimits = {
+  maxEntries: 65_536,
+  maxEntryBytes: 64 * 1024 * 1024,
+  maxTotalBytes: 512 * 1024 * 1024,
+};
+
+/**
+ * What an import of `handle`'s part of an archive reads, and nothing else.
+ *
+ * `backup.json`, the install's `config.json` when settings were asked for,
+ * and under `users/<handle>/`: each library object's file and its `assets/`,
+ * the tags, the prefs, the connections, and each session's file, turns,
+ * rendition records and pictures — the renditions' `assets/` and, since
+ * 2026-09-27, the `attachments/` a player put on their moves ([25 E15]).
+ * **Not** another account, `state/`, an object's `history/` or a session's
+ * snapshots: nothing reads them, so nothing should be held or counted for them.
+ */
+export function importedBy(
+  handle: string,
+  options: { config?: boolean } = {},
+): (name: string) => boolean {
+  const mine = `users/${handle}/`;
+  return (name) => {
+    if (name === 'backup.json') return true;
+    if (name === 'config.json') return options.config === true;
+    if (!name.startsWith(mine)) return false;
+    const rest = name.slice(mine.length).split('/');
+    const [top, ...under] = rest;
+    switch (top) {
+      case 'tags.json':
+      case 'prefs.json':
+        return under.length === 0;
+      case 'connections':
+        return under.length === 1;
+      case 'library':
+        // <kind>/<slug>/<file>, or <kind>/<slug>/assets/<file>.
+        return under.length === 3 || (under.length === 4 && under[2] === 'assets');
+      case 'sessions': {
+        const [, part, ...more] = under;
+        if (part === 'session.json') return more.length === 0;
+        return (
+          (part === 'turns' ||
+            part === 'renditions' ||
+            part === 'assets' ||
+            part === 'attachments') &&
+          more.length === 1
+        );
+      }
+      default:
+        return false;
+    }
+  };
+}
+
 export class BackupFileSource implements FileSource {
   readonly #members: Map<string, Uint8Array>;
 
@@ -65,6 +132,12 @@ export class BackupFileSource implements FileSource {
   static async open(
     path: string,
     limits: ZipLimits = DEFAULT_ZIP_LIMITS,
+    /**
+     * Which members to hold, checked after containment and before the bounds:
+     * `importedBy` for an import. Every member is still checked for escaping,
+     * because an archive that names one is not an archive to read at all.
+     */
+    keep: (name: string) => boolean = () => true,
   ): Promise<OpenedBackupSource> {
     const members = new Map<string, Uint8Array>();
     let total = 0;
@@ -86,6 +159,7 @@ export class BackupFileSource implements FileSource {
         if (name.split('/').some((part) => part === '..') || name.includes('\0')) {
           return { ok: false, refusal: 'unsafe-path' };
         }
+        if (!keep(name)) continue;
 
         if (members.size >= limits.maxEntries) return { ok: false, refusal: 'too-large' };
         if (member.bytes.length > limits.maxEntryBytes) return { ok: false, refusal: 'too-large' };
@@ -105,8 +179,18 @@ export class BackupFileSource implements FileSource {
     return { ok: true, source: new BackupFileSource(members) };
   }
 
-  async *list(): AsyncIterable<string> {
-    for (const name of this.#members.keys()) yield await Promise.resolve(name);
+  /**
+   * ***Scoped by `under`*** (2026-10-02), which the contract has asked since
+   * [P4 §7.18] and this, written beside it on another branch, never read: the
+   * merge of the two found it yielding every member whatever it was asked for.
+   * No reader of a backup scopes a walk today; the `scope` predicate is the one
+   * the other sources use, so the day one does, the answer is the same here.
+   */
+  async *list(under?: string): AsyncIterable<string> {
+    const within = scope(under);
+    for (const name of this.#members.keys()) {
+      if (within(name)) yield await Promise.resolve(name);
+    }
   }
 
   read(path: string): Promise<Uint8Array | null> {

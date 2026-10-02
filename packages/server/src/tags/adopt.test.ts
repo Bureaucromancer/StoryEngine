@@ -104,6 +104,26 @@ describe('adoption', () => {
     expect(registry.map((tag) => tag.name)).toEqual(['Noir']);
   });
 
+  it('adopts a name the registry holds under another width or kana', async () => {
+    /**
+     * ***The lookup asks what the mint asked*** (2026-09-27). The mint skips a
+     * name `sameTag` already finds, and `sameTag` calls full-width letters and
+     * ASCII the same, and hiragana and katakana. The lookup lowercased, which
+     * does neither, so these objects were skipped as having *no registry
+     * entry* on every run, and adoption could never finish.
+     */
+    await server.request({ method: 'POST', url: '/api/tags', payload: { name: 'noir' } });
+    await server.request({ method: 'POST', url: '/api/tags', payload: { name: 'ねこ' } });
+    const id = await makeActor('Vera', ['ｎｏｉｒ', 'ネコ']);
+
+    const report = await adopt();
+
+    expect(report.body.skipped).toEqual([]);
+    expect(report.body.minted).toEqual([]);
+    const byName = new Map((await tags()).map((tag) => [tag.name, tag.id]));
+    expect((await readActor(id)).tagIds).toEqual([byName.get('noir'), byName.get('ねこ')]);
+  });
+
   it('adopts an object with no tags as having none, not as unadopted', async () => {
     const id = await makeActor('Vera', []);
 
@@ -267,6 +287,92 @@ describe('the lore gates a rename would break', () => {
     const book = await server.request({ method: 'GET', url: `/api/library/lorebooks/${bookId}` });
     const entries = book.body.object.entries as { actorTagFilter: { values: string[] } }[];
     expect(entries[0]?.actorTagFilter.values).toEqual(['Noir Fiction']);
+  });
+
+  /**
+   * ***The dialog's own sequence*** (2026-09-28): ask, then rename once with
+   * the answer. The dialog used to rename first and offer the rewrite second,
+   * and by then the scan was for the new name and found nothing — so every
+   * test of the two halves passed while the pair did nothing.
+   */
+  it('rewrites them when the rename that follows a dry run asks it to', async () => {
+    const bookId = await makeGatedBook('noir');
+    await makeActor('Vera', ['noir']);
+    await adopt();
+    const tag = (await tags()).find((row) => row.name === 'noir');
+    const url = `/api/tags/${tag?.id ?? ''}/rename`;
+
+    const asked = await server.request({
+      method: 'POST',
+      url,
+      payload: { to: 'Noir Fiction', dryRun: true },
+    });
+    expect(asked.body.gatesFound).toEqual([{ book: 'Ardent', entry: 'Harbour' }]);
+    expect(asked.body.actorsRenamed).toBe(1);
+
+    const renamed = await server.request({
+      method: 'POST',
+      url,
+      payload: { to: 'Noir Fiction', rewriteGates: true },
+    });
+
+    expect(renamed.body.booksRewritten).toEqual(['Ardent']);
+    const book = await server.request({ method: 'GET', url: `/api/library/lorebooks/${bookId}` });
+    const entries = book.body.object.entries as { actorTagFilter: { values: string[] } }[];
+    expect(entries[0]?.actorTagFilter.values).toEqual(['Noir Fiction']);
+  });
+
+  it('moves nothing on a dry run', async () => {
+    const bookId = await makeGatedBook('noir');
+    await makeActor('Vera', ['noir']);
+    await adopt();
+    const tag = (await tags()).find((row) => row.name === 'noir');
+
+    await server.request({
+      method: 'POST',
+      url: `/api/tags/${tag?.id ?? ''}/rename`,
+      payload: { to: 'Noir Fiction', dryRun: true, rewriteGates: true },
+    });
+
+    expect((await tags()).map((row) => row.name)).toEqual(['noir']);
+    const book = await server.request({ method: 'GET', url: `/api/library/lorebooks/${bookId}` });
+    const entries = book.body.object.entries as { actorTagFilter: { values: string[] } }[];
+    expect(entries[0]?.actorTagFilter.values).toEqual(['noir']);
+  });
+
+  it('refuses a dry run into a name that is another tag', async () => {
+    await makeActor('Vera', ['noir', 'city']);
+    await adopt();
+    const tag = (await tags()).find((row) => row.name === 'noir');
+
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/tags/${tag?.id ?? ''}/rename`,
+      payload: { to: 'City', dryRun: true },
+    });
+
+    expect(asked.status).toBe(409);
+  });
+
+  /**
+   * *Only an adopted actor is renamed*: one made after adoption reads its own
+   * names (`resolveTagNames`), so the rename does not reach it and a gate on
+   * the old name goes on matching it. The count is what lets the dialog not
+   * ask — and not break gates — in a library where nothing is adopted.
+   */
+  it('counts only the actors that carry the tag by its id', async () => {
+    await makeActor('Vera', ['noir']);
+    await adopt();
+    await makeActor('Kohl', ['noir']);
+    const tag = (await tags()).find((row) => row.name === 'noir');
+
+    const asked = await server.request({
+      method: 'POST',
+      url: `/api/tags/${tag?.id ?? ''}/rename`,
+      payload: { to: 'Noir Fiction', dryRun: true },
+    });
+
+    expect(asked.body.actorsRenamed).toBe(1);
   });
 
   /**

@@ -3,7 +3,7 @@
 
 import { newLorebook, type ImportNote, type LoreEntry, type Lorebook } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
+import { distinctIds, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
@@ -135,6 +135,9 @@ export function convertLorebook(input: unknown, name: string): ParseOutcome<Conv
   const lorebook = newLorebook(typeof input['name'] === 'string' ? input['name'] : name);
 
   lorebook.entries = rows.filter(isRecord).map((row) => convertEntry(row, notes));
+  // Two rows of one name and content (blank drafts, most often) would derive
+  // one id twice; `distinctIds` says what that cost.
+  distinctIds(lorebook.entries, 'entry', lorebook.name);
 
   applyBookFields(input, lorebook, notes);
   applyScope(input, lorebook, notes);

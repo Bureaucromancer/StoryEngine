@@ -37,13 +37,29 @@ import { describe, expect, it } from 'vitest';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Tracked text files. Binaries and the lockfile carry no citations. */
+/**
+ * Tracked text files. Binaries and the lockfile carry no citations.
+ *
+ * ***By name as well as by extension*** (2026-10-01). Rule (e) below says it
+ * reads the bare paths in `Dockerfile` and `.gitignore`, and the filter here
+ * admitted neither — an extension list cannot name a file with no extension —
+ * so the renumbering left twelve dead `docs/design/` paths in `Dockerfile`,
+ * `.dockerignore`, `.gitignore` and `.gitattributes` under a rule that said it
+ * was watching them. The deploy scripts and the unit are named for the same
+ * reason.
+ */
 function trackedFiles(): string[] {
   const out = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
   return out
     .split('\0')
     .filter(Boolean)
-    .filter((path) => /\.(md|ts|tsx|mjs|cjs|js|json|yml|yaml|css|html|xml)$/.test(path))
+    .filter(
+      (path) =>
+        /\.(md|ts|tsx|mjs|cjs|js|json|yml|yaml|css|html|xml|sh|service)$/.test(path) ||
+        /(?:^|\/)(?:Dockerfile|\.dockerignore|\.gitignore|\.gitattributes|\.prettierignore|\.npmrc)$/.test(
+          path,
+        ),
+    )
     .filter((path) => path !== 'pnpm-lock.yaml');
 }
 
@@ -285,6 +301,76 @@ describe('every bare documentation path resolves', () => {
       bare,
       `${String(bare.length)} reference(s) name a number with no filename, which nothing can verify`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * **(h)** The renumbering registry names every numbered document, at the
+ * number it is filed under.
+ *
+ * The work-plan README said from 2026-09-09 that this file *"refuses a
+ * work-plan file that has no name in the registry"*, and nothing here read
+ * the registry until 2026-10-02. Four documents were filed in the meantime
+ * with no line in `PLAN_ORDER` — P12, P13, P14 and the main audit — and every
+ * run was green; `tools/renumber-docs.mjs --rewrite` would have cited each of
+ * them as `undefined §x`, which is the defect that script's P7B comment says it
+ * fixed once already. The merge that found them also filed two documents
+ * under one number (30, P12A's and P13's), which the script's `--plan` does
+ * not notice: it maps registry entries to files, never files to entries.
+ *
+ * **Read as text, not imported**, because the script runs `buildMap()` and
+ * `git` the moment it loads, and the lists are not exported. The floors below
+ * are what stop a pattern that stopped matching from agreeing with nothing.
+ */
+describe('the renumbering registry names every document where it is filed', () => {
+  const script = readFileSync(join(root, 'tools/renumber-docs.mjs'), 'utf8');
+  const body = (name: string): string =>
+    new RegExp(`const ${name} = \\[\\n([\\s\\S]*?)\\n\\];`).exec(script)?.[1] ?? '';
+  const DESIGN = [...body('DESIGN_ORDER').matchAll(/^\s*'([a-z0-9-]+)',$/gm)].map(
+    (match) => match[1] ?? '',
+  );
+  const PLAN = [...body('PLAN_ORDER').matchAll(/^\s*\['([a-z0-9-]+)', '[^']+'\],$/gm)].map(
+    (match) => match[1] ?? '',
+  );
+
+  /** Every tracked `NN-slug.md` directly in `folder`, as its number and slug. */
+  const filed = (folder: RegExp): { path: string; number: number; slug: string }[] =>
+    FILES.map((file) => file.path).flatMap((path) => {
+      const found = folder.exec(path);
+      return found === null ? [] : [{ path, number: Number(found[1]), slug: found[2] ?? '' }];
+    });
+
+  it('names every work-plan document at its number', () => {
+    const files = filed(/^docs\/design\/workplan\/(\d{2})-([a-z0-9-]+)\.md$/);
+    const wrong = files
+      .filter(({ number, slug }) => PLAN[number - 1] !== slug)
+      .map(
+        ({ path, number }) =>
+          `${path} — the registry has ${PLAN[number - 1] ?? 'nothing'} at ${String(number)}`,
+      );
+
+    expect(wrong, `${String(wrong.length)} work-plan document(s) the registry misplaces`).toEqual(
+      [],
+    );
+    expect(files.length, 'a registry line with no document, or a document twice').toBe(PLAN.length);
+  });
+
+  it('names every design note at its number', () => {
+    const files = filed(/^docs\/design\/(\d{2})-([a-z0-9-]+)\.md$/);
+    const wrong = files
+      .filter(({ number, slug }) => DESIGN[number] !== slug)
+      .map(
+        ({ path, number }) =>
+          `${path} — the registry has ${DESIGN[number] ?? 'nothing'} at ${String(number)}`,
+      );
+
+    expect(wrong, `${String(wrong.length)} design note(s) the registry misplaces`).toEqual([]);
+    expect(files.length, 'a registry line with no note, or a note twice').toBe(DESIGN.length);
+  });
+
+  it('read both lists', () => {
+    expect(PLAN.length, 'PLAN_ORDER').toBeGreaterThan(30);
+    expect(DESIGN.length, 'DESIGN_ORDER').toBeGreaterThan(20);
   });
 });
 

@@ -4,9 +4,16 @@
 import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { NodeFsHandler } from 'chokidar/handler.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { LOREBOOK_SCHEMA, newActor, newLorebook } from '@storyengine/shared';
+import {
+  LOREBOOK_SCHEMA,
+  newActor,
+  newLorebook,
+  newTreatment,
+  TREATMENT_SCHEMA,
+} from '@storyengine/shared';
 
 import { SelfWriteRegistry } from '../storage/atomic.js';
 import { listVersions, readVersionPayload } from '../storage/history.js';
@@ -129,6 +136,58 @@ describe('a hand edit on disk reflects without a restart', () => {
     await rm(dirname(path), { recursive: true });
 
     await eventually(() => listObjects(library.db, { owners: [library.owner] }).length === 0);
+  });
+});
+
+/**
+ * ***A folder made while its parent was still being looked at*** — 2026-09-27,
+ * and the reason `patches/chokidar@5.0.0.patch` exists.
+ *
+ * chokidar met a new directory by **reading it, then watching it**. Anything
+ * made inside it between the two was in neither the listing nor any event, and
+ * a *folder* made there was never watched at all, so nothing written under it
+ * was ever seen: not the next hand edit, not any after it, until a restart's
+ * reconcile. A file made there was only late, since the directory's own watch
+ * reports its next change. That is what `cp -r` or a checkout into the
+ * library does, a tree created faster than it is discovered, and it was gate
+ * step 16's intermittent timeout: `users/ned/library` was being read when the
+ * first save made `lorebooks/` inside it.
+ *
+ * **The gap is forced rather than hoped for.** The directory's first read is
+ * wrapped so the tree is made after the read has finished and before
+ * `_handleDir` goes on. Unpatched, that is exactly the moment the watch did not
+ * exist yet; patched, the watch came first and hears it.
+ */
+describe('a folder made while its parent is still being read', () => {
+  it('is watched, and a new object inside it is indexed', async () => {
+    const file = library.layout.objectFile(library.owner, TREATMENT_SCHEMA, 'harbour-job');
+    const made = dirname(file);
+    const parent = dirname(made);
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- held to be put back, and only ever called with `.call(this, …)`
+    const original = NodeFsHandler.prototype._handleRead;
+    let forced = false;
+    NodeFsHandler.prototype._handleRead = function (directory, ...rest) {
+      const read = original.call(this, directory, ...rest);
+      if (forced || join(directory, '') !== join(parent, '')) return read;
+      forced = true;
+      return (async () => {
+        await read;
+        await mkdir(made);
+        await writeFile(file, JSON.stringify(newTreatment('The Harbour Job')));
+      })();
+    };
+
+    try {
+      await mkdir(parent);
+      await eventually(() => forced);
+      await eventually(() =>
+        listObjects(library.db, { owners: [library.owner] }).some(
+          (row) => row.name === 'The Harbour Job',
+        ),
+      );
+    } finally {
+      NodeFsHandler.prototype._handleRead = original;
+    }
   });
 });
 
@@ -488,4 +547,86 @@ describe('a root reached through a link', () => {
       await rm(outer, { recursive: true, force: true });
     }
   });
+});
+
+/**
+ * ***One event's failure is that event's, and is said*** (2026-09-27).
+ *
+ * The queue ran the next event whether or not the last one failed, and left
+ * the failure as a rejected promise nothing handled until the next event came.
+ * Node's default for that is to end the process. So a card saved as a link to
+ * a file outside the data directory, a file a scanner held locked, or a full
+ * disk during the snapshot took the whole server down, and after the restart
+ * the edit was never looked at again, because the watcher does not replay
+ * what it has already seen. Unfixed, the first of these fails the run on an
+ * unhandled rejection before any assertion is reached.
+ */
+describe('an event the watcher cannot handle', () => {
+  function capture(): Record<string, unknown>[] {
+    const lines: Record<string, unknown>[] = [];
+    const write = (object: Record<string, unknown>) => lines.push(object);
+    watcher.setLogger({
+      child: () => ({ child: () => null as never, info: write, warn: write, error: write }),
+      info: write,
+      warn: write,
+      error: write,
+    });
+    return lines;
+  }
+
+  it('is logged, and the next event is still handled', async () => {
+    const lines = capture();
+    // An observer that throws on the first event is the handler failing, the
+    // way a locked file or a full disk fails it, on every platform.
+    let thrown = false;
+    const unsubscribe = watcher.observe(() => {
+      if (thrown) return;
+      thrown = true;
+      throw new Error('no space left on device');
+    });
+
+    try {
+      const first = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city');
+      await mkdir(dirname(first), { recursive: true });
+      await writeFile(first, JSON.stringify(newLorebook('Rain City')));
+      await eventually(() => lines.some((line) => line['event'] === 'watcher.failed'));
+
+      const second = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'the-harbour');
+      await mkdir(dirname(second), { recursive: true });
+      await writeFile(second, JSON.stringify(newLorebook('The Harbour')));
+      await eventually(() =>
+        listObjects(library.db, { owners: [library.owner] }).some(
+          (row) => row.name === 'The Harbour',
+        ),
+      );
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  // A file link needs privileges on Windows. The code under test is the same
+  // on both platforms, and the first test above holds the queue on both.
+  it.skipIf(process.platform === 'win32')(
+    'refuses a file that links out of the data directory, and says which',
+    async () => {
+      const lines = capture();
+      const outside = await mkdtemp(join(tmpdir(), 'se-watched-outside-'));
+      try {
+        const target = join(outside, 'lorebook.json');
+        await writeFile(target, JSON.stringify(newLorebook('Not Yours')));
+        const linked = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'not-yours');
+        await mkdir(dirname(linked), { recursive: true });
+        await symlink(target, linked);
+
+        await eventually(() =>
+          events.some((event) => event.path === linked && event.type === 'refused'),
+        );
+        const line = lines.find((entry) => entry['event'] === 'library.refused');
+        expect(String(line?.['path'])).toContain('not-yours');
+        expect(listObjects(library.db, { owners: [library.owner] })).toEqual([]);
+      } finally {
+        await rm(outside, { recursive: true, force: true });
+      }
+    },
+  );
 });

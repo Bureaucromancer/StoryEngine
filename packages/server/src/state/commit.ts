@@ -79,6 +79,7 @@ export async function advanceCommit(
   job: Job,
   turn: Turn,
   now: number = Date.now(),
+  extras: CommitExtras = {},
 ): Promise<Job> {
   /**
    * **The draft must be the turn this job reserved.**
@@ -132,7 +133,7 @@ export async function advanceCommit(
       // sets rather than advances and recomputes the channel map from the
       // turn's effects, so a head that already names this turn is the state
       // this step produces.
-      await advanceHead(context.sessions, job.account, job.sessionId, turn);
+      await advanceHead(context.sessions, job.account, job.sessionId, turn, extras.hidden);
       return setStep(context, job, 3, 'finalising', now);
     }
 
@@ -171,14 +172,29 @@ export async function advanceCommit(
   }
 }
 
+/**
+ * ***What the head move writes beside the turn*** — added 2026-09-29, at the
+ * [P14.4] review. `hidden` is the new turn's `session.hidden` entry, which a
+ * swipe, a continue or an edit carries from the turn it names
+ * (`TurnPayload.hidden`); written by `advanceHead` in the same session write
+ * as the head, under the lock this protocol already holds.
+ *
+ * *Not on the draft*, so startup recovery commits without it — see
+ * `TurnPayload.hidden` for why that is accepted.
+ */
+export interface CommitExtras {
+  hidden?: true | readonly number[];
+}
+
 /** Runs the protocol to completion from wherever the job currently is. */
 export async function finaliseTurn(
   context: CommitContext,
   jobId: string,
   turn: Turn,
   now: number = Date.now(),
+  extras: CommitExtras = {},
 ): Promise<Job> {
-  return withSessionLock(turn.sessionId, () => finaliseLocked(context, jobId, turn, now));
+  return withSessionLock(turn.sessionId, () => finaliseLocked(context, jobId, turn, now, extras));
 }
 
 async function finaliseLocked(
@@ -186,12 +202,13 @@ async function finaliseLocked(
   jobId: string,
   turn: Turn,
   now: number,
+  extras: CommitExtras,
 ): Promise<Job> {
   let job = readJob(context.db, jobId);
   if (!job) throw new Error(`No job with id ${jobId}.`);
 
   while (job.commitStep < COMMIT_STEPS) {
-    job = await advanceCommit(context, job, turn, now);
+    job = await advanceCommit(context, job, turn, now, extras);
   }
   return job;
 }
@@ -333,15 +350,36 @@ export async function reconcile(
  * session with two children of the head is a branch, and P2 has no semantics for
  * choosing between them ([07 §4](../../../../docs/design/07-branching.md)) — guessing there
  * would silently pick somebody's story for them.
+ *
+ * ***And only over turns appended after the session's last write, unless the
+ * store is new*** (2026-09-27). Since [P6.1] a head can rest on a turn that
+ * has one child: *Continue from here* moves it back along a line, and an undo
+ * moves it to the parent of the turn it undid. The walk ran at every start,
+ * for every session, and could not tell a head somebody parked from one a
+ * crash left behind, so every restart put a parked head back at the tip and
+ * the story the person chose was gone, with the next submission refused as
+ * stale.
+ *
+ * With `sinceLastWrite`, a child counts only if it was created at or after the
+ * session's `updatedAt`. Parking a head writes the session, so every child
+ * that already existed is older than that. A turn a crash left unlinked was
+ * appended after the session's last write, so it still counts. That is the
+ * start-up pass with the operational store intact, where interrupted turn jobs
+ * are finished by `reconcile` and this has only the unlocked appends left to
+ * mend. With the store new (deleted, or never there) there are no jobs to
+ * resume from, and the walk is the whole of [P2 §2.10]'s remedy, as before.
  */
 export async function reconcileSession(
   sessions: SessionContext,
   handle: string,
   sessionId: string,
+  options: { sinceLastWrite?: boolean } = {},
 ): Promise<number> {
   return withSessionLock(sessionId, async () => {
     const session = await readSession(sessions, handle, sessionId);
     if (session === null) return 0;
+    // Captured before the walk, which writes the session as it advances.
+    const since = options.sinceLastWrite === true ? session.updatedAt : null;
 
     const turns = await readTurns(sessions, handle, sessionId);
     // Shared with the navigation [P6.1] added, which asks the same question of
@@ -356,7 +394,9 @@ export async function reconcileSession(
     // outcome that is worse than ignoring it.
     const seen = new Set<string>();
     for (;;) {
-      const children = byParent.get(head) ?? [];
+      const children = (byParent.get(head) ?? []).filter(
+        (child) => since === null || child.createdAt >= since,
+      );
       const only = children.length === 1 ? children[0] : undefined;
       if (!only || seen.has(only.id)) break;
       seen.add(only.id);

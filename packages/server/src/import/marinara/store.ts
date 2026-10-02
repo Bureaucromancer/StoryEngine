@@ -4,6 +4,7 @@
 import type { FileSource } from '../source.js';
 
 import {
+  CHAT_TABLES,
   INDIRECT_SHARD_TABLES,
   READ_TABLES,
   SHARD_OWNERS,
@@ -504,15 +505,25 @@ export async function assessStructure(
  * Not a refusal and not a finding: a count can be stale, and a store can be
  * read partially for reasons that are nobody's fault. It is a note, because it
  * is the only signal left when rows go missing in a way nothing else detected.
+ *
+ * ***The chat tables too*** (2026-10-02). The merge that made them read
+ * through this store kept them in {@link CHAT_TABLES} rather than in
+ * `READ_TABLES`, and this loop went on counting `READ_TABLES` alone — so a
+ * store whose manifest counted forty messages and whose `messages` directory
+ * listed nothing (a link leaving the root, which a directory source does not
+ * follow) imported its chats with no lines and said nothing at all. In a real
+ * store this checks `chats` and `messages`: Marinara leaves its other lazily
+ * loaded tables out of the manifest's counts unless they are fully loaded, and
+ * an uncounted table is skipped here.
  */
 export async function shortfalls(
   store: MarinaraStore,
   manifest: MarinaraManifest | null,
-): Promise<{ table: ReadTable; expected: number; found: number }[]> {
+): Promise<{ table: string; expected: number; found: number }[]> {
   const counts = manifest?.tables;
   if (counts === null || counts === undefined) return [];
-  const short: { table: ReadTable; expected: number; found: number }[] = [];
-  for (const table of Object.keys(READ_TABLES) as ReadTable[]) {
+  const short: { table: string; expected: number; found: number }[] = [];
+  for (const table of [...Object.keys(READ_TABLES), ...CHAT_TABLES]) {
     const expected = counts[table];
     if (expected === undefined) continue;
     const found = (await store.rows(table)).length;

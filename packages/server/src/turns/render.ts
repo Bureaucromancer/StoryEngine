@@ -11,7 +11,15 @@ import type {
 } from '@storyengine/sdk';
 import type { AssembledPrompt, RenditionRequest, RenditionScope } from '@storyengine/shared';
 
-import { assemblePrompt, fragmentsFor, type FragmentInputs } from '../renditions/assemble.js';
+import {
+  assemblePrompt,
+  fragmentsFor,
+  illustrationFragments,
+  placeOf,
+  roomForMoment,
+  withoutNames,
+  type FragmentInputs,
+} from '../renditions/assemble.js';
 import { recipeDigest } from '../renditions/digest.js';
 import { initialValue } from '../sessions/channels.js';
 import type { Binding, ProviderCapabilities } from '../providers/types.js';
@@ -165,7 +173,10 @@ export const RENDER_STEP: StepDefinition = {
    * **`post`, per [06 §10.3]**, and both halves want it. The moment is a reading
    * of prose that has to exist first, and the place is a reading of channel
    * state this turn has already moved — a `pre` backdrop would describe the room
-   * you were leaving.
+   * you were leaving. ***Which it did anyway until 2026-09-30***: the channels
+   * were rendered when the plan was built, before any step ran, so the place a
+   * stager moved this turn reached the next turn's backdrop. They are read when
+   * the step runs now (`RenderContext.channels`).
    */
   stage: 'post',
   /**
@@ -240,8 +251,12 @@ export interface RenderReport {
   binding: { connectionId: string; modelId: string };
   /** A backdrop resolved to one already paid for — [P9 §1.7]'s money row. */
   reused?: { renditionId: string; digest: string };
-  /** Why nothing was asked for. Absent when something was. */
-  held?: 'place-unchanged' | 'no-moment' | 'no-binding';
+  /**
+   * Why nothing was asked for. Absent when something was. `no-place` since
+   * 2026-09-30: a backdrop with no place to be of is not asked for — see the
+   * background branch.
+   */
+  held?: 'place-unchanged' | 'no-moment' | 'no-binding' | 'no-place';
 }
 
 export interface RenderContext {
@@ -265,8 +280,16 @@ export interface RenderContext {
   image: { binding: Binding; capabilities: ProviderCapabilities };
   /** The treatment's tone, read by the runner along with everything else lore. */
   tone: string | null;
-  /** Rendered channel values the two rankings draw on, in the mode's order. */
-  channels: readonly { id: string; text: string }[];
+  /**
+   * Rendered channel values the two rankings draw on, in the mode's order.
+   *
+   * ***A thunk, read when the step runs*** (2026-09-30), `reusable`'s shape for
+   * `reusable`'s reason: the value is not known when the plan is built. A list
+   * rendered then was the state before this turn's steps, so the place the
+   * stager wrote this turn — and a tracker's write — were a turn late in
+   * every backdrop and illustration.
+   */
+  channels: () => readonly { id: string; text: string }[];
   /**
    * Generation parameters for the image call, minus the seed.
    *
@@ -281,8 +304,15 @@ export interface RenderContext {
    * A thunk rather than a value, which is `ExtractContext.subjects`' shape and
    * its reason: the digest is not known until the fragments are assembled, which
    * happens inside `run`. A context built eagerly would have to guess.
+   *
+   * ***Or `'in-flight'`, when one is being made*** (2026-09-30). Only a ready
+   * one could answer, so every turn taken while a place's first backdrop was
+   * still being drawn asked for another of the same place — and, being a
+   * background of its own, it made the first give way when that one landed:
+   * paid for twice, and the first never shown. A slow image model and a quick
+   * narrator make that most turns of a new place.
    */
-  reusable: (digest: string) => { renditionId: string } | null;
+  reusable: (digest: string) => { renditionId: string } | 'in-flight' | null;
   report: (report: RenderReport) => void;
 }
 
@@ -358,11 +388,25 @@ export function render(context: RenderContext): {
        * whose only rendition turns out to be a reused backdrop — which is the
        * bill §1.7's digest exists to keep down, spent one level up.
        */
-      if (context.backdrop) {
-        const prompt = assemble('background', context, [], '');
+      /**
+       * ***A backdrop with no place is held*** (2026-09-30). Its recipe is the
+       * place and the tone, and with no place it was the tone alone — a
+       * picture of a mood, paid for and then reused by every later turn,
+       * since the recipe never changed. Every first turn of a session whose
+       * story names no place yet reached it, and so did every turn of one
+       * where nothing writes the place.
+       */
+      const channels = context.channels();
+      if (context.backdrop && placeOf(channels) === undefined) {
+        held = 'no-place';
+      } else if (context.backdrop) {
+        const prompt = assemble('background', context, channels, [], '');
         const digest = recipeDigest(context.image.binding, prompt, context.workflow);
         const already = context.reusable(digest);
-        if (already !== null) {
+        if (already === 'in-flight') {
+          // Asked for already, and selected by the worker when it lands.
+          held = 'place-unchanged';
+        } else if (already !== null) {
           reused = { renditionId: already.renditionId, digest };
           held = 'place-unchanged';
         } else {
@@ -375,7 +419,23 @@ export function render(context: RenderContext): {
         if (prose.trim() === '') {
           held ??= 'no-moment';
         } else {
-          const moment = await askForMoment(host, prose, context.image.capabilities);
+          /**
+           * ***Who is in the room, and nobody's name*** (2026-09-30) — [06 §8.1],
+           * [06 §10.3]. The whole cast was drawn, the dead and the departed and
+           * the muted with it, and a name the moment call or a tracker's line
+           * wrote reached the image model as written. The host says who is out
+           * of the room (`StepCastMember.present`); every name becomes *someone*
+           * (`withoutNames`); and the moment is told the room the rest leaves it
+           * (`roomForMoment`) rather than the whole budget.
+           */
+          const everyone = input.cast ?? [];
+          const drawn = everyone.filter((member) => member.present !== false);
+          const named = channels.map((one) => ({ ...one, text: withoutNames(one.text, everyone) }));
+          const room = roomForMoment(
+            context.image.capabilities,
+            illustrationFragments({ moment: '', cast: drawn, channels: named, tone: context.tone }),
+          );
+          const moment = await askForMoment(host, prose, room);
           if (moment.subject === '') {
             /**
              * **The empty list is a real answer** — [06 §10.4]. A model saying
@@ -386,7 +446,13 @@ export function render(context: RenderContext): {
              */
             held ??= 'no-moment';
           } else {
-            const prompt = assemble('illustration', context, input.cast ?? [], moment.subject);
+            const prompt = assemble(
+              'illustration',
+              context,
+              named,
+              drawn,
+              withoutNames(moment.subject, everyone),
+            );
             const digest = recipeDigest(context.image.binding, prompt, context.workflow);
             requests.push(
               request('illustration', prompt, digest, moment.anchor, await seedFor(host), context),
@@ -421,13 +487,14 @@ export function render(context: RenderContext): {
 function assemble(
   purpose: 'illustration' | 'background',
   context: RenderContext,
+  channels: readonly { id: string; text: string }[],
   cast: FragmentInputs['cast'],
   moment: string,
 ): AssembledPrompt {
   const inputs: FragmentInputs = {
     moment,
     cast: purpose === 'background' ? [] : cast,
-    channels: context.channels,
+    channels,
     tone: context.tone,
   };
   return assemblePrompt(fragmentsFor(purpose, inputs), context.image.capabilities);
@@ -480,9 +547,9 @@ async function seedFor(host: StepHost): Promise<number> {
 async function askForMoment(
   host: StepHost,
   prose: string,
-  capabilities: ProviderCapabilities,
+  room: number | null,
 ): Promise<{ subject: string; anchor: string | null }> {
-  return readMoment((await host.call(momentCall(prose, capabilities))).object);
+  return readMoment((await host.call(momentCall(prose, room))).object);
 }
 
 /**
@@ -495,18 +562,23 @@ async function askForMoment(
  * makes this one on the turn, `performCall` makes it from `renditions/illustrate.ts`,
  * and neither can drift on the prompt, the schema or the budget.
  *
- * `capabilities` is the **image** provider's, which is what makes the budget
+ * ~~`capabilities` is the **image** provider's, which is what makes the budget
  * honest: what the model is told to write within is the room the assembler will
- * actually have, not the room the text model has.
+ * actually have, not the room the text model has.~~ *`room` since 2026-09-30*:
+ * the image provider's budget less what the rest of the prompt takes
+ * (`roomForMoment`), because the whole budget was what the moment wrote to and
+ * the capper then gave up everything else to keep it. *The schema keeps its
+ * generous bound on purpose*: tight to the room, a slightly long answer would
+ * fail it, be asked for twice more and come back as no picture — and the
+ * assembler caps the prompt whatever the model writes.
  */
 export function momentCall(
   prose: string,
-  capabilities: ProviderCapabilities,
+  room: number | null,
 ): { candidates: Candidate[]; schema: typeof MOMENT_SCHEMA } {
-  const budget = capabilities.usefulPromptChars ?? capabilities.maxPromptChars ?? null;
   return {
     candidates: [
-      block('se.render.task', 'system', MOMENT_PROMPT(budget)),
+      block('se.render.task', 'system', MOMENT_PROMPT(room)),
       block('se.render.turn', 'user', prose),
     ],
     schema: MOMENT_SCHEMA,

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rename } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newLorebook, type PortableSchemaId } from '@storyengine/shared';
@@ -168,6 +170,52 @@ describe('the watcher meeting the same folder', () => {
       // Stated on its own, because equality alone would hold just as well if
       // `snapshot` still said nothing about either side's refusals.
       expect(live.some((line) => line.startsWith('file-error |'))).toBe(true);
+      await rebuild(library.db, refusing);
+      expect(snapshot(library.db)).toEqual(live);
+    } finally {
+      await watcher.stop();
+    }
+  });
+});
+
+/**
+ * ***And forgets it when the folder goes*** (2026-09-27).
+ *
+ * The row is keyed by the folder — the file inside cannot be reached to name
+ * it — and every clear was keyed by a file path, so a folder renamed to
+ * something this build can open was indexed under its new name while the
+ * quarantine panel went on reporting the old one, until a rebuild that by
+ * default never runs.
+ */
+describe('a refused folder that is renamed', () => {
+  it('stops being reported, and what it held is indexed under the new name', async () => {
+    const refusing = new RefusingLayout(library.layout.dataRoot, 'middle-book');
+    const watcher = new LibraryWatcher({
+      db: library.db,
+      layout: refusing,
+      registry,
+      stabilityThresholdMs: 20,
+    });
+    await watcher.start();
+
+    try {
+      const path = await library.writeObject(newLorebook('Middle'), 'middle-book');
+      await eventually(async () => {
+        await watcher.settled();
+        return listFileErrors(library.db, [ownerKey(library.owner)]).length === 1;
+      });
+
+      await rename(dirname(path), join(dirname(dirname(path)), 'middle-city'));
+      await eventually(async () => {
+        await watcher.settled();
+        return (
+          listFileErrors(library.db, [ownerKey(library.owner)]).length === 0 &&
+          listObjects(library.db, { owners: [library.owner] }).length === 1
+        );
+      });
+
+      // The live index lands where a scan of the same disk lands.
+      const live = snapshot(library.db);
       await rebuild(library.db, refusing);
       expect(snapshot(library.db)).toEqual(live);
     } finally {

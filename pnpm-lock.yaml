@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  chokidar@5.0.0: 8728761e209edb3e26aef8010440c636b8f2ddc792ec14fa4a740b1371395604
+
 importers:
 
   .:
@@ -174,7 +177,7 @@ importers:
         version: 7.0.66(zod@4.4.3)
       chokidar:
         specifier: 5.0.0
-        version: 5.0.0
+        version: 5.0.0(patch_hash=8728761e209edb3e26aef8010440c636b8f2ddc792ec14fa4a740b1371395604)
       fastify:
         specifier: 5.12.0
         version: 5.12.0
@@ -190,6 +193,9 @@ importers:
       png-chunks-extract:
         specifier: 1.0.0
         version: 1.0.0
+      undici:
+        specifier: 7.29.0
+        version: 7.29.0
       write-file-atomic:
         specifier: 8.0.0
         version: 8.0.0
@@ -4122,7 +4128,7 @@ snapshots:
 
   character-reference-invalid@2.0.1: {}
 
-  chokidar@5.0.0:
+  chokidar@5.0.0(patch_hash=8728761e209edb3e26aef8010440c636b8f2ddc792ec14fa4a740b1371395604):
     dependencies:
       readdirp: 5.1.1
 

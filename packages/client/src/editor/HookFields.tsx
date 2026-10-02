@@ -14,6 +14,7 @@ import {
 import { ReadOnlyField } from '../library/ByField.js';
 import { choicesOf, fieldsOf, labelFor, plotHookSchema, type FieldRow } from '../library/fields.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { CheckboxField, Field, NumberField, SelectField } from '../ui/Field.js';
 import { TokenField, type TokenOption } from '../ui/TokenField.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
@@ -74,9 +75,17 @@ export function HookFields(props: {
    * wants its cast alive and met, an introduction wants its subject **not** met.
    * An empty `Introduction` would therefore be a hook claiming to be an arrival
    * for nobody, ineligible forever with a visible reason. So turning it off
-   * removes the key, and `null` is how this editor says so.
+   * removes the key, and an update answering `undefined` is how this editor
+   * says so.
+   *
+   * ***An update over the arrival as it is, not the arrival***
+   * (2026-09-27). An entrance's text carries an assist, and its result lands
+   * through the change handler of the render that started it; an arrival built
+   * from that render's hook put back every other entrance as it was at the
+   * click. So this passes a function of the arrival the hook holds when the
+   * change lands, and the caller applies it there.
    */
-  onIntroduce: (next: Introduction | null) => void;
+  onIntroduce: (update: (held: Introduction | undefined) => Introduction | undefined) => void;
   /**
    * The other hooks on this carrier — what `blockedBy` and `notBefore.afterHook`
    * can point at, offered by title rather than by id.
@@ -114,7 +123,7 @@ function HookRow(props: {
   row: FieldRow;
   hook: PlotHook;
   onPatch: (patch: HookPatch) => void;
-  onIntroduce: (next: Introduction | null) => void;
+  onIntroduce: (update: (held: Introduction | undefined) => Introduction | undefined) => void;
   siblings: PlotHook[];
   actors: { id: string; name: string }[];
 }): JSX.Element {
@@ -477,6 +486,19 @@ function NotBefore(props: {
           options={[
             ['', 'No hook first'],
             ...props.siblings.map((hook) => [hook.id, nameOfHook(hook)] as const),
+            /**
+             * ***A gate naming a hook this object does not carry is shown***
+             * (2026-09-27). Removed here, promoted without its sibling, or
+             * imported — the value named no option, so the select fell back to
+             * its first and read *No hook first* while the engine held the hook
+             * back; and choosing that option fired no change, so the gate
+             * could not be cleared. Not *removed*: the id may resolve to a hook
+             * on another carrier in play.
+             */
+            ...(gate.afterHook !== undefined &&
+            !props.siblings.some((hook) => hook.id === gate.afterHook)
+              ? [[gate.afterHook, 'A hook not on this object'] as const]
+              : []),
           ]}
           onChange={(id) => {
             set({
@@ -540,14 +562,17 @@ function Introduces(props: {
   row: FieldRow;
   hook: PlotHook;
   actors: { id: string; name: string }[];
-  onIntroduce: (next: Introduction | null) => void;
+  onIntroduce: (update: (held: Introduction | undefined) => Introduction | undefined) => void;
 }): JSX.Element {
   const held = props.hook.introduces;
   const entrances = held?.entrances ?? [];
 
+  /**
+   * Fields of an arrival that exists, written over the arrival as it is when
+   * the write lands — and nothing at all if, by then, it has been turned off.
+   */
   function set(next: Partial<Introduction>): void {
-    if (held === undefined) return;
-    props.onIntroduce({ ...held, ...next });
+    props.onIntroduce((current) => (current === undefined ? current : { ...current, ...next }));
   }
 
   return (
@@ -575,14 +600,14 @@ function Introduces(props: {
           ]}
           onChange={(id) => {
             if (id === '') {
-              props.onIntroduce(null);
+              props.onIntroduce(() => undefined);
               return;
             }
             const name = props.actors.find((actor) => actor.id === id)?.name ?? id;
-            props.onIntroduce(
-              held === undefined
+            props.onIntroduce((current) =>
+              current === undefined
                 ? { actor: { id, name }, entrances: [], primaryEntranceId: null }
-                : { ...held, actor: { id, name } },
+                : { ...current, actor: { id, name } },
             );
           }}
           hint="Who this hook brings into the story. Choosing nobody makes it an ordinary hook again."
@@ -593,16 +618,23 @@ function Introduces(props: {
             <Entrances
               hookId={props.hook.id}
               entrances={entrances}
-              onChange={(next) => {
-                set({
-                  entrances: next,
-                  // A primary that has just been removed stops being one, rather
-                  // than staying as an id pointing at nothing — which a manual
-                  // fire would read as *use this* and find nothing to use.
-                  ...(held.primaryEntranceId !== null &&
-                  !next.some((entrance) => entrance.id === held.primaryEntranceId)
-                    ? { primaryEntranceId: null }
-                    : {}),
+              onChange={(update) => {
+                props.onIntroduce((current) => {
+                  if (current === undefined) return current;
+                  const next = update(current.entrances);
+                  return {
+                    ...current,
+                    entrances: next,
+                    // A primary that has just been removed stops being one,
+                    // rather than staying as an id pointing at nothing — which a
+                    // manual fire would read as *use this* and find nothing to
+                    // use. Read off `current`, not the render: the primary may
+                    // have been chosen since this change was started.
+                    ...(current.primaryEntranceId !== null &&
+                    !next.some((entrance) => entrance.id === current.primaryEntranceId)
+                      ? { primaryEntranceId: null }
+                      : {}),
+                  };
                 });
               }}
             />
@@ -649,7 +681,8 @@ function introducesSummary(held: Introduction | undefined, label: string): strin
 function Entrances(props: {
   hookId: string;
   entrances: Entrance[];
-  onChange: (next: Entrance[]) => void;
+  /** A change to the entrances as they are when it lands — see `onIntroduce`. */
+  onChange: (update: (entrances: Entrance[]) => Entrance[]) => void;
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-3">
@@ -665,22 +698,22 @@ function Entrances(props: {
         >
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium text-ink">{entranceHeading(at)}</p>
-            <Button
-              type="button"
+            <TwoStep
+              label={removeEntranceLabel(entrance)}
+              question="Remove this entrance? Nothing is written until you save."
+              confirm="Remove"
               variant="quiet"
               size="tiny"
-              onClick={() => {
-                props.onChange(props.entrances.filter((each) => each.id !== entrance.id));
+              onConfirm={() => {
+                props.onChange((all) => all.filter((each) => each.id !== entrance.id));
               }}
-            >
-              {removeEntranceLabel(entrance)}
-            </Button>
+            />
           </div>
           <Field
             label="Label"
             value={entrance.label}
             onChange={(label) => {
-              props.onChange(patchEntrance(props.entrances, entrance.id, { label }));
+              props.onChange((all) => patchEntrance(all, entrance.id, { label }));
             }}
             hint="What a panel shows instead of the text. It exists so there is something to show that is not the spoiler."
           />
@@ -689,7 +722,7 @@ function Entrances(props: {
             path={`hooks.${props.hookId}.introduces.entrances.${entrance.id}.text`}
             value={entrance.text}
             onChange={(text) => {
-              props.onChange(patchEntrance(props.entrances, entrance.id, { text }));
+              props.onChange((all) => patchEntrance(all, entrance.id, { text }));
             }}
             multiline
             rows={4}
@@ -703,8 +736,8 @@ function Entrances(props: {
               // entrance whose author has not said when it fits has not said it
               // fits nowhere*. The same edit the gate above makes, one level
               // down.
-              props.onChange(
-                patchEntrance(props.entrances, entrance.id, {
+              props.onChange((all) =>
+                patchEntrance(all, entrance.id, {
                   note: note.trim() === '' ? undefined : note,
                 }),
               );
@@ -719,7 +752,10 @@ function Entrances(props: {
           type="button"
           size="compact"
           onClick={() => {
-            props.onChange([...props.entrances, newEntrance()]);
+            // Minted out here, where it runs once — React runs an updater twice
+            // under StrictMode, and `primaryEntranceId` points at this id.
+            const made = newEntrance();
+            props.onChange((all) => [...all, made]);
           }}
         >
           Add an entrance

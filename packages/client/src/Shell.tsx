@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 
 import { BuildFooter } from './about/BuildFooter.js';
+import { useSessionEnded } from './auth/session-ended.js';
 import { NotificationBell } from './notifications/NotificationBell.js';
 import { NotificationToast } from './notifications/NotificationToast.js';
 import { useNotifications } from './notifications/useNotifications.js';
@@ -67,7 +69,7 @@ export function Shell(): JSX.Element {
    * mechanism `RestartBanner` uses for a non-admin: a signed-out browser never
    * opens the stream, rather than opening one that answers 401 and retries.
    */
-  const notifications = useNotifications(account !== null);
+  const notifications = useNotifications(account?.handle ?? null);
 
   /**
    * The workbench's open state — a preference from this stage on ([P3.1a]),
@@ -117,6 +119,30 @@ export function Shell(): JSX.Element {
     // lets `flex-1` below mean "the rest of it" and makes `<main>` the scroll
     // container instead of the document ([P3.−1]).
     <div className="flex h-dvh flex-col print:block print:h-auto">
+      {/* ***A way past the header*** (2026-10-01, polish 11). Nine controls
+          sit above every page once somebody is signed in — the wordmark, the
+          three surfaces, the two panels, the bell, Settings and Sign out — so
+          a keyboard reached the page's own first control on the tenth press
+          of Tab, on every page, every time. The first stop is now this,
+          hidden until it has the keyboard; it hands the keyboard to `<main>`,
+          from where Tab goes on into the page.
+
+          *Focused by hand rather than followed as a fragment*: `#main` is
+          what it says with scripts off, but a fragment navigation is the
+          router's to see, and whether a browser moves focus to the target of
+          one has varied — the scroll moved and the keyboard stayed behind.
+          `main` takes `tabIndex={-1}` so it can be focused without becoming
+          a Tab stop of its own. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:start-3 focus:top-3 focus:z-50 focus:rounded-control focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-ink focus:outline-2 focus:outline-focus print:hidden"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Skip to the page
+      </a>
       <header className="border-b border-line bg-surface">
         {/* **It folds.** Eight controls in one row on every page of the app,
             and nothing let them wrap — so a narrow window pushed Sign out past
@@ -172,9 +198,21 @@ export function Shell(): JSX.Element {
               >
                 Assistant
               </Button>
-              <NotificationBell state={notifications} />
-              {/* One entry, which is all [P2A §3] asks for. */}
-              <Link to="/settings" className="text-sm text-ink-muted hover:underline">
+              <NotificationBell state={notifications} locale={account.locale ?? undefined} />
+              {/* One entry, which is all [P2A §3] asks for — **drawn as the
+                  surfaces' entries are** (2026-10-01). It was a bare link with
+                  no current state, so Settings was the one place in the app
+                  where nothing in the header said where you were, and the only
+                  link in it with no focus ring. Its place stays with the
+                  account; its look is `navLink`'s. */}
+              <Link
+                to="/settings"
+                activeProps={{
+                  className: `${navLink.base} ${navLink.active} font-medium`,
+                  'aria-current': 'page',
+                }}
+                inactiveProps={{ className: `${navLink.base} ${navLink.idle}` }}
+              >
                 Settings
               </Link>
               {/* Bounded and titled: a display name is somebody's to choose,
@@ -205,6 +243,7 @@ export function Shell(): JSX.Element {
           outstanding is often not the person who is looking at the form. And
           outside the scroll container, for the same reason — a banner that
           scrolls away with the page is a banner on some pages. */}
+      <SessionEndedBanner />
       <RestartBanner isAdmin={account?.role === 'admin'} />
       {/* The scroll container, and deliberately bare: no width, no padding, no
           wrapper. Each page owns its column through the `page` recipes in
@@ -234,10 +273,12 @@ export function Shell(): JSX.Element {
             refetches when the dock closes again. */}
         <main
           ref={mainRef}
+          id="main"
+          tabIndex={-1}
           className={
             workbenchOpen || assistantOpen
-              ? 'min-w-0 flex-1 overflow-y-auto max-sm:hidden print:overflow-visible'
-              : 'min-w-0 flex-1 overflow-y-auto print:overflow-visible'
+              ? 'min-w-0 flex-1 overflow-y-auto focus:outline-none max-sm:hidden print:overflow-visible'
+              : 'min-w-0 flex-1 overflow-y-auto focus:outline-none print:overflow-visible'
           }
         >
           <Outlet />
@@ -344,6 +385,45 @@ function SurfaceLink(props: { to: '/play' | '/library' | '/search'; label: strin
  * The query is disabled for a non-admin, so their browser never asks — the same
  * absent-rather-than-disabled mechanism the settings page uses.
  */
+/**
+ * ***The sign-in has ended; the page has not*** (2026-09-27) — see
+ * `auth/session-ended.ts`.
+ *
+ * Above the outlet with the restart notice, and for its reason: the person who
+ * needs to know is on whatever page they are on. *The button asks, it does not
+ * sign out*: it has the auth state read again, and the server's answer — no
+ * account — is what takes the page to the sign-in form. The sentence before it
+ * is the point of not doing that on the 401 itself: whatever is unsaved on this
+ * page is still here, and this is the moment to copy it.
+ */
+function SessionEndedBanner(): JSX.Element | null {
+  const ended = useSessionEnded();
+  const client = useQueryClient();
+  if (!ended) return null;
+
+  return (
+    <div
+      role="alert"
+      className="border-b border-danger-line bg-danger-surface px-6 py-2 text-sm print:hidden"
+    >
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
+        <p className="text-danger-ink">
+          Your sign-in has ended. Copy anything unsaved on this page, then sign in again.
+        </p>
+        <Button
+          type="button"
+          size="compact"
+          onClick={() => {
+            void client.invalidateQueries({ queryKey: ['auth', 'state'] });
+          }}
+        >
+          Sign in again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
   const notices = useNotices(isAdmin);
   const restart = useRestart();
@@ -352,7 +432,16 @@ function RestartBanner({ isAdmin }: { isAdmin: boolean }): JSX.Element | null {
   const pending = notices.data?.pendingRestart ?? [];
   if (!isAdmin || pending.length === 0) return null;
 
-  const draining = notices.data?.draining === true || restart.isSuccess;
+  /**
+   * ***A 202 says a drain has begun only until the server has answered since***
+   * (2026-09-28). `restart.isSuccess` outlived the restart it reported — the
+   * mutation's result belongs to the page, and the page was never reloaded —
+   * so a restart key saved later brought the banner back as *Restarting…*
+   * with no button, until a reload. After the first answer the server has
+   * given since the press, its own `draining` is the truth.
+   */
+  const accepted = restart.isSuccess && notices.dataUpdatedAt <= restart.submittedAt;
+  const draining = notices.data?.draining === true || accepted;
   const canRestart = notices.data?.canRestart === true;
   const interrupts = notices.data?.interrupts ?? { mine: 0, others: 0 };
 

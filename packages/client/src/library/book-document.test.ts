@@ -57,6 +57,69 @@ describe('the book as a document', () => {
   });
 
   /**
+   * ***Every entry under its own heading*** (2026-09-28). An unfiled entry
+   * after a folder's entries had no heading, and so read as the folder's — the
+   * commonest shape there is, since *New entry* appends one unfiled, and the
+   * one P13.12's story-world books take: their unfiled entries first, then
+   * Locations, Items and Story beats, and a new entry after those.
+   */
+  it('files an unfiled entry under Ungrouped, not under the folder before it', () => {
+    const made = book({
+      folders: [
+        { id: 'f-places', name: 'Locations', enabled: true, order: 0, parentFolderId: null },
+        { id: 'f-beats', name: 'Story beats', enabled: true, order: 1, parentFolderId: null },
+      ],
+      entries: [
+        entry({ id: 'e1', name: 'The rain', folderId: null }),
+        entry({ id: 'e2', name: 'The docks', folderId: 'f-places' }),
+        entry({ id: 'e3', name: 'The fall', folderId: 'f-beats' }),
+        entry({ id: 'e4', name: 'Written later', folderId: null }),
+      ],
+    });
+    const markdown = bookToMarkdown(made);
+
+    const ungrouped = markdown.indexOf('## Ungrouped');
+    expect(ungrouped).toBeGreaterThan(-1);
+    // Both unfiled entries under the one Ungrouped heading, and neither under
+    // Story beats, which is where the later one used to read as filed.
+    expect(markdown.indexOf('### The rain')).toBeGreaterThan(ungrouped);
+    expect(markdown.indexOf('### Written later')).toBeGreaterThan(ungrouped);
+    expect(markdown.indexOf('### Written later')).toBeLessThan(markdown.indexOf('## Locations'));
+  });
+
+  it('files an entry naming a folder the book does not hold as Ungrouped', () => {
+    const made = book({
+      folders: [{ id: 'f1', name: 'The docks', enabled: true, order: 0, parentFolderId: null }],
+      entries: [
+        entry({ id: 'e1', name: 'Cranes', folderId: 'f1' }),
+        entry({ id: 'e2', name: 'Lost', folderId: 'f-gone' }),
+      ],
+    });
+    const markdown = bookToMarkdown(made);
+
+    expect(markdown.indexOf('### Lost')).toBeGreaterThan(markdown.indexOf('## Ungrouped'));
+    expect(markdown.indexOf('## Ungrouped')).toBeGreaterThan(markdown.indexOf('### Cranes'));
+  });
+
+  it('leaves a book with no folders without headings', () => {
+    const markdown = bookToMarkdown(
+      book({ entries: [entry({ id: 'e1', name: 'One' }), entry({ id: 'e2', name: 'Two' })] }),
+    );
+
+    // No second-level heading at all — `###` entry headings are not folders.
+    expect(markdown).not.toMatch(/^## /m);
+  });
+
+  it('names a folder with no name as the book page does', () => {
+    const made = book({
+      folders: [{ id: 'f1', name: '', enabled: true, order: 0, parentFolderId: null }],
+      entries: [entry({ id: 'e1', name: 'Cranes', folderId: 'f1' })],
+    });
+
+    expect(bookToMarkdown(made)).toContain('## Untitled folder');
+  });
+
+  /**
    * The firing notes are the column test one level down: what answers *why did
    * this fire, or why did it not* without opening the app. A disabled entry is
    * the case a reader is most likely to be looking for.

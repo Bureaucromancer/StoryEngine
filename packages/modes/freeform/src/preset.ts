@@ -41,6 +41,13 @@ export const FREEFORM_PRESET: Preset = {
   blurb: '',
   modes: ['storyengine.freeform'],
   blocks: [
+    /**
+     * *The narrator's, and a narration's only* (2026-09-27): `appliesTo` was
+     * every kind of call, and an impersonation is collected as `impersonate`
+     * and asks for exactly what this forbids — the player's own words. A
+     * session keeps the pack it was created with, so older sessions still
+     * carry the wide one; the impersonation instruction answers for those.
+     */
     {
       id: 'se.instruction',
       label: 'instruction',
@@ -50,7 +57,7 @@ export const FREEFORM_PRESET: Preset = {
         at: 'sequence',
       },
       priority: 90,
-      appliesTo: [],
+      appliesTo: ['narrate'],
       advisory: false,
       omitWhenEmpty: true,
       kind: 'text',
@@ -75,6 +82,41 @@ export const FREEFORM_PRESET: Preset = {
         part: 'framing',
       },
     },
+    /**
+     * ***What the story is about*** (2026-09-30) — the premise the wizard
+     * requires, *"A sentence or two. The narrator opens from it"*, which until
+     * now reached no prompt at all: stored on the session, read by nothing.
+     * Beside the treatment's framing because it answers the same question for
+     * this one story, and above it (65 against 60) because the person typed it
+     * for this story rather than chose it from a shelf. Every call, as the
+     * framing is. *A session begun before this block gains it* (`presetOf`),
+     * so a Freeform story already running is told its premise from the next
+     * turn.
+     */
+    {
+      id: 'se.premise',
+      label: 'premise',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 65,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'setup',
+        field: 'premise',
+      },
+      wrapper: 'What this story is about: {{content}}',
+    },
+    /**
+     * *Whose block is whose* (2026-09-27): the persona and actor wrappers
+     * name who each block is about, for the reasons Scene's pack gives beside
+     * its own.
+     */
     {
       id: 'se.persona',
       label: 'persona',
@@ -91,6 +133,7 @@ export const FREEFORM_PRESET: Preset = {
       source: {
         of: 'persona',
       },
+      wrapper: 'The player’s character, {{ user }}:\n{{content}}',
     },
     {
       id: 'se.actor.summary',
@@ -109,6 +152,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.summary',
       },
+      wrapper: '{{ char }}:\n{{content}}',
     },
     {
       id: 'se.actor.appearance',
@@ -127,6 +171,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.appearance',
       },
+      wrapper: 'What {{ char }} looks like:\n{{content}}',
     },
     {
       id: 'se.actor.voice',
@@ -145,6 +190,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.voice',
       },
+      wrapper: 'How {{ char }} speaks:\n{{content}}',
     },
     {
       id: 'se.actor.traits',
@@ -163,6 +209,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         field: 'traits',
       },
+      wrapper: '{{ char }}’s traits: {{content}}',
     },
     {
       id: 'se.actor.background',
@@ -181,6 +228,7 @@ export const FREEFORM_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.background',
       },
+      wrapper: '{{ char }}’s background:\n{{content}}',
     },
     {
       id: 'se.lore',

@@ -442,6 +442,26 @@ describe('the import entry point', () => {
     expect(patchPrefs).not.toHaveBeenCalled();
     expect(prefsStore['ui.workbench-open']).toBe(true);
   });
+
+  /**
+   * ***The empty library names what is on the page*** (2026-10-01, polish 10).
+   * It sent a person to *the API* for every kind but actors long after each
+   * kind had an editor and a *New* button above the sentence, and to an import
+   * panel *above* that had moved to the dock. So the claim is both halves: the
+   * sentence names the controls, and the controls it names are there.
+   */
+  it('when empty, points at the New and Import… buttons that are on the page', async () => {
+    listLibrary.mockResolvedValue({ objects: [] });
+    renderPage();
+    await settled();
+
+    const sentence = screen.getByText(/^The library is empty/).textContent;
+    expect(sentence).not.toMatch(/\bAPI\b/);
+    expect(sentence).toContain('New button');
+    expect(sentence).toContain('Import…');
+    expect(screen.getAllByRole('button', { name: /^New / }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Import…' })).toBeTruthy();
+  });
 });
 
 /**
@@ -793,6 +813,20 @@ describe('searching a shelf', () => {
     toggle();
 
     expect(screen.getByLabelText('Search this shelf')).toBeTruthy();
+  });
+
+  /**
+   * ***Search puts the keyboard in the box it opens*** (2026-10-01, polish 10,
+   * `useFocusOnReveal`). Without it a person who pressed *Search* and started
+   * typing typed into nothing — the button keeps focus, and the letters go
+   * nowhere.
+   */
+  it('puts the keyboard in the box it opens', async () => {
+    await shelved();
+
+    toggle();
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Search this shelf'));
   });
 
   it('narrows the shelf as it is typed', async () => {

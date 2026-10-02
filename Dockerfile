@@ -1,20 +1,24 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 StoryEngine contributors
 #
-# Alpha 1's image — docs/design/workplan/23-p6a-alpha-1.md §2, P6A.4.
+# Alpha 1's image — docs/design/workplan/19-p6a-alpha-1.md §2, P6A.4.
 #
 # **An artifact, not a distribution.** The repository is private, the registry
 # package is private, and nobody else runs this (§0.1). That is what keeps
-# docs/design/workplan/11-repo-and-releases.md §0's deferral of release
+# docs/design/workplan/04-repo-and-releases.md §0's deferral of release
 # engineering intact, and what keeps AGPL §13 from attaching
-# (docs/design/04-server-multiuser-deployment.md §7). Publishing this image is a
+# (docs/design/09-server-multiuser-deployment.md §7). Publishing this image is a
 # decision to publish the repository at the same instant; §4 says so, and says it
 # there so that it cannot happen by way of a registry visibility toggle.
 #
-# Build it with the two arguments the release workflow passes:
+# Build it with the three arguments the release workflow passes:
 #
 #   docker build --build-arg COMMIT=$(git rev-parse HEAD) \
-#                --build-arg VERSION=1.0.0-alpha.1 -t storyengine .
+#                --build-arg VERSION=1.0.0-alpha.1 \
+#                --build-arg SOURCE=https://github.com/<owner>/<repo> -t storyengine .
+#
+# `SOURCE` may be left out, and the image then carries no Source link — which is
+# honest, because nothing in it can say where its source is.
 
 ARG NODE_VERSION=26
 
@@ -22,7 +26,7 @@ ARG NODE_VERSION=26
 #
 # `slim` rather than `alpine`, and it is a deliberate few tens of megabytes:
 # this server formats numbers and dates against a user's locale
-# (docs/design/04-server-multiuser-deployment.md §4.2), and a musl base with a
+# (docs/design/09-server-multiuser-deployment.md §4.2), and a musl base with a
 # trimmed ICU is exactly the sort of difference that shows up as one wrong
 # separator in one language rather than as a build failure. Nothing here needs a
 # native compiler — SQLite is `node:sqlite`, built in — so the usual reason to
@@ -58,11 +62,19 @@ RUN pnpm build
 # argument and `--expect-version` refuses a tag that disagrees with the root
 # `package.json`. Both are required: an image that cannot say which commit it is
 # defeats the phase it belongs to (§1.5).
+#
+# ***And where its source is*** (2026-10-01), for the same missing `.git`:
+# `write-build-info.mjs` asks the `origin` remote, which this context does not
+# have, so `--source` says it instead. Until the release passed it, the image
+# carried no AGPL §13 link while the tarball, built from a checkout, carried
+# one. Optional, like `VERSION`, and for the reason the header gives.
 ARG COMMIT
 ARG VERSION
+ARG SOURCE
 RUN test -n "$COMMIT" || (echo 'COMMIT build-arg is required.' >&2; exit 1)
 RUN node tools/write-build-info.mjs --commit "$COMMIT" \
-    ${VERSION:+--expect-version "$VERSION"}
+    ${VERSION:+--expect-version "$VERSION"} \
+    ${SOURCE:+--source "$SOURCE"}
 
 # **The prune story.** `pnpm deploy` copies one workspace package and its
 # production dependencies into a self-contained tree, resolving the `workspace:*`
@@ -75,29 +87,39 @@ RUN node tools/write-build-info.mjs --commit "$COMMIT" \
 # somebody has to remember.
 RUN pnpm --filter @storyengine/server --legacy deploy --prod /app
 
-# **The modes are deployed beside the server, not through it** — P7.0.
+# **The modes are not in the server's manifest** — P7.0.
 #
-# `pnpm deploy` walks one package's dependency closure, and a mode package is
-# deliberately not in the server's: docs/design/19-tech-stack.md §10 makes
-# "built-in modes consume the SDK and not the server" a build error, and a
-# manifest edge would have been the one direction the lint rules cannot see.
-# `mode-loader.ts` resolves each by bare specifier at run time instead, so what
-# the image owes it is the package on the server's resolution path — which is
-# what deploying into `/app/node_modules/<name>` is. Nothing in `/app/dist`
-# imports it; Node finds it the same way it finds any other dependency.
+# docs/design/19-tech-stack.md §10 makes "built-in modes consume the SDK and not
+# the server" a build error, and a manifest edge would have been the one
+# direction the lint rules cannot see. `mode-loader.ts` resolves each by bare
+# specifier at run time instead, so what the image owes it is the package on the
+# server's resolution path. Nothing in `/app/dist` imports one; Node finds it the
+# same way it finds any other dependency.
 #
-# **One `RUN` per mode, on purpose.** A loop over a list would be a third place
-# the shipped set is written — after the root `package.json` and
-# `mode-loader.ts`'s `BUILT_IN_MODE_PACKAGES` — and the failure it would hide is
-# the one that matters: a mode in the loader's list and not in the image starts a
-# server that refuses every turn. Explicit lines make the omission visible in a
-# diff, and `mode-loader.test.ts` is what catches it before the diff.
-RUN pnpm --filter @storyengine/mode-scene --legacy deploy --prod \
-    /app/node_modules/@storyengine/mode-scene
-RUN pnpm --filter @storyengine/mode-freeform --legacy deploy --prod \
-    /app/node_modules/@storyengine/mode-freeform
-RUN pnpm --filter @storyengine/mode-assistant --legacy deploy --prod \
-    /app/node_modules/@storyengine/mode-assistant
+# ~~The modes are deployed beside the server, not through it: `pnpm deploy`
+# walks one package's dependency closure, and the server's does not include
+# them, so each is deployed into `/app/node_modules/<name>` by name.~~
+# ***They arrive with the server's deploy*** (2026-10-01). The root
+# `package.json` declares them, and the pinned pnpm's legacy deploy carries the
+# root's dependencies into the deployed tree — measured: `/app/node_modules/
+# @storyengine/mode-*` are links after the line above. So the per-mode deploys
+# that stood here met a path that was not empty and failed the build
+# (`ERR_PNPM_DEPLOY_DIR_NOT_EMPTY`). Nothing noticed because nothing built: only
+# a `v*` tag runs this file, and P7.0 added the root dependency a day after
+# `v1.0.0-alpha.4`, the last one.
+#
+# **What the image owes the loader is checked instead, one `RUN` per mode.**
+# Each mode is imported from `/app` as the server will import it; a pnpm that
+# stopped carrying the root's dependencies fails here, at build time, rather
+# than shipping a server whose `loadModes` refuses to start. A loop over a list
+# would be a third place the shipped set is written — after the root
+# `package.json` and `mode-loader.ts`'s `BUILT_IN_MODE_PACKAGES` — so the lines
+# are explicit, and `tools/repo-shape.test.ts` holds them to the loader's list.
+WORKDIR /app
+RUN node --input-type=module -e "await import('@storyengine/mode-scene')"
+RUN node --input-type=module -e "await import('@storyengine/mode-freeform')"
+RUN node --input-type=module -e "await import('@storyengine/mode-assistant')"
+WORKDIR /src
 
 # The client is a separate package and not a dependency of the server, so it is
 # copied rather than deployed. `SE_CLIENT_ROOT` below points at it.
@@ -107,11 +129,11 @@ RUN cp -r packages/client/dist /app/client
 FROM node:${NODE_VERSION}-slim AS runtime
 
 # **`0.0.0.0`, by the documented variable and not by a different build.**
-# docs/design/workplan/21-p10-implementation.md §1.2 forbids the image shipping
+# docs/design/workplan/27-p10-implementation.md §1.2 forbids the image shipping
 # a baked default the bare-metal build does not have: *a hidden difference
 # between artifacts is a support burden shaped like a security feature*. This is
 # a line anybody can read and override with `-e SE_HOST=…`, and the port mapping
-# is the operator's explicit act (docs/design/04-server-multiuser-deployment.md
+# is the operator's explicit act (docs/design/09-server-multiuser-deployment.md
 # §5.3). What makes that safe rather than merely unavoidable is the setup token,
 # which this bind is precisely the condition for (§5.1).
 ENV NODE_ENV=production \
@@ -124,7 +146,7 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app /app
 
 # `/data` is the whole of the install: library, sessions, accounts, config
-# (docs/design/02-data-model.md §5). Created and owned before the volume is
+# (docs/design/03-data-model.md §5). Created and owned before the volume is
 # declared, so an anonymous volume inherits the ownership; a bind mount does
 # not, and the deploy page says so.
 RUN mkdir -p /data && chown node:node /data

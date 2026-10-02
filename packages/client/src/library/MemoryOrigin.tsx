@@ -58,8 +58,9 @@ export function MemoryOrigin(props: {
   const origin = originOf(props.entry);
   if (origin === null) return null;
 
-  // Archived sessions are in this list; a deleted one is not, which is exactly
-  // the distinction being rendered.
+  // Archived sessions are in this list — asked for since 2026-09-27; before,
+  // they were not, and an archived origin read as deleted — and a deleted one
+  // is not, which is exactly the distinction being rendered.
   const found = props.sessions?.find((one) => one.id === origin.sessionId);
 
   return (

@@ -5,8 +5,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import type { Mode } from '@storyengine/sdk';
+
+import { convertCard } from '../import/sillytavern/card.js';
+import { create } from '../library.js';
+import { registerMode } from '../mode-registry.js';
 import { readAllTurns } from '../sessions/segments.js';
 import { Layout } from '../storage/layout.js';
+import { TEST_MODE, TEST_MODE_DEFINITION, TEST_STEP } from '../test-mode.js';
 import {
   newLorebook,
   newLoreEntry,
@@ -37,7 +43,7 @@ const CONNECTION_ID = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a04';
 let server: TestServer;
 let sessionId: string;
 
-async function bindProse(): Promise<void> {
+async function bindProse(models: string[] = ['fake-hi'], maxContextTokens = 32_000): Promise<void> {
   const root = new Layout(server.dataDir).userConnectionsRoot('ned');
   await mkdir(root, { recursive: true });
   await writeFile(
@@ -46,8 +52,8 @@ async function bindProse(): Promise<void> {
       id: CONNECTION_ID,
       label: 'The double',
       provider: 'openai-compatible',
-      models: ['fake-hi'],
-      capabilities: { maxContextTokens: 32_000 },
+      models,
+      capabilities: { maxContextTokens },
     }),
   );
   await writeFile(
@@ -169,6 +175,64 @@ describe('a preview with a model bound', () => {
   });
 });
 
+/**
+ * ***Measured against the model the session chose*** (2026-09-27). The
+ * preview resolved its model without the session's overrides, so a session
+ * whose narrator was pointed at a bigger model was metered against the account
+ * default's window, under the account default's name, and reported blocks
+ * dropped that the turn would send.
+ */
+describe('a preview for a session with its own model', () => {
+  it('names and measures the model the session overrides to', async () => {
+    await bindProse(['fake-hi', 'fake-lo']);
+    const roles = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/roles`,
+      payload: { roles: { prose: { connectionId: CONNECTION_ID, modelId: 'fake-lo' } } },
+    });
+    expect(roles.status).toBe(200);
+
+    const answer = (await preview({ input: { text: 'Look around.' } })).body.preview as {
+      resolved: { modelId: string };
+    };
+    expect(answer.resolved.modelId).toBe('fake-lo');
+  });
+});
+
+/**
+ * ***A Freeform preview shows the premise*** (2026-09-30) — the `setup` slot,
+ * filled through the same gather the turn uses, so the meter measures the
+ * prompt the narrator will actually get.
+ */
+describe('a Freeform preview', () => {
+  it('shows the premise the narrator will be told', async () => {
+    await bindProse();
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Drowned city',
+        mode: 'storyengine.freeform',
+        modeConfig: {
+          premise: 'A smuggler owes the wrong people.',
+          difficulty: 'even',
+          directedness: 'following',
+        },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    sessionId = created.body.session.id as string;
+
+    const answer = (await preview({ input: { text: 'Look around.' } })).body.preview as {
+      blocks: { id: string; text: string }[];
+    };
+
+    expect(answer.blocks.find((block) => block.id === 'se.premise')?.text).toBe(
+      'What this story is about: A smuggler owes the wrong people.',
+    );
+  });
+});
+
 describe('a preview with nothing bound', () => {
   it('is unmeasurable rather than an error, and says which way', async () => {
     // The state every install is in before it is configured. A 4xx would push
@@ -195,6 +259,22 @@ describe('a preview with nothing bound', () => {
     expect(answer.notFilled.some((slot) => slot.blockId === 'se.lore')).toBe(true);
   });
 
+  /**
+   * *No room beside the reply is no denominator either* (2026-09-27): the turn
+   * would be refused, so the meter says so rather than measuring a prompt with
+   * every block dropped. Scene keeps 800 for the reply and spends three
+   * quarters of the window; a 1000-token window leaves nothing.
+   */
+  it('says the window has no room beside the reply', async () => {
+    await bindProse(['fake-hi'], 1000);
+
+    const answer = (await preview({ input: { text: 'Look.' } })).body.preview as {
+      state: string;
+      reason: string;
+    };
+    expect(answer).toMatchObject({ state: 'unmeasurable', reason: 'window-too-small' });
+  });
+
   it('tells a dangling binding from an unbound one', async () => {
     // The remedies differ — one is setup, the other is an admin having removed
     // a connection out from under a binding — so the class travels.
@@ -207,6 +287,55 @@ describe('a preview with nothing bound', () => {
       reason: string;
     };
     expect(answer.reason).toBe('role-dangling');
+  });
+});
+
+/**
+ * ***A preview asks the turn's question about cadence, in the turn's count***
+ * (2026-09-27) — `sessions/depth.ts`.
+ *
+ * The preview evaluates the prose step's condition so it can say *not this
+ * turn* instead of measuring a call that will not happen, and it counted the
+ * path's length the way the runner did. A channel write is a turn on the path
+ * and not one of the story, so a mode narrating every other turn was measured
+ * as narrating the first one.
+ */
+describe('a preview of a step that does not run every turn', () => {
+  const EVERY_OTHER_ID = 'storyengine.test.every-other';
+  const EVERY_OTHER: Mode = {
+    definition: {
+      ...TEST_MODE_DEFINITION,
+      id: EVERY_OTHER_ID,
+      displayName: 'Engine test fixture — every other turn',
+      steps: [{ ...TEST_STEP, when: { when: 'cadence', everyNTurns: 2 } }],
+    },
+    run: TEST_MODE.run,
+  };
+
+  it('counts the turns of the story, not a channel write before them', async () => {
+    registerMode(EVERY_OTHER);
+    await bindProse();
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Alternate', mode: EVERY_OTHER_ID },
+    });
+    expect(created.status).toBe(201);
+    sessionId = created.body.session.id as string;
+
+    const written = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.hook.pacing`,
+      payload: { value: 'sparse' },
+    });
+    expect(written.status).toBe(200);
+
+    // The first turn of the story, with a dial change before it: not the second.
+    const answer = (await preview({ input: { text: 'Look.' } })).body.preview as {
+      state: string;
+      reason?: string;
+    };
+    expect(answer).toMatchObject({ state: 'unmeasurable', reason: 'not-this-turn' });
   });
 });
 
@@ -415,5 +544,101 @@ describe('writing samples on the preview', () => {
       'The rain never lets up.',
       'Nobody hurries here.',
     ]);
+  });
+});
+
+/**
+ * ***A chat's preview, and [P14.3]'s *Ends at**** — a preview of an imported
+ * SillyTavern card's session shows the card's system prompt stacked after the
+ * pack's instruction and its post-history instructions last, and a second
+ * preview with that card's prompts switched off shows neither. Through the
+ * card converter and the route, so the section ids the importer writes are the
+ * ones the Scene pack places.
+ */
+describe('a chat’s preview', () => {
+  async function imported(card: Record<string, unknown>): Promise<string> {
+    const converted = convertCard({ spec: 'chara_card_v2', data: card }, 'fallback');
+    if (!converted.ok) throw new Error(`refused: ${converted.refusal}`);
+    await create(server.services.library, 'ned', converted.value.actor);
+    return converted.value.actor.id;
+  }
+
+  async function chatWith(actors: string[]): Promise<void> {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'A chat', cast: { persona: null, actors } },
+    });
+    expect(created.status).toBe(201);
+    sessionId = created.body.session.id as string;
+  }
+
+  async function blocksOf(input: string): Promise<{ id: string; role: string; text: string }[]> {
+    const response = await preview({ input: { text: input } });
+    const answer = response.body.preview as AssembledPreview;
+    expect(answer.state).toBe('assembled');
+    return answer.blocks;
+  }
+
+  it('stacks an imported card’s system prompt after the instruction, and its post-history last', async () => {
+    await bindProse();
+    const vera = await imported({
+      name: 'Vera',
+      description: 'A fence with a long memory.',
+      system_prompt: 'You are {{char}}. Answer in short sentences.',
+      post_history_instructions: 'Stay as {{char}}.',
+    });
+    await chatWith([vera]);
+
+    const blocks = await blocksOf('Evening.');
+    const ids = blocks.map((block) => block.id);
+    const system = ids.indexOf(`se.card.system.${vera}`);
+
+    expect(ids[system - 1]).toBe('se.instruction.embodied');
+    expect(blocks[system]?.text).toBe('You are Vera. Answer in short sentences.');
+    expect(blocks.at(-1)).toMatchObject({
+      id: `se.card.post-history.${vera}`,
+      role: 'user',
+      text: 'Stay as Vera.',
+    });
+
+    // Switched off for this card — the session field P14.5's panel will write.
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const session = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...session, prompts: { cards: { [vera]: false } } }));
+
+    const off = (await blocksOf('Evening.')).map((block) => block.id);
+    expect(off).not.toContain(`se.card.system.${vera}`);
+    expect(off).not.toContain(`se.card.post-history.${vera}`);
+    expect(off).toContain('se.instruction.embodied');
+  });
+
+  it('previews the first speaker’s call under per-actor dispatch, not one merged call', async () => {
+    // [P14.2] left the preview assembling one merged call. The mention decides
+    // `natural`'s first speaker, so the preview can say whose call it shows.
+    await bindProse();
+    const vera = await imported({ name: 'Vera', description: 'A fence.' });
+    const lund = await imported({ name: 'Lund', description: 'The harbourmaster.' });
+    await chatWith([vera, lund]);
+
+    const blocks = await blocksOf('Lund, is the gate shut?');
+    const instruction = blocks.find((block) => block.id === 'se.instruction.embodied')?.text;
+
+    expect(instruction).toContain("Write Lund's next reply");
+    // The speaker's card first.
+    const ids = blocks.map((block) => block.id);
+    expect(ids.indexOf(`se.actor.summary.${lund}`)).toBeLessThan(
+      ids.indexOf(`se.actor.summary.${vera}`),
+    );
+  });
+
+  it('previews a scene nobody has been cast in as the narrator’s call', async () => {
+    // The session made in `beforeEach` has no cast: no selection, so the one
+    // call nobody speaks, in the narrator's voice (`turnSelection`).
+    await bindProse();
+
+    const ids = (await blocksOf('I wait.')).map((block) => block.id);
+    expect(ids).toContain('se.instruction');
+    expect(ids).not.toContain('se.instruction.embodied');
   });
 });

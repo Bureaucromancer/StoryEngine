@@ -98,7 +98,14 @@ export class SseWriter {
          * that does not exist.
          */
         this.#write(
-          `event: delta\ndata: ${JSON.stringify({ jobId: frame.jobId, text: frame.text })}\n\n`,
+          `event: delta\ndata: ${JSON.stringify({
+            jobId: frame.jobId,
+            text: frame.text,
+            // A speaking call's message index, [P14.2] — absent, not null, on
+            // everything else, so the frame a pre-P14.2 client parses is the
+            // frame it always parsed.
+            ...(frame.message === undefined ? {} : { message: frame.message }),
+          })}\n\n`,
           true,
         );
         return;
@@ -111,14 +118,30 @@ export class SseWriter {
          * carries the **whole record**, so a client applies it by upsert and
          * converges on the same map whatever it missed. Exactness comes from
          * re-reading the set on attach rather than from a backlog, which is what
-         * [P9.2] trades for keeping `attachToSession` synchronous.
+         * [P9.2] trades for keeping `attachToSession` synchronous. *Corrected
+         * 2026-09-28:* ~~re-reading the set on attach~~ — nothing re-read it;
+         * the client refetches the set when it re-attaches, and a frame after
+         * that is the newest word (`attach.ts` has the rest).
          *
          * **Durable rather than droppable**, unlike a delta: a dropped delta
          * costs a repaint that the next checkpoint fixes, and a dropped
          * rendition frame is a picture that never appears until the page is
-         * reloaded.
+         * reloaded — or, since the refetch, until the stream re-attaches.
          */
         this.#write(`event: rendition\ndata: ${JSON.stringify(frame.rendition)}\n\n`, false);
+        return;
+      case 'summaries':
+        /**
+         * ***The summary warm*** — [P14.11]. No `id:` line, for the rendition
+         * frame's reason: the frame is the whole state. *A link's progress is
+         * droppable and the end is not*: a dropped `warming` frame is a
+         * progress bar one link behind until the next, and a dropped ending is
+         * a bar that never finishes.
+         */
+        this.#write(
+          `event: summaries\ndata: ${JSON.stringify(frame.warm)}\n\n`,
+          frame.warm.state === 'warming',
+        );
         return;
     }
   }

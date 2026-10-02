@@ -193,6 +193,135 @@ describe('a CHARX', () => {
     expect(served.headers['etag']).toBe(neutral?.digest);
   });
 
+  /**
+   * ***Each archive is a character of its own*** (2026-09-27). Every CHARX was
+   * identified as the `card.json` inside it, which every CHARX has, so the
+   * second import found the first and replaced it: one actor left, Bob's text
+   * on Alice's id.
+   */
+  it('is a character of its own, not the one imported before it', async () => {
+    const card = (name: string) =>
+      makeZip([
+        {
+          name: 'card.json',
+          body: JSON.stringify({ ...V3_CARD, data: { ...V3_CARD.data, name } }),
+        },
+        { name: 'assets/avatar.png', body: makePng() },
+      ]);
+    await upload('Alice.charx', card('Alice'));
+    await upload('Bob.charx', card('Bob'));
+
+    const names = (await ownObjects(server, 'actors')).objects.map((row) => row['name']).sort();
+    expect(names).toEqual(['Alice', 'Bob']);
+  });
+
+  /**
+   * ***The same archive again is the same character, pictures and all***
+   * (2026-09-27). Expression ids were minted on every conversion, so a
+   * re-upload could never compare `unchanged`, and the replace it did instead
+   * wrote rows naming pictures the card on disk did not hold.
+   */
+  it('comes back unchanged from the same archive, and its expressions still serve', async () => {
+    const charx = makeZip([
+      { name: 'card.json', body: JSON.stringify(V3_CARD) },
+      { name: 'assets/avatar.png', body: makePng() },
+      { name: 'assets/sprites/neutral.png', body: makePng(4, 7) },
+    ]);
+    await upload('Vera.charx', charx);
+    const again = await upload('Vera.charx', charx);
+
+    // An archive reports its converted item, or, when nothing in it converted,
+    // what its rows say — here that all of it is already here (2026-09-28; it
+    // was `recorded` whatever happened).
+    expect(again.body.item.disposition).toBe('unchanged');
+    expect((again.body.notes as { key: string }[]).map((note) => note.key)).toContain(
+      'import.object.unchanged',
+    );
+    const id = (await ownObjects(server, 'actors')).objects[0]?.id ?? '';
+    const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const media = (actor.body.object as { media: { id: string; role: string }[] }).media;
+    const neutral = media.find((one) => one.role === 'expression');
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${id}/media/${neutral?.id ?? ''}`,
+    });
+    expect(served.status).toBe(200);
+  });
+
+  /**
+   * ***Downloaded, and brought back*** (2026-09-28). "Download this actor"
+   * handed over the index's JSON: the portrait is the card's pixels and every
+   * expression rides inside the card, so the file had every picture missing.
+   * The card goes whole now, and a card of ours reads back as ours — where it
+   * read as *a picture without a card*, having no SillyTavern chunk to find.
+   */
+  it('downloads as its card, byte for byte, and comes back from it, pictures and all', async () => {
+    const charx = makeZip([
+      { name: 'card.json', body: JSON.stringify(V3_CARD) },
+      { name: 'assets/avatar.png', body: makePng() },
+      { name: 'assets/sprites/neutral.png', body: makePng(4, 7) },
+    ]);
+    await upload('Vera.charx', charx);
+    const id = (await ownObjects(server, 'actors')).objects[0]?.id ?? '';
+
+    const cookie = [...server.cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+    const get = (url: string) => server.app.inject({ method: 'GET', url, headers: { cookie } });
+    const downloaded = await get(`/api/library/actors/${id}/download`);
+    expect(downloaded.statusCode).toBe(200);
+    expect(downloaded.headers['content-type']).toBe('image/png');
+    expect(String(downloaded.headers['content-disposition'])).toMatch(/\.png"$/);
+    // The card as it is stored — the same bytes the portrait is served from.
+    const card = await get(`/api/library/actors/${id}/avatar`);
+    expect(downloaded.rawPayload.equals(card.rawPayload)).toBe(true);
+
+    const held = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/library/actors/${id}`,
+      headers: { 'if-match': String(held.body.contentHash) },
+    });
+    expect(removed.status).toBeLessThan(300);
+
+    const back = await upload('Vera Solano.png', new Uint8Array(downloaded.rawPayload));
+    expect(back.body.item.disposition).toBe('converted');
+    expect(back.body.item.objectId).toBe(id);
+    const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const media = (actor.body.object as { media: { id: string; role: string }[] }).media;
+    const neutral = media.find((one) => one.role === 'expression');
+    expect(neutral).toBeDefined();
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${id}/media/${neutral?.id ?? ''}`,
+    });
+    expect(served.status).toBe(200);
+  });
+
+  /**
+   * ***A portrait that will not read costs the portrait, not the expressions***
+   * (2026-09-27). The unreadable portrait returned before the expressions
+   * were read, and RisuAI's archives often lead with a JPEG.
+   */
+  it('keeps its expressions when its portrait is not a PNG', async () => {
+    const charx = makeZip([
+      { name: 'card.json', body: JSON.stringify(V3_CARD) },
+      { name: 'assets/avatar.jpg', body: Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 16]) },
+      { name: 'assets/sprites/neutral.png', body: makePng() },
+    ]);
+    const response = await upload('Vera.charx', charx);
+
+    const keys = (response.body.item.notes as { key: string }[]).map((note) => note.key);
+    expect(keys).toContain('import.card.portraitUnreadable');
+    const id = (await ownObjects(server, 'actors')).objects[0]?.id ?? '';
+    const actor = await server.request({ method: 'GET', url: `/api/library/actors/${id}` });
+    const media = (actor.body.object as { media: { id: string; role: string }[] }).media;
+    const neutral = media.find((one) => one.role === 'expression');
+    const served = await server.request({
+      method: 'GET',
+      url: `/api/library/actors/${id}/media/${neutral?.id ?? ''}`,
+    });
+    expect(served.status).toBe(200);
+  });
+
   it('imports a card with no assets at all, which the spec allows', async () => {
     // The probe requires `card.json` and deliberately not `assets/`: requiring
     // the directory would refuse the simplest valid archive.

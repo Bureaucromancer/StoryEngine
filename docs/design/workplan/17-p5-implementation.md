@@ -1313,6 +1313,12 @@ reporting it unchanged, because the embedded book's identity is not stable
 across imports. That is [P4 §7.14]'s re-import-identity question from a fourth
 direction, and it is left as one.
 
+*Settled 2026-09-27, and it was a defect rather than a question.* The converter
+linked the card and its book with ids it had just minted, and each object moved
+to its earlier id only as it was stored, so the links named objects that did not
+exist. Both ids are now settled before either names the other, and such a card
+re-imports `unchanged`.
+
 *A trade worth naming rather than settling:* an entry-level note appears both in
 the book's list and on the entry it names. Complete and scannable at the top,
 met where you are reading at the bottom — but a book with two hundred collapsed
@@ -1437,6 +1443,14 @@ of the two is uneditable* rather than to *both changed and both saved*. The
 editor's shape guard is stricter than the book page's for the same reason: a
 reader needs entries to be objects, a writer needs every entry's `id` to be a
 string, or an id-keyed merge silently folds two entries into one.
+
+*Narrowed 2026-09-27.* Every importer now gives a repeated id an ordinal
+(`distinctIds` in `import/identity.ts`), and leaves an id that was unique
+exactly where it was, so ~~two entries agreeing on both collide~~ is no longer
+true of anything imported from now on. Aventuras' converter was worse, deriving
+from the name alone, so a location and a faction of one name collided. A book
+imported before this, or written by hand, can still hold a repeat, which is why
+the first-match rule above stays.
 
 **Then somebody opened it**, on the same 247-entry book P5.0 was walked on, and
 **four defects came out that no test had a reason to catch** — which is the
@@ -1599,7 +1613,9 @@ and the tombstone filter, so the owner is in its `from` clause either way.
 `limit` before the route filters, so on a household server one account's matches
 can consume the whole budget before another's are considered. Recorded rather
 than fixed — it is `search`'s, not this stage's — and it matters more here,
-because what an unscoped entry hit would carry is the prose itself.
+because what an unscoped entry hit would carry is the prose itself. *Fixed
+2026-09-27:* `search` takes the owners and scopes in its own SQL too, and the
+route's filter is gone.
 
 **No client surface, and that is settled rather than deferred.**
 [10 §5.3](../10-ui-surfaces.md) says across-the-library search *"belongs to the
@@ -1793,6 +1809,16 @@ merely ruinous and sends them to fix the wrong thing. Caught only because the
 test asserted the whole outcome rather than *not a match*; three neighbouring
 assertions passed straight over it.
 
+*Corrected 2026-09-27.* The timeout bounded one call, and a scan made a great
+many: every key against every message, every recursive pass, every secondary
+key. A pattern that timed out on the first message was run again on the next,
+so five catastrophic keys in a book read to `scanDepth: 0` over an
+eight-hundred-message session cost minutes a turn for every account. That is
+the denial of service this stage was built to close, reached by repetition. A
+scan now keeps a ledger (`RegexLedger` in `retrieval/match.ts`): a refused
+pattern is not run again, and after four timeouts a scan runs no more
+patterns, reporting each one it skips as timed out.
+
 **Then the matcher, pure**: keys, secondary keys with selective logic,
 whole-word, case, regex, scan depth and scan sources, as functions over values.
 Everything deciding whether a matched entry actually *fires* — `enabled`, the
@@ -1901,6 +1927,17 @@ It falls out of the verdict rather than needing a rule: while a window is
 running the verdict is `sticky` and never `fires`, so there is no arm that could
 reset it. `fired` counts firings and not turns for the same reason, which is why
 an `ephemeral: 1` entry with `sticky: 3` gets its three turns.
+
+*(2026-09-27)* **A firing is a reading, and until this date the counters did not
+wait to see whether there was one.** They were proposed with the scan, before
+the book's own budget, the outlets and the chat-wide cut had had their say, so an
+entry whose text never reached the prompt was recorded as having fired: an
+`ephemeral: 1` entry trimmed for budget on the turn it matched was spent and never
+read at all, a cooldown started on a turn the entry sat out, and a sticky window
+closed unseen. The counters are now settled after the call is assembled
+(`settleTiming` over the blocks the assembler included): an activation that did
+not reach the prompt leaves its counters where they were, and a cooldown running
+down, which is time passing rather than a reading, moves either way.
 
 **`delay` has no counter**, deliberately: *do not fire until N messages in* is a
 fact about the conversation's length, already on the path, and a stored copy is

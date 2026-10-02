@@ -164,7 +164,139 @@ export type WidgetSpec =
    * schema, so the arm that serves them is a different shape and should be
    * designed against them rather than ahead of them.
    */
-  | { kind: 'toggle'; label: string };
+  | { kind: 'toggle'; label: string }
+  /**
+   * ***A stat bar*** — [P14 §1.9.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5a], and it is [10 §8.0]'s *"a `meter` arrives with the
+   * first numeric channel"* arriving.
+   *
+   * **Over a number, or over a value that carries its own ceiling.** A plain
+   * number is bounded by the declaration (`min`, else 0; `max`); a
+   * `{ value, max }` is bounded by itself, which is Marinara's `CharacterStat`
+   * and the shape every tracker stat is — a character's health has a ceiling
+   * the story sets, not one the mode could know when it was written. The
+   * trackers' stats are rows of a {@link RecordField} `meters` field rather
+   * than channels of their own, and the host draws both with one bar, so the
+   * arm and the field are one thing seen from two sizes.
+   *
+   * *A readout, never a control*: a bar dragged to a value is a number edited,
+   * and the record's editor is where a number is edited.
+   */
+  | { kind: 'meter'; label: string; min?: number; max?: number }
+  /**
+   * ***A structured value, read and edited field by field*** — [P14 §1.9.2],
+   * added at [P14.5a]. *"Which is new here."*
+   *
+   * **The fields are declared, not inferred from the schema.** A JSON Schema
+   * says what a value may be; it does not say that `stats` is a row of bars,
+   * that `objectives` is a checklist, or which of eight strings a person reads
+   * first — and a host guessing presentation from `type: 'array'` would be the
+   * second description of a value that 10 §8 exists to prevent a mode shipping
+   * as code. So a record names each field and how it is shown, from a small
+   * closed vocabulary ({@link RecordField}), and a field whose `show` the host
+   * does not know is skipped, as an arm is.
+   *
+   * ***`locks` and `hidden` name channels, and that is the whole of the per-field
+   * affordances.*** Each is the id of a set-valued channel of field paths
+   * (`<channel key>/<JSON Pointer>`, a list row addressed by its `name`); the
+   * host offers *lock* and *hide* on each field and writes the set through the
+   * ordinary channel route, so what a lock *means* stays the mode's — the
+   * trackers write a locked field back before proposing — and the widget only
+   * says where the set lives. Absent, the field has neither control.
+   *
+   * *Editing is the channel write every widget uses*: the whole value, changed
+   * at one field, through `PUT /sessions/:id/channels/:key` — an engine turn
+   * with a `user` effect, branch-correct and undoable, and still refused by the
+   * channel's own `update` policy where it refuses.
+   */
+  | {
+      kind: 'record';
+      label: string;
+      fields: readonly RecordField[];
+      locks?: string;
+      hidden?: string;
+    };
+
+/**
+ * ***One field of a {@link WidgetSpec} `record`*** — [P14.5a].
+ *
+ * `key` is one property of the value, or `''` for **the value itself** — JSON
+ * Pointer's own spelling of the whole document — which is how a record shows a
+ * channel whose value is a list (the quests, the custom fields).
+ *
+ * `show` is how, and each is a shape the host knows how to read and edit:
+ *
+ * - `line` — a short string. `number` — a number. `flag` — a boolean.
+ * - `lines` — a list of strings, newest last.
+ * - `pairs` — rows of `{ name, value }`; `map` — an object of name to string.
+ *   A person may add and remove rows; *which names exist* is theirs to say,
+ *   which is the custom tracker's whole contract.
+ * - `items` — rows of `{ name, qty? }`.
+ * - `meters` — rows of `{ name, value, max, color? }`, each a {@link WidgetSpec}
+ *   `meter`.
+ * - `checklists` — rows of `{ name, stage?, objectives: [{ text, completed }],
+ *   completed }`, each objective a box a person can tick.
+ *
+ * *Closed, and grown the way the arms grow*: a field no `show` here can say is
+ * a reason to add one — [10 §8.1]'s *"ask what widget would let it, and add
+ * that"* — never a reason for a mode to ship a component.
+ */
+export interface RecordField {
+  key: string;
+  label: string;
+  show: 'line' | 'number' | 'flag' | 'lines' | 'pairs' | 'map' | 'items' | 'meters' | 'checklists';
+}
+
+/**
+ * ***Part of what the story has established*** —
+ * [P14 §1.9.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * declared at [P14.5a].
+ *
+ * A channel carrying this is rendered by a preset's `{ of: 'state' }` slot:
+ * every such channel, every scoped key of it, through its own {@link
+ * ChannelDefinition.render}, as **one** block headed *what the story has
+ * established*. That is Marinara's committed tracker context
+ * (`committed-tracker-context.ts:299`) as a declaration: a mode says which of
+ * its channels are facts the prose has settled, and the pack says where they
+ * go.
+ *
+ * **A declaration and not a list in the engine**, which is the only way it
+ * could be: the trackers are Scene's channels, the collector is engine code,
+ * and engine code does not name a mode's content. The existing `{ of:
+ * 'channel' }` slot reads one unscoped key, so six of them would still leave
+ * each present character's state out — scoped values are the point.
+ */
+export interface EstablishedState {
+  /** The heading the value goes under — authored content, like a widget's label. */
+  label: string;
+  /**
+   * ***The switch this channel waits on***: the id of a boolean channel whose
+   * value must be `true` for this one to be rendered anywhere — the state
+   * block, and the other channel digests the engine builds.
+   *
+   * *A switched-off tracker says nothing*, including what it said while it was
+   * on: its values stay on the tree, so switching it back on resumes rather
+   * than restarts, and until then the prompt is the one a session that never
+   * had it would send. Absent means always rendered.
+   */
+  enabledBy?: string;
+  /**
+   * ***What this block already says in a channel of its own*** (2026-09-30): the
+   * ids of channels whose **prompt slots** stand aside while this one is
+   * switched on.
+   *
+   * Scene's world tracker keeps a model-written date, time and place, and
+   * Scene's pack also tells the narrator the engine's clock and the stager's
+   * place. Two clocks that disagree are worse than either, so while the
+   * tracker is on the narrator hears the tracker's. *Only a slot stands aside*:
+   * the channel's surface still shows it and a backdrop is still drawn from
+   * it, since neither is the prompt the two would contradict each other in.
+   * Declared by the tracker rather than listed by the engine, the rule that
+   * keeps a mode's content out of engine code. Absent means nothing stands
+   * aside.
+   */
+  supersedes?: readonly string[];
+}
 
 export interface ChannelDefinition {
   id: string;
@@ -327,6 +459,46 @@ export interface ChannelDefinition {
    * at all.*
    */
   surface?: WidgetSpec;
+  /**
+   * Whether the value is established state, and under what heading — see
+   * {@link EstablishedState}. Absent for every channel that is not.
+   */
+  state?: EstablishedState;
+  /**
+   * ***The switch this channel waits on, wherever it is read*** —
+   * [P14 §1.9.3](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5b]: the id of a boolean channel whose value must be `true`
+   * for this one to reach a prompt slot, a channel digest or a surface.
+   *
+   * **{@link EstablishedState.enabledBy}, for a channel that is not established
+   * state.** The trackers' switch rides on `state` because the state block was
+   * the one place they are read; a secret plot is read through an ordinary `{
+   * of: 'channel' }` slot among the system blocks, and giving it a `state` to
+   * reach the switch would put it in the *what the story has established* block
+   * too — which a plot the story has not reached is exactly not. So the switch
+   * is said here, once, and the engine reads either (`stateEnabled`).
+   *
+   * *Switched off is silent, not cleared*: the value stays on the tree, so a
+   * plot switched back on resumes where it was. Absent means always read.
+   */
+  enabledBy?: string;
+  /**
+   * ***The reveal affordance*** — [06 §7.3](../../../docs/design/06-modes-and-turn-pipeline.md):
+   * *"Hidden GM state (… the Narrative Director's Secret Plot) is a channel
+   * with `visibility: "hidden"` and a reveal affordance."* Added at [P14.5b].
+   *
+   * The id of a boolean channel a person switches: while it is `true`, this
+   * hidden channel's surfaces are drawn as though it were `player`, and while
+   * it is not, it is kept from every surface **and from the channel digests
+   * that feed a picture** — a secret drawn into an illustration is a secret
+   * shown. The narrator is told either way; `visibility` is about the player
+   * ([04 §7.1]'s *hidden is the GM's arc*).
+   *
+   * *Only meaningful on a `hidden` channel*: a `player` channel has nothing to
+   * reveal. Absent is hidden for good, which is every hidden channel before
+   * this — bookkeeping, not a secret.
+   */
+  reveal?: string;
   /**
    * Where the value starts. See {@link InitPolicy}.
    *

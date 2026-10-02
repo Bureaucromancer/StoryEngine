@@ -4,8 +4,9 @@
 import { useState, type JSX } from 'react';
 
 import type { GoalRow } from '../api.js';
+import { labels } from '../i18n/catalogue.js';
 import { useAddGoal, useSession, useWriteChannel } from '../queries.js';
-import { Alert } from '../ui/Alert.js';
+import { Alert, AlertNote } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
@@ -38,7 +39,29 @@ import { disclosure } from '../ui/classes.js';
  * **A disclosure, like the hook panel beside it**, and always present once the
  * session loads: the control that writes a goal at Advance is inside it.
  */
-export function GoalPanel(props: { sessionId: string }): JSX.Element | null {
+/**
+ * ***What went wrong, said where it went wrong*** (2026-09-28). Every write on
+ * this panel could fail and none said so: an offer refused while a turn ran
+ * came back as if never pressed, and an objective could be saved while play was
+ * never pointed at it. The catalogue's words, like the chat panels beside it.
+ */
+const WORDS = labels('play.goals', {
+  failed: 'That could not be saved.',
+  setFailed: 'The objective could not be set.',
+  pointFailed: 'The objective was saved, but play could not be pointed at it.',
+  retry: 'Try again',
+});
+
+export function GoalPanel(props: {
+  sessionId: string;
+  /**
+   * ***Whether a turn is starting or running*** (2026-09-28), the same
+   * composition the cast panel is given. Every write here moves the story
+   * head, and the server refuses one with `409 busy` while a turn runs — so the
+   * offers wait for it rather than failing.
+   */
+  busy?: boolean;
+}): JSX.Element | null {
   const session = useSession(props.sessionId);
   const goals = session.data?.goals;
   const rows = goals?.rows ?? [];
@@ -63,7 +86,13 @@ export function GoalPanel(props: { sessionId: string }): JSX.Element | null {
         ) : (
           <div className="flex flex-col gap-2">
             {rows.map((row) => (
-              <Goal key={row.goalId} sessionId={props.sessionId} row={row} rows={rows} />
+              <Goal
+                key={row.goalId}
+                sessionId={props.sessionId}
+                row={row}
+                rows={rows}
+                busy={props.busy === true}
+              />
             ))}
           </div>
         )}
@@ -72,7 +101,7 @@ export function GoalPanel(props: { sessionId: string }): JSX.Element | null {
             This story has ended. It stays readable, and rewinding puts you back before it.
           </Alert>
         ) : (
-          <SetGoal sessionId={props.sessionId} />
+          <SetGoal sessionId={props.sessionId} busy={props.busy === true} />
         )}
       </div>
     </details>
@@ -107,10 +136,16 @@ function summaryLine(
   return rows.length === 0 ? 'No objective' : 'No objective set';
 }
 
-function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[] }): JSX.Element {
+function Goal(props: {
+  sessionId: string;
+  row: GoalRow;
+  rows: readonly GoalRow[];
+  busy: boolean;
+}): JSX.Element {
   const { row } = props;
   const write = useWriteChannel(props.sessionId);
   const next = props.rows.find((one) => one.goalId === row.next) ?? null;
+  const waiting = write.isPending || props.busy;
 
   function set(key: string, value: unknown): void {
     write.mutate({ key, value });
@@ -151,7 +186,7 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              disabled={write.isPending}
+              disabled={waiting}
               onClick={() => {
                 set(`se.goal#${row.goalId}`, 'achieved');
               }}
@@ -160,7 +195,7 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
             </Button>
             <Button
               type="button"
-              disabled={write.isPending}
+              disabled={waiting}
               onClick={() => {
                 set(`se.goal#${row.goalId}`, null);
               }}
@@ -184,7 +219,7 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
         <div className="flex gap-2">
           <Button
             type="button"
-            disabled={write.isPending}
+            disabled={waiting}
             onClick={() => {
               set(`se.goal#${row.goalId}`, 'achieved');
             }}
@@ -208,7 +243,7 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              disabled={write.isPending}
+              disabled={waiting}
               onClick={() => {
                 // The achievement is retained; the cursor goes to nothing.
                 set('se.goal.current', null);
@@ -219,7 +254,7 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
             {next === null ? null : (
               <Button
                 type="button"
-                disabled={write.isPending}
+                disabled={waiting}
                 onClick={() => {
                   set('se.goal.current', next.goalId);
                 }}
@@ -229,7 +264,7 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
             )}
             <Button
               type="button"
-              disabled={write.isPending}
+              disabled={waiting}
               onClick={() => {
                 set('se.concluded', true);
               }}
@@ -242,6 +277,8 @@ function Goal(props: { sessionId: string; row: GoalRow; rows: readonly GoalRow[]
           ) : null}
         </Alert>
       ) : null}
+
+      {write.isError ? <AlertNote role="alert">{WORDS.failed}</AlertNote> : null}
     </div>
   );
 }
@@ -264,10 +301,29 @@ function mark(label: string, seeded: boolean): string {
  * here would want — judged by the narrator, visible, and asking again when it is
  * met rather than assuming an ending.
  */
-function SetGoal(props: { sessionId: string }): JSX.Element {
+function SetGoal(props: { sessionId: string; busy: boolean }): JSX.Element {
   const add = useAddGoal(props.sessionId);
   const write = useWriteChannel(props.sessionId);
   const [statement, setStatement] = useState('');
+  /**
+   * ***The goal just made, kept until play points at it*** (2026-09-28). The
+   * add and the cursor write are two requests, and the second can fail on its
+   * own — refused while a turn runs, or lost to the network — leaving the goal
+   * in the chain and play not working toward it. The id is held so the one
+   * write that failed can be sent again, rather than asking for a second goal.
+   */
+  const [made, setMade] = useState<string | null>(null);
+
+  function point(goalId: string): void {
+    write.mutate(
+      { key: 'se.goal.current', value: goalId },
+      {
+        onSuccess: () => {
+          setMade(null);
+        },
+      },
+    );
+  }
 
   function submit(): void {
     add.mutate(
@@ -289,8 +345,10 @@ function SetGoal(props: { sessionId: string }): JSX.Element {
            * one the server minted rather than one guessed here.
            */
           const chain = answer.session.goals ?? [];
-          const made = chain.at(-1);
-          if (made !== undefined) write.mutate({ key: 'se.goal.current', value: made.id });
+          const minted = chain.at(-1);
+          if (minted === undefined) return;
+          setMade(minted.id);
+          point(minted.id);
         },
       },
     );
@@ -311,10 +369,30 @@ function SetGoal(props: { sessionId: string }): JSX.Element {
         hint="Short. The narrator sees it every turn and works toward it."
       />
       <div>
-        <Button type="submit" disabled={statement.trim() === '' || add.isPending}>
+        <Button
+          type="submit"
+          disabled={statement.trim() === '' || add.isPending || write.isPending || props.busy}
+        >
           Set
         </Button>
       </div>
+      {add.isError ? <AlertNote role="alert">{WORDS.setFailed}</AlertNote> : null}
+      {made !== null && write.isError ? (
+        <Alert tone="error" role="alert" className="flex flex-col gap-2">
+          <span>{WORDS.pointFailed}</span>
+          <div>
+            <Button
+              type="button"
+              disabled={props.busy}
+              onClick={() => {
+                point(made);
+              }}
+            >
+              {WORDS.retry}
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
     </form>
   );
 }

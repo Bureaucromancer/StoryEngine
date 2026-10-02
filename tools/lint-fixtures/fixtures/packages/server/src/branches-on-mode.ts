@@ -8,5 +8,7 @@
 export function isScene(modeId: string): boolean {
   if (modeId === "storyengine.scene") return true;
   if ("storyengine.freeform" === modeId) return false;
+  // The third shipped mode, which the pattern was a fixed list without.
+  if (modeId === "storyengine.assistant") return false;
   return modeId !== "storyengine.campaign";
 }

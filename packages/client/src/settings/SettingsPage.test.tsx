@@ -46,6 +46,14 @@ const listMyConnections = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  /**
+   * ***The trash*** — mocked for `listMyConnections`' reason, which it met on
+   * 2026-10-01: until then a trash that could not be read claimed to be empty
+   * and rendered no alert, so this file never had to answer the query (polish
+   * 10). An unmocked read rejects now, `Trash` says so in a `role=alert`, and
+   * every `findByRole('alert')` on this page finds two.
+   */
+  readTrash: () => Promise.resolve({ entries: [], retentionDays: 30 }),
   api: {
     authState: (...a: unknown[]) => authState(...a) as unknown,
     readMe: (...a: unknown[]) => readMe(...a) as unknown,
@@ -859,6 +867,43 @@ describe('a config save the file has moved under', () => {
     // whole difference between this offer and the other one.
     expect(contentHash).toBe('the-hash-the-file-has-now');
     expect(config.log.level).toBe('info');
+  });
+
+  /**
+   * ***Save, pressed again with neither offer chosen*** (2026-09-27). The
+   * refusal's hash used to ride on the very next Save, so this overwrote the
+   * file on disk — the silent overwrite the refusal exists for, and what gate
+   * step 15's *neither by accident* rules out. It is refused again now.
+   */
+  it('sends no acknowledgement on a Save pressed straight after a refusal', async () => {
+    const { ApiError } = await import('../api.js');
+    writeConfig.mockRejectedValueOnce(
+      new ApiError(
+        412,
+        'stale',
+        'The config file has changed on disk.',
+        {
+          dataDir: './data',
+          log: { level: 'warn' },
+          server: { host: '127.0.0.1', port: 8080 },
+        },
+        'the-hash-the-file-has-now',
+      ),
+    );
+    writeConfig.mockResolvedValue({ config: {}, pendingRestart: [] });
+
+    renderPage('admin');
+    await screen.findByLabelText('log.level');
+    const install = within(screen.getByRole('region', { name: 'This install' }));
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(writeConfig).toHaveBeenCalledTimes(2);
+    });
+    expect(writeConfig.mock.calls[1]?.[1]).toBeUndefined();
   });
 
   it('sends no acknowledgement on an ordinary save, so neither offer fires by accident', async () => {

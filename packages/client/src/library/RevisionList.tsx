@@ -29,13 +29,19 @@ import { labels } from '../i18n/catalogue.js';
  * this list answers.
  */
 
-const SOURCE_LABELS: Record<string, string> = labels('library.revision.source', {
+/**
+ * Where a version came from, in words — exported for `revision-sources.test.ts`
+ * (2026-09-27), which reads the server's `VersionSource` arms: `memory`, a
+ * version play wrote into a memory book, had none and was shown as its id.
+ */
+export const SOURCE_LABELS: Record<string, string> = labels('library.revision.source', {
   manual: 'Edited in the app',
   external: 'Hand edit on disk',
   restore: 'Restored',
   assist: 'Assist',
   extension: 'Extension',
   import: 'Import',
+  memory: 'Written by play',
 });
 
 export function RevisionList({

@@ -65,7 +65,7 @@ const PRESET = {
   ],
   prompt_order: [
     {
-      character_id: 100000,
+      character_id: 100001,
       order: [
         { identifier: 'main', enabled: true },
         { identifier: 'charDescription', enabled: true },

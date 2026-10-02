@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { JSX } from 'react';
+import { useRef, type JSX, type KeyboardEvent } from 'react';
 
 import { labels } from '../i18n/catalogue.js';
 
@@ -91,17 +91,70 @@ export function promptFor(kind: string | undefined): string {
   return named ?? WORDS['fallback'] ?? 'What do you do?';
 }
 
+/**
+ * ***A radio group moves on its arrows*** (2026-10-01, polish 11).
+ *
+ * `role="radio"` promises the keyboard a radio group answers to, and this one
+ * answered to none of it: every kind was its own Tab stop — five presses to get
+ * past the row to the box it labels — and the arrows did nothing. Now the group
+ * is one stop, the chosen kind (the first, before one is chosen), and the
+ * arrows move the choice through it, wrapping at the ends, with Home and End
+ * for the ends themselves — the pattern a native radio group has and a
+ * screen reader announces this one as.
+ *
+ * *Choosing as it moves*, as native radios do: what a kind changes is the
+ * composer's placeholder and the move's kind, nothing sent, so there is
+ * nothing for an arrow to commit early.
+ */
+const NEXT: Readonly<Record<string, 1 | -1>> = {
+  ArrowRight: 1,
+  ArrowDown: 1,
+  ArrowLeft: -1,
+  ArrowUp: -1,
+};
+
 export function InputKind(props: {
   kinds: readonly string[];
   value: string | undefined;
   disabled?: boolean;
   onChange: (kind: string) => void;
 }): JSX.Element | null {
+  const group = useRef<HTMLDivElement>(null);
   if (props.kinds.length < 2) return null;
 
+  const chosen = props.kinds.indexOf(props.value ?? '');
+  /** The group's one Tab stop: the chosen kind, or the first before one is. */
+  const stop = chosen === -1 ? 0 : chosen;
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (props.disabled === true) return;
+    const count = props.kinds.length;
+    const step = NEXT[event.key];
+    const to =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? count - 1
+          : step === undefined
+            ? null
+            : (stop + step + count) % count;
+    if (to === null) return;
+    event.preventDefault();
+    const kind = props.kinds[to];
+    if (kind === undefined) return;
+    props.onChange(kind);
+    group.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[to]?.focus();
+  };
+
   return (
-    <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="What kind of turn">
-      {props.kinds.map((kind) => {
+    <div
+      ref={group}
+      className="flex flex-wrap gap-1"
+      role="radiogroup"
+      aria-label="What kind of turn"
+      onKeyDown={onKeyDown}
+    >
+      {props.kinds.map((kind, index) => {
         const hint = WORDS[`${kind}.hint`];
         const label = WORDS[`${kind}.label`];
         const selected = kind === props.value;
@@ -111,6 +164,7 @@ export function InputKind(props: {
             type="button"
             role="radio"
             aria-checked={selected}
+            tabIndex={index === stop ? 0 : -1}
             disabled={props.disabled ?? false}
             title={hint ?? kind}
             className={[

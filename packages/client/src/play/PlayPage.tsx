@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useRef, useState } from 'react';
-import { control, page, reveal } from '../ui/classes.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { control, link, page, reveal } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 
-import { remedyFor, uuidv7 } from '@storyengine/shared';
+import { outputMessagesOf, remedyFor, uuidv7 } from '@storyengine/shared';
 import type { StepFailureReason, TextSpan } from '@storyengine/shared';
 
 import {
@@ -18,22 +19,31 @@ import {
   type CastRow,
   submitTurn,
   undoTurn,
+  uploadPicture,
   type ModeSurface,
   type RenditionRecord,
+  type ChatSettings,
+  type LibraryObject,
+  type SubmitTurn,
+  type SwipeGroups,
   type TurnRecord,
 } from '../api.js';
 import {
   liveKey,
   previewKey,
+  renditionsKey,
   useAuthState,
   usePreview,
   useRefreshPreview,
   useIllustrateTurn,
+  useMyRoles,
   useRenditions,
   useRetryRendition,
   useSelectRendition,
   useSession,
   type RenditionSet,
+  useLibrary,
+  useSetHidden,
   useTranscript,
 } from '../queries.js';
 import { AlertNote } from '../ui/Alert.js';
@@ -44,10 +54,32 @@ import { GuidanceBox } from './GuidanceBox.js';
 import { ChannelHealth } from './ChannelHealth.js';
 import { ChannelHud } from './ChannelHud.js';
 import { CastPanel } from './CastPanel.js';
+import {
+  AutoMode,
+  PushStory,
+  autoDelayMs,
+  letThemTalkLabel,
+  NobodyWouldReply,
+  WhoSpeaksNext,
+} from './ChatComposer.js';
+import { ChatMessages, EditedOriginal, type ChatGestures } from './ChatMessages.js';
+import { ChatSettingsPanel } from './ChatSettingsPanel.js';
+import { anyoneWouldReply, canSpeak, hiddenEntry, hideSent, turnSiblings } from './chat.js';
+import { Portrait } from './Portrait.js';
+import { liveMessages } from './reducer.js';
+import { AUTO_MODE_DEFAULT_SECONDS, useAutoMode } from './useAutoMode.js';
 import { DialPanel } from './DialPanel.js';
 import { GoalPanel } from './GoalPanel.js';
 import { InputKind, promptFor } from './InputKind.js';
-import { ModeRegion } from './ModeRegion.js';
+import {
+  attachProblem,
+  ComposerPictures,
+  MAX_PICTURES,
+  MovePictures,
+  type ComposerPicture,
+} from './Pictures.js';
+import { preparePicture } from './preparePicture.js';
+import { ModeActions, ModeRegion } from './ModeRegion.js';
 import { Starters, Suggestions } from './Suggestions.js';
 import { MentionOverlay } from './MentionOverlay.js';
 import { HookPanel } from './HookPanel.js';
@@ -57,9 +89,10 @@ import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
-import { Fine, SectionTitle } from '../ui/Text.js';
+import { Note, SectionTitle } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
 import { useTurnStream } from './useTurnStream.js';
+import { writeFailed } from './WriteFailed.js';
 
 import { labels } from '../i18n/catalogue.js';
 
@@ -81,9 +114,23 @@ const PREVIEW_DEBOUNCE_MS = 400;
  * server does not know the reader's language, so what travels is something a
  * client can render.
  */
-const HELD_WORDS: Record<'no-binding' | 'no-moment', string> = labels('play.rendition.held-here', {
-  'no-binding': 'Nothing is set up to make pictures yet.',
-  'no-moment': 'There was nothing here worth a picture.',
+const HELD_WORDS: Record<'no-binding' | 'no-moment' | 'no-place', string> = labels(
+  'play.rendition.held-here',
+  {
+    'no-binding': 'Nothing is set up to make pictures yet.',
+    'no-moment': 'There was nothing here worth a picture.',
+    // 2026-09-30: a backdrop of no place would be a picture of a mood.
+    'no-place': 'The story has not said where this is yet, so there is no place to draw.',
+  },
+);
+
+/**
+ * A request that failed outright — not a held answer, which is a 200 — read by
+ * class: `busy` says to wait for the turn, anything else that it could not
+ * start. Both said where it was asked (`illustrateNote`), 2026-10-01.
+ */
+const ILLUSTRATE_WORDS = labels('play.rendition.request', {
+  failed: 'That picture could not be started.',
 });
 
 /**
@@ -141,6 +188,89 @@ export function PlayPage({
    */
   const [kind, setKind] = useState<string | undefined>(undefined);
   const [guidance, setGuidance] = useState('');
+  /**
+   * ***Pictures on the move being composed*** — [25 E15], R1. Uploaded as they
+   * are attached, so what the move names is a digest the server already holds;
+   * cleared when the move is sent, as the words are.
+   */
+  const [pictures, setPictures] = useState<ComposerPicture[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const [pictureProblem, setPictureProblem] = useState<string | null>(null);
+  const pictureRefs = useMemo(
+    () =>
+      pictures.map((picture) => ({
+        digest: picture.digest,
+        ...(picture.caption.trim() === '' ? {} : { caption: picture.caption.trim() }),
+      })),
+    [pictures],
+  );
+
+  /**
+   * Prepares and uploads each chosen picture — redrawn in the browser first, so
+   * nothing a phone recorded about where a photo was taken ever leaves it
+   * (`preparePicture`, which refuses rather than sending an original).
+   */
+  /** Whether the page is still here — read by an attach whose upload outlived it. */
+  const pageOpen = useRef(true);
+  const attachPictures = async (files: readonly File[]): Promise<void> => {
+    setPictureProblem(null);
+    setAttaching(true);
+    try {
+      // Counted here rather than read from `pictures`, which is the value this
+      // render closed over and does not grow while the loop runs — and the same
+      // for what is already held, so two files in one pick that come out as the
+      // same bytes (a photo and its copy) are one picture, not two with one key.
+      let room = MAX_PICTURES - pictures.length;
+      const seen = new Set(pictures.map((one) => one.digest));
+      for (const file of files) {
+        if (room <= 0) break;
+        const prepared = await preparePicture(file);
+        const uploaded = await uploadPicture(sessionId, prepared);
+        // A page left while the upload was out has already let go of its
+        // previews, and a preview made now would be one nothing ever releases.
+        if (!pageOpen.current) return;
+        // The same picture attached twice is one picture: its address is its bytes.
+        if (seen.has(uploaded.digest)) continue;
+        seen.add(uploaded.digest);
+        room -= 1;
+        const preview = URL.createObjectURL(prepared);
+        setPictures((held) => [...held, { digest: uploaded.digest, preview, caption: '' }]);
+      }
+    } catch (error) {
+      setPictureProblem(attachProblem(error));
+    } finally {
+      setAttaching(false);
+    }
+  };
+
+  /**
+   * ***Clears the pictures a move carried, and only those*** — a picture whose
+   * attach finished while the move was on its way was not in it, and stays for
+   * the next one rather than vanishing unsent.
+   */
+  const clearSent = (sent: ReadonlySet<string>): void => {
+    setPictures((held) => {
+      for (const one of held) if (sent.has(one.digest)) URL.revokeObjectURL(one.preview);
+      return held.filter((one) => !sent.has(one.digest));
+    });
+    setPictureProblem(null);
+  };
+
+  /**
+   * ***The previews go with the page*** — each is a blob URL, which the browser
+   * keeps for as long as the document lives unless it is told. Read through a
+   * ref, because a cleanup keyed on `pictures` would revoke previews still on
+   * screen every time one was added.
+   */
+  const heldPictures = useRef(pictures);
+  heldPictures.current = pictures;
+  useEffect(() => {
+    pageOpen.current = true;
+    return () => {
+      pageOpen.current = false;
+      for (const one of heldPictures.current) URL.revokeObjectURL(one.preview);
+    };
+  }, []);
 
   // Shared with the workbench through `queries.ts`, so both mounts read one
   // cache entry and the invalidate below refreshes both ([P3.1]).
@@ -156,7 +286,9 @@ export function PlayPage({
    * tests, and a query per turn would be one per message here.
    *
    * **Two sources, and the live one wins.** The query is the set as it stood
-   * when the page loaded; the stream's map is every record announced since.
+   * when the page loaded; the stream's map is every record announced since
+   * the stream last attached (2026-09-28: it was every record since the page
+   * opened, drops and all — the reducer's `renditions` has why).
    * Overlaying rather than invalidating is what the whole-record frame bought
    * ([P9.2]) — a picture that finishes long after its turn did appears without
    * a refetch, which the `running → finished` invalidation effect below
@@ -176,9 +308,91 @@ export function PlayPage({
    * setting somebody has not done yet look like a fault.
    */
   const held = illustrate.data?.held;
+  /**
+   * ***The answer goes where the question was asked*** (2026-10-01, polish 9).
+   * Both buttons ask the same route — *Set the scene* for the head with
+   * `purpose: 'background'`, each turn's *Illustrate* for that turn — and the
+   * answer was drawn only beside *Set the scene*: an Illustrate pressed forty
+   * turns down was answered at the top of the page, or, in a mode with no
+   * stage and so no *Set the scene*, nowhere. And a request that failed
+   * outright said nothing in either place. So the note is matched to the
+   * request it answers, by purpose and by turn.
+   */
+  const illustrateNote = (
+    purpose: 'background' | 'illustration',
+    turnId?: string,
+  ): string | null => {
+    const asked = illustrate.variables;
+    if (asked?.purpose !== purpose) return null;
+    if (purpose === 'illustration' && asked.turnId !== turnId) return null;
+    if (illustrate.isError) return writeFailed(illustrate.error, ILLUSTRATE_WORDS.failed);
+    return held === undefined ? null : HELD_WORDS[held];
+  };
   const picturesByTurn = renditionsByTurn(sessionId, renditions.data, state.renditions);
 
   const running = state.status === 'running';
+
+  /**
+   * ***The chat, when this session is one*** — [P14 §1.8], [P14.5]. `chat` is
+   * the server's effective reading and is absent for a mode that does not play
+   * as a chat, which is what every chat-only control below keys on: a Freeform
+   * session's page is the page it was.
+   */
+  const chat = session.data?.chat;
+  const roster = session.data?.session.cast;
+  const library = useLibrary('actors');
+  const actorObjects = library.data?.objects ?? [];
+  /** Who speaks next — force-talk from the composer, one-shot (see `WhoSpeaksNext`). */
+  const [forced, setForced] = useState('');
+  /** Push story — the director armed for the next turn, one-shot (see `PushStory`). */
+  const [push, setPush] = useState<'' | 'natural' | 'random'>('');
+  /**
+   * ***Whether the characters speak for themselves*** — the one voice under
+   * which naming a speaker changes anything. A narrator speaks for nobody, so
+   * *who speaks next*, the cast's *Speak* and talkativeness would each be a
+   * control that changes nothing there — the settings panel's reason for
+   * hiding dispatch under the narrator.
+   */
+  const embodied = chat?.voice === 'embodied';
+  /**
+   * A pick made before the chat was switched to the narrator is dropped rather
+   * than sent: the control that made it is gone, and a forced list on a
+   * narrated turn would be a choice nobody can see or undo.
+   */
+  useEffect(() => {
+    if (!embodied) setForced('');
+  }, [embodied]);
+  /**
+   * ***Edit boxes open in the transcript*** — counted, because each line has
+   * its own. Opening one is taking the turn back, as typing in the composer is,
+   * so it stops auto-mode; and the page is not idle while any is open.
+   * `useCallback` because each line reports from an effect that depends on it.
+   */
+  const [editing, setEditing] = useState(0);
+  const onEditing = useCallback((open: boolean) => {
+    setEditing((count) => Math.max(count + (open ? 1 : -1), 0));
+    if (open) setAuto(false);
+  }, []);
+  /** Auto-mode — on, and after how many quiet seconds (see `useAutoMode`). */
+  const [auto, setAuto] = useState(false);
+  const [autoSeconds, setAutoSeconds] = useState(String(AUTO_MODE_DEFAULT_SECONDS));
+  /** An empty send nobody could answer was refused here, and says why. */
+  const [nobody, setNobody] = useState(false);
+  const speakable = (session.data?.cast ?? [])
+    .filter((row) => canSpeak(row, roster))
+    .map((row) => ({
+      id: row.actorId,
+      name: actorObjects.find((one) => one.id === row.actorId)?.name ?? row.actorId,
+    }));
+  /**
+   * ***Whether an empty send would get a reply*** — [P14.4]'s note: under an
+   * embodied voice a turn with no input and nobody named is answered by the
+   * policy's pick from the eligible, and with nobody eligible it is a turn
+   * with no reply at all. A narrator always answers, so the check is the
+   * embodied voice's alone.
+   */
+  const wouldReply =
+    chat?.voice !== 'embodied' || anyoneWouldReply(session.data?.cast ?? [], roster);
 
   /**
    * ***The composer, held so focus can be given back to it*** — see the effect
@@ -209,8 +423,43 @@ export function PlayPage({
    */
   const composer = useRef<HTMLTextAreaElement | null>(null);
 
+  /**
+   * ***A fill hands the box the keyboard*** (2026-10-01, polish 11).
+   *
+   * Three controls write into the composer — *Draft my next message*, a
+   * starter, a suggestion — and none of them said so. The words appeared where
+   * an eye would find them and nowhere a screen reader would read, and the
+   * keyboard stayed on the button, so the next keystroke went to it rather than
+   * to the draft it had just asked for. The box takes the keyboard now, with
+   * the caret after what arrived: arriving there is the announcement — a field
+   * is read with its contents as focus lands on it, the way `TwoStep` announces
+   * its question — and it is where the next keystroke belongs, editing the
+   * draft or Enter to send it.
+   *
+   * A count rather than a flag, so the same suggestion picked twice is two
+   * fills; and an effect, so the caret is placed in the value that has
+   * rendered rather than in the one that is about to.
+   */
+  const [fills, setFills] = useState(0);
+  const fill = (text: string): void => {
+    setDraft(text);
+    setFills((count) => count + 1);
+  };
+  useEffect(() => {
+    const box = composer.current;
+    if (fills === 0 || box === null) return;
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+  }, [fills]);
+
   const send = useMutation({
-    mutationFn: () =>
+    /**
+     * `null` is *let them talk* — [P14 §1.6]: a turn with **no input**, not
+     * one with empty words, so the policy answers the last message rather than
+     * a blank move (ST's empty send). Pictures and a kind belong to a move, so
+     * an empty send carries neither; guidance and a named speaker it may.
+     */
+    mutationFn: (sending: readonly { digest: string; caption?: string }[] | null) =>
       submitTurn({
         sessionId,
         // A key the client owns, so a retry of *this* submission is recognised
@@ -221,15 +470,26 @@ export function PlayPage({
         // say what `ids.ts` already says.
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
-        text: draft,
-        // Absent unless the player chose, so the route applies the mode's
-        // default rather than the client guessing `do` for a mode without one.
-        ...(kind === undefined ? {} : { kind }),
+        ...(sending === null
+          ? {}
+          : {
+              text: draft,
+              // Absent unless the player chose, so the route applies the mode's
+              // default rather than the client guessing `do` for a mode without one.
+              ...(kind === undefined ? {} : { kind }),
+              ...(sending.length === 0 ? {} : { attachments: sending }),
+            }),
         guidance,
+        ...(forced === '' || !embodied ? {} : { speakers: [forced] }),
+        ...(push === '' || chat === undefined ? {} : { push }),
       }),
-    onSuccess: (accepted) => {
+    onSuccess: (accepted, sending) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
       setDraft('');
+      clearSent(new Set((sending ?? []).map((one) => one.digest)));
+      setForced('');
+      setPush('');
+      setNobody(false);
       // One-shot: guidance applies to the turn it was written for and does not
       // persist ([06 §5.1]).
       setGuidance('');
@@ -261,9 +521,126 @@ export function PlayPage({
    * come to disagree.
    */
   const submit = (): void => {
-    if (send.isPending || running) return;
-    if (draft.trim().length === 0) return;
-    send.mutate();
+    if (send.isPending || running || attaching) return;
+    // A move may be only a picture — its words are the picture's caption, and
+    // the record keeps the move either way ([25 E15]).
+    if (draft.trim().length === 0 && pictures.length === 0) {
+      /**
+       * ***An empty box is *let them talk*, in a chat*** — [P14 §1.8]. Under
+       * `manual` with nobody named it still sends: the policy picks one
+       * eligible member at random, which is SillyTavern's and what [P14.4]
+       * kept. It is refused here only when nobody at all could answer, and
+       * then it says so rather than committing a turn with no reply.
+       */
+      if (chat === undefined) return;
+      if (forced === '' && !wouldReply) {
+        setNobody(true);
+        return;
+      }
+      send.mutate(null);
+      return;
+    }
+    send.mutate(pictureRefs);
+  };
+
+  /**
+   * ***The chat's gestures, each a turn*** — [P14 §1.6]. One mutation for every
+   * gesture that submits: a swipe, a continue, an edit, a branch at a message,
+   * and the cast panel's *speak*. They share the redo's posture — the composer
+   * is left alone, because none of them used what is in it — and differ only
+   * in the body, which `routes/gestures.ts` on the server reads.
+   */
+  const gesture = useMutation({
+    mutationFn: (body: Omit<SubmitTurn, 'sessionId' | 'idempotencyKey' | 'headTurnId'>) =>
+      submitTurn({
+        sessionId,
+        idempotencyKey: uuidv7(),
+        headTurnId: session.data?.session.headTurnId ?? null,
+        ...body,
+      }),
+    onSuccess: (accepted) => {
+      dispatch({ kind: 'submitted', jobId: accepted.jobId });
+      void queryClient.resetQueries({ queryKey: previewKey(sessionId) });
+    },
+  });
+  const hide = useSetHidden(sessionId);
+
+  /**
+   * ***What each message's actions send*** — [P14 §1.6]'s table, row by row.
+   *
+   * - **Swipe** regenerates message *k* by the same speaker: `rewriteOf`, so
+   *   the tape's draws hold and only the words change — the Redo button's
+   *   default, for its reason (swiping past a failed check must not be
+   *   save-scumming by accident).
+   * - **Edit** is a sibling written by hand that names the turn it edits
+   *   (`editOf`), so every line left as it was is carried whole.
+   * - **Branch** at a message keeps the round up to it and stops there: an
+   *   edit whose lines are that prefix, which the server carries whole. At the
+   *   last message there is nothing to cut, and branching is *continue from
+   *   here* — the head moves and nothing is written.
+   * - **Hide** sends the turn's whole entry (`hideSent`).
+   * - **Delete** moves the head to the turn's parent — `null` for the first
+   *   turn, the root — and writes nothing: the turn stays as a sibling nobody
+   *   is on.
+   */
+  const chatGestures: ChatGestures = {
+    onGo: (turnId) => {
+      goToSibling.mutate(turnId);
+    },
+    onSwipe: (turn, index) => {
+      gesture.mutate({ rewriteOf: turn.id, fromMessage: index, parentTurnId: turn.parentTurnId });
+    },
+    onContinue: (turn) => {
+      gesture.mutate({ continueOf: turn.id, parentTurnId: turn.parentTurnId });
+    },
+    onEditMessage: (turn, index, text) => {
+      // `outputMessagesOf`, so a turn with no `messages` — pre-P14 or narrated
+      // — is edited as the one narrator line it is drawn as.
+      const messages = outputMessagesOf(turn.output).map((message, at) => ({
+        speaker: message.speaker?.id ?? null,
+        text: at === index ? text : message.text,
+      }));
+      gesture.mutate({
+        editOf: turn.id,
+        parentTurnId: turn.parentTurnId,
+        authored: { messages },
+      });
+    },
+    onEditInput: (turn, text) => {
+      gesture.mutate({
+        editOf: turn.id,
+        parentTurnId: turn.parentTurnId,
+        authored: { input: { text } },
+      });
+    },
+    onHide: (turn, hidden, index) => {
+      const count = outputMessagesOf(turn.output).length;
+      hide.mutate({
+        turnId: turn.id,
+        hidden:
+          index === null ? hidden : hideSent(hiddenEntry(chat, turn.id), index, count, hidden),
+      });
+    },
+    onBranch: (turn, index) => {
+      const messages = outputMessagesOf(turn.output);
+      if (index >= messages.length - 1) {
+        continueFrom.mutate(turn);
+        return;
+      }
+      gesture.mutate({
+        editOf: turn.id,
+        parentTurnId: turn.parentTurnId,
+        authored: {
+          messages: messages
+            .slice(0, index + 1)
+            .map((message) => ({ speaker: message.speaker?.id ?? null, text: message.text })),
+        },
+      });
+    },
+    onDelete: (turn) => {
+      remove.mutate(turn);
+    },
+    onEditing,
   };
 
   /**
@@ -322,10 +699,31 @@ export function PlayPage({
         sessionId,
         idempotencyKey: uuidv7(),
         headTurnId: session.data?.session.headTurnId ?? null,
-        text: turn.input?.text ?? '',
+        // A turn that answered no move — *let them talk* — is redone as one:
+        // sending `''` would turn it into a blank move by the player.
+        ...(turn.input === undefined ? {} : { text: turn.input.text }),
+        /**
+         * **The move's kind comes with it** — a redone `think` is a thought
+         * again, not a `do` that puts the player's private thought in the
+         * scene, which is the failure the kind exists to prevent.
+         */
+        ...(turn.input?.kind === undefined ? {} : { kind: turn.input.kind }),
+        /**
+         * **And its pictures**, for the reason its words do: this is *that turn
+         * again*. Named by the turn rather than re-sent, so the server copies
+         * them as recorded — a picture whose bytes never reached this server
+         * (an imported turn) included, and goes as its caption.
+         */
+        ...((turn.input?.attachments?.length ?? 0) === 0 ? {} : { attachmentsOf: turn.id }),
         parentTurnId: turn.parentTurnId,
         ...(rewrite ? { rewriteOf: turn.id } : {}),
         ...(guidance === undefined ? {} : { guidance, redoOf: turn.id }),
+        /**
+         * ***A pushed turn is redone pushed*** — [P14.5b]. A rewrite gets it
+         * from the server, off the redone turn's director outcome; a plain
+         * reroll names no turn the server could read it from, so it is sent.
+         */
+        ...(rewrite ? {} : pushOf(turn)),
       }),
     onSuccess: (accepted) => {
       dispatch({ kind: 'submitted', jobId: accepted.jobId });
@@ -410,6 +808,76 @@ export function PlayPage({
   });
 
   /**
+   * ***Delete*** — [P14 §1.6]: *"the head moves to the parent. The turn
+   * remains as a sibling nobody is on."* A head move and nothing else, so it
+   * refreshes what one does; the first turn's parent is the root, `null`,
+   * which [P14.4] made `PUT /head` accept for exactly this.
+   */
+  const remove = useMutation({
+    mutationFn: (turn: TurnRecord) => moveHead(sessionId, turn.parentTurnId ?? null),
+    onSuccess: (result) => {
+      setAbandoned(result.abandoned.escapedEffects > 0 ? result.abandoned : null);
+      refreshSession();
+    },
+  });
+
+  /** Whether any of the transcript's own gestures is in flight — its controls' `busy`. */
+  const transcriptBusy =
+    running ||
+    redo.isPending ||
+    continueFrom.isPending ||
+    undo.isPending ||
+    name.isPending ||
+    goToSibling.isPending ||
+    gesture.isPending ||
+    hide.isPending ||
+    remove.isPending;
+
+  /**
+   * ***Auto-mode*** — [P14 §1.8]: a *let them talk* turn whenever the page has
+   * been idle for the delay. Idle is the stream settled, nothing being sent or
+   * moved, nothing in the box and no line being edited; the clock and its
+   * re-arming are `useAutoMode`'s.
+   *
+   * ***`reconnecting` is not settled.*** The server is still running the round
+   * the socket lost sight of, and a slow reconnect would otherwise have a new
+   * turn submitted on top of it. `failed` switches auto-mode off below.
+   * *The transcript's own gestures count*, the same list its `busy` reads: an
+   * undo, a redo or a head move in flight is the turn being taken elsewhere.
+   */
+  const streamSettled = state.status === 'idle' || state.status === 'finished';
+  const idle =
+    streamSettled &&
+    !transcriptBusy &&
+    !send.isPending &&
+    editing === 0 &&
+    draft.length === 0 &&
+    pictures.length === 0;
+  useAutoMode({
+    on: auto && chat !== undefined,
+    idle,
+    delayMs: autoDelayMs(autoSeconds, AUTO_MODE_DEFAULT_SECONDS),
+    fire: () => {
+      // Nobody left who could answer is a reason to stop, not to keep asking.
+      if (!wouldReply) {
+        setAuto(false);
+        setNobody(true);
+        return;
+      }
+      send.mutate(null);
+    },
+  });
+  /**
+   * *A failure stops it.* A model that is not answering would otherwise be
+   * asked again every few seconds for as long as the tab is open — a loop the
+   * person would come back to as a page of failed turns.
+   */
+  const failedNow = state.status === 'failed' || send.isError || gesture.isError;
+  useEffect(() => {
+    if (failedNow) setAuto(false);
+  }, [failedNow]);
+
+  /**
    * The most recent failure among this page's controls — [P6B.0].
    *
    * `submittedAt` rather than declaration order, because the one worth showing
@@ -417,7 +885,7 @@ export function PlayPage({
    * outrank the send that failed a second ago. A mutation clears its own error
    * on its next attempt, so this empties by being used.
    */
-  const failure = [send, redo, continueFrom, undo, name, goToSibling, stop]
+  const failure = [send, redo, continueFrom, undo, name, goToSibling, stop, gesture, hide, remove]
     .filter((one) => one.isError)
     .sort((a, b) => b.submittedAt - a.submittedAt)[0]?.error;
 
@@ -471,7 +939,10 @@ export function PlayPage({
    * flight: the input is disabled, the head is moving, and the entry was
    * dropped at submit.
    */
-  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS);
+  const pictureKey = pictureRefs
+    .map((picture) => `${picture.digest}\u0000${picture.caption ?? ''}`)
+    .join('\u0001');
+  const settled = useDebouncedInput(draft, guidance, PREVIEW_DEBOUNCE_MS, pictureKey);
   const refresh = useRefreshPreview(sessionId);
   const refreshPreview = refresh.mutate;
   const preview = usePreview(sessionId);
@@ -490,8 +961,17 @@ export function PlayPage({
      * at-rest reading is asked for then.
      */
     if (settled.text !== draft || settled.guidance !== guidance) return;
-    refreshPreview(settled);
-  }, [settled, draft, guidance, running, refreshPreview]);
+    if (settled.pictures !== pictureKey) return;
+    // The move's pictures and its kind too, so the meter and the panel measure
+    // the blocks the turn will send — a pack whose input slots are per-kind
+    // previews nothing of the move without the kind.
+    refreshPreview({
+      text: settled.text,
+      guidance: settled.guidance,
+      ...(kind === undefined ? {} : { kind }),
+      ...(pictureRefs.length === 0 ? {} : { attachments: pictureRefs }),
+    });
+  }, [settled, draft, guidance, running, refreshPreview, pictureRefs, pictureKey, kind]);
 
   /**
    * The stream's closing frame is what says the record is durable in all three
@@ -519,6 +999,28 @@ export function PlayPage({
     void queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
     void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
   }, [state.status, sessionId, queryClient]);
+
+  /**
+   * ***The pictures, read again when the stream comes back*** (2026-09-28). A
+   * re-attach empties the reducer's map (`PlayState.renditions` says why), so
+   * the set is asked for again: a frame sent while the stream was down reached
+   * nobody, and this is how what it said arrives. Not on the first attach,
+   * which is the page opening with the set just read.
+   */
+  useEffect(() => {
+    if (state.attached < 2) return;
+    void queryClient.invalidateQueries({ queryKey: renditionsKey(sessionId) });
+  }, [state.attached, sessionId, queryClient]);
+
+  /**
+   * ***The session, read again when a backdrop lands*** (2026-09-30) — see
+   * `PlayState.backdrops`. The head and the stage are the session's, and the
+   * composer, a redo and every gesture send the head this query holds.
+   */
+  useEffect(() => {
+    if (state.backdrops === 0) return;
+    void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+  }, [state.backdrops, sessionId, queryClient]);
 
   /**
    * The turn being taken, mirrored where the panel can read it — [P3.5].
@@ -591,7 +1093,21 @@ export function PlayPage({
           [10 §13.2], [P7.2]. Below the HUD because a cast is a list and the HUD
           is a line, and above the transcript for the reason both are: state
           rather than narration. Renders nothing for a session with no cast. */}
-      <CastPanel sessionId={sessionId} />
+      <CastPanel
+        sessionId={sessionId}
+        locale={locale}
+        busy={running || gesture.isPending || send.isPending}
+        onSpeak={(actorId) => {
+          // *Speak* is force-talk with no input — let them talk, aimed.
+          gesture.mutate({ speakers: [actorId] });
+        }}
+      />
+
+      {/* **How this chat plays** — [P14 §1.8]'s session settings, [P14.5].
+          Beside the cast because the two are the chat's configuration: who is
+          in it, and how they are asked to speak. Renders nothing for a mode
+          that does not play as a chat. */}
+      <ChatSettingsPanel sessionId={sessionId} />
 
       {/* What this session retrieves from — [P6B.0]. Above the transcript and
           closed by default: it is a fact about the session rather than about
@@ -612,7 +1128,7 @@ export function PlayPage({
           offers at a completion are the most consequential control on the page.
           A disclosure like its neighbours, present even with no chain because
           the control that sets one is inside it. */}
-      <GoalPanel sessionId={sessionId} />
+      <GoalPanel sessionId={sessionId} busy={running || gesture.isPending || send.isPending} />
 
       {/* **The authored plot waiting to happen** — [10 §10.1], [P7.5]. Beside
           the lore panel rather than beside the cast, which 10 §10.1 chose
@@ -638,7 +1154,20 @@ export function PlayPage({
           Last in the panel stack because the four above it are the engine's own
           and a mode's additions belong after them, and because a mode that
           declares none renders nothing here at all. */}
-      <ModeRegion sessionId={sessionId} surfaces={session.data?.surfaces} region="panel" />
+      {/* ***What a person may run between turns*** — [P14.5a]'s *Update
+          trackers*, above the cards it updates. Renders nothing unless the
+          server lists an action, which it does only while a tracker is on. */}
+      <ModeActions
+        sessionId={sessionId}
+        actions={session.data?.actions}
+        busy={running || send.isPending}
+      />
+      <ModeRegion
+        sessionId={sessionId}
+        surfaces={session.data?.surfaces}
+        region="panel"
+        nameOf={(actorId) => actorObjects.find((one) => one.id === actorId)?.name ?? actorId}
+      />
 
       {/* **The stage** — [06 §7.2], [10 §2.3], [P7.11]. The picture the story is
           staged against, and it behaves like chrome: *"The prose wins,
@@ -677,11 +1206,25 @@ export function PlayPage({
           >
             Set the scene
           </Button>
-          {held === undefined ? null : <Fine>{HELD_WORDS[held]}</Fine>}
+          <IllustrateNote note={illustrateNote('background')} />
         </div>
       )}
 
-      <ol className="flex flex-1 flex-col gap-4 overflow-y-auto" aria-label="Transcript">
+      {/*
+        ***The story keeps room of its own*** (2026-10-01). `flex-1` with
+        `overflow-y-auto` lets a flex item shrink to nothing, and since P14 put
+        the cast, five session panels and the two scene switches above it, at a
+        1280×720 window — the e2e journeys' size, and a common laptop's — the
+        transcript was exactly that: zero pixels tall, the story invisible
+        between the controls and the composer, and every button in it covered
+        by whatever sat on top. A floor of half the viewport means the page
+        scrolls past the controls instead; on a tall window nothing changes,
+        because `flex-1` was already giving it more.
+      */}
+      <ol
+        className="flex min-h-[50dvh] flex-1 flex-col gap-4 overflow-y-auto"
+        aria-label="Transcript"
+      >
         {(transcript.data?.turns ?? []).map((turn) => (
           <TurnView
             key={turn.id}
@@ -700,15 +1243,16 @@ export function PlayPage({
             onIllustrate={(turnId) => {
               illustrate.mutate({ turnId, purpose: 'illustration' });
             }}
+            illustrateNote={illustrateNote('illustration', turn.id)}
             turn={turn}
             siblings={transcript.data?.siblings?.[turn.id] ?? []}
-            busy={
-              running ||
-              redo.isPending ||
-              continueFrom.isPending ||
-              undo.isPending ||
-              name.isPending
-            }
+            swipes={transcript.data?.swipes?.[turn.id]}
+            head={turn.id === session.data?.session.headTurnId}
+            chat={chat}
+            actors={actorObjects}
+            personaId={roster?.persona ?? null}
+            gestures={chatGestures}
+            busy={transcriptBusy}
             onRedo={(subject, rewrite, guidance) => {
               // Spread, not passed: `exactOptionalPropertyTypes` refuses an
               // explicit `undefined` where the field may simply be absent.
@@ -736,17 +1280,15 @@ export function PlayPage({
         {/* The turn being written. A live region, because its text arrives
             without the reader doing anything — the accessible-markup habit
             [work plan §2.1] calls day-one, applied where it actually matters. */}
-        {state.text.length > 0 && running ? (
-          <li aria-live="polite" aria-busy="true">
-            <p className="whitespace-pre-wrap text-story text-ink">{state.text}</p>
-          </li>
+        {running ? (
+          <LiveTurn text={state.text} messages={liveMessages(state)} actors={actorObjects} />
         ) : null}
       </ol>
 
       <StreamStatus
         status={state.status}
         error={state.error}
-        waiting={send.isPending || (running && state.text.length === 0)}
+        waiting={send.isPending || gesture.isPending || (running && state.text.length === 0)}
       />
 
       {/* **A refused action says so** — [P6B.0].
@@ -776,6 +1318,8 @@ export function PlayPage({
         </AlertNote>
       )}
 
+      <NoModelYet />
+
       <form
         className="flex flex-col gap-2"
         onSubmit={(event) => {
@@ -802,6 +1346,27 @@ export function PlayPage({
           disabled={running}
           onChange={setKind}
         />
+        {/* **Who speaks next** — [P14 §1.8], and while a round streams, who is
+            speaking ([P14 §1.3a] point 8). Beside the kind selector because it
+            is the same sort of choice: made before the words, about them. */}
+        {!embodied ? null : (
+          <WhoSpeaksNext
+            members={speakable}
+            value={forced}
+            onChange={(actorId) => {
+              setForced(actorId);
+              setNobody(false);
+            }}
+            disabled={running || send.isPending}
+            order={state.order}
+            running={running}
+          />
+        )}
+        {/* **Push story** — [P14.5b]: made before the words, like the two
+            above, and a chat's alone. */}
+        {chat === undefined ? null : (
+          <PushStory value={push} onChange={setPush} disabled={running || send.isPending} />
+        )}
         <div className="flex gap-2">
           <label className="flex-1">
             <span className="sr-only">{promptFor(kind)}</span>
@@ -814,6 +1379,11 @@ export function PlayPage({
               placeholder={promptFor(kind)}
               onChange={(event) => {
                 setDraft(event.target.value);
+                setNobody(false);
+                // Typing stops auto-mode — [P14 §1.8]. Somebody writing has
+                // taken the turn back, and a timer firing under them would
+                // send the scene on without the move they are composing.
+                if (event.target.value !== '') setAuto(false);
               }}
               /**
                * **Enter still sends; Shift+Enter is the paragraph break.**
@@ -843,6 +1413,9 @@ export function PlayPage({
               type="button"
               disabled={stop.isPending}
               onClick={() => {
+                // Stop stops auto-mode too: pressing it is somebody saying
+                // *not that*, and the next tick would be more of the same.
+                setAuto(false);
                 stop.mutate(state.jobId ?? '');
               }}
             >
@@ -852,8 +1425,14 @@ export function PlayPage({
             /* **The label is the reason it is greyed**, which is what
                [10 §11.1a] asks of any control that disables: a button reading
                *Sending…* has already said why it cannot be pressed again. */
-            <Button type="submit" variant="primary" disabled={send.isPending}>
-              {send.isPending ? SENDING : 'Send'}
+            <Button type="submit" variant="primary" disabled={send.isPending || attaching}>
+              {send.isPending
+                ? SENDING
+                : attaching
+                  ? PREPARING
+                  : chat !== undefined && draft.trim() === '' && pictures.length === 0
+                    ? letThemTalkLabel()
+                    : 'Send'}
             </Button>
           )}
         </div>
@@ -869,13 +1448,34 @@ export function PlayPage({
           that this is *"a draft, not a commitment"*, and a control sitting where
           Send sits invites the press that skips the reading.
         */}
-        <Impersonate
-          sessionId={sessionId}
-          disabled={running}
-          onDrafted={(text) => {
-            setDraft(text);
+        <ComposerPictures
+          pictures={pictures}
+          previewBlocks={
+            preview.data?.preview.state === 'assembled' ? preview.data.preview.blocks : undefined
+          }
+          busy={attaching}
+          problem={pictureProblem}
+          disabled={running || send.isPending}
+          onAttach={(files) => {
+            void attachPictures(files);
+          }}
+          onCaption={(digest, caption) => {
+            setPictures((held) =>
+              held.map((one) => (one.digest === digest ? { ...one, caption } : one)),
+            );
+          }}
+          onRemove={(digest) => {
+            setPictures((held) => {
+              for (const one of held) if (one.digest === digest) URL.revokeObjectURL(one.preview);
+              return held.filter((one) => one.digest !== digest);
+            });
           }}
         />
+        {nobody ? <NobodyWouldReply /> : null}
+        <Impersonate sessionId={sessionId} disabled={running} onDrafted={fill} />
+        {chat === undefined ? null : (
+          <AutoMode on={auto} seconds={autoSeconds} onToggle={setAuto} onSeconds={setAutoSeconds} />
+        )}
         {/* **Below the composer and above the guidance box** — [R11], [P7.9].
             The offers fill the box rather than taking a turn, so they belong
             beside the thing they fill; the toggle rides with them because it is
@@ -886,13 +1486,13 @@ export function PlayPage({
             what it is for — and the session's own suggestions take the row from
             the first turn onward. */}
         {starters === undefined || (transcript.data?.turns.length ?? 0) > 0 ? null : (
-          <Starters actions={starters} disabled={running} onPick={setDraft} />
+          <Starters actions={starters} disabled={running} onPick={fill} />
         )}
         <Suggestions
           sessionId={sessionId}
           actions={transcript.data?.turns.at(-1)?.suggestions ?? []}
           disabled={running}
-          onPick={setDraft}
+          onPick={fill}
         />
         <GuidanceBox value={guidance} onChange={setGuidance} disabled={running} />
       </form>
@@ -965,17 +1565,26 @@ function IllustratedProse({
   onRetry,
   onSelect,
   busy,
+  picturesOnly = false,
 }: {
   sessionId: string;
   text: string;
   spans: readonly TextSpan[];
+  /**
+   * ***The pictures and none of the prose*** — [P14.5]: a chat turn draws its
+   * words message by message (`ChatMessages`), and its pictures fall to the
+   * end of the turn, which is §10.4a's rule for an anchor that does not
+   * resolve. Anchoring one inside a message is a later refinement; losing the
+   * picture would not be.
+   */
+  picturesOnly?: boolean;
   renditions: readonly RenditionRecord[];
   /** Which sibling this turn shows, when a person has chosen one — [06 §10.7]. */
   selectedId: string | undefined;
   onRetry: (renditionId: string) => void;
   onSelect: (renditionId: string) => void;
   busy: boolean;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   /**
    * **Illustrations only.** A backdrop belongs behind the reading column
    * ([10 §2.3]) and reaches it through the `stage` region, not through the
@@ -984,11 +1593,12 @@ function IllustratedProse({
    */
   const pictures = renditions.filter((one) => one.purpose === 'illustration');
   if (pictures.length === 0) {
+    if (picturesOnly) return null;
     return (
       <MentionOverlay
         text={text}
         spans={spans}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
     );
   }
@@ -1008,11 +1618,12 @@ function IllustratedProse({
   const chosen = pictures.find((one) => one.id === selectedId);
   const shown = chosen ?? pictures[pictures.length - 1];
   if (shown === undefined) {
+    if (picturesOnly) return null;
     return (
       <MentionOverlay
         text={text}
         spans={spans}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
     );
   }
@@ -1023,6 +1634,15 @@ function IllustratedProse({
   const picture = (
     <RenditionView sessionId={sessionId} rendition={shown} onRetry={onRetry} busy={busy} />
   );
+
+  if (picturesOnly) {
+    return (
+      <>
+        {picture}
+        {chooser}
+      </>
+    );
+  }
 
   const at = anchorOffset(text, shown.scope?.anchor);
   if (at === null) {
@@ -1037,7 +1657,7 @@ function IllustratedProse({
         <MentionOverlay
           text={text}
           spans={spans}
-          className="whitespace-pre-wrap text-story text-ink"
+          className="whitespace-pre-wrap text-story font-story text-ink"
         />
         {picture}
         {chooser}
@@ -1050,7 +1670,7 @@ function IllustratedProse({
       <MentionOverlay
         text={text.slice(0, at)}
         spans={spans.filter((span) => span.end <= at)}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
       {picture}
       {chooser}
@@ -1067,7 +1687,7 @@ function IllustratedProse({
         spans={spans
           .filter((span) => span.start >= at)
           .map((span) => ({ ...span, start: span.start - at, end: span.end - at }))}
-        className="whitespace-pre-wrap text-story text-ink"
+        className="whitespace-pre-wrap text-story font-story text-ink"
       />
     </>
   );
@@ -1086,7 +1706,10 @@ function IllustratedProse({
  * reducer, exactly as `text` and `seen` already survive it. An id from another
  * session could never match a turn in this one, so this guard buys clarity
  * rather than correctness; it costs one comparison and removes the need to
- * reason about that every time somebody reads this.
+ * reason about that every time somebody reads this. *Corrected 2026-09-28:*
+ * ~~the reducer's map outlives a change of `sessionId`~~ — the page is keyed
+ * by session now (`42aba38`), so a session starts with a fresh reducer; the
+ * guard stays for the rest of the reason.
  *
  * *Sorted by `ordering` then id*, which is the order they were made in: the
  * chooser numbers them from this, and a set that reordered itself between
@@ -1121,6 +1744,12 @@ function renditionsByTurn(
 function TurnView({
   turn,
   siblings,
+  swipes,
+  head,
+  chat,
+  actors,
+  personaId,
+  gestures,
   busy,
   onRedo,
   onContinueFrom,
@@ -1136,9 +1765,20 @@ function TurnView({
   onSelectRendition,
   illustrating,
   onIllustrate,
+  illustrateNote,
 }: {
   turn: TurnRecord;
   siblings: string[];
+  /** Where this turn's siblings are drawn — [P14.5], from the transcript. */
+  swipes: SwipeGroups | undefined;
+  /** Whether this is the session's head turn. */
+  head: boolean;
+  /** The chat's effective settings, absent for a mode that is not one. */
+  chat: ChatSettings | undefined;
+  /** The library's actors, read once by the page — for names and portraits. */
+  actors: readonly LibraryObject[];
+  personaId: string | null;
+  gestures: ChatGestures;
   sessionId: string;
   /** Whose memory a capture could be — read once by the page, per `surfaces`. */
   cast: readonly CastRow[];
@@ -1159,11 +1799,27 @@ function TurnView({
   /** Whether this session makes pictures at all — [06 §10.6]. */
   illustrating: boolean;
   onIllustrate: (turnId: string) => void;
+  /** What the last Illustrate pressed on this turn answered, if it was this one. */
+  illustrateNote: string | null;
 }): React.JSX.Element {
   // A turn with no input is not one a person wrote — a divergence turn from a
   // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
-  // attempt again.
-  const rerunnable = turn.input !== undefined;
+  // attempt again. ***Unless it made a call*** ([P14.5]): a chat's *let them
+  // talk* answers no move and is still a reply a person may want again.
+  // A greeting made none, and its alternates are its siblings already.
+  const rerunnable = turn.input !== undefined || turn.request !== undefined;
+  /**
+   * ***Every turn of a chat is drawn as one*** — [P14.5]. A turn whose output
+   * names no speakers — written before P14, narrated, or embodied under
+   * `fixed` — is one narrator line (`outputMessagesOf`), drawn as narration;
+   * drawing it as prose instead would leave hide, edit, branch and delete
+   * unreachable on every turn of a narrator-voice chat. Outside a chat a turn
+   * is prose unless its record says who spoke, as before.
+   */
+  const named = turn.output?.messages;
+  const chatShaped =
+    turn.output !== undefined && (chat !== undefined || (named !== undefined && named.length > 0));
+  const messages = outputMessagesOf(turn.output);
   const rolled = turn.tape.length > 0;
 
   // The instruction for a guided redo, and whether its field is open. Local to
@@ -1185,14 +1841,44 @@ function TurnView({
 
   return (
     <li className="group/turn flex flex-col gap-1">
-      {turn.input === undefined ? null : (
-        <p className="text-story text-ink-subtle">{turn.input.text}</p>
+      {chatShaped || turn.input === undefined || turn.input.text === '' ? null : (
+        <p className="text-story font-story text-ink-subtle">{turn.input.text}</p>
       )}
+      {turn.input?.attachments === undefined ? null : (
+        <MovePictures sessionId={sessionId} pictures={turn.input.attachments} />
+      )}
+      {chatShaped ? (
+        <>
+          <ChatMessages
+            turn={turn}
+            messages={messages}
+            hidden={hiddenEntry(chat, turn.id)}
+            actors={actors}
+            personaId={personaId}
+            swipes={swipes}
+            voice={chat?.voice}
+            head={head}
+            busy={busy}
+            {...gestures}
+          />
+          <IllustratedProse
+            sessionId={sessionId}
+            text=""
+            spans={[]}
+            renditions={renditions}
+            selectedId={selectedRenditionId}
+            onRetry={onRetryRendition}
+            onSelect={onSelectRendition}
+            busy={busy}
+            picturesOnly
+          />
+        </>
+      ) : null}
       {/* **What the engine understood, drawn over the prose** — [10 §13.1],
           [P7.7]. An overlay and never a rewrite: with no spans this renders the
           same characters the model wrote, which is what makes the marks
           subtractable rather than baked in. */}
-      {turn.output === undefined ? null : (
+      {chatShaped || turn.output === undefined ? null : (
         <IllustratedProse
           sessionId={sessionId}
           text={turn.output.text}
@@ -1203,6 +1889,9 @@ function TurnView({
           onSelect={onSelectRendition}
           busy={busy}
         />
+      )}
+      {chatShaped || turn.output?.original === undefined ? null : (
+        <EditedOriginal text={turn.output.original} />
       )}
       {/* **A mode's own decoration on the message** — [06 §9]'s third region,
           [P7.11]. The engine already has one of these in the overlay above; this
@@ -1305,6 +1994,7 @@ function TurnView({
             Illustrate
           </Button>
         ) : null}
+        <IllustrateNote note={illustrateNote} />
         {/* ***Remember this*** — [08 §2.1], [P8.3]'s cut form. Beside the other
             per-message gestures because that is what it is: a thing you do to
             one message, on the message. */}
@@ -1362,7 +2052,13 @@ function TurnView({
 
       <SiblingStrip
         turn={turn}
-        siblings={siblings}
+        siblings={turnSiblings(siblings, swipes, chatShaped)}
+        // Naming is about the node, so it is offered whenever there is a choice
+        // at all — including a chat turn whose alternatives are all message
+        // swipes, whose counters are on the messages and leave this strip
+        // empty. Promoting a swipe ([07 §6]) would otherwise be unreachable on
+        // most chat turns.
+        nameable={siblings.length >= 2}
         busy={busy}
         onGo={onGoToSibling}
         onName={onName}
@@ -1387,12 +2083,15 @@ function TurnView({
 function SiblingStrip({
   turn,
   siblings,
+  nameable,
   busy,
   onGo,
   onName,
 }: {
   turn: TurnRecord;
   siblings: string[];
+  /** Whether the node has alternatives anywhere — the name control's condition. */
+  nameable: boolean;
   busy: boolean;
   onGo: (turnId: string) => void;
   onName: (turnId: string, name: string) => void;
@@ -1401,36 +2100,41 @@ function SiblingStrip({
   const [name, setName] = useState('');
 
   const at = siblings.indexOf(turn.id);
-  if (siblings.length < 2 || at < 0) return null;
+  const stepping = siblings.length >= 2 && at >= 0;
+  if (!stepping && !nameable) return null;
 
   const previous = siblings[at - 1];
   const next = siblings[at + 1];
 
   return (
     <div className="flex items-center gap-2 text-sm text-ink-subtle">
-      <Button
-        type="button"
-        disabled={busy || previous === undefined}
-        onClick={() => {
-          if (previous !== undefined) onGo(previous);
-        }}
-        aria-label="Previous version"
-      >
-        ‹
-      </Button>
-      {/* A count, not a list: which of these you are on is the fact, and the
+      {stepping ? (
+        <>
+          <Button
+            type="button"
+            disabled={busy || previous === undefined}
+            onClick={() => {
+              if (previous !== undefined) onGo(previous);
+            }}
+            aria-label="Previous version"
+          >
+            ‹
+          </Button>
+          {/* A count, not a list: which of these you are on is the fact, and the
           others are addressed by stepping rather than by being enumerated. */}
-      <span aria-live="polite">{`${String(at + 1)} of ${String(siblings.length)}`}</span>
-      <Button
-        type="button"
-        disabled={busy || next === undefined}
-        onClick={() => {
-          if (next !== undefined) onGo(next);
-        }}
-        aria-label="Next version"
-      >
-        ›
-      </Button>
+          <span aria-live="polite">{`${String(at + 1)} of ${String(siblings.length)}`}</span>
+          <Button
+            type="button"
+            disabled={busy || next === undefined}
+            onClick={() => {
+              if (next !== undefined) onGo(next);
+            }}
+            aria-label="Next version"
+          >
+            ›
+          </Button>
+        </>
+      ) : null}
 
       {naming ? (
         <form
@@ -1547,10 +2251,61 @@ function recordedRemedy(turn: TurnRecord): string | null {
 }
 
 /**
+ * ***The turn being written*** — a live region, because its text arrives
+ * without the reader doing anything (the accessible-markup habit [work plan
+ * §2.1] calls day-one, applied where it actually matters).
+ *
+ * ***Painted as the chat it will be*** since [P14.5]: under `per-actor`
+ * dispatch each speaker's call streams into its own message, named as it
+ * opens (`liveMessages`), so the round reads as bubbles while it is written
+ * rather than becoming them only when it lands. When the stream cannot say
+ * who — a narrator, an older server, a reattach that missed the round's
+ * start — it is the joined text, as it always was.
+ */
+function LiveTurn(props: {
+  text: string;
+  messages: ReturnType<typeof liveMessages>;
+  actors: readonly LibraryObject[];
+}): React.JSX.Element | null {
+  if (props.messages !== null) {
+    return (
+      <li aria-live="polite" aria-busy="true" className="flex flex-col gap-3">
+        {props.messages.map((message, index) =>
+          message.speaker === null ? (
+            <p key={index} className="whitespace-pre-wrap text-story font-story text-ink">
+              {message.text}
+            </p>
+          ) : (
+            <div key={index} className="flex gap-2">
+              <Portrait
+                actor={props.actors.find((one) => one.id === message.speaker?.id)}
+                name={message.speaker.name}
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-sm font-medium text-ink">{message.speaker.name}</span>
+                <p className="whitespace-pre-wrap text-story font-story text-ink">{message.text}</p>
+              </div>
+            </div>
+          ),
+        )}
+      </li>
+    );
+  }
+  if (props.text.length === 0) return null;
+  return (
+    <li aria-live="polite" aria-busy="true">
+      <p className="whitespace-pre-wrap text-story font-story text-ink">{props.text}</p>
+    </li>
+  );
+}
+
+/**
  * The three sentences the composer's own controls say, each a whole string for
  * the reason every other user-visible sentence here is one ([P11.8]).
  */
 const SENDING = 'Sending…';
+/** Send's label while a picture is being prepared — the reason it is greyed. */
+const PREPARING = 'Preparing picture…';
 const AWAITING = 'Waiting for the first words…';
 const STOPPING = 'Stopping…';
 
@@ -1673,5 +2428,56 @@ function impersonateLine(error: unknown): string {
   if (code === 'role-unbound' || code === 'role-dangling') {
     return 'No connection is set up for the model this needs. Bind one in Settings.';
   }
+  if (code === 'window-too-small') return remedySentence('window-too-small') ?? '';
+  /**
+   * ***The endpoint's failure, in the words a failed turn gets*** (2026-09-27).
+   * This was a bare 500 until the route learned to answer it, so every one of
+   * a wrong key, a model server that was down and a stall read *try again in a
+   * moment*, which is right for one of the three.
+   */
+  if (code === 'provider-failed' && error instanceof ApiError) {
+    return remedySentence(error.remedy ?? null) ?? 'The model endpoint could not write that draft.';
+  }
+  if (code === 'cancelled') return 'The server stopped before the draft was written. Try again.';
   return 'That draft could not be written. Try again in a moment.';
+}
+
+/** The push a turn's director outcome records, shape-guarded; nothing for an unpushed turn. */
+function pushOf(turn: TurnRecord): { push?: 'natural' | 'random' } {
+  const push: unknown = turn.steps?.find((step) => step.stepId === 'se.scene.direct')?.direction
+    ?.push;
+  return push === 'natural' || push === 'random' ? { push } : {};
+}
+
+/** An illustrate request's answer, where it was asked — or nothing. */
+function IllustrateNote(props: { note: string | null }): React.JSX.Element | null {
+  return props.note === null ? null : <Note role="status">{props.note}</Note>;
+}
+
+/**
+ * ***Said before the first Send, not after it*** (2026-10-01, polish 9).
+ *
+ * A fresh install has no model bound to write with, and the play page waited
+ * for somebody to type a move and press Send to say so — as a failed turn, in
+ * the transcript, after the fact. The roles answer already knows: a `prose` row
+ * that is not `ok` is every turn this page could take failing the same way. So
+ * it says so above the box, with the way to Settings, and says nothing once a
+ * model is there.
+ *
+ * `prose` alone, deliberately: it is the role every mode's turn writes with
+ * (P2C's fallback chain ends there), and the others — a picture, a summary —
+ * fail on their own, later, in their own places.
+ */
+function NoModelYet(): React.JSX.Element | null {
+  const roles = useMyRoles();
+  const prose = roles.data?.roles.find((row) => row.role === 'prose');
+  if (prose === undefined || prose.ok) return null;
+  return (
+    <AlertNote tone="warning" role="status">
+      <span>No model is set up to write with yet, so a move cannot be sent. </span>
+      <Link to="/settings" hash="my-roles" className={link.inline}>
+        Choose one in Settings
+      </Link>
+    </AlertNote>
+  );
 }

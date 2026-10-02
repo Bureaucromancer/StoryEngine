@@ -16,3 +16,7 @@ allowBuilds:
   # Native resolver behind eslint-import-resolver-typescript, which is what lets
   # the boundary rules resolve `@storyengine/*` through pnpm's symlinks.
   unrs-resolver: true
+# Watch a new directory before reading it, not after — see the patch's own
+# comment and docs/design/19-tech-stack.md. Dropped when chokidar does the same.
+patchedDependencies:
+  chokidar@5.0.0: patches/chokidar@5.0.0.patch

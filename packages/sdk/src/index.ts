@@ -27,7 +27,13 @@
 
 export * from '@storyengine/shared';
 
-export type { ChannelDefinition, InitPolicy, WidgetSpec } from './channels.js';
+export type {
+  ChannelDefinition,
+  EstablishedState,
+  InitPolicy,
+  RecordField,
+  WidgetSpec,
+} from './channels.js';
 export {
   DIAL_CHANNELS,
   dialChannel,
@@ -53,7 +59,8 @@ export type {
 export type { RandomApi, SiteRandom } from './random.js';
 export type {
   Candidate,
-  CastEntry,
+  CandidateImage,
+  StepCastMember,
   EffectProposal,
   StepCallRequest,
   StepCallResult,

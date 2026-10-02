@@ -1,20 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { NO_LORE_REPORT, type TurnPreview, type UnmeasurableReason } from '@storyengine/shared';
+import {
+  NO_LORE_REPORT,
+  type TurnAttachment,
+  type TurnPreview,
+  type UnmeasurableReason,
+} from '@storyengine/shared';
 
-import { collectCandidates } from '../assembly/collect.js';
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
 import type { Mode } from '@storyengine/sdk';
 import type { ProviderFactory } from '../providers/factory.js';
+import { digestsOf, presentAttachments } from '../sessions/attachments.js';
+import { storyDepth, storyTurns } from '../sessions/depth.js';
+import { readHeldChain } from '../sessions/summaries.js';
 import type { SessionContext } from '../sessions/store.js';
 import { evaluateCondition, type StepDefinition } from './steps.js';
 import { Rng } from '../rng/rng.js';
 import { retrieve } from '../retrieval/retrieve.js';
 import { loreReport } from '../retrieval/blocks.js';
-import { planCall, RoleUnresolved } from './calls.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { planCall, RoleUnresolved, WindowTooSmall } from './calls.js';
+import { collectFor, gatherAssemblyInputs, roleLayersOf } from './gather.js';
+import { chatSettingsOf } from '../sessions/chat-settings.js';
+import { talkativenessMap, turnSelection } from './speakers.js';
+import { summaryPlanFor } from './summarise.js';
 
 /**
  * The stateless assemble — [P3.4], the affordance [P3 §1.6] created this stage
@@ -81,19 +91,40 @@ export interface PreviewRequest {
    * ([13 §8.3]). A caller that omits it previews the mode's kindless default,
    * which is what every caller did before the selector existed.
    */
-  input?: { text: string; kind?: string };
+  input?: { text: string; kind?: string; attachments?: TurnAttachment[] };
   guidance?: string;
 }
 
 /**
- * The step a preview is about: the first that asks the prose role.
+ * The step a preview is about: the first that asks the prose role ***and
+ * writes the turn's messages***, else the first that asks the prose role.
  *
  * One function so P7's per-step surfaces have a single place to change, and so
  * the answer's `stepId` and the call it previewed cannot come apart.
+ *
+ * *Corrected 2026-09-29, at [P14.5b]*: `role` is which model a step binds,
+ * not what it writes, and every Scene step asks `prose` for [25 C15]'s reason.
+ * While the narrator was Scene's first step the two readings agreed; the
+ * secret plot's `pre` pass, declared ahead of it, is a `prose`-role call that
+ * writes an effect, and the preview measured that instead of the prompt a
+ * person is about to send. The fallback keeps a mode whose prose step
+ * contributes nothing declared previewing what it did.
  */
 export function previewStepFor(mode: Mode): StepDefinition | null {
-  return mode.definition.steps.find((step) => step.role === 'prose') ?? null;
+  return (
+    mode.definition.steps.find(
+      (step) => step.role === 'prose' && step.contributes === 'messages',
+    ) ??
+    mode.definition.steps.find((step) => step.role === 'prose') ??
+    null
+  );
 }
+
+/**
+ * The kind a move is when it does not say — the one default a submission and
+ * its preview share, so they cannot drift apart.
+ */
+export const DEFAULT_INPUT_KIND = 'do';
 
 export async function previewAssembly(
   context: PreviewContext,
@@ -111,6 +142,7 @@ export async function previewAssembly(
   const headTurnId = request.parentTurnId;
   const pendingInput =
     (request.input !== undefined && request.input.text.trim() !== '') ||
+    (request.input?.attachments?.length ?? 0) > 0 ||
     (request.guidance !== undefined && request.guidance.trim() !== '');
 
   const step = previewStepFor(inputs.mode);
@@ -144,7 +176,7 @@ export async function previewAssembly(
    * turn that is not happening would have activated.
    */
   const gate = evaluateCondition(step.when, {
-    turnsOnPath: inputs.history.length,
+    turnsOnPath: storyDepth(inputs.history),
     stages: new Set<string>(),
     armed: new Set<string>(),
   });
@@ -160,14 +192,72 @@ export async function previewAssembly(
   }
 
   /**
-   * The retriever runs for a preview too, and **its effects are discarded** —
-   * [P5.6].
+   * ***Whose call this is*** — [P14.3], and the answer to [P14.2]'s *"the
+   * preview still assembles one merged call"*.
    *
-   * That is the whole reason `retrieve` returns proposals rather than writing
-   * them: the preview needs the same blocks the turn will send, and must not
-   * move a single cooldown to get them. A preview that advanced timing would
-   * change the turn it was previewing, and it fires every time somebody pauses
-   * typing.
+   * **The first speaker's call, as the turn would make it.** Under an embodied
+   * voice the generate step speaks as the selection's first member whatever
+   * the dispatch — every call under `per-actor`, the one call under `merged` —
+   * so the prompt a person most needs to see before sending is that one:
+   * `{{char}}` as them, their card first, their card prompts under `per-actor`.
+   * The selection is `turnSelection`'s, the runner's own question, asked with
+   * the draft as the input; a narrated session, or a room nobody is cast in,
+   * has no selection and is previewed as the narrator's one call, as the turn
+   * would be.
+   *
+   * *What it cannot promise, stated.* The policy's rolls are drawn on a fresh
+   * tape (the scan's reason below: a preview reserves nothing), so under
+   * `natural` a draft that names nobody shows **one** plausible first speaker,
+   * not the one the turn will roll — a draft that names somebody is decided by
+   * the mention and matches. `smart` shows its rule-based fallback, because a
+   * preview makes no model call. And a round's *later* speakers are not
+   * previewed at all: their prompts hold replies nobody has written yet.
+   *
+   * ***A selection of nobody is nothing assembled***: `manual` after an input,
+   * or a room whose every member is muted, makes no call, and the meter says
+   * `not-this-turn` rather than measuring a prompt nobody will send.
+   */
+  const chat = chatSettingsOf(inputs.session, inputs.mode.definition);
+  const selection =
+    chat.voice === 'embodied'
+      ? turnSelection({
+          policy: chat.speakers,
+          castIsPresent: inputs.mode.definition.participants.castIsPresent === true,
+          cast: inputs.cast,
+          channels: inputs.channels,
+          history: inputs.history,
+          hidden: chat.hidden,
+          input: request.input,
+          forced: undefined,
+          talkativeness: talkativenessMap(inputs.cast.actors, inputs.mode.definition.id),
+          draw: (() => {
+            const tape = new Rng();
+            return (purpose: string) => tape.at('se.participants', purpose);
+          })(),
+        })
+      : undefined;
+  if (selection?.speakers.length === 0) {
+    return {
+      state: 'unmeasurable',
+      headTurnId,
+      pendingInput,
+      reason: 'not-this-turn',
+      notFilled: [],
+      lore: NO_LORE_REPORT,
+    };
+  }
+  const speaker = selection?.speakers[0];
+
+  /**
+   * The retriever runs for a preview too, and **moves nothing** — [P5.6].
+   *
+   * ~~That is the whole reason `retrieve` returns proposals rather than writing
+   * them~~ — it returns no proposals at all now (2026-09-27): the runner
+   * settles the counters after assembly, over what reached the prompt, and a
+   * preview never asks it to. The rule is the same: the preview needs the
+   * same blocks the turn will send, and must not move a single cooldown to get
+   * them. A preview that advanced timing would change the turn it was
+   * previewing, and it fires every time somebody pauses typing.
    *
    * The RNG is a fresh one for the same reason, and its tape is thrown away
    * with it. A preview showing a 50% entry that the turn then rolls differently
@@ -203,59 +293,99 @@ export async function previewAssembly(
     unplaced: lore.unplaced,
   });
 
-  const collected = collectCandidates({
-    preset: inputs.preset,
+  /**
+   * ***`collectFor`, which is the turn's collector input by construction*** —
+   * [06 §7.3.3], [06 §7.3.1], and [P7.8]'s lesson made structural
+   * (2026-09-27).
+   *
+   * **A preview that omits a block the turn will send is a preview that
+   * lies**, and the goal was the sharpest case in the build because 7.3.3 calls
+   * it *"always injected"*: it shipped at [P7.6] wired into the runner and not
+   * here, and the dials would have shipped the same way one stage later. P7.8
+   * fixed both by adding them to this call by hand, which fixed those two;
+   * the gather now fills everything it knows for every caller, so the next
+   * producer cannot reach the turn alone. What stays here is what only a
+   * preview knows: the draft and the guidance, and [13 §8.3]'s per-kind block
+   * so a preview of a `say` turn shows the block a `say` turn sends.
+   */
+  /**
+   * ***The story above the window, as the session holds it*** (2026-09-27).
+   * The preview carried no summary at all, so on a long session the meter
+   * under-read by the whole chain and the workbench showed a prompt without
+   * the block the turn would send. `summaryPlanFor` asks the turn's three
+   * questions; what is read is what is on disk and nothing is derived, since a
+   * preview makes no model call — so a preview before a link the turn will
+   * write reads short by that link, which is the truth about *nothing has
+   * been asked yet*.
+   */
+  const plan = summaryPlanFor(inputs);
+  const summary =
+    plan === null
+      ? undefined
+      : await readHeldChain(
+          context.sessions.layout,
+          request.account,
+          request.sessionId,
+          storyTurns(inputs.history),
+          plan.key,
+          plan.policy,
+        );
+
+  const collected = collectFor(inputs, {
     callKind: step.callKind,
-    // [13 §8.3]'s per-kind block, so a preview of a `say` turn shows the block a
-    // `say` turn sends.
-    ...(request.input?.kind === undefined ? {} : { inputKind: request.input.kind }),
-    history: inputs.windowed,
-    persona: inputs.cast.persona,
-    actors: inputs.cast.actors,
-    channels: inputs.channels,
-    lore: lore.blocks,
-    // The books and the treatment, for the samples slot — [P5.9]. Separate from
-    // `lore` above because a sample rides with its carrier rather than with an
-    // activation: a book's prose is offered because the book is in play.
-    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
     /**
-     * ***The goal and the dials, which this call was missing*** — [06 §7.3.3],
-     * [06 §7.3.1], found and fixed at [P7.8].
-     *
-     * **A preview that omits a block the turn will send is a preview that
-     * lies**, and the goal is the sharpest case in the build because 7.3.3 calls
-     * it *"always injected"*: every session with a cursor would have previewed a
-     * prompt one block shorter than the one it sends, with the budget arithmetic
-     * under it correspondingly wrong. It shipped that way at [P7.6] — the arm
-     * was added to the collector and wired into the runner, and this second
-     * caller was not — and the dials would have shipped the same way for the
-     * same reason one stage later, which is why both are here in one line.
-     *
-     * *The gather resolves both*, so there is nothing to duplicate: the two
-     * callers hand over the same values or the preview is not a preview.
+     * ***The kind a submission would get*** (2026-09-27). Absent, this left the
+     * collector with no kind at all, and a pack whose input slots are all
+     * per-kind — Freeform's are — then previewed a prompt with neither the
+     * draft's words nor its pictures, while the turn defaulted to `do` and
+     * sent both.
      */
-    ...(inputs.goals.current === null
-      ? {}
-      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
-    dials: inputs.dials,
+    ...(request.input === undefined ? {} : { inputKind: request.input.kind ?? DEFAULT_INPUT_KIND }),
+    lore: lore.blocks,
     ...(request.input === undefined ? {} : { input: request.input }),
     ...(request.guidance === undefined ? {} : { guidance: request.guidance }),
+    // Nothing held reads as the turn's summariser with nothing yet written:
+    // absent, not an empty chain.
+    ...(summary === undefined || summary.length === 0 ? {} : { summary }),
+    // The first speaker's call, or the narrator's — see `selection` above.
+    ...(speaker === undefined ? {} : { speaker }),
+    ...(step.contributes === 'messages'
+      ? { voice: speaker === undefined ? ('narrator' as const) : ('embodied' as const) }
+      : {}),
   });
 
+  /**
+   * ***Which of the draft's pictures are here*** — the send rule's *are the
+   * bytes present* ([25 E15]), asked before the plan because the plan is
+   * synchronous. With `roleLayersOf` resolving the model the turn will, the
+   * preview's *this picture will be seen* is the turn's answer rather than a
+   * guess.
+   */
+  const picturesPresent = await presentAttachments(
+    context.sessions.layout,
+    request.account,
+    request.sessionId,
+    digestsOf(request.input === undefined ? [] : [{ input: request.input }]),
+  );
   try {
     const { call } = planCall(
       {
         definition: step,
-        bindings: inputs.bindings,
-        defaults: inputs.defaults,
-        usable: inputs.usable,
+        // The session's own overrides among them, which a preview did not pass
+        // until `roleLayersOf` (2026-09-27): a session pointed at a bigger model
+        // was metered against the account default's window.
+        ...roleLayersOf(inputs),
         providers: context.providers,
         config: context.config,
         preset: { params: inputs.preset.params, budget: inputs.preset.budget },
         notFilled: collected.notFilled,
         refused: lore.refused,
+        picturesPresent,
+        // So the first speaker's model hint applies as the turn's would: under
+        // `per-actor` only ([P14.2], `planCall`).
+        dispatch: chat.dispatch,
       },
-      {},
+      speaker === undefined ? {} : { speaker },
       collected.candidates,
     );
 
@@ -279,9 +409,15 @@ export async function previewAssembly(
     // refused request. `AdvisoryLeakError` is deliberately *not* caught: it is
     // [06 §5.2]'s structural refusal, and a preview that swallowed it would be
     // the one surface able to route around the guarantee.
-    if (error instanceof RoleUnresolved) {
+    // A window no larger than the reply reserve is the same kind of answer: the
+    // denominator is zero, and the turn would be refused for it (2026-09-27).
+    if (error instanceof RoleUnresolved || error instanceof WindowTooSmall) {
       const reason: UnmeasurableReason =
-        error.reason === 'unbound' ? 'role-unbound' : 'role-dangling';
+        error instanceof WindowTooSmall
+          ? 'window-too-small'
+          : error.reason === 'unbound'
+            ? 'role-unbound'
+            : 'role-dangling';
       return {
         state: 'unmeasurable',
         headTurnId,

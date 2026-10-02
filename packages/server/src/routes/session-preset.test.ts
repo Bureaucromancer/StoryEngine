@@ -116,11 +116,15 @@ describe('switching the pack a session is assembled from', () => {
 
   it('refuses both halves and neither, because the route cannot guess', async () => {
     const sessionId = await newSession();
+    // A real pack as the second half, since a pack is checked as one before
+    // the route asks which half was meant (2026-09-27).
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const pack = read.body.session.preset as Record<string, unknown>;
 
     const both = await server.request({
       method: 'PUT',
       url: `/api/sessions/${sessionId}/preset`,
-      payload: { presetId: 'default', preset: { name: 'x' } },
+      payload: { presetId: 'default', preset: pack },
     });
     expect(both.status).toBe(422);
 

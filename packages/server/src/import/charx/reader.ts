@@ -33,9 +33,23 @@ export class CharxReader implements SourceReader {
   readonly kind = 'charx' as const;
 
   readonly #files: FileSource;
+  /**
+   * ***The name the archive arrived under*** (2026-09-27), which is the
+   * character's identity: what a re-import of the same file is found by.
+   *
+   * Every CHARX used to be identified as its inner `card.json`, which every
+   * CHARX has, so each import after the first found the one before it and
+   * replaced it: Bob's text on Alice's portrait, under Alice's id, and every
+   * cast that named Alice now meaning Bob. A single uploaded PNG card was
+   * always identified by its own filename; an archive now is too. Absent (an
+   * archive swept from somewhere with no name to give) falls back to
+   * `card.json`.
+   */
+  readonly #rootName: string;
 
-  constructor(files: FileSource) {
+  constructor(files: FileSource, rootName?: string) {
     this.#files = files;
+    this.#rootName = rootName ?? 'card.json';
   }
 
   survey(): Promise<SourceSurvey> {
@@ -87,7 +101,7 @@ export class CharxReader implements SourceReader {
     yield {
       outcome: 'candidate',
       candidate: {
-        source: 'card.json',
+        source: this.#rootName,
         format: 'sillytavern.card',
         payload: parsed,
         assets,

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type {
-  CastEntry,
+  StepCastMember,
   StepCondition,
   StepDefinition,
   StepImplementation,
@@ -12,7 +12,8 @@ import type {
 
 import type { CallPurpose } from '../assembly/types.js';
 import { keyBelongsTo } from '../sessions/channels.js';
-import type { ChannelState, StepSkipReason, Turn } from '../sessions/types.js';
+import { storyTurns } from '../sessions/depth.js';
+import type { ChannelState, StepSkipReason, Turn, TurnAttachment } from '../sessions/types.js';
 
 /**
  * Steps, and the boundary they run behind —
@@ -35,7 +36,7 @@ import type { ChannelState, StepSkipReason, Turn } from '../sessions/types.js';
  */
 export type {
   Candidate,
-  CastEntry,
+  StepCastMember,
   EffectProposal,
   StepCallRequest,
   StepCallResult,
@@ -50,11 +51,19 @@ export type {
 
 /** What the runner knows about the turn when it evaluates a condition. */
 export interface ConditionContext {
-  /** How many turns are on the path to the head, before this one. */
+  /**
+   * How many story turns are on the path to the head, before this one — a
+   * channel write or a backdrop choice is on the path and is not one
+   * (`sessions/depth.ts`).
+   */
   turnsOnPath: number;
   /** Stage flags the mode has raised. Empty until P2.6 supplies a mode. */
   stages: ReadonlySet<string>;
-  /** Flags the user armed for this turn. */
+  /**
+   * Flags the user armed for this turn — ***produced at last*** ([P14.5b],
+   * [25 C17]): a submission's `push` arms `push`, which the director's step
+   * waits on (`turns/direct.ts`). Empty on every other turn.
+   */
   armed: ReadonlySet<string>;
 }
 
@@ -136,13 +145,23 @@ export function filterReads(
     turnId: string;
     sessionId: string;
     parentTurnId: string | null;
-    input?: { actorId: string | null; kind: string; text: string; raw: string };
+    input?: {
+      actorId: string | null;
+      kind: string;
+      text: string;
+      raw: string;
+      attachments?: TurnAttachment[];
+    };
     speakers?: readonly string[];
+    voice?: StepInput['voice'];
+    dispatch?: StepInput['dispatch'];
     setup?: Readonly<Record<string, unknown>>;
     channels: Record<string, ChannelState>;
     history: readonly Turn[];
-    output?: { text: string };
-    cast?: readonly CastEntry[];
+    output?: StepInput['output'];
+    cast?: readonly StepCastMember[];
+    /** A person's run between turns ([P14.5a]) — see `StepInput.onDemand`. */
+    onDemand?: true;
   },
 ): StepInput {
   /**
@@ -183,6 +202,15 @@ export function filterReads(
      * makes a payload smaller.
      */
     ...(everything.speakers === undefined ? {} : { speakers: everything.speakers }),
+    /**
+     * ***How the session speaks, unfiltered for `speakers`' reason*** —
+     * [P14.2]. The session's own settings applied to the session's own turn,
+     * which every step of its mode is entitled to; and without them a step
+     * could not decide whether to make one call or one per speaker, which is
+     * the decision [P14 §1.4] leaves to the mode.
+     */
+    ...(everything.voice === undefined ? {} : { voice: everything.voice }),
+    ...(everything.dispatch === undefined ? {} : { dispatch: everything.dispatch }),
     // Unfiltered for `speakers`' reason: the mode's own declaration, answered
     // for the mode's own session.
     ...(everything.setup === undefined ? {} : { setup: everything.setup }),
@@ -219,6 +247,9 @@ export function filterReads(
     ...(definition.reads.includes('output') && everything.output !== undefined
       ? { output: everything.output }
       : {}),
+    // Unfiltered, like `speakers`: not a read of anything, but the engine
+    // saying why the step is running at all.
+    ...(everything.onDemand === true ? { onDemand: true as const } : {}),
   };
 }
 
@@ -232,11 +263,36 @@ export function filterReads(
  * still lets a consumer attribute what it found to a node ([P8 §1.4]).
  */
 export function transcriptOf(path: readonly Turn[]): TranscriptTurn[] {
-  return path.map((turn) => ({
+  /**
+   * ***The story's turns, not the path's*** (2026-09-27). A channel write, an
+   * undo or a backdrop choice is a turn on the path with nothing said in it,
+   * and it took a place in the summary chain's stretches and in the window
+   * beside it — each HUD edit shifted the in-progress link and re-derived it,
+   * and each one pushed a turn of the story out of the window without a word
+   * of it being in the prompt. `storyTurns` is the one reading the window and
+   * the chain share.
+   */
+  return storyTurns(path).map((turn) => ({
     turnId: turn.id,
     ...(turn.input === undefined
       ? {}
-      : { input: { actorId: turn.input.actorId, kind: turn.input.kind, text: turn.input.text } }),
+      : {
+          input: {
+            actorId: turn.input.actorId,
+            kind: turn.input.kind,
+            text: turn.input.text,
+            // Kind and caption only — a transcript is *what was said*, and the
+            // bytes and their address are not ([25 E15]).
+            ...(turn.input.attachments === undefined || turn.input.attachments.length === 0
+              ? {}
+              : {
+                  attachments: turn.input.attachments.map((attachment) => ({
+                    kind: attachment.kind,
+                    ...(attachment.caption === undefined ? {} : { caption: attachment.caption }),
+                  })),
+                }),
+          },
+        }),
     ...(turn.output === undefined ? {} : { output: { text: turn.output.text } }),
   }));
 }

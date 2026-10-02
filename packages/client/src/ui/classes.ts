@@ -197,7 +197,7 @@ export const control =
  *
  * ***The recipe is still the story column's; the measure it is built on is
  * not*** — [home, revised]. Home renders the changelog as prose, and [10 §1.2]
- * says what makes prose prose: **type** (`text-story`), **measure**
+ * says what makes prose prose: **type** (`text-story font-story`), **measure**
  * (`--container-reading`) and **chrome** (none). Home takes the first two, for
  * that one block, and none of the third — because it sits beside the workbench
  * and carries a control. So it is a reading column *inside* a tooling column

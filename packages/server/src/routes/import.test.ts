@@ -13,12 +13,14 @@ import {
   tempRoot,
   type TestServer,
 } from '../test-server.js';
+import { read } from '../library.js';
 import { makeZip } from '../storage/test-zip.js';
 import {
   aventurasCharacter,
   aventurasLorebook,
   aventurasScenario,
 } from '../import/fixtures/test-aventuras.js';
+import { sillyTavernFixture } from '../import/fixtures/test-sillytavern.js';
 
 /**
  * The first upload route this server has had ([P4 §1.3]).
@@ -52,7 +54,7 @@ afterEach(async () => {
 
 const PRESET = {
   prompts: [{ identifier: 'main', name: 'Main', role: 'system', content: 'You are {{char}}.' }],
-  prompt_order: [{ character_id: 100000, order: [{ identifier: 'main', enabled: true }] }],
+  prompt_order: [{ character_id: 100001, order: [{ identifier: 'main', enabled: true }] }],
   temperature: 0.9,
   proxy_password: 'this must never reach disk',
 };
@@ -113,6 +115,35 @@ async function upload(filename: string, contents: string) {
 }
 
 describe('uploading one preset', () => {
+  /**
+   * ***Recorded, as a sweep is*** (2026-09-28). Neither upload door recorded
+   * anything, so an object brought in by one had no import notes on its page
+   * and its review ended with the panel. Marked an upload, so *Update from
+   * source* never tries to reopen a file name as a path — the chat test below
+   * holds that half.
+   */
+  it('is recorded, so its review opens again and the object says what it said', async () => {
+    const response = await upload('Harbour.json', JSON.stringify(PRESET));
+    const jobId = response.body.jobId as string;
+    expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
+
+    const listed = await server.request({ method: 'GET', url: '/api/import/jobs' });
+    expect(
+      (listed.body.jobs as { id: string; root: string }[]).find((job) => job.id === jobId),
+    ).toMatchObject({ root: 'Harbour.json', status: 'finished' });
+    const opened = await server.request({ method: 'GET', url: `/api/import/jobs/${jobId}` });
+    expect((opened.body.report.items as { source: string }[]).map((item) => item.source)).toEqual([
+      'Harbour.json',
+    ]);
+
+    const objectId = String(response.body.item.objectId);
+    const notes = await server.request({
+      method: 'GET',
+      url: `/api/import/objects/${objectId}/notes`,
+    });
+    expect((notes.body.notes as { jobId: string }[]).map((row) => row.jobId)).toContain(jobId);
+  });
+
   it('converts it, stores it, and names it from the filename', async () => {
     const response = await upload('Harbour.json', JSON.stringify(PRESET));
 
@@ -709,6 +740,61 @@ async function grantFileAccess(): Promise<void> {
   expect(response.status, JSON.stringify(response.body)).toBe(200);
 }
 
+/** Many files plus the manifest, as the browser sends them. */
+function folderBody(
+  manifest: string[],
+  carried: Record<string, string>,
+  fields: Record<string, string> = {},
+): { payload: Buffer; headers: Record<string, string> } {
+  const boundary = '----storyengineFolderBoundary';
+  const chunks: Buffer[] = [];
+  for (const [name, value] of Object.entries(fields)) {
+    chunks.push(
+      Buffer.from(
+        [`--${boundary}`, `Content-Disposition: form-data; name="${name}"`, '', value, ''].join(
+          '\r\n',
+        ),
+        'utf8',
+      ),
+    );
+  }
+  for (const [path, contents] of Object.entries(carried)) {
+    chunks.push(
+      Buffer.from(
+        [
+          `--${boundary}`,
+          // The relative path travels as the FIELD name: a multipart filename
+          // cannot carry a directory and survive sanitising.
+          `Content-Disposition: form-data; name="${path}"; filename="${path.split('/').pop() ?? path}"`,
+          'Content-Type: application/octet-stream',
+          '',
+          contents,
+          '',
+        ].join('\r\n'),
+        'utf8',
+      ),
+    );
+  }
+  chunks.push(
+    Buffer.from(
+      [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="manifest"',
+        '',
+        JSON.stringify(manifest),
+        `--${boundary}--`,
+        '',
+      ].join('\r\n'),
+      'utf8',
+    ),
+  );
+
+  return {
+    payload: Buffer.concat(chunks),
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+  };
+}
+
 /**
  * The browser directory upload — P4's first-to-cut clause, reversed ([P4 §7.13]).
  *
@@ -725,50 +811,6 @@ describe('uploading a folder from the browser', () => {
     { path: 'chats/Vera/2026.jsonl', bytes: 900 },
     { path: 'backups/settings_2026.json', bytes: 400 },
   ];
-
-  /** Many files plus the manifest, as the browser sends them. */
-  function folderBody(
-    manifest: string[],
-    carried: Record<string, string>,
-  ): { payload: Buffer; headers: Record<string, string> } {
-    const boundary = '----storyengineFolderBoundary';
-    const chunks: Buffer[] = [];
-    for (const [path, contents] of Object.entries(carried)) {
-      chunks.push(
-        Buffer.from(
-          [
-            `--${boundary}`,
-            // The relative path travels as the FIELD name: a multipart filename
-            // cannot carry a directory and survive sanitising.
-            `Content-Disposition: form-data; name="${path}"; filename="${path.split('/').pop() ?? path}"`,
-            'Content-Type: application/octet-stream',
-            '',
-            contents,
-            '',
-          ].join('\r\n'),
-          'utf8',
-        ),
-      );
-    }
-    chunks.push(
-      Buffer.from(
-        [
-          `--${boundary}`,
-          'Content-Disposition: form-data; name="manifest"',
-          '',
-          JSON.stringify(manifest),
-          `--${boundary}--`,
-          '',
-        ].join('\r\n'),
-        'utf8',
-      ),
-    );
-
-    return {
-      payload: Buffer.concat(chunks),
-      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
-    };
-  }
 
   it('classifies the folder and asks for only what it will read', async () => {
     const response = await server.request({
@@ -859,6 +901,132 @@ describe('uploading a folder from the browser', () => {
     expect(sources).toContain('backups/settings_2026.json');
   });
 
+  /**
+   * ***A file the limit left out is said to be over it*** (2026-09-28). The
+   * plan names what its budget cut, the panel hands that back, and the review
+   * says it — where a card too big to send read as *could not be read*, which
+   * sent people looking for a broken card.
+   */
+  it('names a library file the upload limit left out, as over it', async () => {
+    const card = JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } });
+    const { payload, headers } = folderBody(
+      ['Vera.json', 'Kohl.json'],
+      { 'Vera.json': card },
+      // `Vera.json` did arrive, so the claim is not true of it and not taken.
+      { overLimit: JSON.stringify(['Kohl.json', 'Vera.json']) },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    const rows = response.body.report.items as {
+      source: string;
+      disposition: string;
+      notes: { key: string }[];
+    }[];
+    const kohl = rows.find((row) => row.source === 'Kohl.json');
+    expect(kohl?.disposition).toBe('skipped');
+    expect(kohl?.notes.map((note) => note.key)).toEqual(['import.file.overLimit']);
+    expect(rows.find((row) => row.source === 'Vera.json')?.disposition).toBe('converted');
+    expect(response.body.report.counts.skipped).toBe(1);
+  });
+
+  /**
+   * ***What was read in a cut file's place survives the rewrite*** (2026-10-02).
+   * The plan no longer carries a Marinara shard's `.bak` without its primary,
+   * but the route takes the folder a client sends: sent that way, the store
+   * reads the backup in the primary's place and says so on the primary's row
+   * — the only sentence in the review that says the rows are one save old —
+   * and the over-limit rewrite used to replace the row whole.
+   */
+  it('keeps the note that a cut file was read from its backup', async () => {
+    const primary = 'storage/tables/characters/char%5Fvera.json';
+    const vera = {
+      id: 'char_vera',
+      data: JSON.stringify({ name: 'Vera Solano', description: 'One save ago.' }),
+      createdAt: '2026-08-01T00:00:00.000Z',
+    };
+    const { payload, headers } = folderBody(
+      ['storage/manifest.json', primary, `${primary}.bak`],
+      {
+        'storage/manifest.json': JSON.stringify({ version: 7, tables: { characters: 1 } }),
+        [`${primary}.bak`]: JSON.stringify([vera]),
+      },
+      { overLimit: JSON.stringify([primary]) },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    const rows = response.body.report.items as {
+      source: string;
+      disposition: string;
+      notes: { key: string }[];
+    }[];
+    const cut = rows.find((row) => row.source === primary);
+    expect(cut?.disposition).toBe('skipped');
+    expect(cut?.notes.map((note) => note.key)).toEqual([
+      'import.marinara.backupUsed',
+      'import.file.overLimit',
+    ]);
+  });
+
+  /**
+   * *An Aventuras database is taken whole or not at all*, so over the limit
+   * nothing readable arrives — and the answer said *there is nothing readable
+   * at that path*, true and no help, when the cause was the size.
+   */
+  it('says the limit, rather than that nothing was readable, when it left the database out', async () => {
+    const { payload, headers } = folderBody(
+      ['aventura.db', 'aventura.db-wal', 'metadata.json'],
+      { 'metadata.json': '{}' },
+      { overLimit: JSON.stringify(['aventura.db', 'aventura.db-wal']) },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(413);
+    expect(response.body.error).toBe('too-large');
+  });
+
+  it('is recorded under the folder’s own name', async () => {
+    const card = JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } });
+    const { payload, headers } = folderBody(
+      ['Vera.json'],
+      { 'Vera.json': card },
+      { folder: 'default-user' },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    const jobId = response.body.report.jobId as string;
+    expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
+    const listed = await server.request({ method: 'GET', url: '/api/import/jobs' });
+    expect(
+      (listed.body.jobs as { id: string; root: string }[]).find((job) => job.id === jobId)?.root,
+    ).toBe('default-user');
+  });
+
   it('refuses a folder with no manifest rather than importing a fragment', async () => {
     const { payload, headers } = folderBody([], { 'settings.json': '{}' });
     const response = await server.request({
@@ -892,6 +1060,422 @@ describe('uploading a folder from the browser', () => {
       expect(source, `${source} climbs out of the folder`).not.toContain('..');
     }
     expect(sources).toContain('etc/passwd');
+  });
+});
+
+/**
+ * ***Chats, through each door*** —
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * One file, and a folder picked in a browser. The folder half is the opt-in:
+ * the plan says what chats would add before a byte moves, and the upload
+ * carries them only when the person said so — and says, row by row, which it
+ * was.
+ */
+describe('a chat, through the doors', () => {
+  const CHAT = 'chats/Vera Solano/2026-01-01.jsonl';
+  const text = (path: string): string => {
+    const value = sillyTavernFixture()[path];
+    return typeof value === 'string' ? value : new TextDecoder().decode(value);
+  };
+
+  it('uploaded on its own, becomes a session and answers with its id', async () => {
+    const response = await upload('Vera - 2026-01-01.jsonl', text(CHAT));
+
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+    expect(response.body.item.disposition).toBe('converted');
+    const opened = await server.request({
+      method: 'GET',
+      url: `/api/sessions/${String(response.body.item.objectId)}`,
+    });
+    expect(opened.status).toBe(200);
+  });
+
+  it('uploaded twice, is already here the second time', async () => {
+    await upload('Vera - 2026-01-01.jsonl', text(CHAT));
+    const again = await upload('Vera - 2026-01-01.jsonl', text(CHAT));
+
+    expect(again.status).toBe(200);
+    expect(again.body.item.disposition).toBe('unchanged');
+    expect(again.body.item.notes.map((note: { key: string }) => note.key)).toEqual([
+      'import.chat.alreadyHere',
+    ]);
+  });
+
+  /** Two more lines, as SillyTavern appends them: the chat has grown. */
+  const grown = (path: string): string =>
+    text(path) +
+    [
+      {
+        name: 'The Inspector',
+        is_user: true,
+        is_system: false,
+        send_date: '2026-01-01T10:02:00.000Z',
+        mes: 'Then sign for this.',
+        extra: {},
+      },
+      {
+        name: 'Vera Solano',
+        is_user: false,
+        is_system: false,
+        send_date: '2026-01-01T10:02:30.000Z',
+        mes: 'Not today.',
+        gen_started: '2026-01-01T10:02:26.000Z',
+        extra: {},
+      },
+    ]
+      .map((line) => `${JSON.stringify(line)}\n`)
+      .join('');
+
+  it('uploaded again after it grew, extends the session it made — [P14.10a]', async () => {
+    const first = await upload('Vera - 2026-01-01.jsonl', text(CHAT));
+    const sessionId = String(first.body.item.objectId);
+
+    // *Update from source* on a session from one file: nothing on the server
+    // to re-read, so the menu offers the file picker.
+    const update = await server.request({
+      method: 'POST',
+      url: `/api/import/sessions/${sessionId}/update`,
+    });
+    expect(update.status).toBe(409);
+    expect(update.body.error).toBe('no-recorded-source');
+
+    const again = await upload('Vera - 2026-01-01.jsonl', grown(CHAT));
+    expect(again.body.item.disposition).toBe('converted');
+    expect(again.body.item.objectId).toBe(sessionId);
+    expect(again.body.item.notes[0]).toEqual({
+      key: 'import.chat.extended',
+      params: { name: 'Vera - 2026-01-01', count: 1 },
+      level: 'info',
+    });
+  });
+
+  it('updated from source, re-sweeps the folder it came from — [P14.10a]', async () => {
+    await grantFileAccess();
+    const root = await tempRoot('se-sync-');
+    const writeTree = async (tree: Record<string, string | Uint8Array>): Promise<void> => {
+      for (const [path, body] of Object.entries(tree)) {
+        await mkdir(join(root, path, '..'), { recursive: true });
+        await writeFile(join(root, path), body);
+      }
+    };
+    try {
+      await writeTree(sillyTavernFixture());
+      const swept = await server.request({
+        method: 'POST',
+        url: '/api/import/sweep',
+        payload: { root },
+      });
+      const made = (swept.body.report.items as { source: string; objectId?: string }[]).find(
+        (item) => item.source === CHAT,
+      );
+      const sessionId = String(made?.objectId);
+
+      await writeFile(join(root, CHAT), grown(CHAT));
+      const update = await server.request({
+        method: 'POST',
+        url: `/api/import/sessions/${sessionId}/update`,
+      });
+
+      expect(update.status, JSON.stringify(update.body)).toBe(200);
+      expect(update.body.item.source).toBe(CHAT);
+      expect(update.body.item.disposition).toBe('converted');
+      expect(update.body.item.objectId).toBe(sessionId);
+      expect(update.body.item.notes[0].key).toBe('import.chat.extended');
+      // The path is the server's to know, and is not sent back.
+      expect(JSON.stringify(update.body)).not.toContain(root);
+
+      const unchanged = await server.request({
+        method: 'POST',
+        url: `/api/import/sessions/${sessionId}/update`,
+      });
+      expect(unchanged.body.item.disposition).toBe('unchanged');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to update a session that was not made from a chat', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Made here' },
+    });
+    const sessionId = String(created.body.session?.id ?? created.body.id);
+
+    const update = await server.request({
+      method: 'POST',
+      url: `/api/import/sessions/${sessionId}/update`,
+    });
+    expect(update.status).toBe(422);
+    expect(update.body.error).toBe('no-source');
+    const missing = await server.request({
+      method: 'POST',
+      url: '/api/import/sessions/nobody/update',
+    });
+    expect(missing.status).toBe(404);
+  });
+
+  /** The fixture tree as a browser manifest, sized by its real bytes. */
+  function manifest(): { path: string; bytes: number }[] {
+    return Object.entries(sillyTavernFixture()).map(([path, body]) => ({
+      path,
+      bytes: typeof body === 'string' ? Buffer.byteLength(body) : body.byteLength,
+    }));
+  }
+
+  it('in a folder, is planned out until chosen, and says what choosing it costs', async () => {
+    const entries = manifest();
+    const first = await server.request({
+      method: 'POST',
+      url: '/api/import/directory/plan',
+      payload: { entries },
+    });
+
+    expect(first.status).toBe(200);
+    expect(first.body.wanted).not.toContain(CHAT);
+    const bytes = entries.find((entry) => entry.path === CHAT)?.bytes;
+    expect(first.body.chats).toEqual({ count: 1, bytes, fit: { count: 1, bytes } });
+
+    const chosen = await server.request({
+      method: 'POST',
+      url: '/api/import/directory/plan',
+      payload: { entries, chats: true },
+    });
+    expect(chosen.body.wanted).toContain(CHAT);
+  });
+
+  it('in a folder whose person chose chats, becomes a session beside the cards', async () => {
+    const tree = sillyTavernFixture();
+    // Text only: the cards' pixels are not what this is about, and the chat
+    // resolves Vera by name when her card is not among what was carried.
+    const carried = {
+      'settings.json': text('settings.json'),
+      'worlds/Rain City.json': text('worlds/Rain City.json'),
+      [CHAT]: text(CHAT),
+    };
+    const { payload, headers } = folderBody(Object.keys(tree), carried, { chats: 'include' });
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    const chat = (response.body.report.items as { source: string; disposition: string }[]).find(
+      (item) => item.source === CHAT,
+    );
+    expect(chat?.disposition).toBe('converted');
+  });
+
+  it('in a folder whose person left chats out, is skipped rather than unreadable', async () => {
+    const tree = sillyTavernFixture();
+    const { payload, headers } = folderBody(
+      Object.keys(tree),
+      { 'settings.json': text('settings.json') },
+      { chats: 'skip' },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status).toBe(200);
+    const chat = (
+      response.body.report.items as {
+        source: string;
+        disposition: string;
+        notes: { key: string }[];
+      }[]
+    ).find((item) => item.source === CHAT);
+    expect(chat?.disposition).toBe('skipped');
+    expect(chat?.notes.map((note) => note.key)).toEqual(['import.chat.notChosen']);
+  });
+
+  /** A report's row for one path, with its notes. */
+  function rowOf(body: { report: { items: unknown[] } }, source: string) {
+    return (
+      body.report.items as {
+        source: string;
+        disposition: string;
+        notes: { key: string; params: Record<string, unknown> }[];
+      }[]
+    ).find((item) => item.source === source);
+  }
+
+  it('in a folder whose person chose chats, says a chat the limit left out was over it', async () => {
+    // Chosen, and not carried: the plan spent the limit on the library first
+    // and this did not fit. That is what the row says — not "could not be
+    // read", which is what a named file with no bytes otherwise reads as.
+    const { payload, headers } = folderBody(
+      Object.keys(sillyTavernFixture()),
+      { 'settings.json': text('settings.json') },
+      { chats: 'include' },
+    );
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/directory',
+      payload,
+      headers,
+    });
+
+    expect(response.status).toBe(200);
+    const chat = rowOf(response.body, CHAT);
+    expect(chat?.disposition).toBe('skipped');
+    expect(chat?.notes.map((note) => note.key)).toEqual(['import.chat.overLimit']);
+    expect(chat?.notes[0]?.params['limit']).toBe(server.services.config.limits.maxUploadMb);
+  });
+
+  it('in a loose folder, is held back and asked about, as a tree’s chats are', async () => {
+    const LOOSE = 'exports/Vera - 2026-01-01.jsonl';
+    const card = JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } });
+    const entries = [
+      { path: 'Vera.json', bytes: Buffer.byteLength(card) },
+      { path: LOOSE, bytes: Buffer.byteLength(text(CHAT)) },
+    ];
+
+    const plan = await server.request({
+      method: 'POST',
+      url: '/api/import/directory/plan',
+      payload: { entries },
+    });
+    expect(plan.body.verdict).toBe('loose-files');
+    expect(plan.body.wanted).toEqual(['Vera.json']);
+    expect(plan.body.chats.count).toBe(1);
+
+    const send = async (chats: 'skip' | 'include', carried: Record<string, string>) => {
+      const body = folderBody(
+        entries.map((entry) => entry.path),
+        carried,
+        { chats },
+      );
+      return server.request({ method: 'POST', url: '/api/import/directory', ...body });
+    };
+
+    const declined = await send('skip', { 'Vera.json': card });
+    expect(rowOf(declined.body, LOOSE)?.disposition).toBe('skipped');
+    expect(rowOf(declined.body, LOOSE)?.notes.map((note) => note.key)).toEqual([
+      'import.chat.notChosen',
+    ]);
+
+    const taken = await send('include', { 'Vera.json': card, [LOOSE]: text(CHAT) });
+    expect(rowOf(taken.body, LOOSE)?.disposition).toBe('converted');
+  });
+
+  it('through Play’s door, is a chat or nothing is written', async () => {
+    // A card that happens to be named `.jsonl`. The library's own door would
+    // import it as an actor; Play's asks for a chat, and a card is not one.
+    const boundary = '----storyengineTestBoundary';
+    const payload = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="kind"',
+      '',
+      'chat',
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="file"; filename="card.jsonl"',
+      'Content-Type: application/octet-stream',
+      '',
+      JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } }),
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/import/file',
+      payload,
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.item.disposition).toBe('unrecognised');
+    expect(response.body.item.notes.map((note: { key: string }) => note.key)).toEqual([
+      'import.file.unrecognised',
+    ]);
+    const listed = await server.request({ method: 'GET', url: '/api/library/actors' });
+    expect(listed.body.objects.map((row: { name: string }) => row.name)).not.toContain(
+      'Vera Solano',
+    );
+  });
+
+  /**
+   * ***And an archive or a story file is not a chat either*** — the merge of
+   * [P14.8] with [P13.8] and [P13.15]. P14.8 refused a zip in
+   * `importOneFile`'s archive arm, which P13.8 had moved out to
+   * `importLanded`, so the refusal went with it; and P13.15's `.avt` arm,
+   * which brings a story without the `stories` opt-in, sits below the chat
+   * check. Each would otherwise answer Play's door with a library or a
+   * session it never asked for.
+   */
+  it('through Play’s door, refuses a zip and a story file before either is read', async () => {
+    const boundary = '----storyengineTestBoundary';
+    const asChat = (filename: string, body: Uint8Array | string): Buffer =>
+      Buffer.concat([
+        Buffer.from(
+          [
+            `--${boundary}`,
+            'Content-Disposition: form-data; name="kind"',
+            '',
+            'chat',
+            `--${boundary}`,
+            `Content-Disposition: form-data; name="file"; filename="${filename}"`,
+            'Content-Type: application/octet-stream',
+            '',
+            '',
+          ].join('\r\n'),
+        ),
+        Buffer.from(body),
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]);
+    const send = (payload: Buffer) =>
+      server.request({
+        method: 'POST',
+        url: '/api/import/file',
+        payload,
+        headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      });
+
+    const zipped = await send(
+      asChat(
+        'cards.zip',
+        makeZip([
+          {
+            name: 'Vera.json',
+            body: JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Vera Solano' } }),
+          },
+        ]),
+      ),
+    );
+    const story = await send(
+      asChat(
+        'The Lantern Fork.avt',
+        JSON.stringify({
+          version: '1.10.0',
+          story: { id: 'story-1', title: 'The Lantern Fork' },
+          entries: [],
+        }),
+      ),
+    );
+
+    for (const response of [zipped, story]) {
+      expect(response.status).toBe(200);
+      expect(response.body.item.disposition).toBe('unrecognised');
+      expect(response.body.item.notes.map((note: { key: string }) => note.key)).toEqual([
+        'import.file.unrecognised',
+      ]);
+    }
+    const actors = await server.request({ method: 'GET', url: '/api/library/actors' });
+    expect(actors.body.objects.map((row: { name: string }) => row.name)).not.toContain(
+      'Vera Solano',
+    );
+    const sessions = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(sessions.body.sessions).toEqual([]);
   });
 });
 
@@ -1022,6 +1606,45 @@ describe('looking at a file before importing it', () => {
     // value, which is what stops a look-before-you-commit becoming a way to read
     // somebody else's proxy password out of a preset they shared.
     expect(JSON.stringify(response.body)).not.toContain('this must never reach disk');
+  });
+
+  /**
+   * ***What the commit will do, not more*** (2026-09-28). Every Marinara
+   * envelope was previewed as *everything inside would be imported*; the
+   * commit then recorded the kinds it cannot unpack yet and imported nothing.
+   * The preview asks the commit's own question now, and the two agree.
+   */
+  it('says an envelope this build cannot unpack will be recorded, as the commit does', async () => {
+    const file = JSON.stringify({ type: 'marinara_chat_preset', version: 1, data: { name: 'x' } });
+
+    const looked = await look('chat-preset.json', file);
+    expect(looked.status).toBe(200);
+    expect(looked.body.preview.disposition).toBe('recorded');
+    expect(looked.body.preview.notes.map((note: { key: string }) => note.key)).toEqual([
+      'import.file.notYetConvertible',
+    ]);
+
+    const committed = await upload('chat-preset.json', file);
+    expect(committed.body.item.disposition).toBe(looked.body.preview.disposition);
+  });
+
+  /**
+   * *An envelope that unpacks answers with its whole review* — P13.7's
+   * `report`, until now tested only through an Aventuras archive.
+   */
+  it('answers a Marinara envelope with its whole review', async () => {
+    const committed = await upload(
+      'Vera.json',
+      JSON.stringify({
+        type: 'marinara_character',
+        version: 1,
+        data: { id: 'c1', data: JSON.stringify({ name: 'Vera Solano', description: 'Tall.' }) },
+      }),
+    );
+
+    expect(committed.status, JSON.stringify(committed.body)).toBe(201);
+    expect(committed.body.report.items.length).toBeGreaterThan(0);
+    expect(committed.body.report.counts.converted).toBeGreaterThan(0);
   });
 
   it('names an instruct template rather than shrugging at it', async () => {
@@ -1294,6 +1917,51 @@ describe('uploading one Aventuras scenario', () => {
     const response = await send('/api/import/file', 'nonsense');
     expect(response.status).toBe(201);
     expect((await ownObjects(server, 'treatments')).objects).toHaveLength(1);
+  });
+
+  /**
+   * ***Two npcs of one name are two actors*** —
+   * [P13 §0.5](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * Each npc's re-import identity was the scenario file plus its name, so the
+   * second of two named alike `identify`d as the first, replaced it, and the
+   * cast named one actor twice — one imported character gone, and nothing in
+   * the review said so.
+   */
+  it('keeps two npcs who share a name as two actors, and re-imports them unchanged', async () => {
+    const npc = (description: string): Record<string, unknown> => ({
+      name: 'Ines Vaur',
+      role: 'harbourmaster',
+      description,
+      relationship: '',
+      traits: [],
+    });
+    const scenario = {
+      ...aventurasScenario(),
+      npcs: [npc('The elder, who keeps the ledgers.'), npc('Her niece, who does not.')],
+    };
+    const upload = (): ReturnType<typeof withDestination> =>
+      withDestination(JSON.stringify(scenario, null, 2));
+
+    const first = await server.request({ method: 'POST', url: '/api/import/file', ...upload() });
+    expect(first.status).toBe(201);
+    expect(first.body.item.notes.map((note: { key: string }) => note.key)).toContain(
+      'import.aventuras.repeatedNpcNames',
+    );
+
+    const actors = await ownObjects(server, 'actors');
+    expect(actors.objects).toHaveLength(2);
+    const [treatment] = (await ownObjects(server, 'treatments')).objects;
+    const cast = (
+      read(server.services.library, 'ned', treatment!.id).body as {
+        cast: { ref: { id: string } }[];
+      }
+    ).cast.map((member) => member.ref.id);
+    expect(new Set(cast).size).toBe(2);
+
+    const again = await server.request({ method: 'POST', url: '/api/import/file', ...upload() });
+    expect(again.body.item.disposition).toBe('unchanged');
+    expect((await ownObjects(server, 'actors')).objects).toHaveLength(2);
   });
 
   it('takes an Aventuras character and its native lorebook too', async () => {

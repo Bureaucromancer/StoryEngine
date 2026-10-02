@@ -6,17 +6,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { uuidv7 } from '@storyengine/shared';
+import { uuidv7, type Preset } from '@storyengine/shared';
 
 import { Accounts } from '../auth/accounts.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
 
-import { appendTurnToSession, createSession, type SessionContext } from '../sessions/store.js';
-import type { ChannelEffect, Turn } from '../sessions/types.js';
+import {
+  appendTurnToSession,
+  createSession,
+  readSession,
+  writeChannel,
+  type SessionContext,
+} from '../sessions/store.js';
+import type { ChannelEffect, SessionFile, Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
 import { installBuiltIns } from '../mode-loader.js';
-import { DEFAULT_MODE_ID } from '../mode-registry.js';
-import { gatherAssemblyInputs } from './gather.js';
+import { DEFAULT_MODE_ID, defaultMode } from '../mode-registry.js';
+import { collectFor, gatherAssemblyInputs } from './gather.js';
 import { create, type LibraryContext } from '../library.js';
 import { newActor, newLorebook } from '@storyengine/shared';
 
@@ -96,6 +102,8 @@ async function aSessionOf(
       parentTurnId: parent,
       createdAt: new Date(Date.UTC(2026, 7, 16, hour)).toISOString(),
       status: 'complete',
+      // A turn of the story: the window counts those (`sessions/depth.ts`).
+      output: { text: `Hour ${String(hour)} passed in the rain.` },
       effects: [clockEffect(id, hour)],
       tape: [],
     };
@@ -126,6 +134,30 @@ describe('the history the collector is given', () => {
     expect(inputs.windowed).toHaveLength(20);
     // The window is the *newest* twenty, not the oldest.
     expect(inputs.windowed.at(-1)?.id).toBe(head);
+    expect(inputs.windowed[0]?.id).toBe(inputs.history[5]?.id);
+  });
+
+  /**
+   * ***Twenty turns of the story, however many edits sit among them***
+   * (2026-09-27). The window was the path's last twenty, and a channel write
+   * or a backdrop choice is on the path with nothing said in it: each one
+   * pushed a turn somebody read out of the prompt.
+   */
+  it('holds the last turns of the story, not the last turns of the path', async () => {
+    const { sessionId } = await aSessionOf(25);
+    for (let edit = 0; edit < 5; edit += 1) {
+      await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'sparse');
+    }
+    const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId, parentTurnId: head },
+    );
+
+    expect(inputs.history).toHaveLength(30);
+    expect(inputs.windowed).toHaveLength(20);
+    expect(inputs.windowed.every((turn) => turn.output !== undefined)).toBe(true);
     expect(inputs.windowed[0]?.id).toBe(inputs.history[5]?.id);
   });
 });
@@ -278,6 +310,142 @@ describe('what the gather resolves without a job', () => {
 });
 
 /**
+ * ***The collector is told the mode the turn plays*** (2026-09-30), so a
+ * channel slot, the state block and a tracker standing a slot aside see only
+ * that mode's channels (`channelInPlay`) — the rule the HUD and the channel
+ * write kept, where the collector walked every mode's declarations.
+ */
+describe('the mode the collector is told', () => {
+  it('is the one the session plays, so another mode’s tracker says nothing', async () => {
+    const state = defaultMode().definition.assembly.defaultPreset.blocks.find(
+      (block) => block.id === 'se.state',
+    );
+    if (state === undefined) throw new Error('the default pack has a state slot');
+    const world = {
+      'se.track.world.on': { version: 1, value: true },
+      'se.track.world': {
+        version: 1,
+        value: {
+          date: '',
+          time: 'dusk',
+          location: 'the docks',
+          weather: '',
+          temperature: '',
+          fields: [],
+          recent: [],
+        },
+      },
+    };
+    const said = async (modeId: string): Promise<string | undefined> => {
+      const created = await createSession(sessions, ACCOUNT, {
+        name: modeId,
+        mode: { id: modeId, config: null },
+      });
+      const inputs = await gatherAssemblyInputs(
+        { sessions, accounts },
+        { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+      );
+      const collected = collectFor(
+        { ...inputs, preset: { ...inputs.preset, blocks: [{ ...state, enabled: true }] } },
+        { callKind: 'narrate', voice: 'narrator', channels: world, lore: [] },
+      );
+      return collected.candidates.find((candidate) => candidate.id === 'se.state')?.text;
+    };
+
+    expect(await said(DEFAULT_MODE_ID)).toContain('the docks');
+    expect(await said('storyengine.freeform')).toBeUndefined();
+  });
+});
+
+/**
+ * ***The answers a session was set up with reach the pack that names them***
+ * (2026-09-30) — through `collectFor`, the one call the turn, the preview and
+ * impersonation assemble with, so none of them can leave the premise out.
+ */
+describe('the setup answers the collector is given', () => {
+  async function premiseSaid(config: Record<string, unknown>): Promise<string | undefined> {
+    const created = await createSession(sessions, ACCOUNT, {
+      name: 'Freeform',
+      mode: { id: 'storyengine.freeform', config },
+    });
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+    );
+    const collected = collectFor(inputs, {
+      callKind: 'narrate',
+      voice: 'narrator',
+      lore: [],
+    });
+    return collected.candidates.find((candidate) => candidate.id === 'se.premise')?.text;
+  }
+
+  it('gives Freeform’s narrator the premise, as written and trimmed', async () => {
+    expect(
+      await premiseSaid({ premise: '  A smuggler owes the wrong people.\n', difficulty: 'even' }),
+    ).toBe('What this story is about: A smuggler owes the wrong people.');
+  });
+
+  it('gives it nothing for a premise left blank, or one that is not words', async () => {
+    expect(await premiseSaid({ premise: '   ' })).toBeUndefined();
+    expect(await premiseSaid({ premise: 3 })).toBeUndefined();
+  });
+});
+
+/**
+ * ***A session copied before a block shipped is assembled with it***
+ * (2026-09-27) — `presetOf`, through the gather every turn and every preview
+ * calls. The file on disk is exactly what a session begun on the first alpha
+ * holds: Scene's pack without the summary slot and without pacing levels. Read
+ * as the file said, its story above the window never reached a prompt and its
+ * hooks came with no pacing prose.
+ */
+describe('the pack a session is assembled from', () => {
+  function sceneWithout(blockIds: string[]): Preset {
+    const pack = structuredClone(defaultMode().definition.assembly.defaultPreset);
+    pack.blocks = pack.blocks.filter((block) => !blockIds.includes(block.id));
+    delete pack.pacingLevels;
+    return pack;
+  }
+
+  it('gains what the mode shipped after the session copied its pack', async () => {
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Begun on alpha.1',
+      preset: sceneWithout(['se.summary']),
+    });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: session.id, parentTurnId: null },
+    );
+
+    const shipped = defaultMode().definition.assembly.defaultPreset;
+    expect(inputs.preset.blocks.map((block) => block.id)).toEqual(
+      shipped.blocks.map((block) => block.id),
+    );
+    expect(inputs.preset.pacingLevels).toEqual(shipped.pacingLevels);
+    // Read, never written: the file keeps what it was until somebody edits it.
+    const stored = await readSession(sessions, ACCOUNT, session.id);
+    expect(stored?.preset?.blocks.map((block) => block.id)).not.toContain('se.summary');
+  });
+
+  it('reads a library preset exactly as the session copied it', async () => {
+    const library = { ...sceneWithout(['se.summary']), id: uuidv7(), name: 'Harbour' };
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'On a library pack',
+      preset: library,
+    });
+
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: session.id, parentTurnId: null },
+    );
+
+    expect(inputs.preset).toEqual(library);
+  });
+});
+
+/**
  * **No lorebook is active that has not been selected for the session.**
  *
  * ~~The cast reaching the lore resolver, for `scope: linked`.~~ [P5.7] admitted
@@ -350,5 +518,78 @@ describe('what a session gets without asking for it', () => {
 
     expect(inputs.lore.books.map((one) => one.book.name)).toEqual(['Chosen']);
     expect(inputs.lore.books[0]?.by).toBe('session');
+  });
+});
+
+/**
+ * ***A narrated session keeps the presence reading it was played with***
+ * (2026-09-29, the [P14.3] review). Scene declares `castIsPresent` since
+ * P14.3, and read through the mode alone that re-read every narrated
+ * session's presence: a member the story had walked out (`false`, the
+ * channel's *not in this room*) lost their card from the narrator's one
+ * merged call. Tied to the session's voice, a `legacy` session and one P14.0
+ * made narrated keep the prompt they had.
+ */
+describe('a muted-looking member in a narrated session', () => {
+  function libraryOf(): LibraryContext {
+    return { db: sessions.index, layout: sessions.layout, keepHistoryPerObject: 0 };
+  }
+
+  async function assembled(
+    fields: Partial<Pick<SessionFile, 'voice' | 'dispatch' | 'speakers'>>,
+  ): Promise<{ ids: string[]; veraId: string }> {
+    const plain = newActor('Vera');
+    const vera = {
+      ...plain,
+      profile: {
+        ...plain.profile,
+        sections: plain.profile.sections.map((section) =>
+          section.id === 'se.summary' ? { ...section, body: 'Vera keeps the ferry.' } : section,
+        ),
+      },
+    };
+    await create(libraryOf(), ACCOUNT, vera);
+    const created = await createSession(sessions, ACCOUNT, {
+      name: 'Walked out',
+      cast: { persona: null, actors: [vera.id] },
+    });
+    const inputs = await gatherAssemblyInputs(
+      { sessions, accounts },
+      { account: ACCOUNT, sessionId: created.id, parentTurnId: null },
+    );
+    if (inputs.session === null) throw new Error('the session reads');
+    // The file as the era wrote it: none of the three for `legacy`.
+    const bare: SessionFile = { ...inputs.session };
+    delete bare.voice;
+    delete bare.dispatch;
+    delete bare.speakers;
+    const collected = collectFor(
+      { ...inputs, session: { ...bare, ...fields } },
+      {
+        callKind: 'narrate',
+        voice: fields.voice ?? 'narrator',
+        channels: { ...inputs.channels, [`se.presence#${vera.id}`]: { version: 1, value: false } },
+        lore: [],
+      },
+    );
+    return { ids: collected.candidates.map((one) => one.id), veraId: vera.id };
+  }
+
+  it('keeps their card in a legacy session’s narrator call', async () => {
+    const { ids, veraId } = await assembled({});
+
+    expect(ids).toContain(`se.actor.summary.${veraId}`);
+  });
+
+  it('keeps it in a session P14.0 created narrated', async () => {
+    const { ids, veraId } = await assembled({ voice: 'narrator', dispatch: 'merged' });
+
+    expect(ids).toContain(`se.actor.summary.${veraId}`);
+  });
+
+  it('drops it from a room that reads her as muted, which an embodied one does', async () => {
+    const { ids, veraId } = await assembled({ voice: 'embodied', dispatch: 'per-actor' });
+
+    expect(ids).not.toContain(`se.actor.summary.${veraId}`);
   });
 });

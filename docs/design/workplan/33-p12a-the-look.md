@@ -1,7 +1,8 @@
-# 30 — P12A implementation plan: the look, and the sentence it has to put back
+# 33 — P12A implementation plan: the look, and the sentence it has to put back
 
 **Status: skeleton, written 2026-09-22**, the day
-[10 §1.3](../10-ui-surfaces.md) was written. Nothing is built. Format follows
+[10 §1.3](../10-ui-surfaces.md) was written. ~~Nothing is built.~~ *Part of it
+is, since 2026-10-01 — see the note on [polish §17](06-polish.md) below.* Format follows
 [P1](07-p1-implementation.md); citations follow the corpus convention.
 
 **P12A delivers [10 §1.3](../10-ui-surfaces.md)'s direction**: the story
@@ -27,6 +28,42 @@ lettering rule gives a phase that runs after P12 — P6A and P6B after P6, P7B
 after P7. **Nothing about the argument moved**: P12 is merged and open on its own
 critical list, and it neither meets nor removes any commitment
 [10 §1.3](../10-ui-surfaces.md) made.
+
+***Renumbered 2026-10-02, from 30 to 33***, at the merge that brought
+`origin/main` into a local `main` which had held this document since 2026-09-23
+and never pushed it. In that interval `main` planned, built and merged
+[P13](30-p13-aventuras-import.md) (~~2026-09-29, `7565265`~~ its plan
+2026-09-29 at `7565265`, its stages 2026-09-30 at `6f55e6e`) and
+[P14](31-p14-scene-and-session-import.md) (2026-09-30, `8878851`), and recorded
+the [main audit](32-main-audit.md), filing them at 30 to 32. **All three ran
+before this phase, which has not opened**, and it is still the one in front of
+beta, so in execution order it comes after them and the filing number follows:
+`PLAN_ORDER` gained their three lines ahead of this one, the script's `--plan`
+moved this document and nothing else, and `--rename` moved it. *The citations
+were repointed by hand*, five files, because `--rewrite` reads its map from a
+committed rename and a merge in progress has none. The paragraph two above —
+*its number is also its execution position, so nothing renumbers* — stopped
+being true at this merge.
+
+**Its sitting stays T.** It was registered 2026-09-22; `main`'s own T — pictures
+on a move, [25 E15](../25-open-questions.md) — was registered 2026-09-27 by a
+branch that could not see this one, so it is the later registration and became
+**U** ([manual testing §4](05-manual-testing.md)). **Its name stays P12A, and
+that is a choice rather than a consequence**: the lettering rule the rename
+note above cites would now say P14A, and renaming a phase is a rewrite of every
+citation and note that says P12A — a decision for a person, and not one a merge
+should make on its way past.
+
+***And part of it was built on `main` while it waited.***
+[Polish §17](06-polish.md) — 2026-10-01, `04e45a5`, the commit titled
+*polish 5* — gave the story `--font-story`, a system serif stack with no webfont,
+which is §1.5's own choice, beside every `text-story` in the client, and
+`theme.test.ts` refuses the step without the face. That is
+[P12A.1](#p12a1--the-story-face-and-the-two-surfaces-that-wear-it) and the
+typeface token of [P12A.0](#p12a0--the-tokens-every-other-stage-spends); the
+sentences below that said otherwise are corrected where they stand rather than
+rewritten. The rest of that pass — polish §18 to §23 — is colour, navigation,
+confirmation, refusals and the keyboard, and none of it is a stage here.
 
 ---
 
@@ -71,8 +108,16 @@ cheaper or dearer than it looks:
 
 1. **The appearance layer cannot express most of what the direction asks for.**
    `index.css` defines two radii and both are `var(--radius-md)`; there are **no
-   shadow tokens, no motion tokens, no typeface tokens and no spacing scale**.
-   The only shadow in the client is a raw `shadow-lg` in `editor/FieldAssist.tsx`.
+   shadow tokens, no motion tokens, ~~no typeface tokens~~ and no spacing scale**.
+   *(The typeface half is stale since 2026-10-01: [polish §17](06-polish.md)
+   added `--font-ui` and `--font-story`. The rest of this sentence still held
+   at the merge of 2026-10-02.)*
+   ~~The only shadow in the client is a raw `shadow-lg` in `editor/FieldAssist.tsx`.~~
+   *(False when written, and still false at the merge of 2026-10-02: there are
+   three raw `shadow-lg`s, all on overlays — `editor/FieldAssist.tsx`'s assist
+   popover, `notifications/NotificationToast.tsx`'s toast and
+   `ui/TokenField.tsx`'s suggestion list. All three are what P12A.0's overlay
+   shadow replaces.)*
    [polish §6](06-polish.md) built the layer and deliberately stopped at colour,
    radius and type step — which was right then and is the bill now.
 2. **There is effectively no motion.** One opacity transition, in
@@ -115,8 +160,9 @@ friction to route around.
   defaults ([10 §1.2](../10-ui-surfaces.md)); nothing here adds a third or a
   config file ([25 E10](../25-open-questions.md)).
 - **Not the reading view's rebuild.** [10 §12](../10-ui-surfaces.md) shipped at
-  P11 and is on the right side of this direction already. It gains the story
-  face at P12A.1 and nothing else.
+  P11 and is on the right side of this direction already. ~~It gains the story
+  face at P12A.1 and nothing else.~~ *It has the story face already —
+  [polish §17](06-polish.md), 2026-10-01 — so this phase changes nothing in it.*
 - **Not a mobile-first pass.** [10 §1](../10-ui-surfaces.md)'s 1.0 bar —
   responsive and genuinely usable — is unchanged. P12A.7 enforces two rules that
   were already written, which is a different thing from designing a phone layout.
@@ -227,9 +273,11 @@ by shipping widgets that only read.
 
 ### 1.5 A reading face: system stack first, self-hosted only if it is not enough
 
-`--text-story` exists; no `font-family` is declared anywhere in the client, so
-the story is set in the same system sans as the tooling. The direction asks for
-a face of its own.
+~~`--text-story` exists; no `font-family` is declared anywhere in the client, so
+the story is set in the same system sans as the tooling.~~ The direction asks for
+a face of its own. ***Decided and built on `main` before this phase opened***
+(2026-10-01, [polish §17](06-polish.md)): the system stack, as below, with no
+webfont, for the reason below. What is left of this section is its trigger.
 
 **Three options and one of them is out immediately.** A webfont from a CDN is
 not available to us: [09](../09-server-multiuser-deployment.md)'s install is a
@@ -260,7 +308,8 @@ Branch `p12a`.*
 `--radius-md`, which is one radius wearing two names), an **elevation pair**
 (a resting lift and an overlay shadow), a **motion set** (two durations and two
 easings, named for what they do rather than how long they take), a **scrim**
-token for §1.2, and `--font-story` per §1.5.
+token for §1.2, ~~and `--font-story` per §1.5~~ — *`--font-story` is already
+there, beside `--font-ui`, since [polish §17](06-polish.md).*
 
 **And the reduced-motion rule lands here, in the same commit as the first
 duration token.** Every motion token resolves to `0s` under
@@ -274,10 +323,14 @@ pair. **No surface changes in this stage**, which is what makes it reviewable.
 
 ### P12A.1 — The story face, and the two surfaces that wear it
 
-Apply `--font-story` where `text-story` already is — the play transcript and the
-reading view ([10 §12](../10-ui-surfaces.md)) — and check the measure still
-holds at `--container-reading` with the new face's x-height. Cheap, visible, and
-it is the stage that proves P12A.0's tokens reach a surface.
+~~Apply `--font-story` where `text-story` already is — the play transcript and the
+reading view ([10 §12](../10-ui-surfaces.md)) — and~~ ***Applied on `main` before
+the phase opened*** — [polish §17](06-polish.md), `04e45a5`, 2026-10-01, beside
+every `text-story` in the client, with `theme.test.ts` refusing the step without
+the face. **What is left of the stage is its check**: that the measure still
+holds at `--container-reading` with the new face's x-height, which that commit
+does not say it measured. ~~Cheap, visible, and it is the stage that proves
+P12A.0's tokens reach a surface.~~
 
 ### P12A.2 — The backdrop becomes a backdrop
 

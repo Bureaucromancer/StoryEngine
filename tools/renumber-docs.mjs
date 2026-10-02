@@ -108,6 +108,17 @@ const PLAN_ORDER = [
   ['p10-implementation', 'P10'],
   ['p11-implementation', 'P11'],
   ['p12-implementation', 'P12'],
+  ['p13-aventuras-import', 'P13'],
+  ['p14-scene-and-session-import', 'P14'],
+  ['main-audit', 'main audit'],
+  // **Last, and by execution rather than by its letter** (2026-10-02, at the
+  // merge that brought P13, P14 and the main audit into a main that already
+  // held this). It was filed at 30 on a local main on 2026-09-23 and never
+  // pushed; `origin/main` meanwhile planned, built and merged P13 and P14 and
+  // ran its audit, filing them at 30 to 32. All three ran before it and it is
+  // still the phase in front of beta, so its place is after them — the letter
+  // says which phase it follows without renumbering the next, which is a claim
+  // about the label and never about the filing position (the docstring above).
   ['p12a-the-look', 'P12A'],
 ];
 

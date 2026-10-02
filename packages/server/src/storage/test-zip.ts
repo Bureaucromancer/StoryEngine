@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { deflateRawSync } from 'node:zlib';
+import { crc32 as zlibCrc32, deflateRawSync } from 'node:zlib';
 
 /**
  * Builds real zip archives, for tests
@@ -26,25 +26,43 @@ export interface ZipInput {
   body: Uint8Array | string;
   /** Deflate it. Default is stored, which is what [03 §5.2] specifies for ours. */
   deflate?: boolean;
+  /**
+   * ***Written as a streaming writer writes it*** — [P13.8]: general-purpose
+   * bit 3 set, the local header's CRC and sizes left zero, and a data
+   * descriptor carrying them after the bytes. The central directory has the
+   * real ones, which is why the readers never trust a local header's sizes.
+   */
+  descriptor?: boolean;
+}
+
+/** What goes around the entries rather than in one — [P13.8]'s awkward tails. */
+export interface ZipOptions {
+  /** The archive comment, after the end record; up to 65535 bytes. */
+  comment?: Uint8Array | string;
+  /**
+   * Bytes between the central directory and the end record, where a zip64
+   * locator would sit — so a test can put one there.
+   */
+  beforeEnd?: Uint8Array;
 }
 
 const LOCAL = 0x04034b50;
 const CENTRAL = 0x02014b50;
 const EOCD = 0x06054b50;
 
-/** CRC-32, because the format carries one and a reader may one day check it. */
+/**
+ * CRC-32, because the format carries one and a reader may one day check it.
+ *
+ * *`node:zlib`'s since [P13.8]*, which needs an archive holding a database
+ * past 64 MB, and the bit-at-a-time loop this was took seconds over one.
+ */
 function crc32(bytes: Uint8Array): number {
-  let crc = ~0;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-  }
-  return ~crc >>> 0;
+  return zlibCrc32(bytes) >>> 0;
 }
 
-export function makeZip(inputs: readonly ZipInput[]): Uint8Array {
+const DESCRIPTOR = 0x08074b50;
+
+export function makeZip(inputs: readonly ZipInput[], options: ZipOptions = {}): Uint8Array {
   const encoder = new TextEncoder();
   const locals: Uint8Array[] = [];
   const centrals: Uint8Array[] = [];
@@ -56,17 +74,29 @@ export function makeZip(inputs: readonly ZipInput[]): Uint8Array {
     const deflated = input.deflate === true;
     const body = deflated ? new Uint8Array(deflateRawSync(raw)) : raw;
 
-    const local = new Uint8Array(30 + name.length + body.length);
+    const streamed = input.descriptor === true;
+    const trailer = streamed ? 16 : 0;
+    const local = new Uint8Array(30 + name.length + body.length + trailer);
     const localView = new DataView(local.buffer);
     localView.setUint32(0, LOCAL, true);
     localView.setUint16(4, 20, true); // version needed
+    localView.setUint16(6, streamed ? 0x0008 : 0, true);
     localView.setUint16(8, deflated ? 8 : 0, true);
-    localView.setUint32(14, crc32(raw), true);
-    localView.setUint32(18, body.length, true);
-    localView.setUint32(22, raw.length, true);
+    if (!streamed) {
+      localView.setUint32(14, crc32(raw), true);
+      localView.setUint32(18, body.length, true);
+      localView.setUint32(22, raw.length, true);
+    }
     localView.setUint16(26, name.length, true);
     local.set(name, 30);
     local.set(body, 30 + name.length);
+    if (streamed) {
+      const at = 30 + name.length + body.length;
+      localView.setUint32(at, DESCRIPTOR, true);
+      localView.setUint32(at + 4, crc32(raw), true);
+      localView.setUint32(at + 8, body.length, true);
+      localView.setUint32(at + 12, raw.length, true);
+    }
     locals.push(local);
 
     const central = new Uint8Array(46 + name.length);
@@ -74,6 +104,7 @@ export function makeZip(inputs: readonly ZipInput[]): Uint8Array {
     centralView.setUint32(0, CENTRAL, true);
     centralView.setUint16(4, 20, true);
     centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, streamed ? 0x0008 : 0, true);
     centralView.setUint16(10, deflated ? 8 : 0, true);
     centralView.setUint32(16, crc32(raw), true);
     centralView.setUint32(20, body.length, true);
@@ -87,15 +118,21 @@ export function makeZip(inputs: readonly ZipInput[]): Uint8Array {
   }
 
   const directorySize = centrals.reduce((sum, entry) => sum + entry.length, 0);
-  const eocd = new Uint8Array(22);
+  const comment =
+    typeof options.comment === 'string'
+      ? encoder.encode(options.comment)
+      : (options.comment ?? new Uint8Array(0));
+  const eocd = new Uint8Array(22 + comment.length);
   const eocdView = new DataView(eocd.buffer);
   eocdView.setUint32(0, EOCD, true);
   eocdView.setUint16(8, inputs.length, true);
   eocdView.setUint16(10, inputs.length, true);
   eocdView.setUint32(12, directorySize, true);
   eocdView.setUint32(16, offset, true);
+  eocdView.setUint16(20, comment.length, true);
+  eocd.set(comment, 22);
 
-  return concat([...locals, ...centrals, eocd]);
+  return concat([...locals, ...centrals, options.beforeEnd ?? new Uint8Array(0), eocd]);
 }
 
 function concat(parts: readonly Uint8Array[]): Uint8Array {

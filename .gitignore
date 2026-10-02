@@ -9,7 +9,7 @@ coverage/
 .vite/
 .vitest/
 
-# The runtime data directory. Files on disk are canonical (docs/design/02-data-model.md
+# The runtime data directory. Files on disk are canonical (docs/design/03-data-model.md
 # §5) and they are the user's, never the repository's.
 data/
 
@@ -19,7 +19,7 @@ config.json
 # The build's own identity (`pnpm build:identify`). Written by the release
 # build and shipped inside the artifact, never committed: a file in the tree
 # saying which commit this is would be wrong the moment anybody committed
-# anything (docs/design/workplan/23-p6a-alpha-1.md §1.5).
+# anything (docs/design/workplan/19-p6a-alpha-1.md §1.5).
 packages/server/build-info.json
 
 # Captured server logs (`pnpm dev:logged`). Evidence from a run, not source —

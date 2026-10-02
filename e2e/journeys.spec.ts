@@ -339,9 +339,16 @@ test('the seven journeys, in the order a person walks them', async ({ page }) =>
    * that was replaced is still addressable — and stepping back to one is the
    * other half, because a count nobody can act on would be a label rather than
    * an affordance.
+   *
+   * ***On the message, since P14*** (corrected 2026-10-01): a chat's
+   * alternatives are counted where they differ — [P14 §1.6]'s *"swipes surface
+   * on the message, not the turn"* — so the step is the message's *Previous
+   * reply*, not the turn strip's *Previous version*, which keeps only the
+   * siblings that answer a different move. And the fake endpoint now varies its
+   * later replies, because two identical answers are one alternative there.
    */
   await expect(page.getByText('2 of 2')).toBeVisible({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'Previous version' }).click();
+  await page.getByRole('button', { name: 'Previous reply' }).click();
   await expect(page.getByText('1 of 2')).toBeVisible();
 
   // ***7. Open the workbench.*** The panel over the turn that just happened —

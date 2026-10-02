@@ -5,11 +5,13 @@ import { useRef, useState, type JSX } from 'react';
 
 import { uuidv7, type EmbeddedMedia, type MediaRole } from '@storyengine/shared';
 
-import { api, type LibraryKind } from '../api.js';
+import { api, errorCode, type LibraryKind } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { Field } from '../ui/Field.js';
 import { Fine, Note } from '../ui/Text.js';
+import { CommaField } from './ListField.js';
 
 /**
  * ***Image slots, uploaded, cropped and replaced*** —
@@ -41,8 +43,12 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.media', {
   add: 'Add a picture',
   adding: 'Adding…',
   replace: 'Replace',
+  'replace-named': 'Replace picture {n}',
   remove: 'Remove',
+  'remove-named': 'Remove picture {n}',
+  'remove-question': 'Remove this picture? Nothing is written until you save.',
   cover: 'Use as the cover',
+  'cover-named': 'Use picture {n} as the cover',
   isCover: 'The cover',
   role: 'Role',
   label: 'Label',
@@ -52,6 +58,7 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.media', {
   'not-an-image': 'That file is not a PNG, JPEG or WebP image.',
   'too-large': 'That file is larger than this install allows.',
   failed: 'That picture could not be added.',
+  'save-first': 'Pictures are stored beside the saved book. Save it once, then add them here.',
   /**
    * §11.2b's own sentence, and the reason it is here rather than in a tooltip:
    * a reader who does not see it will assume the opposite, which the schema
@@ -59,6 +66,18 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.media', {
    */
   unused: 'Pictures are stored with the book and are never sent to a model.',
 });
+
+/**
+ * ***A picture's buttons say which picture*** (2026-10-01, polish 11). Every
+ * picture in the strip has a *Replace*, a *Remove* and a *Use as the cover*,
+ * so four pictures were twelve buttons a screen reader's list of buttons
+ * showed as three names four times — a list nobody can choose from. By number,
+ * as the composer's pictures already are: a label is the author's and may be
+ * blank or shared, and the number is the order on the screen.
+ */
+function numbered(key: string, n: number): string {
+  return (WORDS[key] ?? '').replace('{n}', String(n));
+}
 
 const ROLES: readonly MediaRole[] = [
   'reference',
@@ -143,12 +162,37 @@ export function MediaStrip(props: {
   /** The object the bytes are stored beside — always the book, even for an entry's strip. */
   objectId: string;
   media: readonly EmbeddedMedia[];
-  onChange: (media: EmbeddedMedia[]) => void;
+  /**
+   * ***A change to the list, never the list*** (2026-09-27).
+   *
+   * An upload lands after an `await`, and the list this component had when it
+   * started is the list as it was then: appending to `props.media` wrote back a
+   * strip without whatever was labelled, retagged or removed while the picture
+   * was on its way. So every change here is an updater, and the page applies it
+   * to the list as the form holds it when the change arrives.
+   *
+   * *The cover is the synchronous case of the same bug.* Removing the picture
+   * that is the cover is two writes — the row, then `onCover(null)` — and when
+   * both were whole books built from one render, the second restored the first:
+   * the cover was unset and the picture stayed. Two updaters apply in order.
+   */
+  onChange: (update: (media: readonly EmbeddedMedia[]) => EmbeddedMedia[]) => void;
   /** The book's gallery designates one; an entry's strip does not. */
   coverId?: string | null;
   onCover?: (mediaId: string | null) => void;
   /** Whether a fresh picture should be cropped square before it is sent. */
   crop?: boolean;
+  /**
+   * ***A book that has never been saved has nowhere to put the bytes***
+   * (2026-09-27). An upload is stored beside the object on disk, and a draft
+   * has no folder yet — every picture added to a new book was refused, as a
+   * 404 read as *could not be added*. Creating the object on upload is ruled
+   * out ([polish §10]: the folder's name is frozen when it is made), so the
+   * strip says to save first, and offers neither Add nor Replace until then.
+   * The rows themselves stay editable: an entry imported into a new book
+   * still carries its own.
+   */
+  unsaved?: boolean;
 }): JSX.Element {
   const picker = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -157,7 +201,7 @@ export function MediaStrip(props: {
   const [replacing, setReplacing] = useState<string | null>(null);
 
   function patch(id: string, over: Partial<EmbeddedMedia>): void {
-    props.onChange(props.media.map((one) => (one.id === id ? { ...one, ...over } : one)));
+    props.onChange((media) => media.map((one) => (one.id === id ? { ...one, ...over } : one)));
   }
 
   async function take(file: File): Promise<void> {
@@ -168,7 +212,11 @@ export function MediaStrip(props: {
       const { asset } = await api.uploadAsset(props.kind, props.objectId, blob, file.name);
       const target = replacing;
       if (target === null) {
-        props.onChange([...props.media, { id: uuidv7(), role: 'gallery', tags: [], ...asset }]);
+        // The row is made out here and only appended inside: React runs an
+        // updater twice under StrictMode, and a uuid minted inside one would
+        // name a different row each time.
+        const row: EmbeddedMedia = { id: uuidv7(), role: 'gallery', tags: [], ...asset };
+        props.onChange((media) => [...media, row]);
       } else {
         // **Replace keeps the row.** Its id, role, label and tags are the
         // author's decisions about a slot; the bytes are what is being swapped,
@@ -176,8 +224,21 @@ export function MediaStrip(props: {
         patch(target, asset);
       }
     } catch (failure: unknown) {
-      const code = (failure as { body?: { error?: string } }).body?.error;
-      setProblem(WORDS[code ?? ''] ?? WORDS['failed'] ?? '');
+      /**
+       * ***Read from the class, and only the two this strip has words for***
+       * (2026-09-27). This read `failure.body.error`, which `ApiError` has
+       * never had, so every refusal said the picture *could not be added*.
+       * And it is an allow-list rather than a lookup in `WORDS`, because that
+       * table also holds this strip's own labels: a class the server sent
+       * that shared a name with one of them would have shown the label as the
+       * reason.
+       */
+      const code = errorCode(failure);
+      setProblem(
+        code === 'not-an-image' || code === 'too-large'
+          ? (WORDS[code] ?? '')
+          : (WORDS['failed'] ?? ''),
+      );
     } finally {
       setBusy(false);
       setReplacing(null);
@@ -205,7 +266,7 @@ export function MediaStrip(props: {
         <Note>{WORDS['empty']}</Note>
       ) : (
         <ul className="flex flex-wrap gap-3">
-          {props.media.map((one) => (
+          {props.media.map((one, index) => (
             <li key={one.id} className="flex w-44 flex-col gap-1">
               <img
                 src={`/api/library/${props.kind}/${props.objectId}/media/${one.id}`}
@@ -235,49 +296,52 @@ export function MediaStrip(props: {
                   ))}
                 </select>
               </label>
-              <Field
+              {/* Buffered (2026-09-27): split and re-joined on every
+                  keystroke, a comma was deleted the moment it was typed, so no
+                  picture could be given a second tag. */}
+              <CommaField
                 label={WORDS['tags'] ?? 'Tags'}
-                value={one.tags.join(', ')}
+                value={one.tags}
                 hint={WORDS['tags-hint'] ?? ''}
-                onChange={(text) => {
-                  patch(one.id, {
-                    tags: text
-                      .split(',')
-                      .map((tag) => tag.trim())
-                      .filter((tag) => tag !== ''),
-                  });
+                onChange={(tags) => {
+                  patch(one.id, { tags });
                 }}
               />
               <div className="flex flex-wrap gap-1">
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setReplacing(one.id);
-                    picker.current?.click();
-                  }}
-                >
-                  {WORDS['replace']}
-                </Button>
-                <Button
-                  type="button"
+                {props.unsaved === true ? null : (
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    aria-label={numbered('replace-named', index + 1)}
+                    onClick={() => {
+                      setReplacing(one.id);
+                      picker.current?.click();
+                    }}
+                  >
+                    {WORDS['replace']}
+                  </Button>
+                )}
+                <TwoStep
+                  label={WORDS['remove'] ?? ''}
+                  name={numbered('remove-named', index + 1)}
+                  question={WORDS['remove-question'] ?? ''}
                   variant="quiet"
-                  onClick={() => {
-                    props.onChange(props.media.filter((row) => row.id !== one.id));
+                  onConfirm={() => {
+                    props.onChange((media) => media.filter((row) => row.id !== one.id));
                     // A cover that has been removed is no cover — the schema
                     // tolerates a dangling id and nothing is served by leaving
-                    // one behind.
+                    // one behind. A second write, applied after the first rather
+                    // than over it: see `onChange`.
                     if (props.coverId === one.id) props.onCover?.(null);
                   }}
-                >
-                  {WORDS['remove']}
-                </Button>
+                />
                 {props.onCover === undefined ? null : props.coverId === one.id ? (
                   <Fine>{WORDS['isCover']}</Fine>
                 ) : (
                   <Button
                     type="button"
                     variant="quiet"
+                    aria-label={numbered('cover-named', index + 1)}
                     onClick={() => {
                       props.onCover?.(one.id);
                     }}
@@ -292,16 +356,20 @@ export function MediaStrip(props: {
       )}
 
       <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            setReplacing(null);
-            picker.current?.click();
-          }}
-        >
-          {busy ? WORDS['adding'] : WORDS['add']}
-        </Button>
+        {props.unsaved === true ? (
+          <Note>{WORDS['save-first']}</Note>
+        ) : (
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setReplacing(null);
+              picker.current?.click();
+            }}
+          >
+            {busy ? WORDS['adding'] : WORDS['add']}
+          </Button>
+        )}
         {problem === null ? (
           <Fine>{WORDS['unused']}</Fine>
         ) : (

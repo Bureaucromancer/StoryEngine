@@ -3,6 +3,8 @@
 
 import type { ImportItemReport, ImportNote } from '@storyengine/shared';
 
+import type { ScratchSpace } from '../storage/import-scratch.js';
+
 /**
  * The seam the whole import phase is built on, and the one thing P4.0 exists to
  * get right before anything is written on top of it
@@ -42,7 +44,10 @@ import type { ImportItemReport, ImportNote } from '@storyengine/shared';
  *
  * Every path is relative, `/`-separated, and never escapes the root: an
  * implementation is responsible for refusing `..` and symlinks that leave, the
- * way `layout.assertReal` does for our own tree.
+ * way `layout.assertReal` does for our own tree. *(`DirectorySource` refused
+ * the first and followed the second in `read` and `exists` until P13.1's
+ * review; see its `#reach`. Its scoped `list(under)` followed a link named as
+ * `under` until the merge that brought the two together, 2026-10-02.)*
  */
 export interface FileSource {
   /**
@@ -75,14 +80,78 @@ export interface FileSource {
    * would be a strange question to ask a zip.
    */
   exists(path: string): Promise<boolean>;
+
+  /**
+   * ***The file's real, absolute path on this machine, when it has one*** —
+   * [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * `null` when the path is missing, is not a regular file, or would leave the
+   * root or enter our data directory by any spelling, links included.
+   *
+   * **Optional, because only a local directory has one.** An upload, a zip
+   * entry and a Marinara envelope are bytes with a name; there is no file
+   * under them to point at, and making each of them answer `null` would make
+   * every new transport restate a method whose only honest answer is *no*.
+   *
+   * ***So the method's absence and its `null` mean different things***, and a
+   * reader must not treat them alike — corrected at review, 2026-09-29, when
+   * this said *"asks with `realPath?.()` and falls back to `read`"*.
+   * **Absent** — `source.realPath === undefined` — is a transport with no
+   * disk under it, and `read` is how that source is read. **`null` from a
+   * source that has the method** is a refusal of *that path*, and is final:
+   * the path leads out of the root or into our data directory, or is not a
+   * file. Reading the same path again through `read` would ask a second door
+   * the question the first one just answered — and until `DirectorySource`'s
+   * `read` checked where a link leads (the same review), that second door
+   * returned the bytes of our own operational store through a link the first
+   * had refused.
+   *
+   * **It exists for SQLite**, which opens a path rather than a byte array:
+   * `storage/sqlite-snapshot.ts` copies a database somebody else may be
+   * writing with `VACUUM INTO` from the real file, which is consistent and
+   * never holds the file in memory, where `read` is capped at 64 MB and a copy
+   * of the bytes is torn by whatever was written while it was taken. A path
+   * given out here is followed by something that is not us, which is why the
+   * implementation checks where it really leads rather than how it is spelled.
+   */
+  realPath?(path: string): Promise<string | null>;
+
+  /**
+   * ***The file, landed on our own disk, and handed over*** —
+   * [P13.8](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * `realPath`'s counterpart for a source whose file is **ours** rather than
+   * somebody else's: an upload that was streamed into the import scratch root
+   * rather than held in memory, or an entry of an archive landed there. The
+   * answer is a scratch space of its own with the file in it under `name`, and
+   * **the space is the caller's from here** — the snapshot's `owned` input,
+   * which keeps it or disposes of it. A `<path>-wal` the source also holds is
+   * landed beside it as `<name>-wal`, since the file without its log is an
+   * older database that looks whole ([P13 §1.2]).
+   *
+   * `null` when the path is not there, or is not what the source said it was
+   * — an archive entry that will not inflate to its declared size — or its
+   * log is named and could not be landed. Final, as `realPath`'s is: a reader
+   * does not then ask `read`, which for a landed upload holds nothing.
+   *
+   * **Optional, and asked after `realPath`**: a source with a real path has
+   * no reason to make a copy of its own when the snapshot will make one. It
+   * exists for SQLite, as `realPath` does, and throws what landing throws —
+   * no room above all (`SnapshotSpaceError`, a `507`).
+   */
+  land?(path: string): Promise<LandedFile | null>;
+}
+
+/** A file in a scratch space whose ownership has passed to whoever holds this. */
+export interface LandedFile {
+  space: ScratchSpace;
+  /** The file's name inside the space. */
+  name: string;
 }
 
 /** Which source a root turned out to be. Open by intent — a new source adds an arm. */
 export type ImportSourceKind =
   | 'sillytavern'
   | 'marinara'
-  | 'marinara-archive'
-  | 'marinara-envelope'
   /** The V3 spec's zip container: one `card.json`, and its assets beside it. */
   | 'charx'
   /** A directory of files somebody assembled by hand. The walker's plain mode. */
@@ -97,7 +166,18 @@ export type ImportSourceKind =
    * source"* is as true of ours as of a CHARX, and everything downstream — the
    * conflict policy, the review vocabulary, the job ledger — is the same work.
    */
-  | 'storyengine-backup';
+  | 'storyengine-backup'
+  /**
+   * ***A whole Aventuras install: one SQLite file*** —
+   * [P13 §1.1](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * One arm for four transports — the config directory by server path, an
+   * unzipped backup uploaded as a folder, the backup zip, a bare `aventura.db`
+   * — because every one of them arrives at the same thing: a root with
+   * `aventura.db` in it. [P12.8]'s *an archive is a root read through a
+   * different file source* again, and the reason the reader never asks which.
+   */
+  | 'aventuras';
 
 /**
  * Why a root was refused **before anything was written**.
@@ -149,6 +229,40 @@ export interface ImportCandidate {
   payload: unknown;
   /** Files to carry with the object, source-relative — a portrait, a CHARX asset. */
   assets?: readonly string[];
+  /**
+   * ***Bytes the reader already holds, keyed like `assets`*** —
+   * [P13 §1.6](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **For a picture that was never a file.** Every reader before the
+   * Aventuras one found its pictures beside the object — a PNG in a folder, an
+   * entry in a zip — so naming the path was enough and the Writer read it
+   * through the file source. An Aventuras portrait is a column: a data URL in
+   * `character_vault.portrait`, inside a database that is itself one file. The
+   * reader decodes it, and there is no path under the root that would give the
+   * Writer those bytes, so the reader hands them over here under the name it
+   * put in `assets`. The Writer asks this map first and the file source second.
+   *
+   * *The bytes are still sniffed, not trusted* — the Writer decides what they
+   * are exactly as it would for a file; all this changes is where they came
+   * from. A reader should key them under a name no file in its root can have
+   * (the Aventuras reader uses a path beneath `aventura.db`, which is a file),
+   * so a key missing from the map can never fall through to somebody's file.
+   */
+  inline?: ReadonlyMap<string, Uint8Array>;
+  /**
+   * ***What the reader noticed about this candidate before any converter saw
+   * it*** — [P13.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * A reader that works from rows rather than files can meet a problem with
+   * one field of an object that is otherwise fine: a JSON column that will
+   * not parse, a portrait too large to carry. Refusing the object over it
+   * would cost a character its whole self for one field, and saying nothing
+   * would be the silent drop this seam exists to prevent. So the reader reads
+   * around the field and says so here, and the Writer puts these first among
+   * the notes of whatever row the candidate becomes — for every format, so a
+   * reader that sets them cannot find an arm that drops them.
+   */
+  notes?: readonly ImportNote[];
 }
 
 /**
@@ -175,4 +289,28 @@ export interface SourceReader {
   survey(): Promise<SourceSurvey>;
 
   items(): AsyncIterable<SourceItem>;
+
+  /**
+   * ***Lets go of whatever the reader holds*** —
+   * [P13.2](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **Optional, because until the Aventuras reader no reader held anything.**
+   * Every other one reads through its file source and keeps nothing a garbage
+   * collector will not take back. The Aventuras reader holds a private copy of
+   * somebody's database in our scratch — a file the size of their whole
+   * install — and an open SQLite handle on it, and neither is memory: a copy
+   * nobody removes stays on the data volume until the next start sweeps it,
+   * and on Windows an open handle is a file that cannot be removed at all.
+   *
+   * **Whoever constructs a reader calls this, however the reading ended** — a
+   * survey that refused, items that were read to the end, items that threw
+   * half way. `sweep()` is the one caller today. It must be safe to call more
+   * than once, and after a survey that refused — which lets go by itself, so
+   * that path leaks nothing even for a caller that forgot.
+   *
+   * *A `close()` that throws does not cost the caller its answer* (P13.3):
+   * by then the reading may have written objects, and the report of them is
+   * worth more than the exception. `sweep()` logs it and returns the report.
+   */
+  close?(): Promise<void>;
 }

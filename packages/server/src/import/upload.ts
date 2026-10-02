@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
+import {
+  schemaIdOf,
+  type ImportDisposition,
+  type ImportItemReport,
+  type ImportNote,
+} from '@storyengine/shared';
 
-import { codecFor } from '../storage/card/index.js';
+import { codecFor, type CardContents } from '../storage/card/index.js';
 
+import { AVT_FORMAT, readAvt } from './aventuras/avt.js';
 import { isAventurasLorebook, isVaultCharacter, isVaultScenario } from './aventuras/shapes.js';
+import { SILLYTAVERN_CHAT_FORMAT } from './sillytavern/chat.js';
 import type { ImportCandidate, SourceItem } from './source.js';
 
 /**
@@ -63,6 +70,9 @@ const CARDISH = [
 /** `chara_card_v2` / `chara_card_v3` — a card that says outright what it is. */
 const CARD_SPEC = /^chara_card_v\d/;
 const SAMPLERISH = ['temp', 'temperature', 'top_p', 'rep_pen', 'max_length'] as const;
+
+/** The three prompt fields a chat preset kept before SillyTavern's prompt manager. */
+const LEGACY_CHAT_FIELDS = ['main_prompt', 'nsfw_prompt', 'jailbreak_prompt'] as const;
 
 /**
  * The three SillyTavern template kinds this build recognises and will never
@@ -166,10 +176,38 @@ export function readUpload(
   const codec = codecFor(bytes);
   if (codec !== null) return readCard(filename, bytes, codec);
 
+  /**
+   * ***An Aventuras story file, before anything parses the bytes whole*** —
+   * [P13.15](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * **First among the JSON shapes, for two reasons.** It has `entries`, so the
+   * probe below would take it for a SillyTavern world and convert its story
+   * entries as lore — which it did until this stage, making a lorebook of
+   * somebody's story. And it is the one JSON here that can be as large as the
+   * transport allows, most of it pictures: `JSON.parse` below would hold it
+   * three times over, where `readAvt` reads the one copy there is and leaves
+   * every picture in it until the Writer carries it (`aventuras/avt.ts`).
+   *
+   * Not gated on `confidence`: `story` as an object beside `entries` as an
+   * array is Aventuras' own required shape, and self-identifying — a folder
+   * sweep can be trusted with it as with a card's chunk.
+   */
+  const avt = readAvtUpload(filename, bytes);
+  if (avt !== null) return avt;
+
+  const text = new TextDecoder().decode(bytes);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(bytes));
+    parsed = JSON.parse(text);
   } catch {
+    /**
+     * ***Not one JSON document — and possibly one per line*** — [P14.8].
+     * SillyTavern's chat file, and Marinara's per-chat export of the same
+     * format, is JSON Lines: `JSON.parse` refuses the whole and every line
+     * parses on its own. Asked here, below the document parse, because a
+     * one-line chat *is* a JSON document and is answered below instead.
+     */
+    if (looksLikeChat(text, confidence)) return chat(filename);
     // Not a card container and not JSON. `unrecognised` is the honest class:
     // this build did not identify it, which is different from *this build is
     // unfinished* — the note it used to get, and which stopped being true when
@@ -205,6 +243,30 @@ export function readUpload(
     ]);
   }
 
+  /**
+   * *A chat that is only its header* — one line, so one JSON document. It
+   * says what it is (`chat_metadata` is `getGroupChat`'s own test for a
+   * header, `group-chats.js:268`), and the parser then refuses it for having
+   * no messages, which is the true thing to say about it.
+   */
+  if (isRecord(parsed['chat_metadata'])) return chat(filename);
+
+  /**
+   * *A chat that is only one message* — also one JSON document, and with no
+   * header to say so. A group chat written before `chat_metadata` reached
+   * groups has none, so one holding nothing but its greeting is a single line
+   * of `mes` and `is_user`, which the parser reads as a group. Taken at `any`
+   * only: a person picked this file, and across a folder nobody vetted, one
+   * object with a text field is a shape rather than a claim.
+   */
+  if (
+    confidence === 'any' &&
+    typeof parsed['mes'] === 'string' &&
+    typeof parsed['is_user'] === 'boolean'
+  ) {
+    return chat(filename);
+  }
+
   const format = probe(parsed, confidence);
   if (format === null) {
     return observed(filename, 'unrecognised', [
@@ -233,6 +295,34 @@ export function readUpload(
 }
 
 /**
+ * ***An Aventuras `.avt`, as one item — or `null` for a file that is not
+ * one***, which leaves the other probes to it.
+ *
+ * Exported for the file door, which asks this before it parses a file whole
+ * to look for a Marinara envelope, for the size reason above; a candidate
+ * here is one story, and a refusal is the `unrecognised` row that says which
+ * version was refused.
+ */
+export function readAvtUpload(filename: string, bytes: Uint8Array): SourceItem | null {
+  const read = readAvt(bytes, { file: filename });
+  if (read.kind === 'not-avt') return null;
+  if (read.kind === 'refused') return observed(filename, 'unrecognised', read.notes);
+  return candidate({ source: filename, format: AVT_FORMAT, payload: read.story });
+}
+
+/**
+ * The object a card of ours carries, or null for a card that is not one of ours
+ * — **the envelope's payload, when it names one of our schemas.** Shared by the
+ * upload door and the SillyTavern reader's card arm (2026-09-28), which meet the
+ * same file: a downloaded card dropped into a `characters/` folder is as much
+ * one of ours as one uploaded.
+ */
+export function ourCardPayload(contents: CardContents): unknown {
+  const payload = contents.envelope?.payload;
+  return schemaIdOf(payload)?.startsWith('storyengine.') === true ? payload : null;
+}
+
+/**
  * A picture with a payload in it, or a picture.
  *
  * The three outcomes are the walker's three, in its own note vocabulary
@@ -248,7 +338,24 @@ function readCard(
   codec: NonNullable<ReturnType<typeof codecFor>>,
 ): SourceItem {
   try {
-    const legacy = codec.read(bytes).legacy;
+    const contents = codec.read(bytes);
+    /**
+     * ***One of ours comes back as ours*** (2026-09-28). An actor downloads as
+     * its card now, and that card carries our envelope and no SillyTavern
+     * chunk — so it read as *a picture without a card*, and the download could
+     * not be brought back at all. Read first, because a card of ours may carry
+     * a legacy chunk too, and ours is the object as it was.
+     */
+    const ours = ourCardPayload(contents);
+    if (ours !== null) {
+      return candidate({
+        source: filename,
+        format: 'storyengine.object',
+        payload: ours,
+        assets: [filename],
+      });
+    }
+    const legacy = contents.legacy;
     if (legacy === null) {
       return observed(filename, 'unrecognised', [
         { key: 'import.file.pictureWithoutACard', params: { file: filename }, level: 'warn' },
@@ -288,6 +395,20 @@ function readCard(
  *   preset shapes: any object with a temperature in it.
  */
 function probe(body: Record<string, unknown>, confidence: ProbeConfidence): string | null {
+  /**
+   * ***Our own files first, by what they say they are*** (2026-09-27).
+   *
+   * A lorebook this build wrote, downloaded or entry-exported, has `entries`,
+   * and the next line claimed it for SillyTavern. The ST converter reads ST's
+   * spellings: `disable` for off, a number for position, `keysecondary`. Every
+   * entry its author had switched off came back on, depth and outlet entries
+   * moved to before the character, and secondary keys, folders and the book's
+   * scope were dropped, with no note. Any other kind came back as *nothing here
+   * recognised this file*, which is a confident wrong answer about a file this
+   * build wrote. The whole `storyengine.` namespace is claimed, so a newer or
+   * unknown one of ours is refused as ours rather than guessed at as ST's.
+   */
+  if (schemaIdOf(body)?.startsWith('storyengine.') === true) return 'storyengine.object';
   if (Array.isArray(body['prompts'])) return 'sillytavern.preset.chat';
   if (body['entries'] !== undefined && body['entries'] !== null) return 'sillytavern.lorebook';
 
@@ -370,10 +491,78 @@ function probe(body: Record<string, unknown>, confidence: ProbeConfidence): stri
   if (typeof body['content'] === 'string' || typeof body['post_history'] === 'string') {
     return 'sillytavern.preset.sysprompt';
   }
+  /**
+   * ***A chat preset from before the prompt manager*** (2026-09-27), above the
+   * sampler arm because it has sampler fields too. It keeps its prompts in
+   * `main_prompt`, `nsfw_prompt` and `jailbreak_prompt` rather than `prompts`,
+   * so the arm above never saw it, and this one below took it for a sampler
+   * panel: no blocks, and a note about sampler settings. The chat converter
+   * migrates it the way SillyTavern does. Below the gate, with the other
+   * guesses, because it keys on field names.
+   */
+  if (LEGACY_CHAT_FIELDS.some((field) => typeof body[field] === 'string')) {
+    return 'sillytavern.preset.chat';
+  }
   if (SAMPLERISH.some((field) => typeof body[field] === 'number')) {
     return 'sillytavern.preset.text';
   }
   return null;
+}
+
+/**
+ * ***Whether text is a chat file*** — [P14.8], by content and never by the
+ * `.jsonl` on its name, which is this file's rule for everything.
+ *
+ * **Two lines that are each a JSON object**, or one that is a header carrying
+ * `chat_metadata` — among the first three non-blank lines, since a chat is
+ * judged by how it opens and a long one should not be parsed twice to be
+ * recognised.
+ * That is the whole of JSON Lines' shape, and at `any` confidence it is enough:
+ * a person picked this file, and the parser that reads it next refuses a file
+ * with no messages in it, by name, rather than importing nothing quietly.
+ *
+ * ***A folder sweep asks for more***, on the reasoning {@link ProbeConfidence}
+ * gives for the preset guesses: JSON Lines is what half the log files on a disk
+ * are written in, so across a folder nobody vetted, two objects in a row is a
+ * shape and not a claim. There the opening must say *chat* — a header with
+ * `chat_metadata`, or a line with SillyTavern's `mes` text — which a log file
+ * does not.
+ */
+function looksLikeChat(text: string, confidence: ProbeConfidence): boolean {
+  const lines: Record<string, unknown>[] = [];
+  let read = 0;
+  for (const raw of text.split('\n')) {
+    if (raw.trim() === '') continue;
+    read += 1;
+    let value: unknown;
+    let parses = true;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      parses = false;
+    }
+    /**
+     * *A line that will not parse costs itself, the first one included.* The
+     * parser reads a chat from the first line that parses, so a header a
+     * crashed write left half-finished is one lost line and a chat after it;
+     * refusing the file for it here refused, at this door only, a chat that
+     * imports from a swept tree. A first line that parses to something other
+     * than an object is still a no: that is JSON, and not a chat's.
+     */
+    if (isRecord(value)) lines.push(value);
+    else if (read === 1 && parses) return false;
+    if (lines.length === 2 || read === 3) break;
+  }
+  const first = lines[0];
+  if (first === undefined) return false;
+  const header = isRecord(first['chat_metadata']);
+  if (!header && lines.length < 2) return false;
+  if (confidence === 'any') return true;
+  return header || lines.some((line) => typeof line['mes'] === 'string');
+}
+
+function chat(filename: string): SourceItem {
+  return candidate({ source: filename, format: SILLYTAVERN_CHAT_FORMAT, payload: null });
 }
 
 /**

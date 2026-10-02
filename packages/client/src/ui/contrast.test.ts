@@ -149,6 +149,10 @@ const PAIRS: [ink: string, on: string[]][] = [
   // A search hit has to be readable, and it is the one pair where the ink and
   // the surface arrived together rather than one landing on the other.
   ['highlight-ink', ['highlight-surface']],
+  // Every primary button's label, at rest and under the pointer. Not asserted
+  // while the accent was slate-800 — white on near-black could not miss — and
+  // the first thing a hue can get wrong (2026-10-01).
+  ['on-accent', ['accent', 'accent-hover']],
   /**
    * Every tag swatch, in both themes — [05 §4](../../../../docs/design/05-tagging.md).
    *
@@ -165,6 +169,22 @@ const PAIRS: [ink: string, on: string[]][] = [
     style.inkToken,
     [style.surfaceToken],
   ]),
+];
+
+/**
+ * ***What is drawn rather than written*** — WCAG 1.4.11, 3 to 1 against what
+ * it sits on (2026-10-01).
+ *
+ * The keyboard's ring is the one mark that has to be found on every surface
+ * there is, and the accent is drawn as a mark as well as a fill: a selected
+ * tag's outline, an active toggle's border, the lorebook's drop line. While
+ * both were slate they were checked by nobody, and a hue is exactly where a
+ * ring stops being visible — indigo-300 on white is 2 to 1.
+ */
+const GRAPHIC_FLOOR = 3;
+const GRAPHICS: [mark: string, on: string[]][] = [
+  ['focus', ['surface', 'canvas', 'surface-muted']],
+  ['accent', ['surface', 'canvas', 'surface-muted']],
 ];
 
 describe('the palette is legible', () => {
@@ -194,6 +214,24 @@ describe('the palette is legible', () => {
         for (const surface of surfaces) {
           const measured = ratio(resolve(block, ink), resolve(block, surface));
           expect(measured, `${ink} on ${surface} (dark)`).toBeGreaterThanOrEqual(FLOOR);
+        }
+      }
+    }
+  });
+
+  it('draws its marks at 3 to 1 against every surface, in both themes', () => {
+    for (const [theme, blocks] of [
+      ['light', [light]],
+      ['dark', dark],
+    ] as const) {
+      for (const block of blocks) {
+        for (const [mark, surfaces] of GRAPHICS) {
+          for (const surface of surfaces) {
+            const measured = ratio(resolve(block, mark), resolve(block, surface));
+            expect(measured, `${mark} on ${surface} (${theme})`).toBeGreaterThanOrEqual(
+              GRAPHIC_FLOOR,
+            );
+          }
         }
       }
     }

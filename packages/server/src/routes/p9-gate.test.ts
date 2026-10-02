@@ -11,7 +11,13 @@ import type { Rendition } from '@storyengine/shared';
 import { FakeProvider } from '../providers/fake.js';
 import { readRenditions } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * ***Gate steps 1 and 3*** —
@@ -171,6 +177,14 @@ async function takeATurn(): Promise<{ turnId: string; status: string }> {
     const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
     return now !== null && now !== before;
   });
+  /**
+   * The turn's own body — its renditions recorded and dispatched, the person
+   * told — and **not** the pictures themselves. This file's image provider
+   * stalls on purpose, because gate row 1 is that a turn does not wait for its
+   * picture; draining here would make every picture ready before the row could
+   * see it pending. The negative rows drain it themselves, with `settled`.
+   */
+  await server.services.runner.settle();
 
   const transcript = await server.request({
     method: 'GET',
@@ -356,10 +370,11 @@ describe('a failed rendition is a placeholder, never a failed turn', () => {
       url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(failed?.id ?? '')}/asset`,
     });
 
-    // Which is what the placeholder renders from. [10 §2.3]: *"the temptation
-    // this feature brings is a placeholder where the picture would go"* — and a
-    // 404 is how the client knows to render one deliberately rather than by an
-    // `<img>` failing.
+    // ~~Which is what the placeholder renders from.~~ It was not (2026-09-30):
+    // the placeholder renders from the list's `asset: null`, which says so of
+    // an evicted picture too since then. [10 §2.3]: *"the temptation this
+    // feature brings is a placeholder where the picture would go"* — and this
+    // 404 is for a page that read the list before the file went.
     expect(asset.status).toBe(404);
   });
 });
@@ -389,6 +404,10 @@ describe('with nothing bound to the image role', () => {
      * only the second one is about a bill.
      */
     const turn = await takeATurn();
+    // Everything it could have set off has finished, so *nothing was asked
+    // for* is a claim about the whole turn rather than about the moment it
+    // returned.
+    await settled(server);
 
     expect(turn.status).toBe('complete');
     expect(await renditionsOf()).toEqual([]);

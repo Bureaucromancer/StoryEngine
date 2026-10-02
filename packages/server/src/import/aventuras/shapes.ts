@@ -85,8 +85,14 @@ export function isVaultCharacter(value: unknown): boolean {
  * to the first element: `name`, `type`, `description` and an `injection` object
  * with a `mode`. An empty array is not one — there would be nothing to import
  * and nothing to identify it by.
+ *
+ * ***It narrows to `unknown[]`, which is what one row proves*** (2026-09-27).
+ * It claimed every row was a record, and the converter trusted that, so a
+ * `null` or a number further down the array threw out of the sweep after
+ * earlier files were already written: a half-import, and a 500 with no ledger
+ * row. The converter now keeps the rows that are records and names the rest.
  */
-export function isAventurasLorebook(value: unknown): value is Record<string, unknown>[] {
+export function isAventurasLorebook(value: unknown): value is unknown[] {
   if (!Array.isArray(value) || value.length === 0) return false;
   const first: unknown = value[0];
   if (!isRecord(first)) return false;
@@ -118,4 +124,21 @@ export function strings(value: unknown): string[] {
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+/**
+ * ***The vault lorebook a character or a scenario links to***, or `null` —
+ * [P13 §1.7](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * `metadata.linkedLorebookId`, where Aventuras keeps it on both kinds
+ * (`characterVault.svelte.ts`, `scenarioVault.svelte.ts`) when it splits a
+ * card's embedded `character_book` into a vault book of its own. Read by
+ * truthiness, as Aventuras' own vault browser reads it
+ * (`!!item.metadata?.linkedLorebookId`): an empty string links to nothing
+ * there, so it links to nothing here.
+ */
+export function linkedLorebookId(metadata: unknown): string | null {
+  if (!isRecord(metadata)) return null;
+  const id = metadata['linkedLorebookId'];
+  return typeof id === 'string' && id.length > 0 ? id : null;
 }

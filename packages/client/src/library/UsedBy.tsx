@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
-import { readUsedBy, type Usage } from '../api.js';
+import { kindOfSchema, readUsedBy, type Usage } from '../api.js';
 import { Fine } from '../ui/Text.js';
 
 /**
@@ -54,18 +54,28 @@ export function usedByLine(usage: readonly Usage[]): string | null {
  * *A kind this build has no word for renders as its own id*, which is
  * `InputKind.tsx`'s rule and for its reason: a newer server may know a kind
  * this one does not, and hiding it would hide a reference.
+ *
+ * ***Keyed by what the server sends*** (2026-09-27). The words were keyed
+ * `se.actor.v1` and so on, a spelling no server has sent: a reference's kind is
+ * the schema id — `storyengine.treatment/1` — or `session`, so every one fell
+ * through to its id, and the delete confirmation read *Referenced by 2
+ * storyengine.treatment/1*. The schema maps to its folder name, the same
+ * `kindOfSchema` the search links use, and the words are keyed by that.
  */
+const KIND_WORDS: Readonly<Record<string, readonly [string, string]>> = {
+  session: ['session', 'sessions'],
+  actors: ['actor', 'actors'],
+  lorebooks: ['lorebook', 'lorebooks'],
+  treatments: ['treatment', 'treatments'],
+  presets: ['preset', 'presets'],
+  setups: ['setup', 'setups'],
+  packages: ['package', 'packages'],
+};
+
 function nameFor(kind: string, count: number): string {
-  const words: Record<string, [string, string]> = {
-    session: ['session', 'sessions'],
-    'se.actor.v1': ['actor', 'actors'],
-    'se.lorebook.v1': ['lorebook', 'lorebooks'],
-    'se.treatment.v1': ['treatment', 'treatments'],
-    'se.preset.v1': ['preset', 'presets'],
-    'se.setup.v1': ['setup', 'setups'],
-    'se.package.v1': ['package', 'packages'],
-  };
-  const pair = words[kind];
+  const key = kindOfSchema(kind) ?? kind;
+  // Own keys only: the kind is a string the server chose.
+  const pair = Object.hasOwn(KIND_WORDS, key) ? KIND_WORDS[key] : undefined;
   if (pair === undefined) return kind;
   return count === 1 ? pair[0] : pair[1];
 }

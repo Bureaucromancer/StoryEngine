@@ -30,7 +30,11 @@ import type { ProgressEvent } from '../state/jobs.js';
 
 export interface Listener {
   onEvents(jobId: string, events: readonly ProgressEvent[]): void;
-  onDelta(jobId: string, text: string): void;
+  /**
+   * `message` is the turn's message a speaking call's text belongs to —
+   * [P14.2]; see {@link TurnStream.delta}. Absent for everything else.
+   */
+  onDelta(jobId: string, text: string, message?: number): void;
   /**
    * A rendition's state changed — [06 §10.2], [P9.2].
    *
@@ -48,8 +52,47 @@ export interface Listener {
    * client that applies these by upsert converges on the same map whatever order
    * they arrive in and however many it missed. `Snapshot.renditions` is what
    * makes a late attach whole, which is why there is no second cursor.
+   * *Corrected 2026-09-28:* ~~`Snapshot.renditions`~~ — the snapshot never had
+   * such a field. The client's refetch of the set on a re-attach is what makes
+   * it whole, and that is still why there is no second cursor.
    */
   onRendition(rendition: Rendition): void;
+  /**
+   * The summary chain's warm moved — [P14.11], [18 §7.5]'s cliff.
+   *
+   * ***Optional, and that is the one listener method that is.*** A warm is
+   * news a surface may show — *the story so far is being read* — and nothing a
+   * turn's correctness waits on: the next turn derives whatever the warm has
+   * not, so a listener that ignores these loses a progress bar and nothing
+   * else. Every other method here carries state a client must converge on.
+   */
+  onSummaries?(warm: SummaryWarm): void;
+}
+
+/**
+ * ***Where a session's summary warm is***, whole — [P14.11].
+ *
+ * **Counts rather than a delta, for the rendition frame's reason**: a warm has
+ * no sequence and no draft, so each frame is the whole state and a listener
+ * that missed three and read the fourth is where one that saw all four is.
+ * *Not in the snapshot either*: a warm is process-local and survives no
+ * restart, so a client attaching mid-warm learns of it from the next link.
+ */
+export interface SummaryWarm {
+  sessionId: string;
+  /**
+   * `warming` while links are being derived; then `warmed` (every missing link
+   * was written), `failed` (one could not be — the held prefix stands and the
+   * next turn asks again), or `cancelled` (the session was deleted, or the
+   * server is stopping).
+   */
+  state: 'warming' | 'warmed' | 'failed' | 'cancelled';
+  /** Links in the head path's chain. */
+  links: number;
+  /** Of those, how many were not on disk when the warm began. */
+  missing: number;
+  /** How many this warm has derived so far. */
+  derived: number;
 }
 
 /** What `checkpoint()` needs to reach the bus without importing it. */
@@ -134,11 +177,57 @@ export class TurnStream implements EventSink {
     });
   }
 
-  delta(sessionId: string, jobId: string, text: string): void {
+  /**
+   * Tells a session's watchers where its summary warm is — [P14.11]. Nothing
+   * is accumulated, for `rendition`'s reason: the frame is the whole state.
+   */
+  summaries(warm: SummaryWarm): void {
+    this.#each(warm.sessionId, (listener) => {
+      listener.onSummaries?.(warm);
+    });
+  }
+
+  /**
+   * One piece of streamed text.
+   *
+   * ***`message` since [P14.2]***: the index into the turn's `output.messages`
+   * that a speaking call is filling, so a surface that paints a round as
+   * separate messages knows which one a piece belongs to. **Absent on text that
+   * belongs only to the turn's joined text** — a narrator's reply, which is not
+   * a message of its own until it lands, and the blank line the runner sends
+   * between two speakers so that a reader appending every piece to one string
+   * (this class's `#live`, and every client written before P14.2) builds ~~the
+   * same `output.text` the turn will commit~~ the turn's `output.text` up to
+   * cleanup (*corrected 2026-09-29, at the [P14.2] review*): a speaker's reply
+   * can settle shorter than it streamed, and the joined pieces keep what was
+   * cut. `#live` is put right by {@link TurnStream.rebase} when that happens; a
+   * client already appending keeps the raw text until the turn lands. A
+   * per-message reader skips the unindexed pieces; a joined-text reader needs
+   * no change at all.
+   */
+  delta(sessionId: string, jobId: string, text: string, message?: number): void {
     this.#live.set(jobId, (this.#live.get(jobId) ?? '') + text);
     this.#each(sessionId, (listener) => {
-      listener.onDelta(jobId, text);
+      listener.onDelta(jobId, text, message);
     });
+  }
+
+  /**
+   * ***Replaces a job's accumulated text with the round's settled text*** —
+   * [P14.2] review, 2026-09-29.
+   *
+   * The live cell is what a reattaching client's snapshot is built from, and
+   * attach prefers it to the draft. Once cleanup has shortened a speaker's
+   * reply, the raw pieces joined here say what the draft no longer does — a
+   * cut line written for somebody else — so the runner rebases the cell on the
+   * draft's `output.text` whenever a reply settles changed. **The cell follows
+   * the round's settled text, not the raw stream**; later deltas append to it
+   * as before. Nothing is sent: a listener already attached has its own copy,
+   * and the committed turn corrects it. A job with no cell is left alone, so a
+   * late rebase cannot resurrect text `publish` or `forget` already dropped.
+   */
+  rebase(jobId: string, text: string): void {
+    if (this.#live.has(jobId)) this.#live.set(jobId, text);
   }
 
   live(jobId: string): string | null {

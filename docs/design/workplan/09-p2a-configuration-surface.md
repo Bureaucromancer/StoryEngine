@@ -614,6 +614,13 @@ save; nothing exercised one after a refusal. The route now accepts an
 acknowledgement (`contentHash` matching what is on disk) and the form offers
 both recoveries; both are covered from the client's side.
 
+*And a third thing it says, which nothing exercised (2026-09-27).* Step 15's
+*neither happens by accident* covers a plain Save made straight after the
+refusal, and that Save went through and overwrote the file, because the form
+kept the hash the refusal handed it. `868384f` refuses it again until one of the
+two offers is chosen. [Manual testing](05-manual-testing.md)'s B9 passed on the
+two offers, which were all it walked.
+
 **What needs a person.** Steps 1, 7, 11 and 13 have automatable cores and
 user-visible halves that do not automate — that a warning reads as a warning,
 that the removal sentence is the one somebody would want to have read before

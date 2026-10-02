@@ -15,7 +15,7 @@ import {
   slugify,
 } from '@storyengine/shared';
 
-import { listEntryNames } from './files.js';
+import { listDirectoryNames, listEntryNames } from './files.js';
 import {
   PathEscapeError,
   assertRealContained,
@@ -112,6 +112,14 @@ export function assertValidHandle(handle: string): void {
     );
   }
 }
+
+/**
+ * The name of the lock a running server holds on its data directory, at the
+ * data directory's root — see {@link Layout.instanceLockFile}. Exported for the
+ * two places that must never touch the file: the archive walk and the restore
+ * swap.
+ */
+export const INSTANCE_LOCK_NAME = 'instance.lock';
 
 /**
  * Every path in the data directory, derived from one root.
@@ -255,6 +263,103 @@ export class Layout {
     return resolveWithin(this.stateRoot, 'restore.pending');
   }
 
+  /**
+   * ***`state/import-scratch/` — where an import keeps the files it made and
+   * nobody else may see*** — [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * The first tenant is `sqlite-snapshot.ts`'s private copy of somebody's
+   * Aventuras database; the second is [P13.8]'s streamed upload, which lands
+   * here and is handed on without being copied again. Each use takes a
+   * directory of its own (`import-scratch.ts`), so letting go of one is a
+   * single removal that also takes whatever SQLite made beside it — a `-wal`,
+   * a `-shm`, a `-journal` — without anyone having to know their names.
+   *
+   * **In `state/` because it is beside what it follows.** [P12]'s own snapshot
+   * writes `state/state.snapshot-<id>.sqlite` next to the database it copies;
+   * this is the same kind of file made for the same reason, and `state/` is
+   * the directory that holds what is operational rather than derived or
+   * authored.
+   *
+   * - **Not `os.tmpdir()`.** In a container `/tmp` is commonly a small tmpfs,
+   *   and these files are the size of somebody's whole install — hundreds of
+   *   megabytes once a gallery is in it. The data directory is the one volume
+   *   an operator has already sized for our files.
+   * - **Not under `users/`**, so the watcher and the library never see a
+   *   half-written copy and nothing indexes it.
+   * - ***Never in an archive*** (`backup/archive.ts`'s `alwaysSkipped`), and
+   *   emptied at every start (`sweepImportScratch`), because a process that
+   *   was killed mid-import cannot run the `finally` that would have removed
+   *   what it made.
+   */
+  get importScratchRoot(): string {
+    return resolveWithin(this.stateRoot, 'import-scratch');
+  }
+
+  /**
+   * `.restore/` — where a restore unpacks, and where the install it replaced
+   * is kept — [P12.12](../../../../docs/design/workplan/29-p12-implementation.md),
+   * as corrected 2026-09-27.
+   *
+   * ***Inside the data directory, because the data directory is the one place a
+   * shipped install can write.*** The swap used to stage beside it, in
+   * `<dataRoot>.restoring-*`, and rename the whole root aside. But `/data` in a
+   * container is a mount point in a root-owned parent, and the systemd unit
+   * makes everything but the data directory read-only, so that failed with
+   * `EACCES`, `EROFS` or `EBUSY` everywhere except a bare-metal checkout. Here
+   * the swap moves the root's entries one at a time, on one filesystem the
+   * process owns.
+   *
+   * ***Never in an archive*** (`alwaysSkipped`), or the next backup would carry
+   * the whole of the install a restore replaced.
+   */
+  get restoreRoot(): string {
+    return resolveWithin(this.dataRoot, '.restore');
+  }
+
+  /**
+   * `.restore/swap.json` — a swap that has been staged and not yet finished.
+   *
+   * ***At the root of `.restore/` rather than in `state/`***, because `state/`
+   * is one of the entries the swap moves: a journal inside it would move
+   * aside with the install it describes, and a boot interrupted half way would
+   * find no journal and a half-swapped directory.
+   */
+  get restoreJournalFile(): string {
+    return resolveWithin(this.restoreRoot, 'swap.json');
+  }
+
+  /**
+   * ***`instance.lock` — one server per data directory*** (2026-09-27).
+   *
+   * A second server started on a directory another one is using took it over
+   * piece by piece before it had even listened. Its start-up reconciliation
+   * finalised the first one's turn in flight as a failed one, and moved the
+   * head over it. Its sweep of abandoned backups deleted the first one's
+   * half-written archive, so that backup failed at its last step. Its rendition
+   * recovery told the owner a picture still being drawn had failed. Nothing
+   * said two were running. The shipped wrappers never start two, but a second
+   * container, a unit and a hand-started copy, or a restart that raced its own
+   * predecessor all can.
+   *
+   * A running server holds an operating-system lock on this file from before
+   * it touches anything until it exits (`instance-lock.ts`), and a second one
+   * is refused in one line. **At the root and not in `state/`**, because the
+   * restore swap moves `state/` aside, and a lock file moved aside leaves its
+   * old name free for a second server to lock. **Never read by this process
+   * while it holds it**: on POSIX, closing any descriptor to a file drops
+   * every lock the process holds on it, so an archive walk that opened it
+   * would silently let the lock go. It is left out of every archive, and the
+   * swap leaves it where it is.
+   */
+  get instanceLockFile(): string {
+    return resolveWithin(this.dataRoot, INSTANCE_LOCK_NAME);
+  }
+
+  /** `.restore/<id>/` — one restore's staging tree and the install it replaced. */
+  restoreWork(id: string): string {
+    return resolveWithin(this.restoreRoot, id);
+  }
+
   get systemRoot(): string {
     return resolveWithin(this.dataRoot, 'system');
   }
@@ -287,6 +392,23 @@ export class Layout {
 
   get usersRoot(): string {
     return resolveWithin(this.dataRoot, 'users');
+  }
+
+  /**
+   * ***Every account directory on disk, and nothing else under `users/`***
+   * (2026-09-27).
+   *
+   * Read from the disk rather than from `accounts.json`, because a folder
+   * belonging to a removed account still holds somebody's files. But not every
+   * folder there is an account's: a NAS's indexer leaves `@eaDir`, and somebody
+   * keeping a copy leaves `ned.old`. The rebuild and the start-up session pass
+   * each listed the folder and then asked the layout for a path under it,
+   * which refuses a name that is not a handle, so one such folder stopped the
+   * start. The rebuild even had a `catch` for it, around a line that never
+   * throws. The name rule is the handle rule, applied once, here.
+   */
+  async userHandlesOnDisk(): Promise<string[]> {
+    return (await listDirectoryNames(this.usersRoot)).filter((name) => isValidHandle(name));
   }
 
   /**
@@ -422,6 +544,23 @@ export class Layout {
    */
   tagsFile(handle: string): string {
     return resolveWithin(this.userRoot(handle), 'tags.json');
+  }
+
+  /**
+   * `users/<handle>/usage.jsonl` — what the model calls that write no turn
+   * spent ([10 §11.4](../../../../docs/design/10-ui-surfaces.md), `usage/log.ts`).
+   *
+   * ***A file in the account's directory rather than a table in
+   * `state.sqlite`***, because the second is install-level and an account
+   * archive holds none of it — the file is inside that archive, comes back with
+   * a restore or an in-place unpack, and goes with the account. Not with a
+   * merge import, whose scope is the library, sessions and tags. Append-only
+   * JSON lines, like a turn segment,
+   * and for the segment's reason — a record of what happened is never
+   * rewritten, and a torn append costs the newest line rather than the file.
+   */
+  usageLogFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'usage.jsonl');
   }
 
   /**

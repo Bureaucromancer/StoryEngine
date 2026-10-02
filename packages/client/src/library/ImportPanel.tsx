@@ -12,12 +12,15 @@ import type {
   NearMissOffer,
 } from '@storyengine/shared';
 
-import { api, type ImportReport } from '../api.js';
+import { api, type ImportReport, type UploadProgress } from '../api.js';
 import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
+import { megabytes } from '../settings/Backups.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { control, disclosure } from '../ui/classes.js';
+import { CheckboxField } from '../ui/Field.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
+import { landedPreview, sniffImportFile } from './import-sniff.js';
 import { sentence } from './note-labels.js';
 import { labels } from '../i18n/catalogue.js';
 
@@ -88,10 +91,63 @@ export const DISPOSITION_HELP: Record<string, string> = labels('import.dispositi
 const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
   sillytavern: 'A SillyTavern library. Ready to import.',
   marinara: 'A Marinara data folder. Ready to import.',
-  'marinara-archive': 'A Marinara profile archive. Ready to import.',
-  'marinara-envelope': 'A Marinara export file. Ready to import.',
+  charx: 'An unpacked CHARX character card. Ready to import.',
+  'storyengine-backup':
+    'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
+  aventuras:
+    'An Aventuras library. Its characters, lorebooks and scenarios are imported, and its stories too when that is ticked; everything else in it is listed and left behind for now.',
   'loose-files':
-    'Not a SillyTavern or Marinara folder. Anything importable in it will be taken one file at a time.',
+    'Not a SillyTavern, Marinara or Aventuras folder. Anything importable in it will be taken one file at a time.',
+});
+
+/**
+ * ***What chats brought to this panel*** —
+ * [P14.8](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * - **`intro`** replaces the panel's opening line, which named cards, lorebooks
+ *   and presets and would otherwise go on describing an import that now also
+ *   makes sessions.
+ * - **`copy`** stands where the stage's one sentence goes, and **is not that
+ *   sentence yet**. [P14.8] asks the surface to say once what an update from
+ *   source does and does not do ([P14 §2.7]); there is no update to describe
+ *   until [P14.10a]'s sync, and a sentence about one would be false today. So
+ *   this says what is true of this build instead: a chat is a new session;
+ *   updating it comes later; the same chat imported again the same way changes
+ *   nothing, and the review says so when it has grown since; and the same chat
+ *   by two doors is two sessions, because a folder keys a chat by its place in
+ *   the folder and a lone upload by its bare file name. The departure is
+ *   recorded in the stage's report and proposed as a note under P14.8 in the
+ *   phase document, which is where it is settled. Once, and here, rather than
+ *   on every row — each row that meets it already says so in its own note.
+ * - The rest are the folder upload's one question — *also send the chats?* —
+ *   with the size on it, since the size is the whole reason it is a question;
+ *   and, when the upload limit will not carry them all, how many it will.
+ */
+const CHAT_WORDS = labels('import.chats', {
+  intro:
+    'Cards, lorebooks, presets and chats from SillyTavern or Marinara. Nothing is staged: what imports lands in your library, a chat as a session in Play, and everything that did not is listed below.',
+  copy: 'A chat arrives as a new session. Updating a session from its source comes later: until then, importing the same chat again the same way changes nothing, and says so if the chat has grown since. The same chat brought in on its own and with its folder becomes two sessions.',
+  title: 'Before it is sent',
+  found: 'This folder holds {count} chats, {size} in all. They are sent only if you ask for them.',
+  foundOne: 'This folder holds one chat, {size}. It is sent only if you ask for it.',
+  partial:
+    '{fit} of these {count} chats fit under this server’s {limit} MB upload limit beside the rest of the folder; the others will be listed as not sent. A folder swept from the server has no such limit.',
+  choose: 'Also import the chats ({size})',
+  chooseHint: 'Each becomes a session in Play, with its characters found in your library.',
+  send: 'Import',
+  cancel: 'Cancel',
+});
+
+/**
+ * ***What the upload limit leaves out of the library*** (2026-09-28): said
+ * before anything is sent, as the chats' share is, and with the same way out —
+ * a folder swept from the server has no limit. The files were named and not
+ * sent all along; what was new was saying so before the review, and saying
+ * *why* in it.
+ */
+const LIMIT_WORDS = labels('import.limit', {
+  one: 'One file in this folder does not fit under this server’s {limit} MB upload limit, so it will be listed and not sent. A folder swept from the server has no such limit.',
+  many: '{count} files in this folder do not fit under this server’s {limit} MB upload limit, so they will be listed and not sent. A folder swept from the server has no such limit.',
 });
 
 export const IMPORT_OPEN_KEY = 'ui.import-open';
@@ -156,6 +212,27 @@ type Outcome =
       destination: ImportDestination | null;
     }
   | { kind: 'report'; report: ImportReport }
+  /**
+   * ***A picked folder with chats in it, waiting for the one question*** —
+   * [P14.8]. The plan came back without them and said what they would add;
+   * nothing has been sent, and nothing is until the person answers.
+   *
+   * `wanted` is that first plan's list, which is exactly what goes if chats
+   * are left out; choosing them asks the server again, so it is the server
+   * that decides what the budget allows.
+   */
+  | {
+      kind: 'folder';
+      inside: { file: File; path: string }[];
+      /** The picked folder's name, for the recorded import. */
+      folder: string;
+      wanted: string[];
+      chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+      limitBytes: number;
+      withChats: boolean;
+      /** The library files the budget left out — asked about too (2026-09-28). */
+      overLimit: string[];
+    }
   | null;
 
 export function ImportPanel(): JSX.Element {
@@ -189,8 +266,31 @@ export function ImportPanel(): JSX.Element {
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * The word given and the import running — narrower than `busy`, which a
+   * re-ask sets too, and a Cancel during a re-ask is one the panel keeps
+   * (P1c). Only the commit makes Cancel a promise it cannot keep (polish 10).
+   */
+  const [importing, setImporting] = useState(false);
+  /**
+   * ***How far the word's upload has got*** — [P13.8]. `null` when nothing is
+   * being sent. An Aventuras backup can be a gigabyte, and an Import button
+   * that stays pressed for ten minutes with nothing moving reads as a page that
+   * has hung.
+   */
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [root, setRoot] = useState('');
+  /**
+   * ***Whether an Aventuras import brings its stories*** — [P13.11]. **Off
+   * until ticked, and not remembered**: a library import that also made a
+   * session of every story somebody ever started would fill the session list
+   * with hundreds they did not ask for, and a session, unlike a library
+   * object, is never replaced by importing again — each would be taken back by
+   * hand. So it is asked each time, of the import it is ticked for, and every
+   * other kind of import ignores it (`SweepRequest.stories` on the server).
+   */
+  const [stories, setStories] = useState(false);
 
   /**
    * What the server said about the folder in the box, if it has been asked.
@@ -218,6 +318,24 @@ export function ImportPanel(): JSX.Element {
    * discards whatever look was in the air when it started.
    */
   const latest = useRef(0);
+
+  /**
+   * ***Which outcome is still the one to show*** (2026-09-27).
+   *
+   * `latest` settles which *look* is current; this settles which *outcome* is.
+   * A look at a file, a re-ask under the other reading, a sweep, a folder
+   * upload and opening an earlier report each write the one outcome slot when
+   * their request lands, and each can land after something newer has been
+   * asked for: an earlier report opened a moment before a file was picked came
+   * back after the file's preview and replaced it, leaving a report on screen
+   * where the person was being asked a question. So each bumps this when it
+   * starts, and writes only if nothing has bumped it since.
+   *
+   * *The import itself is the exception, and deliberately.* Its write says what
+   * was written to the library, which is true however the screen moved on — and
+   * nothing can start while it runs, every picker being disabled while `busy`.
+   */
+  const asked = useRef(0);
 
   /**
    * **A look never writes `error`.** Clicking *Import folder* blurs the path
@@ -250,12 +368,6 @@ export function ImportPanel(): JSX.Element {
   };
 
   /**
-   * Everything the library shows is now different, and which queries is not
-   * worth enumerating — a sweep can write six kinds. `resetQueries` rather than
-   * `removeQueries`, because a destroyed entry does not notify its observers
-   * and the list would sit on what it was already holding ([P3.5]).
-   */
-  /**
    * Whether a picker may start something new.
    *
    * **Disabled, not hidden**, while a decision is pending — [10 §1.1] rejects
@@ -264,11 +376,29 @@ export function ImportPanel(): JSX.Element {
    * stops is a second import starting on top of an unanswered one, which would
    * leave the preview on screen describing a file nobody is looking at.
    */
-  const pending = busy || outcome?.kind === 'preview';
+  const pending = busy || outcome?.kind === 'preview' || outcome?.kind === 'folder';
 
+  /**
+   * Everything the library shows is now different, and which queries is not
+   * worth enumerating — a sweep can write six kinds.
+   *
+   * ~~`resetQueries` rather than `removeQueries`, because a destroyed entry does
+   * not notify its observers and the list would sit on what it was already
+   * holding ([P3.5]).~~ **`invalidateQueries`** (2026-09-27). The reason
+   * against `removeQueries` stands; the choice it led to was the wrong one. A
+   * reset puts every entry back to *pending* before it refetches, and
+   * `useLibrary` keeps no placeholder, so the list beside this panel unmounted
+   * its table on every import — and the sort, the filters and the search a
+   * person had set went with it, to show *Loading…* in place of a list about to
+   * gain one row. Invalidating refetches every entry on screen and tells its
+   * observers, which is what [P3.5] was after, and keeps what is shown until the
+   * new answer replaces it.
+   */
   const refresh = async (): Promise<void> => {
-    await queryClient.resetQueries({ queryKey: ['library'] });
+    await queryClient.invalidateQueries({ queryKey: ['library'] });
     await queryClient.invalidateQueries({ queryKey: ['import-jobs'] });
+    // An import that brought stories ([P13.11]) or chats ([P14.8]) wrote sessions.
+    await queryClient.invalidateQueries({ queryKey: ['sessions'] });
   };
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -278,6 +408,7 @@ export function ImportPanel(): JSX.Element {
     // a picker whose choice leaves no trace is one you cannot check before
     // committing to it.
     setChosen(file.name);
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
@@ -287,7 +418,17 @@ export function ImportPanel(): JSX.Element {
        * and nothing is written there, which is what keeps this short of the
        * staging area [P4 §1.4] refused.
        */
-      const { preview } = await api.importFilePreview(file);
+      /**
+       * ***An archive or a database is looked at here, not sent*** — [P13.8],
+       * amending [P4]'s *a look, then a word* (`import-sniff.ts`). The server
+       * would only have said *a folder in a file*, and would have had the
+       * whole file to say it: a gigabyte sent to be told what its first bytes
+       * said, and then sent again on the word.
+       */
+      const landed = await sniffImportFile(file);
+      const preview =
+        landed === null ? (await api.importFilePreview(file)).preview : landedPreview(file);
+      if (asked.current !== mine) return;
       setOutcome({
         kind: 'preview',
         file,
@@ -296,6 +437,7 @@ export function ImportPanel(): JSX.Element {
         destination: destinationOf(preview),
       });
     } catch (cause) {
+      if (asked.current !== mine) return;
       setError(cause instanceof Error ? cause.message : 'That file could not be read.');
     } finally {
       setBusy(false);
@@ -315,15 +457,43 @@ export function ImportPanel(): JSX.Element {
    */
   const reask = async (destination: ImportDestination): Promise<void> => {
     if (outcome?.kind !== 'preview') return;
+    const { file } = outcome;
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
-      const { preview } = await api.importFilePreview(outcome.file, destination);
-      setOutcome({ ...outcome, preview, destination });
+      const { preview } = await api.importFilePreview(file, destination);
+      if (asked.current !== mine) return;
+      // Over the outcome as it is now, and only while it is still this file's
+      // question. The whole outcome of the click used to be written back, which
+      // put a cancelled preview back on screen and undid a conflict choice made
+      // while the second reading was being asked for.
+      setOutcome((current) =>
+        current?.kind === 'preview' && current.file === file
+          ? { ...current, preview, destination }
+          : current,
+      );
     } catch (cause) {
+      if (asked.current !== mine) return;
       setError(cause instanceof Error ? cause.message : 'That file could not be read.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** An earlier review, fetched and shown — see `asked` for why it may not be. */
+  const openPast = async (id: string): Promise<void> => {
+    const mine = ++asked.current;
+    setError(null);
+    try {
+      const { report } = await api.importJob(id);
+      if (asked.current !== mine) return;
+      setOutcome({ kind: 'report', report });
+    } catch (cause) {
+      if (asked.current !== mine) return;
+      // Said, rather than the rejection going nowhere: the button did nothing,
+      // and the person has to be told so.
+      setError(cause instanceof Error ? cause.message : 'That import could not be opened.');
     }
   };
 
@@ -331,17 +501,26 @@ export function ImportPanel(): JSX.Element {
   const commit = async (): Promise<void> => {
     if (outcome?.kind !== 'preview') return;
     setBusy(true);
+    setImporting(true);
     setError(null);
     try {
       const result = await api.importFile(
         outcome.file,
         outcome.onConflict,
         outcome.destination ?? undefined,
+        setProgress,
+        stories,
       );
+      // An archive or a database is a root, and since [P13.7] its answer
+      // carries the root's whole review — every row, so a second upload of the
+      // same backup reads *unchanged* row by row, as a sweep of its folder does.
+      // One file's review is its one row.
       setOutcome({
         kind: 'report',
-        report: {
-          jobId: 'file',
+        report: result.report ?? {
+          // The server's record of it, since 2026-09-28, rather than a
+          // placeholder that named nothing.
+          jobId: result.jobId,
           source: outcome.file.name,
           items: [result.item],
           counts: { [result.item.disposition]: 1 },
@@ -352,6 +531,8 @@ export function ImportPanel(): JSX.Element {
       setError(cause instanceof Error ? cause.message : 'The import failed.');
     } finally {
       setBusy(false);
+      setImporting(false);
+      setProgress(null);
     }
   };
 
@@ -380,8 +561,11 @@ export function ImportPanel(): JSX.Element {
       file,
       path: file.webkitRelativePath.split('/').slice(1).join('/'),
     }));
+    // The folder's own name, which the recorded import is listed under.
+    const folder = picked[0]?.webkitRelativePath.split('/')[0] ?? '';
 
     latest.current += 1;
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
@@ -390,10 +574,85 @@ export function ImportPanel(): JSX.Element {
       );
       setChecked({ ok: true, verdict: plan.verdict, suggestions: plan.suggestions });
 
+      /**
+       * ***Chats wait for a word*** — [P14.8]. They are most of a SillyTavern
+       * tree's bytes, and a person who picked their data folder to bring in
+       * their cards has not thereby asked to send years of conversation. So a
+       * folder with chats in it stops here and asks, with the size on the
+       * question; a folder without any goes straight on, as every folder did.
+       */
+      /**
+       * ***And so does a folder the limit will not carry whole*** (2026-09-28):
+       * the files left out are said before the upload, where a person can still
+       * sweep it from the server instead.
+       */
+      if (plan.chats.count > 0 || plan.overLimit.length > 0) {
+        if (asked.current === mine) {
+          setOutcome({
+            kind: 'folder',
+            inside,
+            folder,
+            wanted: plan.wanted,
+            chats: plan.chats,
+            limitBytes: plan.limitBytes,
+            withChats: false,
+            overLimit: plan.overLimit,
+          });
+        }
+        return;
+      }
+
       const wanted = new Set(plan.wanted);
       const result = await api.importDirectory(
         inside.map(({ path }) => path),
         inside.filter(({ path }) => wanted.has(path)),
+        undefined,
+        stories,
+        undefined,
+        undefined,
+        folder,
+      );
+      if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'The import failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * The folder, sent with the question answered.
+   *
+   * *With chats*, the server plans again — the one function that spends the
+   * upload budget spends it, library first, and the browser does not guess at
+   * what fits. *Without*, the first plan stands, and the chats go out as
+   * `skip`, so each is a `skipped` row in the review rather than a file that
+   * *could not be read*.
+   */
+  const sendFolder = async (): Promise<void> => {
+    if (outcome?.kind !== 'folder') return;
+    const { inside, withChats } = outcome;
+    setBusy(true);
+    setError(null);
+    try {
+      const plan = withChats
+        ? await api.importDirectoryPlan(
+            inside.map(({ file, path }) => ({ path, bytes: file.size })),
+            true,
+          )
+        : { wanted: outcome.wanted, overLimit: outcome.overLimit };
+      const wanted = new Set(plan.wanted);
+      const result = await api.importDirectory(
+        inside.map(({ path }) => path),
+        inside.filter(({ path }) => wanted.has(path)),
+        undefined,
+        stories,
+        // Offered only when the folder had chats; a folder asked about only
+        // for its size takes what was carried, as every folder did.
+        outcome.chats.count > 0 ? (withChats ? 'include' : 'skip') : undefined,
+        plan.overLimit,
+        outcome.folder,
       );
       setOutcome({ kind: 'report', report: result.report });
       await refresh();
@@ -408,11 +667,12 @@ export function ImportPanel(): JSX.Element {
     if (root.trim().length === 0) return;
     // Any look still in the air is about to be out of date.
     latest.current += 1;
+    const mine = ++asked.current;
     setBusy(true);
     setError(null);
     try {
-      const result = await api.importSweep(root.trim());
-      setOutcome({ kind: 'report', report: result.report });
+      const result = await api.importSweep(root.trim(), undefined, stories);
+      if (asked.current === mine) setOutcome({ kind: 'report', report: result.report });
       // A sweep of the wrong folder succeeds, so the advice matters *more* after
       // one than before: nothing in the report itself says the wrong folder was
       // named.
@@ -430,10 +690,8 @@ export function ImportPanel(): JSX.Element {
     // region, and two nested `Import` regions would make the panel harder to
     // navigate by assistive technology rather than easier.
     <div className="flex flex-col gap-3">
-      <Note>
-        Cards, lorebooks and presets from SillyTavern or Marinara. Nothing is staged: what imports
-        lands in your library, and everything that did not is listed below.
-      </Note>
+      <Note>{CHAT_WORDS.intro}</Note>
+      <Note>{CHAT_WORDS.copy}</Note>
 
       {/*
         **The controls fold; the review does not.** Collapsing is worth having
@@ -473,12 +731,17 @@ export function ImportPanel(): JSX.Element {
               accessible name; `sr-only` hides it from sight but not from
               assistive technology, and the label's `htmlFor` is what makes the
               button's click reach it.
+
+              *`.avt` since [P13.15]*: an Aventuras story file, which a file
+              dialog filtering by this list would otherwise grey out — the
+              server knows it by its contents, but a person cannot pick a file
+              the dialog will not show.
             */}
             <input
               ref={fileInput}
               id="import-file"
               type="file"
-              accept=".png,.json,.charx,.seactor"
+              accept=".png,.json,.charx,.seactor,.zip,.db,.avt"
               onChange={(event) => void onFile(event)}
               disabled={pending}
               className="sr-only"
@@ -562,7 +825,7 @@ export function ImportPanel(): JSX.Element {
                 setChecked(null);
               }}
               onBlur={(event) => void check(event.target.value.trim())}
-              placeholder="The full path to a SillyTavern or Marinara data folder"
+              placeholder="The full path to a SillyTavern, Marinara or Aventuras data folder"
               className={control}
               disabled={pending}
             />
@@ -579,6 +842,17 @@ export function ImportPanel(): JSX.Element {
               usually data/default-user inside the SillyTavern directory.
             </Note>
             <Note>A Marinara data folder is the one holding storage/tables/.</Note>
+            {/*
+              Aventuras is the exception to the comment above: Tauri fixes its
+              config directory by bundle id on every desktop platform
+              (01 §2), so naming the folder is reading it off their source
+              rather than guessing. The server's near-miss table says the same
+              when a person picks the folder above it.
+            */}
+            <Note>
+              An Aventuras folder is the one holding aventura.db — com.karelian.aventura inside
+              ~/.config on Linux, ~/Library/Application Support on a Mac, or %APPDATA% on Windows.
+            </Note>
 
             <Button
               type="button"
@@ -590,6 +864,25 @@ export function ImportPanel(): JSX.Element {
               {busy ? 'Reading…' : 'Import folder'}
             </Button>
           </div>
+
+          {/*
+            **One question for all three ways in**, because an Aventuras
+            library arrives by any of them — its folder by path or from this
+            browser, or its backup as a file — and the answer is about what
+            to bring, not how it travels.
+
+            *A single story file needs no asking* ([P13.15]): picking one
+            `.avt` out of a dialog is asking for that story, and the preview
+            has already named it, so the hint says so rather than leaving a
+            person to wonder whether the box has to be ticked for it.
+          */}
+          <CheckboxField
+            label="Also bring Aventuras stories across as sessions"
+            hint="Each story becomes a session of its own, opening where it was left. Importing the same library again never makes a second copy, and never replaces one. A single Aventuras story file (.avt) always comes across as its story; other kinds of library ignore this."
+            checked={stories}
+            disabled={pending}
+            onChange={setStories}
+          />
         </div>
       </details>
 
@@ -642,6 +935,8 @@ export function ImportPanel(): JSX.Element {
           preview={outcome.preview}
           onConflict={outcome.onConflict}
           busy={busy}
+          importing={importing}
+          progress={progress}
           onPolicy={(onConflict) => {
             setOutcome({ ...outcome, onConflict });
           }}
@@ -654,13 +949,114 @@ export function ImportPanel(): JSX.Element {
         />
       ) : null}
 
+      {outcome?.kind === 'folder' ? (
+        <FolderChoice
+          chats={outcome.chats}
+          limitBytes={outcome.limitBytes}
+          withChats={outcome.withChats}
+          overLimit={outcome.overLimit.length}
+          busy={busy}
+          onChats={(withChats) => {
+            setOutcome({ ...outcome, withChats });
+          }}
+          onSend={() => void sendFolder()}
+          onCancel={() => {
+            setOutcome(null);
+          }}
+        />
+      ) : null}
+
       {outcome?.kind === 'report' ? <Report report={outcome.report} /> : null}
       <PastImports
-        onOpen={(report) => {
-          setOutcome({ kind: 'report', report });
+        disabled={pending}
+        onOpen={(id) => {
+          void openPast(id);
         }}
       />
     </div>
+  );
+}
+
+/** `limits.maxUploadMb`'s megabyte, as the server multiplies it out. */
+const MEGABYTE = 1024 * 1024;
+
+/**
+ * ***The folder upload's one question*** — [P14.8].
+ *
+ * **In the flow, like the preview, and for the preview's reasons**: a pending
+ * decision is a block below the controls rather than a dialog over them, and it
+ * holds the pickers disabled until it is answered or put away. *Off by
+ * default*, because the question is whether to send more than was asked for,
+ * and the size is on both the sentence and the choice so the person is never
+ * asked to agree to a number they have not been shown.
+ *
+ * ***The size on the choice is what will go.*** Chats spend what the library
+ * leaves of the upload limit, so when they do not all fit, the choice sends
+ * `fit` and not the total — and says so before it is made, in numbers, with
+ * the server-path sweep named as the way to bring the rest.
+ */
+function FolderChoice(props: {
+  chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+  limitBytes: number;
+  withChats: boolean;
+  /** How many library files the limit leaves out. */
+  overLimit: number;
+  busy: boolean;
+  onChats: (withChats: boolean) => void;
+  onSend: () => void;
+  onCancel: () => void;
+}): JSX.Element {
+  const size = megabytes(props.chats.bytes);
+  const found = props.chats.count === 1 ? CHAT_WORDS.foundOne : CHAT_WORDS.found;
+  const short = props.chats.fit.count < props.chats.count;
+  const limit = String(Math.round(props.limitBytes / MEGABYTE));
+
+  return (
+    <section aria-label={CHAT_WORDS.title} className="flex flex-col gap-3">
+      <SubsectionTitle as="h4">{CHAT_WORDS.title}</SubsectionTitle>
+      {props.overLimit === 0 ? null : (
+        <Note>
+          {(props.overLimit === 1 ? LIMIT_WORDS.one : LIMIT_WORDS.many)
+            .replace('{count}', String(props.overLimit))
+            .replace('{limit}', limit)}
+        </Note>
+      )}
+      {/* Asked only of a folder that has chats; one asked about for its size alone has none. */}
+      {props.chats.count === 0 ? null : (
+        <>
+          <Note>{found.replace('{count}', String(props.chats.count)).replace('{size}', size)}</Note>
+          {short ? (
+            <Note>
+              {CHAT_WORDS.partial
+                .replace('{fit}', String(props.chats.fit.count))
+                .replace('{count}', String(props.chats.count))
+                .replace('{limit}', limit)}
+            </Note>
+          ) : null}
+          <CheckboxField
+            label={CHAT_WORDS.choose.replace('{size}', megabytes(props.chats.fit.bytes))}
+            hint={CHAT_WORDS.chooseHint}
+            checked={props.withChats}
+            disabled={props.busy}
+            onChange={props.onChats}
+          />
+        </>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="compact" onClick={props.onSend} disabled={props.busy}>
+          {CHAT_WORDS.send}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          onClick={props.onCancel}
+          disabled={props.busy}
+        >
+          {CHAT_WORDS.cancel}
+        </Button>
+      </div>
+    </section>
   );
 }
 
@@ -678,7 +1074,14 @@ export function ImportPanel(): JSX.Element {
  * the one already below it — the same `Report`, so there is one renderer for a
  * review and no second surface to keep in step.
  */
-function PastImports(props: { onOpen: (report: ImportReport) => void }): JSX.Element | null {
+function PastImports(props: {
+  /**
+   * While a decision is pending, the same rule as every picker above: opening a
+   * report would replace the question on screen with an answer to another one.
+   */
+  disabled: boolean;
+  onOpen: (id: string) => void;
+}): JSX.Element | null {
   const jobs = useQuery({ queryKey: ['import-jobs'], queryFn: () => api.importJobs() });
   const rows = jobs.data?.jobs ?? [];
   if (rows.length === 0) return null;
@@ -691,11 +1094,10 @@ function PastImports(props: { onOpen: (report: ImportReport) => void }): JSX.Ele
           <li key={job.id} className="flex flex-wrap items-baseline gap-2">
             <button
               type="button"
-              className="text-ink underline"
+              className="text-ink underline disabled:text-ink-faint disabled:no-underline"
+              disabled={props.disabled}
               onClick={() => {
-                void api.importJob(job.id).then((result) => {
-                  props.onOpen(result.report);
-                });
+                props.onOpen(job.id);
               }}
             >
               {job.root}
@@ -718,7 +1120,7 @@ function PastImports(props: { onOpen: (report: ImportReport) => void }): JSX.Ele
 /** Why a root was turned away, in words. Open-keyed, like every other map here. */
 const REFUSAL_LABELS: Record<string, string> = labels('import.refusal', {
   'live-install': 'That application was running.',
-  'unknown-format': 'Written by a newer version than this understands.',
+  'unknown-format': 'Written by a newer version, or missing a part this build needs.',
   'ambiguous-root': 'Looked like two applications at once.',
   'unreadable-root': 'Nothing readable there.',
   'inside-data-root': 'Inside this install’s own data directory.',
@@ -825,6 +1227,10 @@ function Preview(props: {
   preview: ImportPreview;
   onConflict: PreviewPolicy;
   busy: boolean;
+  /** The import itself is running — the one state Cancel cannot undo. */
+  importing: boolean;
+  /** The word's upload, while it is being sent. */
+  progress: UploadProgress | null;
   onPolicy: (policy: PreviewPolicy) => void;
   onDestination: (destination: ImportDestination) => void;
   onImport: () => void;
@@ -953,6 +1359,10 @@ function Preview(props: {
             id="import-on-conflict"
             className={control}
             value={props.onConflict}
+            // Disabled while busy, as the destination twin above is: a choice
+            // made while a re-ask or the import itself is on its way is a
+            // choice that request has already been sent without.
+            disabled={props.busy}
             onChange={(event) => {
               props.onPolicy(event.target.value === 'keep-both' ? 'keep-both' : 'replace');
             }}
@@ -967,6 +1377,8 @@ function Preview(props: {
         <Note>This is identical to what is already here, so importing writes nothing.</Note>
       ) : null}
 
+      {props.progress !== null ? <UploadMeter progress={props.progress} /> : null}
+
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -976,12 +1388,56 @@ function Preview(props: {
         >
           Import
         </Button>
-        <Button type="button" variant="secondary" size="compact" onClick={props.onCancel}>
+        {/* ***Not live while the import runs*** (2026-10-01, polish 10). A
+            Cancel pressed mid-commit put the preview away and stopped nothing:
+            the import went on, and its report arrived over a panel that had
+            said it was cancelled. The folder question's Cancel already waits;
+            this one does now too. */}
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          onClick={props.onCancel}
+          disabled={props.importing}
+        >
           Cancel
         </Button>
       </div>
     </section>
   );
+}
+
+/**
+ * ***The upload, going*** — [P13.8]. A bar and a sentence, because a bar alone
+ * says nothing to somebody who cannot see it, and because the moment the last
+ * byte is sent is not the moment the import is done: a backup is then
+ * unpacked, copied and read, which for a large one takes a while of its own,
+ * and a bar sitting full with nothing said would read as stuck.
+ */
+function UploadMeter(props: { progress: UploadProgress }): JSX.Element {
+  const { sent, total } = props.progress;
+  const percent = total > 0 ? Math.min(100, Math.floor((sent / total) * 100)) : 0;
+  return (
+    <div className="flex flex-col gap-1">
+      <progress className="w-full" max={total} value={sent} aria-label="Upload" />
+      <Note role="status">
+        {sent >= total
+          ? 'Sent. Reading it into your library…'
+          : `Sending… ${String(percent)}% of ${meterSize(total)}`}
+      </Note>
+    </div>
+  );
+}
+
+/**
+ * *Always megabytes*, for the meter only. Not `settings/Backups.tsx`'s
+ * `megabytes`, which the chat question ([P14.8]) uses and which steps down to
+ * KB and up to GB: a meter whose unit changed as the upload grew would read as
+ * a number jumping backwards. The two arrived on two branches with one name,
+ * and the merge after P14 renamed this one.
+ */
+function meterSize(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
 /** The one line that says what the file is and what would come of it. */

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { classifyRoot } from '../detect.js';
 import { MemoryFileSource } from '../memory-source.js';
+import { parseSillyTavernChat } from '../sillytavern/chat.js';
 import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
 import { SILLYTAVERN_DISPOSITIONS } from '../registries/sillytavern.js';
 import { classifyTablePath } from '../marinara/store-format.js';
@@ -60,6 +61,32 @@ describe('the SillyTavern fixture', () => {
     expect(paths).toContain('User Avatars/inspector.png');
     // One poisoned file, so gate step 8 has something to survive.
     expect(paths).toContain('characters/broken.png');
+  });
+
+  it('holds a chat that reads as one, with a greeting, a swipe and both sides speaking', () => {
+    // [P14.8]: the sweep turns this into a session, and a session test is only
+    // as good as the chat under it. A prop that no longer parsed — or that lost
+    // its player's line, or its swipes — would leave the end-to-end sweep test
+    // passing over a session with nothing in it worth checking.
+    const path = 'chats/Vera Solano/2026-01-01.jsonl';
+    const bytes = tree[path];
+    const outcome = parseSillyTavernChat(
+      typeof bytes === 'string' ? bytes : (bytes ?? new Uint8Array()),
+      path,
+    );
+    if (!outcome.ok) throw new Error(`the fixture chat is refused: ${outcome.refusal}`);
+
+    const { chat, meta } = outcome.value;
+    expect(chat.messages.map((message) => message.role)).toEqual([
+      'character',
+      'user',
+      'character',
+    ]);
+    expect(chat.messages.every((message) => message.role !== 'character' || message.swipes)).toBe(
+      true,
+    );
+    expect(meta.persona).toBe('User Avatars/inspector.png');
+    expect(meta.worldInfo).toBe('Rain City');
   });
 
   it('contains a credential, because the gate tests for its absence afterwards', () => {
@@ -145,6 +172,11 @@ describe('the Marinara fixture', () => {
     // ([P4 §7.18]).* It never was: `messages` is recorded, not read, so no
     // reader ever opened the sharded table here. The case that catches it is
     // `marinaraShardedFixture({ version: 2 })`, swept in `marinara.test.ts`.
+    // *And corrected again 2026-10-02, by the merge of origin's main, where
+    // [P14.10] had made `messages` read*: this fixture is now a second case
+    // that catches it. `chat-sessions.test.ts` sweeps it and asserts the
+    // messages of `chat_1` arrive as turns, which a reader that took the
+    // layout from this manifest's version would never have opened.
     const manifest = JSON.parse(String(tree['storage/manifest.json'])) as { version: number };
 
     expect(manifest.version).toBe(2);

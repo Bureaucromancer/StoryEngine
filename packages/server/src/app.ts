@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
@@ -32,11 +32,12 @@ import { readBuildInfo, type BuildInfo } from './build-info.js';
 import { type Config, isLoopbackHost, pendingRestart } from './config.js';
 import { openIndex, type OpenedIndex } from './index-db/open.js';
 import { startMaturation, type Maturation } from './index-db/maturation.js';
-import { backupContextOf } from './backup/archive.js';
+import { backupContextOf, sweepAbandonedBackups } from './backup/archive.js';
 import { startBackupSchedule, type BackupSchedule } from './backup/schedule.js';
 import { BackupSettingsStore } from './backup/settings.js';
 import { startTrashSweep, type TrashSweep } from './storage/trash.js';
-import { rebuild } from './index-db/rebuild.js';
+import { rebuild, type RebuildResult } from './index-db/rebuild.js';
+import { reconcileIndex, type ReconcileResult } from './index-db/reconcile.js';
 import { materialiseModePresets } from './system-library.js';
 import { LibraryWatcher } from './index-db/watcher.js';
 import type { LibraryContext } from './library.js';
@@ -52,7 +53,10 @@ import { registerTagRoutes } from './routes/tags.js';
 import { registerMyConnectionRoutes } from './routes/connections.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerSessionRoutes } from './routes/sessions.js';
-import { listSessions, type SessionContext } from './sessions/store.js';
+import { registerChatRoutes } from './routes/chat.js';
+import { registerOnDemandRoutes } from './routes/on-demand.js';
+import { registerGestureRoutes } from './routes/gestures.js';
+import { listSessions, type SessionContext, sessionFilePath } from './sessions/store.js';
 import { createCaptureRecorder, type CaptureRecorder } from './providers/capture.js';
 import { createProviderFactory, type ProviderFactory } from './providers/factory.js';
 import { capabilitiesFor } from './providers/capabilities.js';
@@ -60,11 +64,14 @@ import { resolveConnections } from './providers/connections.js';
 import {
   dispatchRenditions,
   drainRenditions,
+  recoverRenditions,
+  retryRendition,
+  type RenditionDrainOptions,
   type RenditionWorkerContext,
 } from './renditions/worker.js';
-import { reconcileRenditionJobs } from './renditions/jobs.js';
 import type { Rendition } from '@storyengine/shared';
-import { selectBackdrop } from './renditions/backdrop.js';
+import { DeferredBackdrops, offerBackdrop, showHeldBackdrop } from './renditions/backdrop.js';
+import { readRendition } from './renditions/store.js';
 import { installBuiltIns } from './mode-loader.js';
 import { assertModesRunnable } from './mode-registry.js';
 import {
@@ -74,15 +81,19 @@ import {
   type Logger,
   type Reconciliation,
 } from './state/commit.js';
-import type { JobContext } from './state/jobs.js';
+import { activeJob, type JobContext } from './state/jobs.js';
 import { NotificationBus } from './notifications/bus.js';
 import { route as routeNotification, type Occurrence } from './notifications/router.js';
 import { TurnStream } from './stream/bus.js';
+import { SummaryWarmer } from './turns/warm-summaries.js';
 import { TurnRunner } from './turns/runner.js';
 import { openState, type OpenedState } from './state/open.js';
-import { listDirectoryNames, readFileBytes } from './storage/files.js';
+import { type OperationalPrune, startOperationalPrune } from './state/prune.js';
+import { fileExists, freeBytes } from './storage/files.js';
+import { sweepImportScratch } from './storage/import-scratch.js';
 import { stampDataDirectory } from './storage/stamp.js';
-import { supervisionOf, type Supervision } from './supervision.js';
+import { clientBuildMissing, MACHINE, type StartableSeams } from './startable.js';
+import { UNSUPERVISED, type Supervision } from './supervision.js';
 import { CHECK_INTERVAL_MS, checkForUpdate, UNCHECKED, type UpdateStatus } from './updates.js';
 import { createCaptureStore } from './storage/captures.js';
 import { Layout } from './storage/layout.js';
@@ -171,7 +182,7 @@ export interface AppServices {
     sessionId: string,
     records: readonly Rendition[],
     turnId: string,
-  ) => void;
+  ) => Promise<void>;
   /**
    * Waits for every picture still being made — [P9.2]'s detached dispatch, given
    * the shutdown wait it never had.
@@ -179,19 +190,60 @@ export interface AppServices {
    * **On the services beside `renditions` rather than inside it**, because the
    * two are the same seam from opposite ends: `renditions` says *make this and
    * do not wait*, and this says *and now, once, wait*. `disposeServices` is the
-   * only caller and the only one that should be — anything else waiting on a
-   * picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra steps.
+   * only product caller and the only one that should be — anything else waiting
+   * on a picture is [06 §10.2]'s forbidden turn-blocks-on-image with extra
+   * steps. (`settled()` in `test-server.ts` also calls it, as a test waiting for
+   * quiet, not a turn waiting for a picture.)
+   *
+   * ***And then it stops waiting***: a picture still running after the grace is
+   * cut off and recorded as interrupted. See `drainRenditions` in the worker.
    */
-  drainRenditions: () => Promise<void>;
+  drainRenditions: (options?: RenditionDrainOptions) => Promise<void>;
+  /**
+   * Runs a picture's recipe again — the retry route's path, [06 §10.2].
+   *
+   * ***Beside `renditions` rather than through it***, because a retry has an
+   * order the turn's dispatch does not: the job is claimed **before** the record
+   * is rewritten, so a retry that lands while the last try is still finishing
+   * is answered by that try instead of stranding a `pending` record with nobody
+   * behind it. `retryRendition` has the whole argument.
+   */
+  retryRendition: (account: string, sessionId: string, record: Rendition) => Promise<Rendition>;
+  /**
+   * What a restart owes the pictures the last process was making: abandon
+   * their jobs, and mark their records `interrupted` so each is a placeholder
+   * with a button rather than one without. `buildApp` is the only caller, once,
+   * before the listener accepts anything.
+   */
+  recoverRenditions: () => Promise<{ interrupted: number; marked: number }>;
+  /**
+   * ***The summary chain's background warm*** — [P14.11], [18 §7.5].
+   *
+   * Asked by `sessions.imported` after every import, cancelled by
+   * `sessions.deleting`, and stopped by `disposeServices` after the runner
+   * and before the stores close — it reads the index through the gather and
+   * writes link files, so it is stopped where the renditions are drained and
+   * for their reason.
+   */
+  summaryWarm: SummaryWarmer;
   /** The commit protocol's context — shared with the runner, so one logger reaches both. */
   commit: CommitContext;
   providers: ProviderFactory;
   /**
    * Every open stream's closer.
    *
-   * `app.close()` resolves in zero milliseconds with a hijacked response open,
-   * so an `onClose` hook has to end them — otherwise a surviving keepalive
-   * interval is a hung process rather than a failed test.
+   * ~~`app.close()` resolves in zero milliseconds with a hijacked response
+   * open, so an `onClose` hook has to end them — otherwise a surviving
+   * keepalive interval is a hung process rather than a failed test.~~
+   *
+   * ***Ended in `preClose`, because `onClose` runs too late on a listening
+   * server*** (corrected 2026-09-27). The zero milliseconds were measured
+   * under `inject()`, where nothing listens and there is no socket to wait
+   * for. On a real listener `server.close()` waits for every open response,
+   * and Fastify runs `onClose` only *after* that wait, so the hook that would
+   * have ended the streams never ran while one was open. With one tab signed
+   * in, *Restart now*, a restore and `SIGTERM` all hung. `preClose` runs
+   * before the listener closes, under `inject()` and on a socket alike.
    */
   streams: Set<() => void>;
   /**
@@ -205,6 +257,12 @@ export interface AppServices {
    * much weaker claim than the one this stage makes.
    */
   reconciliation: Reconciliation;
+  /**
+   * ***What this start did to the index*** (2026-09-27): rebuilt it, or
+   * checked it against the disk ([03 §5.1]). Kept for `buildApp` to log,
+   * since the logger does not exist yet when it happens.
+   */
+  indexAtStart: ({ kind: 'rebuilt' } & RebuildResult) | ({ kind: 'reconciled' } & ReconcileResult);
   accounts: Accounts;
   watcher: LibraryWatcher | null;
   /** The cassette recorder, present only when `--capture` asked for one. */
@@ -217,6 +275,8 @@ export interface AppServices {
   maturation: Maturation;
   /** The retention sweep — [03 §10.2], [P11.7]. */
   trash: TrashSweep;
+  /** The operational store's collection of finished turns — [P2 §2.10], `state/prune.ts`. */
+  prune: OperationalPrune;
   sessionKey: string;
   /**
    * The first-run setup token, or null when nothing needs one — F10,
@@ -274,6 +334,17 @@ export interface AppServices {
    * changed since we read it?*
    */
   configDocument: Record<string, unknown>;
+  /**
+   * ***The environment layer this process started with*** (2026-09-27): the
+   * document `SE_HOST`, `SE_PORT`, `SE_DATA_DIR` and `SE_CLIENT_ROOT` made,
+   * which a boot layers under the file. The settings write had no copy of it,
+   * so the config it said would run was not the one a restart ran. Empty
+   * unless `main.ts` says otherwise, so no test depends on the machine it runs
+   * on.
+   */
+  environment: Record<string, unknown>;
+  /** What a write asks of the machine before it is written. See `startable.ts`. */
+  startable: StartableSeams;
   library: LibraryContext;
   /**
    * Whether something will start this process again — [09 §6.4], [P10.3].
@@ -301,6 +372,38 @@ export interface AppServices {
    * server leaving*.
    */
   draining: boolean;
+  /**
+   * Set while a restore request is between its checks and its drain.
+   *
+   * ***The reservation, taken before the first `await`.*** A restore request
+   * reads a whole archive before it writes its marker, and two of them used to
+   * interleave: the second overwrote the first's marker, found the drain
+   * already begun, and deleted the marker on its way out, so the server
+   * restarted without restoring. `draining` could not guard that, because it
+   * is set only at the end.
+   */
+  restoring: boolean;
+  /**
+   * ***A large import upload is being landed*** —
+   * [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md)'s *one
+   * large upload in flight*.
+   *
+   * Set by `routes/import-upload.ts` before the first byte of a landing larger
+   * than `limits.maxUploadMb` is written, and cleared when the landing's
+   * import is over, however it ended. Two such uploads at once are two
+   * copies of somebody's install arriving at the data volume together — and
+   * then, each, a database inflated beside it and a snapshot of that — so the
+   * second is refused with `503` and `retry-after` rather than let the pair
+   * find out together that the disk was not big enough for both. Server-wide
+   * rather than per account, because the disk is.
+   */
+  largeUploadInFlight: boolean;
+  /**
+   * How much the disk has free: `storage/files.ts`'s `freeBytes`, on the
+   * services so a test can answer *full*, which no test can make a real disk
+   * be. Read by the backup's room check.
+   */
+  freeBytes: (path: string) => Promise<number | null>;
   /**
    * What the last update check found — [09 §6.5], [P10.3].
    *
@@ -362,6 +465,10 @@ export interface BuildAppOptions {
   fetch?: typeof globalThis.fetch;
   /** The file's contents as this process read them. See {@link AppServices.configDocument}. */
   configDocument?: Record<string, unknown>;
+  /** The environment layer. See {@link AppServices.environment}. */
+  environment?: Record<string, unknown>;
+  /** Substitute the machine a settings write is checked against. See `startable.ts`. */
+  startable?: StartableSeams;
   /** Skip the filesystem watcher. Tests that do not exercise foreign writes want this. */
   watch?: boolean;
   /**
@@ -392,6 +499,17 @@ export interface BuildAppOptions {
    * the phase's standing line — P2C adds exactly one key — stays true.
    */
   captureDir?: string;
+  /**
+   * Whether something will start this process again — [09 §6.4], [P10.3].
+   *
+   * ***Passed in, because it is a fact about how the process was started, and
+   * only the caller that started it can know.*** `main.ts` reads the
+   * environment; everything else — every test harness, every embedding — gets
+   * `UNSUPERVISED`, which is `config.ts`'s rule for the environment layer
+   * applied to a second subject: a function that reached for `process.env`
+   * itself made each test's answer depend on the machine running it.
+   */
+  supervision?: Supervision;
 }
 
 export async function buildServices(options: BuildAppOptions): Promise<AppServices> {
@@ -431,8 +549,9 @@ export async function buildServices(options: BuildAppOptions): Promise<AppServic
   /**
    * **Everything after the first handle opens runs under a guard.**
    *
-   * `openState` already closes its own handle on a failed open, for a reason
-   * its comment states: on Windows a leaked SQLite handle keeps `-wal` and
+   * `openState` and `openIndex` each close their own handle on a failed open
+   * (`openIndex` only since it was found to have drifted), for a reason their
+   * comments state: on Windows a leaked SQLite handle keeps `-wal` and
    * `-shm` locked, so the *next* thing to touch that directory fails with
    * `EBUSY` and the real error is two layers from where it was caused. The same
    * argument applies to everything between the two opens and the return — a
@@ -481,9 +600,22 @@ async function assembleWithState(
   // A fresh or version-bumped index is empty and says so, which is what makes
   // deleting `index.sqlite` a non-event rather than a silently empty library
   // ([21 §5](../../../docs/design/21-internal-contracts.md)).
-  if (index.migration.rebuildRequired || options.config.index.rebuildOnStart) {
-    await rebuild(index.db, layout);
-  }
+  //
+  // ***And every other start checks it*** (2026-09-27): [03 §5.1]'s
+  // consistency check, by recorded size and time, which nothing ran. A start
+  // that did not rebuild looked at nothing, so an edit, an addition or a delete
+  // made while the server was stopped went unseen until the file changed again,
+  // and a session never caught up at all. Before the mode presets and the
+  // watcher, for the reasons the rebuild is.
+  const indexAtStart: AppServices['indexAtStart'] =
+    index.migration.rebuildRequired || options.config.index.rebuildOnStart
+      ? { kind: 'rebuilt', ...(await rebuild(index.db, layout)) }
+      : {
+          kind: 'reconciled',
+          ...(await reconcileIndex(index.db, layout, {
+            keepHistoryPerObject: library.keepHistoryPerObject,
+          })),
+        };
 
   /**
    * **The system library gets its contents** — [P7B.0].
@@ -517,6 +649,31 @@ async function assembleWithState(
   const config = structuredClone(options.config);
 
   /**
+   * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/09-p2a-configuration-surface.md).
+   *
+   * The runner needs it to read the account's `privateConnections` capability.
+   *
+   * The plan argues this as *two instances would be two caches and a revocation
+   * that takes effect eventually*, and that overstates what is true here, which
+   * is worth saying rather than repeating: `Accounts` revalidates against the
+   * file's `(mtime, size)` on **every** read, so a second instance would notice
+   * a revocation on its next turn too. A mutation that constructs one survives
+   * the suite, and it should.
+   *
+   * What sharing actually buys is not depending on that. A permission check
+   * whose freshness rests on filesystem timestamp granularity is one same-size
+   * write inside one clock tick away from being wrong, and it would be wrong
+   * silently and only sometimes. One instance has one answer by construction —
+   * and costs one stat per turn instead of two.
+   *
+   * ***Above the retention sweep, whose closure reads it*** (2026-09-27).
+   * Declared below it, a first pass that ran before this line was reached
+   * would have met the binding in its temporal dead zone, and the sweep now
+   * has a pass shortly after the start.
+   */
+  const accounts = new Accounts(layout);
+
+  /**
    * ***The retention sweep*** — [03 §10.2], [P11.7].
    *
    * Beside `startMaturation` because they are the same kind of thing: periodic
@@ -531,6 +688,21 @@ async function assembleWithState(
     () => config.trash.retentionDays,
   );
 
+  /**
+   * ***And the operational store's*** (2026-09-27): a finished turn's draft
+   * and events, collected once the segment holds the turn, which P2 §2.10
+   * allowed and nothing did. A session's latest job is kept while the session
+   * is there to attach to, and asked about by its file, the one thing that
+   * says a session exists.
+   */
+  const prune = startOperationalPrune(state.db, async (account, sessionId) => {
+    try {
+      return await fileExists(sessionFilePath(layout, account, sessionId));
+    } catch {
+      return false;
+    }
+  });
+
   const sessions: SessionContext = {
     layout,
     index: index.db,
@@ -538,7 +710,13 @@ async function assembleWithState(
     // `SessionContext.snapshotEvery` and `LIVE_APPLIERS`. `config` is the
     // server's own clone, which is what `applyLiveConfig` assigns into.
     snapshotEvery: () => config.sessions.snapshotEveryNTurns,
+    // The store's answer rather than the runner's live map, for `activeJob`'s
+    // own reason: a job a crash left unfinished is still the one that will
+    // commit, when boot reconciles it.
+    busy: (sessionId) => activeJob(state.db, sessionId) !== null,
   };
+  /** Backdrops that finished during a turn, for the runner to show after it. */
+  const deferredBackdrops = new DeferredBackdrops();
   const bus = new TurnStream();
   const jobs: JobContext = { db: state.db, sessions, events: bus };
   const commit: CommitContext = { ...jobs };
@@ -556,25 +734,6 @@ async function assembleWithState(
   const providers =
     options.providers ??
     createProviderFactory(capture === undefined ? {} : { wrapFetch: capture.wrapFetch });
-  /**
-   * **One `Accounts`, shared with the routes** — [P2A §2.1](../../../docs/design/workplan/09-p2a-configuration-surface.md).
-   *
-   * The runner needs it to read the account's `privateConnections` capability.
-   *
-   * The plan argues this as *two instances would be two caches and a revocation
-   * that takes effect eventually*, and that overstates what is true here, which
-   * is worth saying rather than repeating: `Accounts` revalidates against the
-   * file's `(mtime, size)` on **every** read, so a second instance would notice
-   * a revocation on its next turn too. A mutation that constructs one survives
-   * the suite, and it should.
-   *
-   * What sharing actually buys is not depending on that. A permission check
-   * whose freshness rests on filesystem timestamp granularity is one same-size
-   * write inside one clock tick away from being wrong, and it would be wrong
-   * silently and only sometimes. One instance has one answer by construction —
-   * and costs one stat per turn instead of two.
-   */
-  const accounts = new Accounts(layout);
 
   /**
    * **The server's own copy**, so a settings save cannot reach back into the
@@ -657,6 +816,8 @@ async function assembleWithState(
      * one layer up.
      */
     inFlight: new Set(),
+    // Aborted by `drainRenditions` when shutdown stops waiting for pictures.
+    shutdown: new AbortController(),
     /**
      * The connection the `image` role resolves to, for this account.
      *
@@ -712,17 +873,17 @@ async function assembleWithState(
       });
     },
     select: async (account, sessionId, renditionId) => {
-      await selectBackdrop(sessions, account, sessionId, renditionId, { kind: 'engine' });
+      await offerBackdrop(sessions, deferredBackdrops, account, sessionId, renditionId);
     },
   };
 
-  const dispatch = (
+  const dispatch = async (
     account: string,
     sessionId: string,
     records: readonly Rendition[],
     turnId: string,
-  ): void => {
-    dispatchRenditions(renditions, account, sessionId, records, turnId);
+  ): Promise<void> => {
+    await dispatchRenditions(renditions, account, sessionId, records, turnId);
   };
 
   /**
@@ -757,7 +918,36 @@ async function assembleWithState(
      * about not corrupting.
      */
     library,
+    committed: async (job, turn) => {
+      const shown = await showHeldBackdrop(sessions, deferredBackdrops, job.sessionId, turn);
+      if (shown === null) return;
+      // The frame a landing backdrop sends, again, now that it is showing: the
+      // page read the head at `turn.finished`, before this moved it.
+      const record = await readRendition(layout, shown.account, job.sessionId, shown.renditionId);
+      if (record !== null) bus.rendition(job.sessionId, record);
+    },
   });
+
+  /**
+   * ***The warm, and the two hooks that reach it from the store*** —
+   * [P14.11]. Assigned onto the session context rather than written into its
+   * literal, because the warm needs the providers and the bus and the context
+   * is declared before either — and a closure over a later `const` is the
+   * temporal-dead-zone hazard the config note above already refused once.
+   */
+  const summaryWarm = new SummaryWarmer({
+    sessions,
+    accounts,
+    providers,
+    config,
+    report: (warm) => {
+      bus.summaries(warm);
+    },
+  });
+  sessions.imported = (handle, sessionId) => {
+    summaryWarm.request(handle, sessionId);
+  };
+  sessions.deleting = (sessionId) => summaryWarm.cancel(sessionId);
 
   built = {
     config,
@@ -775,24 +965,33 @@ async function assembleWithState(
     notify,
     runner,
     renditions: dispatch,
-    drainRenditions: () => drainRenditions(renditions),
+    drainRenditions: (options) => drainRenditions(renditions, options),
+    retryRendition: (account, sessionId, record) =>
+      retryRendition(renditions, account, sessionId, record),
+    recoverRenditions: () => recoverRenditions(renditions),
+    summaryWarm,
     commit,
     providers,
     streams: new Set<() => void>(),
     // Filled in by `buildApp`, which is the first point a logger exists.
     reconciliation: { finalised: [], abandoned: [], failed: [] },
+    indexAtStart,
     accounts,
     watcher,
     maturation,
     trash,
+    prune,
     prefs: new PrefsStore(layout),
     tags: new TagStore(layout),
     backupSettings: new BackupSettingsStore(layout),
     backupSchedule: null,
-    supervision: supervisionOf(process.env),
+    supervision: options.supervision ?? UNSUPERVISED,
     // Wired by `main.ts`, which is the only caller that owns the process.
     exit: null,
     draining: false,
+    restoring: false,
+    largeUploadInFlight: false,
+    freeBytes,
     updates: UNCHECKED,
     // Replaced by `startUpdateCheck`, which `buildApp` runs once a logger
     // exists. A build that never starts one disposes cleanly.
@@ -819,25 +1018,13 @@ async function assembleWithState(
     fetch: options.fetch ?? globalThis.fetch,
     configPath: options.configPath ?? layout.configFile,
     configDocument: options.configDocument ?? {},
+    environment: options.environment ?? {},
+    startable: options.startable ?? MACHINE,
     library,
   };
   return built;
 }
 
-/**
- * Releases everything `buildServices` acquired, in the order that works.
- *
- * **The order is not stylistic, and it bites hardest on Windows.** The watcher
- * holds handles on the library tree, and both databases hold their own file plus
- * a `-wal` and a `-shm`; a test that removes its temporary directory before
- * those are closed fails with `EBUSY` on a file it never named. Close the app
- * first so no request is mid-flight, then the watcher, then the stores.
- *
- * One function rather than the same four lines in `main`, the test harness and
- * every suite that builds services directly — that duplication had already
- * silently dropped the maturation timer and the operational store from two of
- * the three, and each omission surfaced as a locked file rather than as a leak.
- */
 /**
  * Runs the update check on a timer, and answers with the stopper.
  *
@@ -880,6 +1067,71 @@ function startUpdateCheck(services: AppServices, log: Logger): void {
 /** See {@link startUpdateCheck} — long enough that a restart loop is not traffic. */
 const FIRST_CHECK_DELAY_MS = 60_000;
 
+/**
+ * ***What this start did to the index, said*** (2026-09-27).
+ *
+ * A rebuild of a large library is the one slow thing a start does, and it left
+ * no line saying so. The check says what it caught up with, and nothing when
+ * there was nothing. A file it found broken is said the way the watcher says
+ * one (F34), under the same event, because somebody who broke a file with the
+ * server stopped reads the same log as somebody who broke it with it running.
+ */
+function logIndexAtStart(log: Logger, start: AppServices['indexAtStart']): void {
+  if (start.kind === 'rebuilt') {
+    log.info(
+      {
+        event: 'index.rebuilt',
+        scanned: start.scanned,
+        indexed: start.indexed,
+        skipped: start.skipped,
+        sessions: start.sessions,
+        turns: start.turns,
+        sessionsSkipped: start.sessionsSkipped,
+      },
+      'Rebuilt the index from the data directory',
+    );
+    return;
+  }
+
+  for (const path of start.broken) {
+    log.warn({ event: 'library.invalid', path }, 'A library file could not be read');
+  }
+  const changed =
+    start.reread +
+    start.forgotten +
+    start.sessions +
+    start.sessionsForgotten +
+    start.sessionsSkipped;
+  if (changed > 0) {
+    log.info(
+      {
+        event: 'index.reconciled',
+        scanned: start.scanned,
+        reread: start.reread,
+        forgotten: start.forgotten,
+        sessions: start.sessions,
+        sessionsForgotten: start.sessionsForgotten,
+        sessionsSkipped: start.sessionsSkipped,
+      },
+      'Caught the index up with changes made while the server was stopped',
+    );
+  }
+}
+
+/**
+ * Releases everything `buildServices` acquired, in the order that works.
+ *
+ * **The order is not stylistic, and it bites hardest on Windows.** The watcher
+ * holds handles on the library tree, and both databases hold their own file plus
+ * a `-wal` and a `-shm`; a test that removes its temporary directory before
+ * those are closed fails with `EBUSY` on a file it never named. Close the app
+ * first so no request is mid-flight, then the watcher, then the stores.
+ *
+ * One function rather than the same four lines in `main`, the test harness and
+ * every suite that builds services directly — that duplication had already
+ * silently dropped the maturation timer and the operational store from two of
+ * the three, and each omission surfaced as a locked file rather than as a leak.
+ */
 export async function disposeServices(services: AppServices): Promise<void> {
   // **Runs first, and waits.** A detached turn touching a closed
   // `DatabaseSync` is the failure that surfaces on Windows as `EBUSY` on a
@@ -894,15 +1146,59 @@ export async function disposeServices(services: AppServices): Promise<void> {
    * a closed handle rather than preventing them.
    */
   await services.drainRenditions();
+  // The warm reads the index and writes link files, so it stops before either
+  // store closes; what it had not derived, the next turn will ([P14.11]).
+  await services.summaryWarm.stop();
   services.stopUpdateCheck();
   services.backupSchedule?.stop();
   for (const close of services.streams) close();
   services.streams.clear();
   services.maturation.stop();
   services.trash.stop();
+  services.prune.stop();
   await services.watcher?.stop();
   services.index.close();
   services.state.close();
+}
+
+/**
+ * How long closing the listener waits for requests still being answered
+ * before it ends their sockets.
+ *
+ * Event streams end at once, in `preClose`. This is for everything else a
+ * person can have in flight: an assist or a preview waiting on a model, which
+ * can be as long as `limits.providerTimeoutMs`, or a backup download on a
+ * slow link. Ten seconds for those to finish is worth waiting. A restart that
+ * one of them held open indefinitely is not.
+ */
+export const CLOSE_BACKSTOP_MS = 10_000;
+
+/**
+ * `app.close()`, with a bound.
+ *
+ * ***The sockets are ended, not skipped past.*** Going on to
+ * `disposeServices` while a request is still running would close the stores
+ * under its handler. `closeAllConnections()` ends the request, so its handler
+ * sees the client leave (the disconnect signal assist and illustrate listen
+ * for) and unwinds before anything is disposed.
+ */
+export async function closeApp(
+  app: FastifyInstance,
+  backstopMs = CLOSE_BACKSTOP_MS,
+): Promise<void> {
+  const backstop = setTimeout(() => {
+    app.log.warn(
+      { event: 'shutdown.backstop', afterMs: backstopMs },
+      'Requests were still open when shutdown stopped waiting; ending their connections',
+    );
+    app.server.closeAllConnections();
+  }, backstopMs);
+  backstop.unref();
+  try {
+    await app.close();
+  } finally {
+    clearTimeout(backstop);
+  }
 }
 
 export interface BuildOptions {
@@ -995,15 +1291,21 @@ export async function buildApp(
 
     const status = error.statusCode ?? 500;
     if (status >= 500) {
-      request.log.error({ err: error }, 'Unhandled error');
+      request.log.error({ event: 'request.failed', ...unhandledShape(error) }, 'Unhandled error');
       return reply.code(status).send({ error: 'internal', message: 'The request failed.' });
     }
     return reply.code(status).send({ error: 'invalid', message: error.message });
   });
 
-  // A hijacked stream survives `app.close()` — measured at zero milliseconds
-  // with one open — so the app has to end them itself.
-  app.addHook('onClose', (_instance, done) => {
+  /**
+   * ***A hijacked stream has to be ended by the app, and before the listener
+   * closes.*** Fastify's `onClose` runs after `server.close()` has waited for
+   * every open response, and an event stream never finishes on its own, so an
+   * `onClose` closer waited on itself (see `AppServices.streams`). Ending a
+   * stream finishes its response, which leaves the keep-alive socket idle,
+   * and Fastify closes idle sockets as it stops listening.
+   */
+  app.addHook('preClose', (done) => {
     for (const close of services.streams) close();
     services.streams.clear();
     done();
@@ -1021,6 +1323,11 @@ export async function buildApp(
   // The watcher too: a hand-edited file that fails to parse is otherwise
   // recorded in the index and said nowhere (F34).
   services.watcher?.setLogger(app.log);
+  logIndexAtStart(app.log, services.indexAtStart);
+  // The two daily passes, which said nothing about what they took or skipped.
+  services.trash.setLogger(app.log);
+  services.prune.setLogger(app.log);
+  services.summaryWarm.setLogger(app.log);
   services.capture?.setLogger(app.log);
   services.commit.log = app.log;
   services.bus.onListenerError = (error: unknown) => {
@@ -1043,19 +1350,6 @@ export async function buildApp(
   services.reconciliation = await reconcile(services.commit);
 
   /**
-   * ***And the pictures that were being made when the process died*** — [P9.2].
-   *
-   * **Abandoned rather than resumed**, which is `state/commit.ts`'s own rule —
-   * *"recovery resumes finalisation, never generation"* — and a provider call
-   * that died with the process cannot be picked up mid-flight.
-   *
-   * *What makes that acceptable here and not there is the placeholder.* An
-   * interrupted turn has to become a failed turn because there is nothing else
-   * honest to be; an interrupted rendition becomes a record with `asset: null`,
-   * its recipe intact, and a retry in front of it — which is [06 §10.2]'s answer
-   * to every other way this goes wrong.
-   */
-  /**
    * ***The daily update check*** — [09 §6.5], [P10.3].
    *
    * **Here rather than in `buildServices`**, for `reconcile`'s reason one line
@@ -1073,11 +1367,47 @@ export async function buildApp(
   startUpdateCheck(services, app.log);
 
   /**
+   * ***What an import the last process was killed during left in scratch*** —
+   * [P13 §1.3](../../../docs/design/workplan/30-p13-aventuras-import.md).
+   *
+   * A snapshot of somebody's Aventuras database is removed by the reader's
+   * `close()`, and a process that died mid-import never ran it, so the copy
+   * stayed: the size of a whole install, invisible to every listing, and kept
+   * out of every archive precisely so it could not be noticed that way either.
+   *
+   * **Here rather than in `buildServices`**, for a reason of its own:
+   * `buildServices` is what a CLI action runs, possibly beside a live server
+   * in the middle of an import, and emptying scratch from there would remove
+   * that import's database from under it. By this line the instance lock is
+   * held (`main.ts`), so nothing else is using the directory.
+   * `import-scratch.test.ts` holds both halves: the sweep runs at boot, and
+   * `buildServices` alone leaves scratch as it found it.
+   */
+  const scratch = await sweepImportScratch(services.layout).catch(() => 0);
+  if (scratch > 0) {
+    app.log.info(
+      { event: 'import.scratch-swept', entries: scratch },
+      'Removed what an interrupted import left behind',
+    );
+  }
+
+  /**
    * ***The backup timer*** — [P12.5]. Here rather than in `buildServices` for
-   * the reason one line up, and with more force: a migration or a CLI action
-   * that quietly started writing gigabyte archives into somebody's data
+   * the update check's reason above, and with more force: a migration or a CLI
+   * action that quietly started writing gigabyte archives into somebody's data
    * directory would be a surprising thing for `--reset-password` to do.
    */
+  /**
+   * What a backup the last process was killed during left behind, gone before
+   * the timer can start another. See `sweepAbandonedBackups`.
+   */
+  const abandoned = await sweepAbandonedBackups(services.layout).catch(() => 0);
+  if (abandoned > 0) {
+    app.log.info(
+      { event: 'backup.abandoned-swept', files: abandoned },
+      'Removed what an interrupted backup left behind',
+    );
+  }
   services.backupSchedule = startBackupSchedule({
     backups: backupContextOf(services),
     notices: { accounts: services.accounts, notify: services.notify },
@@ -1091,10 +1421,31 @@ export async function buildApp(
     },
   });
 
-  const stranded = reconcileRenditionJobs(services.state.db);
-  if (stranded.interrupted.length > 0) {
+  /**
+   * ***And the pictures that were being made when the process died*** — [P9.2].
+   *
+   * **Abandoned rather than resumed**, which is `state/commit.ts`'s own rule —
+   * *"recovery resumes finalisation, never generation"* — and a provider call
+   * that died with the process cannot be picked up mid-flight.
+   *
+   * *What makes that acceptable here and not there is the placeholder.* An
+   * interrupted turn has to become a failed turn because there is nothing else
+   * honest to be; an interrupted rendition becomes a record with `asset: null`,
+   * its recipe intact, and a retry in front of it — which is [06 §10.2]'s answer
+   * to every other way this goes wrong.
+   *
+   * ***Which was true of the job and not of the record until 2026-09-26.*** This
+   * note said *a record with a retry in front of it* while the call beneath it
+   * abandoned job rows and logged a count, and the record stayed `pending` —
+   * rendered with no button. `recoverRenditions` now does both halves. *(This
+   * note had also drifted two blocks above its call, as the update check and the
+   * backup timer were inserted between them; it is back beside what it
+   * describes.)*
+   */
+  const recovered = await services.recoverRenditions();
+  if (recovered.interrupted > 0) {
     app.log.info(
-      { event: 'renditions.reconciled', count: stranded.interrupted.length },
+      { event: 'renditions.reconciled', ...recovered },
       'Marked in-flight renditions as interrupted',
     );
   }
@@ -1112,7 +1463,32 @@ export async function buildApp(
    */
   for (const handle of await listAccountHandles(services)) {
     for (const sessionId of await listSessions(services.sessions, handle)) {
-      const advanced = await reconcileSession(services.sessions, handle, sessionId);
+      /**
+       * ***One session that cannot be read is one session passed over***
+       * (2026-09-27), and said: a `session.json` linked out of the data
+       * directory, or one the server's user cannot read, threw out of this
+       * loop, and the start with it — every time, since the folder was still
+       * there at the next.
+       */
+      let advanced: number;
+      try {
+        // Only over turns appended since the session's last write, unless the
+        // operational store is new: a head somebody parked stays where they
+        // put it (2026-09-27, `reconcileSession`).
+        advanced = await reconcileSession(services.sessions, handle, sessionId, {
+          sinceLastWrite: services.state.migration.from !== 0,
+        });
+      } catch (error) {
+        app.log.warn(
+          {
+            event: 'session.unreadable',
+            sessionId,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          'A session folder could not be read at start-up',
+        );
+        continue;
+      }
       if (advanced > 0) {
         app.log.info(
           { event: 'session.reconciled', sessionId, advanced },
@@ -1143,11 +1519,39 @@ export async function buildApp(
    */
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     const session = readSession(request.cookies[SESSION_COOKIE], services.sessionKey);
-    request.account = session ? await services.accounts.find(session.handle) : null;
-    if (request.account && !request.account.enabled) {
-      // Disabled between issuing the cookie and using it.
-      request.account = null;
-    }
+    const holder = session ? await services.accounts.find(session.handle) : null;
+    /**
+     * ***The account the cookie was issued to, not whoever holds its handle
+     * now*** (2026-09-27). A cookie named only a handle, so after an admin
+     * removed `sam` and later made a new `sam` for somebody else, the first
+     * person's cookie, valid for fourteen days, signed straight into the
+     * second person's library, connections and backups. The cookie carries
+     * the account's `createdAt` now, which no writer ever changes and a
+     * restore brings back as it was, so it names one account's lifetime.
+     *
+     * Disabled between issuing the cookie and using it is the other half, as
+     * before.
+     */
+    request.account =
+      holder !== null &&
+      session !== null &&
+      holder.enabled &&
+      holder.createdAt === session.createdAt
+        ? holder
+        : null;
+
+    /**
+     * ***What the router matched, not what the request spelled***
+     * (2026-09-27). The router decodes a path before it matches it, and both
+     * checks below read the raw URL, so `POST /%61pi/admin/restart` reached
+     * the restart route with no CSRF token and, before setup, past the setup
+     * gate. Any page on the same site (another port on the same box is enough
+     * for `SameSite=Lax`) could restart the server or post a file into
+     * somebody's library through a signed-in browser. The CSRF check reads no
+     * path at all now; the gate reads `routeOptions.url`, the pattern the
+     * request was routed to, which is unset when nothing matched.
+     */
+    const routed = request.routeOptions.url;
 
     // CSRF before anything else acts on the request. Double-submit: a token in
     // a script-readable cookie, echoed in a header a cross-site caller cannot
@@ -1163,7 +1567,12 @@ export async function buildApp(
     // Login CSRF — forcing someone into an account the attacker controls — is
     // the one real gap this leaves, and `SameSite=Lax` is what covers it: a
     // cross-site POST does not carry cookies at all.
-    if (request.account && isStateChanging(request.method) && isApi(request.url)) {
+    //
+    // ***On every address, not only `/api`*** (2026-09-27): there is no path
+    // left to misread. Outside `/api` the server answers only `GET` and `HEAD`,
+    // so the one change is that a signed-in `POST` to an address nothing
+    // serves is refused as `csrf` rather than answered with the page.
+    if (request.account && isStateChanging(request.method)) {
       if (!csrfValid(request.cookies[CSRF_COOKIE], request.headers[CSRF_HEADER_NAME])) {
         await reply.code(403).send({ error: 'csrf', message: 'Missing or invalid CSRF token.' });
         return;
@@ -1176,8 +1585,8 @@ export async function buildApp(
     // the loopback default this closes the window in which anyone on the
     // network could claim the admin account.
     if (
-      isApi(request.url) &&
-      !survivesSetupGate(request.url) &&
+      isApi(routed ?? request.url) &&
+      !survivesSetupGate(routed) &&
       (await services.accounts.needsSetup())
     ) {
       await reply
@@ -1206,6 +1615,12 @@ export async function buildApp(
       registerImportRoutes(api, services);
       registerSearchRoutes(api, services);
       registerSessionRoutes(api, services);
+      // Hide and unhide — P14 §1.6's one gesture that is not a turn ([P14.4]).
+      registerGestureRoutes(api, services);
+      // A chat's settings — voice, dispatch, who replies, the note ([P14.5]).
+      registerChatRoutes(api, services);
+      // A mode's on-demand step between turns — Update trackers ([P14.5a]).
+      registerOnDemandRoutes(api, services);
 
       /**
        * **The admin half, encapsulated** — [P2A §2.4](../../../docs/design/workplan/09-p2a-configuration-surface.md).
@@ -1266,7 +1681,7 @@ export async function buildApp(
   const clientRoot = services.config.server.clientRoot;
   if (clientRoot !== '') {
     const root = resolve(clientRoot);
-    if ((await readFileBytes(join(root, 'index.html'))) === null) {
+    if (await clientBuildMissing(root)) {
       throw new Error(`server.clientRoot has no index.html in it: ${root}`);
     }
     await app.register(fastifyStatic, {
@@ -1331,11 +1746,25 @@ export async function buildApp(
  * unlinked forever.
  */
 async function listAccountHandles(services: AppServices): Promise<string[]> {
-  return listDirectoryNames(services.layout.usersRoot);
+  return services.layout.userHandlesOnDisk();
 }
 
+/**
+ * ***Read the way the router reads it*** (2026-09-27). The router decodes a
+ * path before matching it, so `/%61pi/nonsense` is `/api/nonsense` to it, and
+ * the static handler hands this its path still encoded. Undecoded, the two
+ * callers below disagreed with the router: the fallback answered the page for
+ * an API address, and a file at `<clientRoot>/api/…` was served at `/%61pi/…`
+ * past the one guard written to stop exactly that.
+ */
 function isApi(url: string): boolean {
-  return url.startsWith('/api/');
+  let path = url;
+  try {
+    path = decodeURI(url);
+  } catch {
+    // A malformed escape: the router matched nothing for it either.
+  }
+  return path.startsWith('/api/');
 }
 
 /**
@@ -1344,9 +1773,13 @@ function isApi(url: string): boolean {
  * `setup` for obvious reasons, and `state` because it is how a client *learns*
  * that setup is needed — gating the discovery endpoint behind the thing being
  * discovered would leave the UI with a 503 and no way to know what it means.
+ *
+ * ***Asked of the route the request matched, and exactly*** (2026-09-27): a
+ * prefix test on the raw URL is what the encoded-prefix fault above lived in,
+ * and an unmatched address survives nothing.
  */
-function survivesSetupGate(url: string): boolean {
-  return url.startsWith('/api/auth/setup') || url.startsWith('/api/auth/state');
+function survivesSetupGate(routed: string | undefined): boolean {
+  return routed === '/api/auth/setup' || routed === '/api/auth/state';
 }
 
 /**
@@ -1474,6 +1907,36 @@ function assignInPlace(target: Record<string, unknown>, next: Record<string, unk
       target[key] = value;
     }
   }
+}
+
+/**
+ * ***An unhandled error as what diagnoses it, and nothing else it carries***
+ * (2026-09-27).
+ *
+ * This logged `err: error`, and the serialiser copies every enumerable
+ * property. A `CallFailed` carries the call it failed on, which is the whole
+ * rendered prompt, and the text streamed before it failed, and a `Cancelled`
+ * can carry both too. So a failed Illustrate wrote the turn's prose into the log
+ * as an *Unhandled error*, and so did a failed draft until that route learned
+ * to answer. [21 §4.1] keeps portable object bodies out of the log, and the
+ * runner's step-failure line already did (F32). This is the same rule at the
+ * door every other route falls through.
+ *
+ * What stays is what an operator searches for: the kind, the sentence, the
+ * stack, and the system's own codes. Fields rather than an `err` object,
+ * which is the runner's `failureShape` and for its reason: the serialiser
+ * treats anything with a `message` as an error and puts its own guess at the
+ * kind over ours.
+ */
+export function unhandledShape(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { message: String(error) };
+  const shape: Record<string, unknown> = { type: error.name, message: error.message };
+  for (const key of ['code', 'errno', 'syscall', 'path']) {
+    const value: unknown = (error as unknown as Record<string, unknown>)[key];
+    if (typeof value === 'string' || typeof value === 'number') shape[key] = value;
+  }
+  if (error.stack !== undefined) shape['stack'] = error.stack;
+  return shape;
 }
 
 /**

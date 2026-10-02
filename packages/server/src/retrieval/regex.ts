@@ -45,7 +45,10 @@ import { createContext, runInContext, type Context } from 'node:vm';
 
 /**
  * Long enough that no honest pattern reaches it, short enough that a hostile one
- * costs a fraction of a turn.
+ * costs a fraction of a turn — **once per scan**, which is the half this number
+ * could not say on its own. A scan runs a key against every message, pass and
+ * secondary list, so without `RegexLedger` (`match.ts`) a pattern that timed
+ * out once was timed out again on every haystack (corrected 2026-09-27).
  *
  * A legitimate key matched against a few kilobytes of chat text finishes in
  * microseconds; the gap between that and this is four orders of magnitude, so

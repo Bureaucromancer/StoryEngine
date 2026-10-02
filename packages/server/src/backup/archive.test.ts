@@ -1,22 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { readBackupManifest, BACKUP_MANIFEST_MEMBER } from '@storyengine/shared';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ensureDirectory, writeFileBytes } from '../storage/files.js';
-import { Layout } from '../storage/layout.js';
+import { ensureDirectory, listTreeFiles, writeFileBytes } from '../storage/files.js';
+import { holdInstanceLock } from '../instance-lock.js';
+import { INSTANCE_LOCK_NAME, Layout } from '../storage/layout.js';
 import { readTarGz, writeTarGz } from '../storage/tar-archive.js';
 import {
+  BackupSpaceError,
   findBackup,
   listBackups,
   readArchiveManifest,
   removeBackup,
+  sweepAbandonedBackups,
   takeBackup,
   type BackupContext,
 } from './archive.js';
@@ -50,6 +54,24 @@ async function membersOf(path: string): Promise<Map<string, string>> {
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
 
+/**
+ * Whether another process is refused the lock at `path`: the only way to see
+ * a POSIX lock this process has lost, since its own view of it does not
+ * change.
+ */
+function stillHeldElsewhere(path: string): boolean {
+  const script = [
+    "const { DatabaseSync } = require('node:sqlite');",
+    'const db = new DatabaseSync(process.argv[1]);',
+    "try { db.exec('pragma locking_mode = exclusive'); db.exec('begin exclusive'); process.stdout.write('taken'); }",
+    "catch { process.stdout.write('refused'); }",
+  ].join('\n');
+  const answer = execFileSync(process.execPath, ['-e', script, path], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).toString();
+  return answer === 'refused';
+}
+
 async function put(relative: string, text: string): Promise<void> {
   const path = join(root, ...relative.split('/'));
   await ensureDirectory(join(path, '..'));
@@ -79,6 +101,12 @@ async function populate(): Promise<void> {
   await put('state/setup.token', 'the first-run token');
   await put('state/build.json', '{"version":"1.0.0-alpha.4"}');
   await put('removed/old-0199/connections/theirs.json', '{"apiKey":"sk-a-removed-key"}');
+  // What a removed account took with it: its own archives, and its trash.
+  await put(
+    'removed/old-0199/backups/account-old-full-2026-09-01-x.tar.gz',
+    'sk-inside-an-archive',
+  );
+  await put('removed/old-0199/trash/actors/gone-0199/card.png', 'discarded before removal');
 
   // The derived half, **at the depth it actually has**.
   await put('index/index.sqlite', 'a stale belief about a newer tree');
@@ -156,6 +184,121 @@ describe('an install backup', () => {
     expect([...members.keys()].filter((name) => name.includes('/trash/'))).toEqual([]);
   });
 
+  /**
+   * ***A removed account's archives and trash stay behind too.*** Removal moves
+   * the directory whole to `removed/`, so they used to be archived from there:
+   * every install archive, `redacted` ones included, carried the removed
+   * account's own full archives with their provider keys in them.
+   *
+   * Catches: dropping the `removed/` rule from `alwaysSkipped`.
+   */
+  it('leaves a removed account’s archives and trash behind, redacted or not', async () => {
+    for (const contents of ['full', 'redacted'] as const) {
+      const record = await takeBackup(context, { owner: INSTALL, contents, reason: 'manual' });
+      const found = await findBackup(context, INSTALL, record.id);
+      const names = [...(await membersOf(found!.path)).keys()];
+
+      expect(names.filter((name) => name.startsWith('removed/old-0199/backups'))).toEqual([]);
+      expect(names.filter((name) => name.startsWith('removed/old-0199/trash'))).toEqual([]);
+    }
+  });
+
+  /**
+   * ***No room, found before anything is written*** (2026-09-27). A backup used
+   * to learn it did not fit by filling the disk, as a `.part` grown until
+   * `ENOSPC` and then unlinked: for that moment the server could not save a
+   * turn. Nor may the snapshot be written first, because it is a full copy of
+   * the operational store.
+   *
+   * Catches: a room check after the snapshot, or none.
+   */
+  it('refuses a backup there is no room for, and writes nothing to find out', async () => {
+    const full = { ...context, freeBytes: () => Promise.resolve(1024 * 1024) };
+    const before = await listTreeFiles(layout.backupsRoot);
+    // The snapshot would be unlinked again afterwards, so it is caught asking.
+    const exec = vi.spyOn(state, 'exec');
+
+    await expect(
+      takeBackup(full, { owner: INSTALL, contents: 'full', reason: 'manual' }),
+    ).rejects.toBeInstanceOf(BackupSpaceError);
+
+    expect(await listTreeFiles(layout.backupsRoot)).toEqual(before);
+    expect(exec.mock.calls.filter(([sql]) => sql.includes('VACUUM INTO'))).toEqual([]);
+  });
+
+  /**
+   * ***One at a time*** (2026-09-27). The route said *the queue serialises
+   * them*, and the only queue was the schedule's, per scope, which the route
+   * never reached. Two archives written at once each measured the room for
+   * itself alone. The room check is the first thing a backup asks, so it is
+   * held open here, and the second must not ask until the first is done.
+   */
+  it('writes two asked for at once one after the other', async () => {
+    let asked = 0;
+    let letTheFirstGo: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      letTheFirstGo = resolve;
+    });
+    const slow = {
+      ...context,
+      freeBytes: async () => {
+        asked += 1;
+        if (asked === 1) await held;
+        return null;
+      },
+    };
+
+    const first = takeBackup(slow, { owner: INSTALL, contents: 'full', reason: 'manual' });
+    const second = takeBackup(slow, { owner: NED, contents: 'full', reason: 'manual' });
+    await new Promise((tick) => setTimeout(tick, 50));
+    expect(asked).toBe(1);
+
+    letTheFirstGo();
+    await Promise.all([first, second]);
+    expect(asked).toBe(2);
+  });
+
+  /** A disk that will not say how much is free is not a full one. */
+  it('takes one when the disk will not say how much room there is', async () => {
+    const unknown = { ...context, freeBytes: () => Promise.resolve(null) };
+
+    const record = await takeBackup(unknown, {
+      owner: INSTALL,
+      contents: 'full',
+      reason: 'manual',
+    });
+
+    expect(record.bytes).toBeGreaterThan(0);
+  });
+
+  /**
+   * ***What a killed backup leaves, and only that.*** The `finally`s that
+   * remove a `.part` and a snapshot do not run in a process that was killed,
+   * so both used to stay for good: invisible to the listing, and as large as
+   * what they copied.
+   *
+   * Catches: a sweep that misses a home, and one that takes anything else.
+   */
+  it('sweeps what an interrupted backup left, and nothing else', async () => {
+    await put('backups/install-full-2026-09-27-x.tar.gz.part', 'half an archive');
+    await put('users/ned/backups/account-ned-full-2026-09-27-x.tar.gz.part', 'half of theirs');
+    await put('state/state.snapshot-0199aaaa.sqlite', 'a copy of the store');
+    await put('users/@eaDir/backups/thumbs.part', 'a NAS indexer’s, not ours');
+
+    expect(await sweepAbandonedBackups(layout)).toBe(3);
+
+    const left = [
+      ...(await listTreeFiles(layout.backupsRoot)),
+      ...(await listTreeFiles(layout.userBackupsRoot('ned'))),
+      ...(await listTreeFiles(layout.stateRoot)),
+    ].map((file) => file.name);
+    expect(left.filter((name) => name.endsWith('.part') || name.includes('snapshot'))).toEqual([]);
+    // The finished archives and the live store stay.
+    expect(left).toContain('install-full-2026-09-01-x.tar.gz');
+    expect(left).toContain('account-ned-full-2026-09-01-x.tar.gz');
+    expect(left).toContain('state.sqlite');
+  });
+
   /** An archive of the archives makes every generation carry every one before it. */
   it('leaves the stored backups behind, at both of their homes', async () => {
     const record = await takeBackup(context, {
@@ -167,6 +310,87 @@ describe('an install backup', () => {
     const members = await membersOf(found!.path);
 
     expect([...members.keys()].filter((name) => name.includes('backups/'))).toEqual([]);
+  });
+
+  /**
+   * ***The install a restore replaced is not part of this one.*** Since the
+   * swap moved inside the data directory (2026-09-27), the undo sits at
+   * `.restore/<id>/replaced`, and an archive that took it would carry a whole
+   * second install, and the next would carry both.
+   *
+   * Catches: dropping `.restore` from `alwaysSkipped`.
+   */
+  it('leaves a restore’s kept install behind', async () => {
+    await put('.restore/0199-old/replaced/users/ned/library/actors/vera/card.png', 'the old vera');
+    await put('.restore/swap.json', '{"schema":"storyengine.restore-swap/1"}');
+
+    const record = await takeBackup(context, {
+      owner: INSTALL,
+      contents: 'full',
+      reason: 'manual',
+    });
+    const found = await findBackup(context, INSTALL, record.id);
+    const members = await membersOf(found!.path);
+
+    expect([...members.keys()].filter((name) => name.startsWith('.restore'))).toEqual([]);
+    // And the rest is still there, so the filter above is not passing over nothing.
+    expect(members.has('users/ned/library/actors/vera/card.png')).toBe(true);
+  });
+
+  /**
+   * ***An import's scratch is not part of the install*** —
+   * [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md).
+   * It holds a private copy of somebody's whole Aventuras install for as long
+   * as one import runs, and a backup taken meanwhile would carry it.
+   *
+   * Catches: dropping the scratch root from `alwaysSkipped`.
+   */
+  it('leaves an import’s scratch behind', async () => {
+    await put('state/import-scratch/0199-a/vacuum.sqlite', 'a copy of somebody’s install');
+    await put(
+      'state/import-scratch/0199-a/vacuum.sqlite-journal',
+      'and what SQLite made beside it',
+    );
+    await put('state/import-scratch/stray', 'whatever a crash left');
+
+    const record = await takeBackup(context, {
+      owner: INSTALL,
+      contents: 'full',
+      reason: 'manual',
+    });
+    const found = await findBackup(context, INSTALL, record.id);
+    const members = await membersOf(found!.path);
+
+    expect([...members.keys()].filter((name) => name.includes('import-scratch'))).toEqual([]);
+    // The rest of `state/` still goes, so the filter above is not passing over nothing.
+    expect(members.has('state/build.json')).toBe(true);
+    expect(members.has('state/state.sqlite')).toBe(true);
+  });
+
+  /**
+   * ***The instance lock, which the walk must never open*** (2026-09-27). On
+   * POSIX, closing any descriptor to a file drops every lock the process holds
+   * on it, so a walk that read the file would let a running server's lock go
+   * at its first backup. Held here as a server holds it, and asked about
+   * afterwards from another process, since this one cannot see the loss.
+   */
+  it('neither carries the instance lock nor lets it go', async () => {
+    const held = holdInstanceLock(layout);
+    try {
+      const record = await takeBackup(context, {
+        owner: INSTALL,
+        contents: 'full',
+        reason: 'manual',
+      });
+      const found = await findBackup(context, INSTALL, record.id);
+      const members = await membersOf(found!.path);
+
+      expect(members.has(INSTANCE_LOCK_NAME)).toBe(false);
+      expect(members.has('users/ned/library/actors/vera/card.png')).toBe(true);
+      expect(stillHeldElsewhere(layout.instanceLockFile)).toBe(true);
+    } finally {
+      held.release();
+    }
   });
 
   /**

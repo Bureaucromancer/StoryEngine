@@ -96,6 +96,7 @@ const HELD_WORDS: Record<string, string> = labels('workbench.rendition.held', {
   'place-unchanged': 'Nothing was made: the place had not changed since the last backdrop.',
   'no-moment': 'Nothing was made: this turn held no moment worth a picture.',
   'no-binding': 'Nothing was made: no model is bound to the image role.',
+  'no-place': 'Nothing was made: the story has not said where this is yet.',
 });
 
 function RenditionRow({

@@ -9,8 +9,8 @@ import {
   type Lorebook,
 } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
-import { parsed, refused, type ParseOutcome } from '../parse.js';
+import { distinctIds, stableId } from '../identity.js';
+import { ownEntry, parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
  * Marinara lorebooks → `Lorebook`
@@ -110,6 +110,8 @@ export function convertLorebook(
   }));
 
   lorebook.entries = entries.filter(isRecord).map((row) => convertEntry(row, notes));
+  // As SillyTavern's: one name and one content twice would be one id twice.
+  distinctIds(lorebook.entries, 'entry', lorebook.name);
 
   return parsed({ lorebook, notes });
 }
@@ -124,7 +126,9 @@ function convertEntry(row: Record<string, unknown>, notes: ImportNote[]): LoreEn
   }
 
   const rawLogic = str(row['selectiveLogic']) || 'and';
-  const logic = SELECTIVE_LOGIC[rawLogic];
+  // Own entries: a logic of `constructor` found `Object`, and a function in
+  // the entry cost the whole lorebook its validation (2026-09-27).
+  const logic = ownEntry(SELECTIVE_LOGIC, rawLogic);
   if (logic === undefined) {
     notes.push(note('import.lore.logicNarrowed', { entry: name, original: rawLogic }, 'warn'));
   }
@@ -200,7 +204,37 @@ function roleOf(value: unknown): LoreEntry['role'] {
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const num = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
-const bool = (value: unknown, fallback: boolean): boolean =>
-  typeof value === 'boolean' ? value : fallback;
-const strings = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+/**
+ * ***A boolean as Marinara stores one*** (2026-09-27): the text `"true"` or
+ * `"false"`, in every one of its tables. Only a real boolean was accepted, so
+ * on a real store every switch took its default — every disabled entry came
+ * back on, every constant one stopped being constant, every whole-word and
+ * case-sensitive match stopped being either. Its own storage compares with
+ * `=== "true"`; a parsed export sends booleans; both are read.
+ */
+const bool = (value: unknown, fallback: boolean): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return fallback;
+};
+
+/**
+ * ***A list as Marinara stores one*** (2026-09-27): JSON text, `'["docks"]'`,
+ * which its storage parses on every read. Only an array was accepted, so on a
+ * real store every entry's keys were none — the whole book imported, and not
+ * one entry could ever fire.
+ */
+const strings = (value: unknown): string[] => {
+  let list = value;
+  if (typeof value === 'string') {
+    try {
+      list = JSON.parse(value) as unknown;
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(list)
+    ? list.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+};

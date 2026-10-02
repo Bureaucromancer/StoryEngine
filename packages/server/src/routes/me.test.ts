@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { newLorebook, uuidv7 } from '@storyengine/shared';
 
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
@@ -519,5 +524,55 @@ describe('the role bindings of the person asking', () => {
     const body = JSON.stringify(response.body);
     expect(body).not.toContain('sk-must-never-come-back');
     expect(body).not.toContain('api.internal.example');
+  });
+});
+
+/**
+ * ***Restoring from the trash: a 400 means the address, and only that***
+ * (2026-09-27).
+ *
+ * The route caught every throw from the restore and answered *That is not an
+ * address in the trash*. A rename the disk refused, a folder a scanner holds on
+ * Windows or a full disk, told the person their entry did not exist, and
+ * nothing reached the log to say otherwise.
+ */
+describe('POST /api/me/trash/restore', () => {
+  /** A lorebook in ned's trash, as a delete leaves one. */
+  async function trashedBook(): Promise<string> {
+    const layout = server.services.layout;
+    const name = `rain-city-${uuidv7()}`;
+    const folder = join(layout.trashRoot('ned'), 'lorebooks', name);
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, 'lorebook.json'), JSON.stringify(newLorebook('Rain City')));
+    return `lorebooks/${name}`;
+  }
+
+  it('answers 400 for an address that is not one', async () => {
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id: '../../etc' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid');
+  });
+
+  it('answers a restore the disk refuses as the failure it is, not as a bad address', async () => {
+    const id = await trashedBook();
+    // Where the lorebook would go back to cannot be made: a file stands where
+    // its kind's folder has to be.
+    const library = join(server.dataDir, 'users', 'ned', 'library');
+    await rm(join(library, 'lorebooks'), { recursive: true, force: true });
+    await writeFile(join(library, 'lorebooks'), 'not a folder');
+
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id },
+    });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).not.toBe('invalid');
   });
 });

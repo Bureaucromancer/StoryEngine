@@ -218,6 +218,16 @@ at looser leading against the tooling steps), **measure** (`--container-reading`
 against the shell's width), and **chrome**: the story surfaces carry no border
 and no panel background, so tool chrome cannot land on one by accident.
 
+**Type is a face as well as a step** (2026-10-01, polish 5 —
+[polish §17](workplan/06-polish.md)). At body size a looser leading alone read
+as the same page set a little wider, so the story takes `--font-story` — a book serif from the faces each system already ships —
+wherever it takes `text-story`, against the interface's `--font-ui`. Both are
+system stacks, with no webfont: a downloaded face is a request on every cold
+load and a flash of the fallback while it arrives, on a server meant to need
+nothing from outside the house. The step and the face are one separator, so
+`theme.test.ts` refuses the step without the face, and home's changelog, which
+takes *type* for its one block of prose, takes both.
+
 ### 1.3 The Marinara direction, and the three layers it has to be separated into
 
 **Added 2026-09-22**, on a directive: push the client toward Marinara Engine's
@@ -300,7 +310,10 @@ project already committed to:
 - **A face for the prose itself.** Marinara gets its personality from effects
   and runs one sans stack throughout; `--text-story` is where a distinct reading
   face belongs here. This is Marinara's goal reached by a cheaper and quieter
-  means, and it is the one item on this list it did not think of.
+  means, and it is the one item on this list it did not think of. ***Built
+  2026-10-01***, before P12A opened and by a pass that had not read this
+  section: §1.2's last paragraph is the face, and
+  [polish §17](workplan/06-polish.md) the record.
 
 #### What is not taken
 
@@ -355,10 +368,13 @@ design note without an owner is precisely the defect
 
 The split is therefore explicit, and it is the last thing this section does:
 
-- **1.0, owned by [P12A](workplan/30-p12a-the-look.md)** — faces, the editable
+- **1.0, owned by [P12A](workplan/33-p12a-the-look.md)** — faces, the editable
   channel HUD, the backdrop's legibility mechanism, the motion vocabulary, the
-  section jumps, the story face, and the phone rules below. Each discharges a
-  commitment this corpus already made; P12A is where each is sized.
+  section jumps, ~~the story face,~~ and the phone rules below. Each discharges a
+  commitment this corpus already made; P12A is where each is sized. *The story
+  face left this list on 2026-10-02, at the merge that brought it in: `main`
+  had built it the day before ([polish §17](workplan/06-polish.md)), and what
+  [P12A](workplan/33-p12a-the-look.md) keeps of it is the measure check.*
 - **Not 1.0, and not commitments** — the gallery view and per-step setup
   explanation. They are on the feature list ([24](24-roadmap.md))'s priorities,
   and if P12A reaches them they ship early rather than late.
@@ -974,6 +990,13 @@ Honest accounting, because the user is right that this is a pain:
   flagged invalid with the parse error shown, and nothing crashes, hides it, or
   silently rewrites it. That behaviour is needed anyway for hand-edited-on-disk
   files and for imports, so the file browser doesn't create the requirement.
+
+  *Partly built, 2026-09-28.* The panel over the library list names every file
+  that will not read, with its reason in words and the parser's complaint, and
+  an object whose file broke after it was read says so on its own page, with
+  Edit withheld — a save would write over a file the page cannot show — and
+  Delete kept. Its row in the list is not flagged yet; the panel above the list
+  is what a person meets first.
 - **Upload is an attack surface** even among trusted users: size limits, no
   archive traversal on zip extraction (`zip-slip`), no execute bits, and content
   sniffing rather than trusting extensions.
@@ -1171,11 +1194,30 @@ does not keep it.
   lost — this is the primitive, and it is available for every kind. *As stored*
   ([polish §2](workplan/06-polish.md)) already shows these bytes in a fold; this
   is the same bytes with somewhere to put them.
+
+  *Corrected 2026-09-28.* ~~No conversion, so nothing lost~~ — for an actor the
+  route served the index's JSON, and that is not what is stored: an actor is its
+  card image, the portrait its pixels and every expression a chunk inside it
+  ([03 §5.2](03-data-model.md)), so the download lost every picture and said
+  nothing. It hands over the card now, and the import door reads a card of ours
+  back as ours. So *the same bytes* as the fold holds for every kind but the
+  actor, whose fold shows its JSON reading of the card. And a folder kind's
+  pictures live in `assets/` beside its JSON, so for a lorebook's gallery and
+  its entries' strips *nothing lost* holds of the object and not of its
+  pictures, which a download leaves behind — and the page says how many,
+  under the link.
 - **Export as…** are **writers**, built from a shared table of formats. A writer
   loses something by definition; what it must do is *say* what, in the same
   `{ key, params }` vocabulary the import review uses — because an export leaves
   no record behind, and the surface offering the download is the only place
   anybody will ever be told.
+
+  *Corrected 2026-09-28.* ~~the surface offering the download is the only place
+  anybody will ever be told~~ — and it told nobody. The rows were plain links,
+  so the answer went to the browser: the notes travelled in a header nothing
+  read, and a refused download was its JSON body, saved as the file. A plain
+  click fetches the address now, saves the file, and says under the link what
+  it left out, or why it could not be had.
 
 **One rule the table carries and the surface renders: whether the format
 round-trips.** Aventuras exports a `VaultScenario` and its own scenario import
@@ -1987,6 +2029,14 @@ It buys three things, the third of which is the interesting one:
   actually write?" becomes answerable. No source offers this, and it is a real
   trust feature rather than a novelty.
 
+*A known gap, recorded 2026-09-27 (`c3522f4`):* **the map keeps a path whose
+row has gone.** Remove an actor's sample, a lorebook's entry or a hook, and its
+`generated` entries stay in the file, keyed by a path nothing has any more — and
+a reader that walks the map, such as the library-wide view above, would count
+them. Pruning needs a per-kind map from form paths to object paths (an actor's
+`sections.<id>` is `profile.sections` on disk), which is why it waited; a late
+assist answering a removed row is one more way in.
+
 ### 11.2a Version history, in every editor
 
 Every library object keeps an edit history automatically
@@ -2072,6 +2122,16 @@ different arrays and only the form knows which one a picture belongs to — a ro
 that decided would write the object behind the editor's draft. What that costs is
 an orphan, and what pays it back is a sweep on save: **a file no manifest row
 names is exactly a file whose digest nothing carries.**
+
+*Corrected 2026-09-27.* ~~a file no manifest row names is exactly a file whose
+digest nothing carries~~: the history carries it too. Versions keep JSON and
+never pixels ([03 §11.2](03-data-model.md)), so removing a map and saving
+deleted the map, and restoring the version before brought back a row naming
+nothing. The manifest was also the only thing asked while an upload waited for
+its save, so a picture uploaded during another save, or in a second tab, went
+before it was named. A file is now collected when no version names it either,
+it is a day old, and its name is one the store writes, and every read, store
+and sweep checks where its path really lands ([03 §5.3](03-data-model.md)).
 
 *The crop is a centred square, in the browser.* §11's *"uploaded, cropped and
 replaced"* is three of four here; a drag-to-choose rectangle is a better tool and
@@ -2193,6 +2253,15 @@ clears the **book's** gallery rather than appearing to select from it: `media` i
 the world's art and `writingSamples` is how the world reads, and neither is a
 fact about twelve entries. `hooks` go the same way for a second reason — nothing
 links a hook to an entry, so *which hooks came with these* has no answer to give.
+
+*Corrected 2026-09-27:* ~~has nothing to carry yet~~ — §11.2b was built the same
+day, and from then an export sent each entry's picture **rows** in a plain JSON
+file that cannot hold their bytes, so every picture arrived naming a file the
+receiving book did not have. The zip form ([03 §5.2.3](03-data-model.md)) is still
+not built, so the rows now stay behind with their pictures, the export says how
+many beside its button, and an import drops the rows of any file that names
+pictures and says whose. The clause above is owed the zip container, not
+withdrawn.
 
 *The export is built in the page, not fetched from a route.* What is being
 exported is a selection of the **draft**, edits and all; a route would only ever
@@ -2317,14 +2386,33 @@ before they are discovered:
 - **They need a connection**, and it should not silently be the chat one. This
   is what `ModelHint.role` ([03 §2.6](03-data-model.md)) is for — assist work
   wants the `fast` role, image work wants an image connection, and a household
-  server needs those resolvable per user.
+  server needs those resolvable per user. *As built (2026-09-27):* field assist
+  asks for `prose` by default, because `fast` fails on any install that never
+  bound it ([25 C15](25-open-questions.md)), and each person may point it at
+  their `fast` or `reasoning` model instead from the role-binding settings — a
+  choice of **role**, so which model that means stays in the table beside it.
+  The per-account choice is a stopgap and retires when C15 decides fallback for
+  every role.
 - **They cost money, and must be *recorded* even though nothing displays it at
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
   to [24 §3](24-roadmap.md).
-- **They produce no turn record.** §8.2's provenance is the record, which is
-  another reason it is not optional.
+- **They produce no turn record.** ~~§8.2's provenance is the record, which is
+  another reason it is not optional.~~ **Corrected 2026-09-27.** There is no
+  §8.2 in this document, and the provenance that sentence most plausibly meant —
+  §11.2's `GeneratedFieldProvenance` — cannot be the record: it has no field for
+  usage, it is written by the client, and only when the person saves, so an
+  assist somebody rejected (which cost exactly as much) would leave nothing. The
+  record is the account's usage log, `users/<handle>/usage.jsonl`
+  ([21 §1.4](21-internal-contracts.md)): one line per call, the provider's own
+  figures or null. ~~It covers every call that makes no turn~~ *It covers the
+  text calls that make no turn and return* (corrected the same day) — field
+  assists, impersonation, and the moment call behind **Illustrate** — and it is
+  what the aggregate view in [24 §3](24-roadmap.md) will read. **Not yet**: an
+  image render's own cost, which [25 E16](25-open-questions.md) records as
+  dropped, and a call that failed or was cancelled after the provider had
+  started billing, which records nothing because nothing returned.
 
 ### 11.5 Traps
 
@@ -2999,6 +3087,17 @@ not**, because *my keys did not come across* should be a question with an answer
 rather than a bug report. The admin's panel adds a fourth box for the install's
 settings, and says which account in the archive — from **the archive's** list of
 handles, because an account here the archive holds nothing for is not a choice.
+
+**A session already here is left alone** (2026-09-27). It is skipped when it
+is here under its own id, when it is in this account's trash, or when its turns
+are already on the install ([api](../api.md) has the three cases). Nothing is
+merged into it, and nothing is lost by that: a session's turns are append-only,
+so the copy here holds every turn the archive's copy does and any played since
+— the one exception is a branch pruned here after the archive was taken, which
+restoring the archive, not importing it, brings back. The alternative, a second
+copy, was the behaviour until that day, and it was worse than untidy: the copy
+kept the turn ids, the index holds one row per turn id, and the copy took the
+original's search rows with it.
 
 ### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
 

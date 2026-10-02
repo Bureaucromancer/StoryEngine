@@ -568,6 +568,13 @@ reference, once, at the boundary. **[OPEN]** whether any macro syntax survives
 into authoring — some template-level substitution inside a block is probably
 unavoidable, and Liquid already provides it.
 
+*Built in part, 2026-09-27.* A card's placeholders for **itself** — `{{char}}`,
+`{{charIfNotGroup}}` and the legacy `<BOT>`, `<CHAR>` — are written as its name
+at import, in every prose field and in the book it carries: a card is one
+character, so they can only ever mean that. **`{{user}}` is kept and flagged**,
+because who plays is a session's to decide and this question is still open; the
+review says the placeholder will reach the model as written.
+
 ### 6.2 Bundled tokenizers
 
 ST ships nine sentencepiece/JSON tokenizer models (`llama`, `mistral`, `gemma`,

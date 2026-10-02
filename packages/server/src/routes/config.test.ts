@@ -7,7 +7,12 @@ import { Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_CONFIG } from '../config.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  makeTestServer,
+  setUpAdmin,
+  type TestServer,
+  type TestServerOptions,
+} from '../test-server.js';
 
 /**
  * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md),
@@ -752,6 +757,240 @@ describe('recovering from a hand edit', () => {
       url: '/api/admin/config',
       payload: { config: withChange('log.level', 'warn'), contentHash: read.body.contentHash },
     });
+
+    expect(saved.status).toBe(200);
+  });
+});
+
+/**
+ * ***What a save writes, and whether the next start could use it***
+ * (2026-09-27).
+ *
+ * Three faults in one write. The form sends the whole running config back and
+ * every key was written, so one unedited Save copied the environment's
+ * `SE_HOST`, `SE_PORT` and `SE_CLIENT_ROOT` into the file, where they outrank
+ * the environment for good. The config the write said would run had no
+ * environment under it, so on a container it was not the config a restart
+ * ran. And the only question asked of it was the schema's, which passes an
+ * address this machine lacks, a port something else holds, a client root with
+ * no build and `Secure` cookies over plain HTTP — each a start that failed or
+ * could not be reached, with no settings page left to undo it from.
+ */
+describe('what a save writes, and whether the next start could use it', () => {
+  /** A server as a container boots one: `SE_HOST` and `SE_PORT` set. */
+  async function containerServer(
+    startable: TestServerOptions['startable'] = {},
+  ): Promise<TestServer> {
+    const environment = { server: { host: '0.0.0.0', port: 8123 } };
+    const container = await makeTestServer({
+      environment,
+      config: { server: { ...DEFAULT_CONFIG.server, ...environment.server } },
+      startable,
+    });
+    // Bound beyond loopback, so setup wants the console's token, as it should.
+    const setUp = await container.request({
+      method: 'POST',
+      url: '/api/auth/setup',
+      payload: {
+        handle: 'ned',
+        password: 'correct horse battery',
+        setupToken: container.services.setupToken ?? '',
+      },
+    });
+    expect(setUp.status).toBe(201);
+    return container;
+  }
+
+  async function save(
+    target: TestServer,
+    change: Record<string, unknown>,
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; body: any }> {
+    const config = structuredClone(target.services.config) as Record<string, unknown>;
+    for (const [path, value] of Object.entries(change)) {
+      const parts = path.split('.');
+      const last = parts.pop()!;
+      let node = config;
+      for (const part of parts) node = node[part] as Record<string, unknown>;
+      node[last] = value;
+    }
+    return target.request({
+      method: 'PUT',
+      url: '/api/admin/config',
+      payload: { config },
+      headers,
+    });
+  }
+
+  async function fileOf(target: TestServer): Promise<Record<string, unknown>> {
+    return JSON.parse(await readFile(target.services.configPath, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+  }
+
+  it('writes what was changed, not what the environment or the defaults already say', async () => {
+    const container = await containerServer();
+    try {
+      const saved = await save(container, { 'log.level': 'debug' });
+
+      expect(saved.status).toBe(200);
+      expect(await fileOf(container)).toEqual({ log: { level: 'debug' } });
+      // Resolved with the environment under the file, as a restart will be, so
+      // nothing reads as waiting for one.
+      expect(saved.body.pendingRestart).toEqual([]);
+    } finally {
+      await container.dispose();
+    }
+  });
+
+  it('hands a refused save the config that file would start on, environment included', async () => {
+    const container = await containerServer();
+    try {
+      // A hand edit the form has not seen: the stale check refuses the save.
+      await writeFile(container.services.configPath, JSON.stringify({ log: { level: 'warn' } }));
+
+      const refused = await save(container, { 'log.level': 'debug' });
+
+      expect(refused.status).toBe(412);
+      // What a start on that file would bind: `SE_HOST` under it, not the default.
+      expect(refused.body.current.server).toMatchObject({ host: '0.0.0.0', port: 8123 });
+    } finally {
+      await container.dispose();
+    }
+  });
+
+  it('still writes a value somebody changed where the environment set one', async () => {
+    const container = await containerServer();
+    try {
+      const saved = await save(container, { 'server.port': 9123 });
+
+      expect(saved.status).toBe(200);
+      // The section only: a test server runs `log.level: silent`, which no
+      // file or variable says, so it is a value this save differs on.
+      expect((await fileOf(container))['server']).toEqual({ port: 9123 });
+      expect(saved.body.pendingRestart).toEqual(['server.port']);
+    } finally {
+      await container.dispose();
+    }
+  });
+
+  it('writes a value put back to its default when the file had set it', async () => {
+    // The file's word is written whatever it equals, so *overwrite with mine*
+    // overwrites — here, setting a level back to the default takes.
+    await writeFile(configPath(), JSON.stringify({ log: { level: 'debug' } }));
+    const restarted = await makeTestServer({ dataDir: server.dataDir });
+    try {
+      // The directory already has its admin, from the server this borrowed it from.
+      await restarted.request({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { handle: 'ned', password: 'correct horse battery' },
+      });
+      const saved = await save(restarted, { 'log.level': 'info' });
+
+      expect(saved.status).toBe(200);
+      expect(restarted.services.config.log.level).toBe('info');
+      expect(await fileOf(restarted)).toEqual({ log: { level: 'info' } });
+    } finally {
+      await restarted.dispose();
+    }
+  });
+
+  it('refuses a client root with no build in it, and writes nothing', async () => {
+    const before = await readFile(configPath(), 'utf8').catch(() => null);
+
+    const refused = await save(server, { 'server.clientRoot': '/no/build/was/ever/here' });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.issues.join(' ')).toMatch(/\/server\/clientRoot has no index\.html/);
+    expect(await readFile(configPath(), 'utf8').catch(() => null)).toBe(before);
+  });
+
+  it('refuses an address this machine does not have, and takes the wildcard and loopback', async () => {
+    const refused = await save(server, { 'server.host': '203.0.113.7' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.issues.join(' ')).toMatch(
+      /\/server\/host 203\.0\.113\.7 is not an address/,
+    );
+
+    expect((await save(server, { 'server.host': '0.0.0.0' })).status).toBe(200);
+    expect((await save(server, { 'server.host': '::1' })).status).toBe(200);
+  });
+
+  it('asks a name what it resolves to here', async () => {
+    const lost = await containerServer({
+      resolveHost: () => Promise.reject(new Error('getaddrinfo ENOTFOUND')),
+    });
+    try {
+      const refused = await save(lost, { 'server.host': 'storyengine.local' });
+      expect(refused.status).toBe(400);
+      expect(refused.body.issues.join(' ')).toMatch(/does not resolve/);
+    } finally {
+      await lost.dispose();
+    }
+
+    const found = await containerServer({ resolveHost: () => Promise.resolve('127.0.0.1') });
+    try {
+      expect((await save(found, { 'server.host': 'storyengine.local' })).status).toBe(200);
+    } finally {
+      await found.dispose();
+    }
+  });
+
+  it('refuses a port the next start could not listen on', async () => {
+    const held = await containerServer({
+      trialListen: () =>
+        Promise.reject(Object.assign(new Error('listen EADDRINUSE'), { code: 'EADDRINUSE' })),
+    });
+    try {
+      const refused = await save(held, { 'server.port': 9124 });
+
+      expect(refused.status).toBe(400);
+      expect(refused.body.issues.join(' ')).toMatch(/\/server\/port 9124 .*EADDRINUSE/);
+      expect(held.services.config.server.port).toBe(8123);
+    } finally {
+      await held.dispose();
+    }
+  });
+
+  it('does not try the port it already holds when only the address changes', async () => {
+    // The port this process listens on would refuse its own trial.
+    let tried = 0;
+    const counting = await containerServer({
+      trialListen: () => {
+        tried += 1;
+        return Promise.resolve();
+      },
+    });
+    try {
+      expect((await save(counting, { 'server.host': '127.0.0.1' })).status).toBe(200);
+      expect(tried).toBe(0);
+    } finally {
+      await counting.dispose();
+    }
+  });
+
+  it('refuses Secure cookies asked for over plain HTTP', async () => {
+    const refused = await save(server, { 'server.cookieSecure': true });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.issues.join(' ')).toMatch(/\/server\/cookieSecure/);
+    // A proxy's word counts only where the next start will trust it.
+    const unproxied = await save(
+      server,
+      { 'server.cookieSecure': true },
+      { 'x-forwarded-proto': 'https' },
+    );
+    expect(unproxied.status).toBe(400);
+  });
+
+  it('takes Secure cookies with trustProxy in the same save, behind an HTTPS proxy', async () => {
+    const saved = await save(
+      server,
+      { 'server.cookieSecure': true, 'server.trustProxy': true },
+      { 'x-forwarded-proto': 'https' },
+    );
 
     expect(saved.status).toBe(200);
   });

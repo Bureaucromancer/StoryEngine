@@ -13,11 +13,15 @@ import {
   applyForm,
   formChanges,
   formFromActor,
+  priorityProblem,
   reapplyEdits,
+  withoutRow,
+  withRow,
   type ActorForm,
 } from './form.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { page } from '../ui/classes.js';
 import { CheckboxField, Field } from '../ui/Field.js';
 import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
@@ -192,6 +196,35 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
     editor.patch((previous) => ({ ...previous, ...patch }));
   }
 
+  /**
+   * ***One section or sample, changed in the form as it is when the change
+   * lands*** (2026-09-27).
+   *
+   * These used to map `form.sections` — the list as this render had it — and
+   * hand the whole list to `patchForm`, so an assist on one section's body
+   * resolving thirty seconds later put back every other section as it was at
+   * the click, and the title somebody had just rewritten with it. What a row
+   * captures now is only where it is: its id and the index it was drawn at,
+   * which `withRow` reads the way its docstring says.
+   */
+  function patchSection(
+    id: string,
+    at: number,
+    over: Partial<ActorForm['sections'][number]>,
+  ): void {
+    editor.patch((previous) => ({
+      ...previous,
+      sections: withRow(previous.sections, id, at, over),
+    }));
+  }
+
+  function patchSample(id: string, at: number, over: Partial<ActorForm['samples'][number]>): void {
+    editor.patch((previous) => ({
+      ...previous,
+      samples: withRow(previous.samples, id, at, over),
+    }));
+  }
+
   return (
     <EditorFrame
       editor={editor}
@@ -288,10 +321,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
               path={`sections.${section.id}.title`}
               value={section.title}
               onChange={(title) => {
-                const sections = form.sections.map((candidate, position) =>
-                  position === index ? { ...candidate, title } : candidate,
-                );
-                patchForm({ sections });
+                patchSection(section.id, index, { title });
               }}
             />
             {/*
@@ -306,10 +336,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
               path={`sections.${section.id}.body`}
               value={section.body}
               onChange={(body) => {
-                const sections = form.sections.map((candidate, position) =>
-                  position === index ? { ...candidate, body } : candidate,
-                );
-                patchForm({ sections });
+                patchSection(section.id, index, { body });
               }}
               multiline
               rows={5}
@@ -339,12 +366,8 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
           <p className="text-sm text-ink-muted">None yet.</p>
         ) : (
           form.samples.map((sample, index) => {
-            const patchSample = (over: Partial<(typeof form.samples)[number]>): void => {
-              patchForm({
-                samples: form.samples.map((candidate, position) =>
-                  position === index ? { ...candidate, ...over } : candidate,
-                ),
-              });
+            const patchThis = (over: Partial<(typeof form.samples)[number]>): void => {
+              patchSample(sample.id, index, over);
             };
 
             return (
@@ -361,7 +384,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                     path={`writingSamples.${sample.id}.title`}
                     value={sample.title}
                     onChange={(title) => {
-                      patchSample({ title });
+                      patchThis({ title });
                     }}
                     hint="For you, in the editor and the block table. Never sent."
                   />
@@ -370,7 +393,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                     path={`writingSamples.${sample.id}.body`}
                     value={sample.body}
                     onChange={(body) => {
-                      patchSample({ body });
+                      patchThis({ body });
                     }}
                     multiline
                     rows={10}
@@ -380,29 +403,40 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
                     label="Priority"
                     value={sample.priorityText}
                     onChange={(priorityText) => {
-                      patchSample({ priorityText });
+                      patchThis({ priorityText });
                     }}
+                    error={priorityProblem(sample.priorityText)}
                     hint="Blank inherits the preset's. Higher survives longer under a full context."
                   />
                   <CheckboxField
                     label="Send this sample"
                     checked={sample.enabled}
                     onChange={(enabled) => {
-                      patchSample({ enabled });
+                      patchThis({ enabled });
                     }}
                     hint="Off keeps it on the card without spending a turn on it."
                   />
                   <div>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        patchForm({
-                          samples: form.samples.filter((_, position) => position !== index),
-                        });
+                    {/* ***Says which sample*** (2026-10-01, polish 11): two
+                        samples were two buttons called *Remove this sample*,
+                        which is no name at all in a list of buttons. Its
+                        title, or its place while it has none. */}
+                    <TwoStep
+                      label="Remove this sample"
+                      name={
+                        sample.title.trim() === ''
+                          ? `Remove sample ${String(index + 1)}`
+                          : `Remove ${sample.title.trim()}`
+                      }
+                      question="Remove this sample from the card? Nothing is written until you save."
+                      confirm="Remove"
+                      onConfirm={() => {
+                        editor.patch((previous) => ({
+                          ...previous,
+                          samples: withoutRow(previous.samples, sample.id, index),
+                        }));
                       }}
-                    >
-                      Remove this sample
-                    </Button>
+                    />
                   </div>
                 </div>
               </fieldset>
@@ -414,15 +448,12 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
           <Button
             type="button"
             onClick={() => {
-              patchForm({
-                samples: [
-                  ...form.samples,
-                  // A fresh id rather than an index: `applyForm` matches on it
-                  // to carry unknown fields through, and a reorder must not
-                  // repoint one sample's data at another.
-                  { id: uuidv7(), title: '', body: '', enabled: true, priorityText: '' },
-                ],
-              });
+              // A fresh id rather than an index: `applyForm` matches on it to
+              // carry unknown fields through, and a reorder must not repoint one
+              // sample's data at another. Minted out here, where it runs once —
+              // React runs an updater twice under StrictMode.
+              const made = { id: uuidv7(), title: '', body: '', enabled: true, priorityText: '' };
+              editor.patch((previous) => ({ ...previous, samples: [...previous.samples, made] }));
             }}
           >
             Add a writing sample

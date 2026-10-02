@@ -269,8 +269,14 @@ const GENERIC: KindPanel = {
   ],
   sorts: COMMON_SORTS,
   filters: [],
+  /*
+   * ~~*…or create the other kinds through the API*~~ (2026-10-01, polish 10):
+   * every kind has had an editor and a *New* button above since P7B.6, and
+   * import has been the *Import…* button rather than a panel *above* since the
+   * dock took it (P4 §7.12). The sentence names what is there.
+   */
   empty:
-    'The library is empty. Import from SillyTavern or Marinara above, name an actor to make one, or create the other kinds through the API — anything dropped into the data directory appears here too.',
+    'The library is empty. Make something with a New button above, or use Import… to bring in what you have from SillyTavern, Marinara or Aventuras. Anything dropped into the data directory appears here too.',
 };
 
 /**
@@ -384,5 +390,5 @@ export function panelNameBadges(
 export function emptyMessage(kind: LibraryKind | undefined): string {
   if (kind === undefined) return GENERIC.empty;
   if (kind === 'lorebooks') return LOREBOOKS.empty;
-  return 'There is nothing of this kind in the library yet. An import may bring some.';
+  return 'There is nothing of this kind in the library yet. Make one above, or import some.';
 }

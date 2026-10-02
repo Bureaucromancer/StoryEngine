@@ -9,9 +9,11 @@ before the phase started, which is the one thing the old status line asked for
 and got.
 
 ***The record is [§3.2](#32-what-was-answered--recorded-2026-09-17) and the list
-is [sitting R](05-manual-testing.md)***, five rows of which two are desk work and
-one — R4, the 1.0 corpus read capability by capability — **is the beta claim
-rather than a check on it**. *The thirteen gate rows above §3.2 are not edited*,
+is [sitting R](05-manual-testing.md)***, ~~five~~ **six** rows of which two are
+desk work and one — R4, the 1.0 corpus read capability by capability — **is the
+beta claim rather than a check on it**. *The sixth, R6, arrived 2026-09-22 with
+[P11.2](#and-2026-09-22-a-hook-gets-somewhere-to-be-written-and-a-way-out)'s
+hook addendum, which argues its three clauses.* *The thirteen gate rows above §3.2 are not edited*,
 which is [manual testing §0](05-manual-testing.md)'s first honesty condition and
 the whole reason there are two tables.
 
@@ -1589,6 +1591,12 @@ here rather than discovered by a reader of the gate:
   `selectionAsLorebook` clears the **book's** gallery rather than pretending to
   select from it, and says why.
 
+  *Corrected 2026-09-27:* ~~has nothing to carry until entry media exists~~ —
+  it existed from `80bc80c`, the same day, and an export then carried entry
+  picture rows without their bytes. The rows now stay behind and the export and
+  the import review both say so ([10 §11.2c](../10-ui-surfaces.md)); the clause
+  waits on the zip container.
+
 **Neither is in *Ends at***, which reads *"every editor offers assist,
 provenance and history, and a collapsed section names what inside it is not at
 its default"* — and all four of those are true. The fourth was already true:
@@ -2087,6 +2095,21 @@ narrator's. So the instruction is a **required** candidate, appended the way
 naming the character, forbidding narration of anybody else, and explaining itself
 to whoever reads the block table.
 
+*(2026-09-27)* **Built on the gather, and assembled as a narration all the
+same.** The draft was collected and retrieved under the prose step's own call
+kind, `narrate`, so the shipped narrator instruction — *never write the player's
+own dialogue, thoughts or decisions* — was in every draft's prompt beside the
+instruction asking for exactly that, and a pack's own impersonation block
+([04 §8.4.3]'s `impersonation_prompt`, scoped to `impersonate`) was in none. And
+the draft resolved its model without the session's own overrides, so a session
+pointed at its own endpoint drafted on the account default's. A draft is now
+collected and retrieved as `impersonate`; Scene's and Freeform's narrator
+instruction applies to `narrate` only in the packs they ship, and because a
+session keeps the pack it was created with, the impersonation instruction says
+outright that a narrator's brief above it does not apply. The preview and the
+draft take the model's layers and the collector's gather-side input from the
+same two functions the runner does (`roleLayersOf`, `collectFor`).
+
 **The party line is enforced at the door.** [06 §8] calls the difference between
 a companion and a second player *"the 'we are not building a D&D engine' line"*,
 and `readParty` is reused rather than re-derived — it already knows a session's
@@ -2564,6 +2587,15 @@ labels are the first place to look. `useLocale.test.tsx` carries what a test can
 imported before any catalogue existed, and a component that knows nothing about
 either re-rendering in French.
 
+*Corrected 2026-09-28.* ~~reaches every surface~~ — every surface but the page
+on screen. The shell re-renders when a catalogue lands, and the router's `Outlet`
+is memoised, so a routed page kept the tables it last rendered with until
+something else re-rendered it: a switch made on the settings page left that
+page's role table in the language being left, both ways. The test's component
+subscribed itself, which is why it passed. Each route's component now subscribes
+too (`localised`, `useActiveLocale`), and `shell-layout.test.tsx` holds it on the
+real router.
+
 ### P11.9 — Release engineering, which is the other half of the bar
 
 [work plan §8](01-work-plan.md) rewritten rather than extended, and then built: CI that
@@ -2653,6 +2685,22 @@ image**, which is the tempting shortcut: `docker cp` would tie the tarball to a
 base image's layout and make two artifacts into one artifact with two wrappers,
 which is the coupling §5.4's tier list exists to avoid.
 
+*Corrected 2026-10-01: ~~the tarball exists~~ **the tarball existed and could not
+run**, and no tag since this stage has built it, so nothing found out.* Two
+defects, either enough. The job's per-mode deploys failed before it packed
+anything, because the server's own deploy already carries the root's mode
+dependencies (`c79926d`, and the correction in
+[P7's record](23-p7-implementation.md)). And had it packed, `pack-tarball.mjs`
+walked regular files only: every link in `node_modules` was dropped — 237 in a
+real deploy, the whole layer pnpm resolves through — so the unpacked server died
+on its first `import` with `ERR_MODULE_NOT_FOUND`, in a restart loop, while
+`install.sh` printed success. **Every check this stage wrote passed that
+archive**, reproducibly, because none of them started it. The packer now writes
+links (with a PAX record for a target past ustar's 100 bytes) and refuses one
+that leaves the tree; the job unpacks the archive outside the checkout and asks
+the started server for `/api/auth/state` before it uploads anything; and
+`install.sh` waits out a start-up and reports a server that has not stayed up.
+
 ***One deliberate difference between the artifacts, written into both.*** The
 unit binds `127.0.0.1` where the image binds `0.0.0.0`.
 [P10 §1.2](27-p10-implementation.md) forbids a **hidden** difference — *"a hidden
@@ -2705,11 +2753,24 @@ absent, so a renamed script cannot ship `0644` quietly. *The old test passed on
 Linux for the broken implementation*, because its fixture `chmod`ed the script
 to the answer; the new one writes the fixture's modes as the opposite of the
 answer in both directions, and each of its three assertions was checked by
-reverting the change it guards. ***It was fixed twice on the same day***, by two sessions that did
-not know about each other — the other at `8a45eb2`, with `name.endsWith('.sh')`
-and the same diagnosis. The merge kept the list and the git comparison, because
+reverting the change it guards. ***It was fixed twice ~~on the same day~~, a
+day apart*** *(corrected 2026-10-02, by the commits' own dates)*, by two
+sessions that did not know about each other — the other at `8a45eb2` on
+2026-09-22, with `name.endsWith('.sh')` and the same diagnosis. The merge kept the list and the git comparison, because
 the worry the suffix rule was answering (a second script, silently unrunnable) is
 the one that comparison catches exactly; the packer's header records both.
+
+***And a third time, on origin's `main`*** — recorded 2026-10-02, at the merge
+that brought the two together. A session that could not have seen either fix,
+both being unpushed, reached the same list on 2026-09-27 at `0be9ca13`:
+`install.sh` declared by name, everything else `0644`, and neither the git
+comparison nor the refusal. The same commit made supervision an input to
+`buildServices`, which is what cured the `restart.test.ts` cases recorded above
+as not fixed here. The merge kept the list once, with the comparison and the
+refusal both, and added one refusal neither side could have had: a listed name
+that is a link, which became possible to pack only when main's packer began
+carrying links as members (2026-10-01), and which would otherwise ship a `0777`
+link to a `0644` script. The packer's header records all three.
 
 ***And P11.0's recommendation is collected.*** That audit asked for *"one line in
 `tools/release.test.ts`'s neighbourhood: a recorded ceiling on the entry
@@ -2832,6 +2893,12 @@ obvious answers are worse — dropping exports a package that quietly is not the
 one somebody made, refusing makes a stale reference unfixable except by
 hand-editing a file.
 
+*Corrected 2026-09-28.* ~~**reported**~~ — to a header nothing read. The file
+carries only what resolved, and the count of what did not travelled in
+`x-storyengine-missing`, which the detail page's plain link handed to the
+browser with the rest of the answer. The page fetches the export now and says
+the count under the link.
+
 *Neither export carries pixels.* An asset is content-addressed bytes and inlining
 them would be a hundred megabytes of base64 for a feature whose value is the
 story — which is [P9 §1.1]'s *"the recipe travels and the pixels do not"*,
@@ -2855,6 +2922,26 @@ sessions sharing one is an immediate confusion. And a turn that already carries
 `foreign` **keeps it**, because the first install it came from is the one that
 matters — a session that had travelled twice and claimed it came from the middle
 would be a provenance record that gets less true the more it is used.
+
+***Corrected 2026-09-27: keeping the turn ids has a price on the same install,
+and the importer now refuses to pay it.*** `sessions/import.ts` priced a
+collision only between two installs importing each other's copies. The common
+case is one install: an export loaded back where its session still is, and
+every backup import of an account's own sessions ([P12.9]). The index holds one
+row per turn id, so the copy took the original's rows at every append. The importer refuses a session
+whose turns the install already holds (`409 already-here`), and three defects
+found beside it are fixed with it: each turn now names the session it landed
+in, where it kept the exporter's id; the session row is indexed, where there was
+none; and the renditions' records are written (a `pending` one as `interrupted`,
+pixels only when the source carries them), where they were counted and dropped.
+The tests behind row 10 now use a second test server, where they used the same
+one.
+
+*Reproduced independently the next day by [P13 §0.4](30-p13-aventuras-import.md)*,
+which fixed it by re-minting the turn ids instead; that fix was set aside for
+this one when the two branches met, 2026-09-29. P13 §0.4 keeps its account of
+the mechanism — including the Illustrate that re-rendered the original's
+picture — because it was found from a different door.
 
 ### P11.11 — Backup and restore
 
@@ -2931,6 +3018,20 @@ index would pass every other check."* The live half — restore into a running
 install and watch a search answer — is [testing](03-testing.md)'s, and stays
 this phase's one case of the check living outside the document that owes it.
 
+***Two claims above were not true when they were written, and the record is
+kept as it was.*** [P12 §0.5](29-p12-implementation.md) found them by reading
+`layout.ts` beside `backup.mjs`, five days later. **The index was in every
+archive this script wrote**: the exclusion tested file names at the data root,
+and [03 §5.1](../03-data-model.md) puts the index at `index/index.sqlite`, one
+level down — and the test *"checks the archive's contents … for its absence"*
+over a fixture that wrote `index.sqlite` at the root, so it agreed with the
+mistake rather than with the layout. **And *"a header struct and padding"* cut
+every member name past a hundred bytes**, which loses all but one of a
+lorebook's version payloads to the same truncated name. Both were repaired at
+[P12.0](29-p12-implementation.md) (`aaf7345`), fixture included, before P12
+built anything on top; the script this stage shipped is now one of P12's two
+tar writers, held to the server's by `tools/tar-seam.test.ts`.
+
 ### P11.12 — The automatic extractor
 
 ***Added 2026-09-17 by [§0.4](#04-the-audit-run--2026-09-17-at-45c613c)***, which
@@ -3003,6 +3104,16 @@ reduction: what §2.1 is asking for is that a long session deposit memories as i
 goes, and a cadence does that at every length. *Eight turns, written down as the
 judgement it is* — short enough that forty turns leave five memories rather than
 one, long enough that the extra call is a twelfth of the turns.
+
+*(2026-09-27)* **Each run reads the eight turns since the last one, and it read
+the whole session.** The step rendered the entire transcript every eighth turn,
+so the fortieth turn's extraction re-read the first thirty-nine: the cost of
+remembering grew with the square of the session, every old exchange was offered
+for extraction again (and `alreadyKnown` sees a paraphrase of a known fact as a
+new one), and a long session outgrew the window with a block that is required
+and cannot be trimmed. The cadence runs on the eighth story turn and the
+transcript stops before the turn running it, so its last eight turns are exactly
+the ones since the last run.
 
 ***`post` where the summariser is `pre`***, and the difference is the whole
 relationship between the two features: a summary goes into **this turn's**
@@ -3166,10 +3277,17 @@ feature complete costs more than the same answer found now, and costs it in the
 currency [releases §0](04-repo-and-releases.md) says beta spends — other people's
 trust, once.
 
-***Five criticals, and two of them are desk work.*** That is unusual and it is a
+***~~Five~~ Six criticals, and two of them are desk work.*** That is unusual and it is a
 property of a phase whose gate is mostly *did the thing get built*: row 1 and row
 13 are answered by reading rather than by playing, and they are on the list
 because **they are what closes the phase** rather than because they are hard.
+
+***The sixth arrived 2026-09-22 and is not in the table below***, which is the
+derivation as it was run on 2026-09-17 and stays that way. It is
+[sitting R](05-manual-testing.md)'s **R6** — a hook written on a carrier, and one
+saved back out of a session — and its three clauses are argued at
+[P11.2](#and-2026-09-22-a-hook-gets-somewhere-to-be-written-and-a-way-out)'s
+hook addendum, where the stage that owes it is.
 
 | Row | Why it is critical | Blocked on |
 |---|---|---|
@@ -3214,14 +3332,14 @@ and the whole reason there are two.*
 | **1** [§0.1]'s list, item by item | every stage's own obligation | **C1. Desk work, not yet done.** Each stage's Done block names its check and each check is green; what nobody has done is the item-by-item read across them, which is the row |
 | **2** A two-hundred-turn session reads, prints, copies | `reading/prose.test.ts`, `reading/fence.test.ts`, `ReadingPage.test.tsx`, `library/book-document.ts` | ✅ **in part** — the passage model, the attribution, the Markdown and the print stylesheet, plus the fence that refuses workbench machinery in the reading directory. **C2** is a person's eyes on a real one; two hundred turns is G's |
 | **3** Every editor offers assist, provenance and history | `editor/contract.test.tsx`, `library/entry-defaults.test.ts` | ✅ — over `LIBRARY_KINDS` rather than over the editors somebody remembered, which is the obligation's own wording, plus one round trip driven end to end. The closed-section invariant is `groupSummary`'s and predates this phase |
-| **4** The assistant answers, proposes a diff, and is not a second chat | `tools/repo-shape.test.ts`, `modes/assistant/mode.test.ts`, `assistant/assistant.test.ts` | ✅ **in part** — *not a second chat* is asserted from both sides, the proposal reader and the ambient context are asserted, and ~~**the docs lorebook does not exist**~~ — **written 2026-09-17**, twenty-five keyed entries shipped beside the card and attached by the session's own `lore` links, with `docs-lorebook.test.ts` holding the corpus and `repo-shape.test.ts` the two-package seam. **C3** is the half a grep cannot reach |
+| **4** The assistant answers, proposes a diff, and is not a second chat | `tools/repo-shape.test.ts`, `modes/assistant/mode.test.ts`, `assistant/assistant.test.ts` | ✅ **in part** — *not a second chat* is asserted from both sides, the proposal reader and the ambient context are asserted *(underneath, 2026-09-30 and 2026-10-01: asserted and not true — the context had a budget and no words, so no prompt carried it until `4aed877`, and a proposal named fields an actor does not have, and went to a session when one was open, until `0ceb5ff`)*, and ~~**the docs lorebook does not exist**~~ — **written 2026-09-17**, twenty-five keyed entries shipped beside the card and attached by the session's own `lore` links, with `docs-lorebook.test.ts` holding the corpus and `repo-shape.test.ts` the two-package seam. **C3** is the half a grep cannot reach |
 | **5** Four pacing levels produce different sessions | `sessions/hooks.test.ts`, both modes' `mode.test.ts` | ✅ **in part** — that each level *has prose*, that the pack ships four, and that the top of the dial carries no compliance language. Whether they **read** differently is [sitting G](05-manual-testing.md)'s, and until [P11.5] there was nothing to read |
 | **6** The app in the test French | `i18n/catalogue.test.ts`, `i18n/useLocale.test.tsx` | ✅ **in part** — the per-key fallback, the orphan check, and an account's locale reaching a module-level table through a lazily-loaded chunk. **Layout is [sitting Q](05-manual-testing.md)'s**, because no test can see a clipped label |
 | **7** Restorable within the window, gone after it | `storage/trash.test.ts`, `settings/Trash.tsx`'s route tests | ✅ **in part** — the suffix reader, the sweep and the restore. *Gone after the window* is a clock, which the standing list holds |
-| **8** Playwright journeys on CI | `e2e/journeys.spec.ts`, `ci.yml`'s `journeys` job | ✅ — **built after this table first said ❌**, which is the one row here whose entry changed by the work being done rather than by the wording being fixed. One test, the seven journeys in [testing §3.5](03-testing.md)'s order, against a built server serving a built client and an OpenAI-compatible double over HTTP. **Three of the seven were read wrong until walked** — §3.5 records which and why |
+| **8** Playwright journeys on CI | `e2e/journeys.spec.ts`, `ci.yml`'s `journeys` job | ✅ — **built after this table first said ❌**, which is the one row here whose entry changed by the work being done rather than by the wording being fixed. One test, the seven journeys in [testing §3.5](03-testing.md)'s order, against a built server serving a built client and an OpenAI-compatible double over HTTP. **Three of the seven were read wrong until walked** — §3.5 records which and why. *Underneath, 2026-10-01*: red on `main` from P14 until `d66ad2b`, unseen because CI had not run since K — the transcript collapsed under P14's controls at 1280×720, and a chat's *branch* is the message's *Previous reply* |
 | **9** `git tag` produces both artifacts reproducibly | `tools/pack-tarball.test.ts`, `tools/release.test.ts` | ✅ **in part** — the tarball is packed twice and compared, in a test and again in the workflow against the real artifact. **The container's half wants a daemon**, which this machine has never had |
 | **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that shares no state with the writer: every turn, a new session id, the old ids kept, each turn marked foreign, and `origin` recorded. *Another **build** reading them* is the half a second install would prove |
-| **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it |
+| **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it. ***True since `aaf7345`, and not when this row was written*** — [P12 §0.5](29-p12-implementation.md): the exclusion never fired and the fixture agreed with it; see [P11.11](#p1111--backup-and-restore)'s note |
 | **12** A person reads the 1.0 corpus | — | **C4. The gate.** Not startable until C5 is recorded |
 | **13** The extractor is owned, or 1.0 ships manual capture deliberately | [P11.12](#p1112--the-automatic-extractor) | ✅ — **taken.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took it rather than carrying it a third time, and `repo-shape.test.ts` holds the clause that makes [P8](25-p8-implementation.md)'s C2 answerable |
 
@@ -3259,13 +3377,6 @@ obvious from an afternoon.
 machinery was there and only a corpus was missing, and that was exactly right:
 the attaching is one line. What it cost was writing twenty-five answers, which is
 work a plan cannot shorten and a record was right to refuse to fake.
-
-***Image slots is the one that most argues for the exercise.*** It had been
-carried as *a stage of work*, and what it actually was is a **container that did
-not exist**: `EmbeddedMedia` names bytes a container carries, a lorebook's
-container is a folder, and nothing had ever written into one. So §11.2b was not
-unbuilt, it was **unreachable** — and the difference is invisible from a plan and
-obvious from an afternoon.
 
 **And row 8 was the one to argue about** — ~~*"whether beta can be declared
 without it is C4's reader's call and not this document's"*~~. Three of the four

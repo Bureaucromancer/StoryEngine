@@ -84,11 +84,11 @@ beforeEach(() => {
  * disclosure's closed line is queried off this rather than off `screen`,
  * because `getByText` would match the statement in the body too.
  */
-async function renderPanel(): Promise<{ container: HTMLElement }> {
+async function renderPanel(busy = false): Promise<{ container: HTMLElement }> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { container } = render(
     <QueryClientProvider client={client}>
-      <GoalPanel sessionId={SESSION_ID} />
+      <GoalPanel sessionId={SESSION_ID} busy={busy} />
     </QueryClientProvider>,
   );
   await waitFor(() => {
@@ -246,6 +246,94 @@ describe('the goal panel', () => {
     await waitFor(() => {
       expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.goal.current', 'g-new');
     });
+  });
+
+  /**
+   * ***The second write can fail on its own*** (2026-09-28). The goal is in the
+   * chain once the first answers, and a cursor write refused — a turn started
+   * between the two, or the network dropped — left play not working toward it,
+   * with nothing on the panel to say so. The one write that failed is offered
+   * again, for the goal already made rather than a second one.
+   */
+  it('says so when the objective was saved but play could not be pointed at it', async () => {
+    const { ApiError } = await import('../api.js');
+    writeSessionChannel.mockRejectedValueOnce(
+      new ApiError(409, 'busy', 'A turn is running; try again when it finishes.'),
+    );
+    answerWith([]);
+    await renderPanel();
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Set an objective' }),
+      'Find the fixer.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Set' }));
+
+    expect(
+      await screen.findByText('The objective was saved, but play could not be pointed at it.'),
+    ).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledTimes(2);
+    });
+    expect(writeSessionChannel).toHaveBeenLastCalledWith(SESSION_ID, 'se.goal.current', 'g-new');
+    // One goal, pointed at twice — not a second goal for the retry.
+    expect(addSessionGoal).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(
+        screen.queryByText('The objective was saved, but play could not be pointed at it.'),
+      ).toBeNull();
+    });
+  });
+
+  it('says so when the objective itself could not be set', async () => {
+    const { ApiError } = await import('../api.js');
+    addSessionGoal.mockRejectedValueOnce(new ApiError(400, 'invalid', 'No.'));
+    answerWith([]);
+    await renderPanel();
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Set an objective' }),
+      'Find the fixer.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Set' }));
+
+    expect(await screen.findByText('The objective could not be set.')).toBeTruthy();
+    expect(writeSessionChannel).not.toHaveBeenCalled();
+  });
+
+  it('says so when a choice on a goal could not be saved', async () => {
+    const { ApiError } = await import('../api.js');
+    writeSessionChannel.mockRejectedValueOnce(new ApiError(409, 'busy', 'A turn is running.'));
+    answerWith([LEDGER]);
+    await renderPanel();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mark it done' }));
+
+    expect(await screen.findByText('That could not be saved.')).toBeTruthy();
+  });
+
+  /**
+   * ***Waiting for the turn*** (2026-09-28): every write here moves the story
+   * head, which the server refuses with `409 busy` while a turn runs. The
+   * page says when one is starting or running, and the panel's writes wait.
+   */
+  it('holds its writes while a turn is running', async () => {
+    answerWith([{ ...LEDGER, achieved: true }]);
+    await renderPanel(true);
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Set an objective' }),
+      'Find the fixer.',
+    );
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Set' }).disabled).toBe(true);
+    for (const offer of ['Carry on', 'End the story']) {
+      const button = screen.getByRole('button', { name: new RegExp(`^${offer}`) });
+      expect((button as HTMLButtonElement).disabled, offer).toBe(true);
+    }
   });
 
   it('offers no way to set one on a story that has ended', async () => {

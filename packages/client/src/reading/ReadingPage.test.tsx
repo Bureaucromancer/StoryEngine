@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TurnRecord } from '../api.js';
@@ -18,12 +18,45 @@ import type { TurnRecord } from '../api.js';
  */
 
 let turns: TurnRecord[] = [];
+let sessionName = 'The harbour';
+let unreadable = false;
+/** What `readRenditions` answers — none, unless a test is about a picture. */
+let renditions: unknown[] = [];
+
+/**
+ * The router mocked wholesale, `ComparePage.test.tsx`-style: a link keeps an
+ * assertable destination without standing a router up.
+ */
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    params,
+    className,
+  }: {
+    children: React.ReactNode;
+    to?: string;
+    params?: Record<string, string>;
+    className?: string;
+  }) => {
+    let href = to ?? '#';
+    for (const [key, value] of Object.entries(params ?? {})) {
+      href = href.replace(`$${key}`, value);
+    }
+    return (
+      <a href={href} className={className}>
+        {children}
+      </a>
+    );
+  },
+}));
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
-  readTranscript: () => Promise.resolve({ turns }),
-  readSession: () => Promise.resolve({ session: { id: 's1', name: 'The harbour' } }),
-  readRenditions: () => Promise.resolve({ renditions: [], selection: {} }),
+  readTranscript: () =>
+    unreadable ? Promise.reject(new Error('no such turn')) : Promise.resolve({ turns }),
+  readSession: () => Promise.resolve({ session: { id: 's1', name: sessionName } }),
+  readRenditions: () => Promise.resolve({ renditions, selection: {} }),
   listLibrary: () => Promise.resolve({ objects: [{ id: 'actor-vera', name: 'Vera' }] }),
   api: { listLibrary: () => Promise.resolve({ objects: [{ id: 'actor-vera', name: 'Vera' }] }) },
 }));
@@ -40,6 +73,9 @@ function renderPage(from?: string): void {
 }
 
 beforeEach(() => {
+  sessionName = 'The harbour';
+  unreadable = false;
+  renditions = [];
   turns = [
     {
       id: 't1',
@@ -54,6 +90,18 @@ beforeEach(() => {
 });
 
 describe('reading a session', () => {
+  /**
+   * ***An unnamed session is called what the app calls it*** (2026-09-27).
+   * `?? 'Untitled'` caught only a missing name, and a session never named has
+   * an empty one, so the page's heading was blank and a copy began with an
+   * empty title.
+   */
+  it('titles a session nobody has named', async () => {
+    sessionName = '';
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Untitled session' })).toBeTruthy();
+  });
+
   it('renders the story with its speakers', async () => {
     renderPage();
     expect(await screen.findByText('The keeper points north.')).toBeTruthy();
@@ -83,9 +131,73 @@ describe('reading a session', () => {
     expect(await screen.findByText(/as it stood at one point/)).toBeTruthy();
   });
 
+  /**
+   * ***A way back to the story*** (2026-10-01). Opened from the session panel,
+   * the view offered no route back to the session but the browser's own — and
+   * none at all to somebody who arrived on a pasted link. Not on paper: the
+   * link sits with the controls a print drops.
+   */
+  it('offers the way back to the session, and keeps it off the page', async () => {
+    renderPage();
+    const back = await screen.findByRole('link', { name: 'Back to the session' });
+    expect(back.getAttribute('href')).toBe('/play/s1');
+    expect(back.closest('.print\\:hidden')).toBeTruthy();
+  });
+
+  it('offers it when the story could not be read, too', async () => {
+    unreadable = true;
+    renderPage('t-missing');
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Back to the session' }).getAttribute('href')).toBe(
+      '/play/s1',
+    );
+  });
+
   it('says so rather than rendering nothing when the session is empty', async () => {
     turns = [];
     renderPage();
     expect(await screen.findByText(/Nothing has been written/)).toBeTruthy();
+  });
+
+  /**
+   * ***No landmark of its own, and the paper's width*** (2026-10-01, polish
+   * 11). The page was a `<main>` nested in the shell's; the print stylesheet
+   * released its width and padding by that landmark, so as a `div` it releases
+   * them itself.
+   */
+  it('is no landmark of its own, and gives the paper its width back', async () => {
+    renderPage();
+    const title = await screen.findByRole('heading', { level: 1 });
+
+    expect(screen.queryByRole('main')).toBeNull();
+    expect(title.parentElement?.classList.contains('print:max-w-none')).toBe(true);
+    expect(title.parentElement?.classList.contains('print:p-0')).toBe(true);
+  });
+
+  /**
+   * ***A picture is not its sentence twice*** (2026-10-01, polish 11). The alt
+   * was the anchor — the sentence the picture sits right after — so a screen
+   * reader read the sentence, then the picture as the same sentence.
+   */
+  it('gives an illustration the empty alt the play surface gives it', async () => {
+    renditions = [
+      {
+        id: 'r1',
+        turnId: 't1',
+        purpose: 'illustration',
+        state: 'ready',
+        asset: { digest: 'sha256:abc' },
+        scope: { anchor: 'The keeper points north.' },
+      },
+    ];
+    renderPage();
+    await screen.findByText('The keeper points north.');
+
+    const picture = await waitFor(() => {
+      const found = document.querySelector('article img');
+      if (found === null) throw new Error('no picture yet');
+      return found;
+    });
+    expect(picture.getAttribute('alt')).toBe('');
   });
 });

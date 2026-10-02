@@ -192,4 +192,45 @@ describe('a file broken behind the index does not trap the object', () => {
     });
     expect(allowed.status).toBe(204);
   });
+
+  /**
+   * ***Damage that parses*** (2026-09-28) — gap round A5.8. The line above was
+   * drawn at *does it parse*, and the index draws it at *would I take it*: a
+   * file that is JSON and not a lorebook — a field of the wrong type, another
+   * kind's schema, no id — is quarantined like one that is not JSON, with the
+   * last good row kept. The writes called it an edit, so Save was a 412 whose
+   * reload offered the refused file, and every Delete another 412.
+   */
+  it.each([
+    ['fails its schema', (stored: Record<string, unknown>) => ({ ...stored, entries: 'a list' })],
+    [
+      'names another kind',
+      (stored: Record<string, unknown>) => ({ ...stored, schema: 'storyengine.actor/1' }),
+    ],
+    [
+      'has no id',
+      (stored: Record<string, unknown>) =>
+        Object.fromEntries(Object.entries(stored).filter(([key]) => key !== 'id')),
+    ],
+  ])('treats a file that parses and %s as damage, on save and on delete', async (_, breakIt) => {
+    const book = await createLorebook('Vera Solano');
+    const stored = JSON.parse(await readFile(book.path, 'utf8')) as Record<string, unknown>;
+    await writeFile(book.path, JSON.stringify(breakIt(stored)), 'utf8');
+
+    const saved = await server.request({
+      method: 'PUT',
+      url: `/api/library/lorebooks/${book.id}`,
+      payload: { object: { ...book.object, name: 'Vera Solano renamed' } },
+      headers: { 'if-match': book.hash },
+    });
+    expect(saved.status).toBe(409);
+    expect(saved.body.error).toBe('diverged');
+
+    const deleted = await server.request({
+      method: 'DELETE',
+      url: `/api/library/lorebooks/${book.id}`,
+      headers: { 'if-match': book.hash },
+    });
+    expect(deleted.status).toBe(204);
+  });
 });

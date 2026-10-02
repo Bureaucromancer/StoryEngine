@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useEffect, useId, useRef, useState, type JSX, type RefObject } from 'react';
 
 import {
   ApiError,
@@ -22,10 +22,12 @@ import {
 import { Alert, AlertNote } from '../ui/Alert.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { Field } from '../ui/Field.js';
 import { Fine } from '../ui/Text.js';
 import { hookState, hookWords } from './hookWords.js';
 import { disclosure } from '../ui/classes.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * The hook panel — [10 §10.1](../../../../docs/design/10-ui-surfaces.md),
@@ -83,8 +85,17 @@ export function HookPanel(props: { sessionId: string }): JSX.Element | null {
           <Pacing sessionId={props.sessionId} level={hooks?.pacing ?? 'normal'} />
         )}
         <div className="flex flex-col gap-2">
+          {/*
+           * **Keyed by the row's source as well as its id** (2026-09-28): one
+           * hook can reach the pool through two carriers, drawn as two rows, and
+           * a key on the id alone gave both rows one identity.
+           */}
           {rows.map((row) => (
-            <Hook key={row.hookId} sessionId={props.sessionId} row={row} />
+            <Hook
+              key={`${row.hookId}:${row.source.kind}:${row.source.id ?? ''}`}
+              sessionId={props.sessionId}
+              row={row}
+            />
           ))}
         </div>
         <AddHook sessionId={props.sessionId} />
@@ -175,12 +186,16 @@ function AddHook(props: { sessionId: string }): JSX.Element {
       }}
     >
       <Field label="Something you want to happen" value={title} onChange={setTitle} />
+      {/* Marked, because Add waits for it (2026-10-01, polish 9): a button
+          disabled for a reason the form does not show is a button that looks
+          broken. */}
       <Field
         label="What happens"
         value={premise}
         onChange={setPremise}
         multiline
         rows={2}
+        required
         hint="The selector decides when. It is never shown until it fires."
       />
       <div>
@@ -191,6 +206,7 @@ function AddHook(props: { sessionId: string }): JSX.Element {
           Add
         </Button>
       </div>
+      <WriteFailed error={hooks.error} />
     </form>
   );
 }
@@ -212,24 +228,27 @@ function Pacing(props: { sessionId: string; level: string }): JSX.Element {
   const level = props.level;
 
   return (
-    <label className="flex items-center gap-2 text-sm text-ink-muted">
-      <span>How often hooks fire</span>
-      <select
-        className="rounded-control border border-line bg-surface p-1 text-ink"
-        value={level}
-        disabled={write.isPending}
-        onChange={(event) => {
-          write.mutate({ key: 'se.hook.pacing', value: event.target.value });
-        }}
-      >
-        {/* The vocabulary the channel's schema accepts. A value this list did
-            not offer would be a control that produces a recorded refusal. */}
-        <option value="sparse">Rarely</option>
-        <option value="normal">Now and then</option>
-        <option value="aggressive">Often</option>
-        <option value="manual-only">Only when I say</option>
-      </select>
-    </label>
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-2 text-sm text-ink-muted">
+        <span>How often hooks fire</span>
+        <select
+          className="rounded-control border border-line bg-surface p-1 text-ink"
+          value={level}
+          disabled={write.isPending}
+          onChange={(event) => {
+            write.mutate({ key: 'se.hook.pacing', value: event.target.value });
+          }}
+        >
+          {/* The vocabulary the channel's schema accepts. A value this list did
+              not offer would be a control that produces a recorded refusal. */}
+          <option value="sparse">Rarely</option>
+          <option value="normal">Now and then</option>
+          <option value="aggressive">Often</option>
+          <option value="manual-only">Only when I say</option>
+        </select>
+      </label>
+      <WriteFailed error={write.error} />
+    </div>
   );
 }
 
@@ -253,9 +272,36 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
   const state = hookState(row);
   const committed = row.state === 'committed';
 
+  /**
+   * ***The question keeps the keyboard*** (2026-10-01, polish 11), as
+   * `TwoStep`'s does and for its reasons. Commit is replaced by the question
+   * it asks, so the keyboard fell to the page; and the question was a live
+   * region inserted already holding its words, which most screen readers never
+   * read. Now the keyboard goes to Cancel, both answers are described by the
+   * question — arriving there is how it is heard — and closing it gives the
+   * keyboard back to the row's button. Not `TwoStep` itself: Commit asks only
+   * past a refusal, and its answer is not a destructive one.
+   */
+  const questionId = useId();
+  const cancel = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const returning = useRef(false);
+  useEffect(() => {
+    if (asking) {
+      cancel.current?.focus();
+    } else if (returning.current) {
+      returning.current = false;
+      trigger.current?.focus();
+    }
+  }, [asking]);
+  const stopAsking = (): void => {
+    returning.current = true;
+    setAsking(false);
+  };
+
   function commit(): void {
     write.mutate({ key: `se.hook#${row.hookId}`, value: 'committed' });
-    setAsking(false);
+    stopAsking();
   }
 
   return (
@@ -292,22 +338,22 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
       )}
 
       {asking ? (
-        <Alert tone="warning" role="status" className="flex flex-col gap-2">
-          <span>
+        <Alert tone="warning" className="flex flex-col gap-2">
+          <span id={questionId}>
             {row.refusal === null
               ? 'Commit this hook?'
               : `${hookWords(row.refusal)}. Commit it anyway?`}
           </span>
           <div className="flex gap-2">
-            <Button type="button" onClick={commit} disabled={write.isPending}>
-              Commit
-            </Button>
             <Button
               type="button"
-              onClick={() => {
-                setAsking(false);
-              }}
+              onClick={commit}
+              disabled={write.isPending}
+              aria-describedby={questionId}
             >
+              Commit
+            </Button>
+            <Button ref={cancel} type="button" onClick={stopAsking} aria-describedby={questionId}>
               Cancel
             </Button>
           </div>
@@ -316,6 +362,7 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
         <Controls
           sessionId={props.sessionId}
           row={row}
+          trigger={trigger}
           pending={write.isPending || hooks.isPending}
           onCommit={commit}
           onAsk={() => {
@@ -325,10 +372,16 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
             write.mutate({ key: `se.hook#${row.hookId}`, value: null });
           }}
           onRemove={() => {
-            hooks.mutate({ remove: row.hookId });
+            // The row's own source, so only this row goes — the same reason
+            // `Save this to…` sends it (2026-09-28).
+            hooks.mutate({ remove: row.hookId, from: row.source });
           }}
         />
       )}
+      {/* A commit, a release or a removal the server refused said nothing
+          (2026-10-01, polish 9) — the one panel 62787df's note claimed and
+          did not reach. */}
+      <WriteFailed error={write.error ?? hooks.error} />
     </div>
   );
 }
@@ -358,6 +411,8 @@ function Hook(props: { sessionId: string; row: HookRow }): JSX.Element {
 function Controls(props: {
   sessionId: string;
   row: HookRow;
+  /** Commit or Release, whichever shows: where a closed question returns the keyboard. */
+  trigger: RefObject<HTMLButtonElement | null>;
   pending: boolean;
   onCommit: () => void;
   onAsk: () => void;
@@ -366,25 +421,51 @@ function Controls(props: {
 }): JSX.Element {
   const { row } = props;
   const gone = row.state === 'fired' || row.state === 'provisional';
+  /**
+   * ***Each button says which hook*** (2026-10-01, polish 11). A pool of five
+   * hooks was five *Commit*s and five *Remove*s, which a screen reader's list
+   * of buttons cannot tell apart; the editor's hook list has named its own by
+   * title since it was built.
+   */
+  const title = row.title.trim() === '' ? 'Untitled hook' : row.title.trim();
 
   return (
     <div className="flex flex-wrap items-start gap-2">
+      {/* One element for both, so a commit that lands while the keyboard is on
+          it keeps the keyboard as its words turn to Release. */}
       {gone ? null : row.state === 'committed' ? (
-        <Button type="button" onClick={props.onRelease} disabled={props.pending}>
+        <Button
+          ref={props.trigger}
+          type="button"
+          onClick={props.onRelease}
+          disabled={props.pending}
+          aria-label={`Release ${title}`}
+        >
           Release
         </Button>
       ) : (
         <Button
+          ref={props.trigger}
           type="button"
           onClick={row.refusal === null ? props.onCommit : props.onAsk}
           disabled={props.pending}
+          aria-label={`Commit ${title}`}
         >
           Commit
         </Button>
       )}
-      <Button type="button" onClick={props.onRemove} disabled={props.pending}>
-        Remove
-      </Button>
+      {/* ***Asked first*** (2026-10-01, polish 8). The one removal on the
+          play surface that writes at once — the hook leaves this story's pool
+          on the server, and nothing here puts it back — and it went at the
+          first click. */}
+      <TwoStep
+        label="Remove"
+        name={`Remove ${title}`}
+        question="Remove this hook from the story?"
+        size="default"
+        disabled={props.pending}
+        onConfirm={props.onRemove}
+      />
       <SaveTo sessionId={props.sessionId} row={row} pending={props.pending} />
     </div>
   );

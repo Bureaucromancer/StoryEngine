@@ -4,6 +4,7 @@
 import type { ImportDisposition, ImportItemReport, ImportNote } from '@storyengine/shared';
 
 import { marinaraPreflight } from '../detect.js';
+import { ownEntry } from '../parse.js';
 import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
 import type {
   FileSource,
@@ -13,8 +14,12 @@ import type {
   SourceSurvey,
 } from '../source.js';
 
+import { MARINARA_CHATS_FORMAT } from './chat.js';
 import {
+  CHAT_TABLES,
+  CONVERTED_ASSET_TREES,
   READ_TABLES,
+  RECORDED_ASSET_TREES,
   TABLES,
   UNSHARD_SENTINEL,
   classifyTablePath,
@@ -50,7 +55,23 @@ import {
  * the table are upstream's rather than ours. This file decides only what to
  * *say* about each of them — which is the half of the job that is ours, and the
  * half where the old reader stayed silent.
+ *
+ * ***The chats go through the same store*** (2026-10-02). [P14.10] taught this
+ * reader the chat tables while it still had a loader of its own, and that
+ * loader learned the `.bak` filter for them independently; [P4 §7.18] replaced
+ * the loader with `store.ts` on a branch that did not have the chats yet, and
+ * the merge of the two keeps one. Two loaders would have been two answers to
+ * *which file is the table*, and only the store's knows a backup read in place
+ * of a torn shard, a bak-only shard, a single file an older build wrote back
+ * beside the shards, or a row duplicated across two of them — every one of
+ * which is a chat table's problem at least as often as a character's, because
+ * the chat tables are where a store's writes are.
  */
+
+// The tables the chats candidate carries beyond the actors are `CHAT_TABLES`,
+// in `store-format.ts` beside `READ_TABLES` and not in it — that file says why.
+// What this reader needs of them is only that every table it opens is opened
+// *before* the report is written, so the report knows what became of its files.
 
 export class MarinaraReader implements SourceReader {
   readonly kind = 'marinara' as const;
@@ -72,8 +93,11 @@ export class MarinaraReader implements SourceReader {
     const { manifest, store } = await this.#open();
 
     // Every table this reader converts is loaded before anything is reported,
-    // so the report of the files knows what became of each of them.
-    for (const table of Object.keys(READ_TABLES)) await store.rows(table);
+    // so the report of the files knows what became of each of them. *The chat
+    // tables too*: a torn message shard, or one an upload named and did not
+    // carry, is otherwise a `converted` name with no row at all — the registry
+    // says the chats stand for it, and the chats it held never arrived.
+    for (const table of [...Object.keys(READ_TABLES), ...CHAT_TABLES]) await store.rows(table);
 
     yield* this.#reportUnreadPaths(manifest, store);
 
@@ -81,6 +105,7 @@ export class MarinaraReader implements SourceReader {
     yield* this.#presets(store);
     yield* this.#actors(store, 'characters', 'marinara.character');
     yield* this.#actors(store, 'personas', 'marinara.persona');
+    yield* this.#chats(store);
   }
 
   /** The store and its manifest, opened once for the sweep. */
@@ -167,6 +192,9 @@ export class MarinaraReader implements SourceReader {
 
     const sections = await store.rows('prompt_sections');
     const choices = await store.rows('choice_blocks');
+    // A disabled group switches its sections off, so the groups travel with
+    // them (2026-09-27); they were never opened.
+    const groups = await store.rows('prompt_groups');
 
     for (const preset of presets) {
       const id = str(preset['id']);
@@ -180,9 +208,60 @@ export class MarinaraReader implements SourceReader {
           preset,
           sections: sections.filter((row) => str(row['presetId']) === id),
           choiceBlocks: choices.filter((row) => str(row['presetId']) === id),
+          groups: groups.filter((row) => str(row['presetId']) === id),
         },
       });
     }
+  }
+
+  /**
+   * ***The chats, as one candidate*** —
+   * [P14.10](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+   *
+   * **One candidate for the three tables, not one per chat**, because what a
+   * chat *is* here is a question about more than one row: a branch is a
+   * family's, and its family is found across every chat the store holds
+   * (`families.ts`). The sweep sets it aside with SillyTavern's chat files
+   * (`sweep.ts`, `isChat`) until every character and persona above is written,
+   * so the lines resolve against the library this same sweep made; the session
+   * pass (`chat-sessions.ts`) then answers **one row per chat**, keyed
+   * `storage/tables/chats.json#<id>`, in place of the per-shard rows the
+   * message tables used to be reported as.
+   *
+   * *Every chat, not only roleplay*: which chats become sessions is the
+   * parser's to say (`chat.ts`), and a conversation or game chat still gets its
+   * row. The character and persona rows travel for their names — a message
+   * names its speaker by id alone.
+   *
+   * ~~Held in memory as `#rows` already holds them: the store reader's one
+   * cache, loaded once.~~ *Corrected 2026-10-02:* held as the store holds them,
+   * loaded once and before the report (`items`), and read by its rules — so a
+   * `.bak` beside a message shard is the backup it is rather than every message
+   * and swipe twice, which this reader's own filter used to answer, and so a
+   * storage format 5–7 store, where `chats` itself is sharded and an older
+   * build may have written a single `chats.json` back beside the shards, comes
+   * in as the store Marinara would show.
+   */
+  async *#chats(store: MarinaraStore): AsyncIterable<SourceItem> {
+    const chats = await store.rows('chats');
+    const messages = await store.rows('messages');
+    const swipes = await store.rows('message_swipes');
+    if (chats.length === 0 && messages.length === 0) return;
+    yield candidate({
+      source: `${TABLES}chats.json`,
+      format: MARINARA_CHATS_FORMAT,
+      payload: {
+        chats,
+        messages,
+        swipes,
+        characters: await store.rows('characters'),
+        personas: await store.rows('personas'),
+        // The trackers' state per message and swipe — [P14 §2.6], [P14.5a].
+        snapshots: await store.rows('game_state_snapshots'),
+        // The director's secret plot per chat — [P14 §2.6], [P14.5b].
+        memory: await store.rows('agent_memory'),
+      },
+    });
   }
 
   /**
@@ -201,9 +280,16 @@ export class MarinaraReader implements SourceReader {
       const id = str(row['id']);
       const source = `${TABLES}${table}.json#${id}`;
 
+      /**
+       * ***A persona is its own row*** (2026-09-27). A character keeps its
+       * card as JSON in a `data` column; a persona has no such column — its
+       * name, description and the rest are columns of the row itself — so
+       * reading `data` for both handed the converter nothing for every persona,
+       * and none ever imported. The row is the persona.
+       */
       let card: unknown;
       try {
-        const raw = row['data'];
+        const raw = table === 'personas' && row['data'] === undefined ? row : row['data'];
         card = typeof raw === 'string' ? JSON.parse(raw) : raw;
       } catch {
         yield observed(source, 'unrecognised', [
@@ -335,22 +421,39 @@ function fateRow(path: string, fate: FileFate, store: MarinaraStore): SourceItem
   }
 }
 
-/** The registry's answer, without the prototype hole a bare lookup has. */
+/**
+ * The registry's answer, without the prototype hole a bare lookup has.
+ *
+ * Own entries only: `tables/constructor.json` found `Object`, which travelled
+ * into the report and its counts as a disposition. The hole was closed twice,
+ * on two branches merged 2026-10-02 — here at [P4 §7.18], and by the
+ * importers' pass of 2026-09-27 with `ownEntry` — so it is closed once, with
+ * the helper every other lookup of that pass uses.
+ */
 function dispositionOf(table: string): ImportDisposition {
-  return Object.hasOwn(MARINARA_DISPOSITIONS, table)
-    ? (MARINARA_DISPOSITIONS[table] ?? 'unrecognised')
-    : 'unrecognised';
+  return ownEntry(MARINARA_DISPOSITIONS, table) ?? 'unrecognised';
 }
 
 /**
  * The seventeen asset directories beside `storage/`.
  *
- * The four that feed a converted object travel with it; the rest — game assets,
- * fonts, notification sounds, the video directories — are counted and skipped.
+ * `avatars/` travels with the actor it is the portrait of. ~~The four that feed
+ * a converted object travel with it~~ (corrected 2026-09-27): `sprites/`,
+ * `lorebooks/images/` and `prompts/images/` were reported `converted` and never
+ * attached to anything, so a review promised pictures that did not arrive. They
+ * are `recorded`, waiting on the image tables (see the registry). The rest —
+ * game assets, fonts, notification sounds, the video directories — are counted
+ * and skipped.
+ *
+ * *The two lists are `store-format.ts`'s* (2026-10-02), because the browser
+ * upload ranks by them too: it carries what this reads and only names what
+ * this records, and two copies of the lists were how the upload went on
+ * spending its limit on sprites for five days after this function stopped
+ * reading them.
  */
 function assetDisposition(path: string): ImportDisposition {
-  const carried = ['avatars/', 'sprites/', 'lorebooks/images/', 'prompts/images/'];
-  return carried.some((prefix) => path.startsWith(prefix)) ? 'converted' : 'skipped';
+  if (CONVERTED_ASSET_TREES.some((prefix) => path.startsWith(prefix))) return 'converted';
+  return RECORDED_ASSET_TREES.some((prefix) => path.startsWith(prefix)) ? 'recorded' : 'skipped';
 }
 
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');

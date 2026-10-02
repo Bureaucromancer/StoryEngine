@@ -122,9 +122,12 @@ create form named one.
 records P4's amendment and keeps *"browsing, previewing, switching
 mid-session"* — pack selection, never block editing — and no stage from P7.0
 to P7.9 carries even that. P7.2 is the cast panel. P7.3, on branch `p7`, carries
-voice and dispatch as session fields, the session and step overrides of
+~~voice and dispatch as session fields,~~ the session and step overrides of
 [19 §5.1](../19-tech-stack.md), and the role-binding editor; not the pack, not
-`params`. P7's §4 does not list an editor as out of scope, so it is neither in
+`params`. *Corrected 2026-09-29: P7.3 deferred voice and dispatch to P7.9, whose
+record never mentions them; they became session fields at
+[P14.0](31-p14-scene-and-session-import.md) ([P14 §0.6](31-p14-scene-and-session-import.md)).*
+P7's §4 does not list an editor as out of scope, so it is neither in
 nor deliberately out. **P8 through P11 do not build one either**: P9, P10 and
 P11 never use the word *preset*, and P8's one use is an import marker. The only
 sentence in the corpus that names an owner is P6B §5's, in a
@@ -193,13 +196,16 @@ path around either. §2 is one stage per absence, in dependency order.
 ### 0.3 What P7 took since, and what this phase collects conditionally
 
 **Taken by P7 on branch `p7`, and not this phase's** — checked so the revisit
-does not find them twice: voice and dispatch as optional session fields, the
+does not find them twice: ~~voice and dispatch as optional session fields,~~ the
 session and step model overrides, and the role-binding editor (P7.3); the
 input-kind selector and R11's suggested actions (P7.9); the guidance one-click
 refill of [25 C14](../25-open-questions.md) (*"lands in this phase unless
 somebody moves it"*, P7 §0.1); the setup wizard and the `setups/` kind's writer
 (P7.4); and the two false deferrals P7 §0.1a struck — the context-window surface
-and the advisory marker — which were already built.
+and the advisory marker — which were already built. *Corrected 2026-09-29: voice
+and dispatch were not taken. P7.3 deferred them to P7.9, whose record never
+mentions them, and no session field existed until [P14.0](31-p14-scene-and-session-import.md)
+added both ([P14 §0.6](31-p14-scene-and-session-import.md)).*
 
 **P7's, until P7 closes without them — then this phase's without a second
 routing.** Each is something P7's document calls its own and no P7 stage carries
@@ -300,9 +306,15 @@ A pack is configuration: the runner reads it, no step writes it, and a rewind
 that silently restored an older pack would surprise more people than one that
 does not. The cost, stated: **rewinding past a switch does not un-switch**, and
 the workbench has to say which pack each turn used rather than let the reader
-assume the current one. The revisit confirms this against what P7.3 did with
+assume the current one. ~~The revisit confirms this against what P7.3 did with
 voice and dispatch, which are the same shape of question — *session field whose
-absence means the mode's value* — and were decided the same way.
+absence means the mode's value* — and were decided the same way.~~ *Corrected
+2026-09-29: P7.3 did nothing with voice and dispatch; it deferred them to P7.9,
+whose record never mentions them ([P14 §0.6](31-p14-scene-and-session-import.md)).
+They are the same shape of question, and [P14.0](31-p14-scene-and-session-import.md)
+answered it the same way — session fields — with one refinement this lean did not
+need: absence means the mode's `legacy` value for a session written before the
+fields existed, because Scene's declared values move in P14.*
 
 **Editing the session's own copy in place is the same operation as switching
 to a pack of one.** Once the copy is addressable through the settings panel,
@@ -1239,7 +1251,7 @@ only once there is good news is a table nobody believes.*
 | **4** A slot's `outlet`, set in the editor, positions an entry | ~~**YES — AUTO**~~ **YES — AUTO, from 2026-09-15** | `PresetEditorPage.test.tsx`'s *sets a slot block's outlet, which nothing could do before* — asserted on the **object the client sent**, because that is what would otherwise have been hand-written. ***It was false for a day***: the editor read `source.kind` and no preset carries that field, so no slot rendered as a slot and the control appeared nowhere. Fixed at `3287d67`, **and the fixture that hid it replaced by one the shipped validator accepts** — see P7B.1's record. [P5 §3](17-p5-implementation.md)'s standing defect, retired for real |
 | **5** Switch the pack mid-session; the old record still names the old blocks | **PART — AUTO; the reading is M2** | `session-preset.test.ts` for the switch and the record. *What no assertion covers is whether the history **reads** as the record it is*, which is the failure §1.1 was written to prevent |
 | **6** C3 without a text editor | **NO — M6, a person** | The control exists (*Maximum reply length*, P7B.2) and the walk is what retires C3's struck wording. Open. |
-| **7** A treatment's framing reaches the next turn's `se.treatment` block | **YES — AUTO** | The treatment editor writes the field and the assembler has read it since P5; `kinds.tsx` and the existing assembly tests |
+| **7** A treatment's framing reaches the next turn's `se.treatment` block | ~~**YES — AUTO**~~ **YES — AUTO, from 2026-09-27** | ~~The treatment editor writes the field and the assembler has read it since P5; `kinds.tsx` and the existing assembly tests~~ ***False from the day it was written, and found by the 2026-09-27 audit***: the assembler had **not** read it since P5. The collector's `treatment` arm returned nothing from P2.6 on, and the gather had carried the treatment since P5.6 only as a carrier for its samples, so the block was dropped as empty on every turn and no prompt ever held a framing. The tests cited assert the editor's half and nothing of the assembler's — *the row was answered by reading, not by a test*. Now `runner.test.ts`'s *puts a treatment's framing into the turn's treatment block*, the whole path the row names from the library object to the block on the turn's record, and `collect.test.ts`'s *the treatment slot* |
 | **8** Archive and delete from the UI; delete lands in trash | **YES — AUTO** | `SessionPanel.test.tsx`, over `setSessionArchived` and `deleteSession` — the second of which had no client wrapper at all before this phase |
 | **9** `fields.test.ts`'s negative deleted; *New* on exactly the shelves with an editor | **YES — AUTO** | The negative is deleted rather than edited, as the stage required. *And the tables now cover the whole of `LibraryKind`*, so `LibraryPage`'s no-editor refusal is unreachable — kept as the guard, with a comment saying so (P7B.6) |
 | **10** A hand edit under an open panel is refused with the conflict dialog | **NO — M3, a person** | The 412 path is the editor shell's and is asserted on editor pages; **this is its first walk on a surface that is not one.** Open. |
@@ -1247,7 +1259,7 @@ only once there is good news is a table nobody believes.*
 | **12** Play several turns on a browser-authored pack and judge the narrator | **NO — M5, a sitting** | Not a step, and no test could be written for it even in principle: the question is about prose |
 | **13** A Setup opens and survives a reload; a package assembled in the browser | **PART — AUTO; the picker is M6** | The editor half is `kinds.tsx`'s; a picker over somebody's whole library is a surface a test cannot judge |
 | **14** The workbench on a passed turn, **and it says which turn** | **NO — M4, a person** | `Workbench.tsx` selects from `?turn=` and the ordering rule is asserted. *Every assertion here passes just as well against a panel that renders the head and labels it correctly by accident*, which is why this is a walk |
-| **15** Break an actor file, import, read the quarantine from the browser | **NO — M6, a person** | `QuarantinePanel` exists and renders null when clean. The walk retires [manual gate §3.5](11-p2-manual-gate.md), failing since it was written. Open. |
+| **15** Break an actor file, import, read the quarantine from the browser | **NO — M6, a person** | `QuarantinePanel` exists and renders null when clean. The walk retires [manual gate §3.5](11-p2-manual-gate.md), failing since it was written. Open. *Underneath, 2026-09-30*: ~~the walk retires §3.5~~ — it did not, until `3f97526`: the panel listed the file, while the object's own page still showed it as current and offered it for editing, and a save over a file that was JSON but not a valid object answered *changed since you read it* for ever. Still open, as a walk |
 | **16** `/` is a page, the wordmark reaches it, it shows this build's changelog | **YES — AUTO** | `HomePage.test.tsx`, over a build-time `?raw` import so the changelog is **this** build's; the comments in `router.tsx` and `Shell.tsx` no longer describe a future |
 | **17** A route with neither a caller nor a written exemption fails | **YES — AUTO** | `packages/server/src/routes/route-callers.test.ts`, and it found four routes on its first honest run — §1.12 |
 

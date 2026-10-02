@@ -91,6 +91,25 @@ describe('a read-only note', () => {
     expect(control.hasAttribute('readonly')).toBe(true);
     expect(control.hasAttribute('disabled')).toBe(false);
   });
+
+  /**
+   * ***And so is a multiline one*** (2026-09-27). The `<textarea>` branch
+   * ignored the note, which stayed latent while no read-only field was ever
+   * multiline — until every generic text field became one.
+   */
+  it('makes a multiline control read-only too', () => {
+    render(
+      <Field
+        label="notes"
+        value="Kept on the server."
+        onChange={vi.fn()}
+        multiline
+        readOnlyNote="Not written from here."
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'notes' }).hasAttribute('readonly')).toBe(true);
+  });
 });
 
 describe('an error', () => {

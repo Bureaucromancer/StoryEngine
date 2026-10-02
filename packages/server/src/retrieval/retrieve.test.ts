@@ -21,7 +21,8 @@ import { channelKey, SE_LORE_TIMING } from '../sessions/channels.js';
 import type { ChannelState, Turn } from '../sessions/types.js';
 import type { LoreSource } from '../turns/lore.js';
 import { loreReport } from './blocks.js';
-import { retrieve, type RetrieveContext } from './retrieve.js';
+import type { AssembledBlock } from '../assembly/types.js';
+import { loreReached, retrieve, settleTiming, type RetrieveContext } from './retrieve.js';
 
 /**
  * The retrieval step end to end — [P5.6].
@@ -55,6 +56,17 @@ function turnOf(input: string, output: string): Turn {
   } as unknown as Turn;
 }
 
+/** A turn nothing narrated — a channel write, an undo, a backdrop choice. */
+function editOf(): Turn {
+  return {
+    id: uuidv7(),
+    parentTurnId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    status: 'complete',
+    effects: [],
+  } as unknown as Turn;
+}
+
 function run(
   books: LoreSource[],
   edits: Partial<RetrieveContext> = {},
@@ -70,6 +82,23 @@ function run(
     rng: new Rng({ source: seededSource(0x9e3779b9) }),
     ...edits,
   });
+}
+
+/**
+ * The counters as they settle when every block the retriever handed over
+ * reached the prompt — the ordinary turn, and what these tests assumed before
+ * the settling moved after assembly.
+ */
+function settledAll(
+  result: ReturnType<typeof retrieve>,
+  channels: Record<string, ChannelState> = {},
+): ReturnType<typeof settleTiming> {
+  const reached = new Set(
+    result.blocks.flatMap((one) =>
+      one.candidate.source.kind === 'lore' ? [one.candidate.source.entryId] : [],
+    ),
+  );
+  return settleTiming(result, reached, channels);
 }
 
 function firedNames(result: ReturnType<typeof retrieve>): string[] {
@@ -145,6 +174,26 @@ describe('retrieve', () => {
 
     expect(result.blocks).toEqual([]);
     expect(result.scan.skipped.find((one) => one.entry.name === 'Later')?.reason).toBe('delayed');
+  });
+
+  /**
+   * ***The story's length, not the path's*** (2026-09-27) — `sessions/depth.ts`.
+   * A HUD edit or a backdrop choice is a turn on the path and no message anybody
+   * wrote, and counting them let an entry out early.
+   */
+  it('counts only the turns of the story towards a delay', () => {
+    const entry = entryOf('Later', { keys: ['ferryman'], content: 'Found.', delay: 3 });
+    const history = [turnOf('a', 'b'), editOf(), turnOf('c', 'd'), editOf()];
+
+    const early = run([bookOf([entry])], { history, input: { text: 'the ferryman' } });
+    expect(early.scan.skipped.find((one) => one.entry.name === 'Later')?.reason).toBe('delayed');
+
+    const due = run([bookOf([entry])], {
+      history: [...history, turnOf('e', 'f')],
+      input: { text: 'the ferryman' },
+    });
+    expect(due.scan.skipped.find((one) => one.entry.name === 'Later')).toBeUndefined();
+    expect(due.blocks).toHaveLength(1);
   });
 
   describe('the gating filters', () => {
@@ -223,7 +272,7 @@ describe('retrieve', () => {
       });
       const result = run([bookOf([entry])], { input: { text: 'the ferryman' } });
 
-      expect(result.effects).toEqual([
+      expect(settledAll(result)).toEqual([
         {
           channelId: SE_LORE_TIMING,
           scopeKey: entry.id,
@@ -242,7 +291,9 @@ describe('retrieve', () => {
     it('proposes nothing for an entry whose counters did not move', () => {
       const entry = entryOf('Idle', { keys: ['nothing-here'], content: 'Found.' });
 
-      expect(run([bookOf([entry])], { input: { text: 'a quiet evening' } }).effects).toEqual([]);
+      expect(settledAll(run([bookOf([entry])], { input: { text: 'a quiet evening' } }))).toEqual(
+        [],
+      );
     });
 
     it('reads the stored counters back out of the channel', () => {
@@ -260,7 +311,85 @@ describe('retrieve', () => {
 
       // Held back by the cooldown it was carrying, and counted down by one.
       expect(result.blocks).toEqual([]);
-      expect(result.effects[0]?.after).toEqual({ sticky: 0, cooldown: 1, fired: 1 });
+      expect(settledAll(result, channels)[0]?.after).toEqual({ sticky: 0, cooldown: 1, fired: 1 });
+    });
+
+    /**
+     * ***Counted only when read*** (2026-09-27). The counters were proposed
+     * before the shelf, the outlets and the chat-wide budget had cut anything,
+     * so an entry whose text never reached the prompt was recorded as having
+     * fired. `ephemeral: 1` is the sharpest case: trimmed for budget on the
+     * turn it matched, it was spent, and never read at all.
+     */
+    it('leaves the counters of an entry the book had no room for where they were', () => {
+      const room = entryOf('Standing', { constant: true, content: 'Rain, always.' });
+      const once = entryOf('Once', {
+        keys: ['ferryman'],
+        content: 'The ferryman remembers every face that ever crossed.',
+        ephemeral: 1,
+      });
+      const result = run([bookOf([room, once], { tokenBudget: 8 })], {
+        input: { text: 'the ferryman' },
+      });
+
+      // The case is only the case if the shelf refused it and kept the other.
+      expect(result.shelf.refused.map((one) => one.activation.entry.id)).toEqual([once.id]);
+      const settled = settledAll(result);
+      expect(settled.map((one) => one.scopeKey)).not.toContain(once.id);
+    });
+
+    /**
+     * *A sticky window is turns the entry was in the prompt*, so one the
+     * chat-wide budget cut has not spent a turn of it — and a cooldown, which
+     * is time passing rather than a reading, runs down either way.
+     */
+    it('holds a sticky window the prompt did not carry, and still runs a cooldown down', () => {
+      const sticky = entryOf('Sticky', { keys: ['bell'], content: 'The bell.' });
+      const cooling = entryOf('Cooling', { keys: ['bell'], content: 'Again.' });
+      const held = (value: unknown): ChannelState =>
+        ({
+          value,
+          version: 1,
+          updatedBy: { kind: 'engine' },
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }) as unknown as ChannelState;
+      const channels: Record<string, ChannelState> = {
+        [channelKey(SE_LORE_TIMING, sticky.id)]: held({ sticky: 2, cooldown: 0, fired: 1 }),
+        [channelKey(SE_LORE_TIMING, cooling.id)]: held({ sticky: 0, cooldown: 2, fired: 1 }),
+      };
+      const result = run([bookOf([sticky, cooling])], { input: { text: 'quiet' }, channels });
+
+      // Nothing reached the prompt: the chat-wide budget cut the sticky block.
+      const settled = settleTiming(result, new Set(), channels);
+
+      expect(settled.map((one) => one.scopeKey)).toEqual([cooling.id]);
+      expect(settled[0]?.after).toEqual({ sticky: 0, cooldown: 1, fired: 1 });
+    });
+  });
+
+  describe('what reached the prompt', () => {
+    function block(over: Partial<AssembledBlock>): AssembledBlock {
+      return {
+        id: 'b',
+        source: { kind: 'lore', entryId: 'e-1', phase: 'before' },
+        reason: 'activated',
+        role: 'system',
+        text: 'x',
+        tokens: 1,
+        included: true,
+        ...over,
+      };
+    }
+
+    it('is the lore blocks the assembler included, by entry', () => {
+      const reached = loreReached([
+        block({}),
+        block({ source: { kind: 'lore', entryId: 'e-2', phase: 'after' }, included: false }),
+        block({ source: { kind: 'persona', actorId: null, contentHash: null } }),
+      ]);
+
+      expect([...reached]).toEqual(['e-1']);
+      expect(loreReached(undefined).size).toBe(0);
     });
   });
 

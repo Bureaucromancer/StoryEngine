@@ -35,3 +35,14 @@ export const BUDGETS: Record<string, number> = {
   "se.clock": 24,
   "se.location": 32,
 };
+
+// A switch on a thing's `id` that is not a mode's: the `.id` selectors are
+// anchored on the object being a mode, and this is what that anchor is for.
+export function budgetFor(channel: { id: string }): number {
+  switch (channel.id) {
+    case "se.clock":
+      return 24;
+    default:
+      return 32;
+  }
+}

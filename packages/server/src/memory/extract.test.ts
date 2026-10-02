@@ -5,7 +5,16 @@ import { describe, expect, it } from 'vitest';
 
 import { newLorebook, newLoreEntry, type Lorebook } from '@storyengine/shared';
 
-import { alreadyKnown, EXTRACT_PROMPT, readExtraction } from './extract.js';
+import type { StepCallRequest, StepHost, TranscriptTurn } from '@storyengine/sdk';
+
+import type { LibraryContext } from '../library.js';
+import {
+  alreadyKnown,
+  EXTRACT_EVERY_N_TURNS,
+  EXTRACT_PROMPT,
+  extractMemories,
+  readExtraction,
+} from './extract.js';
 
 /**
  * ***The extractor's two judgements, and neither is about prose*** —
@@ -119,5 +128,128 @@ describe('what the model is told', () => {
     expect(EXTRACT_PROMPT).toContain('Do not invent');
     expect(EXTRACT_PROMPT).toContain('privately thought');
     expect(EXTRACT_PROMPT).toContain('Do not speculate');
+  });
+});
+
+/**
+ * ***The turns since it last ran*** (2026-09-27). The step rendered the whole
+ * transcript on every eighth turn, so each extraction re-read the session from
+ * its first turn: quadratic in the session's length, every old exchange offered
+ * again, and a long session outgrowing the window with a block that cannot be
+ * trimmed. Asked with no memories to write, so nothing but the call is seen.
+ */
+describe('what the extractor reads', () => {
+  it('reads the last eight turns of the story, not the whole of it', async () => {
+    const asked: StepCallRequest[] = [];
+    const host: StepHost = {
+      call: (request) => {
+        asked.push(request);
+        return Promise.resolve({ callId: 'c1', text: '', usage: null, object: { memories: [] } });
+      },
+      random: {} as StepHost['random'],
+      signal: new AbortController().signal,
+    };
+    const step = extractMemories({
+      library: {} as LibraryContext,
+      handle: 'ned',
+      sessionId: 's-1',
+      session: { name: 'Rain City', cast: { persona: null, actors: ['a-vera'] } },
+      nameOf: () => 'Vera',
+      report: () => undefined,
+    });
+    const transcript: TranscriptTurn[] = Array.from({ length: 31 }, (_, at) => ({
+      turnId: `t-${String(at)}`,
+      output: { text: `Day ${String(at)} on the road.` },
+    }));
+
+    await step.run(
+      { turnId: 't-now', sessionId: 's-1', parentTurnId: 't-30', channels: {}, transcript },
+      host,
+    );
+
+    const turns = asked[0]?.candidates?.find((one) => one.id === 'se.memory.turns')?.text ?? '';
+    const first = 31 - EXTRACT_EVERY_N_TURNS;
+    expect(turns).toContain(`Day ${String(first)} on the road.`);
+    expect(turns).toContain('Day 30 on the road.');
+    expect(turns).not.toContain(`Day ${String(first - 1)} on the road.`);
+  });
+});
+
+/**
+ * ***The player's move is quoted to its last line*** — [25 E15], and the rule
+ * `quoted` exists for. The extractor quotes the move and leaves the reply bare
+ * so a model can tell what somebody did from what the narrator said; with one
+ * `> ` in front of the whole move, each picture's stand-in — on a line of its
+ * own — read as narration, and a memory of a picture the player showed could
+ * come back as something the narrator described.
+ *
+ * Asked with no memories to write, as above, so nothing but the call is seen.
+ */
+describe('a move with pictures, as the extractor reads it', () => {
+  /**
+   * One turn that is words and a captioned picture, one that is two pictures
+   * and no words — the whole exchange, so the whole block can be asserted.
+   *
+   * Falsified by: quoting the move as one string (`> ${moveText(...)}`), which
+   * leaves every stand-in after the first line bare; or reading `input.text`
+   * rather than `moveText`, which drops the pictures and leaves turn 1 with a
+   * reply and no move.
+   */
+  it('quotes every line of the move and leaves the reply bare', async () => {
+    const asked: StepCallRequest[] = [];
+    const host: StepHost = {
+      call: (request) => {
+        asked.push(request);
+        return Promise.resolve({ callId: 'c1', text: '', usage: null, object: { memories: [] } });
+      },
+      random: {} as StepHost['random'],
+      signal: new AbortController().signal,
+    };
+    const transcript: TranscriptTurn[] = [
+      {
+        turnId: 't-0',
+        input: {
+          actorId: null,
+          kind: 'do',
+          text: 'I wonder.',
+          attachments: [{ kind: 'image', caption: 'a lantern' }],
+        },
+        output: { text: 'Nothing moves.' },
+      },
+      {
+        turnId: 't-1',
+        input: {
+          actorId: null,
+          kind: 'do',
+          text: '',
+          attachments: [{ kind: 'image', caption: 'the harbour' }, { kind: 'image' }],
+        },
+        output: { text: 'The tide turns.' },
+      },
+    ];
+
+    await extractMemories({
+      library: {} as LibraryContext,
+      handle: 'ned',
+      sessionId: 's-1',
+      session: { name: 'Rain City', cast: { persona: null, actors: ['a-vera'] } },
+      nameOf: () => 'Vera',
+      report: () => undefined,
+    }).run(
+      { turnId: 't-now', sessionId: 's-1', parentTurnId: 't-1', channels: {}, transcript },
+      host,
+    );
+
+    expect(asked[0]?.candidates?.find((one) => one.id === 'se.memory.turns')?.text).toBe(
+      [
+        '> I wonder.',
+        '> [Picture: a lantern]',
+        'Nothing moves.',
+        '',
+        '> [Picture: the harbour]',
+        '> [Picture, not described]',
+        'The tide turns.',
+      ].join('\n'),
+    );
   });
 });

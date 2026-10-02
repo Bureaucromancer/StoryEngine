@@ -165,6 +165,33 @@ export const ASSISTANT_PRESET: Preset = {
       kind: 'slot',
       source: { of: 'guidance' },
     },
+    /**
+     * ***The answer a guided redo is replacing*** (2026-09-30) — [06 §5.1],
+     * Scene's `se.attempt`, for Scene's reasons. The assistant is the play
+     * surface, so it has Redo with guidance, and without this slot the model
+     * was told *be briefer* and never shown what it was briefer than. After the
+     * guidance, as Scene's is, so the wrapper is the seam between the
+     * instruction and the prose it is about; priority 50, so a squeezed redo
+     * loses the lore and the history before the answer it is replacing, and
+     * that before the context, the card and the instruction. Advisory in the
+     * pack as the collector forces it. *Existing assistant sessions gain it
+     * where it ships* (`presetOf`), since the block is an addition.
+     */
+    {
+      id: 'se.attempt',
+      label: 'previous attempt',
+      role: 'system',
+      enabled: true,
+      placement: { at: 'sequence' },
+      priority: 50,
+      appliesTo: [],
+      advisory: true,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: { of: 'attempt' },
+      wrapper:
+        'This is your previous answer to this message. The person asked for a different one — do not repeat it.\n\n{{content}}',
+    },
     {
       id: 'se.input',
       label: 'input',

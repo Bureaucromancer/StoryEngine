@@ -6,6 +6,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { formatCount } from '../format.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 
 /**
@@ -64,6 +65,7 @@ describe('an entry as a readable unit', () => {
   it('shows what an author wrote, with the keys as an index row', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={book({
           entries: [
             entry('Harbour', {
@@ -94,7 +96,12 @@ describe('an entry as a readable unit', () => {
    */
   it('opens clamped, and expands', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={book({ entries: [entry('Harbour', { content: LONG })] })} />);
+    render(
+      <LorebookView
+        locale="en-US"
+        book={book({ entries: [entry('Harbour', { content: LONG })] })}
+      />,
+    );
 
     const body = (): Element | null => unitFor('Harbour').querySelector('p.whitespace-pre-wrap');
     expect(body()?.className).toContain('line-clamp-6');
@@ -110,7 +117,10 @@ describe('an entry as a readable unit', () => {
    */
   it('offers no expand on an entry short enough to be whole already', () => {
     render(
-      <LorebookView book={book({ entries: [entry('Harbour', { content: 'Two words.' })] })} />,
+      <LorebookView
+        locale="en-US"
+        book={book({ entries: [entry('Harbour', { content: 'Two words.' })] })}
+      />,
     );
 
     expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull();
@@ -118,7 +128,12 @@ describe('an entry as a readable unit', () => {
   });
 
   it('folds every remaining field beneath, in the schema’s own groups', () => {
-    render(<LorebookView book={book({ entries: [entry('Harbour', { content: 'Cranes.' })] })} />);
+    render(
+      <LorebookView
+        locale="en-US"
+        book={book({ entries: [entry('Harbour', { content: 'Cranes.' })] })}
+      />,
+    );
 
     const unit = unitFor('Harbour');
     const labels = [...unit.querySelectorAll('dt')].map((node) => node.textContent);
@@ -135,13 +150,20 @@ describe('an entry as a readable unit', () => {
 
 describe('an entry that is off says which way', () => {
   it('names the entry’s own switch', () => {
-    render(<LorebookView book={book({ entries: [entry('Harbour', { enabled: false })] })} />);
+    render(
+      <LorebookView
+        locale="en-US"
+        book={book({ entries: [entry('Harbour', { enabled: false })] })}
+      />,
+    );
 
     expect(unitFor('Harbour').textContent).toContain('off');
   });
 
   it('names the book', () => {
-    render(<LorebookView book={book({ enabled: false, entries: [entry('Harbour')] })} />);
+    render(
+      <LorebookView locale="en-US" book={book({ enabled: false, entries: [entry('Harbour')] })} />,
+    );
 
     expect(unitFor('Harbour').textContent).toContain('off: the book is off');
   });
@@ -155,6 +177,7 @@ describe('an entry that is off says which way', () => {
   it('names the folder, and leaves the entry’s own switch reading on', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={book({
           folders: [folder('timeline', { name: 'Timeline B', enabled: false })],
           entries: [entry('Harbour', { folderId: 'timeline' })],
@@ -170,7 +193,7 @@ describe('an entry that is off says which way', () => {
   });
 
   it('says nothing at all about an entry with nothing shut in its way', () => {
-    render(<LorebookView book={book({ entries: [entry('Harbour')] })} />);
+    render(<LorebookView locale="en-US" book={book({ entries: [entry('Harbour')] })} />);
 
     expect(unitFor('Harbour').textContent).not.toContain('off:');
   });
@@ -180,6 +203,7 @@ describe('the folders panel', () => {
   it('heads its column with the schema’s own word and counts what each governs', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={book({
           folders: [folder('timeline', { name: 'Timeline B', enabled: false })],
           entries: [entry('Harbour', { folderId: 'timeline' }), entry('Docks')],
@@ -199,14 +223,17 @@ describe('the folders panel', () => {
    */
   it('gives the ungrouped entries a row of their own', () => {
     render(
-      <LorebookView book={book({ folders: [folder('timeline')], entries: [entry('Docks')] })} />,
+      <LorebookView
+        locale="en-US"
+        book={book({ folders: [folder('timeline')], entries: [entry('Docks')] })}
+      />,
     );
 
     expect(screen.getByRole('cell', { name: 'Ungrouped' })).toBeTruthy();
   });
 
   it('is absent from a book that has no folders at all', () => {
-    render(<LorebookView book={book({ entries: [entry('Docks')] })} />);
+    render(<LorebookView locale="en-US" book={book({ entries: [entry('Docks')] })} />);
 
     expect(screen.queryByRole('columnheader', { name: 'Gate' })).toBeNull();
   });
@@ -216,6 +243,7 @@ describe('the book’s own header', () => {
   it('counts the entries and how many are off, which no surface has shown', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={book({
           folders: [folder('timeline', { enabled: false })],
           entries: [
@@ -231,7 +259,7 @@ describe('the book’s own header', () => {
   });
 
   it('drops the second half when nothing is off', () => {
-    render(<LorebookView book={book({ entries: [entry('A')] })} />);
+    render(<LorebookView locale="en-US" book={book({ entries: [entry('A')] })} />);
 
     expect(screen.getByText('1 entries')).toBeTruthy();
   });
@@ -241,13 +269,72 @@ describe('the book’s own header', () => {
    * not by prominent — so the tuning is present and quiet rather than absent.
    */
   it('carries the book’s activation settings as one quiet strip', () => {
-    render(<LorebookView book={book({ tokenBudget: 4096, entries: [] })} />);
+    render(<LorebookView locale="en-US" book={book({ tokenBudget: 4096, entries: [] })} />);
 
     // Queried rather than compared: the label is displayed text, and the lint
     // rule that forbids branching on it is right — a test that switched on a
     // sentence would change what it checked the day the sentence was
     // translated.
     expect(screen.getByText('Token budget').nextElementSibling?.textContent).toBe('4,096');
+  });
+});
+
+/**
+ * ***The page's counts in the reader's format*** (2026-09-28). The view took a
+ * locale and passed it to the memory's origin alone, so every count on the page
+ * — the header's, the settings strip's, the folder table's, the mentions', the
+ * narrowing line's and the scanner's — was written in the browser's format
+ * whatever the account said.
+ *
+ * **Written in Arabic-Indic digits**, through a `-u-nu-arab` tag no account is
+ * offered. The regions an account can choose differ only past a thousand, and a
+ * thousand entries is more than jsdom renders inside a test's time; what is
+ * under test is that the locale reaches each count, which any tag whose small
+ * numbers differ proves.
+ */
+describe('the counts on the page', () => {
+  const LOCALE = 'en-US-u-nu-arab';
+  const count = (n: number): string => formatCount(n, LOCALE);
+  const NAMES = ['Anna', 'Bram', 'Cole', 'Dara', 'Eli', 'Finn'];
+
+  function renderCounted(): void {
+    render(
+      <LorebookView
+        locale={LOCALE}
+        book={book({
+          tokenBudget: 4096,
+          folders: [folder('timeline', { enabled: false })],
+          entries: [
+            entry('Harbour', { keys: ['docks'], content: `${NAMES.join(' and ')} work here.` }),
+            ...NAMES.map((name) => entry(name, { folderId: 'timeline' })),
+            entry('Pattern', { keys: ['^x'], useRegex: true, enabled: false }),
+          ],
+        })}
+      />,
+    );
+  }
+
+  it('writes the header, the strip, the folders and the mentions in it', () => {
+    renderCounted();
+
+    expect(count(8)).not.toBe(formatCount(8, 'en-US'));
+    expect(screen.getByText(`${count(8)} entries, ${count(7)} off`)).toBeTruthy();
+    expect(screen.getByText('Token budget').nextElementSibling?.textContent).toBe(count(4096));
+    const folders = within(screen.getByRole('table'));
+    expect(folders.getByText(count(6))).toBeTruthy();
+    expect(folders.getByText(count(2))).toBeTruthy();
+    expect(within(unitFor('Harbour')).getByText(`and ${count(1)} more`)).toBeTruthy();
+  });
+
+  it('writes the narrowing line and the scanner’s pattern count in it', async () => {
+    const user = userEvent.setup();
+    renderCounted();
+
+    await user.click(screen.getByRole('button', { name: 'docks' }));
+    expect(screen.getByText(`Showing ${count(1)} of ${count(8)}`)).toBeTruthy();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
+    expect(screen.getByText(new RegExp(`${count(1)} entries match by pattern`))).toBeTruthy();
   });
 });
 
@@ -272,7 +359,7 @@ describe('the load the page exists for', () => {
     const entries = Array.from({ length: 300 }, (_, index) =>
       entry(`Entry ${String(index)}`, { content: 'Prose.' }),
     );
-    render(<LorebookView book={book({ entries })} />);
+    render(<LorebookView locale="en-US" book={book({ entries })} />);
 
     expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(300);
     expect(screen.getByText('300 entries')).toBeTruthy();
@@ -308,7 +395,7 @@ describe('narrowing a book', () => {
 
   it('narrows to the entries carrying a key, and the same chip is the way back', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     await user.click(screen.getByRole('button', { name: 'docks' }));
     expect(shown()).toEqual(['Harbour']);
@@ -319,7 +406,7 @@ describe('narrowing a book', () => {
 
   it('narrows by a tag', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     await user.click(screen.getByRole('button', { name: 'person' }));
 
@@ -328,7 +415,7 @@ describe('narrowing a book', () => {
 
   it('narrows by a folder, and by the ungrouped node', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     await user.click(screen.getByRole('button', { name: 'Timeline B' }));
     expect(shown()).toEqual(['Harbour']);
@@ -339,7 +426,7 @@ describe('narrowing a book', () => {
 
   it('searches the fields §5.3 lists, including the prose', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     await user.type(screen.getByLabelText('Search this book'), 'cranes');
 
@@ -348,7 +435,7 @@ describe('narrowing a book', () => {
 
   it('marks what it found, rather than only hiding what it did not', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     await user.type(screen.getByLabelText('Search this book'), 'cranes');
 
@@ -362,7 +449,7 @@ describe('narrowing a book', () => {
    */
   it('opens the entry whose prose answered the search', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     const body = (): Element | null => unitFor('Harbour').querySelector('p.whitespace-pre-wrap');
     expect(body()?.className).toContain('line-clamp-6');
@@ -374,7 +461,7 @@ describe('narrowing a book', () => {
 
   it('says how much it is hiding, and clears back to the whole book', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     await user.click(screen.getByRole('button', { name: 'docks' }));
     expect(screen.getByText('Showing 1 of 2')).toBeTruthy();
@@ -387,7 +474,7 @@ describe('narrowing a book', () => {
 
   it('says so when nothing matches, rather than showing an empty page', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     await user.type(screen.getByLabelText('Search this book'), 'zeppelin');
 
@@ -396,7 +483,7 @@ describe('narrowing a book', () => {
   });
 
   it('is quiet until something is narrowed', () => {
-    render(<LorebookView book={shelf()} />);
+    render(<LorebookView locale="en-US" book={shelf()} />);
 
     expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull();
   });
@@ -420,7 +507,7 @@ describe('an entry addressed by the route', () => {
     });
 
   it('marks the one the address names, and only that one', () => {
-    render(<LorebookView book={shelf()} focused="e-vera" />);
+    render(<LorebookView locale="en-US" book={shelf()} focused="e-vera" />);
 
     expect(unitFor('Vera').getAttribute('aria-current')).toBe('true');
     expect(unitFor('Harbour').getAttribute('aria-current')).toBeNull();
@@ -436,7 +523,7 @@ describe('an entry addressed by the route', () => {
     // is also what makes this test say what it depends on.
     const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView');
 
-    render(<LorebookView book={shelf()} focused="e-vera" />);
+    render(<LorebookView locale="en-US" book={shelf()} focused="e-vera" />);
 
     expect(scrolled).toHaveBeenCalled();
     scrolled.mockRestore();
@@ -450,7 +537,7 @@ describe('an entry addressed by the route', () => {
    * where an error card is not.
    */
   it('degrades to the whole book when the address names nothing', () => {
-    render(<LorebookView book={shelf()} focused="an-entry-that-left" />);
+    render(<LorebookView locale="en-US" book={shelf()} focused="an-entry-that-left" />);
 
     expect(screen.getAllByRole('heading', { level: 3 }).map((node) => node.textContent)).toEqual([
       'Harbour',
@@ -462,6 +549,7 @@ describe('an entry addressed by the route', () => {
   it('offers each entry its own address, so one can be got at all', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={shelf()}
         focused={null}
         linkToEntry={(entryId, children) => <a href={`?entry=${entryId}`}>{children}</a>}
@@ -472,7 +560,7 @@ describe('an entry addressed by the route', () => {
   });
 
   it('reads the same without a link builder, since the mark is the route’s', () => {
-    render(<LorebookView book={shelf()} focused="e-vera" />);
+    render(<LorebookView locale="en-US" book={shelf()} focused="e-vera" />);
 
     expect(screen.queryByRole('link', { name: 'Vera' })).toBeNull();
     expect(unitFor('Vera').getAttribute('aria-current')).toBe('true');
@@ -505,7 +593,13 @@ describe('what the import said about this book', () => {
   ];
 
   it('says what happened to the book, in the review’s own words', () => {
-    render(<LorebookView book={book({ entries: [entry('Harbour')] })} importNotes={notes()} />);
+    render(
+      <LorebookView
+        locale="en-US"
+        book={book({ entries: [entry('Harbour')] })}
+        importNotes={notes()}
+      />,
+    );
 
     expect(screen.getByText('Entry limit reduced from 5000 to 1000.')).toBeTruthy();
     expect(screen.getByText('cards/Vera.png')).toBeTruthy();
@@ -518,6 +612,7 @@ describe('what the import said about this book', () => {
   it('puts an entry-level note on the entry it names', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={book({ entries: [entry('Harbour'), entry('Vera')] })}
         importNotes={notes()}
       />,
@@ -533,7 +628,9 @@ describe('what the import said about this book', () => {
    * second. A book imported through the file upload has no job at all.
    */
   it('says nothing at all when there is nothing recorded', () => {
-    render(<LorebookView book={book({ entries: [entry('Harbour')] })} importNotes={[]} />);
+    render(
+      <LorebookView locale="en-US" book={book({ entries: [entry('Harbour')] })} importNotes={[]} />,
+    );
 
     expect(screen.queryByRole('heading', { name: 'What the import did' })).toBeNull();
   });
@@ -541,6 +638,7 @@ describe('what the import said about this book', () => {
   it('says nothing when a job recorded no notes about this object', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={book({ entries: [entry('Harbour')] })}
         importNotes={[{ jobId: 'j-1', source: 'cards/Vera.png', notes: [] }]}
       />,
@@ -567,7 +665,7 @@ describe('an entry’s mentions', () => {
   ];
 
   it('lists both directions, each row naming what matched', () => {
-    render(<LorebookView book={book({ entries: linked })} />);
+    render(<LorebookView locale="en-US" book={book({ entries: linked })} />);
 
     const ferryman = unitFor('The Ferryman');
     expect(within(ferryman).getByRole('heading', { name: 'Mentions', level: 4 })).toBeTruthy();
@@ -589,7 +687,12 @@ describe('an entry’s mentions', () => {
    * not write that way is noise standing where a finding would be.
    */
   it('renders no heading for an entry nothing mentions', () => {
-    render(<LorebookView book={book({ entries: [entry('Alone', { content: 'Nothing.' })] })} />);
+    render(
+      <LorebookView
+        locale="en-US"
+        book={book({ entries: [entry('Alone', { content: 'Nothing.' })] })}
+      />,
+    );
 
     expect(screen.queryByRole('heading', { name: 'Mentions' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Mentioned by' })).toBeNull();
@@ -609,6 +712,7 @@ describe('an entry’s mentions', () => {
     );
     render(
       <LorebookView
+        locale="en-US"
         book={book({ entries: [...shared, entry('Ferryman', { content: 'Along the quay.' })] })}
       />,
     );
@@ -626,6 +730,7 @@ describe('an entry’s mentions', () => {
   it('links a mentioned entry at its own address', () => {
     render(
       <LorebookView
+        locale="en-US"
         book={book({ entries: linked })}
         linkToEntry={(entryId, children) => <a href={`?entry=${entryId}`}>{children}</a>}
       />,
@@ -659,14 +764,14 @@ describe('marking what the scanner sees', () => {
 
   /** Off by default, which §5.3 says twice. */
   it('marks nothing until it is switched on', () => {
-    render(<LorebookView book={linked()} />);
+    render(<LorebookView locale="en-US" book={linked()} />);
 
     expect(marksIn('The Docks')).toEqual([]);
   });
 
   it('marks another entry’s key inside this one’s prose', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={linked()} />);
+    render(<LorebookView locale="en-US" book={linked()} />);
 
     await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
 
@@ -679,7 +784,7 @@ describe('marking what the scanner sees', () => {
    */
   it('does not mark an entry’s own key', async () => {
     const user = userEvent.setup();
-    render(<LorebookView book={linked()} />);
+    render(<LorebookView locale="en-US" book={linked()} />);
 
     await user.click(screen.getByRole('checkbox', { name: 'Mark what the scanner sees' }));
 
@@ -696,6 +801,7 @@ describe('marking what the scanner sees', () => {
     const user = userEvent.setup();
     render(
       <LorebookView
+        locale="en-US"
         book={book({
           entries: [
             entry('Dock', { keys: ['dock'], matchWholeWords: true }),
@@ -720,6 +826,7 @@ describe('marking what the scanner sees', () => {
     const user = userEvent.setup();
     render(
       <LorebookView
+        locale="en-US"
         book={book({
           entries: [
             entry('Pattern', { keys: ['do.ks'], useRegex: true }),
@@ -740,7 +847,7 @@ describe('marking what the scanner sees', () => {
    * makes about a *Show all* on a two-line entry.
    */
   it('offers no switch on a book with nothing to link', () => {
-    render(<LorebookView book={book({ entries: [entry('Alone')] })} />);
+    render(<LorebookView locale="en-US" book={book({ entries: [entry('Alone')] })} />);
 
     expect(screen.queryByRole('checkbox', { name: 'Mark what the scanner sees' })).toBeNull();
   });
@@ -760,6 +867,7 @@ describe('marking when two entries both match', () => {
     const user = userEvent.setup();
     render(
       <LorebookView
+        locale="en-US"
         book={book({
           entries: [
             // 'wharf' appears *later* in the prose than 'harbour', while its

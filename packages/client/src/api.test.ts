@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  adminApi,
   api,
   ApiError,
   cookieValue,
@@ -11,10 +12,83 @@ import {
   isLibraryKind,
   kindOfSchema,
   LIBRARY_KINDS,
+  listSessions,
+  removeSessionHook,
   renameSession,
   setSessionLore,
+  uploadFailure,
 } from './api.js';
 import { formatTimestamp, timestampsOf } from './format.js';
+
+/**
+ * ***A file, and what its answer said*** (2026-09-28) — gap round A5.4. The
+ * detail page's links now fetch, and what they read is here: the notes arrive
+ * as base64 of UTF-8, which `atob` alone would hand back as latin-1.
+ */
+describe('taking a file', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function answer(response: Response): string[] {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      urls.push(url);
+      return Promise.resolve(response);
+    });
+    return urls;
+  }
+
+  it('reads the name, the notes in their own characters, and the missing count', async () => {
+    const notes = [
+      { key: 'export.card.noCastMember', params: { treatment: 'Café' }, level: 'info' },
+    ];
+    const urls = answer(
+      new Response('{}', {
+        status: 200,
+        headers: {
+          'content-disposition': 'attachment; filename="Cafe.json"',
+          'x-storyengine-export-notes': Buffer.from(JSON.stringify(notes)).toString('base64'),
+          'x-storyengine-missing': '3',
+        },
+      }),
+    );
+
+    const file = await api.takeFile('/api/library/treatments/t1/export/sillytavern.card');
+
+    expect(urls).toEqual(['/api/library/treatments/t1/export/sillytavern.card']);
+    expect(file.fileName).toBe('Cafe.json');
+    expect(file.notes).toEqual(notes);
+    expect(file.missing).toBe(3);
+    expect(await file.blob.text()).toBe('{}');
+  });
+
+  it('is a refusal, by its class, when the route refuses', async () => {
+    answer(
+      new Response(JSON.stringify({ error: 'not-exportable', message: 'no' }), { status: 422 }),
+    );
+
+    const failure = await api.takeFile('/api/library/actors/a1/download').catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(ApiError);
+    expect((failure as ApiError).code).toBe('not-exportable');
+  });
+
+  it('reads a notes header that will not decode as no notes, not as a failure', async () => {
+    answer(
+      new Response('{}', {
+        status: 200,
+        headers: { 'x-storyengine-export-notes': '%%not-base64' },
+      }),
+    );
+
+    const file = await api.takeFile('/api/library/actors/a1/download');
+
+    expect(file.notes).toEqual([]);
+    expect(file.missing).toBe(0);
+    expect(file.fileName).toBeNull();
+  });
+});
 
 describe('the 412 parse', () => {
   // Through a stubbed fetch on a GET path — request() reads document.cookie
@@ -74,6 +148,24 @@ describe('the 412 parse', () => {
     // caller would then present as if it meant something.
     const failure = await api.readObject('actors', 'a1').catch((error: unknown) => error);
     expect((failure as ApiError).contentHash).toBeUndefined();
+  });
+
+  /**
+   * ***The remedy a provider failure comes with*** (2026-09-27). A draft the
+   * endpoint refused answers with the remedy a failed turn gets, and the play
+   * surface words it; lifted here so no caller reads the body for it.
+   */
+  it('carries `remedy`, and leaves it unset when the route sent none', async () => {
+    answer(
+      502,
+      JSON.stringify({ error: 'provider-failed', message: 'no', remedy: 'endpoint-refused' }),
+    );
+    const refused = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((refused as ApiError).remedy).toBe('endpoint-refused');
+
+    answer(500, JSON.stringify({ error: 'internal', message: 'no' }));
+    const plain = await api.readObject('actors', 'a1').catch((error: unknown) => error);
+    expect((plain as ApiError).remedy).toBeUndefined();
   });
 
   it('survives a body that is not JSON at all', async () => {
@@ -240,6 +332,174 @@ describe('the session write bodies', () => {
     // sent one field would silently clear the other.
     expect(seen[0]?.body).toEqual({ treatment: null, lore: ['book-rain'] });
   });
+
+  /**
+   * ***A cast given whole goes on the wire whole*** (2026-09-27). The assistant
+   * panel passes the shipped card as its session's one actor, and the field
+   * was declared on the input and read by nothing — every assistant session was
+   * made with nobody in it.
+   */
+  it('sends a cast given whole, actors and all', async () => {
+    const seen = capture();
+
+    await createSession({
+      mode: 'storyengine.assistant',
+      cast: { persona: null, actors: ['the-card'] },
+    });
+
+    expect(seen[0]?.body).toEqual({
+      mode: 'storyengine.assistant',
+      cast: { persona: null, actors: ['the-card'] },
+    });
+  });
+});
+
+/**
+ * ***An id is escaped wherever it is a path segment*** (2026-09-27). The admin
+ * connection calls put it in raw, where their personal twins encoded it; an id
+ * is whatever a hand-written file says, and `lab/gpu` reached a different
+ * route. The three import and asset calls beside them had the same omission.
+ */
+describe('ids in addresses', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function urls(): string[] {
+    const seen: string[] = [];
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', (url: string) => {
+      seen.push(url);
+      return Promise.resolve(
+        new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      );
+    });
+    return seen;
+  }
+
+  it('escapes a system connection id in every call that names one', async () => {
+    const seen = urls();
+
+    await adminApi.updateConnection('lab/gpu', {
+      label: 'GPU',
+      provider: 'openai-compatible',
+      models: [],
+      contentHash: 'sha256:x',
+    });
+    await adminApi.deleteConnection('../escape');
+    await adminApi.connectionBindings('house#2');
+
+    expect(seen).toEqual([
+      '/api/admin/connections/lab%2Fgpu',
+      '/api/admin/connections/..%2Fescape',
+      '/api/admin/connections/house%232/bindings',
+    ]);
+  });
+
+  /**
+   * ***A hook row is removed by its source*** (2026-09-28): the kind as it is
+   * and the carrier's id escaped, nothing for the session's own, and the bare
+   * address when no row is named — which still means every row under the id.
+   */
+  it('names the pooled row a hook removal means, escaped', async () => {
+    const seen = urls();
+
+    await removeSessionHook('s1', 'hook-war');
+    await removeSessionHook('s1', 'hook-war', { kind: 'session' });
+    await removeSessionHook('s1', 'hook-war', { kind: 'lore', id: 'book/rain' });
+
+    expect(seen).toEqual([
+      '/api/sessions/s1/hooks/hook-war',
+      '/api/sessions/s1/hooks/hook-war?from=session',
+      '/api/sessions/s1/hooks/hook-war?from=lore&fromId=book%2Frain',
+    ]);
+  });
+
+  it('escapes the ids in the import and picture calls', async () => {
+    const seen = urls();
+
+    await api.importJob('a/b');
+    await api.objectImportNotes('c#d');
+    await api.uploadAsset('lorebooks', 'e?f', new Blob(['x']), 'x.png');
+
+    expect(seen).toEqual([
+      '/api/import/jobs/a%2Fb',
+      '/api/import/objects/c%23d/notes',
+      '/api/library/lorebooks/e%3Ff/assets',
+    ]);
+  });
+});
+
+/**
+ * ***The archived sessions, asked for*** (2026-09-27). The route has answered
+ * `?archived=true` since sessions could be archived, and no call sent it — so
+ * an archived session could not be listed, and a memory from one read as
+ * deleted. The live list stays the bare address, which is the key every
+ * existing caller's cache is under.
+ */
+describe('the session list', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the archived ones only when told to', async () => {
+    const seen: string[] = [];
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', (url: string) => {
+      seen.push(url);
+      return Promise.resolve(
+        new Response('{"sessions":[]}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+
+    await listSessions();
+    await listSessions({ archived: false });
+    await listSessions({ archived: true });
+
+    expect(seen).toEqual(['/api/sessions', '/api/sessions', '/api/sessions?archived=true']);
+  });
+});
+
+/**
+ * ***What a folder upload carries besides its files*** (2026-09-28): the
+ * picked folder's name, which the recorded import is listed under, and the
+ * plan's `overLimit`, which the review names. The panel's own tests stop at
+ * this call, so the form it builds is checked here.
+ */
+describe('a folder upload', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends the folder’s name and what the limit left out', async () => {
+    let sent: FormData | undefined;
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', (_url: string, init: { body?: unknown }) => {
+      sent = init.body as FormData;
+      return Promise.resolve(
+        new Response('{"report":{}}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+
+    await api.importDirectory(
+      ['a.json', 'big.png'],
+      [],
+      undefined,
+      undefined,
+      undefined,
+      ['big.png'],
+      'default-user',
+    );
+
+    expect(sent?.get('folder')).toBe('default-user');
+    expect(sent?.get('overLimit')).toBe(JSON.stringify(['big.png']));
+  });
 });
 
 describe('cookieValue', () => {
@@ -282,6 +542,9 @@ describe('library kinds', () => {
   it('maps a schema id to its folder', () => {
     expect(kindOfSchema('storyengine.actor/1')).toBe('actors');
     expect(kindOfSchema('storyengine.mystery/9')).toBeNull();
+    // A server's string, never read through the prototype (2026-09-27): this
+    // was the `Object` constructor rather than nothing.
+    expect(kindOfSchema('constructor')).toBeNull();
   });
 });
 
@@ -313,5 +576,39 @@ describe('formatTimestamp', () => {
 
   it('returns an unparsable value unchanged rather than hiding it', () => {
     expect(formatTimestamp('yesterday', 'en-GB')).toBe('yesterday');
+  });
+});
+
+/**
+ * ***A failed upload, said*** — [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * The two failures a large upload usually meets carry no word from
+ * StoryEngine, and each gets a sentence; one that does carry ours keeps it.
+ */
+describe('an upload that failed', () => {
+  it('keeps the server’s own code and message when it sent them', () => {
+    const failure = uploadFailure(413, {
+      error: 'too-large',
+      message: 'That file is larger than the 1024 MB import upload limit.',
+    });
+    expect(failure.code).toBe('too-large');
+    expect(failure.message).toContain('1024 MB');
+  });
+
+  it('says a dropped connection may have been a refusal, not a broken file', () => {
+    const failure = uploadFailure(0, null);
+    expect(failure.code).toBe('connection-lost');
+    expect(failure.message).toMatch(/connection was lost/);
+    expect(failure.message).toMatch(/proxy/);
+  });
+
+  it('says a 413 with no word of ours in it came from something in front of the server', () => {
+    const failure = uploadFailure(413, null);
+    expect(failure.status).toBe(413);
+    expect(failure.code).toBe('proxy-too-large');
+    expect(failure.message).toMatch(/reverse proxy/);
+  });
+
+  it('falls back to the status for anything else', () => {
+    expect(uploadFailure(502, null).message).toBe('The server answered with status 502.');
   });
 });

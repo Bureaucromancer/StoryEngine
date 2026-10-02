@@ -5,7 +5,7 @@ import type { JSX } from 'react';
 
 import type { TurnCost } from '@storyengine/shared';
 
-import { formatCount, formatDuration } from '../../format.js';
+import { formatCount, formatDuration, formatMoney } from '../../format.js';
 import { MetadataRow } from '../../ui/MetadataRow.js';
 import { SubsectionTitle } from '../../ui/Text.js';
 
@@ -34,6 +34,15 @@ export function CostSummary({
           {cost.completionTokens === null
             ? 'Not counted'
             : formatCount(cost.completionTokens, locale)}
+        </MetadataRow>
+        {/* *Not priced* rather than *not counted*, and absent reads the same as
+            null: a turn from before the field existed was never priced either.
+            Null is what every turn says today — no adapter prices a call yet
+            ([25 E16]) — and it must never read as free. */}
+        <MetadataRow label="Money">
+          {cost.money === undefined || cost.money === null
+            ? 'Not priced'
+            : formatMoney(cost.money.amount, cost.money.currency, locale)}
         </MetadataRow>
         <MetadataRow label="Wall time">{formatDuration(cost.wallMs, locale)}</MetadataRow>
         {/* An empty string is P2's spelling of the same fact: it wrote `""`

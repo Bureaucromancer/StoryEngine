@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { CastEntry } from '@storyengine/sdk';
-import type { AssembledPrompt, RecordedFragment, RenditionPurpose } from '@storyengine/shared';
+import type { StepCastMember } from '@storyengine/sdk';
+import {
+  literalSpans,
+  type AssembledPrompt,
+  type RecordedFragment,
+  type RenditionPurpose,
+} from '@storyengine/shared';
 
 import { budgetFor, capPrompt, type PromptFragment } from '../providers/prompt-caps.js';
 import type { ProviderCapabilities } from '../providers/types.js';
@@ -52,7 +57,7 @@ export interface FragmentInputs {
   /** The turn's finished prose. Empty for a background, which never reads it. */
   moment: string;
   /** Who is in the scene, with their descriptors — `reads: ['cast']`. */
-  cast: readonly CastEntry[];
+  cast: readonly StepCastMember[];
   /** Rendered channel values, keyed by channel id, in the mode's own order. */
   channels: readonly { id: string; text: string }[];
   /** The treatment's `tone`, and any style profile beside it. */
@@ -154,8 +159,8 @@ export function illustrationFragments(inputs: FragmentInputs): PromptFragment[] 
 export function backdropFragments(inputs: FragmentInputs): PromptFragment[] {
   const fragments: PromptFragment[] = [];
 
-  const place = inputs.channels.find((channel) => channel.id.endsWith('.location'));
-  if (place !== undefined && place.text.trim() !== '') {
+  const place = placeOf(inputs.channels);
+  if (place !== undefined) {
     fragments.push({
       id: 'place',
       text: place.text.trim(),
@@ -212,6 +217,56 @@ export function assemblePrompt(
   };
 }
 
+/**
+ * ***Nobody's name, wherever the words came from*** (2026-09-30) — [06 §10.3]'s
+ * first rule, *"a character's name never appears in an image prompt"*, applied
+ * to the text this module did not write.
+ *
+ * {@link describeCast} keeps names out of what it builds, and the moment call
+ * is *asked* to — and a model told to describe a picture names the person in
+ * it anyway, so *Elena on the quay* reached the image model as written. So did
+ * a tracker's line in the channels fragment. Every name in the cast — the
+ * written-out and the muted too, since a moment can name anybody — becomes
+ * *someone*, whole words and any case, longest first so a full name goes
+ * before its first word. *Someone* rather than the person's descriptor: the
+ * descriptors travel in the actors fragment already, and a figure is what an
+ * image model can draw.
+ */
+export function withoutNames(text: string, cast: readonly { name: string }[]): string {
+  const names = [...new Set(cast.map((one) => one.name.trim()).filter((name) => name !== ''))].sort(
+    (left, right) => right.length - left.length,
+  );
+  let out = text;
+  for (const name of names) {
+    const spans = literalSpans(out, name, { wholeWords: true, caseSensitive: false });
+    for (const span of [...spans].reverse()) {
+      out = `${out.slice(0, span.start)}someone${out.slice(span.end)}`;
+    }
+  }
+  return out;
+}
+
+/**
+ * ***How much of the budget the moment may take*** (2026-09-30), or `null` when
+ * the image connection declares none.
+ *
+ * The moment call was told the whole budget, so a model that wrote to it left
+ * no room: the moment is `required`, and the capper gave up every other
+ * fragment — the cast's descriptors, the tone, the place — to keep it. So the
+ * rest is measured first and the moment told what is left, *never less than a
+ * third*, because a subject squeezed to a few words is a picture of nothing.
+ */
+export function roomForMoment(
+  capabilities: ProviderCapabilities,
+  rest: readonly PromptFragment[],
+  separator = ', ',
+): number | null {
+  const budget = capabilities.usefulPromptChars ?? capabilities.maxPromptChars ?? null;
+  if (budget === null) return null;
+  const used = rest.reduce((sum, fragment) => sum + fragment.text.length + separator.length, 0);
+  return Math.max(Math.floor(budget / 3), budget - used);
+}
+
 /** Which builder a purpose uses. One statement, so a caller cannot pick wrong. */
 export function fragmentsFor(purpose: RenditionPurpose, inputs: FragmentInputs): PromptFragment[] {
   return purpose === 'background' ? backdropFragments(inputs) : illustrationFragments(inputs);
@@ -222,7 +277,7 @@ export function fragmentsFor(purpose: RenditionPurpose, inputs: FragmentInputs):
  *
  * [06 §10.3]'s first assembler rule, enforced here rather than asked of a model:
  * *"the image model does not know who Elena is; it knows what a woman with
- * cropped grey hair looks like."* `CastEntry.name` is right there and is
+ * cropped grey hair looks like."* `StepCastMember.name` is right there and is
  * deliberately not read — [04 §3] built `VisualDescriptors` *"precisely so the
  * substitution is mechanical"*, and a mechanical substitution is one that cannot
  * be forgotten under deadline.
@@ -239,14 +294,14 @@ export function fragmentsFor(purpose: RenditionPurpose, inputs: FragmentInputs):
  * refuse to write a name at all, which makes the count a question about
  * descriptors rather than about people.
  */
-function describeCast(cast: readonly CastEntry[]): string {
+function describeCast(cast: readonly StepCastMember[]): string {
   return cast
     .map((entry) => describeOne(entry))
     .filter((described) => described !== '')
     .join('; ');
 }
 
-function describeOne(entry: CastEntry): string {
+function describeOne(entry: StepCastMember): string {
   const visual = entry.visual;
   if (visual === undefined) return '';
   // The order is the schema's, which reads head to hem and is the order a person
@@ -264,6 +319,20 @@ function describeOne(entry: CastEntry): string {
     .map((part) => part?.trim() ?? '')
     .filter((part) => part !== '')
     .join(', ');
+}
+
+/**
+ * ***The place a backdrop would be of, or nothing*** — the one reading of *which
+ * channel is the place* ({@link pushChannels} says why it is by name), shared
+ * since 2026-09-30 with the two callers that hold a backdrop that has none:
+ * the render step and **Set the scene**. A backdrop prompt with no place is a
+ * prompt for a mood, and paying for one is what they now decline to do.
+ */
+export function placeOf(
+  channels: readonly { id: string; text: string }[],
+): { id: string; text: string } | undefined {
+  const place = channels.find((channel) => channel.id.endsWith('.location'));
+  return place === undefined || place.text.trim() === '' ? undefined : place;
 }
 
 /**
@@ -287,8 +356,8 @@ function pushChannels(
   otherRank: number,
   placeRequired = false,
 ): void {
-  const place = channels.find((channel) => channel.id.endsWith('.location'));
-  if (place !== undefined && place.text.trim() !== '') {
+  const place = placeOf(channels);
+  if (place !== undefined) {
     fragments.push({
       id: 'place',
       text: place.text.trim(),

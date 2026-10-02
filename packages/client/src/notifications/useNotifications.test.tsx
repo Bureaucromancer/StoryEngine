@@ -23,6 +23,11 @@ import type { NotificationList, NotificationView } from './types.js';
  *   reattaches every three seconds, and without it one finished turn becomes a
  *   chime every three seconds until the network settles — after which the person
  *   reasonably concludes notifications are broken.
+ *   *Corrected 2026-09-28:* ~~so a reconnect must be silent~~ — silent about
+ *   what it already said. A row raised while the stream was down reaches the
+ *   tab only on the reattach's snapshot, and was never announced at all; the
+ *   newest such row is now. And ~~the `announced` ref~~ was never read: the
+ *   per-row fold count (`foldedAt`) is what stops the repeat.
  * - A **fold** of a row already announced is announced again, exactly once.
  *   *Your picture is ready* and *three pictures are ready* are different facts,
  *   and [09 §3.4]'s coalescing is pointless if the second one is silent.
@@ -41,8 +46,11 @@ const showBrowserNotification = vi.fn();
 let push: {
   snapshot: (list: NotificationList) => void;
   notification: (one: NotificationView) => void;
+  fatal: (error: string) => void;
 } | null = null;
 const closed = vi.fn();
+/** How many streams have been opened — one per account signed in, not per render. */
+let opened = 0;
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -74,8 +82,14 @@ vi.mock('./stream.js', async (importOriginal) => ({
   openNotificationStream: (handlers: {
     onSnapshot: (list: NotificationList) => void;
     onNotification: (one: NotificationView) => void;
+    onFatal: (error: string) => void;
   }) => {
-    push = { snapshot: handlers.onSnapshot, notification: handlers.onNotification };
+    opened += 1;
+    push = {
+      snapshot: handlers.onSnapshot,
+      notification: handlers.onNotification,
+      fatal: handlers.onFatal,
+    };
     return { close: closed };
   },
 }));
@@ -98,8 +112,8 @@ function one(over: Partial<NotificationView> = {}): NotificationView {
   };
 }
 
-function Probe(): JSX.Element {
-  const state = useNotifications(true);
+function Probe(props: { account?: string }): JSX.Element {
+  const state = useNotifications(props.account ?? 'ned');
   return (
     <div>
       <p data-testid="unread">{String(state.list.unread)}</p>
@@ -122,6 +136,7 @@ function Probe(): JSX.Element {
 beforeEach(() => {
   vi.clearAllMocks();
   push = null;
+  opened = 0;
   readNotifications.mockResolvedValue({ notifications: [], unread: 0 });
   // No stored preferences: every class is `sound` and nothing starts muted.
   readPrefs.mockResolvedValue({ prefs: {} });
@@ -215,6 +230,90 @@ describe('a snapshot', () => {
   });
 });
 
+/**
+ * ***What arrived while the stream was down*** (2026-09-28). A row raised in
+ * those seconds reaches this tab only on the reattach's snapshot, which was
+ * recorded as announced without announcing it — so the turn a person left the
+ * room waiting to hear finished in silence, and the badge was the only sign.
+ */
+describe('a reattach', () => {
+  const AT = 1_000_000;
+
+  async function reattached(first: NotificationView[]): Promise<void> {
+    await mounted();
+    act(() => push?.snapshot({ notifications: first, unread: first.length, at: AT - 5_000 }));
+  }
+
+  it('announces a row raised while the stream was down, once', async () => {
+    await reattached([one({ id: 'old', updatedAt: AT - 60_000 })]);
+
+    const missed = one({ id: 'missed', updatedAt: AT - 2_000 });
+    act(() =>
+      push?.snapshot({
+        notifications: [missed, one({ id: 'old', updatedAt: AT - 60_000 })],
+        unread: 2,
+        at: AT,
+      }),
+    );
+
+    expect(playChime).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.getByTestId('toast').textContent).toBe('missed');
+    });
+    // And the next reattach, a flaky LAN's, does not say it again.
+    act(() => push?.snapshot({ notifications: [missed], unread: 1, at: AT + 3_000 }));
+    expect(playChime).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing when every row on it was already said', async () => {
+    // Recent, so the news window is not what keeps it quiet.
+    const said = one({ updatedAt: AT - 1_000 });
+    await reattached([said]);
+
+    act(() => push?.snapshot({ notifications: [said], unread: 1, at: AT }));
+
+    expect(playChime).not.toHaveBeenCalled();
+  });
+
+  it('announces only the newest of several, by when each last changed', async () => {
+    await reattached([]);
+
+    act(() =>
+      push?.snapshot({
+        notifications: [
+          one({ id: 'first', createdAt: AT - 9_000, updatedAt: AT - 9_000 }),
+          // Created earlier and folded since: the newest news, listed second.
+          one({ id: 'folded', createdAt: AT - 90_000, updatedAt: AT - 1_000, folded: 2 }),
+        ],
+        unread: 2,
+        at: AT,
+      }),
+    );
+
+    expect(playChime).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.getByTestId('toast').textContent).toBe('folded');
+    });
+  });
+
+  it('does not announce a row already read, or one older than the news window', async () => {
+    await reattached([]);
+
+    act(() =>
+      push?.snapshot({
+        notifications: [
+          one({ id: 'read', updatedAt: AT - 1_000, readAt: AT - 500 }),
+          one({ id: 'slept', updatedAt: AT - 3 * 60 * 60 * 1000 }),
+        ],
+        unread: 1,
+        at: AT,
+      }),
+    );
+
+    expect(playChime).not.toHaveBeenCalled();
+  });
+});
+
 describe('a fold', () => {
   /**
    * **News the second time, and once**. [09 §3.4]'s coalescing exists so that
@@ -262,5 +361,50 @@ describe('marking read', () => {
     act(() => {
       settle({ read: 1, unread: 0 });
     });
+  });
+});
+
+/**
+ * ***The stream is the signed-in account's*** (2026-09-27). It is opened with
+ * the cookie of the moment, so a switch made in another tab left this tab
+ * delivering the account that had gone. And a stream refused as signed out is
+ * the one fatal close that is about the sign-in, which the page has to hear.
+ */
+describe('the account the stream belongs to', () => {
+  it('closes the stream and opens the next account’s when the account changes', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <Probe account="ned" />
+      </QueryClientProvider>,
+    );
+    expect(opened).toBe(1);
+
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <Probe account="sam" />
+      </QueryClientProvider>,
+    );
+
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(opened).toBe(2);
+  });
+
+  it('raises the sign-in-ended flag when the stream is refused as signed out', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>,
+    );
+
+    act(() => {
+      push?.fatal('not-found');
+    });
+    expect(client.getQueryData(['session-ended'])).toBeUndefined();
+    act(() => {
+      push?.fatal('unauthenticated');
+    });
+    expect(client.getQueryData(['session-ended'])).toBe(true);
   });
 });

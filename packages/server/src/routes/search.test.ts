@@ -86,6 +86,54 @@ describe('search', () => {
     expect(theirs.body).toEqual({ objects: [], turns: [], entries: [] });
   });
 
+  /**
+   * ***One account's matches do not crowd out another's*** (2026-09-27).
+   *
+   * The object query took its limit across every account and the route
+   * dropped the other accounts' rows afterwards, so on a server with two
+   * people the one with more matching words could fill the whole limit and
+   * leave the other's search empty. The entry and turn queries beside it
+   * were scoped in their own SQL for exactly this reason.
+   */
+  it('finds your own match when another account has more of them', async () => {
+    await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: newLorebook('The Cathedral District'),
+    });
+    await server.services.accounts.create({
+      handle: 'sister',
+      password: 'correct horse battery',
+      role: 'user',
+    });
+    await server.request({ method: 'POST', url: '/api/auth/logout' });
+    await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'sister', password: 'correct horse battery' },
+    });
+    // Theirs says it more often, so it ranks first across the whole index.
+    await server.request({
+      method: 'POST',
+      url: '/api/library/lorebooks',
+      payload: {
+        ...newLorebook('Cathedral, cathedral, cathedral'),
+        description: 'The cathedral of cathedrals, beside the cathedral.',
+      },
+    });
+    await server.request({ method: 'POST', url: '/api/auth/logout' });
+    await server.request({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { handle: 'ned', password: 'correct horse battery' },
+    });
+
+    const found = await server.request({ method: 'GET', url: '/api/search?q=cathedral&limit=1' });
+    expect(found.body.objects.map((row: { name: string }) => row.name)).toEqual([
+      'The Cathedral District',
+    ]);
+  });
+
   it('needs a session', async () => {
     await server.request({ method: 'POST', url: '/api/auth/logout' });
     const found = await server.request({ method: 'GET', url: '/api/search?q=cathedral' });
@@ -266,6 +314,65 @@ describe('a phrase inside one entry of one book', () => {
 
     const after = await server.request({ method: 'GET', url: '/api/search?q=crossing' });
     expect(after.body.entries).toEqual([]);
+  });
+});
+
+/**
+ * ***What comes back from the trash can be found again*** (2026-09-27).
+ *
+ * A delete takes a session's rows out of the index, and the restore left
+ * putting them back to the watcher, which does not look under `sessions/` at
+ * all: a restored session was listed, because the list reads the disk, and
+ * never matched a search again. A library object came back unindexed until
+ * the watcher got to it, or for good with the watcher off.
+ */
+describe('a restore from the trash', () => {
+  async function restoreTheOnlyEntry(): Promise<void> {
+    const trash = await server.request({ method: 'GET', url: '/api/me/trash' });
+    const [entry] = trash.body.entries as { id: string }[];
+    const restored = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id: entry?.id },
+    });
+    expect(restored.status).toBe(200);
+  }
+
+  it('makes a session’s turns searchable again', async () => {
+    const turnId = await aTurnSaying('The cathedral was three streets east.');
+    const [session] = (await server.request({ method: 'GET', url: '/api/sessions' })).body
+      .sessions as { id: string }[];
+    const gone = await server.request({
+      method: 'DELETE',
+      url: `/api/sessions/${String(session?.id)}`,
+    });
+    expect(gone.status).toBe(204);
+    const whileGone = await server.request({ method: 'GET', url: '/api/search?q=cathedral' });
+    expect(whileGone.body.turns).toEqual([]);
+
+    await restoreTheOnlyEntry();
+
+    const found = await server.request({ method: 'GET', url: '/api/search?q=cathedral' });
+    expect(found.body.turns.map((row: { turnId: string }) => row.turnId)).toEqual([turnId]);
+  });
+
+  it('makes a library object readable again at once', async () => {
+    const book = newLorebook('The Cathedral District');
+    await server.request({ method: 'POST', url: '/api/library/lorebooks', payload: book });
+    const read = await server.request({ method: 'GET', url: `/api/library/lorebooks/${book.id}` });
+    await server.request({
+      method: 'DELETE',
+      url: `/api/library/lorebooks/${book.id}`,
+      headers: { 'if-match': read.body.contentHash as string },
+    });
+
+    await restoreTheOnlyEntry();
+
+    // The watcher is off here, as it is on an install that has it off.
+    const again = await server.request({ method: 'GET', url: `/api/library/lorebooks/${book.id}` });
+    expect(again.status).toBe(200);
+    const found = await server.request({ method: 'GET', url: '/api/search?q=cathedral' });
+    expect(found.body.objects.map((row: { id: string }) => row.id)).toEqual([book.id]);
   });
 });
 

@@ -26,6 +26,7 @@ import { disclosure, table } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
+import { folderName } from './book-document.js';
 import { ByFields } from './ByField.js';
 import { loreEntrySchema } from './fields.js';
 import type { ObjectImportNotes } from '../api.js';
@@ -124,7 +125,12 @@ export function LorebookView({
    * session is gone.
    */
   sessions?: readonly { id: string; name: string }[];
-  locale?: string;
+  /**
+   * The reader's, for every date and count on the page — required and allowed
+   * to be `undefined`, `format.ts`'s rule since 2026-09-28: optional, it was
+   * passed to the memory's origin and nowhere else on the page.
+   */
+  locale: string | undefined;
   /** The entry `?entry=` names, or null. Unknown ids simply match nothing. */
   focused?: string | null;
   linkToEntry?: EntryLink;
@@ -186,9 +192,9 @@ export function LorebookView({
 
   return (
     <div className="flex flex-col gap-8">
-      <BookHeader book={book} />
+      <BookHeader book={book} locale={locale} />
       <ImportNotes rows={importNotes ?? []} />
-      <FolderGates book={book} chosen={folder} onChoose={setFolder} />
+      <FolderGates book={book} chosen={folder} onChoose={setFolder} locale={locale} />
 
       <section>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -233,11 +239,12 @@ export function LorebookView({
                 on={scanner}
                 onChange={setScanner}
                 searching={query !== ''}
+                locale={locale}
               />
 
               {narrowed ? (
                 <div className="flex flex-wrap items-center gap-2 text-sm text-ink-subtle">
-                  <span>{`Showing ${formatCount(visible.length)} of ${formatCount(book.entries.length)}`}</span>
+                  <span>{`Showing ${formatCount(visible.length, locale)} of ${formatCount(book.entries.length, locale)}`}</span>
                   {key === null ? null : (
                     <Chip
                       label={`key: ${key}`}
@@ -329,6 +336,7 @@ function MentionList(props: {
   rows: MentionRow[];
   note: string;
   linkToEntry: EntryLink | undefined;
+  locale: string | undefined;
 }): JSX.Element | null {
   if (props.rows.length === 0) return null;
   const shown = props.rows.slice(0, MENTION_ROWS);
@@ -363,7 +371,7 @@ function MentionList(props: {
         ))}
         {rest === 0 ? null : (
           <li>
-            <Fine>{`and ${formatCount(rest)} more`}</Fine>
+            <Fine>{`and ${formatCount(rest, props.locale)} more`}</Fine>
           </li>
         )}
       </ul>
@@ -402,12 +410,6 @@ const CLAMP_CHARS = 400;
 /** Whether this text is long enough that a clamp would actually clamp it. */
 function clampable(content: string): boolean {
   return content.split(/\r?\n/).length > CLAMP_LINES || content.length > CLAMP_CHARS;
-}
-/** A folder's name for a chip, or the word the Ungrouped node goes by. */
-function folderName(book: Lorebook, id: string | null): string {
-  if (id === null) return 'Ungrouped';
-  const found = book.folders.find((candidate) => candidate.id === id);
-  return found === undefined || found.name === '' ? 'Untitled folder' : found.name;
 }
 
 /** An active narrowing, and the control that removes it. */
@@ -471,7 +473,7 @@ function Marked({
  * satisfied by **reachable**, not by prominent, and this is the first place
  * that distinction has to be made out loud.
  */
-function BookHeader({ book }: { book: Lorebook }): JSX.Element {
+function BookHeader({ book, locale }: { book: Lorebook; locale: string | undefined }): JSX.Element {
   const off = offCount(book);
 
   return (
@@ -482,8 +484,8 @@ function BookHeader({ book }: { book: Lorebook }): JSX.Element {
 
       <Note>
         {off === 0
-          ? `${formatCount(book.entries.length)} entries`
-          : `${formatCount(book.entries.length)} entries, ${formatCount(off)} off`}
+          ? `${formatCount(book.entries.length, locale)} entries`
+          : `${formatCount(book.entries.length, locale)} entries, ${formatCount(off, locale)} off`}
       </Note>
 
       {book.tags.length === 0 ? null : (
@@ -511,11 +513,13 @@ function BookHeader({ book }: { book: Lorebook }): JSX.Element {
            * Every setting below this line does decide something, which is what
            * the strip is for.
            */}
-          <Setting label="Scan depth">{formatCount(book.scanDepth)}</Setting>
-          <Setting label="Token budget">{formatCount(book.tokenBudget)}</Setting>
-          <Setting label="Entry limit">{formatCount(book.entryLimit)}</Setting>
+          <Setting label="Scan depth">{formatCount(book.scanDepth, locale)}</Setting>
+          <Setting label="Token budget">{formatCount(book.tokenBudget, locale)}</Setting>
+          <Setting label="Entry limit">{formatCount(book.entryLimit, locale)}</Setting>
           <Setting label="Recursive scanning">{book.recursiveScanning ? 'Yes' : 'No'}</Setting>
-          <Setting label="Max recursion depth">{formatCount(book.maxRecursionDepth)}</Setting>
+          <Setting label="Max recursion depth">
+            {formatCount(book.maxRecursionDepth, locale)}
+          </Setting>
         </dl>
       </Panel>
     </section>
@@ -548,6 +552,7 @@ function FolderGates(props: {
   book: Lorebook;
   chosen: FolderChoice;
   onChoose: (choice: FolderChoice) => void;
+  locale: string | undefined;
 }): JSX.Element | null {
   const { book } = props;
   const ungrouped = entriesInFolder(book, null);
@@ -608,7 +613,7 @@ function FolderGates(props: {
                 {folder.enabled ? <Fine>On</Fine> : <Badge>Off</Badge>}
               </td>
               <td className={table.cellNumeric}>
-                {formatCount(entriesGoverned(book, folder.id).length)}
+                {formatCount(entriesGoverned(book, folder.id).length, props.locale)}
               </td>
             </tr>
           ))}
@@ -627,7 +632,7 @@ function FolderGates(props: {
               <td className={table.cellCompact}>
                 <Fine>On</Fine>
               </td>
-              <td className={table.cellNumeric}>{formatCount(ungrouped.length)}</td>
+              <td className={table.cellNumeric}>{formatCount(ungrouped.length, props.locale)}</td>
             </tr>
           )}
         </tbody>
@@ -888,12 +893,14 @@ function EntryUnit(props: {
         rows={props.mentions}
         note="Entries this one names, by their name or a key. Not a claim about what fires."
         linkToEntry={props.linkToEntry}
+        locale={props.locale}
       />
       <MentionList
         heading="Mentioned by"
         rows={props.mentionedBy}
         note="Entries whose text names this one."
         linkToEntry={props.linkToEntry}
+        locale={props.locale}
       />
 
       <details>
@@ -978,12 +985,14 @@ function ScannerToggle({
   on,
   onChange,
   searching,
+  locale,
 }: {
   book: Lorebook;
   on: boolean;
   onChange: (next: boolean) => void;
   /** Whether a search is running, so the exchange of marks can be explained. */
   searching: boolean;
+  locale: string | undefined;
 }): JSX.Element | null {
   const patterns = patternEntryCount(book);
   // Nothing to link to and nothing to say: a one-entry book cannot mention
@@ -1008,7 +1017,7 @@ function ScannerToggle({
         <Fine>
           {patterns === 0
             ? 'Marks where another entry’s keys appear in this one’s text, under that entry’s own matching rules — which is what a recursive scan would find.'
-            : `Marks where another entry’s keys appear in this one’s text, under that entry’s own matching rules. ${formatCount(patterns)} entries match by pattern and are not shown: a pattern cannot be run safely in a browser.`}
+            : `Marks where another entry’s keys appear in this one’s text, under that entry’s own matching rules. ${formatCount(patterns, locale)} entries match by pattern and are not shown: a pattern cannot be run safely in a browser.`}
         </Fine>
       ) : null}
 

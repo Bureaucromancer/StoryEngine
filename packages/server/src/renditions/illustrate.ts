@@ -5,6 +5,7 @@ import type { Rendition, RenditionPurpose } from '@storyengine/shared';
 
 import type { Accounts } from '../auth/accounts.js';
 import type { Config } from '../config.js';
+import { inPlayFor } from '../mode-registry.js';
 import { capabilitiesFor } from '../providers/capabilities.js';
 import type { ProviderFactory } from '../providers/factory.js';
 import { renderedChannels } from '../sessions/channels.js';
@@ -12,8 +13,10 @@ import type { SessionContext } from '../sessions/store.js';
 import { performCall, resolveStepRole, RoleUnresolved } from '../turns/calls.js';
 import { gatherAssemblyInputs } from '../turns/gather.js';
 import { momentCall, readMoment, RENDER_STEP } from '../turns/render.js';
-import { castEntries } from '../turns/runner.js';
-import { toneOf } from './assemble.js';
+import { stepCast } from '../turns/runner.js';
+import { fromModelCall, recordUsage } from '../usage/log.js';
+import { illustrationFragments, placeOf, roomForMoment, toneOf, withoutNames } from './assemble.js';
+import { castIsPresentFor, chatSettingsOf } from '../sessions/chat-settings.js';
 import { requestRendition } from './manual.js';
 
 /**
@@ -54,7 +57,10 @@ import { requestRendition } from './manual.js';
  * absent is the *token accounting* — a hand-pressed illustration spends a `fast`
  * call that no turn's figures include. Making it a turn would put the call on a
  * tape and put a node with no prose in somebody's transcript, which is a worse
- * trade for a story than a missing line in a cost total.
+ * trade for a story than a missing line in a cost total. *Since 2026-09-27 the
+ * line is not missing, only elsewhere*: the call's figures go to the account's
+ * usage log (`usage/log.ts`), which is [10 §11.4]'s home for every call that
+ * makes no turn.
  *
  * ***Aggregate spend tracking is where this is properly answered, and it is
  * post-1.0*** — [24 §3], which [10 §3] states and `CostSummary`'s docstring
@@ -89,9 +95,11 @@ export interface IllustrateRequest {
  * `no-moment` mean here exactly what they mean on `RenderReport.held`, so a
  * client rendering a reason does not need two tables. `no-turn` is this path's
  * own, because a route can be asked about a turn that does not exist and a step
- * cannot.
+ * cannot. `no-place` joined both on 2026-09-30: **Set the scene** where the
+ * story has named no place was a picture of the tone alone, and a button that
+ * pays for a mood is one that says why it did not instead.
  */
-export type IllustrateRefusal = 'no-binding' | 'no-moment' | 'no-turn';
+export type IllustrateRefusal = 'no-binding' | 'no-moment' | 'no-turn' | 'no-place';
 
 export async function illustrateTurn(
   context: IllustrateContext,
@@ -142,16 +150,49 @@ export async function illustrateTurn(
    * and a place has no moment."* So the refusal above is the only thing that can
    * stop it, and the assembly below is handed an empty moment and an empty cast.
    */
+  const channels = renderedChannels(inputs.channels, inPlayFor(inputs.mode.definition.id));
+  if (request.purpose === 'background' && placeOf(channels) === undefined) {
+    return { held: 'no-place' };
+  }
+
+  /**
+   * ***Who is in the room, read as the turn reads it*** (2026-09-30) — the
+   * same `stepCast` reading the render step is handed, where this passed
+   * none and so drew the dead, the departed and the muted. The step's rules
+   * follow it here, because **Illustrate** is the same step pressed by hand.
+   */
+  const everyone = stepCast(inputs.cast, {
+    channels: inputs.channels,
+    castIsPresent: castIsPresentFor(
+      chatSettingsOf(inputs.session, inputs.mode.definition),
+      inputs.mode.definition,
+    ),
+  });
+  const drawn = everyone.filter((member) => member.present !== false);
+  const named = channels.map((one) => ({ ...one, text: withoutNames(one.text, everyone) }));
+  const tone = toneOf(inputs.lore.treatment?.treatment);
+
   let moment = '';
   let anchor: string | undefined;
   if (request.purpose === 'illustration') {
     const prose = turn.output?.text ?? '';
     if (prose.trim() === '') return { held: 'no-moment' };
 
-    const answer = await askForMoment(context, inputs, roles, prose, capabilities, request.signal);
+    const answer = await askForMoment(
+      context,
+      inputs,
+      roles,
+      prose,
+      roomForMoment(
+        capabilities,
+        illustrationFragments({ moment: '', cast: drawn, channels: named, tone }),
+      ),
+      request.signal,
+      request,
+    );
     if (answer === null) return { held: 'no-binding' };
     if (answer.subject === '') return { held: 'no-moment' };
-    moment = answer.subject;
+    moment = withoutNames(answer.subject, everyone);
     if (answer.anchor !== null) anchor = answer.anchor;
   }
 
@@ -162,9 +203,9 @@ export async function illustrateTurn(
     turnId: request.turnId,
     purpose: request.purpose,
     moment,
-    cast: castEntries(inputs.cast),
-    channels: renderedChannels(inputs.channels),
-    tone: toneOf(inputs.lore.treatment?.treatment),
+    cast: drawn,
+    channels: request.purpose === 'illustration' ? named : channels,
+    tone,
     image: {
       binding: { connectionId: image.connection.id, modelId: image.modelId },
       capabilities,
@@ -198,8 +239,11 @@ async function askForMoment(
   inputs: Awaited<ReturnType<typeof gatherAssemblyInputs>>,
   roles: Parameters<typeof resolveStepRole>[0],
   prose: string,
-  capabilities: ReturnType<typeof capabilitiesFor>,
+  /** What the moment may take of the image prompt — `roomForMoment`. */
+  room: number | null,
   signal: AbortSignal,
+  /** Whose usage log the call's figures go to, and which session it was for. */
+  owner: { handle: string; sessionId: string },
 ): Promise<{ subject: string; anchor: string | null } | null> {
   try {
     const outcome = await performCall(
@@ -224,8 +268,13 @@ async function askForMoment(
           /* No event stream: nobody is watching a turn that does not exist. */
         },
       },
-      momentCall(prose, capabilities),
+      momentCall(prose, room),
       [],
+    );
+    await recordUsage(
+      context.sessions.layout,
+      owner.handle,
+      fromModelCall(outcome.call, 'illustrate', { sessionId: owner.sessionId }),
     );
     return readMoment(outcome.object);
   } catch (error) {

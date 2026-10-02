@@ -205,7 +205,14 @@ export type NearMissSituation =
   | 'marinara-storage-folder'
   | 'marinara-above'
   | 'marinara-tables-folder'
-  | 'marinara-too-old';
+  | 'marinara-too-old'
+  | 'aventuras-config-folder'
+  | 'aventuras-home-linux'
+  | 'aventuras-home-macos'
+  | 'aventuras-home-windows'
+  | 'aventuras-library-folder'
+  | 'aventuras-appdata-folder'
+  | 'aventuras-above';
 
 /**
  * One thing worth saying about the folder somebody picked.
@@ -230,7 +237,7 @@ export interface NearMiss {
    */
   suggest: string | null;
   /** What the marks say is there. `null` whenever `suggest` is. */
-  leadsTo: 'sillytavern' | 'marinara' | null;
+  leadsTo: 'sillytavern' | 'marinara' | 'aventuras' | null;
   /**
    * `verified` — every mark of `leadsTo` was probed and found at `suggest`, so
    * the classifier would agree. `inferred` — read off the neighbourhood: a

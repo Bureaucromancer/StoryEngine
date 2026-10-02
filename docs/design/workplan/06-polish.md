@@ -626,6 +626,15 @@ the editor, and it should still be proved.
 *Routed here 2026-09-09 by [P6B.3](20-p6b-playable.md), from
 [F-02](21-playable-log.md) and graded at [R10](22-walkthrough-refinements.md).*
 
+**Landed 2026-09-17, whole, at polish 2 (`a0e4313`)** — [§14](#14-the-composer-is-a-box-for-prose-and-send-says-it-heard-you)
+below. One polite live region for the whole wait, from Send to the first word,
+and a busy Send whose label is the reason it is greyed; acknowledgement and not
+progress, which is this item's own bar. It took two things this item did not
+describe, both found in building it: the composer stopped being a one-line
+`<input>`, and the button stopped being live for the length of the POST, which
+had let a second press start a second turn. Everything below is kept as the
+argument it was.
+
 **The condition is not a regression and was written down before anybody hit
 it.** [P2C brief §3.4](13-p2c-brief.md) says it nearly word for word: *"There is
 no progress, no step display and no spinner."* It was accepted deliberately,
@@ -682,3 +691,163 @@ component over a static list of control labels rather than over an index.
 **No schema change, no new contract, nothing hidden** — which is exactly this
 file's house rule, and is why the other two thirds of R3 are at
 [25 E10](../25-open-questions.md) instead.
+
+---
+
+# The 2026-09-17 review, and the pass that answered it
+
+**A read of the client on 2026-09-17 found what follows**, and it was approved as
+twelve commits, titled *Polish 1* to *Polish 12*. The first four landed the same
+day. The rest waited behind the audit of `main` approved on 2026-09-25 — the
+decision was *audit tiers first* — and landed on 2026-10-01; this record is the
+twelfth. **An entry's number is not its commit's**: entries 13 to 23 are commits
+1 to 11, in order, and each says what was found, struck, then what shipped.
+Entry 24 is what the pass found and left, unstruck, because it has not shipped.
+
+Where a finding turned out to be the same as an audit fix, it went with the audit
+and is said here only by reference: the reading view's title for an unnamed
+session, and refusals read by their class rather than by their English, both
+landed in the audit's Q tier.
+
+---
+
+## 13. The story prints
+
+**Landed 2026-09-17 at polish 1 (`b2926fc`).** ~~*A printed story is its first
+page.*~~ [10 §12.2](../10-ui-surfaces.md) makes the browser's print-to-PDF the
+whole PDF story, and since [P3.−1](15-p3-implementation.md) `<main>` has been the
+scroll container — a box with a definite height and `overflow: auto`, which
+Chrome and Firefox print as one page. The print block now releases the
+scrollport, and `Shell.tsx` releases its two height-managed ancestors at the
+call site. The docks, the restart banner and the toast stay off the paper, and an
+illustration is bounded by the column rather than stretched to it.
+`theme.test.ts` holds that the release is present; whether it prints well is
+still [manual testing](05-manual-testing.md)'s row R2.
+
+## 14. The composer is a box for prose, and Send says it heard you
+
+**Landed 2026-09-17 at polish 2 (`a0e4313`)**, and with it all of
+[§11](#11-something-happens-between-send-and-the-first-token). ~~*A turn is typed
+into one line that scrolls sideways; Send stays live while the turn is posted, so
+a second press starts a second turn; and nothing says anything until the first
+word.*~~ A textarea that starts at one line and grows — at three rows the
+transcript collapsed to nothing at 720px, which is a measured finding rather than
+a caution — with Enter to send, Shift+Enter for a paragraph, and an input
+method's Enter left alone. One live region for the wait, focus given back to the
+box when a turn ends, and Stop as a mutation that can say it failed.
+
+## 15. The per-turn controls exist on a touch screen
+
+**Landed 2026-09-17 at polish 3 (`783fe9d`).** ~~*Every per-turn gesture —
+Redo, Reroll, Continue from here, Illustrate, Remember this, Undo — is invisible
+on a device with no pointer.*~~ Tailwind's `hover:` is `@media (hover: hover)`,
+so a row held at `opacity-0` until hover never showed on a phone, while staying in
+the tab order and taking taps. `ui/classes.ts` gained `reveal` with the
+`(hover: none)` arm, and `theme.test.ts` refuses `opacity-0` anywhere else. With
+it: the header folds; every dialog takes the height cap only `large` had; below
+`sm` an open dock is the view rather than a neighbour of it; the shelf scrolls in
+its own wrapper. It named the two nested `<main>`s and left them for
+[§23](#23-the-keyboard-and-the-screen-reader-get-there-too).
+
+## 16. The appearance layer, which had grown back most of what it removed
+
+**Landed 2026-09-17 at polish 4 (`78c4cf5`)** — [§6](#6-the-styling-layer-and-the-second-theme-it-exists-to-allow)'s
+conditions, returned. ~~*`control` spelled four ways, three without the
+disabled half; `Note` re-typed at 58 sites; three button variants without a
+disabled state of their own; nothing you press drawing the focus ring that
+everything you type into does; fourteen `<summary>`s in seven spellings.*~~ Each
+fix is argued by a docstring already in the tree. It also gave Sessions, Search
+and Reading the page-title step — the *h2 start* the accessibility entry was
+later approved with — and the reading view one title element for screen and
+print.
+
+## 17. The story has a face of its own
+
+**Landed 2026-10-01 at polish 5 (`04e45a5`).** ~~*The story is set in the
+browser's default sans, the same as every label around it.*~~
+[10 §1.2](../10-ui-surfaces.md) separates the quiet surfaces by type, measure and
+chrome, and type was only a size. Two system stacks, no webfont: an interface
+face on `body`, a book face — Charter, Sitka Text, Cambria and their kin — on
+every `text-story`, held together by `theme.test.ts`.
+
+## 18. The action colour is a colour
+
+**Landed 2026-10-01 at polish 6 (`8bea85f`).** ~~*The accent is slate-800, so a
+primary button reads as a heavier paragraph, and the selected chip and the focus
+ring are grey on grey.*~~ Indigo in all three theme blocks, at the lightness the
+slate steps had where it mattered, so a disabled button looks exactly as disabled.
+`contrast.test.ts` measures a button's label at rest and under the pointer
+against 4.5:1 and the ring and the accent against 3:1, both themes.
+
+## 19. Finding your way back
+
+**Landed 2026-10-01 at polish 7 (`8a9cd32`).** ~~*A notification names its
+story and does not link to it; the reading view has no way back to the session;
+the header lights every surface but Settings.*~~ The notification's title is a
+link that marks it read and closes the list; the reading view has Compare's
+*Back to the session*, under a failure too; Settings is drawn as the surfaces
+are. A fourth finding, search hits on an unnamed session as zero-width links,
+had gone with the audit.
+
+## 20. Destructive actions ask once, the same way everywhere
+
+**Landed 2026-10-01 at polish 8 (`8ae68e4`).** ~~*One removal asks and loses
+the keyboard doing it; the rest go at the first click, a tag's under a button
+called Remove in a column of them, a story's hook from the server.*~~
+`ui/TwoStep.tsx` is the one way: the keyboard to Cancel and back, the question
+announced by describing the answers rather than by a live region, a slow answer
+held. Spent on every editor removal, a tag's Remove and Prune, the play surface's
+hook, and Restore over unsaved edits. Not on the three that cannot be undone from
+inside the app, which ask for more than a click.
+
+## 21. The play surface answers
+
+**Landed 2026-10-01 at polish 9 (`2a3b4b2`).** ~~*A dozen play-surface writes
+say nothing when refused, and the few that speak have one sentence, so `busy` —
+a turn in flight — reads like a fault.*~~ `play/WriteFailed.tsx` reads a refusal
+by class: `busy` says to wait, anything else is the panel's own sentence.
+Illustrate is answered where it was pressed; a fresh install says no model is
+bound before the first Send; the sessions list says when it is loading, unreadable
+or empty; the hook form marks its premise required.
+
+## 22. The library and settings answer
+
+**Landed 2026-10-01 at polish 10 (`5cd0838`).** ~~*Import's Cancel is live while
+the import runs and stops nothing; an unreadable trash says nothing was deleted;
+a first Save lands on a page that says there is nothing to save; the empty
+library points at the API; two copy buttons say different things; Search and
+Rename reveal a box the keyboard is not in; History shows nothing where it was
+pressed; Priority drops a stored number on a typo.*~~ Each now says what
+happened. One the review did not have: `docs/deploy.md` called notifications
+*the one thing plain HTTP costs you*, and the clipboard is the second.
+
+## 23. The keyboard and the screen reader get there too
+
+**Landed 2026-10-01 at polish 11 (`73be6b6`).** ~~*Nine header controls before
+every page's own; a second `<main>` on Search and Reading; a radio group the
+arrows do nothing in; a filled composer and a returned search that nobody hears;
+an illustration read as its sentence twice; lists of buttons all called
+Remove.*~~ A skip link; one `<main>`, which `shell-layout.test.tsx` now counts on
+both pages; the radio group's arrows; focus into a filled box and a status line
+for search; the empty alt the play surface already gave; buttons named for what
+they act on. Two more in the same rows: committing a hook past a refusal now keeps
+the keyboard, and a move with no persona reads *You did* rather than *DID*.
+
+## 24. What the pass found and left
+
+Unstruck, because none of it has shipped.
+
+- **The history panel's per-version buttons are unnamed.** Five versions are five
+  *Restore*s, *Diff*s, *Rename*s and *Pin*s, the list §23 fixed elsewhere.
+  *Restore revision 3* is the fix; it was left out of §23 to keep that commit to
+  the removals it was approved for.
+- **A route change is silent to a screen reader.** Nothing announces the new
+  page or moves focus to its title, which a single-page app owes and the router
+  does not do. Bigger than a polish commit: it wants one decision for every
+  route.
+- **Renaming a session shows the server's English** where every other refusal in
+  the client is read by its class.
+- **The context meter in the dark theme** fills `accent-muted` on a slate-800
+  track at about 1.45:1, as faint as before §18. The figure beside it carries
+  the number, so it is not a WCAG 1.4.11 failure; it is a meter that barely
+  reads as one.

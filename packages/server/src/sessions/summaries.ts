@@ -167,6 +167,15 @@ export async function writeSummary(
 export interface Summariser {
   key: string;
   run(input: { previous: string | null; units: readonly SummaryUnit[] }): Promise<string>;
+  /**
+   * ***The caller's stop, for the one wait that is not a call*** ([P14.11]).
+   * A walk that joins a derivation already in flight is waiting on somebody
+   * else's call, which its own abort does not reach; this lets it stop
+   * waiting. It then asks `run`, which is where the caller's own stop is
+   * raised in the caller's own class — so a cancelled turn that was waiting on
+   * the warm reads as cancelled, not as whatever this module would invent.
+   */
+  signal?: AbortSignal;
 }
 
 /** What a chain cost, so [P8 §1.3]'s procedure has a number from the first stage. */
@@ -184,6 +193,64 @@ export interface ChainResult {
    * against turns.
    */
   derived: number;
+  /**
+   * ***Why the chain stops short, when it does*** (2026-09-27).
+   *
+   * A derivation that failed — a reply cut off at its limit, a refusal, an
+   * endpoint that was down — threw out of this loop and took every link
+   * already read with it, so one bad link removed the whole chain from the
+   * prompt, and with it the story above the window, on every turn until the
+   * link could be written. Now the links before it are returned as held, and
+   * the failure beside them for the step to raise.
+   */
+  failure?: unknown;
+}
+
+/**
+ * ***Derivations in flight, by the file they will write*** — [P14.11].
+ *
+ * Until the warm (`turns/warm-summaries.ts`) there was one caller per session
+ * at a time — the turn, under the session's job — so a link was never asked
+ * for twice at once. The warm made that ordinary: a person who imports a long
+ * chat and plays straight away sends a turn into a chain the warm is still
+ * deriving, and two lazy walks of one chain run in lockstep — each finds the
+ * next link missing, each calls for it — so the rest of the chain cost twice
+ * what it should, on the endpoint the turn is waiting for. The key made that
+ * *safe* (both write one name, and no later key names text); this makes it
+ * *cheap*: a walk that reaches a link another walk is deriving waits for that
+ * derivation and takes its link, and pays nothing.
+ *
+ * **Keyed by the link's path**, which is `(data root, account, session, key)`
+ * in one string — two `Layout` objects over one root are one store, so they
+ * must be one entry. **In process only**: a second process over one data root
+ * would pay the duplicate call, and still write the same key.
+ *
+ * *The value settles to null when the derivation did not produce a link* — a
+ * failed call, a cancelled one — so a waiter never inherits somebody else's
+ * failure or somebody else's stop: it goes round again and derives the link
+ * itself, which is exactly what it would have done had it arrived first.
+ */
+const inFlight = new Map<string, Promise<SummaryLink | null>>();
+
+const STOPPED = Symbol('stopped');
+
+/** What `running` settles to, or {@link STOPPED} as soon as `signal` aborts. */
+function untilStopped(
+  running: Promise<SummaryLink | null>,
+  signal: AbortSignal | undefined,
+): Promise<SummaryLink | null | typeof STOPPED> {
+  if (signal === undefined) return running;
+  if (signal.aborted) return Promise.resolve(STOPPED);
+  return new Promise((resolve) => {
+    const stop = (): void => {
+      resolve(STOPPED);
+    };
+    signal.addEventListener('abort', stop, { once: true });
+    void running.then((link) => {
+      signal.removeEventListener('abort', stop);
+      resolve(link);
+    });
+  });
 }
 
 /**
@@ -198,6 +265,13 @@ export interface ChainResult {
  *
  * *Derivation is sequential and has to be:* link *n* is `f(link(n-1), units)`,
  * so a parallel map over the plan would be a different function.
+ *
+ * ***At most one call per link, however many walk the chain at once***
+ * ([P14.11]) — see {@link inFlight}. The owner registers *before* it looks at
+ * the disk a second time, and a derivation leaves the map only after its write:
+ * so a walk that read "missing" just before another's write landed, and then
+ * found no entry, is the owner of a fresh entry whose own re-read finds the
+ * file. There is no `await` between looking in the map and registering.
  */
 export async function ensureChain(
   layout: Layout,
@@ -218,23 +292,97 @@ export async function ensureChain(
       continue;
     }
 
+    let slot = pathFor(layout, handle, sessionId, plan.key);
+    let theirs: SummaryLink | null = null;
+    for (let running = slot === null ? undefined : inFlight.get(slot); running !== undefined;) {
+      const settled = await untilStopped(running, summariser.signal);
+      if (settled === STOPPED) {
+        // Our stop, not theirs: leave their derivation alone, and derive
+        // unregistered so `run` raises the stop in the caller's own terms.
+        slot = null;
+        break;
+      }
+      theirs = settled;
+      if (theirs !== null) break;
+      // Theirs failed or was stopped. Somebody else may have taken the link up
+      // since — join them — or it is ours now.
+      if (slot !== null && inFlight.get(slot) === running) inFlight.delete(slot);
+      running = slot === null ? undefined : inFlight.get(slot);
+    }
+    if (theirs !== null) {
+      links.push(theirs);
+      continue;
+    }
+
     const previous = links.at(-1)?.text ?? null;
-    const text = await summariser.run({ previous, units: plan.units });
-    const link: SummaryLink = {
-      schema: SUMMARY_SCHEMA,
-      key: plan.key,
-      summariser: summariser.key,
-      previousKey: plan.previousKey,
-      unitKeys: plan.units.map((unit) => unit.key),
-      turnIds: plan.units.map((unit) => unit.turnId),
-      from: plan.from,
-      to: plan.to,
-      text,
-    };
-    await writeSummary(layout, handle, sessionId, link);
-    derived += 1;
-    links.push(link);
+    const derivation = (async (): Promise<{ link: SummaryLink; fresh: boolean }> => {
+      // Registered first, then re-read: see the doc comment for the window this closes.
+      const landed = await readSummary(layout, handle, sessionId, plan.key);
+      if (landed !== null) return { link: landed, fresh: false };
+      const text = await summariser.run({ previous, units: plan.units });
+      const link: SummaryLink = {
+        schema: SUMMARY_SCHEMA,
+        key: plan.key,
+        summariser: summariser.key,
+        previousKey: plan.previousKey,
+        unitKeys: plan.units.map((unit) => unit.key),
+        turnIds: plan.units.map((unit) => unit.turnId),
+        from: plan.from,
+        to: plan.to,
+        text,
+      };
+      await writeSummary(layout, handle, sessionId, link);
+      return { link, fresh: true };
+    })();
+    if (slot !== null) {
+      const shared = derivation.then(
+        ({ link }) => link,
+        () => null,
+      );
+      inFlight.set(slot, shared);
+      void shared.finally(() => {
+        if (inFlight.get(slot) === shared) inFlight.delete(slot);
+      });
+    }
+
+    try {
+      const { link, fresh } = await derivation;
+      if (fresh) derived += 1;
+      links.push(link);
+    } catch (failure) {
+      // A link is `f(previous, units)`, so nothing after this one can be made
+      // either: the held prefix is the chain, and the next turn asks again.
+      return { links, derived, failure };
+    }
   }
 
   return { links, derived };
+}
+
+/**
+ * ***The links a path already has, derived by nobody*** (2026-09-27) — for the
+ * preview, which answers *what would this turn send* and must not make a model
+ * call to answer it.
+ *
+ * The prefix of the plan that is on disk, in order, stopping at the first link
+ * that is not: a link is `f(previous, units)`, so a held link after a missing
+ * one belongs to a different chain. The turn derives what is missing, so a
+ * preview of a turn that will derive reads short by that much, which is the
+ * honest reading of *nothing has been asked yet*.
+ */
+export async function readHeldChain(
+  layout: Layout,
+  handle: string,
+  sessionId: string,
+  path: readonly SummarisableTurn[],
+  key: string,
+  policy: SummaryPolicy,
+): Promise<SummaryLink[]> {
+  const links: SummaryLink[] = [];
+  for (const plan of planChain(path, key, policy)) {
+    const held = await readSummary(layout, handle, sessionId, plan.key);
+    if (held === null) break;
+    links.push(held);
+  }
+  return links;
 }

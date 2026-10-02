@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { ImportNote } from '@storyengine/shared';
+
+import { ownEntry } from './parse.js';
+
 /**
  * SillyTavern's macros, converted to Liquid at import
  * ([04 §8.4.2](../../../../docs/design/04-schemas.md),
@@ -67,16 +71,35 @@ const MACROS: Readonly<Record<string, MacroOutcome>> = {
   char: { kind: 'mapped', liquid: '{{ char }}' },
   bot: { kind: 'mapped', liquid: '{{ char }}' },
   user: { kind: 'mapped', liquid: '{{ user }}' },
-  persona: { kind: 'mapped', liquid: '{{ user }}' },
+  /**
+   * ~~`persona` → `{{ user }}`~~ ***A body, not a name*** (2026-09-27).
+   * SillyTavern binds `{{persona}}` to the persona's **description**
+   * (`environment.persona = fields.persona`, beside `description`, `scenario`
+   * and the rest), not to its name — so the mapping put the player's name where
+   * a preset asked for the player's whole description. It is a body, and the
+   * persona slot supplies it.
+   */
+  persona: { kind: 'refused', because: 'body-comes-from-a-slot' },
 
   /**
    * `{{charIfNotGroup}}` is the one §8.4.2 names specifically, and it becomes a
-   * Liquid *conditional* rather than being dropped. There are no groups here
+   * Liquid *conditional* rather than being dropped. ~~There are no groups here
    * yet — party arrives at P7 — so it renders as the character's name today and
-   * the shape is already right for when it does not.
+   * the shape is already right for when it does not.~~
+   *
+   * ***The three group names map onto their own since [P14.3]*** — [P14.2]
+   * put `group`, `charIfNotGroup` and `notChar` in the template's closed
+   * namespace with SillyTavern's meanings (`assembly/template.ts`), and this
+   * table was left refusing `{{group}}`, approximating `{{charIfNotGroup}}` as
+   * `{{ char }}` (wrong in any group of two or more) and leaving `{{notChar}}`
+   * as braces. Each now names what it named in ST: the whole cast, the
+   * character or the cast, and everyone but the speaker. *Not a conditional
+   * after all*: the namespace computes the alias, so a template needs no
+   * `{% if %}` to say it.
    */
-  charifnotgroup: { kind: 'mapped', liquid: '{{ char }}' },
-  group: { kind: 'refused', because: 'no-equivalent' },
+  charifnotgroup: { kind: 'mapped', liquid: '{{ charIfNotGroup }}' },
+  group: { kind: 'mapped', liquid: '{{ group }}' },
+  notchar: { kind: 'mapped', liquid: '{{ notChar }}' },
 
   // ── Refused: bodies, which are slots ──────────────────────────────────────
   description: { kind: 'refused', because: 'body-comes-from-a-slot' },
@@ -116,11 +139,41 @@ const MACROS: Readonly<Record<string, MacroOutcome>> = {
 /** Every macro the table knows, for the coverage test and for the review's copy. */
 export const KNOWN_MACROS = Object.keys(MACROS);
 
+const UNKNOWN: MacroOutcome = { kind: 'unknown' };
+
 export interface MacroConversion {
   /** The template, with mapped macros rewritten and refused ones removed. */
   template: string;
-  /** Macro name to what became of it — one entry per *distinct* macro seen. */
+  /**
+   * Macro name to what became of it — one entry per *distinct* macro seen,
+   * until the budget it was given is spent.
+   */
   seen: Map<string, MacroOutcome>;
+}
+
+/**
+ * ***How many macros one converted object names in its review*** (2026-09-27).
+ *
+ * A note per distinct macro, per block, is what makes a review readable — and
+ * with no limit it was a way to spend the server's memory: a million distinct
+ * `{{mN}}` in a ten-megabyte file became a million notes, and at the upload
+ * limit the notes no longer fitted in one string, so the reply and the ledger
+ * row threw after the work was done. The limit is per converted object, shared
+ * by all its blocks, because a limit per block is beaten by having many blocks.
+ * Past it, uses are **counted** into one note rather than named — every one is
+ * still converted exactly as before; only the telling stops.
+ */
+export const MACRO_NOTE_LIMIT = 100;
+
+export interface MacroNoteBudget {
+  /** Distinct macros still to name. */
+  left: number;
+  /** Uses of macros past the limit: counted, not named. */
+  unlisted: number;
+}
+
+export function macroNoteBudget(): MacroNoteBudget {
+  return { left: MACRO_NOTE_LIMIT, unlisted: 0 };
 }
 
 /**
@@ -130,8 +183,23 @@ export interface MacroConversion {
  * `::`-separated arguments — `{{random::a::b}}` — and anything more structured
  * than that is something this table does not claim to understand, which is what
  * `unknown` is for.
+ *
+ * ***Linear, and a macro inside an argument is taken whole*** (2026-09-27).
+ * The pattern this replaces, `\{\{\s*(name)((?:::[^}]*)?)\s*\}\}`, was
+ * quadratic twice over: the argument's `[^}]*` and the trailing `\s*` could
+ * both take the same spaces, and `[^}]*` ran on past every later `{{` to the
+ * next `}`, so every start scanned to the same distant brace. `{{a::` and a
+ * quarter of a megabyte of spaces cost 25.5 seconds of synchronous work, on
+ * the thread every account shares, and a file at the upload limit would have
+ * taken weeks. An argument now stops at any brace, and may carry up to eight macros
+ * of its own: `{{random::{{char}} smiles::{{user}} frowns}}` is ordinary
+ * SillyTavern text, and the obvious linear pattern stopped at the inner `{{`,
+ * missed `random` altogether, and left `{{random::` for the model to read.
+ * Bounded at eight rather than unbounded because a repetition of a group is
+ * what overflows V8's backtracking stack on a file of this size.
  */
-const MACRO_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:::[^}]*)?)\s*\}\}/g;
+const MACRO_PATTERN =
+  /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)(?:(::[^{}]*(?:\{\{[^{}]*\}\}[^{}]*){0,8})|\s*)\}\}/g;
 
 /**
  * Rewrites one template's macros.
@@ -141,13 +209,29 @@ const MACRO_PATTERN = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:::[^}]*)?)\s*\}\}/g;
  * prompt that looks fine is worse than one that visibly needs a look.* The
  * review carries the flag; the file carries the evidence.
  */
-export function convertMacros(template: string): MacroConversion {
+export function convertMacros(
+  template: string,
+  budget: MacroNoteBudget = macroNoteBudget(),
+  options: { angles?: boolean } = {},
+): MacroConversion {
   const seen = new Map<string, MacroOutcome>();
 
-  const converted = template.replace(MACRO_PATTERN, (whole, rawName: string) => {
+  const replace = (whole: string, rawName: string): string => {
     const name = rawName.toLowerCase();
-    const outcome = MACROS[name] ?? { kind: 'unknown' as const };
-    seen.set(name, outcome);
+    // Own entries only: `{{constructor}}` looked up `Object`, and came out as
+    // the text `undefined` with no note (2026-09-27).
+    const outcome = ownEntry(MACROS, name) ?? UNKNOWN;
+    if (!seen.has(name)) {
+      if (outcome.kind === 'mapped') {
+        // Never a note, and there are ~~five~~ six of them ([P14.3]).
+        seen.set(name, outcome);
+      } else if (budget.left > 0) {
+        seen.set(name, outcome);
+        budget.left -= 1;
+      } else {
+        budget.unlisted += 1;
+      }
+    }
 
     switch (outcome.kind) {
       case 'mapped':
@@ -159,7 +243,48 @@ export function convertMacros(template: string): MacroConversion {
       case 'unknown':
         return whole;
     }
-  });
+  };
 
-  return { template: converted, seen };
+  /**
+   * ***SillyTavern's legacy forms, for the converters that read its files***
+   * (2026-09-27). Its `evaluateMacros` still resolves `<USER>`, `<BOT>`,
+   * `<CHAR>`, `<CHARIFNOTGROUP>` and `<GROUP>`, in any case, before any curly
+   * macro; they are the same names by another spelling and go through the
+   * same table. Asked for rather than always done, because in another format a
+   * `<char>` may be markup.
+   */
+  const unangled = options.angles === true ? template.replace(ANGLES, replace) : template;
+  return { template: unangled.replace(MACRO_PATTERN, replace), seen };
+}
+
+/** The legacy names SillyTavern resolves in angle brackets. */
+const ANGLES = /<(user|bot|char|charifnotgroup|group)>/gi;
+
+/**
+ * ***What the review says about a template's macros, for every converter***
+ * (2026-09-27).
+ *
+ * This file's header promises that each macro is mapped, refused **with a
+ * review note**, or unrecognised — and only the SillyTavern chat converter
+ * kept the middle promise. Its sysprompt converter and Marinara's reported the
+ * unrecognised ones only, and Marinara's conversation prompt reported nothing:
+ * a `{{date}}` or `{{random::…}}` was taken out of the prompt and the review
+ * never said so. One function now, so there is one answer: one note per
+ * distinct macro that needs a person, never one per occurrence — a warning for
+ * one left as written, and a note saying why for one taken out.
+ */
+export function macroNotes(seen: ReadonlyMap<string, MacroOutcome>, block: string): ImportNote[] {
+  const notes: ImportNote[] = [];
+  for (const [macro, outcome] of seen) {
+    if (outcome.kind === 'unknown') {
+      notes.push({ key: 'import.macro.unrecognised', params: { macro, block }, level: 'warn' });
+    } else if (outcome.kind === 'refused') {
+      notes.push({
+        key: 'import.macro.refused',
+        params: { macro, block, because: outcome.because },
+        level: 'info',
+      });
+    }
+  }
+  return notes;
 }

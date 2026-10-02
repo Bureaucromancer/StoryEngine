@@ -3,15 +3,18 @@
 
 import { resolve } from 'node:path';
 
-import { buildApp, buildServices, disposeServices } from './app.js';
+import { buildApp, buildServices, closeApp, disposeServices } from './app.js';
 import { performPendingRestore } from './backup/restore.js';
 import { AccountError, Accounts } from './auth/accounts.js';
 import { readNewPassword, ResetAborted } from './auth/reset.js';
 import { environmentDocument, isLoopbackHost, loadConfig, type Config } from './config.js';
+import { holdInstanceLock, type InstanceLock, InstanceLockHeld } from './instance-lock.js';
 import { advertise } from './mdns/responder.js';
 import { announceRestored } from './notifications/notices.js';
+import { RESTART_EXIT_CODE } from './restart.js';
 import { describeUnusableDataDirectory, ensureWritableDirectory } from './storage/files.js';
 import { Layout } from './storage/layout.js';
+import { supervisionOf } from './supervision.js';
 
 /**
  * The entry point.
@@ -55,7 +58,8 @@ async function main(): Promise<void> {
       new Layout(dataDirArgument ?? environmentDataDir(fromEnvironment) ?? './data').configFile,
   );
 
-  const { config, fileFound, unknownKeys, document, environment } = await loadConfig(
+  // `let`, because a restore below replaces the file this read.
+  let { config, fileFound, unknownKeys, document, environment } = await loadConfig(
     configPath,
     fromEnvironment,
   );
@@ -102,6 +106,23 @@ async function main(): Promise<void> {
   }
 
   /**
+   * ***One server per data directory*** (2026-09-27), before anything writes
+   * to it: a restore swap, the stamp, the index, reconciliation. A second
+   * server on a directory another one was using finalised the first one's
+   * turn in flight as failed and deleted its backup half way (see
+   * `Layout.instanceLockFile`). **After `ensureWritableDirectory`**, whose
+   * answer is the better one when the directory cannot be written at all.
+   * **Not in `buildServices`**, which tests call to start a second server in
+   * one process on purpose; this is the process's own claim.
+   */
+  try {
+    instanceLock = holdInstanceLock(layout);
+  } catch (error) {
+    if (error instanceof InstanceLockHeld) throw new UsageError(error.message);
+    throw error;
+  }
+
+  /**
    * ***A restore that was asked for last time this process was up*** —
    * [P12.12](../../../docs/design/workplan/29-p12-implementation.md).
    *
@@ -124,12 +145,50 @@ async function main(): Promise<void> {
    */
   const restored = await performPendingRestore(layout);
 
+  /**
+   * ***A swap that could neither finish nor be put back stops here***, before
+   * anything opens the directory: it is part one install and part another,
+   * and serving it would offer whichever half has no `accounts.json` as a
+   * fresh install with a setup token. The journal stays, so the next start
+   * tries to finish it again, which is right for a lock that clears and
+   * repeats this sentence for one that does not.
+   */
+  if (restored.kind === 'stranded') {
+    throw new UsageError(
+      `A restore could not finish and could not be undone. ${restored.why}\n` +
+        `The unpacked archive is in ${restored.staging}, and the install it was replacing is in ${restored.replaced}.\n` +
+        `The server will not start on a directory that is half of each. Move the entries back by hand, then delete ${layout.restoreJournalFile}.`,
+    );
+  }
+
+  /**
+   * ***The config came out of the archive too***, and it was read above from
+   * the directory that has just been replaced. So it is read again, or the
+   * process runs a restored install on the replaced install's settings until
+   * the next restart. `dataDir` is the exception: the archive may name another
+   * directory, and this process restored into this one.
+   */
+  if (restored.kind === 'restored') {
+    const before = config.dataDir;
+    ({ config, fileFound, unknownKeys, document, environment } = await loadConfig(
+      configPath,
+      fromEnvironment,
+    ));
+    config.dataDir = before;
+  }
+
   // The path travels with the config, so the settings route writes back to the
   // file this process actually read ([P2A §2.5]).
   const services = await buildServices({
     config,
     configPath,
     configDocument: document,
+    // The layer the boot put under the file, so a settings write resolves the
+    // next config the way the next boot will (`resolveConfigDocument`).
+    environment: fromEnvironment,
+    // The one caller that owns the process, so the one that may ask how it was
+    // started. See `BuildAppOptions.supervision`.
+    supervision: supervisionOf(process.env, process.pid),
     ...(captureDir === undefined ? {} : { captureDir: resolve(captureDir) }),
   });
   const app = await buildApp(services);
@@ -164,6 +223,7 @@ async function main(): Promise<void> {
         moved: restored.moved,
         files: restored.files,
         requestedBy: restored.requestedBy,
+        backupsLeftBehind: restored.backupsLeftBehind,
       },
       'Restored this data directory from a backup; the previous one was moved aside and kept',
     );
@@ -343,6 +403,24 @@ async function main(): Promise<void> {
     }
   }
 
+  /**
+   * ***Once, whoever asks first.*** A `SIGTERM` can land while a restart is
+   * already closing: `systemctl stop` during the drain, or `docker stop` on a
+   * container that is restarting itself. Two runs would close the app and the
+   * stores twice over, and the exit status would go to whichever reached
+   * `process.exit` first. Now the first reason is the one the process leaves
+   * with, so a stop that arrives first exits 0 and stays down, which is what
+   * the person who sent it asked for.
+   *
+   * *Declared above the handlers that call it*, so no signal can find it
+   * uninitialised.
+   */
+  let stopping: Promise<void> | null = null;
+  function shutdown(code = 0): Promise<void> {
+    stopping ??= stop(code);
+    return stopping;
+  }
+
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
       void shutdown();
@@ -359,14 +437,16 @@ async function main(): Promise<void> {
    * `SIGTERM` must leave the data directory in the same state, and two exit
    * paths is how one of them stops closing the stores. What differs is only
    * *who asked* — `restart.ts` has already drained the turns by the time this
-   * runs, so `disposeServices`' own `drain()` finds nothing left to abort.
+   * runs, so `disposeServices`' own `drain()` finds nothing left to abort —
+   * and the status it leaves with, which is how a supervisor tells the two
+   * apart: see `RESTART_EXIT_CODE`.
    */
   services.exit = () => {
     app.log.info({ event: 'restart.exiting' }, 'Drained; exiting for a supervisor to restart');
-    void shutdown();
+    void shutdown(RESTART_EXIT_CODE);
   };
 
-  async function shutdown(): Promise<void> {
+  async function stop(code: number): Promise<void> {
     app.log.info('Shutting down.');
     /**
      * ***The goodbye first***, because it is the only thing here that is about
@@ -376,9 +456,13 @@ async function main(): Promise<void> {
      * already shut.
      */
     await mdns?.stop();
-    await app.close();
+    // Bounded, and the streams end first: see `closeApp`.
+    await closeApp(app);
     await disposeServices(services);
-    process.exit(0);
+    // Last, once every store is closed. Exiting would let it go anyway; saying
+    // so here keeps the order where it can be read.
+    instanceLock?.release();
+    process.exit(code);
   }
 }
 
@@ -395,6 +479,12 @@ async function main(): Promise<void> {
  * --reset-password ned` should not name a directory `--reset-password`.
  */
 class UsageError extends Error {}
+
+/**
+ * The data directory's lock, held for the life of the process: reachable from
+ * here so that nothing collects the handle that holds it (`instance-lock.ts`).
+ */
+let instanceLock: InstanceLock | null = null;
 
 function argumentValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);

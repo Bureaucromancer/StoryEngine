@@ -426,6 +426,18 @@ describe('the structural questions a newer format has to answer', () => {
 
     expect(await shortfalls(store, m)).toEqual([{ table: 'characters', expected: 3, found: 1 }]);
   });
+
+  /**
+   * *The chat tables are read through this store too* (2026-10-02), so a count
+   * of theirs is checked like any other — and a count that is met, as
+   * `message_swipes`' zero is here, says nothing.
+   */
+  it('reports a shortfall in the tables the chats are read from', async () => {
+    const m = manifest({ tables: { messages: 40, message_swipes: 0 } });
+    const store = openStore(new MemoryFileSource({}), m);
+
+    expect(await shortfalls(store, m)).toEqual([{ table: 'messages', expected: 40, found: 0 }]);
+  });
 });
 
 describe('the store finds its tables without walking the root', () => {

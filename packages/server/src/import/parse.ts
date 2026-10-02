@@ -35,6 +35,21 @@ export function refused<T>(refusal: ParseRefusal, field?: string): ParseOutcome<
 }
 
 /**
+ * ***A table's own entry, or nothing*** (2026-09-27).
+ *
+ * The converters look foreign strings up in tables of their own — a macro's
+ * name, a marker's type, a lorebook's logic, a file's table name — and a plain
+ * index walks the prototype: `constructor` finds `Object`, and `__proto__` finds
+ * `Object.prototype`. So a SillyTavern prompt identified as `constructor` became
+ * a slot whose source was a function, failed validation, and lost the whole
+ * preset with nothing in the review saying why. `sillytavern/reader.ts` fixed
+ * its one instance; this is the rule for all of them.
+ */
+export function ownEntry<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
+/**
  * The malformed inputs every parser is driven through.
  *
  * **The interesting members are the last ones.** `null` and a bare string are

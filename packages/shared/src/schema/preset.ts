@@ -80,19 +80,85 @@ export const Placement = Type.Union(
 export type Placement = Static<typeof Placement>;
 
 /**
+ * ***Whose cards an actor-sourced block takes, on a call that speaks for
+ * somebody*** — [P14 §1.4](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * added at [P14.2].
+ *
+ * **Absent is everyone, which is what every preset written before this
+ * means**, and it is also what [00 §2.10](../../../../docs/design/00-stance.md)
+ * asks of a scene with several people in it: *"the assembler is multi-actor
+ * from the start"*, so every present card stays in the prompt of every call,
+ * the speaker's first. That is SillyTavern's `APPEND` group mode without its
+ * string-joining (and without its member order, which puts the speaker
+ * wherever they fall). A pack that wants ST's `SWAP` — only the one who is
+ * talking — says so on the blocks that should narrow, with `speaker`; a block
+ * that wants the rest of the room under its own heading says `others`.
+ *
+ * ***The two scopes partition the cast on every call, speaking or not***,
+ * and that is the rule a pack author can hold in their head. `speaker` is the
+ * member the call speaks for and nobody else, so on a call that speaks for
+ * nobody — a narrator's merged call — it is **nobody**; `others` is everyone
+ * but that member, so on the same call it is **everyone**. A pack with one
+ * block of each therefore sends every card exactly once whichever way the
+ * session is voiced. The alternative considered — a scope that is inert on a
+ * call with no speaker — would send such a pack's cards twice to a narrator.
+ *
+ * ***A third, `voiced`, at [P14.3] — whoever this call writes as***
+ * ([P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
+ * Under `per-actor` dispatch that is the speaker; under `merged` — one call
+ * writing for the whole room, embodied or narrated — it is everyone present.
+ * §1.5 asks exactly this of a card's own prompts (*"each call carries the
+ * speaker's card prompts only"* under `per-actor`, *"every present card's
+ * prompts are stacked"* under `merged`), and of example dialogue, and neither
+ * `speaker` nor unscoped says it: `speaker` would give a merged call one card's
+ * system prompt and a narrator's call none of anybody's samples, and unscoped
+ * would hand a per-actor call every other member's *"You are…"*. *It is not a
+ * partition with the other two*, and does not claim to be: it answers a
+ * different question — *whose voice is this call* — rather than *who is not the
+ * speaker*.
+ *
+ * **Optional and additive, so the file format does not move**: a preset
+ * without it is the preset it was, and an older build ignores the field as the
+ * unknown-field rule says it must.
+ */
+export const ActorScope = Type.Union(
+  [Type.Literal('speaker'), Type.Literal('others'), Type.Literal('voiced')],
+  {
+    title: 'ActorScope',
+    description:
+      "Whose cards the block takes on a speaking call: the speaker's only, everyone but " +
+      'the speaker, or whoever the call writes as (the speaker under per-actor dispatch, ' +
+      'everyone present under merged). Absent is everyone.',
+  },
+);
+export type ActorScope = Static<typeof ActorScope>;
+
+/**
  * What fills a slot. Closed for now, and expected to grow as modes declare
  * channels — which is one of the four reasons this schema is `/0` (§8.5).
  *
  * This is `BlockSource` ([21 §1.1](../../../../docs/design/21-internal-contracts.md)) minus
- * its two assembler-only origins: `preset`, because a preset's own prose *is* a
+ * its ~~two~~ assembler-only origins: `preset`, because a preset's own prose *is* a
  * TextBlock rather than a reference to one, and `step`, because a step's
- * contribution did not exist when the preset was authored.
+ * contribution did not exist when the preset was authored — ***and since P14,
+ * `round`, `note` and `continue`***, five in all, which is what the server's
+ * `assembly/types.ts` derives (2026-10-01). By meaning rather than by shape: an
+ * `{ of }` here is what its block records as `{ kind }`, except that the two
+ * dial arms record one `difficulty` source, and `schema` is recorded by no slot.
  */
 export const SlotSource = Type.Union(
   [
     Type.Object({ of: Type.Literal('persona') }),
-    /** "se.summary", "se.appearance", … */
-    Type.Object({ of: Type.Literal('actor'), sectionId: Type.String() }),
+    /**
+     * "se.summary", "se.appearance", … — and since [P14.2] an optional
+     * {@link ActorScope}, on this arm and the next, for a pack that narrows a
+     * card block to the member a call speaks for or to the rest of the room.
+     */
+    Type.Object({
+      of: Type.Literal('actor'),
+      sectionId: Type.String(),
+      scope: Type.Optional(ActorScope),
+    }),
     /**
      * Non-prose actor fields. `traits` is a real field rather than a Section, so
      * a slot cannot reach it through `sectionId` — and card import puts a legacy
@@ -102,6 +168,7 @@ export const SlotSource = Type.Union(
     Type.Object({
       of: Type.Literal('actor'),
       field: Type.Union([Type.Literal('traits'), Type.Literal('visual')]),
+      scope: Type.Optional(ActorScope),
     }),
     Type.Object({
       of: Type.Literal('lore'),
@@ -142,14 +209,38 @@ export const SlotSource = Type.Union(
      * lore → actor: the stance on the material, then the world, then the
      * person, which is the order they narrow in. An author who wants a
      * character's samples somewhere other than the setting's names one.
+     *
+     * ***`scope` narrows the actor carrier and nothing else*** ([P14.2]). A
+     * character's example dialogue is the one sample that belongs to a *who*,
+     * and [P14 §1.5] sends it scoped to the speaker: an example of how Lund
+     * talks, in the call where Vera is talking, is an instruction to sound like
+     * Lund. A treatment's or a book's samples belong to the story rather than
+     * to anybody in it, so the scope does not reach them.
      */
     Type.Object({
       of: Type.Literal('samples'),
       from: Type.Optional(
         Type.Union([Type.Literal('actor'), Type.Literal('treatment'), Type.Literal('lore')]),
       ),
+      scope: Type.Optional(ActorScope),
     }),
     Type.Object({ of: Type.Literal('channel'), channelId: Type.String() }),
+    /**
+     * ***What the story has established*** —
+     * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5a].
+     *
+     * Every channel that declares itself established state (the SDK's
+     * `EstablishedState`) and is switched on, **scoped values included**, as
+     * one block: Marinara's committed tracker context, which says *as of the
+     * last message* and is placed before it. **Not six `channel` slots**,
+     * because that arm reads one unscoped key and a character tracker is one
+     * value per character — the reason a new arm exists at all.
+     *
+     * Added rather than substituted, so an older build's collector skips the
+     * arm it has not heard of rather than refusing the file.
+     */
+    Type.Object({ of: Type.Literal('state') }),
     /**
      * The treatment slot. Named for the kind it reads, completing the
      * Setting→Treatment rename ([04 §6]) that the docs took and the code did
@@ -168,6 +259,24 @@ export const SlotSource = Type.Union(
       of: Type.Literal('treatment'),
       part: Type.Union([Type.Literal('framing'), Type.Literal('tone')]),
     }),
+    /**
+     * ***A text answer the session was set up with*** (2026-09-30) —
+     * `mode.config[field]`, from the mode's wizard or the Setup the session
+     * began from ([04 §7], [06 §9]), named by the wizard field's id.
+     *
+     * Freeform's wizard requires a premise — *"A sentence or two. The narrator
+     * opens from it"* — and nothing could carry it to a prompt: the answers
+     * are a record field handed to steps as `input.setup`, Freeform's one step
+     * reads nothing, no slot named them, and a block template's namespace is
+     * names and never bodies (`renderTemplate`). A slot is how content reaches
+     * a prompt, so the pack names the answer and the collector fills it. *Read
+     * by the gather*, as the dials' rung is, so a preview and a turn cannot
+     * disagree about it. **A string answer only**, trimmed; a choice's option
+     * id is a string too, and a pack that slots one is saying it wants the id.
+     *
+     * *A widening of this closed union*, as `state` was — recorded as one.
+     */
+    Type.Object({ of: Type.Literal('setup'), field: Type.String() }),
     Type.Object({ of: Type.Literal('goal') }),
     /**
      * ***The two dials' prose*** — [06 §7.3.1], [06 §7.3.2], built at
@@ -352,6 +461,33 @@ export const TextBlock = Type.Object(
 export type TextBlock = Static<typeof TextBlock>;
 
 export const PresetBlock = Type.Union([SlotBlock, TextBlock], { title: 'PresetBlock' });
+
+/**
+ * ***Whether a block is the pack's own instruction*** —
+ * [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+ * `prompts.instruction: false`, read at [P14.3].
+ *
+ * A chat may switch the pack's instruction off and send a card's system prompt
+ * alone, which is SillyTavern's `prefer_character_prompt` one toggle away. So
+ * *the instruction* has to be something the engine can find in any pack, and a
+ * block carries no flag for it. **It is found by id**: the shipped packs name
+ * theirs `se.instruction` or `se.instruction.<kind>` (Scene's narrator and
+ * embodied pair, Freeform's per-kind blocks), and SillyTavern's `main` prompt —
+ * the block `prefer_character_prompt` replaces — imports as `st.main`.
+ *
+ * *An id convention rather than a schema field*, because a field would be a
+ * format change for a switch one stage uses, and the ids are already stable
+ * content: a block id is what [04 §8] promises modes and the workbench can
+ * address. A hand-made pack whose instruction is called something else is not
+ * switched off by this toggle, and its author can rename the block.
+ */
+export function isInstructionBlock(block: { id: string }): boolean {
+  return (
+    block.id === 'se.instruction' ||
+    block.id.startsWith('se.instruction.') ||
+    block.id === 'st.main'
+  );
+}
 export type PresetBlock = Static<typeof PresetBlock>;
 
 /**
@@ -584,6 +720,30 @@ export const Preset = Type.Object(
      * the honest reading of a pack that has not thought about it.
      */
     pacingLevels: Type.Optional(Type.Array(DifficultyLevel)),
+
+    /**
+     * ***What a push says when nobody could be asked*** —
+     * [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5b].
+     *
+     * A person arms *Push story* for one turn, `natural` or `random`, and the
+     * engine's `se.scene.direct` makes one small call for a direction. When that
+     * call fails, **this is the direction** — the pack's fixed words for the
+     * flavour, which is what Marinara's individual group mode sends in place of
+     * its director's (`generate.routes.ts:5754-5763`). It reaches the guidance
+     * slot like any direction, and the step's outcome says it stood in.
+     *
+     * ***The pack's rather than the engine's***, for the pacing prose's reason:
+     * how a push should read to a model is prompt content, and a pack that
+     * wants a gentler nudge says so here. *Omitted*, a failed push has nothing to
+     * stand in and the turn runs undirected, with the failure on the record.
+     */
+    pushDirections: Type.Optional(
+      Type.Object({
+        natural: Type.String({ minLength: 1 }),
+        random: Type.String({ minLength: 1 }),
+      }),
+    ),
 
     variables: Type.Array(PresetVariable),
 

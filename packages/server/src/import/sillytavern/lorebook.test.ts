@@ -152,6 +152,25 @@ describe('what the book itself carries', () => {
     expect(asArray.ok).toBe(true);
     expect(asArray.ok && asArray.value.lorebook.entries).toHaveLength(1);
   });
+
+  it('gives two blank drafts ids of their own, and leaves a unique one alone', () => {
+    /**
+     * An id is derived from the entry's name and content, which is the same
+     * text twice for two rows somebody made keys for and never wrote: both are
+     * *Untitled entry* with nothing in them. They shared an id, so [04 §5.2]'s
+     * *unique within one book* was false on import, and the editor opened the
+     * first for either (2026-09-27).
+     */
+    const blank = { ...ENTRY, comment: '', content: '' };
+    const result = convertLorebook(
+      { name: 'Rain City', entries: [ENTRY, { ...blank, uid: 1 }, { ...blank, uid: 2 }] },
+      'fallback',
+    );
+    const ids = result.ok ? result.value.lorebook.entries.map((entry) => entry.id) : [];
+
+    expect(new Set(ids).size).toBe(3);
+    expect(ids[0]).toBe(convert().lorebook.entries[0]?.id);
+  });
 });
 
 describe('the parses-but-is-wrong table', () => {

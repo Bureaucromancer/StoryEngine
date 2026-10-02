@@ -339,6 +339,35 @@ describe('a pass', () => {
   });
 });
 
+/**
+ * ***Told once, not every hour.*** A backup that fails stays due, so the next
+ * hourly tick tries again, and each failure used to be a notification: a disk
+ * that stayed full over a weekend was forty-eight of them.
+ *
+ * Catches: announcing every failure rather than the first of a streak.
+ */
+describe('a scope that keeps failing', () => {
+  it('tells its person once', async () => {
+    const one = harness();
+    one.accounts.push(account('ned', true));
+    one.settings.set('ned', { frequency: 'daily', onStart: false, contents: 'full' });
+    await writeFileBytes(
+      layout.userBackupsRoot('ned'),
+      new TextEncoder().encode('not a directory'),
+    );
+
+    const schedule = startBackupSchedule(one.context, HOUR, 10 * 60 * 1000);
+    try {
+      await schedule.runOnce('schedule');
+      await schedule.runOnce('schedule');
+      await schedule.runOnce('schedule');
+      expect(notified).toEqual([{ account: 'ned', notice: 'backup-failed' }]);
+    } finally {
+      schedule.stop();
+    }
+  });
+});
+
 describe('the timers', () => {
   it('fire on their own and stop when told', async () => {
     vi.useFakeTimers();

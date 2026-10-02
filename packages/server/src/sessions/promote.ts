@@ -14,6 +14,7 @@ import {
 import { LibraryError, read, update, type LibraryContext } from '../library.js';
 
 import { readSession, type SessionContext } from './store.js';
+import { readPool, sameHookSource } from './pool-shape.js';
 import type { HookSource, PooledHook } from './types.js';
 
 /**
@@ -211,7 +212,9 @@ export async function promoteSessionHook(
   const session = await readSession(sessions, handle, sessionId);
   if (session === null) return { kind: 'no-session' };
 
-  const pooled = pooledHook(session.hooks ?? [], hookId, from);
+  // Only a hook the engine can read is saved out: a malformed one written into
+  // a library object would break that object too (2026-09-27).
+  const pooled = pooledHook(readPool(session.hooks).usable, hookId, from);
   if (pooled === undefined) return { kind: 'no-such-hook' };
 
   const inKind = SCHEMA_FOR[target.kind];
@@ -302,11 +305,6 @@ function pooledHook(
 ): PooledHook | undefined {
   const byId = pool.filter((entry) => entry.hook.id === hookId);
   if (from === undefined) return byId[0];
-
-  const wanted = from.kind === 'session' ? undefined : from.id;
-  return byId.find(
-    (entry) =>
-      entry.source.kind === from.kind &&
-      (entry.source.kind === 'session' || entry.source.id === wanted),
-  );
+  // The one comparison of sources, which the remove route shares (2026-09-28).
+  return byId.find((entry) => sameHookSource(entry.source, from));
 }

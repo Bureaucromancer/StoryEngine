@@ -7,6 +7,11 @@ this document is the survey that condition needs in order to be checkable rather
 than merely stated. Where it disagrees with an existing note it says so and does
 not quietly correct either side.
 
+**Revisited 2026-09-28, at [§7](#7-revisited-2026-09-28--the-condition-is-met-and-what-is-left-is-ours).**
+§6's condition has been met — P11.10 shipped the format, its writer and its
+reader — and three of §4's four gaps are closed. §1–§6 are kept as written;
+§7 is the verdict as it now stands.
+
 It sits here rather than in [01](01-source-survey.md) because the source survey
 answers *what these codebases do* and this answers *what it would cost us*, and
 because §3 is addressed to a phase — [P11](workplan/28-p11-implementation.md) —
@@ -21,6 +26,7 @@ arrival:
 | SillyTavern | `8172dcd0ee672d3cd9a5e5f7af134f91a45cd2b8` (v1.18.0) | 2026-07-07 |
 | Marinara Engine | `34442e26da577ff0d95ee890a87024e35831bfa9` (v2.4.3) | 2026-08-18 |
 | Aventuras | `8ae0d79a0df0745be3594fa5affcc98dd02c5a75` (v0.7.8) | 2026-08-16 |
+| Aventuras, again | `c43da108f6b3679950e76afe020f6b26abf0c9ce` (v0.7.11) | 2026-09-25 — §2.3's corrections and §2.3.1 only |
 
 The first and third match the commits [P4](workplan/16-p4-implementation.md)
 already cites; the second matches [01 §1](01-source-survey.md)'s on-disk survey.
@@ -159,9 +165,25 @@ must drop that copy or it will import every message twice at its live branch.
 zipped profile archive, and the single-object `.marinara.json` envelope. The
 session tables are the **sharded** half of the store — `messages`,
 `message_swipes`, the `game_*` and `conversation_call_*` families — and
-`MarinaraReader`'s `#rows()` already reads either layout, `orphaned-rows.json`
-included. **The transport for Marinara session data works today**; it is the only
-one of the three that needs no new reading code at all.
+~~`MarinaraReader`'s `#rows()` already reads either layout, `orphaned-rows.json`
+included~~ *(corrected 2026-10-02, at the merge that brought P14.10's chats
+and P4 §7.18's store together: `#rows()` is gone, and it read either layout
+only up to storage format 4. ~~from format 5 it read every `.bak` beside a
+shard as a second copy~~ *Corrected again the same day*: that was its first
+form, which read every file under a sharded table's directory — so a `.bak`
+beside a shard was a second copy of every row, which
+[P4 §7.18](workplan/16-p4-implementation.md)'s first defect found in the
+library once format 5 sharded it, and P14.10 found in the message shards when
+it first read the chats. P14.10 (`db4c7d37`, 2026-09-29) narrowed it to the
+primaries, and that is the `#rows()` this merge replaced. What it still could
+not do at formats 5 to 7 was prefer the shards to a single file an older build
+wrote back beside them, find a shard whose primary is gone and whose `.bak`
+survived, fall back to the `.bak` of a torn primary, or keep a row duplicated
+across two shards once. Every table, the chat tables included, is now read
+through `import/marinara/store.ts`'s `openStore(…).rows(table)`, which ports
+Marinara's own answer to which file is the table)*. **The transport for Marinara session
+data works today**; it is the only one of the three that needs no new reading
+code at all.
 
 **A message has an id, and so does its chat.** `Message` is
 `{ id, chatId, role, characterId, content, activeSwipeIndex, swipeCount?, rowid?,
@@ -208,6 +230,10 @@ chapters?, currentBgImage? }`, at `EXPORT_FORMAT_VERSION = '1.8.0'`, with the
 version history written into the file: nine versions, and every one after the
 first is a field added rather than a field changed. Images are base64 inside the
 JSON, injected natively from SQLite so the bytes never pass through the JS heap.
+*At `c43da108` the version is **1.10.0**: `packBinding` (the pack's identity and
+variable shape, never its templates) arrived at 1.9.0 and `timeAnchors` at
+1.10.0, both additions — so the paragraph's claim held through two more
+revisions.*
 
 **This is the shape [25 E4](25-open-questions.md) argues for, built by somebody
 else and working.** One documented target the app owns and versions, additive
@@ -232,8 +258,11 @@ of the three.
 
 **The history model is the closest of the three to ours.** `StoryEntry` is
 `{ id, storyId, type, content, parentId, position, createdAt, metadata, branchId,
-… }` with `type: 'user_action' | 'narration' | 'system' | 'retry'` — a real
-`parentId`, so the history is already a tree — and `Branch` is
+… }` with `type: 'user_action' | 'narration' | 'system' | ~~'retry'~~` —
+~~a real `parentId`, so the history is already a tree~~ *a `parentId` that is
+never written: every site that creates an entry sets it `null`
+(`stores/story.svelte.ts:864`, `:947`, `:5408` at `c43da108`), so the tree is
+rebuilt from the branches rather than read — §2.3.1* — and `Branch` is
 `{ id, storyId, name, parentBranchId, forkEntryId, checkpointId, createdAt,
 snapshotComplete }`, which is [07 §3](07-branching.md)'s `BranchRef` with a fork
 point attached. `EntryMetadata` carries `tokenCount`, `model`, `profileId`,
@@ -247,6 +276,55 @@ fabricated.
 the entry list, not a rename, and `type: 'retry'` is a third case that pairs with
 neither. Nothing is lost either direction; the point is that the arithmetic is not
 one-to-one and a plan that assumes it is will be wrong about its own size.
+
+*Corrected 2026-09-26, against `c43da108`.* **`'retry'` no longer exists**:
+Aventuras removed it at that commit (#535) as a type *"never written"*, so it was
+never a third case in anybody's data, and the pairing has two inputs rather than
+three. The `parentId` claim above was read from the type, not from the writers,
+which is the ordinary way a survey of a type definition goes wrong — the field is
+real and the tree it promises is not.
+
+#### 2.3.1 The database, and what a story is in it
+
+*Added 2026-09-26, for [P13](workplan/30-p13-aventuras-import.md), whose Part 2
+would build on it and is not scheduled.* §2.3 costed `.avt`; the database
+[01 §2](01-source-survey.md) now surveys holds the same rows, every story at once,
+and one fact §2.3 did not have.
+
+**The tree is the branches.** Main is the entries with `branch_id` null, in
+`position` order. A branch is its parent's lineage up to and including
+`fork_entry_id`, then its own rows — it owns only what it wrote, and continues
+its parent's positions from the fork, so sibling branches reuse numbers after
+it (Aventuras' `getStoryEntriesForBranch`, `database.ts:618`). A conversion
+builds main as a chain of turns and hangs each branch's first turn off **the
+turn that contains the fork entry** in its parent's lineage.
+
+**Pairing, and the one case that is not clean.**
+
+| Entries, in lineage order | Turn |
+|---|---|
+| `user_action`, then `narration` | one turn: `input` from the action (`original_input` as `raw` when a translation replaced it), `output` from the narration, its `reasoning` beside it |
+| a leading `narration` — the opening | a turn with no `input` |
+| a `user_action` nobody answered | `status: 'failed'`, `input` only |
+| a second `narration` in a row | a turn of its own, with no `input` |
+| `system` | open — a turn, or recorded |
+
+**A fork can fall between an action and its answer.** When `fork_entry_id` is a
+`user_action` whose narration is on the parent's side, the pair the fork splits
+is one turn on the parent and cannot be a parent to the branch. The branch's
+first turn then hangs off *that pair's parent* and re-pairs the forked action
+with the branch's own first narration — a sibling of the parent's turn, which is
+exactly what [07 §3](07-branching.md) says a regenerated answer is.
+
+**World state is copy-on-write, and resolves per branch.** A branch's cast is
+its lineage's `characters` with each row's `overrides_id` shadowing the row it
+names and `deleted` rows removed; `snapshot_complete` marks a branch that owns a
+complete copy and needs no lineage. One session has one cast, so a conversion
+resolves the head branch's and records where other branches differ.
+
+**What still has nowhere to go** is unchanged from §4: nothing here is lossy
+against the turn record, and everything that is not a turn — chapters,
+checkpoints, the time tracker, images — is §4's list and the phase's decision.
 
 ---
 
@@ -368,8 +446,10 @@ future reader deciding the size should not re-derive it.
   (`packages/server/src/import/source.ts`), chosen precisely because Marinara is
   relational. A session reader is a new arm on `ImportSourceKind`, not a second
   engine — which is what that seam was built to make true.
-- **Sharded-table reading.** `MarinaraReader`'s `#rows()` already handles both
-  layouts and `orphaned-rows.json`. §2.2's transport is done.
+- **Sharded-table reading.** ~~`MarinaraReader`'s `#rows()` already handles both
+  layouts and `orphaned-rows.json`.~~ *(Corrected 2026-10-02: `store.ts`'s
+  `openStore(…).rows()` does, for storage formats 5 to 7 as well; see §2.2.)*
+  §2.2's transport is done.
 - **A bounded zip reader and `node:sqlite`.** `storage/zip.ts` checks its four
   bounds from the central directory before inflating a byte, `ZipFileSource` makes
   an archive a root, and `node:sqlite` is a live dependency. Aventuras' heavy path
@@ -409,9 +489,213 @@ outcome."* Numbering this would contradict both, and the survey does not need a
 number to be useful. What it needed was to exist before P11 rather than after, and
 that is now true.
 
+***And P11 is past, and a number was given anyway*** — *2026-09-26.* The
+ordering above is satisfied: [P11.10](workplan/28-p11-implementation.md) shipped
+`storyengine.session-export/1` and its reader, so an importer aimed at the format
+is no longer a reader without a writer. [P13](workplan/30-p13-aventuras-import.md)
+gives Aventuras' stories stage headings — P13.10 to P13.15 — **and does not
+schedule them.** The number is for the headings, which
+`tools/citation-targets.test.ts` can only check under a phase name, and for
+P13's Part 1, which is card and lorebook import and was never this document's
+subject. The paragraph above stands for the stories: a number is not a
+commitment, and [25 E4](25-open-questions.md) records the shape they would take.
+
+***And the stories are scheduled*** — *2026-09-29.* The person scheduled
+P13's Part 2 ([P13 §0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4)):
+the commitment the paragraph above withheld is now given, by the person and not
+by the numbering. The shape is unchanged — a producer of
+`storyengine.session-export/1` for Aventuras' stories, handing its export to
+`importSession`, the one reader — so §1's ordering and E4's *one reader* both
+still hold.
+
 **The one recorded way to reopen it earlier** is
 [P7 §1.10](workplan/23-p7-implementation.md)'s: *"a **format** argument rather
 than a completeness one… the case reopens for that one shape only."* E4's revision
 supplies exactly that argument, and P7's own §1.10 was written before it. Whoever
 holds P7's revisit should read the two together rather than either alone — which
 is why §0's corrections reach that section too.
+
+---
+
+## 7. Revisited 2026-09-28 — the condition is met, and what is left is ours
+
+**§6's sequencing was a condition, not a date, and it has been satisfied.**
+[P11.10](workplan/28-p11-implementation.md) shipped the format and its writer
+(`packages/server/src/sessions/export.ts`, `storyengine.session-export/1`), and
+on 2026-09-17 the reader arrived beside it (`sessions/import.ts`,
+`POST /sessions/import`, `play/ImportSession.tsx`), which the backup import now
+calls too. *"A reader for a format with no writer"* no longer describes a
+converter aimed at it. This section re-reads §1–§5 against the code as it stands
+and says what a SillyTavern or Marinara importer would cost **now**. It still
+schedules nothing: [25 E4](25-open-questions.md)'s *"not a commitment"* is
+untouched, and whether to build one is a person's decision.
+
+*Sources are still the pins in the table at the top.* Upstream was not
+re-checked for this pass — the container it was written in could not reach it —
+and one claim below (§7.3's SillyTavern branches) is from knowledge of the
+product rather than from the pinned tree, and is marked where it appears.
+*(Later the same day, both pins were fetched and read for
+[P14 §0](workplan/31-p14-scene-and-session-import.md); the corrections are made below, struck through where they
+replace what this section first said.)*
+
+### 7.1 What moved since the survey
+
+| Survey item | Then | Now |
+|---|---|---|
+| §1, §6 — the target does not exist | Blocking | **Met.** Writer and reader both shipped at P11.10 |
+| §3.1 — no fabricated instrumentation | Obligation | Honoured: `input`, `output`, `request`, `cost`, `steps` optional on `Turn`, and the round-trip test carries a turn with five absent fields |
+| §3.2 — a foreign id has somewhere to go | Obligation | `Turn.foreign: { source, id }`, and `Rendition.foreign` |
+| §3.3 — siblings survive | Obligation | `readTurns`, not `walkPath`; asserted over a branched fixture |
+| §4.1 — no provenance on Session or Turn | Urgent | `SessionFile.origin?: Provenance`, both optional, as §4.1 asked |
+| §4.2 — the sweep cannot persist a session | Gap | **Sidestepped rather than closed** — see §7.2 |
+| §4.3 — imported swipes invisible | Gap | Closed at [P6](workplan/18-p6-implementation.md): `branchRefs`, `lastSelectedChild`, sibling navigation |
+| §4.4 — `LoreScope` has no chat arm | Open | **Still open**: two arms, so chat-bound books still import `global` |
+
+Three of four model gaps are closed and the fourth is a scope edge, not a
+blocker. **The plumbing §5 said was "most of a session importer" is now all of
+the write half.**
+
+### 7.2 The shape: foreign → `SessionExport` → `importSession`
+
+**A converter should emit a `SessionExport` document and hand it to the reader
+that already exists**, rather than adding a session arm to the sweep's
+`Writer`. Three reasons, in order of weight:
+
+1. **It is the only session write path that has been built for foreign turns.**
+   `importSession` already mints the session id, stamps `origin`, marks every
+   turn `foreign`, refuses a collision (`already-here`), indexes the session and
+   carries renditions. §4.2's library-shaped `Writer` would need all of that
+   re-derived beside a lock that is not reentrant.
+2. **It is [25 E4](25-open-questions.md)'s posture taken literally.** The
+   converter is a pure function from somebody else's file to *our* documented
+   format; the thing this project maintains is the format. A converter that
+   rots breaks one pure function and its fixture pair — never the session store.
+   Whether the converters live in this repository or outside it becomes a
+   packaging question rather than an architectural one, because their output
+   is a file a person could produce by other means.
+3. **It makes the format prove it is a target.** Until something other than
+   `exportSession` writes one, *"designed with import in mind"* is asserted by
+   three tests of our own records. A SillyTavern chat is the first document
+   that was not.
+
+The converters would sit where the library converters sit
+(`import/sillytavern/chat.ts`, `import/marinara/chat.ts`), take no I/O, and be
+tested as fixture pairs in the project `pnpm test:fixture-pair` already runs.
+
+### 7.3 The mapping, which is simpler than §2.3 feared
+
+**A `Turn` with optional `input` and optional `output` makes the message-to-turn
+mapping total without merging anything.** §2.3 called the conversion *"a
+pairing pass… not one-to-one"*, which is true of its size and not of its
+difficulty:
+
+- a user message followed by a character message → one turn, `input` + `output`;
+- the greeting, or any character message not preceded by a user message → an
+  output-only turn (the first one a root);
+- a user message not followed by a character message → an input-only turn.
+
+`isStoryTurn` counts all three and `collect.ts` renders whichever halves exist,
+so each lands in the prompt in the role it had. *The record allows the last
+two; how the play surface draws an input-only turn has not been walked.*
+
+**SillyTavern.** Swipes become sibling turns under the same parent, carrying
+the same `input` and one `swipes[i]` each — ~~§2.1's warning stands, `mes` is the
+active swipe's copy and is dropped~~ *(corrected: `mes` is authoritative and
+`swipes[swipe_id]` is the copy that goes stale after an edit, so the active
+sibling takes `mes` — [P14 §0](workplan/31-p14-scene-and-session-import.md), §0.3)*. `swipe_id` sets `lastSelectedChild` at that
+parent and the head follows the active path, so the imported session opens where
+the chat was. `extra.reasoning` lands in `output.reasoning` rather than nowhere.
+Hidden messages (`is_system` on a character or user line) and narrator lines
+have no exact home: reported, and imported as story text only if a person says
+so. **Group chats** are the real loss: `Turn.output` has no speaker, so a
+character's `name` survives only as text in the output — acceptable for a
+narrator-mode session, lossy for anything that later wants attribution.
+*P14 §1.1 answers this with an additive `Turn.output.messages`, one attributed message each — [25 C11](25-open-questions.md)'s one node, several messages.*
+
+~~*From knowledge of the product, not verified against the pin:*~~
+*Verified at the pin* (`bookmarks.js:186`, `:253`), and with one addition: the
+branch copies the parent's whole `chat_metadata`, so `integrity` is shared by a
+family rather than owned by a chat (P14 §0.2). SillyTavern's
+**branches and checkpoints are copied chats too** — a new file whose
+`chat_metadata.main_chat` names the chat it forked from, with the fork message
+marked in the parent. If that holds at the pin, §2.2's family reconstruction
+applies to SillyTavern as well, which is worth checking before anyone writes a
+single-file converter and discovers it cannot be widened into a family one.
+
+**Marinara.** `messages` joined to `message_swipes` on `messageId`, ordered by
+`index`, active by `activeSwipeIndex`; swipes map exactly as above. **Better
+than SillyTavern in two places**: `characterId` gives each message a speaker,
+which can populate `input.actorId` and at least name the voice in a group; and
+§2.2's branch family rebuilds our tree exactly — join on
+`branchParentMessageId`, keep the prefix once. Scoped to `mode: "roleplay"` as
+§2.2 says; `game` and `conversation` stay out.
+
+### 7.4 Identity, and two consequences of reusing the reader
+
+**Mint ids that are uuidv7-shaped**, with the timestamp from the message's
+send date (monotonic-adjusted, since SillyTavern's `send_date` has been three
+different formats over its life) and the random bits from a hash of *(source
+chat identity, position in the family, content)*. The first half is not
+cosmetic: `exportSession` sorts turns by id on the stated ground that uuidv7
+sorts by mint time, and `importSession` appends them in file order. A
+content-hash id — `stableId`'s `im-…` shape — satisfies neither, so an imported
+session **re-exported** would list children before parents. The second half is
+what makes a branch family's shared prefix collapse for free: identical position
+and content, identical id.
+
+**Two consequences of `already-here`, one good and one to state up front.**
+Re-importing the same chat is refused with a 409, which is re-import
+idempotence without any machinery — the thing §2.1 said SillyTavern had
+nothing to key on. But the same check means **a chat that has grown since it
+was imported cannot be imported again**: its prefix is already here. That makes
+this a one-shot migration, not a sync, and the import surface should say so
+rather than let the 409 say it.
+
+### 7.5 What is genuinely new work
+
+- **The converters.** SillyTavern, single-character, with swipes: small — a few
+  hundred lines with the fixture pair. Marinara roleplay with branch families:
+  medium, because §2.2's whole-family pass has to see every chat before it
+  writes one. Group chats on either: small extra code, a product decision about
+  attribution first.
+- **Cast, mode and preset.** `session.cast.actors` are library ids the converter
+  cannot know. Either the import resolves them (the chat's folder name against
+  imported actors' `provenance.originalFilename`, which the card import already
+  stamps) or the session arrives with an empty cast and the session-settings
+  panel fills it. The second is free and honest; the first is what people will
+  expect. Mode: ~~`freeform` for one character, `scene` for a group~~
+  ~~*(corrected: Scene is `maxActors: 1`, so the reverse — Scene for one
+  character, Freeform, `maxActors: 6`, for a group; P14 §1.7)*~~
+  *(re-corrected the same day: **Scene for both.** The cap was P2's minimum, not
+  the design — [06 §7.2](06-modes-and-turn-pipeline.md) specifies Scene as the
+  SillyTavern/Marinara shape with "one or more actors present" — and P14's
+  Part A builds Scene out to it, so an import lands in a mode that plays the
+  way the chat did; [P14 §0.6](workplan/31-p14-scene-and-session-import.md))*.
+- **The summary chain's first turn is a cliff.** `ensureChain` is lazy and
+  sequential by design (link *n* is `f(link(n-1), units)`), and nothing is
+  derived until somebody asks. An imported 2,000-turn chat at the default
+  `span: 20` asks for ~99 summariser calls, one after another, **inside the
+  first turn played after import**. Either a post-import job warms the chain or
+  the first turn says why it is slow. The memory extractor, which reads the turns
+  since it last ran, has the same shape and was not checked.
+- **Transport.** `POST /sessions/import` takes a `SessionExport` body; the
+  client either converts before posting or the route learns to detect `.jsonl`.
+  The folder-upload plan excludes `chats/` today (§2.1), which is the right
+  default until a person opts in per chat.
+
+### 7.6 Verdict, revised
+
+**Feasible now, and no longer sequenced behind anything.** The format exists,
+its reader is built and tested against foreign-shaped turns, and branching is
+navigable. What remains is two pure converters, a cast-linking decision, and a
+warm-up for the summary chain — none of which changes a persisted shape, so none
+of it costs more by waiting.
+
+If it is built, the order that follows from the above is **SillyTavern
+single-character first** (the most deployed source, the simplest file, and the
+first test of the format by a document we did not write), **Marinara roleplay
+second** (better fidelity, transport already done, but the family pass is the
+larger piece), **group chats last** (a product question before a code one).
+[25 E4](25-open-questions.md)'s objection is answered by §7.2's shape rather
+than by effort: what this project would own is the format and a pure function
+per source, which is the maintenance E4 said it would accept.

@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
-import { readTrash, restoreFromTrash, type TrashEntry } from '../api.js';
+import { errorCode, readTrash, restoreFromTrash, type TrashEntry } from '../api.js';
 import { formatTimestamp } from '../format.js';
 import { Button } from '../ui/Button.js';
 import { Fine, Note, SectionTitle } from '../ui/Text.js';
@@ -27,7 +27,10 @@ import { Fine, Note, SectionTitle } from '../ui/Text.js';
  * is not a library object. *It is also not a browsing view*: nobody goes to the
  * trash to look around, they go because they want one thing back.
  */
-export function Trash(): JSX.Element {
+export function Trash(props: {
+  /** The reader's, for when each thing was deleted and when it goes. */
+  locale: string | undefined;
+}): JSX.Element {
   const client = useQueryClient();
   const trash = useQuery({ queryKey: ['trash'], queryFn: readTrash });
   const restore = useMutation({
@@ -53,7 +56,16 @@ export function Trash(): JSX.Element {
 
       {trash.isPending ? <Note>Loading…</Note> : null}
 
-      {!trash.isPending && entries.length === 0 ? <Note>Nothing has been deleted.</Note> : null}
+      {/* ***A trash that could not be read is not an empty one*** (2026-10-01,
+          polish 10). Both rendered *Nothing has been deleted.* — the one
+          sentence on this page a person acts on by giving up looking. */}
+      {trash.isError ? (
+        <p role="alert" className="text-danger-ink">
+          The trash could not be read. Try reloading the page.
+        </p>
+      ) : null}
+
+      {trash.isSuccess && entries.length === 0 ? <Note>Nothing has been deleted.</Note> : null}
 
       {entries.length === 0 ? null : (
         <ul className="flex flex-col gap-2">
@@ -64,7 +76,7 @@ export function Trash(): JSX.Element {
             >
               <span className="text-ink">{entry.name}</span>
               <Fine>{entry.kind}</Fine>
-              <Fine>{whenLine(entry)}</Fine>
+              <Fine>{whenLine(entry, props.locale)}</Fine>
               <Button
                 type="button"
                 className="ms-auto"
@@ -105,16 +117,19 @@ function windowLine(days: number | undefined): string {
  * and the sweep will never take it — so the honest line is that it stays, which
  * is also the useful one.
  */
-function whenLine(entry: TrashEntry): string {
+function whenLine(entry: TrashEntry, locale: string | undefined): string {
   if (entry.deletedAt === 0) return 'Put here by hand; it will not be removed.';
-  const deleted = formatTimestamp(new Date(entry.deletedAt).toISOString());
+  const deleted = formatTimestamp(new Date(entry.deletedAt).toISOString(), locale);
   if (entry.expiresAt === null) return `Deleted ${deleted}.`;
-  return `Deleted ${deleted}; removed after ${formatTimestamp(new Date(entry.expiresAt).toISOString())}.`;
+  return `Deleted ${deleted}; removed after ${formatTimestamp(new Date(entry.expiresAt).toISOString(), locale)}.`;
 }
 
+/**
+ * Why something could not be put back — by the class the route sends
+ * (`occupied`), not by the English it sends with it (2026-09-27).
+ */
 function restoreLine(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
-  return message.includes('already there')
+  return errorCode(error) === 'occupied'
     ? 'Something with that name is already there. Rename it first, then put this one back.'
     : 'That could not be put back.';
 }

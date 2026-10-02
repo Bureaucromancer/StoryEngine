@@ -4,6 +4,7 @@
 import type {
   Mode,
   ModeDefinition,
+  RecordField,
   StepDefinition,
   SurfaceContribution,
   WidgetSpec,
@@ -11,11 +12,14 @@ import type {
 
 import {
   channelDefinition,
+  channelKey,
   channelSurfaces,
   initialValue,
   keyBelongsTo,
   registerChannel,
+  revealed,
   splitChannelKey,
+  stateEnabled,
   type ChannelSurface,
 } from './sessions/channels.js';
 import type { ChannelState } from './sessions/types.js';
@@ -98,6 +102,40 @@ export function registerMode(mode: Mode): void {
  */
 export const DEFAULT_MODE_ID = 'storyengine.scene';
 
+/**
+ * ***The mode a foreign chat is imported into*** —
+ * [P14.8](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * by [06 §1](../../../docs/design/06-modes-and-turn-pipeline.md)'s
+ * *"SillyTavern/Marinara RP"* row, which is Scene.
+ *
+ * **The same string as {@link DEFAULT_MODE_ID} today, and a different fact.**
+ * The default is what a session plays when it names no mode, or names one this
+ * build has never heard of — a fallback, chosen for being the safest thing to
+ * open an unknown session in. This is a *mapping*: a SillyTavern or Marinara
+ * chat is a roleplay among embodied characters, and [P14]'s revision rebuilt
+ * Scene as exactly that chat so an import lands somewhere that plays the way
+ * the chat did. ***If the default ever moved — to a mode that suits a new
+ * install better, say — imported chats should not move with it***, because
+ * nothing about a SillyTavern chat would have changed. Two constants make that a
+ * one-line edit to the right one; one constant would make it a quiet change to
+ * both.
+ *
+ * *It lives here and not beside the importer* because the importer is engine
+ * code, and engine code spells no mode id (`tools/repo-shape.test.ts`, *"the
+ * engine names no mode"*): a mode id written into `import/` would be the engine
+ * knowing which modes exist, which is the bet
+ * [19 §10](../../../docs/design/19-tech-stack.md) calls the design's central
+ * one. This file is one of the two that may, with a reason beside each literal.
+ * The chat builder takes the id as `BuildContext.modeId`
+ * (`import/chat/types.ts`), and every door that calls it passes this.
+ *
+ * ***Proved at startup*** by {@link assertModesRunnable}, the way the steps are:
+ * a build that does not register it would otherwise write sessions naming a
+ * mode nothing can play, and each would open under the default with a logged
+ * substitution — the first imported chat would be where somebody found out.
+ */
+export const CHAT_IMPORT_MODE_ID = 'storyengine.scene';
+
 export function modeById(id: string): Mode | null {
   return registered.get(id) ?? null;
 }
@@ -120,6 +158,30 @@ export function defaultMode(): Mode {
     );
   }
   return mode;
+}
+
+/**
+ * ***The mode a session plays*** — the one it names, or the default when this
+ * build has never heard of that one ([00 §3.3], {@link DEFAULT_MODE_ID}).
+ * `null` only when nothing is registered at all, which is a unit test's world
+ * rather than a server's; a caller that must have a mode follows this with
+ * {@link defaultMode}, and gets that function's throw.
+ *
+ * ***One answer, asked everywhere*** (2026-09-30). The turn resolved an unknown
+ * mode to the default (`gather.ts`), and so — each with its own copy of the
+ * fallback — did the chat settings, the gestures, the preset reset and the
+ * session's presentation; the session read's HUD, surfaces, actions, dials and
+ * input kinds, the channel write, the cast and input checks and the on-demand
+ * reply took the id as written. So a session naming a mode from a newer build,
+ * or an extension that is not installed, *played* as Scene and was *shown* as
+ * nothing: no clock or place, no stage, no *Update trackers*, no input kinds,
+ * and a 404 for a write to the staging switch its own turns were reading. Every
+ * function in this file that takes a session's mode id resolves it through this
+ * one, so the id a caller has in hand can no longer give the view one mode and
+ * the turn another.
+ */
+export function resolvedMode(id: string | undefined): Mode | null {
+  return modeById(id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
 }
 
 /** Every mode registered so far, in registration order. */
@@ -158,6 +220,13 @@ export interface PublicMode {
   presetIds: readonly string[];
   setup: ModeDefinition['setup'];
   surfaces: ModeDefinition['surfaces'];
+  /**
+   * ***Whether a new session opens on its cast's greetings*** —
+   * `ModeDefinition.openingTurn`, [P14 §1.7], sent at [P14.5] because the
+   * creation form offers each member's opening only for a mode that writes
+   * one. A choice the mode would never read is a control that does nothing.
+   */
+  openingTurn: boolean;
 }
 
 export function presentMode(mode: Mode): PublicMode {
@@ -186,6 +255,7 @@ export function presentMode(mode: Mode): PublicMode {
      */
     setup: withoutParts(definition.setup),
     surfaces: definition.surfaces,
+    openingTurn: definition.openingTurn === true,
   };
 }
 
@@ -257,6 +327,16 @@ export function assertModesRunnable(): void {
     // nothing, which reads as a bad model rather than as a broken build.
     setupPlanFor(mode);
   }
+  /**
+   * ***And the mode chats are imported into*** — [P14.8]. After the loop, so a
+   * build whose modes cannot run says that first: it is the deeper fault, and a
+   * build that registered nothing has already been refused above.
+   */
+  if (!registered.has(CHAT_IMPORT_MODE_ID)) {
+    throw new Error(
+      `Chats are imported into ${CHAT_IMPORT_MODE_ID}, which is not registered. Call installBuiltIns() before serving.`,
+    );
+  }
 }
 
 function withoutParts(setup: ModeDefinition['setup']): ModeDefinition['setup'] {
@@ -303,16 +383,46 @@ function withoutParts(setup: ModeDefinition['setup']): ModeDefinition['setup'] {
  *   everywhere, which is why they were registered outside a mode in the first
  *   place.
  *
- * So the test is *is there a registered mode with this owner, and is it not the
- * one being played* — and an owner no mode answers to is a package's.
+ * ~~So the test is *is there a registered mode with this owner, and is it not the
+ * one being played* — and an owner no mode answers to is a package's.~~
+ *
+ * ***A mode's channel is in play where the mode playing declares it***
+ * (2026-09-30), and a package's everywhere, as before. The owner rule broke on
+ * the case the SDK invites: `dialChannel` hands out one spelling on purpose —
+ * *"the second mode to want one spells it the same way"* (`sdk/dials.ts`) —
+ * and registration is last-write-wins, so a second mode declaring
+ * `se.difficulty` took the channel's `owner`, and with it the dial, the
+ * channel write and the workbench line, away from Freeform, whose turns would
+ * still read a value nobody could change any more. The owner answers *whose is
+ * it*; the question here is *does this session's mode use it*, and the
+ * declaration is the mode saying so. It is also the only way a mode's channel
+ * reaches the registry ({@link registerMode}), so every channel the owner rule
+ * gave a mode, this gives it too. **The owner still draws [06 §4.1]'s line**:
+ * one no registered mode answers to is a package's.
+ *
+ * *The mode is the one the session plays* — {@link resolvedMode}, so a session
+ * naming a mode this build does not have sees the default's channels, which are
+ * the ones its turns write.
  *
  * *An unregistered channel is not in play either*, which keeps the two answers a
  * caller cares about — **unknown** and **not yours** — from needing two calls.
  */
-export function channelInPlay(channelId: string, modeId: string): boolean {
+export function channelInPlay(channelId: string, modeId: string | undefined): boolean {
   const definition = channelDefinition(channelId);
   if (definition === null) return false;
-  return modeById(definition.owner) === null || definition.owner === modeId;
+  const declared = resolvedMode(modeId)?.definition.channels;
+  if (declared?.some((channel) => channel.id === channelId) === true) return true;
+  return modeById(definition.owner) === null;
+}
+
+/**
+ * {@link channelInPlay} for one session, as a predicate — for the walks in
+ * `sessions/channels.ts` (`renderedChannels`, `secretChannels`), which cannot
+ * import this file for the cycle described above, and so take the rule as an
+ * argument rather than a mode id.
+ */
+export function inPlayFor(modeId: string | undefined): (channelId: string) => boolean {
+  return (channelId) => channelInPlay(channelId, modeId);
 }
 
 /**
@@ -324,7 +434,7 @@ export function channelInPlay(channelId: string, modeId: string): boolean {
  */
 export function sessionSurfaces(
   channels: Readonly<Record<string, ChannelState>>,
-  modeId: string,
+  modeId: string | undefined,
 ): ChannelSurface[] {
   return channelSurfaces(channels).filter((surface) => channelInPlay(surface.channelId, modeId));
 }
@@ -364,41 +474,120 @@ export interface ModeSurface {
   image?: { url: string; alt: string };
   /** `toggle`: what the switch is currently on. */
   on?: boolean;
+  /** The contribution's heading within its region — `SurfaceContribution.group`, [P14.5a]. */
+  group?: string;
+  /**
+   * `meter`: the bar, bounded — a number bounded by the declaration, or a
+   * `{ value, max }` bounded by itself ([P14.5a]).
+   */
+  meter?: { value: number; min: number; max: number };
+  /**
+   * `record`: ***the value itself, and the declaration that reads it*** —
+   * [P14.5a].
+   *
+   * **Raw JSON where every other arm sends a rendered string**, and the
+   * difference is the arm's purpose rather than an exception to the posture:
+   * a record is *edited* field by field, and an editor needs the value it is
+   * editing. What crosses is still data — a value the channel's schema has
+   * already admitted, a list of fields from a closed vocabulary, and two sets
+   * of paths — never a template or markup, so 10 §8's line holds.
+   *
+   * `locks` and `hidden` are the current sets, with the channel keys they are
+   * written back through; `null` when the widget declared none.
+   */
+  record?: {
+    value: unknown;
+    fields: readonly RecordField[];
+    locks: { key: string; paths: string[] } | null;
+    hidden: { key: string; paths: string[] } | null;
+  };
+}
+
+/**
+ * ***Who an actor-scoped record is about*** — [P14.5a]'s *"each present
+ * character"*, handed in by the caller that knows the cast.
+ *
+ * **Only for a `record`, and that is the difference between showing and
+ * editing.** A sprite beside a speaker's line shows a value that exists, so
+ * the region walks the keys the map holds, as it always has. A record is where
+ * a person *writes* a value that may not exist yet — a character the tracker
+ * has not reached — so it walks the people it could be about instead: every
+ * present member but the persona, whose own tracker is a different shape
+ * (`StepCastMember.persona`, and the character tracker skips them for the same
+ * reason). A key the map holds for somebody not listed is somebody who left
+ * the room, and their card closes with them; the value stays on the tree.
+ *
+ * Absent, an actor-scoped record falls back to the keys the map holds — the
+ * shape every caller that has no cast in hand gets.
+ */
+export interface SurfaceMembers {
+  actors: readonly string[];
 }
 
 export function modeSurfaces(
   channels: Readonly<Record<string, ChannelState>>,
-  modeId: string,
+  /** The mode the session names — resolved here ({@link resolvedMode}). */
+  modeId: string | undefined,
   /**
    * Which session these surfaces belong to — [P9.2].
    *
    * **Needed only by the backdrop**, and only since a backdrop can name a
    * rendition: a library object is addressed by kind and id, and a rendition
-   * lives in a session directory. Nullable so a caller with no session in hand
+   * lives in a session directory. ~~Nullable so a caller with no session in hand
    * gets what this function always returned — a picture for the authored arm and
    * nothing for the generated one, which is the state every build before [P9]
-   * was in.
+   * was in.~~
+   *
+   * ***Required*** (2026-09-30). Nullable with a default, it let the two routes
+   * that answer with a session's surfaces go on passing none — the read passed
+   * an explicit `null`, and the channel write's reply left it out — so a
+   * generated backdrop, paid for and selected, was drawn on no page: the
+   * rendition arm below answers nothing without a session. Every caller has
+   * the session in hand, and a required string is how the compiler says so.
    */
-  sessionId: string | null = null,
+  sessionId: string,
+  /** Who an actor-scoped record is about — see {@link SurfaceMembers}. */
+  members?: SurfaceMembers,
 ): ModeSurface[] {
-  const mode = modeById(modeId);
+  const mode = resolvedMode(modeId);
   if (mode === null) return [];
 
   const out: ModeSurface[] = [];
   for (const contribution of mode.definition.surfaces) {
-    if (!channelInPlay(contribution.channelId, modeId)) continue;
+    if (!channelInPlay(contribution.channelId, mode.definition.id)) continue;
     const definition = channelDefinition(contribution.channelId);
-    if (definition === null || definition.visibility === 'hidden') continue;
+    /**
+     * ***Hidden has no surface — until it is revealed*** — [06 §7.3]'s reveal
+     * affordance, [P14.5b]: a hidden channel declaring `reveal` is drawn while
+     * its reveal switch is on, and one that declares none never is.
+     */
+    if (definition === null || !revealed(definition, channels)) continue;
+    /**
+     * ***A switched-off channel has no surface*** — `EstablishedState.enabledBy`,
+     * [P14.5a]. The declaration already says the channel is *"rendered
+     * anywhere"* only while its switch is on; a tracker card for a tracker
+     * nobody switched on would be a form for state nothing keeps.
+     */
+    if (!stateEnabled(definition, channels)) continue;
 
     /**
      * **Every key the channel owns**, the same walk the HUD makes — an
      * actor-scoped channel is one surface per actor, which is what a sprite
-     * beside each speaker's line *is*.
+     * beside each speaker's line *is*. *A record over an actor-scoped channel
+     * walks the members instead* ({@link SurfaceMembers}).
      */
-    const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
-    for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
+    const held = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
+    const keys =
+      contribution.widget.kind === 'record' && definition.scope === 'actor'
+        ? members === undefined
+          ? held.filter((key) => key !== definition.id)
+          : members.actors.map((actorId) => channelKey(definition.id, actorId))
+        : held.length === 0
+          ? [definition.id]
+          : held;
+    for (const key of [...keys].sort()) {
       const value = channels[key]?.value ?? initialValue(definition.id);
-      const rendered = renderSurface(contribution.widget, value, sessionId);
+      const rendered = renderSurface(contribution.widget, value, sessionId, channels);
       // Nothing to show is not shown — the same answer `omitWhenEmpty` gives a
       // preset slot, and the one [10 §2.3] insists on for a backdrop: *"with
       // the backdrop off Play is the surface it was before, not a surface with
@@ -412,6 +601,7 @@ export function modeSurfaces(
         scopeKey,
         kind: contribution.widget.kind,
         label: contribution.widget.label,
+        ...(contribution.group === undefined ? {} : { group: contribution.group }),
         ...rendered,
       });
     }
@@ -431,8 +621,45 @@ function renderSurface(
   widget: WidgetSpec,
   value: unknown,
   sessionId: string | null,
-): Pick<ModeSurface, 'text' | 'image' | 'on'> | null {
+  channels: Readonly<Record<string, ChannelState>>,
+): Pick<ModeSurface, 'text' | 'image' | 'on' | 'meter' | 'record'> | null {
   switch (widget.kind) {
+    case 'meter': {
+      // A number bounded by the declaration, or a stat bounded by itself; a
+      // bar with no ceiling to fill towards is not a bar, and shows nothing.
+      const own =
+        typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+      const at = typeof value === 'number' ? value : own?.['value'];
+      const max = own !== null && typeof own['max'] === 'number' ? own['max'] : widget.max;
+      const min = widget.min ?? 0;
+      if (typeof at !== 'number' || !Number.isFinite(at) || max === undefined || !(max > min)) {
+        return null;
+      }
+      return { meter: { value: at, min, max } };
+    }
+    case 'record': {
+      // *Shown whatever the value is*, as a toggle is: an empty tracker is the
+      // state a person fills in, not an absence — and the card is where they
+      // do it.
+      const paths = (key: string | undefined): { key: string; paths: string[] } | null => {
+        if (key === undefined) return null;
+        const set = channels[key]?.value ?? initialValue(key);
+        return {
+          key,
+          paths: Array.isArray(set)
+            ? set.filter((one): one is string => typeof one === 'string')
+            : [],
+        };
+      };
+      return {
+        record: {
+          value,
+          fields: widget.fields,
+          locks: paths(widget.locks),
+          hidden: paths(widget.hidden),
+        },
+      };
+    }
     case 'text':
       return typeof value === 'string' && value.trim() !== '' ? { text: value.trim() } : null;
     case 'toggle':
@@ -495,4 +722,51 @@ function mediaUrlFor(value: unknown, sessionId: string | null): string | null {
     `/api/library/${encodeURIComponent(selection.kind)}/${encodeURIComponent(selection.objectId)}` +
     `/media/${encodeURIComponent(selection.mediaId)}`
   );
+}
+
+/**
+ * ***What a person may run between turns, here and now*** — the declared
+ * {@link StepDefinition.onDemand} steps, [P14.5a]'s *Update trackers*.
+ *
+ * **Live only while something it writes is switched on.** A step that writes
+ * only channels whose `EstablishedState.enabledBy` is off has nothing to do,
+ * and a button that answers *nothing to change* every time it is pressed is a
+ * control that does nothing — [P7.8]'s rule for a dial a mode does not
+ * declare. Derived from the declaration, so no mode's step is named here: the
+ * step says what it writes, the channels say what switches them, and this
+ * reads both.
+ *
+ * *The same refusals the route makes* are not repeated: a step this lists is
+ * one the route will run, because both take it from the mode's own
+ * declaration (`onDemandStep`, `turns/on-demand.ts`).
+ */
+export interface ModeAction {
+  stepId: string;
+  label: string;
+}
+
+export function modeActions(
+  channels: Readonly<Record<string, ChannelState>>,
+  modeId: string | undefined,
+): ModeAction[] {
+  /**
+   * ***The mode the session plays***, resolved ({@link resolvedMode}) — the
+   * route runs the resolved mode's step (`turns/on-demand.ts` takes the turn's
+   * gather), so a session naming an unknown mode was offered no *Update
+   * trackers* that the route would have run as Scene's.
+   */
+  const mode = resolvedMode(modeId);
+  if (mode === null) return [];
+  const out: ModeAction[] = [];
+  for (const step of mode.definition.steps) {
+    if (step.onDemand === undefined || step.stage !== 'post' || step.contributes === 'messages') {
+      continue;
+    }
+    const live = step.writes.some((id) => {
+      const definition = channelDefinition(id);
+      return definition !== null && stateEnabled(definition, channels);
+    });
+    if (live) out.push({ stepId: step.id, label: step.onDemand.label });
+  }
+  return out;
 }

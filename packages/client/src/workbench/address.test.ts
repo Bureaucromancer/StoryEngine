@@ -19,12 +19,24 @@ import { blockSourceAddress } from './address.js';
  * link arm (the persona-with-id case loses its address).
  */
 
-const EVERY_ARM: BlockSource[] = [
-  { kind: 'persona', actorId: 'a-1', contentHash: 'sha256:x' },
-  { kind: 'persona', actorId: null, contentHash: null },
-  { kind: 'actor', actorId: 'a-2', contentHash: 'sha256:y' },
-  { kind: 'lore', entryId: 'e-1', phase: 'before' },
-  { kind: 'history', turnId: 't-1', range: [0, 0], part: 'input' },
+/**
+ * ***One example or more of every arm, keyed by kind*** (2026-09-30) — the
+ * type-level exhaustiveness check the comment below said was owed "the next
+ * time an arm is added". A mapped type over `BlockSource['kind']` will not
+ * compile with a kind missing, so the fixture is as total as the union rather
+ * than as the hand. It found three arms the hand had missed — `state`
+ * ([P14.5a]), `difficulty` ([P7.8]) and `continue` ([P14.4]), each shown in the
+ * Source column as its bare word — and `note`, which had its label and no
+ * example.
+ */
+const ONE_OF_EACH: { [K in BlockSource['kind']]: Extract<BlockSource, { kind: K }>[] } = {
+  persona: [
+    { kind: 'persona', actorId: 'a-1', contentHash: 'sha256:x' },
+    { kind: 'persona', actorId: null, contentHash: null },
+  ],
+  actor: [{ kind: 'actor', actorId: 'a-2', contentHash: 'sha256:y' }],
+  lore: [{ kind: 'lore', entryId: 'e-1', phase: 'before' }],
+  history: [{ kind: 'history', turnId: 't-1', range: [0, 0], part: 'input' }],
   /**
    * ***The two arms this fixture was missing***, added at [P9.5] with the
    * labels they should always have had.
@@ -41,30 +53,50 @@ const EVERY_ARM: BlockSource[] = [
    * that `BlockSource` is a *free-to-move tier* union with no runtime
    * representation to iterate, so the alternative is a type-level exhaustiveness
    * check. That is worth writing the next time an arm is added — and this
-   * comment is where the next person finds out it is owed.
+   * comment is where the next person finds out it is owed. *(Written
+   * 2026-09-30, as the mapped type above.)*
    */
-  { kind: 'summary', linkKey: 'sha256:s', range: [0, 3] },
-  { kind: 'schema' },
-  {
-    kind: 'samples',
-    owner: { kind: 'actor', id: 'a-3', contentHash: 'sha256:z' },
-    sampleId: 's-1',
-  },
-  {
-    kind: 'samples',
-    owner: { kind: 'treatment', id: 'tr-1', contentHash: 'sha256:w' },
-    sampleId: 's-2',
-  },
-  { kind: 'channel', channelId: 'se.clock' },
-  { kind: 'treatment', part: 'framing' },
-  { kind: 'goal', goalId: 'g-1' },
-  { kind: 'guidance', producer: 'user' },
-  { kind: 'attempt', turnId: 't-0' },
-  { kind: 'attempt', turnId: null },
-  { kind: 'input' },
-  { kind: 'preset', blockId: 'b-1' },
-  { kind: 'step', stepId: 's-1' },
-];
+  summary: [{ kind: 'summary', linkKey: 'sha256:s', range: [0, 3] }],
+  schema: [{ kind: 'schema' }],
+  samples: [
+    {
+      kind: 'samples',
+      owner: { kind: 'actor', id: 'a-3', contentHash: 'sha256:z' },
+      sampleId: 's-1',
+    },
+    {
+      kind: 'samples',
+      owner: { kind: 'treatment', id: 'tr-1', contentHash: 'sha256:w' },
+      sampleId: 's-2',
+    },
+  ],
+  channel: [{ kind: 'channel', channelId: 'se.clock' }],
+  state: [{ kind: 'state', keys: ['se.track.world'] }],
+  treatment: [{ kind: 'treatment', part: 'framing' }],
+  setup: [{ kind: 'setup', field: 'premise' }],
+  goal: [{ kind: 'goal', goalId: 'g-1' }],
+  difficulty: [
+    { kind: 'difficulty', axis: 'directedness', levelId: 'following', fragmentIndex: 0 },
+  ],
+  guidance: [{ kind: 'guidance', producer: 'user' }],
+  attempt: [
+    { kind: 'attempt', turnId: 't-0' },
+    { kind: 'attempt', turnId: null },
+  ],
+  input: [{ kind: 'input' }],
+  preset: [{ kind: 'preset', blockId: 'b-1' }],
+  step: [{ kind: 'step', stepId: 's-1' }],
+  // [P14.2]'s round, with its label added in the same edit, as this fixture's
+  // comment above asks of the next arm.
+  round: [
+    { kind: 'round', message: 0, actorId: 'a-4' },
+    { kind: 'round', message: 1, actorId: null },
+  ],
+  note: [{ kind: 'note' }],
+  continue: [{ kind: 'continue' }],
+};
+
+const EVERY_ARM: BlockSource[] = Object.values(ONE_OF_EACH).flat();
 
 describe('every source has an address', () => {
   it('yields a real label for every arm of the vocabulary', () => {
@@ -88,6 +120,13 @@ describe('every source has an address', () => {
     expect(
       blockSourceAddress({ kind: 'persona', actorId: null, contentHash: null }).link,
     ).toBeUndefined();
+    // A reply earlier in the round links to whoever gave it; a narrator's
+    // line has nobody behind it.
+    expect(blockSourceAddress({ kind: 'round', message: 0, actorId: 'a-4' }).link).toEqual({
+      kind: 'actors',
+      id: 'a-4',
+    });
+    expect(blockSourceAddress({ kind: 'round', message: 1, actorId: null }).link).toBeUndefined();
   });
 
   /**

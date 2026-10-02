@@ -17,7 +17,7 @@ import { retrieve } from '../retrieval/retrieve.js';
 import { Rng } from '../rng/rng.js';
 import { seededSource } from '../rng/source.js';
 import { appendTurnToSession, readSession, setMemoryConfig } from '../sessions/store.js';
-import { TEST_PRESET } from '../test-mode.js';
+import { TEST_MODE_ID, TEST_PRESET } from '../test-mode.js';
 import { callPurposeFor, type StepDefinition } from '../turns/steps.js';
 import { resolveLore } from '../turns/lore.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -343,6 +343,7 @@ describe('a memory block says where it came from, and never reaches a verdict', 
       persona: null,
       actors: [],
       channels: {},
+      modeId: TEST_MODE_ID,
       lore: retrieved.blocks,
     });
     const memory = candidates.find(

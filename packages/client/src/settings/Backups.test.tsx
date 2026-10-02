@@ -50,7 +50,9 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
+const { ApiError } = await import('../api.js');
 const { Backups } = await import('./Backups.js');
+const { formatTimestamp } = await import('../format.js');
 
 const ONE = {
   id: '0199aa33-7c41-7b0e-9d1a-4f2c8e5a1b60',
@@ -74,11 +76,11 @@ beforeEach(() => {
   });
 });
 
-function renderPanel(capable = false): void {
+function renderPanel(capable = false, locale: string | undefined = 'en-US'): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <Backups capable={capable} />
+      <Backups capable={capable} locale={locale} />
     </QueryClientProvider>,
   );
 }
@@ -168,12 +170,41 @@ describe('Backups', () => {
     });
   });
 
+  /**
+   * ~~Rejected with `new Error('no space left on device')`~~ — which the client
+   * can never receive: `request()` throws an `ApiError`, and a full disk was
+   * the server's bare 500 until the take route learned to say `no-space`. The
+   * test was green over a branch that could not run (2026-09-27). It is the
+   * route's own refusal now, in other words than the route uses today — the
+   * class is what is read, so a reworded sentence must not move this one.
+   */
   it('reports a failed backup without claiming it happened', async () => {
-    takeMine.mockRejectedValue(new Error('no space left on device'));
+    takeMine.mockRejectedValue(new ApiError(507, 'no-space', 'The disk is full.'));
     renderPanel();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Back up now' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(screen.getByText(/not enough room on the disk/)).toBeTruthy();
+    expect(screen.getByText('There was not enough room on the disk for that backup.')).toBeTruthy();
+  });
+
+  it('does not blame the disk for a failure that did not say so', async () => {
+    takeMine.mockRejectedValue(new ApiError(500, 'internal', 'The request failed.'));
+    renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Back up now' }));
+    expect(await screen.findByText('That backup could not be taken.')).toBeTruthy();
+  });
+});
+
+/**
+ * ***When each backup was taken, in the account's format*** (2026-09-28) — the
+ * panel was handed no locale and wrote the browser's.
+ */
+describe('the dates', () => {
+  it('are written in the account’s format', async () => {
+    renderPanel(false, 'de-DE');
+    const german = formatTimestamp(new Date(ONE.takenAt).toISOString(), 'de-DE');
+    expect(german).not.toBe(formatTimestamp(new Date(ONE.takenAt).toISOString(), 'en-US'));
+    expect(await screen.findByText(`Taken ${german}.`)).toBeTruthy();
   });
 });

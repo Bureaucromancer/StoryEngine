@@ -19,9 +19,10 @@ import {
   LIVE_APPLIERS,
   loadConfig,
   pendingRestart,
-  validateConfigDocument,
+  resolveConfigDocument,
 } from '../config.js';
 import { contentHashOf } from '../index-db/ingest.js';
+import { unstartable } from '../startable.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { fileExists } from '../storage/files.js';
 
@@ -130,10 +131,29 @@ const NOT_WRITABLE = new Set(['dataDir']);
  * to be. Everything else in a config is a fact about how an install behaves and
  * is portable; these two are facts about a disk.
  *
- * Refused **by name** rather than dropped quietly, so the review says which
- * settings did not come across.
+ * ***And four facts about the network*** (2026-09-27). The rule is right and
+ * the list was short: where a server listens and what stands in front of it
+ * describe the machine as much as a path does. A laptop's `127.0.0.1` imported
+ * into a container outranked `SE_HOST=0.0.0.0` at the next start and bound the
+ * container's own loopback, which nothing outside it can reach; a laptop's
+ * port broke the container's port mapping the same way; and `cookieSecure`
+ * from an install behind HTTPS, imported into one on plain HTTP, meant nobody
+ * could sign in, including to put it back. `trustProxy` goes with it, being
+ * the same statement about what is in front.
+ *
+ * ~~Refused **by name** rather than dropped quietly, so the review says which
+ * settings did not come across.~~ *Corrected 2026-09-27: nothing said so; the
+ * keys were dropped without a word.* Now they are said: the write reports the
+ * ones the archive carried, and the review names them.
  */
-export const NOT_IMPORTABLE = new Set(['dataDir', 'server.clientRoot']);
+export const NOT_IMPORTABLE = new Set([
+  'dataDir',
+  'server.clientRoot',
+  'server.host',
+  'server.port',
+  'server.cookieSecure',
+  'server.trustProxy',
+]);
 
 /**
  * Merges a config document into the running one, writes it, and applies it.
@@ -158,23 +178,106 @@ export async function applyConfigDocument(
   app: FastifyInstance,
   services: AppServices,
   incoming: unknown,
-  drop: ReadonlySet<string> = NOT_WRITABLE,
-): Promise<{ ok: true; pendingRestart: string[] } | { ok: false; message: string }> {
+  options: {
+    /** Keys never written from `incoming`: {@link NOT_WRITABLE} or {@link NOT_IMPORTABLE}. */
+    drop?: ReadonlySet<string>;
+    /** Whether the request reached this server over HTTPS. See `unstartable`. */
+    secure?: boolean;
+    /** Whether a proxy says it did. See `unstartable`. */
+    forwardedSecure?: boolean;
+  } = {},
+): Promise<
+  | { ok: true; pendingRestart: string[]; withheld: string[] }
+  | { ok: false; message: string; issues: string[] }
+> {
+  const drop = options.drop ?? NOT_WRITABLE;
   const onDisk = await readDocument(services);
-  const merged = mergeDocument(onDisk, pickKnown(incoming, drop));
+  const picked = pickKnown(incoming, drop);
+  // The dropped keys the caller actually sent, so an import can name them.
+  const withheld = [...drop].filter((key) => valueAt(incoming, key) !== undefined);
+  dropEchoes(picked, onDisk, resolveConfigDocument({}, services.environment));
+  const merged = mergeDocument(onDisk, picked);
 
   let next: Config;
   try {
-    next = validateConfigDocument(merged, services.configPath);
+    /**
+     * ***Resolved as the next start will resolve it***, the environment under
+     * the file (2026-09-27). Without the layer, a container's save said the
+     * next start would bind `127.0.0.1:8080` when it would bind what
+     * `SE_HOST` and `SE_PORT` say, and the restart notice was worked out from
+     * a config nothing would run.
+     */
+    next = resolveConfigDocument(merged, services.environment, services.configPath);
     next.dataDir = services.config.dataDir;
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
-    return { ok: false, message: error.message };
+    return { ok: false, message: error.message, issues: error.issues };
+  }
+
+  /**
+   * ***And asked whether it would start*** (2026-09-27) — `unstartable`. The
+   * schema is one answer to *would this start?* and not the whole of it: an
+   * address this machine does not have, a port something else holds, a client
+   * root with no build and `Secure` cookies over plain HTTP all passed it, and
+   * each was a start that failed or could not be reached, with no settings page
+   * left to undo it from.
+   */
+  const issues = await unstartable(services.bootConfig, next, {
+    secure: options.secure ?? false,
+    forwardedSecure: options.forwardedSecure ?? false,
+    seams: services.startable,
+  });
+  if (issues.length > 0) {
+    return { ok: false, message: new ConfigError(services.configPath, issues).message, issues };
   }
 
   await writeJsonAtomic(services.configPath, merged);
   services.configDocument = merged;
-  return { ok: true, pendingRestart: applyLiveConfig(app, services, next) };
+  return { ok: true, pendingRestart: applyLiveConfig(app, services, next), withheld };
+}
+
+/**
+ * ***A save writes what somebody chose, not what they were shown***
+ * (2026-09-27).
+ *
+ * The form sends the whole running config back, and every key of it was
+ * written. So one unedited Save copied the environment's `SE_HOST`, `SE_PORT`
+ * and `SE_CLIENT_ROOT` into the file, where they outrank the environment for
+ * good: changing the container's variables afterwards changed nothing, and the
+ * data directory carried the container's `/app/client` to any machine it moved
+ * to, which then would not start. It pinned every default the same way, so a
+ * default this build changes never reached an install that had saved once.
+ * {@link NOT_WRITABLE} made this argument about `dataDir` alone.
+ *
+ * So a key the file does not already set is dropped when its value is the one
+ * the file would get without it, from the environment or the defaults. That
+ * leaves the next start exactly where writing it would have, and the file
+ * saying only what somebody decided. A key the file does set is written either
+ * way, so *overwrite with mine* still overwrites.
+ */
+function dropEchoes(
+  picked: Record<string, unknown>,
+  onDisk: Record<string, unknown>,
+  underneath: Config,
+): void {
+  for (const key of configKeys(picked)) {
+    if (valueAt(onDisk, key) !== undefined) continue;
+    if (stable(valueAt(picked, key)) === stable(valueAt(underneath, key))) deleteAt(picked, key);
+  }
+}
+
+/** Removes a dotted key, and any section it leaves empty. */
+function deleteAt(target: Record<string, unknown>, key: string): void {
+  const [head, ...rest] = key.split('.');
+  if (head === undefined) return;
+  if (rest.length === 0) {
+    Reflect.deleteProperty(target, head);
+    return;
+  }
+  const child = target[head];
+  if (typeof child !== 'object' || child === null) return;
+  deleteAt(child as Record<string, unknown>, rest.join('.'));
+  if (Object.keys(child).length === 0) Reflect.deleteProperty(target, head);
 }
 
 function pickKnown(
@@ -459,7 +562,9 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
      */
     let onDisk: Awaited<ReturnType<typeof loadConfig>> | null = null;
     try {
-      onDisk = await loadConfig(services.configPath);
+      // With the environment under it, so the `current` a refusal hands back
+      // is what a start on that file would run (2026-09-27).
+      onDisk = await loadConfig(services.configPath, services.environment);
     } catch (error) {
       if (!(error instanceof ConfigError)) throw error;
     }
@@ -501,47 +606,30 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
       });
     }
 
-    const merged = mergeDocument(onDisk?.document ?? {}, pickKnown(body.config));
-
     /**
-     * **Validated by the code that boots on it**, not by a second copy.
+     * ***The same write an import makes*** (2026-09-27). This handler had its
+     * own copy of the pick, merge, validate and write, and the copy is where
+     * the environment layer and the start checks would have had to be added
+     * twice.
      *
-     * `validateConfigDocument` is the half of `loadConfig` that fills defaults
-     * and checks the schema, extracted for exactly this call — so a file this
-     * write produces is a file the process can start on, by construction. A
-     * validator written here could drift from the loader, and the drift would
-     * show up as a server that will not start after a settings save.
+     * ~~Validated by the code that boots on it, so a file this write produces is
+     * a file the process can start on, by construction.~~ *Corrected
+     * 2026-09-27: by the schema only.* The schema passed an address this
+     * machine does not have, a port somebody else holds and a client root with
+     * nothing in it, and each saved cleanly and failed at the next start. The
+     * write now asks those too (`unstartable`).
      */
-    let next: Config;
-    try {
-      next = validateConfigDocument(merged, services.configPath);
-      /**
-       * **The data root this process is actually using, restored.**
-       *
-       * `dataDir` is dropped on the way in ({@link NOT_WRITABLE}) so a save
-       * cannot move the install — but dropping it from the *document* would
-       * otherwise move it here, because the loader fills the default for a key
-       * the file does not name, and `--data` sets a value no file ever carried.
-       * A save would have quietly relocated a container's data root to `./data`
-       * on the next restart, which is the same disaster arriving by the other
-       * door.
-       *
-       * It cannot change without a restart in any case, so the running value is
-       * the only correct one.
-       */
-      next.dataDir = services.config.dataDir;
-    } catch (error) {
-      if (!(error instanceof ConfigError)) throw error;
+    const applied = await applyConfigDocument(app, services, body.config, {
+      drop: NOT_WRITABLE,
+      secure: request.protocol === 'https',
+      forwardedSecure: forwardedProto(request.headers['x-forwarded-proto']) === 'https',
+    });
+    if (!applied.ok) {
       return await reply
         .code(400)
-        .send({ error: 'invalid', message: error.message, issues: error.issues });
+        .send({ error: 'invalid', message: applied.message, issues: applied.issues });
     }
-
-    await writeJsonAtomic(services.configPath, merged);
-    // The file this process has now seen. Without this the *next* save compares
-    // against the document read at boot and refuses its own predecessor's work.
-    services.configDocument = merged;
-    const pending = applyLiveConfig(app, services, next);
+    const pending = applied.pendingRestart;
 
     /**
      * ***`system.notice`'s producer, and it is the one [09 §3.4] was arguing
@@ -563,6 +651,12 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
       pendingRestart: pending,
     });
   });
+}
+
+/** The first protocol a proxy names, lowercased; the nearest proxy speaks first. */
+function forwardedProto(header: string | string[] | undefined): string | null {
+  const first = Array.isArray(header) ? header[0] : header;
+  return first?.split(',')[0]?.trim().toLowerCase() ?? null;
 }
 
 /**
