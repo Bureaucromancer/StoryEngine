@@ -49,8 +49,8 @@ Under **Retrieval** — each read on every turn that reaches the book:
 | **Recursive scanning** | off | An entry that fired is itself searched for this book's keys, so one entry can pull in another. |
 | **Max recursion depth** | 3 | How many times that can chain. |
 
-A book's description, tags and writing samples are shown on its page but cannot be
-changed in the editor.
+A book's description and tags are shown on its page, and its writing samples only in the
+page's **As stored** JSON; none of them can be changed in the editor.
 
 ### Entries
 
@@ -69,14 +69,16 @@ The editor can change these fields of an entry:
 - **Enabled** — off keeps the entry in the book without ever firing it.
 - **Position** — **Before char**, **After char**, **At depth** or **Outlet**, and
   **Outlet name** when it is an outlet. See [Where an entry lands](#where-an-entry-lands).
+- Its pictures, in the strip above its fields.
 
 Every other setting an entry can have — secondary keys, case sensitivity, whole-word
-matching, regular expressions, its own scan depth, *always on*, probability, timing,
+matching, regular expressions, its own scan depth, **Constant** (always on), probability, timing,
 order, depth, message role, groups, filters, recursion — is **shown in the editor but
 not changeable there**. These arrive with an imported book (SillyTavern and Marinara
-books carry them) or from editing the book's `lorebook.json` by hand. The groups of
-fields are folded, and a folded heading lists what is not at its default — *Timing
-(sticky 4)* — or says *all at default*.
+books carry them) or from editing the book's `lorebook.json` by hand. **Matching** and
+**Firing** start open and the other groups start folded (**Position** is under
+**Placement**); each heading lists what is not at its default — *Timing (sticky 4)* — or
+says *all at default*.
 
 An entry made in the editor therefore has: whole words **on**, case **insensitive**, no
 regular expressions or secondary keys, no timing, order 100, sent as a system message,
@@ -89,7 +91,10 @@ and depth 0.
 The scan reads the conversation as **messages**, newest first: the move being sent (with
 any picture captions), then the previous reply, then the move before that, and so on.
 **Each turn counts as two messages** — your move and the reply. The default scan depth
-of 2 is therefore the move you are sending and the last reply. An entry keyed on a word
+of 2 is therefore the move you are sending and the last reply. In a group chat, a
+character who speaks after another also scans the replies already given this round,
+ahead of your move — so at depth 2 the second speaker's scan reads the first speaker's
+reply and your move. An entry keyed on a word
 said ten turns ago will not fire again until the word comes back, unless the book's scan
 depth reaches that far; `0` scans the whole session, beyond what is sent as history.
 Keys are matched within one message at a time.
@@ -104,12 +109,14 @@ group chat — and for **Draft my next message**. It does not run for the backgr
    (see [Folders, gates and filters](#folders-gates-and-filters)).
 2. **Timing** — is it still active from an earlier turn, used up, too early, or cooling
    down? (See [Timing](#timing).)
-3. **Always on** entries fire without keys.
-4. **Keys.** By default a key matches regardless of case and only as a whole word: the
-   characters on either side of it must not be letters, digits, underscores or combining
-   marks. So `ash` does not match `ashes`, and a key in Devanagari does not match inside a
-   longer word. Entries can instead be case-sensitive, match anywhere, or treat keys as
-   regular expressions.
+3. **Constant** entries fire without keys.
+4. **Keys.** For an entry made in StoryEngine, a key matches regardless of case and only
+   as a whole word: the characters on either side of it must not be letters, digits,
+   underscores or combining marks. So `ash` does not match `ashes`, and a key in
+   Devanagari does not match inside a longer word. Entries can instead be case-sensitive,
+   match anywhere, or treat keys as regular expressions — and entries imported from
+   SillyTavern or Marinara usually **match anywhere**, because those books leave
+   whole-word matching unset and the importers read that as off.
 5. **Secondary keys**, for entries that use them: one of them must also be present, or
    all of them, or none, or not all — the entry's *selective logic*.
 6. **Probability** — an entry can fire only some of the time on purpose. An entry that
@@ -134,10 +141,15 @@ that is invalid or too slow is reported and not run again in that scan.
 - **Delay** — it cannot fire until the story has that many turns.
 - **Ephemeral** — after firing that many times, it is used up on this line of the story.
 
+A scan is one reply call, so in a one-to-one chat **Sticky** and **Cooldown** count turns.
+SillyTavern counts them in chat messages, two to a turn, and the importer copies the
+numbers unchanged — so an imported book's sticky and cooldown windows last about twice as
+long here. (The book's Markdown and the workbench call them *messages* all the same.)
+
 These counters move only for entries whose text actually reached the prompt: an entry
 dropped by a budget is not spent. They belong to the line of the story you are on, so
 going back to an earlier turn puts them back as they were. **Redo** replays a turn's
-probability and group draws; **Reroll** draws again.
+probability and group draws; **Reroll**, shown on a turn that drew, draws again.
 
 ### Recursion
 
@@ -147,14 +159,14 @@ Entries can be set to never feed it, never be found by it, or fire only through 
 
 ### The book's limits
 
-The entries that fired are ranked — **always on** entries first, then entries whose key is
+The entries that fired are ranked — **Constant** entries first, then entries whose key is
 in the newest message, then by each entry's *order* (lower first). The book's **Entry
 limit** is applied first and its **Token budget** second; an entry that does not fit is
 skipped and the next is tried, so a smaller one can still get in. Tokens are estimated as
-one per four characters, which undercounts Chinese and Japanese text.
+one per four characters, which can be well off for scripts other than English.
 
 After that the whole prompt has to fit the model's window: if it does not, the lowest-
-priority blocks go first, and lore ranks with *always on* entries kept longest. See
+priority blocks go first, and lore ranks with **Constant** entries kept longest. See
 [Presets and prompts](presets.md#how-a-prompt-is-put-together).
 
 ### Where an entry lands
@@ -162,11 +174,37 @@ priority blocks go first, and lore ranks with *always on* entries kept longest. 
 | Position | Where it goes |
 | --- | --- |
 | **Before char** | The preset's lore slot. The usual place. |
-| **After char** | The preset's *lore (after)* slot. The assistant's preset has none. |
-| **At depth** | Inside the history, at the entry's depth — counted in messages from the newest. The editor leaves the depth at 0: after the newest message. |
-| **Outlet** | Only a lore slot in the preset whose **Outlet** field has exactly this name. The shipped presets have none, so add one in the preset editor first. (The `{{outlet::name}}` spelling in the field's hint is not read anywhere; only the slot's **Outlet** field counts.) |
+| **After char** | The preset's *lore (after)* slot. The assistant's preset has none — nor does a new preset, which starts as a copy of it. |
+| **At depth** | Inside the history, at the entry's depth — counted in messages back from the last reply. The editor leaves the depth at 0: just after the last reply, ahead of the move you are sending. |
+| **Outlet** | Only a lore slot in the preset whose **Outlet** field has exactly this name (an outlet entry with no name lands in the ordinary lore slot instead). See below. |
 
 An entry that fires with nowhere to land is recorded as unplaced on the turn.
+
+**Outlets need a slot of their own, added by hand.** The shipped presets name no outlet,
+and the preset editor cannot add a slot. Giving an existing lore slot an **Outlet** makes
+it take that outlet's entries and nothing else — so naming a pack's only *lore* slot
+leaves every **Before char** entry unplaced. Instead, add a second lore slot to your
+preset's `preset.json`, beside the existing *lore* block:
+
+```json
+{
+  "id": "my.lore.harbour",
+  "label": "lore (harbour)",
+  "role": "system",
+  "enabled": true,
+  "placement": { "at": "sequence" },
+  "priority": 25,
+  "appliesTo": [],
+  "advisory": false,
+  "omitWhenEmpty": true,
+  "kind": "slot",
+  "source": { "of": "lore", "phase": "before", "outlet": "harbour" }
+}
+```
+
+A session plays from its own copy of its preset, so switch the session to the edited
+preset afterwards. (The `{{outlet::name}}` spelling in the field's hint is not read
+anywhere; only the slot's `outlet` counts.)
 
 ## Folders, gates and filters
 
@@ -183,15 +221,15 @@ folders, the editor shows a **Folders** table:
 - **Ungrouped** holds the entries in no folder, and is always on.
 
 **Filters** decide an entry's scenes rather than its words. They come from imports or the
-file, and the editor shows them:
+file, and the editor shows them under **Grouping and gating**:
 
-- **by character** — fire only when particular characters are in the scene (or the
+- **Actor filter** — fire only when particular characters are in the scene (or the
   persona), or never when they are;
-- **by character tag** — the same, by the tags on the characters, matched exactly. When
+- **Actor tag filter** — the same, by the tags on the characters, matched exactly. When
   you rename a tag, the tag manager offers to update the filters that name it — see
   [The library](library.md#tags);
-- **by kind of call** — for instance, only for the narrator's replies, or only for **Draft
-  my next message**.
+- **Generation trigger filter** — by kind of call, named as the engine names them: for
+  instance `narrate` for the replies, or `impersonate` for **Draft my next message**.
 
 ## Reading a lorebook
 
@@ -206,15 +244,17 @@ folders, and each entry with its keys and content.
   (Regular-expression keys are not shown.)
 - **Mentions** and **Mentioned by** list the entries an entry names and is named by.
 - **As configured** lists every setting of an entry.
-- **Print** and **Copy as Markdown** — the Markdown has the book's title, folders as
-  headings where it has folders, each entry with its keys and timing, then its content.
+- **Print** and **Copy as Markdown** — the Markdown has the book's title and description,
+  folders as headings where entries sit in folders, each entry with its keys and a line of
+  firing notes — off, always on, probability, sticky, cooldown — then its content.
 
 ## Moving entries between books
 
 Above the entry list in the editor:
 
 - **Select several**, tick entries (**All**, **None**), then **Export selected** — a
-  lorebook file named "*Book* — entries" holding those entries and their folders.
+  lorebook named "*Book* — entries" (downloaded as *Book entries.json*) holding those
+  entries and their folders.
   Pictures stay behind, and it says how many.
 - **Import entries…** adds the entries from a StoryEngine lorebook file to this book: it
   never overwrites, renames a clashing name with " (2)", gives a clashing entry a new
@@ -256,7 +296,10 @@ Work down this list; the first thing that is wrong is usually the only thing:
 5. Is it timed — cooling down, delayed, used up — or set to fire only some of the time?
 6. Did it fire and get dropped by the book's limits or the prompt's budget?
 
-The workbench's preview answers each of these for the move you are typing.
+The workbench's preview answers most of these for the move you are typing. For the last,
+it shows each book's entries and tokens against its limits, but an entry the book's
+limits refused is not listed — it is neither a row in the block table nor under **Did
+not fire**.
 
 ## Memory
 
@@ -272,17 +315,23 @@ Memories get into a book two ways:
 
 - **Remember this**, under any turn of a session with characters in it: choose **Whose
   memory**, write **What to remember** (it starts as the turn's reply — put it in your
-  own words), give **Keywords that bring it back**, and **Save to memories**. It is
-  refused on a turn where a plot hook fired, because that turn's words may spoil a hook
-  for another playthrough; write the fact from another turn instead.
-- **Automatically**, every eighth story turn while the session is sharing memories: one
-  more model call reads the last eight turns and writes the facts it finds, each with a
-  few keywords, into the book of every character in the cast. It skips facts a book
-  already has, never changes an existing entry, and if it fails, the turn is unaffected.
+  own words), give **Keywords that bring it back, comma separated**, and **Save to
+  memories**. It is refused on a turn where a plot hook fired, because that turn's words
+  may spoil a hook for another playthrough; write the fact from another turn instead.
+- **Automatically**, on every eighth story turn while the session is sharing memories:
+  one more model call reads the story turns since the last pass — the eight before the
+  turn that triggers it, seven the first time — and writes the facts it finds, each with
+  a few keywords, into the book of every character in the cast. The triggering turn, and
+  any turns after the last pass, wait for the next one. It skips facts a book already
+  has, never changes an existing entry, and if it fails, the turn is unaffected. Unlike
+  **Remember this** it does not skip turns where a plot hook fired, so for a playthrough
+  whose twists must not carry over, turn **Share memories from this session** off, or
+  start it isolated.
 
 Memories are kept when you rewind past the turn that made them, and when you delete the
 session. Correct them as you would any lorebook entry: each says where it came from —
-*Remembered from …, 1 October* — and a corrected entry is left alone afterwards. Since
+*Remembered from …, 1 Oct 2026, 14:05*, with *· left alone by automatic extraction* on
+one you wrote — and a corrected entry is left alone afterwards. Since
 the automatic pass compares wording, it can write a fact again that you reworded or
 deleted.
 
@@ -313,13 +362,17 @@ that memories — twists included — can reach it, and offers **Start isolated*
 
 Scene and Freeform sessions send the model the last 20 story turns in full. Once a story
 is longer than that, the older turns are summarised, in stretches of 20, and the summary
-goes into the prompt as *the story so far*. It needs no setting and has no controls.
+goes into the prompt as *the story so far*. It needs no setting and has no controls — but
+it runs only while the session's preset has a *the story so far* slot. Scene's and
+Freeform's do; the Assistant's, and so a new preset copied from it, do not, and a session
+switched to one stops summarising: turns older than the last 20 simply drop out.
 
 - The newest stretch is re-summarised as it grows, so a long story costs one more model
   call per turn. Finished stretches are kept and reused, including on other branches.
-- Summaries use *Writing the story*. Changing that model, or the session's **Temperature**,
-  **Maximum reply length** or prompt pack, rewrites the whole summary on the next turn —
-  many calls on a long story.
+- Summaries use *Writing the story*. Changing that model, or any of the preset's
+  generation settings — the session's **Temperature** and **Maximum reply length** among
+  them, including by switching to a preset whose settings differ — rewrites the whole
+  summary on the next turn: many calls on a long story.
 - A summary cut off at the reply length is not kept, and the step says so in the
   workbench; raise **Maximum reply length** if it keeps happening. Earlier stretches still
   reach the prompt.

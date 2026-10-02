@@ -14,8 +14,8 @@ Everything that sessions share — the sessions page, taking turns, branching, t
 panels, the workbench — is in [Playing a session](playing.md). This page is what each
 mode adds.
 
-The page of a session does not say which mode it is in; the sessions page's **Filter
-by mode** does. A session whose mode is not installed on this server is played as a
+The page of a session does not say which mode it is in; the mode chips over the sessions
+list (**Scenes**, **Freeform**, **Assistant**) do. A session whose mode is not installed on this server is played as a
 Scene, without a warning.
 
 ## Scene
@@ -36,7 +36,9 @@ the character's. With one character, each of its greetings becomes a version of 
 first turn you can step between; with a group, the first turn holds one greeting from
 each member, in cast order. Characters without a greeting are skipped.
 
-A Scene with no characters at all is narrated.
+A Scene with no characters at all is narrated. A typed line gets a reply, but **Let them
+talk** is refused there (*Nobody here can reply…*), and so the automatic carrying-on below
+stops at once.
 
 ### Chatting
 
@@ -69,10 +71,11 @@ means seated in the cast, not your persona, not muted, and not dead or departed.
 | **Everyone, in cast order** | Every eligible member, once each. |
 | **One at a time, taking turns** | One member — someone who has not spoken since your last message, where possible. |
 | **Only who I ask, or one at random when I let them talk** | Nobody answers a line you type; use **Who speaks next** or **Speak**. **Let them talk** gets one at random. |
-| **Smart — a model picks who replies** | A name in your message still wins. Otherwise a model chooses up to **The most a smart pick may choose** (3 by default), with the first choice as the fallback. One extra call on turns where nobody is named. |
+| **Smart — a model picks who replies** | A name in your message still wins. Otherwise a model chooses up to **The most a smart pick may choose** (3 by default). If that call fails or names nobody who can reply, the default's pick plays instead. One extra call on turns where nobody is named. |
 
 Naming someone makes them answer only under the default and **Smart**; under the
-others, a name in your message is just words.
+others, a name in your message is just words — whatever the hint under **Who replies**
+says.
 
 **How readily they join in**, on each cast row, is a character's talkativeness: from
 *Rarely: when named, or if nobody else can* to *Whenever they can*, 50% by default. It
@@ -87,7 +90,9 @@ and it cannot be changed on a shipped card.
   one call writes a reply that may speak for several characters at once.
 - **A narrator, telling the scene** — one call, written as narration in the third
   person; the characters' own card prompts are not sent. In this voice the cast's
-  checkbox reads **In the scene** rather than **Muted**.
+  checkbox reads **In the scene** rather than **Muted**, and the per-character controls
+  go: **Who speaks next**; **Speak**, **How readily they join in** and **Card prompts**
+  on cast rows; **Another reply** and **Continue** on messages.
 
 When each character replies in a call of their own, StoryEngine tidies a reply that
 wanders: a leading `Name:` is removed, and the reply is cut where it starts writing
@@ -100,7 +105,9 @@ On each message — on hover or focus, and always on a touch screen:
 
 - **Edit** — rewrite the message by hand. It becomes a new version of that turn; no
   model is called. Editing your own line keeps the replies that followed it.
-- **Another reply** — the same speaker tries that message again, as a new version.
+- **Another reply** — the same speaker tries that message again, as a new version. On a
+  message that is not the last of its round, the new version keeps the lines before it
+  and drops the replies after it; those stay on the old version, a step away with ‹ ›.
 - **Continue** — on the last message, the same speaker carries on from where it stopped.
 - **Hide** / **Unhide** — the model stops seeing that line, which stays on screen,
   faded: *Hidden from the story. The characters do not see this line.* On your own line,
@@ -118,8 +125,10 @@ rest — are under each turn as in every mode.
 
 ### How this chat plays
 
-The settings for one chat, in the panel under the cast. Each saves as you change it,
-except the author's note:
+The settings for one chat, in the panel under the cast. Switches and lists save as you
+change them; **The most a smart pick may choose** saves when you leave the box; the
+author's note has its own **Save the note**; and the agents' cadence and rules cards
+change with **Edit**, then **Save**:
 
 - **Who writes the replies**, **Each character replies in a call of their own** and
   **Who replies** — above.
@@ -143,12 +152,13 @@ inside the history at the depth the card asks for, and the post-history instruct
 last, after your line. They are sent only when the characters speak in their own
 voices; each character's call carries its own card's prompts.
 
-These settings belong to the session as a whole: they apply on every branch, and
-rewinding does not change them.
+These settings, apart from the agents, belong to the session as a whole: they apply on
+every branch, and rewinding does not change them. Each agent switch is recorded as a turn
+instead (see [Agents](#agents)).
 
 ### The cast in a chat
 
-In a Scene, each cast row has a portrait, a status badge, **Muted**, a **Status**
+In a Scene, each cast row has a portrait, a status badge, **Muted**, a status list
 (**Alive**, **Dead**, **Departed**), **Speak**, **Remove from the cast**, **How readily
 they join in** and **Card prompts**. **Choose a character** and **Add to the cast**, at
 the bottom, seat anyone from your library. Characters added later get no greeting:
@@ -160,12 +170,13 @@ except one where they are made to speak.
 ### Time, place and the stage
 
 A Scene keeps a **clock** — Day 1, 08:00 at the start, five minutes later every turn —
-and, once one is named, a **place**. Both show in the strip at the top and are given to
-the narrator, the suggestions and **Draft my next message** as *When this is happening*
-and *Where this is happening*.
+and, once one is named, a **place**. Both show in the strip at the top. They are given to
+every reply — each character's call as well as a narrator's — to the suggestions and to
+**Draft my next message**, as *When this is happening* and *Where this is happening*.
 
 Two switches in the panels under the cast decide how much the scene is staged. Both
-are off by default, and each costs one more model call after every reply:
+are off by default. With either or both on, one more model call follows every reply,
+shared by the two; **Stage a backdrop** also makes a picture when the place changes:
 
 - **Show the scene** — reads each reply, picks an expression for each present character
   whose card has labelled expression pictures, and names the place.
@@ -190,7 +201,7 @@ before your line, as what the story has established so far:
 | Switch | Keeps |
 | --- | --- |
 | **Track the world: date, time, place, weather** | **The world** — date, time, location, weather, temperature. While it is on, it replaces the clock and place lines in the prompt. |
-| **Track each character: mood, appearance, outfit, thoughts** | A card per present character, with stats. |
+| **Track each character: mood, appearance, outfit, thoughts** | A card per present character, with stats. Hiding one of the four fields also freezes it: the model is neither shown it nor allowed to change it. |
 | **Track your character: status and stats** | **You**. |
 | **Track quests and their objectives** | **Quests**, with objectives to tick. |
 | **Track your inventory and money** | **Inventory**. |
@@ -213,7 +224,8 @@ words and phrases, what to avoid, what to prefer. **Check replies for continuity
 what a reply gets wrong under it, each finding with **Apply** where it names a fix; **Let
 the editor fix continuity itself** rewrites instead. With **Show replies only once the
 editor is done with them** (on by default), replies stay hidden until edited. One editor
-call per message; if it fails, the reply goes through unedited.
+call per message; if any of a round's calls fails, the whole round goes through
+unedited.
 
 **Echo chamber** writes a one- or two-sentence aside from each present character after a
 reply, shown as **Reactions** beside the chat. It is never sent to the model, so it
@@ -228,8 +240,9 @@ The shipped **Scene** preset sends, in order: the instruction for the voice in u
 character's system prompt, the treatment's framing, your persona, each character's
 summary, looks, voice, traits and background, lore, the speaker's writing samples, the
 secret plot, the time and place, the summary of the story so far, the last 20 story
-turns, what the trackers have established, the card's depth prompt, the current goal,
-guidance and any redo note, your line, and the card's post-history instructions.
+turns with the card's depth prompt placed among them, what the trackers have
+established, the current goal, guidance and any redo note, your line, and the card's
+post-history instructions.
 Temperature 0.85, replies up to 800 tokens. See [Presets and prompts](presets.md).
 
 ### Older sessions, and imported chats
@@ -239,7 +252,8 @@ under **Who replies**, and play narrated. To have the characters speak, choose *
 characters, each in their own voice** *and* another **Who replies**.
 
 SillyTavern and Marinara chats always import as Scenes. A Marinara chat switches on the
-agents it was using. See [Importing and exporting](importing-and-exporting.md#chats-and-sessions).
+matching agents it was using (trackers, secret plot, editor, echo chamber); any others
+are named in the import report and left off. See [Importing and exporting](importing-and-exporting.md#chats-and-sessions).
 
 ## Freeform
 
@@ -303,12 +317,16 @@ the library object you have open, which you apply yourself.
 
 The first time, the panel offers **Start a conversation**. That creates a session named
 *Assistant*, in the Assistant mode, with the shipped **Assistant** character and the
-shipped **StoryEngine help** lorebook. After that the panel always opens that session.
-It is an ordinary session: it appears on the sessions page under **Assistant**, and
-everything in [Playing a session](playing.md) works in it.
+shipped **StoryEngine help** lorebook. After that the panel opens your most recently
+updated Assistant session that is not archived. It is an ordinary session: it appears on
+the sessions page under **Assistant**, and everything in
+[Playing a session](playing.md) works in it. (Choosing **Assistant** as the **Mode** on
+the sessions page makes a bare session without the character or the help book, which the
+panel may then open instead.)
 
-On an empty conversation, **Or start with one of these** offers starter questions; one
-fills the box without sending.
+While the conversation has nothing on record, **Or start with one of these.** offers
+starter questions; one fills the box without sending. Opening the panel over a library
+object or a session records what you have open, so there they soon disappear.
 
 To start afresh, open the session panel inside the assistant (*Prompted with …*) and
 **Archive this session**; the panel then offers **Start a conversation** again.
@@ -323,8 +341,9 @@ never its contents.
 
 Its answers draw on the **StoryEngine help** lorebook: about 25 entries on common
 questions, found by keyword in the last few messages. It is a lorebook like any other,
-and you can attach it to other sessions. Where it and this guide disagree, this guide
-was checked against the code more recently.
+and you can attach it to other sessions. Where it and this guide disagree, trust the
+guide: the help book's *What this assistant can and cannot do*, for one, still says it
+can read and search your objects, which it cannot.
 
 ### Suggested changes
 
@@ -343,4 +362,4 @@ into your library and ask again.
 ### What it cannot do
 
 It cannot read your objects or turns, search your library, run anything, or change
-anything without your **Apply**. It cannot suggest changes to a session.
+anything without your **Apply it**. It cannot suggest changes to a session.
