@@ -28,8 +28,9 @@ Your **library** is your story material. It holds six kinds of object:
 - **Presets** — the recipe for a prompt.
 - **Packages** — a bundle of objects that travels as one file.
 
-A treatment is the world; a setup is one playthrough's starting arrangement in it. If you
-find yourself copying a treatment to change who is in it, you wanted a setup.
+A treatment is how a world is handled — its lorebooks hold the world itself; a setup is
+one playthrough's starting arrangement in it. If you find yourself copying a treatment to
+change who is in it, you wanted a setup.
 
 Every object is a folder of files on the server's disk, which you can edit by hand while
 the server runs. Every save keeps the version it replaced, so any earlier version can be

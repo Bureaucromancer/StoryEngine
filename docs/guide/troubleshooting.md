@@ -88,8 +88,11 @@ for space.
 
 If no pictures appear, work through [Before any picture](pictures.md#before-any-picture): a
 connection marked as making pictures (a hand edit), *Making images* bound, and *Quick background
-jobs* bound for illustrations. Automatic pictures that cannot be made are skipped without a
-message; the workbench's **Pictures** section, over the turn, says why nothing was made.
+jobs* bound — for automatic backdrops as well as illustrations. Automatic pictures that cannot be
+made are skipped without a message. Over the turn, the workbench's **Pictures** section says why a
+picture that was meant to be made was not; a turn with no **Pictures** section at all usually
+means one of those two jobs is unbound. *Nothing is set up to make pictures.* on a placeholder
+means no connection you may use is marked as making pictures.
 
 *Making a picture of this…* that never ends means the image endpoint stalled. Image requests
 have no time limit; restart the server, then **Try again**.
