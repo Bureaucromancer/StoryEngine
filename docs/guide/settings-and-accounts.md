@@ -17,7 +17,9 @@ itself — containers, the unraid template, the systemd tarball, HTTPS — is
 ## Signing in
 
 You sign in with a **handle** and a password. A handle is lowercase letters, digits
-and hyphens, up to 63 characters; it names your folder on the server's disk
+and hyphens, up to 63 characters, starting with a letter or digit and not ending in
+a hyphen (and not a Windows device name such as `con` or `nul`); it names your
+folder on the server's disk
 (`users/<handle>/`), and **it can never be changed**, by you or by an
 administrator. What other people see is your **display name**, which you can change
 whenever you like.
@@ -37,11 +39,14 @@ A sign-in lasts **14 days from the moment you signed in**. Using the app does no
 extend it. **Sign out**, at the right of the header, signs out this browser only:
 any other browser signed in to your account stays signed in.
 
-If your sign-in ends while a page is open — it expired, you signed out in another
-tab, or an administrator turned your account off — a banner appears above the page:
-*Your sign-in has ended. Copy anything unsaved on this page, then sign in again.*
-The page is left exactly as it was so you can copy what you were writing. **Sign in
-again** takes you to the sign-in screen.
+If your sign-in ends while you are working on a page — it expired, you signed out in
+another tab, or an administrator turned your account off — the next thing the page
+asks of the server brings up a banner: *Your sign-in has ended. Copy anything unsaved
+on this page, then sign in again.* The page stays as it was so you can copy what you
+were writing, **but only while you stay on it**: switching to another tab and back,
+or opening another page, checks your sign-in again and replaces everything with the
+sign-in screen, unsaved text included. **Sign in again** takes you there when you are
+ready.
 
 If the server cannot be reached when the app first loads, you see *The server could
 not be reached. Check that it is running, then try again.* with **Try again**. If
@@ -94,7 +99,7 @@ Settings is one long page. Its sections, in order:
 | **You** | Everyone | Your picture, display name, language, whether you appear on the sign-in gallery, and your password. |
 | **Which models your stories use** | Everyone | Which model does each job in your own stories — see [Connections and models](connections-and-models.md). |
 | **Preferences** | Everyone | Theme. |
-| **Notifications** | Everyone | Sounds, and which notifications you get — see [Notifications](#notifications). |
+| **Notifications** | Everyone | Sounds, and how each kind of notification reaches you — see [Notifications](#notifications). |
 | **Your connections** | Accounts allowed their own connections | See [Connections and models](connections-and-models.md). |
 | **Trash** | Everyone | What you deleted, and restoring it — see [Backups, restore and the trash](backups-and-trash.md). |
 | **Backups** | Everyone | Archives of your own account — see [Backups, restore and the trash](backups-and-trash.md). |
@@ -139,9 +144,11 @@ are data the program produced, not derivative works of it.
 
 Administrators also see an update note here: whether a newer build exists on the
 install's update channel, that the check is turned off, or that no release has been
-published for the channel yet. The check is a plain request to the project's public
-release list, once a day, sending nothing about the install; turn it off with
-`updates.checkEnabled`. Nothing in the app updates the server — how you update
+published for the channel yet. The check is a plain request to the project's release
+list on GitHub, once a day, sending nothing about the install; turn it off with
+`updates.checkEnabled`. While the repository is private, as it is today, that list
+cannot be read, so the note always says *No release has been published for your
+channel yet* and never reports a newer build. Nothing in the app updates the server — how you update
 depends on how you installed it ([Running a built StoryEngine](../deploy.md)).
 
 ## Notifications
@@ -162,16 +169,18 @@ the session's page.
 
 A notification arrives as a chime (a different one for each kind), a message in the
 corner of the page for a few seconds, the unread count on **Notifications** in the
-header, and the same count in the browser tab's title. Arrivals of the same kind for
-the same session within two minutes fold into one row with a count. **Notifications**
-opens the list of the 50 newest, where a row's title links to its session; **Mark
-read**, **Mark all read** and **Mute sounds** (for this visit only) are there too.
-Notifications are kept until you read them, and read is the same on every device.
+header, and the same count in the browser tab's title. Arrivals of the same kind about
+the same session — for pictures, the same turn — within two minutes of the last one
+fold into one unread row with a count. **Notifications** opens the list of the 50
+newest, where a row's title links to its session; **Mark read**, **Mark all read** and
+**Mute sounds** (for this visit only) are there too. Notifications are kept, read or
+not, and read is the same on every device.
 
 Settings → **Notifications** holds your standing choices:
 
 - **Mute sounds**, and **Start muted every time** — for a shared room: each new page
-  starts silent until you turn sound back on.
+  starts silent until you turn sound back on. Changing these does not silence the page
+  already open; for that, use **Mute sounds** in the notification list.
 - For each of **A turn finishes**, **A turn fails**, **A picture is ready** and **The
   server needs attention**: **Sound and a toast** (the default), **A toast, no sound**,
   or **Only the unread count**.
@@ -201,12 +210,13 @@ copy over plain HTTP.
   ```bash
   # From a source checkout:
   node packages/server/dist/main.js --reset-password <handle> --data ./data
-  # Inside the container image:
-  node dist/main.js --reset-password <handle>
+  # In the container (-it gives it a terminal):
+  docker exec -it <container> node dist/main.js --reset-password <handle>
   ```
 
-  It asks for the new password twice without echoing it, and never takes it as an
-  argument. It turns the account back on if it was off, and it applies no minimum
+  At a terminal it asks for the new password twice without echoing it; it never takes
+  it as an argument. (Without `-it` it reads a single line, shown and unconfirmed, or
+  stops with *No password was given. Nothing was changed.*) It turns the account back on if it was off, and it applies no minimum
   length. A running server picks the change up at the next sign-in.
 
 Never delete `accounts.json` to get back in: that removes every account and returns
@@ -232,7 +242,8 @@ For each account:
   - **Import from a folder on this machine** — **No — cannot read this machine**
     (the default), **May import from a folder**, or **May import from a folder,
     and edit their own files**. Importing from a folder lets the person have the
-    server read *any* directory it can reach, outside the data directory too, so
+    server read any directory it can reach outside the data directory — the data
+    directory itself, with everybody's StoryEngine files, is always refused — so
     grant it only to someone you would trust with a shell on that machine. (The
     third option behaves like the second today; editing files in place is not
     built yet.)
@@ -241,14 +252,16 @@ For each account:
   the setting is kept for when they do.
 - **Set a new password** — see [Lost passwords](#lost-passwords). The box shows the
   password as you type it.
-- **Remove …** — asks you to type the handle to confirm. The person's library and
-  sessions are **moved** to `data/removed/<handle>-<id>` on the server, never
-  deleted; delete that folder yourself when you are sure. The handle is free to use
-  again at once, and a new account with that handle sees none of the old one's
-  data.
+- **Remove** *handle*… — asks you to type the handle to confirm. The person's
+  library and sessions are **moved** to `data/removed/<handle>-<id>` on the server,
+  never deleted; delete that folder yourself when you are sure. The handle is free to
+  use again at once. A new account with that handle sees none of the old one's
+  library or sessions — but the old account's notifications, which are filed by
+  handle, appear in its notification list, session names and unread count included.
 
 **Add someone** creates an account: **Handle**, **First password** (shown as you
-type it), **Role**, **Create**. The new account's display name starts as its handle,
+type it), **Role**, **Create**. The handle's rules are checked only when you press
+**Create**. The new account's display name starts as its handle,
 and its permissions start at the defaults above. There are no invitations and no
 self-registration: an administrator creates every account.
 
@@ -291,8 +304,11 @@ header naming them.
   dialog says how many people have a turn running and warns that they may be
   interrupted. The server stops accepting new turns, gives running ones up to
   thirty seconds to finish, records anything still running as a failed turn rather
-  than losing it, and restarts. The banner says *Restarting to apply …* and the
-  page reconnects on its own. Nobody is signed out by a restart.
+  than losing it, and restarts. The banner says *Restarting to apply: …* and the
+  page reconnects on its own — unless the restart changed `server.host` or
+  `server.port`: then the server comes back at the new address, which you open
+  yourself (in a container, change the port mapping first). Nobody is signed out by
+  a restart.
 - **On an install nothing supervises** — the server started by hand or with
   `pnpm dev` — there is no button: the banner tells you to stop and start the server
   yourself.
@@ -314,10 +330,10 @@ Settings come from four places, each overriding the one before:
 4. the `--data` option on the command line.
 
 **The file outranks the environment.** If `config.json` sets a key that an `SE_*`
-variable also sets, the file wins and the server's log says so. An install that
-saved its settings before 27 September 2026 may have the address, port or client
-directory written into the file without anyone choosing them; delete those lines to
-let the variables speak again.
+variable also sets, the file wins and the server's log says so. Settings saved by a
+build older than 27 September 2026 — 1.0-alpha 4 and earlier, whenever the save
+happened — may have the address, port or client directory written into the file
+without anyone choosing them; delete those lines to let the variables speak again.
 
 ### The configuration keys
 
@@ -344,7 +360,7 @@ let the variables speak again.
 | `limits.providerTimeoutMs` | `300000` | How long a model call may make no progress before it is abandoned. `0` turns it off. | at once |
 | `trash.retentionDays` | `30` | How long deleted things stay in the trash. | at once |
 | `backup.frequency` | `off` | Scheduled install backups: `off`, `daily` or `weekly`. | at once |
-| `backup.onStart` | off | Take a backup when the server starts. | next start |
+| `backup.onStart` | off | Take a backup when the server starts. (The form lists it as a key nothing reads yet; it is read.) | next start |
 | `backup.contents` | `full` | `full`, or `redacted` to leave secrets out of scheduled archives. | at once |
 | `history.keepPerObject` | `50` | Versions kept per library object; `0` keeps every one. | at once |
 | `updates.checkEnabled` | on | The daily check for a newer build. | at once |
@@ -365,8 +381,8 @@ Docker's default network usually cannot advertise to the rest of the house;
 
 - The install's configuration, accounts and every account's files all live in the
   data directory. Backing that up is backing up the install.
-- Administrators cannot change another person's display name or picture, and
-  nobody can change a handle.
+- Settings gives administrators no way to change another person's display name or
+  picture, and nobody can change a handle.
 - Raising the minimum password length never locks anyone out: it is checked when a
   password is set, not when someone signs in.
 - An administrator can turn off or demote their own account as long as another

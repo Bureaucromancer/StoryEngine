@@ -5,8 +5,8 @@ Three ways to get something back, for three sizes of mistake:
 - **The trash** catches a deleted character, lorebook or session. Put it back from
   Settings for as long as the install keeps deleted things — 30 days unless an
   administrator changed it.
-- **Version history** catches a bad edit: every library object keeps the versions it
-  replaced. See [The library](library.md#history).
+- **Version history** catches a bad edit: every library object keeps its recent
+  versions (the newest 50 by default). See [The library](library.md#history).
 - **Backups** catch the rest — a lost disk, a bad import across your whole library,
   moving to a new machine. A backup is one `.tar.gz` file; every account can take
   them of its own work, and administrators can take them of the whole install.
@@ -69,12 +69,21 @@ next start), anyone's trash, or any backups. It does hold the data of removed
 accounts, minus their trash, backups and — in a work-only archive — their keys.
 
 A full install backup can sign anyone in and use every key on the install. Keep it
-as carefully as the server itself; use **Work only** for copies that leave your
-hands.
+as carefully as the server itself; use **Work only, no accounts or keys** for copies
+that leave your hands.
 
 You can take one while the server is running. A session being written at that
 moment may lose its last, incomplete turn. Only one backup is written at a time,
 whoever asked for it; a second request waits for the first.
+
+> **Known problem.** An install backup taken while the server is running carries the
+> server's operational store twice, and a restore keeps the wrong copy: one that can
+> be missing the store's most recent changes. That store holds notifications, the
+> import panel's **Earlier imports**, and the records of turns and pictures in
+> progress — not stories, the library or accounts, which are files of their own.
+> The panel's note that the store is copied consistently is not true yet. For an
+> archive you mean to restore from, stop the server and use
+> [`pnpm backup create`](#the-command-line).
 
 Before writing, the server checks there is room for the backup — counting every
 file at its full, uncompressed size, so it can refuse a backup that would have fitted
@@ -94,8 +103,8 @@ The install's own schedule is three settings under Settings → **Administration
 
 They take effect without a restart. When a scheduled backup fails — usually because
 the disk is full — every administrator gets the notification *A scheduled backup did
-not happen*, once for the run of failures. (For your own schedule, the notification
-comes to you.) A backup you take by hand that fails says so on the spot instead.
+not happen*, once for each run of failures, and again after the server restarts.
+(For your own schedule, the notification comes to you.) A backup you take by hand that fails says so on the spot instead.
 
 ## Getting things back: import or restore
 
@@ -105,7 +114,9 @@ There are two ways back from a backup, and they are different on purpose:
   already here. Nothing is replaced wholesale, nobody is signed out, and every
   account can do it with its own backups.
 - **Restore** replaces the whole data directory with an install backup, across a
-  restart. Only administrators can, and only on an install that something restarts.
+  restart. From the browser only administrators can, and only on an install that
+  something restarts; [the command line](#the-command-line) restores any stopped
+  install.
 
 ### Importing from your own backup
 
@@ -113,12 +124,16 @@ Settings → **Backups** → **Import from a backup** (it appears once you have 
 on the server):
 
 1. **Which backup** — choose one. A summary appears: when it was taken and by which
-   version, how many files it holds, and whether it carries provider keys.
+   version, how many files it holds, and whether it carries provider keys. (It also
+   lists what every backup leaves out, for now as raw keys such as
+   `backup.omitted.index` and `backup.omitted.trash`.)
 2. **When something is already here**:
    - **Leave what is here, and bring in only what is missing** — the default.
      Nothing already in your library is touched.
    - **Bring everything in, keeping both copies of anything that clashes** — a
-     clashing object arrives beside yours, renamed.
+     clashing object arrives beside yours as a second copy with the **same name** and
+     a new identity; only its folder on disk gets a number. (The panel's hint says
+     *renamed*; it is not.)
    - **Let the backup win, and keep what is here in its history** — your current
      version goes into the object's history first, so nothing is lost.
 3. **Also bring across** (both off by default):
@@ -138,8 +153,13 @@ What an import does and does not do:
 - **Sessions** come in with their turns and pictures, and are **never replaced**,
   whatever you chose above: a session already here, or one that is in your trash, is
   skipped. Importing the same backup twice brings each session back once.
-- An import never touches accounts, sign-ins or the install's settings, and does
-  not bring back version history, your picture, or your backup schedule.
+- An import of your own backup never touches accounts, sign-ins or the install's
+  settings, and no import brings back version history, your picture, or your backup
+  schedule.
+- An import reads at most 65,536 files, 64 MB per file and 512 MB in all. A larger
+  archive — a library heavy with pictures, say — is refused with *That archive holds
+  more than an import reads in one go.*; [restoring](#restoring-the-whole-install)
+  has no such limit.
 
 To get back something you deleted, use the trash first: an import with the default
 choice brings back library objects you deleted after the backup was taken, and the
@@ -170,7 +190,7 @@ the server.
 3. Type `restore` to confirm, and press **Stop the server and restore**.
 
 Before anything changes, the server checks that the archive is an install backup
-that reads end to end, that it holds the files its manifest names and nothing
+that reads end to end, that it holds as many files as its manifest says and nothing
 outside the data directory, and that there is room for it beside the current install.
 Then it stops — running turns get up to thirty seconds — and restores as it starts
 again. The page says *The server is stopping. It will restore this archive as it
@@ -185,9 +205,11 @@ What a restore keeps and changes:
   person's own backups move into their restored account if that account is in the
   archive.
 - **Accounts, passwords and the sign-in key become the archive's.** Anyone whose
-  account or key differs is signed out. A **work-only** archive has no accounts at
-  all, so restoring one leaves an install nobody can sign in to, which is set up
-  from scratch with a setup token; the page warns you before you choose one.
+  account or key differs is signed out. A work-only archive has no accounts at all,
+  so restoring one leaves an install nobody can sign in to, which is set up from
+  scratch like a new one — on a server reachable from other machines, with the setup
+  token from its log (or `state/setup.token` in the data directory). The page warns
+  you when you pick such an archive, before you confirm.
 - **The configuration becomes the archive's**, address and port included. Restoring
   an archive from another machine can bring that machine's `server.host` or
   `server.port` with it; check `config.json` before you rely on the restored server
@@ -216,6 +238,11 @@ install's data directory, keeping its file name: an install backup goes in
 `backups/`, an account backup in `users/<handle>/backups/`. It is then listed, and
 can be imported or restored from there.
 
+An account backup belongs to its handle. It can be imported only by an account
+with the same handle on the other install; under any other handle the import says
+*That archive does not hold the account you asked for.*, and an administrator's
+import lists install backups only.
+
 ## The command line
 
 A source checkout has a backup command, for when the server is stopped:
@@ -242,14 +269,17 @@ with `tar`, as [Running a built StoryEngine](../deploy.md#backing-up) shows.
 
 ## The trash
 
-Deleting a library object you own (**Delete** → **Move to trash?**) or a session
+Deleting a library object you own (**Delete**, then **Delete** again to answer *Move
+to trash?*) or a session
 (the session's panel → **Delete this session** → **Move it to trash**) moves it to
 your trash. Shipped objects cannot be deleted, and a session cannot be deleted while
 a turn is running in it.
 
 Settings → **Trash** lists what you have deleted, newest first, with when it was
-deleted and when it will be removed. Sessions appear by their id and objects by
-their file name. **Put it back** returns the item under its old name, with its
+deleted and when it will be removed. Sessions appear by their id, and objects by
+their folder name — the name of the object's folder on disk, which is not
+necessarily its current name — under the kind's folder word, such as `actors`.
+**Put it back** returns the item under its old name, with its
 version history, and it shows up in search again. If something has taken that name
 since, you see *Something with that name is already there. Rename it first, then put
 this one back.*

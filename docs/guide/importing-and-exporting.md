@@ -7,16 +7,19 @@ StoryEngine's own files, as Aventuras files, or — for a treatment — as a Sil
 character card, with a note of anything the conversion could not carry.
 
 Nothing is staged. What imports lands in your library at once, and everything that did
-not is listed in the review afterwards. Everything is recognised by its contents, never
-by its file extension.
+not is listed in the review afterwards. The import panel recognises a file by its
+contents, not its extension. (On the sessions page, a `.jsonl` is read as a chat and
+anything else as a session export.)
 
 ## The import panel
 
 **Import…**, at the top of the library page, opens the import panel in the workbench.
 It has three ways in, under **Add to your library**:
 
-- **One file** — **Choose a file…** for a card, lorebook, preset, chat, CHARX, zip,
+- **One file** — **Choose a file…** for a card, lorebook, preset, CHARX, zip,
   Aventuras database or story. You see what it would become before anything is written.
+  (A chat's `.jsonl` is not offered here: load it on the sessions page — see
+  [Chats and sessions](#chats-and-sessions) — or bring it with its folder.)
 - **Or a folder from this browser** — **Choose a folder…** for a SillyTavern, Marinara
   or Aventuras data folder on the computer you are using.
 - **Or a folder on this machine** — the full path to a data folder on the server's own
@@ -25,41 +28,54 @@ It has three ways in, under **Add to your library**:
   read any folder outside its data directory. Without it the panel says so.
 
 Below them, **Also bring Aventuras stories across as sessions** decides whether an
-Aventuras library's stories come too (it is off each time).
+Aventuras library's stories come too (it starts unticked whenever the panel opens, and is
+not remembered).
 
 ### One file
 
 1. **Choose a file…** — the panel reads it and shows **Before it lands**: *It would be
    imported as "…"*, *It would become a preset called "…"*, *It would become a treatment
    called "…", with 3 of its characters imported beside it*, or *Everything inside would
-   be imported* for an archive or database. The name shown is the file's name.
+   be imported* for an archive or database. The name shown is the file's name without its
+   extension; a scenario or a story file goes by its own title.
 2. For a preset, the preview lists its blocks in order and its sampler settings, marking
    the ones this build stores but does not send. For an Aventuras scenario, **What this
    should become** chooses a treatment (the default) or a lorebook.
 3. If the server can tell the file was imported before and has changed — it can for
-   presets, Aventuras scenarios and story files — it asks **What to do with the one already
-   here**: **Replace it — the old state stays in its history**, or **Keep both**.
+   presets and Aventuras scenarios — it asks **What to do with the one already here**:
+   **Replace it — the old state stays in its history**, or **Keep both**. A story file
+   that is already a session here is never asked about: the preview says importing it
+   writes nothing, and it writes nothing, even if the story has moved on in Aventuras
+   since.
 4. **Import** sends it, with a progress bar, and shows the review. **Cancel**, before
    that, leaves nothing behind.
 
 ### A folder from this browser
 
 The browser sends only the names and sizes of the folder's files first; the server says
-which ones it will read, and only those are uploaded. If the folder holds chats, the
-panel stops at **Before it is sent**: *This folder holds 312 chats, 85 MB in all*, with
-**Also import the chats** — off by default — because chats are usually most of a
-folder's size. It also says which files will not fit under the upload limit.
+which ones it will read, and only those are uploaded. If the folder holds chats, or some
+of its files will not fit under the upload limit, the panel stops at **Before it is
+sent**. For chats it says, for example, *This folder holds 312 chats, 85.0 MB in all.
+They are sent only if you ask for them.*, with **Also import the chats (85.0 MB)** — off
+by default — because chats are usually most of a folder's size. It says how many files
+will not fit; the review names each of them afterwards, as **Skipped**.
 
 The whole upload has to fit under the install's upload limit (`limits.maxUploadMb`, 64 MB
-by default); library files go first and chats use what is left. A folder on the server's
-own disk has no such limit, apart from skipping single files over 64 MB.
+by default); library files go first and chats use what is left. An Aventuras folder
+whose database alone is over the limit is refused (*What that folder has to send is
+larger than the … MB upload limit…*); choose `aventura.db` itself, or Aventuras' backup
+zip, with **Choose a file…** instead, which allows far larger files. A folder on the
+server's own disk has no such limit. There, a single file over 64 MB is not read and is
+listed as **Not recognised** — except an Aventuras database, which is read whatever its
+size.
 
 ### A folder on this machine
 
 Type the folder's full path. When you leave the box, the panel looks and says what it
-found — *A SillyTavern library. Ready to import.*, *A Marinara data folder.*, *An
-Aventuras library.*, or *Not a SillyTavern, Marinara or Aventuras folder*, in which case
-anything importable in it is taken one file at a time. If you named a folder near the
+found — *A SillyTavern library. Ready to import.*, *A Marinara data folder. Ready to
+import.*, *An Aventuras library.* with a sentence on what it brings, or *Not a
+SillyTavern, Marinara or Aventuras folder. Anything importable in it will be taken one
+file at a time.* If you named a folder near the
 right one, it suggests the right one with **Use that folder**.
 
 | Application | The folder to give |
@@ -68,10 +84,13 @@ right one, it suggests the right one with **Use that folder**.
 | Marinara | The one holding `storage/tables/`. |
 | Aventuras | The one holding `aventura.db` — `com.karelian.aventura` inside `~/.config` on Linux, `~/Library/Application Support` on a Mac, or `%APPDATA%` on Windows. |
 
-**Import folder** imports it at once and shows the review. Close the other application
-first: a folder whose application is running is refused (*That application is running, or
-is part-way through an upgrade*). Folders inside StoryEngine's own data directory are
-refused too.
+**Import folder** imports it at once and shows the review. Close Marinara first: a
+Marinara folder whose application is running, or part-way through an upgrade, is refused
+(*That application is running, or is part-way through an upgrade*). An Aventuras that is
+open is read anyway, from its database and its unsaved log, and the review says
+Aventuras may have been open; close it and import again if anything looks missing. It is
+refused only if the database changes while it is being read. SillyTavern is not
+checked. Folders inside StoryEngine's own data directory are refused.
 
 ### The review
 
@@ -101,10 +120,13 @@ book.
   The same card imported alone and again inside a folder makes two characters; renaming
   a file between imports makes a new object.
 - A changed card, lorebook or StoryEngine file is **replaced**, with the old version kept
-  in its history. Folder imports always replace; only presets, Aventuras scenarios and
-  story files ask first.
+  in its history. Folder imports replace too — except an unpacked StoryEngine backup,
+  which leaves anything changed here alone and lists it as **Already here**. Only presets
+  and Aventuras scenarios ask first.
 - Re-importing a chat **adds to** its session: new messages, edits and branches arrive
-  beside what is there, nothing is deleted or rewritten, and your place is kept.
+  beside what is there, nothing is deleted or rewritten, and your place is kept. (The
+  panel's own note still says that importing the same chat again changes nothing; that
+  sentence is out of date.)
 
 ## What each application's files become
 
@@ -115,15 +137,16 @@ book.
 | **Character cards** — PNG or JSON, versions 1 to 3 | A character. The description becomes its **Summary** section; a short comma list of personality becomes traits (otherwise it joins the summary); the first message and alternate greetings become its greetings; example messages become a writing sample; the card's system prompt, post-history instructions and depth prompt become its card prompts; tags come across; everything else is kept with the character, unused. |
 | A card's **embedded lorebook** | A lorebook of its own, linked to the character. |
 | A card's **scenario** | A treatment named *Scenario: …*, with the characters who share it as its cast. Cards with the same scenario text share one. |
-| **CHARX** cards | A character; its portrait becomes the card image, and every other picture in it an expression, labelled by its file name. |
+| **CHARX** cards | A character. Its portrait — the picture named avatar, portrait, main or card, or else the first by name — becomes the card image if it is a PNG (otherwise the card has none, and the review says so); every other picture becomes an expression, labelled by its file name. |
 | **World Info** books | Lorebooks, with nearly every entry setting: keys, secondary keys and logic, whole words, case, regex, scan depth, enabled, constant, probability, sticky, cooldown, delay, position and depth, order, role, group and the recursion flags. Fields StoryEngine does not use are kept on the entry. |
 | **Chat-completion presets** | Presets — see [Presets and prompts](presets.md#imported-presets). |
 | **Text-completion presets** | Presets carrying sampler settings only. |
 | **System prompts** | A preset of the system prompt, the history and the post-history instructions. |
 | **Personas** | Characters, with their description and avatar. |
 | **Chats**, single and group | Sessions, as Scenes. Swipes become alternative replies, hidden lines stay hidden, and the author's note comes across. Characters and lorebooks are found by the file they were imported from, then by name. |
-| Instruct, context and reasoning templates; NovelAI and KoboldAI settings | Recognised, and not converted: there is nothing here for them to become. |
-| Backgrounds, themes, extensions, quick replies, sprites | Skipped. |
+| Instruct and context templates; NovelAI and KoboldAI settings | Recognised, and not converted: there is nothing here for them to become. |
+| Backgrounds, themes, extensions, quick replies, reasoning templates | Skipped. |
+| Expression sprites (pictures in a character's folder under `characters/`) | **Not recognised**: each is listed as a picture with no character in it, and none is attached to the character. |
 
 `{{char}}` and its spellings in a card become the character's name. `{{user}}` is kept as
 written — the review warns that the model will read the placeholder rather than a name.
@@ -133,7 +156,7 @@ written — the review warns that the model will read the placeholder rather tha
 
 | What | Becomes |
 | --- | --- |
-| A **data folder** (`storage/tables/`), or a zip of one | Characters (with their avatars), personas (as characters), lorebooks with their folders, presets, roleplay chats as sessions with their trackers and secret plot, and the account's own data. API connections and the encryption key are removed. Conversation and game chats, sprites and images are recorded and not imported. Installs older than 1.5.7 cannot be read. |
+| A **data folder** (`storage/tables/`), or a zip of one | Characters (with their avatars), personas (as characters), lorebooks with their folders, presets, roleplay chats as sessions with their trackers and secret plot. API connections and the encryption key are removed. Conversation and game chats, sprites and images are recorded and not imported. Installs older than 1.5.7 cannot be read. |
 | **Exported** characters, personas, lorebooks, presets and profiles (`.json`) | Imported as a small folder of their own. |
 | Chat presets, chat settings profiles, memory recall | Recorded, not imported. |
 | Single chat exports (`.jsonl`) | Sessions. |
@@ -146,19 +169,20 @@ echo chamber.
 | What | Becomes |
 | --- | --- |
 | The **database** (`aventura.db`) — as a folder, the database file, or a backup zip | Vault characters (with their portraits), lorebooks and scenarios (as treatments with their cast); its tags join your tags. Settings, which hold keys, are removed unread. Prompt packs are recorded, not imported. |
-| **Stories**, with **Also bring Aventuras stories across as sessions** | A session per story, opening where it was left, with its branches, its protagonist as your persona, the world at each branch as characters and a story lorebook, and its pictures. Chapters, checkpoints and the story's own narrator prompt are not carried. Importing the library again never duplicates or replaces a story. |
-| A **`.avt`** story file | Its story, as a session, whatever the checkbox says. |
+| **Stories**, with **Also bring Aventuras stories across as sessions** | A session per story, opening where it was left, with its branches, its protagonist as your persona, the world of the branch it was left on as its cast and a lorebook of its own, and its pictures. What other branches hold differently stays in Aventuras, and the review says so. Chapters, checkpoints and the story's own narrator prompt are not carried. Importing the library again never duplicates or replaces a story. |
+| A **`.avt`** story file, chosen on its own | Its story, as a session, whatever the checkbox says. Inside a folder or zip it follows the checkbox, and beside a database it is skipped. |
 | Character, scenario and lorebook `.json` files | A character (without its portrait), a treatment or a lorebook. |
 
-A database copied from a machine where Aventuras was open is read as it stood; close
-Aventuras first for a clean read.
+If Aventuras was open while its database was read, the import also reads its unsaved
+log, and the review says Aventuras may have been open; close Aventuras and import again
+if anything looks missing.
 
 ### StoryEngine
 
 | What | Becomes |
 | --- | --- |
-| A downloaded object (`.json`), or a downloaded character (`.png`) | The same object, under its own identity — so importing it where it already is counts as **Already here**. |
-| An unpacked backup folder | Your own library objects from it. Sessions, tags and settings are listed and left behind; bring them with Settings → **Backups** → **Import from a backup** instead. |
+| A downloaded object (`.json`), or a downloaded character (`.png`) | The same object, under its own identity. Importing it where it already is, unchanged, counts as **Already here**. If you have edited it since the download, the import puts the downloaded version back without asking, and your edited one stays in its history. |
+| An unpacked backup folder | Your own library objects from it. Sessions, tags and settings are listed and left behind; to bring them, import from the backup archive itself with Settings → **Backups** → **Import from a backup**, which lists archives in the install's data directory (see [Moving an archive to another install](backups-and-trash.md#moving-an-archive-to-another-install)). |
 | A session export (`.session.json`) | Load it on the sessions page — see below. |
 
 Backup archives (`.tar.gz`) and package files (`.sepack.json`) cannot be imported through
@@ -186,6 +210,10 @@ Where the chat came from decides how:
   name;
 - **with a folder through the browser**, or inside a zip — import the folder again from
   the library's import panel.
+
+A session brought across from an Aventuras story shows **Update from source** too, but it
+cannot be updated: reading the source again ends with *The source was read, but this chat
+was not in it.*, and importing the folder again never changes a story.
 
 ## Taking things out
 
@@ -229,12 +257,13 @@ application reading StoryEngine's download sees the card as it was imported, not
 
 | What you see | Why, and what to do |
 | --- | --- |
-| *That file is larger than the … MB upload limit.* | An administrator can raise `limits.maxUploadMb` — or `limits.maxImportUploadMb` (1024 MB) for zips and databases chosen with **Choose a file…**. A folder on the server's disk has no such limit. |
-| *Something between you and StoryEngine refused this file as too large* | A reverse proxy's own upload limit — nginx allows 1 MB unless told otherwise. See [Running a built StoryEngine](../deploy.md#configuration). |
+| *That file is larger than the … MB upload limit.* (for zips and databases, *… MB import upload limit.*) | An administrator can raise `limits.maxUploadMb` — or `limits.maxImportUploadMb` (1024 MB) for zips and databases chosen with **Choose a file…**. A folder on the server's disk has no such limit. |
+| *What that folder has to send is larger than the … MB upload limit* | An Aventuras folder whose database is over the limit: choose `aventura.db` or Aventuras' backup zip with **Choose a file…** instead. |
+| *Something between you and StoryEngine refused this file as too large*, or *The server answered with status 413.* | A reverse proxy's own upload limit — nginx allows 1 MB unless told otherwise. The second wording is what the preview and folder uploads show. See [Running a built StoryEngine](../deploy.md#configuration). |
 | *There is not enough free space on the disk to receive this upload* | Large uploads are written to disk as they arrive; free some space. |
 | *Another large import is being uploaded to this server.* | One large upload at a time; try again when it has finished. |
 | *The upload stopped arriving part way through.* | A minute passed with nothing arriving. Try again. |
-| *That application is running, or is part-way through an upgrade.* | Close SillyTavern, Marinara or Aventuras, and import again. |
+| *That application is running, or is part-way through an upgrade.* | Marinara is running or upgrading, or an Aventuras database changed while it was being copied. Close the application and import again. |
 | *That folder is in a format this build cannot read* | Written by a newer version of that application, or missing a part this build needs. |
 | *That folder is inside this install's own data directory.* | Import reads other applications' folders. |
 | *… is an archive this build will not open (…)* | A damaged zip, or one past the safety limits on size and number of files. |
