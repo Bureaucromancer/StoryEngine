@@ -92,7 +92,8 @@ tested by use rather than completed on paper. Alpha 1 is being cut before it,
 under the rule [P6A §5](docs/design/workplan/19-p6a-alpha-1.md) sets: *it may
 be cut before PLAYABLE; it does not go public before it.*
 
-Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
+Start with [`docs/guide/`](docs/guide/README.md) if you want to use it as it is
+built today, [`docs/design/README.md`](docs/design/README.md) if you want to know
 what this is going to be, and [`docs/design/00-stance.md`](docs/design/00-stance.md)
 if you want to know why.
 

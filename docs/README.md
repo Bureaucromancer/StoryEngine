@@ -24,6 +24,11 @@
   the work plan, the triage it rests on, the phase documents, the polish list,
   testing and the release model. Split out because those change as work lands,
   while the design changes only when a position does.
+- **[guide/](guide/README.md)** — the user's guide: how to use StoryEngine as
+  it is built today, from a first turn through the library, lore, presets,
+  importing, pictures, connections, accounts and backups, with a page of
+  troubleshooting. Written 2026-10-01 against `main`, from the code rather than
+  from the design notes.
 
 Documentation of code that actually exists will live here, alongside `design/`
 rather than inside it. Where the two disagree, this directory is right and the
@@ -31,4 +36,8 @@ design notes are a record of intent.
 
 `api.md` is the first of those, and it is written to that rule: it describes what
 the routes do today rather than what they are meant to become. `deploy.md` is
-the second, and to the same rule.
+the second, and to the same rule. `guide/` is the third, and holds to it most
+strictly of the three, because its readers are the people least able to tell a
+plan from a feature: where a control is missing, a setting can only be made by
+editing a file, or a behaviour is a known fault, the guide says so in the place
+a reader would trip over it, rather than describing what was intended.
