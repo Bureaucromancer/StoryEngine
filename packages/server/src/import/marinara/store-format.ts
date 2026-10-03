@@ -1,5 +1,6 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 StoryEngine contributors
+// Derived in part from AGPL-3.0-only upstream code; see THIRD_PARTY_NOTICES.md
 
 import { createHash } from 'node:crypto';
 

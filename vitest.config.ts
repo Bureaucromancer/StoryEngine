@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { availableParallelism } from 'node:os';
+
 import { defineConfig } from 'vitest/config';
 
 /** The one test CI runs under its own name. Referenced twice, so it is a constant. */
@@ -75,6 +77,29 @@ const TIMEOUTS = { testTimeout: 15_000, hookTimeout: 15_000 };
 
 export default defineConfig({
   test: {
+    /**
+     * ***Never fewer than two workers*** (2026-10-02). Vitest's default for a
+     * run is one fewer worker than the machine has cores, and a GitHub runner
+     * for a private repository has two — so CI ran the whole suite in **one**
+     * worker, file after file: about fifteen minutes on ubuntu and thirty-seven
+     * on Windows, against about three on a sixteen-core development machine.
+     * Most of this suite waits on SQLite and the filesystem rather than
+     * computing, so a second worker on a two-core runner overlaps one file's
+     * waiting with another's work instead of contending for a core. Measured on
+     * this machine pinned to two cores, over `import/` and `routes/` (2026-10-02):
+     * 515 s at one worker, 363 at two, 337 at three — a ceiling on the gain
+     * rather than the gain, since the one-worker run shared the machine with
+     * other work more than the others did. On any machine with three or more
+     * cores this is vitest's own default unchanged, which includes a public
+     * repository's runners: four cores, so three workers either way.
+     *
+     * Not `process.env.CI`: the number follows the machine, so a developer on a
+     * two-core laptop gets the same suite CI gets. The cost to watch is timing
+     * — a file that measures wall-clock under load, like `retrieval/regex.test.ts`'s
+     * 50 ms pattern budget, sees a busier machine than it did — and a flake
+     * that appears with this change is named with this cause, not re-run past.
+     */
+    maxWorkers: Math.max(2, availableParallelism() - 1),
     /**
      * **Declared, because the default was the largest single reason this suite
      * failed for reasons unrelated to the change** — F28.

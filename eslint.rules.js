@@ -20,6 +20,46 @@ export const SPDX_CONTENT =
 
 export const COPYRIGHT_YEAR = '2026';
 
+/**
+ * ***The header a file carries when it holds upstream code*** (2026-10-03).
+ *
+ * SillyTavern, Marinara Engine and Aventuras are each licensed `AGPL-3.0` —
+ * version 3, with no *or any later version* — so a file that copies or ports
+ * their code can be offered under version 3 only, whatever this repository's
+ * own default is. Saying `-or-later` on such a file grants a permission nobody
+ * here can grant. The third line sends the reader to the record of what was
+ * taken and from where.
+ *
+ * **Where the line falls**, as `THIRD_PARTY_NOTICES.md` states it: upstream
+ * code copied into a file — a function, a table of patterns — takes this
+ * header; a function re-implemented from what the upstream one does, the names
+ * of a format's files, tables and fields, and a credited sentence of prompt
+ * text, do not. A file moves onto this list when it gains such code and never silently
+ * off it — `eslint-rules.test.ts` holds the list to the notices file's table.
+ */
+export const SPDX_CONTENT_DERIVED =
+  'SPDX-License-Identifier: AGPL-3.0-only\nCopyright (C) {year} StoryEngine contributors\nDerived in part from AGPL-3.0-only upstream code; see THIRD_PARTY_NOTICES.md';
+
+/** The files that carry {@link SPDX_CONTENT_DERIVED}, repository-relative. */
+export const DERIVED_FILES = [
+  'packages/server/src/import/marinara/preset.ts',
+  'packages/server/src/import/marinara/store-format.ts',
+  'packages/server/src/import/sillytavern/chat.ts',
+];
+
+export const derivedHeaderRule = {
+  'headers/header-format': [
+    'error',
+    {
+      source: 'string',
+      style: 'line',
+      content: SPDX_CONTENT_DERIVED,
+      variables: { year: COPYRIGHT_YEAR },
+      trailingNewlines: 2,
+    },
+  ],
+};
+
 export const headerRule = {
   'headers/header-format': [
     'error',

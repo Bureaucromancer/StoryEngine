@@ -46,6 +46,14 @@ describe('the licence paragraph', () => {
     expect(screen.getByText(/does not say where its source is/)).toBeTruthy();
   });
 
+  it('offers version 3, and does not promise later versions of the whole', () => {
+    // Three files are version 3 only (THIRD_PARTY_NOTICES.md), so "version 3
+    // or later" said of the program would grant what nobody here can grant.
+    render(<AboutBuild build={null} />);
+    expect(screen.getByText(/General Public License, version 3\./)).toBeTruthy();
+    expect(screen.queryByText(/version 3 or\s+later/)).toBeNull();
+  });
+
   it('keeps the other half of the boundary either way', () => {
     // The paragraph that matters most to the person reading it does not depend
     // on the build at all.

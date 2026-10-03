@@ -1035,6 +1035,14 @@ So the rule this document sets is the weaker, true one, rather than a date:
 Which is the same rule §4 states from the other side, and the reason both are
 written down.
 
+*2026-10-03: **the second half was broken for the repository, deliberately,
+and still holds for the build.** The repository was made public before
+PLAYABLE had run, for licensing and CI reasons and not because anything here
+became ready; the image stays private and nothing was released.
+[Releases §0.1a](04-repo-and-releases.md) records the decision and its reasons.
+The rule is not edited, because what it said was true when it was written and
+is the thing being knowingly departed from.*
+
 *At the close, both halves of that sentence are still ahead: Alpha 1 is not cut
 and PLAYABLE has not run. The rule is unchanged, and the order it allows is the
 order the next step takes — the tag first, from a machine with a daemon, then

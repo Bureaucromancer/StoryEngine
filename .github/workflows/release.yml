@@ -57,6 +57,10 @@ jobs:
   # commands here to the ones `ci.yml` runs, so the two cannot quietly
   # disagree about what passing means.
   verify:
+    # Timeouts on all three jobs (2026-10-02), because the default is six hours
+    # and a release that hangs should say so long before that; see ci.yml's
+    # header. Roughly twice each job's run.
+    timeout-minutes: 40
     runs-on: ubuntu-latest
     # The suite is the tagged commit's own code, so the token it holds writes
     # nothing: the workflow's `packages: write` is for the image's push, and a
@@ -110,6 +114,7 @@ jobs:
 
   image:
     needs: verify
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -204,6 +209,7 @@ jobs:
   # deliberately, so a change to one is visibly a change to the other.
   tarball:
     needs: verify
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

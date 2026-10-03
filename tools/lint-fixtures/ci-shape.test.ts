@@ -449,6 +449,24 @@ describe('gate step 1 — the P1 gate runs on both platforms, on every change', 
   });
 
   /**
+   * ***The matrix excludes nothing*** (2026-10-03). For one day the Windows leg
+   * ran weekly rather than per change — an `exclude:` keyed on the event, while
+   * the repository was private and its Actions minutes had run out — and every
+   * assertion above stayed green throughout, because the matrix still *named*
+   * Windows and `runs-on` still consumed it. A conditional exclusion is the one
+   * way to retire a leg that the two tests above cannot see, so it is refused
+   * here outright. The repository went public, its runners are not metered, and
+   * both platforms run on every change ([releases §0.1a]).
+   */
+  it('excludes nothing from the matrix, so both legs run on every change', () => {
+    const matrix = blockUnder(workflowLines(), /^\s*matrix:\s*$/);
+    expect(
+      matrix.filter((line) => /^\s*(?:exclude|include):/.test(line)),
+      'a conditional exclusion retires a leg while the matrix keeps naming it',
+    ).toEqual([]);
+  });
+
+  /**
    * The per-PR tier from [testing §6]: *"typecheck, lint including the boundary
    * rules, unit, golden-file, schema validation, build"*, with `format:check`
    * ahead of them per the workflow's own header.
@@ -734,5 +752,132 @@ describe('the emitted-schemas step sees every change the build made', () => {
 
   it('passes when the build changed nothing', () => {
     expect(runStep(() => undefined)).toBe(0);
+  });
+});
+
+/**
+ * ***What stayed from the month the minutes ran out*** (2026-10-02, kept when
+ * the repository went public on 2026-10-03) — the three things `ci.yml`'s
+ * header lists, each of which a one-line edit could quietly undo, and one of
+ * which (the docs fast path) is only safe while a list stays complete that
+ * nobody would remember to extend.
+ */
+describe('the time CI spends', () => {
+  const DOCS_WORKFLOW = '.github/workflows/docs.yml';
+  const WORKFLOWS = ['.github/workflows/ci.yml', DOCS_WORKFLOW, '.github/workflows/release.yml'];
+
+  function yamlLines(path: string): string[] {
+    return repoText(path)
+      .split('\n')
+      .map((line) => line.replace(/(^|\s)#.*$/, ''))
+      .map((line) => (line.trim() === '' ? '' : line));
+  }
+
+  /** Each job's name and the lines of its block, under `jobs:`. */
+  function jobsOf(path: string): Map<string, string[]> {
+    const jobs = new Map<string, string[]>();
+    let current: string | null = null;
+    for (const line of blockUnder(yamlLines(path), /^jobs:\s*$/)) {
+      const start = /^ {2}([\w-]+):\s*$/.exec(line);
+      if (start !== null) {
+        current = start[1] ?? null;
+        if (current !== null) jobs.set(current, []);
+        continue;
+      }
+      if (current !== null) jobs.get(current)?.push(line);
+    }
+    return jobs;
+  }
+
+  it('gives every job a timeout, because the default is six hours', () => {
+    for (const path of WORKFLOWS) {
+      const jobs = jobsOf(path);
+      expect(jobs.size, `${path} has jobs`).toBeGreaterThan(0);
+      for (const [name, block] of jobs) {
+        expect(
+          block.some((line) => /^ {4}timeout-minutes:\s*\S/.test(line)),
+          `${path}'s ${name} has no timeout-minutes — a hung job holds its queue for six hours`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('skips the full run only for `docs/`, and sends exactly that to docs.yml', () => {
+    const ci = yamlLines(WORKFLOW);
+    const on = blockUnder(ci, /^on:\s*$/);
+    for (const trigger of ['push', 'pull_request']) {
+      expect(
+        sequenceUnder(blockUnder(on, new RegExp(`^\\s*${trigger}:`)), 'paths-ignore'),
+        `${trigger}: not \`**/*.md\` — CHANGELOG.md is built into the client`,
+      ).toEqual(['docs/**']);
+    }
+    const docsOn = blockUnder(yamlLines(DOCS_WORKFLOW), /^on:\s*$/);
+    for (const trigger of ['push', 'pull_request']) {
+      expect(
+        sequenceUnder(blockUnder(docsOn, new RegExp(`^\\s*${trigger}:`)), 'paths'),
+        `docs.yml's ${trigger} has to catch every push ci.yml lets go`,
+      ).toEqual(['docs/**']);
+    }
+  });
+
+  /**
+   * The fast path is safe only while it runs every test that reads a document,
+   * so the list is found rather than remembered: every tracked test file with a
+   * code line that builds a path into `docs/`. Each must be in the `docs`
+   * project, which `pnpm test:docs` runs, or named in a `docs.yml` step.
+   *
+   * **Comment lines dropped by their first characters, not by `stripComments`**:
+   * a citation is not a read, and the citations here are all docblock and `//`
+   * lines — while `stripComments` is not regex-literal aware, so across four
+   * hundred test files it meets a backtick inside a regex and gives up. A path
+   * built on the same line as a trailing comment is still found.
+   */
+  it('runs, on a docs-only push, every test that opens a document', () => {
+    const tracked = spawnSync('git', ['ls-files', '-z', '*.test.ts', '*.test.tsx'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    })
+      .stdout.split('\0')
+      .filter((path) => path !== '');
+    expect(tracked.length, 'git ls-files found the tests').toBeGreaterThan(100);
+
+    const opensDocs =
+      /(?:new URL|join|resolve|readFileSync|readdirSync)\([^)]*['"`](?:\.\.\/)*docs(?:\/|['"`])/;
+    const codeLines = (path: string): string[] =>
+      repoText(path)
+        .split('\n')
+        .filter((line) => !/^\s*(?:\/\/|\/\*|\*)/.test(line));
+    const readers = tracked.filter((path) => codeLines(path).some((line) => opensDocs.test(line)));
+    expect(readers, 'the scan finds the one it is known to need').toContain(
+      'packages/server/src/config.test.ts',
+    );
+
+    const docsProject = /const DOCS = \[([^\]]*)\]/
+      .exec(stripComments(repoText(VITEST_CONFIG)))?.[1]
+      ?.split(',')
+      .map((entry) => entry.trim().replace(/^'|'$/g, ''))
+      .filter((entry) => entry !== '');
+    expect(docsProject, 'vitest.config.ts declares DOCS').toBeDefined();
+
+    const docsRun = yamlLines(DOCS_WORKFLOW).join('\n');
+    expect(docsRun).toContain('pnpm test:docs');
+    for (const path of readers) {
+      expect(
+        (docsProject ?? []).includes(path) || docsRun.includes(path),
+        `${path} reads a document, and a push touching only docs/ would never run it — ` +
+          'add it to docs.yml\'s "The tests that read the documents" step',
+      ).toBe(true);
+    }
+  });
+
+  it('runs the suite in at least two workers, whatever the machine', async () => {
+    const config = (await import('../../vitest.config.js')) as {
+      default: { test?: { maxWorkers?: number | string } };
+    };
+    const workers = config.default.test?.maxWorkers;
+    expect(typeof workers, 'a number, not vitest’s default of one fewer than the cores').toBe(
+      'number',
+    );
+    expect(workers).toBeGreaterThanOrEqual(2);
   });
 });

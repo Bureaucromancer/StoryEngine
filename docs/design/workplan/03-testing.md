@@ -362,6 +362,27 @@ and F4 is the proof of what that costs. And **the rebuild-equals-incremental
 property test as a named step**, rather than folded anonymously into the suite:
 a gate that can be retired by a `test.skip` nobody notices is not a gate.
 
+*Both platforms, on every change — **for one day not, and why it came back***
+*(2026-10-02, 2026-10-03). While the repository was private, Actions minutes
+were a 2000-minute month with Windows billed double, and a push cost about 110
+of them: Windows ~45 wall minutes, ubuntu ~19, the journeys ~2. September's ran
+out on the 27th and October's six hours into the 1st, after which every job was
+refused before it started and main was red for a reason no commit could fix.
+For a day the Windows leg ran weekly instead of per change. Then the repository
+went public ([releases §0.1a](04-repo-and-releases.md)) — CI access was one of
+the two reasons — public repositories' standard runners are not metered, and
+both legs run on every change again, as this section has always said.
+`tools/lint-fixtures/ci-shape.test.ts` now refuses any `exclude:` in the
+matrix, which was the one way to retire a leg its other assertions could not
+see.* *Three things from that day stayed, none of them only about money.
+**A change confined to `docs/` runs `docs.yml`** — the link checks and every
+test that opens a document, found by a scan in the same test file rather than
+kept as a list — instead of the full tier; nothing under `docs/` is built or
+served (`CHANGELOG.md`, which the client imports, is not under it). **Every job
+has a timeout**, because the default is six hours. And **the suite runs in at
+least two workers**: vitest's default is one fewer than the cores, which on a
+two-core machine is one — a no-op on a public runner's four.*
+
 **Nightly** — provider conformance (live), the full wild-corpus import run, and
 longer property-test budgets, including a rebuild-from-disk consistency run over
 a large generated library. *The rebuild property test itself moved to the per-PR

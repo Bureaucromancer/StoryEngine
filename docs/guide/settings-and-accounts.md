@@ -138,7 +138,9 @@ only appearance setting today.
 
 The top of Settings says which build this is (**Version** and **Commit**; a
 development build says it has neither) and states the licence: StoryEngine is free
-software under the GNU Affero General Public License, version 3 or later. **What
+software under the GNU Affero General Public License, version 3 — most of it also under any
+later version, except a few files holding code from projects licensed under version 3 alone,
+which [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) lists. **What
 you write is yours**: actors, treatments, lorebooks, presets, sessions and packages
 are data the program produced, not derivative works of it.
 
@@ -146,9 +148,9 @@ Administrators also see an update note here: whether a newer build exists on the
 install's update channel, that the check is turned off, or that no release has been
 published for the channel yet. The check is a plain request to the project's release
 list on GitHub, once a day, sending nothing about the install; turn it off with
-`updates.checkEnabled`. While the repository is private, as it is today, that list
-cannot be read, so the note always says *No release has been published for your
-channel yet* and never reports a newer build. Nothing in the app updates the server — how you update
+`updates.checkEnabled`. No release has been published on GitHub — the repository is
+public, but nothing in it has been released — so the note always says *No release has been
+published for your channel yet* and never reports a newer build. Nothing in the app updates the server — how you update
 depends on how you installed it ([Running a built StoryEngine](../deploy.md)).
 
 ## Notifications

@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 StoryEngine contributors
+#
+# ***What a change confined to `docs/` can break, and nothing else*** — the fast
+# path `ci.yml`'s `paths-ignore` sends it here (2026-10-02).
+#
+# `ci.yml` runs about twenty minutes of typecheck, lint, build, suite and
+# browser on two platforms, and a push that edits only documents changes the
+# input to none of them except the tests that read documents — which run here,
+# in about a minute. Written while the repository was private and those twenty
+# minutes were billed (about 110 a push, Windows counted double); kept after it
+# went public because a red or pending full run over a change nothing in it
+# reads is noise. Nothing under `docs/` is built, imported or served: the
+# client's changelog is `CHANGELOG.md` at the root, which is why `ci.yml`
+# ignores `docs/**` and not `**/*.md`.
+#
+# **Which tests read documents is not a list somebody remembers.** It is held
+# by `tools/lint-fixtures/ci-shape.test.ts`, which finds every test file that
+# opens a path under `docs/` and fails unless the `docs` project or the step
+# below runs it. Today that is the `docs` project (links, labels, citation
+# targets) and `config.test.ts`, which parses the configuration tables in
+# 21 §4 — a docs-only edit to that table is a change to what the tests say the
+# configuration must be, and it has to be checked against the code here.
+#
+# A push touching `docs/` and code runs both workflows; `ci.yml` runs
+# `test:docs` itself as well, so the overlap is this file's minute.
+
+name: Docs
+
+on:
+  pull_request:
+    paths: ['docs/**']
+  push:
+    branches: [main]
+    paths: ['docs/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  docs:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Every documentation link resolves and is labelled with its target
+        run: pnpm test:docs
+
+      # `@storyengine/shared` resolves to its `dist`, which a cold runner does
+      # not have, so the server's tests cannot load without it. That package
+      # alone, not `pnpm build`: about two seconds against the client's bundle.
+      - id: shared
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsc -b packages/shared
+
+      # Not `--project packages` on its own: that is the whole server suite.
+      # The file, named, so `ci-shape.test.ts` can find it here.
+      - name: The tests that read the documents
+        if: ${{ !cancelled() && steps.shared.outcome == 'success' }}
+        run: pnpm exec vitest run --project packages packages/server/src/config.test.ts

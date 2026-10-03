@@ -247,13 +247,25 @@ claim nobody can break the build over is not a claim, this is the least
 defensible risk profile of the three options, and it is the measurement that
 would decide this section on its own.
 
+*~~There is no test suite~~ — **withdrawn**, by
+[the 2026-09-16 review](../../reviews/2026-09-16-storyengine-marinara.md) and
+recorded here 2026-10-03, before the repository went public. The filename count
+was literally true and its reading was wrong: Marinara's tests are not named
+`*.test.ts`. At that review's snapshot it had 282 behavioural regression files
+under `scripts/regressions/`, 37 browser test files under `e2e/`, and CI that
+runs them. The decision this section supports does not rest on point 3 alone,
+and points 1, 2 and 4 are unaffected; but a measurement this document said
+"would decide this section on its own" decided nothing, and it is struck rather
+than left to stand as a description of somebody else's project. The same goes
+for "untested" in point 4.*
+
 **4. The upstream can be neither tracked nor caught.** In the nine days from this
 project's first commit to this decision, Marinara made **712 commits** to
 StoryEngine's 149, changing 698 files under `packages/` for +56k/−16k — a net
 gain, in nine days, of roughly the entire size of this codebase. A fork therefore
 has two exits and both are bad: track upstream while restructuring its
 foundations, which is a permanent merge war against a mainline moving five times
-faster; or stop tracking, and own half a million lines of untested code somebody
+faster; or stop tracking, and own half a million lines of ~~untested~~ code somebody
 else wrote — including the whole of §6.3's discard list, which does not stop
 being maintained just because it is unwanted.
 

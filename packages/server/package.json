@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "license": "AGPL-3.0-or-later",
+  "license": "AGPL-3.0-or-later AND AGPL-3.0-only",
   "description": "The StoryEngine server.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

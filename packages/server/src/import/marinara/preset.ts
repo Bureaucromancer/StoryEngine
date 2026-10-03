@@ -1,5 +1,6 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 StoryEngine contributors
+// Derived in part from AGPL-3.0-only upstream code; see THIRD_PARTY_NOTICES.md
 
 import {
   newPreset,
@@ -251,7 +252,10 @@ function blockFor(
  * Marinara's own schema calls *legacy, kept for backward compat, no longer
  * used by assembler*; its assembler wraps each section in the preset's
  * `wrapFormat` — `xml` (the default), `markdown` or `none` — named from the
- * section's name, with the rules below copied from its format engine. This
+ * section's name, with the rules below copied from its format engine
+ * (`nameToXmlTag` in `packages/shared/src/utils/xml-wrapper.ts`, Marinara
+ * Engine at `459f8b85`, AGPL-3.0 — which is why this file's header says
+ * version 3 only; `THIRD_PARTY_NOTICES.md`). This
  * read the legacy flag, which a current preset leaves false, so a Marinara
  * preset arrived with none of the tags its prompts were written around.
  * Marinara also indents the content inside a tag, which a wrapper cannot do

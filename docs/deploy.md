@@ -4,9 +4,17 @@
 unraid template that [P6A](design/workplan/19-p6a-alpha-1.md) ships — what exists,
 not what is planned.
 
-**Alpha 1 is a build this project made for itself.** The repository is private,
-the registry package is private, and the unraid template is committed rather than
-submitted. That is a deliberate position rather than a stage on the way to
+> **If you are not the maintainer, this page will not work for you yet.** The
+> image is not published, so nothing below pulls without the maintainer's
+> login, and no tarball has been built. The repository has been public since
+> 2026-10-03, for reasons of licensing and CI rather than readiness
+> ([releases §0.1a](design/workplan/04-repo-and-releases.md)); running
+> StoryEngine yourself means building it from source — the
+> [README](../README.md#running-it) — and it is unsupported and unreleased.
+
+**Alpha 1 is a build this project made for itself.** ~~The repository is private,~~
+*The repository is public since 2026-10-03;* the registry package is private,
+and the unraid template is committed rather than submitted. That is a deliberate position rather than a stage on the way to
 something: publishing the image is a decision to publish the repository at the
 same instant, because AGPL §13's source link has to resolve for whoever is
 running it ([09 §7](design/09-server-multiuser-deployment.md)). See

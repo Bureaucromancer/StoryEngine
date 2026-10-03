@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
 import { beforeAll, describe, expect, it } from 'vitest';
+
+import { DERIVED_FILES } from '../../eslint.rules.js';
 
 import { FIXTURE_ROOT, fixtureConfig } from './fixture-config.js';
 
@@ -233,6 +236,33 @@ describe('the AGPL header', () => {
   it('does not fire on a file with one', async () => {
     const fired = await rulesFiredIn('packages/sdk/src/imports-shared.ts');
     expect(fired).not.toContain('headers/header-format');
+  });
+
+  /**
+   * ***The version-3-only files are the ones the notices name*** (2026-10-03).
+   * `DERIVED_FILES` decides which header lint demands; the table in
+   * `THIRD_PARTY_NOTICES.md` is what a reader is told was taken. A file added
+   * to one and not the other is either upstream code under a licence it cannot
+   * carry, or a notice for code that is not there — so they are compared, and
+   * each named file has to exist.
+   */
+  it('requires the version-3-only header on exactly the files the notices list', () => {
+    const notices = readFileSync(new URL('../../THIRD_PARTY_NOTICES.md', import.meta.url), 'utf8')
+      .replace(/\r\n/g, '\n')
+      .split('\n');
+    const start = notices.indexOf('## Version 3 only');
+    expect(start, 'THIRD_PARTY_NOTICES.md has its "## Version 3 only" section').toBeGreaterThan(-1);
+    const section = notices.slice(start + 1);
+    const end = section.findIndex((line) => line.startsWith('## '));
+    const listed = (end === -1 ? section : section.slice(0, end))
+      .map((line) => /^\| `([^`]+)` \|/.exec(line)?.[1])
+      .filter((path): path is string => path !== undefined);
+
+    expect(listed.length, 'the table lists at least one file').toBeGreaterThan(0);
+    expect([...listed].sort()).toEqual([...DERIVED_FILES].sort());
+    for (const path of DERIVED_FILES) {
+      expect(existsSync(new URL(`../../${path}`, import.meta.url)), path).toBe(true);
+    }
   });
 });
 

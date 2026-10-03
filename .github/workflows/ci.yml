@@ -24,12 +24,41 @@
 # when P2.0 writes it (F11) — named, because a gate a `test.skip` can retire is
 # not a gate.
 
+# ***What a run costs*** (2026-10-02, revised 2026-10-03). While the repository
+# was private, every minute here came out of a 2000-minute month and a Windows
+# minute billed as two: a push cost about 110 billed minutes (Windows ~45 wall
+# minutes, ubuntu ~19, journeys ~2). September's month ran out on the 27th and
+# October's six hours into the 1st, and from then every job on main was refused
+# before it started and reported red in five seconds. The repository went
+# public on 2026-10-03, partly for this (docs/design/workplan/04-repo-and-releases.md
+# §0.1a), and public repositories' standard runners are not metered, so both
+# platforms run on every change again, as testing §6 has always said they should.
+#
+# Three things from that episode stay, because none of them was only about
+# money. Every job has a timeout: the default is six hours, and a hung job is a
+# queue blocked for six hours whoever pays. A push that touches only `docs/`
+# runs `docs.yml` instead of this, because twenty minutes of typecheck, build
+# and suite over a change no step reads is noise in the checks list. And the
+# suite runs in at least two workers (`maxWorkers` in vitest.config.ts) — a
+# no-op on a public runner's four cores, and about a third off the suite on a
+# two-core machine, measured.
+
 name: CI
 
 on:
   pull_request:
+    paths-ignore: ['docs/**']
   push:
     branches: [main]
+    # Documents only: `docs.yml` runs the tests that read them, which is all a
+    # change confined to `docs/` can break. Not `**/*.md` — `CHANGELOG.md` is
+    # imported by the client and read by two tests, and a README beside a
+    # package is that package's. A push that touches `docs/` *and* anything
+    # else runs both workflows, and this one runs `test:docs` as well.
+    paths-ignore: ['docs/**']
+  # By hand: to re-run main's head after a run that never started, or to check a
+  # branch that has no pull request.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,12 +69,21 @@ permissions:
 # (v1.0.0-alpha.1 and alpha.4) and the p8 merge each landed with a *cancelled*
 # run and no record at all, because the next push came within ten seconds.
 # So each push to main is its own group, and nothing there is cancelled.
+#
+# The event and the ref are in the group as well as the commit (2026-10-02),
+# because a dispatch and a push can name the same commit; grouped by commit
+# alone, the second would queue behind the first, and a third arrival would
+# cancel the one waiting.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || format('{0}-{1}-{2}', github.event_name, github.ref, github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
+    # A hang detector, as vitest's own timeouts are: about twice the slowest
+    # green run measured on a private two-core runner (ubuntu ~19 minutes,
+    # Windows ~45 at one worker); a public runner is faster than that.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 90 || 40 }}
     strategy:
       fail-fast: false
       matrix:
@@ -187,6 +225,7 @@ jobs:
   # installing three browsers to run one is three minutes spent per push on
   # coverage nothing asked for.
   journeys:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

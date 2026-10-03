@@ -1,5 +1,6 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 StoryEngine contributors
+// Derived in part from AGPL-3.0-only upstream code; see THIRD_PARTY_NOTICES.md
 
 import type { ImportNote } from '@storyengine/shared';
 
@@ -972,6 +973,11 @@ function monthOf(word: string): number | null {
  * `moment`'s ISO 8601 grammar, verbatim (`extendedIsoRegex`, `basicIsoRegex`).
  * The `\s*` both allow — leading, and before `Z` — is text a *strict* parse
  * then leaves over, which fails it; {@link strictIso} says so explicitly.
+ *
+ * These two patterns and {@link ISO_DATES}' table are from moment 2.30.1,
+ * MIT-licensed, Copyright (c) JS Foundation and other contributors; the
+ * licence's text is in `THIRD_PARTY_NOTICES.md`. The rest of this section is
+ * ported from SillyTavern, which is why the file's header says version 3 only.
  */
 const EXTENDED_ISO =
   /^\s*((?:[+-]\d{6}|\d{4})-(?:\d\d-\d\d|W\d\d-\d|W\d\d|\d\d\d|\d\d))(?:(T| )(\d\d(?::\d\d(?::\d\d(?:[.,]\d+)?)?)?)([+-]\d\d(?::?\d\d)?|\s*Z)?)?$/;

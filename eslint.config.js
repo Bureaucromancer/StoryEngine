@@ -11,6 +11,8 @@ import tseslint from 'typescript-eslint';
 import {
   bannedPackagesFor,
   boundariesGraph,
+  DERIVED_FILES,
+  derivedHeaderRule,
   headerRule,
   restrictedImports,
   restrictedProperties,
@@ -100,6 +102,16 @@ export default tseslint.config(
       'no-restricted-syntax': restrictedSyntax(),
       'no-restricted-imports': restrictedImports(),
     },
+  },
+
+  // The one exception to the header above, and it is not an exemption: these
+  // files must carry a *different* exact header — version 3 only, because they
+  // hold code from upstream projects licensed that way (`eslint.rules.js`,
+  // `THIRD_PARTY_NOTICES.md`). Later in the array, so it replaces the rule
+  // for exactly these paths.
+  {
+    files: DERIVED_FILES,
+    rules: derivedHeaderRule,
   },
 
   // ---------------------------------------------------------------------

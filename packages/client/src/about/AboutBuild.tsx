@@ -81,9 +81,18 @@ export function AboutBuild(props: { build: BuildInfo | null | undefined }): JSX.
 function Licence(props: { source: string | undefined }): JSX.Element {
   return (
     <div className="flex flex-col gap-2 text-sm text-ink-muted">
+      {/*
+       * ***Version 3, and "or later" only file by file*** (2026-10-03). Three
+       * files hold code from SillyTavern and Marinara Engine, which are
+       * licensed under version 3 alone, so the program as a whole is offered
+       * under version 3 and the later-version permission applies to every
+       * other file. Saying "version 3 or later" of the whole was a permission
+       * this project could not give. `THIRD_PARTY_NOTICES.md` is the list.
+       */}
       <p>
-        StoryEngine is free software under the GNU Affero General Public License, version 3 or
-        later.
+        StoryEngine is free software under the GNU Affero General Public License, version 3. Most of
+        it may also be used under any later version; the few files that hold code from projects
+        licensed under version 3 alone may not, and the notices file with the source lists them.
       </p>
       {props.source === undefined ? (
         <p>

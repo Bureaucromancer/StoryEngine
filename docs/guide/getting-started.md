@@ -9,6 +9,10 @@ Studio is enough — and about ten minutes.
 the container image with `compose.yaml`, the unraid template, and a tarball with a systemd
 unit. The [README](../../README.md#running-it) covers running it from source.
 
+**Today, from source is the only one of these open to anyone but the maintainer.** The image is
+not published and no tarball has been built; the repository is public, but nothing in it has been
+released ([releases §0.1a](../design/workplan/04-repo-and-releases.md)).
+
 By default the server is at port 8080: `http://localhost:8080` on the machine itself, or —
 once it listens beyond its own machine — that machine's address and port 8080 from elsewhere
 on your network. It also advertises `http://storyengine.local:8080`, though a container on

@@ -106,6 +106,43 @@ Two things follow that are worth stating rather than inferring:
   story for strangers' installs. [P6A §4](19-p6a-alpha-1.md) lists them together
   for that reason.
 
+### 0.1a The repository went public; the build did not (2026-10-03)
+
+**The repository is public from 2026-10-03, for reasons of licensing and CI,
+not readiness.** Nothing above is reversed by it, and nothing in it is a
+release: the image stays a private package, `latest` moves nowhere, no GitHub
+Release exists, the `v1.0.0-alpha.*` tags remain builds the project made for
+itself, and no one is promised support, a data story or a migration. The
+bullet above runs in one direction — a public image obliges a public
+repository — and this is the other direction, which obliges nothing.
+
+**Why now, and why these reasons rather than readiness:**
+
+- **Licensing.** The code is AGPL, and a release build tells everyone who uses
+  an install where its source is — the **Source** link at the foot of every
+  page, which §13 asks for, pointing at this repository. While the repository
+  was private that link opened for nobody but its owner, so any install with
+  other people on it was offering them a source they could not read. The repository also carries
+  code from three AGPL projects (SillyTavern, Marinara Engine, Aventuras), and
+  publishing it is the plainest way to keep their terms; the audit that
+  preceded the switch found three files holding such code under version 3
+  alone, relabelled them `AGPL-3.0-only`, and wrote `THIRD_PARTY_NOTICES.md`.
+- **CI.** Private repositories draw on a 2000-minute month with Windows billed
+  double. September's ran out on the 27th and October's six hours into the 1st,
+  after which every job on `main` was refused before it started. Public
+  repositories' standard runners are not metered, so the full matrix — both
+  platforms, on every change — can run again as [testing §6](03-testing.md)
+  describes it.
+
+**What it does not change, said because the old text implied otherwise:** the
+argument that privacy is what makes Alpha 1 *a build and not a distribution*
+was always about the artifact, and the artifact is still private.
+[P6A §5](19-p6a-alpha-1.md)'s *"it does not go public before [PLAYABLE]"* was
+written about Alpha 1 and is broken for the repository, knowingly: PLAYABLE has
+still not run, and that remains the checkpoint
+[work plan §4.1](01-work-plan.md) puts ahead of beta. Read anywhere else, the
+repository's being public says only that its source can be read.
+
 ---
 
 ## 1. The model
