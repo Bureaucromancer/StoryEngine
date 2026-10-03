@@ -294,6 +294,36 @@ if (process.argv.includes('--rewrite')) {
     for (const m of readFileSync(file, 'utf8').matchAll(/\[([^\]\n]*)\]\(([^)\s]+)\)/g)) {
       const lead = /^(\d{2})(?:\s+(§[0-9.]+))?/.exec(m[1] ?? '');
       if (!lead) continue;
+      /**
+       * **A filename label is not evidence of what a number means** (added
+       * 2026-10-03, on the merge of the `worlds` branch). `[02-triage.md]` +
+       * `(02-triage.md)` names a file; it does not say that a bare `02` written
+       * in that document means the triage — and in the work-plan index, which
+       * writes every row's label as its filename, it says the opposite of the
+       * truth, because that index's own unlinked `[03 §5]` and `[21 §1]` are
+       * quoted *design* citations, the examples of the convention. Read as
+       * evidence, the index's `[03-testing.md]` and `[21-playable-log.md]`
+       * are the file's own links, which outrank the corpus, so they sent
+       * those two to the work plan as `[testing §5]` and `[playable log §1]`
+       * on `378cbea9`'s run — and the first run (`8008e8af`) had done the
+       * same to the examples then written, `[02 §5]` → `[triage §5]`. They
+       * reach past the index, too: once the same merge restored the index's
+       * spliced labels, its `[28-p11-implementation.md]` and
+       * `[02-triage.md]` were corpus-wide evidence again, and a run with
+       * nothing to move, replayed on a copy, rewrote the quoted `[28 §x]` in
+       * P7B's status as `[P11 §x]` and the quoted `[02 §8]` in P11's 10–16
+       * row as `[triage §8]`; the index's `[25-p8-implementation.md]` made
+       * every unlinked `[25 E15]` ambiguous besides, so 157 of them were
+       * settled by the convention fallback below rather than by evidence.
+       * With this line the same replay rewrites nothing, none falls through,
+       * and P7B's `[28 §x]` is reported unresolved — for a quotation, the
+       * right answer. `tools/renumber-docs.overrides.json` had been pinning the
+       * index's two examples around this; it is no longer what keeps them.
+       * It is the same regex the label rewrite below now tests first, for
+       * the same reason: every filename label also opens with two digits, so
+       * any check that asks only that will take one for a citation.
+       */
+      if (/^\d{2}-[a-z0-9-]+(\.md)?$/.test(m[1] ?? '')) continue;
       const target = oldTarget(file, m[2] ?? '');
       if (!target) continue;
       if (!PERFILE.has(file)) PERFILE.set(file, new Map());
@@ -308,6 +338,26 @@ if (process.argv.includes('--rewrite')) {
     }
   }
 
+  /**
+   * **Pins for an atom the evidence gets wrong**, keyed `file::atom` (or a bare
+   * atom, for everywhere), each naming the OLD path the atom means.
+   *
+   * Read since the first version of this script and absent from `main` until
+   * 2026-10-03, when the `worlds` branch's file for the work-plan index's two
+   * design examples was merged — by which time the scan above had stopped
+   * producing the wrong answer they pin. Two things about the keys are easy to
+   * miss. **They are literal atom text**, and this file is excluded from the
+   * rewrite (`FILES` above), so a run that renumbers a pinned document
+   * rewrites the atom and leaves its key behind: the next run looks the key
+   * up, finds nothing, and falls back to the evidence without a word.
+   * [`doc-links.test.ts`](./doc-links.test.ts) rule (e) turns red on the stale
+   * path and rule (j) on the stale atom; re-key the entry then, or delete it.
+   * **A pin to a document relabels the atom from that document**, moved or
+   * not — every numbered document is in the map, mapped to itself if it stayed
+   * — so pinning a quoted `[28 §x]` to P11 writes `[P11 §x]`. A target that is
+   * no document in the map leaves the atom as written (`rewriteAtom`'s last
+   * line); that is the form for freezing a quotation, should one ever need it.
+   */
   const OVERRIDES = existsSync('tools/renumber-docs.overrides.json')
     ? JSON.parse(readFileSync('tools/renumber-docs.overrides.json', 'utf8'))
     : {};
@@ -415,11 +465,50 @@ if (process.argv.includes('--rewrite')) {
             ? next + frag
             : posix.relative(posix.dirname(file), next) + frag;
           let newLabel = label;
-          if (/^\d{2}(?=[\s\]\-—.]|$)/.test(label)) {
-            newLabel = `${labelFor(next)}${label.slice(2)}`;
-          } else if (/^\d{2}-[a-z0-9-]+(\.md)?$/.test(label)) {
+          /**
+           * **A filename-shaped label is tested before a citation-shaped one,
+           * because the citation test matches it too and won by being first.**
+           *
+           * ~~Citation first, filename second.~~ *The second branch could never
+           * run* (corrected 2026-10-03, ported from the `worlds` branch's
+           * `2fcf3dee`). The work-plan index writes each row's label as the
+           * filename as well as the target — `[06-polish.md]` +
+           * `(06-polish.md)` — and that label opens with two digits and a
+           * dash, which the citation pattern's lookahead accepts. So it was
+           * relabelled by splicing a work-plan *name* onto the tail of a
+           * *filename*: `labelFor(next)` + `label.slice(2)` made the polish
+           * row `polish-polish.md`. A no-op run does it too — with every
+           * document mapped to itself, the filename label is still spliced.
+           *
+           * **This was known from the first run, and the output was fixed
+           * instead of the script.** That run (`8008e8af`, 2026-09-09)
+           * spliced thirty filename labels; `c375f68b` found them the same
+           * night by reading the output, named this mechanism, repaired the
+           * labels by hand and wrote [`doc-links.test.ts`](./doc-links.test.ts)
+           * rule (c)'s filename exemption — and left this branch
+           * citation-first. So the next run (`378cbea9`, 2026-09-14) did it
+           * again, thirty labels in the index and one in P11, and five rows
+           * written afterwards copied the broken pattern, since the index is
+           * where a new row is copied from. No test caught either run: every
+           * href was right, and (b) and (c) never look at a label that no
+           * longer opens with two digits. The first fix to the script itself
+           * was the `worlds` branch's `2fcf3dee`, four hours before that
+           * second run, and it sat unmerged until 2026-10-03.
+           *
+           * A label that *is* a filename wants the new filename; only a label
+           * that is a citation wants the new number or name. Rule (i) now
+           * fails on a filename label that disagrees with its href — one that
+           * ends in `.md`, or is a bare `NN-slug` — so the next defect of
+           * this shape is red on the run that makes it rather than read past.
+           * An extensionless label spliced the old way (`06-polish` →
+           * `polish-polish`) matches neither shape and would not be read;
+           * the corpus has none, and the order here no longer makes one.
+           */
+          if (/^\d{2}-[a-z0-9-]+(\.md)?$/.test(label)) {
             const base = next.slice(next.lastIndexOf('/') + 1);
             newLabel = label.endsWith('.md') ? base : base.replace(/\.md$/, '');
+          } else if (/^\d{2}(?=[\s\]\-—.]|$)/.test(label)) {
+            newLabel = `${labelFor(next)}${label.slice(2)}`;
           }
           return `[${newLabel}](${newHref})`;
         }

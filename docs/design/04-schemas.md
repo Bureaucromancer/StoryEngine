@@ -728,6 +728,10 @@ work: a Treatment of Rain City does not describe Rain City.
 > library folder was `settings/` while the app's config screen was Settings.
 > **`World` is now reserved** for the 4.0 continuity container over sessions
 > ([15](15-world.md)) and is deliberately not spent on a library label.
+> *(2026-10-03: it will be spent on one —
+> [25 B17](25-open-questions.md) makes World the named set that replaces
+> Package, so Package's library label is the one it takes, when the design
+> step lands it. The reservation did its job: the word is free for that.)*
 
 ```ts
 interface Treatment {
@@ -1811,6 +1815,14 @@ dislikes how "hard" behaves can read the fragment that caused it and change it.
 ---
 
 ## 9. Package — a bundle, and nothing else
+
+***Decided against 2026-10-03, and still the shipped design until a design step
+replaces it*** — [25 B17](25-open-questions.md). The owner chose a World as the
+durable named set that **replaces Package**: membership, transport, and
+contribution to a session's lore through a `world` arm on `LoreScope`. This
+section, the code and the frozen `storyengine.package-export/1` still say
+Package, and nothing here changes until that step; B17 records why the rename
+has [25 B16](25-open-questions.md)'s release as its deadline.
 
 With Setup carrying the game definition, a Package is reduced to what it always
 should have been: **an arbitrary bundle of portable objects, for moving them

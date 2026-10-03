@@ -23,6 +23,13 @@ reusable visual identity ([17](../17-character-studio.md)).**
 **6.0 adds the authoring tier — authored rules, and the surfaces that make
 authoring what you played a first-class activity.**
 
+*(2026-10-03: [25 B17](../25-open-questions.md) splits 4.0's World in two. The
+durable named set replaces Package, and lands before
+[25 B16](../25-open-questions.md)'s release or ships as a migration; the
+continuity half — accrual and the story bible — waits for real play, and
+whether that is still 4.0 is for the design step to say. The line above is not
+re-cut until then.)*
+
 **Surfaces own modes, and the two words are not interchangeable.** A surface is
 a top-level place in the application; a mode configures the pipeline inside one.
 Play holds Scene and Freeform, and later Campaign; Write holds Outline and
@@ -127,7 +134,13 @@ A World is a play-side grouping of sessions rather than a seventh portable kind,
 and sessions are the free-to-move tier ([04 §1](../04-schemas.md)). This is the
 easiest of the five to pass and the easiest to fail by accident, because the
 pressure to make a World exportable will be real the first time somebody wants
-to share one.
+to share one. *(2026-10-03: that pressure won, on purpose.
+[25 B17](../25-open-questions.md) makes World the durable named set that
+**replaces Package** — exportable, and Package's kind rather than a seventh, so
+the commitment's letter holds and its reasoning does not, and "at 4.0" no longer
+says when. The release line is not re-cut here; the design step that rewrites
+[15](../15-world.md) does that, and B17 gives the rename
+[25 B16](../25-open-questions.md)'s release as its deadline.)*
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**

@@ -25,13 +25,40 @@ it is the argument for filing a document at the wrong number rather than waiting
 > real position; one scripted run after P7 merges moves it, and nothing cites a
 > work-plan number, so the move costs nothing ([README](README.md)).
 
-*The move cost two defects in the script, both found by running it and neither
-findable without: a second copy of the slug-to-name table that had already
+*The move cost ~~two defects in the script, both found by running it and
+neither findable without~~ two defects in the script that this run found: a
+second copy of the slug-to-name table that had already
 drifted — it would have rewritten every `[28 §x]` citation of **this** document
 to `undefined §x` — and a root-relative test that read a sibling citation as a
 path from the repository root and rewrote three thousand of them into links that
 resolve nowhere a reader stands. A script kept in the repository to be run again
-is only as good as its first real run says it is.* Format follows
+is only as good as its first real run says it is.* *(Corrected 2026-10-03:
+**four defects, not two, and the last two were not found by this run.** Nor was
+the root-relative test new: the script's first run, `8008e8af` (2026-09-09), had
+turned 2,706 links repo-relative the same way, and `c375f68b` recorded it that
+night and repaired the links by hand, leaving the test in the script — so only
+the drifted table was findable by this run alone. The third: the same run
+spliced a work-plan name onto every label written as a filename — the
+work-plan index's polish row became `polish-polish.md` — because the script
+tested the citation shape first, and every filename label matches it, so the
+filename branch never ran; every href stayed right, so the checker stayed green.
+That one had been found by running it as well, on the first run, which spliced
+thirty labels; `c375f68b` named the mechanism and fixed the labels in the output
+only. The `worlds` branch fixed the script four hours before this run, on a
+branch that then sat unmerged; the fix reached `main` only at that branch's
+merge, after five more index rows had copied the broken pattern. The link
+checker's rule (i) is what now catches a label of that shape. The fourth: the
+same run rewrote the work-plan index's two examples of a design citation,
+`[03 §5]` and `[21 §1]`, as `[testing §5]` and `[playable log §1]`, because the
+script read the index's filename labels as evidence that every other `03` and
+`21` in that file is a work-plan document — and that README is the one document
+that quotes the convention instead of using it. The first run had done the same
+to the examples then written. `2fcf3dee` found it and pinned both atoms in
+`tools/renumber-docs.overrides.json`; the script now ignores a filename label as
+evidence, and the checker's rule (j) watches the two examples
+([README](README.md)). The first real run had already said most of this; what it
+said was fixed in the output and not in the script, so the next run said it
+again.)* Format follows
 [P1](07-p1-implementation.md); citations follow the corpus convention.
 
 ***Widened 2026-09-14 by a second sweep, and the two halves are one phase.***

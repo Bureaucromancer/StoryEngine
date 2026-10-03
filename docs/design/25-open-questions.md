@@ -421,8 +421,11 @@ learn that a field on the *book* was overruling their choice.
 Two things would change the answer. If **inheritance** arrives — a Worlds
 concept ([15 §5](15-world.md)) where something above the session contributes
 books — then `scope` acquires a real consumer and narrowing may follow naturally
-from it. And if narrowing does ship, it needs a surface: the reason has to reach
-the retrieval report as a skip reason, or it reintroduces exactly the silence
+from it. *(2026-10-03: it is arriving. B17 below adopts contribution from a
+World through a `world` arm on `LoreScope`, so this question is reopened by that
+design step, not before it.)* And if narrowing does ship, it needs a surface:
+the reason has to reach the retrieval report as a skip reason, or it
+reintroduces exactly the silence
 [P5.8]'s tester was built to end.
 
 **B15. What should a new lorebook's `scope` be? — OPEN, and only *because* B14
@@ -450,6 +453,51 @@ and ignored, which is what `ActorRole` and `CallKind` already do); **bump the
 version** at each widening, with a migration; or **accept** that an older build
 refuses a newer file, and say so where exports are offered. *[04 §2–§3](04-schemas.md),
 [21 §7](21-internal-contracts.md)*
+
+*(2026-10-03: B17 below gives the same release a second meaning, recorded here
+without choosing among the three answers above. World replacing Package renames
+`storyengine.package/1` and the names around it, and adds a `world` arm to
+`LoreScope`, a closed portable union — which is this question again, asked of a
+fourth arm.)*
+
+**B17. Are the portable Package and the continuity World one object? —
+RESOLVED 2026-10-03 by the owner: yes, World replaces Package, and the design is
+owed.**
+The `worlds` branch argued on 2026-09-14 that a Package ([04 §9](04-schemas.md))
+and a World ([15](15-world.md)) are one thing seen from two sides — a named set
+of objects that travels, and the same set as the continuity sessions share — and
+renamed Package to World in code to say so. `main` built the other way the same
+day and after: P7B.6's package editor, the `/library/packages/*` routes, and
+P11.10's `.sepack` export under `storyengine.package-export/1`, a format it
+freezes. The branch was merged on 2026-10-03 for its renumber-script fix alone,
+and the question was put to the owner.
+
+The answer: **a World becomes the durable named set and replaces Package** —
+membership, transport, and contribution to a session's
+lore through a `world` arm on `LoreScope` (B14 above is where that arm meets the
+question it reopens). **Accrual waits for real play** — the world-scoped memory
+key, cross-session hook suppression, and the story bible ([15 §4](15-world.md)) —
+because [15 §2](15-world.md)'s reason for not designing a continuity container
+before any continuities exist still holds of that half. Nothing is built or
+designed yet: a design step rewrites [15](15-world.md) and
+[04 §9](04-schemas.md) against it, and until then both describe what this
+decided against, each with a dated note saying so. The branch's text is the
+material for that step, adopted as nobody's yet: its rewrite of 15 and its new
+*16 — Publish* are in `162b4a61` (whose subject says *renames only*), its P8A
+plan in `d8656c68`, and the code rename in `448c53e3`, all reachable through the
+second parent of `main`'s merge of `worlds`. Publish adds less than it looks:
+[04 §9.1](04-schemas.md) already specifies the closure walk and the review with
+a newer table, and [10 §5.0a](10-ui-surfaces.md) owns single-object export.
+
+**It has a deadline, and the deadline is B16's.** Package's name is on the
+files: the `storyengine.package/1` schema id, the library folder, the
+`/library/packages/*` routes, `.sepack`, and `storyengine.package-export/1`.
+alpha.1 to alpha.4 export no native object, so today the rename strands no file
+anyone was given; from the first release that exports one, it is a migration
+of files people hold. And the `world` arm widens a closed portable union inside
+its version, which is B16's question exactly. So the rename lands before that
+release or ships as a migration, and how the arm arrives waits on B16's answer.
+*[15](15-world.md), [04 §9](04-schemas.md), [work plan §0.2](workplan/01-work-plan.md)*
 
 ---
 

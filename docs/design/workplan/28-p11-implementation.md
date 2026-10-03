@@ -3422,7 +3422,7 @@ record until its §4 is settled. That does not put Write in this phase; it puts
 *settling 17* on the critical path to a stage in it.
 
 **And the one thing a hardening phase most wants to add and must not:** polish.
-[polish-polish.md](06-polish.md) is a working todo list with its own bar, and its
+[06-polish.md](06-polish.md) is a working todo list with its own bar, and its
 items are user-facing, bounded, and need no schema change and no new contract.
 Items graduate *out* of it when they clear the roadmap bar; they do not graduate
 into a release gate because the gate happened to be open.
