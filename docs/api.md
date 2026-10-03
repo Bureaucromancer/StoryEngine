@@ -1356,6 +1356,13 @@ answer.
 and for the same reason: the pixels arrive on the stream, and a `200` would read
 as *here is your picture*.
 
+**The pending record carries no `provenance.seedSent`** (written 2026-09-26,
+merged 2026-10-03, [21 §7](design/21-internal-contracts.md)). Whether the seed was sent is the last
+run's fact rather than the recipe's — the next run may go out on a connection
+whose `supportsImageSeed` has changed since — so the field is dropped here and
+written afresh by the run that lands. The seed itself is kept, which is what
+makes this a replay.
+
 **`409 has-pixels` when the picture is there** (2026-09-30) — `ready` with its
 file on disk. A retry runs the record again under the same file name, so from a
 stale view it overwrote a finished picture ([06 §10.7]: regeneration is *"never
@@ -3298,10 +3305,18 @@ a capability the form has no control for survives a save. It was undocumented
 here until P2C, which meant the only way to find it was to read the route — and
 the settings form now offers the two an operator has a reason to set.
 
-Those two are `maxContextTokens` and `reportsUsage`, and they are the two only
-the operator can know: **this build assumes a conservative context window**, and
-an endpoint that does not count tokens will make every figure in a turn record
-null. The rest of the capability shape travels untouched.
+Those two are `maxContextTokens` and `reportsUsage`, ~~and they are the two only
+the operator can know~~ the two an operator most often has to set *(2026-10-03:
+not the only ones only the operator can know. `rendersImages` (P9) and
+`supportsImageSeed` are facts about the endpoint too, declared per connection
+with no form control yet and written by hand — the guide's [Editing connection
+files by hand](guide/connections-and-models.md#editing-connection-files-by-hand)
+says how, and the merge above keeps them through a save; the missing
+`supportsImageSeed` control is carried as a debt at
+[P9 §3.2](design/workplan/26-p9-implementation.md))*:
+**this build assumes a conservative context window**, and an endpoint that does
+not count tokens will make every figure in a turn record null. The rest of the
+capability shape travels untouched.
 
 **`imageModels` names which of `models` can see pictures** on a player's move
 ([25 E15](design/25-open-questions.md)), and it is **per model, not a

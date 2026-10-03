@@ -241,6 +241,11 @@ export class FakeProvider implements Provider {
       // caller's, and an adapter that returned its own would be answering a
       // question the record has to be able to state.
       seed: request.seed,
+      // By the real adapter's rule rather than a constant, so a test double
+      // declaring no seed capability records what a real connection would —
+      // the stub agreeing with the thing it stands in for, not with whoever
+      // wrote it.
+      seedSent: this.capabilities.supportsImageSeed,
       cost: null,
     };
   }

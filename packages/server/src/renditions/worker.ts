@@ -530,7 +530,9 @@ export async function runRendition(
      *
      * So this function makes no random draw at all — which is what lets a
      * re-creation be a **replay**: the same record, the same seed, the same
-     * prompt, and therefore the same picture from an endpoint that honours one.
+     * prompt, and therefore the same picture from an endpoint that is **sent**
+     * one and honours it. The first half is the connection's to declare
+     * (`supportsImageSeed`), and the record says which it was (`seedSent`).
      * A worker that drew its own would make *"the recipe is preserved"* mean
      * *approximately re-creatable*, which [06 §10.7] says is a different promise.
      *
@@ -540,6 +542,47 @@ export async function runRendition(
      */
     const seed = context.seed?.() ?? record.provenance.seed ?? 0;
 
+    /**
+     * ***One call, and no retry ladder around it*** — a decision rather than an
+     * omission, and one that used to be made for this line without anybody
+     * making it.
+     *
+     * Until the adapter passed `maxRetries: 0`, the SDK retried a 429 or a 5xx
+     * twice behind this call, and that hidden pair was the only retry a single
+     * image call ever had. (A failed *backdrop* is asked for again by the next
+     * reply's render step, because the reuse checks in `store.ts` count only
+     * `ready` and `pending` records — but as a new rendition, with its own record
+     * and a fresh seed, which is a new request the workbench shows rather than a
+     * retry of this one.) The pair is gone on purpose (`renderImage` says why),
+     * so a rate limit now arrives here once, classed `retryable`, and becomes a
+     * failed rendition straight away. The worker does not put the pair back:
+     *
+     * - ***There is nowhere honest to count a retry.*** `Rendition` has no field
+     *   for one, and the job row's `attempt` numbers *jobs* — a retry button
+     *   pressed — on a row nobody is looking at. A loop here would be the
+     *   adapter's defect moved up a layer: requests spent that the record never
+     *   shows.
+     * - **A turn and a picture fail differently.** A failed turn has nothing to
+     *   show, which is why `calls.ts` climbs a ladder; a failed rendition keeps
+     *   its whole recipe, a failed illustration keeps a retry button too
+     *   ([06 §10.2]), and pressing it is a person choosing to spend again on a
+     *   call that bills by the picture. A failed backdrop has no button and is
+     *   asked for afresh on the next reply instead — and whether *that* re-ask
+     *   falls under the configurable condition below is the owner's open
+     *   question at [25 E7], not something this comment decides.
+     *
+     * *When that changes*, it changes at [25 E7]'s per-connection queue, where a
+     * retry is *"visible in progress events"* and has somewhere to be counted —
+     * not as a loop around this line.
+     *
+     * ***And it arrives configurable, or not at all*** — the owner's answer of
+     * 2026-10-03, recorded at [25 E7]. The click this leaves an illustration's
+     * brief rate limit needing was put to them and accepted for now, on the
+     * condition that any automatic retry a picture later gets is a policy an
+     * operator sets rather than a count chosen here: a config key, with the
+     * five-place edit that goes with one, and never a constant somebody tunes in
+     * this file.
+     */
     const result = await provider.renderImage({
       modelId: record.provenance.binding?.modelId ?? connection.models[0] ?? '',
       prompt: record.prompt.text,
@@ -567,9 +610,13 @@ export async function runRendition(
       provenance: {
         ...record.provenance,
         at: new Date().toISOString(),
-        // Echoed from the result rather than from the request, so the record
-        // says what ran rather than what was asked for.
+        // Echoed from the result rather than from the request, and beside it
+        // **whether it left the process** — which is as much as can be said
+        // about what ran. A seed the endpoint was never sent is a number that
+        // will not reproduce the picture, and a workbench showing it bare would
+        // answer *why did this one come out different* wrong.
         seed: result.seed,
+        seedSent: result.seedSent,
         answeredAs: result.modelId === record.provenance.binding?.modelId ? null : result.modelId,
       },
       error: null,

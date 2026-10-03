@@ -1795,6 +1795,45 @@ looks like* — that a picture arrives in a browser, and that it lands beside th
 sentence it is of. A phase whose gate proved every mechanism and looked at no
 picture is exactly what §3.1 warned this would be, and it is what it is.
 
+***Rows 5 and 6 were green over a seed that never left the process — found
+2026-09-26.*** ~~Both were discharged against the `FakeProvider`, which echoes the
+seed it is handed.~~ Row 5 was discharged against the `FakeProvider`, which
+echoes the seed it is handed, and row 6 against a literal fixture that states one
+(`workbench/turn/views.test.tsx`; corrected 2026-10-03, when this note merged to
+main). The real adapter passed it to a parameter
+`@ai-sdk/openai-compatible` marks unsupported and drops, so no endpoint was ever
+sent one while the record and the workbench went on stating it — [manual gate
+§4.1](11-p2-manual-gate.md)'s *"a stub agrees with whatever understanding wrote
+it"*, in the
+field [06 §10.7](../06-modes-and-turn-pipeline.md) calls load-bearing, and the
+same promise §1.2 found the Pollinations path breaking on purpose. **The steps and
+the results above stand as recorded.** What changed is the adapter, which now
+sends the seed where a connection declares `supportsImageSeed`
+([21 §3](../21-internal-contracts.md)), and the record, which says whether it
+did (`seedSent`). ~~*Sitting O's endpoint needs that capability declared for row 6
+to hold at the wire*; without it, the workbench now says — correctly — that the
+seed was not sent.~~ *Sitting O never walks row 6*: row 6 is **AUTO**, discharged
+by `workbench/turn/views.test.tsx` above, and O1–O3 clear rows 1, 2, 4, 12, 13 and
+14 ([manual testing §4, sitting O](05-manual-testing.md)). Declaring the capability
+on sitting O's endpoint is a courtesy, so the person walking it is not shown *Not
+sent* beside every seed and file it as a finding — O0 now says so — and without
+it the workbench says, correctly, that the seed was not sent (corrected
+2026-10-03, when this note merged to main: it claimed a dependency the sitting
+does not have).
+
+***`supportsImageSeed` has no control, and is owed one — recorded 2026-10-03.***
+It was written 2026-09-26 and merged on this date, and like `rendersImages` it is
+declared per connection and set only by hand-editing the connection file or
+through the admin connections route — the Connections form has no control for
+either ([the guide](../../guide/connections-and-models.md#editing-connection-files-by-hand)
+tells a person how, as a fact rather than a debt). Seed sending cannot be used at
+all without someone setting it, which is exactly [work plan
+§2.3](01-work-plan.md)'s test, so **the standing line's ✅ above does not cover
+it**: the row stands as recorded for what it named, and this is a debt beside it,
+carried here so it does not live only in a merge message. The natural place for
+the control is beside the *Makes pictures* control the `practical-wozniak` branch
+brings to the same form.
+
 ---
 
 ## 4. Out of scope, deliberately

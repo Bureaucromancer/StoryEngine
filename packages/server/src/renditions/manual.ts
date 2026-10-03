@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { RENDITION_SCHEMA, type Rendition, type RenditionPurpose } from '@storyengine/shared';
+import {
+  RENDITION_SCHEMA,
+  type Rendition,
+  type RenditionProvenance,
+  type RenditionPurpose,
+} from '@storyengine/shared';
 
 import type { StepCastMember } from '@storyengine/sdk';
 
@@ -167,12 +172,22 @@ export async function recreateRendition(
   sessionId: string,
   rendition: Rendition,
 ): Promise<Rendition> {
+  const provenance: RenditionProvenance = { ...rendition.provenance, at: null, answeredAs: null };
+  /**
+   * ***Whether the last run's seed was sent is the last run's fact, not the
+   * recipe's.*** The next one may go out on a connection whose capability has
+   * changed since, so a pending record carrying the old answer would state a
+   * claim about a call that has not happened. Deleted from a copy rather than
+   * the fields enumerated, so a recipe field added later survives re-creation
+   * by default — which is the direction [06 §10.7] needs the default to point.
+   */
+  delete provenance.seedSent;
   const again: Rendition = {
     ...rendition,
     state: 'pending',
     asset: null,
     error: null,
-    provenance: { ...rendition.provenance, at: null, answeredAs: null },
+    provenance,
   };
   await writeRendition(layout, handle, sessionId, again);
   return again;

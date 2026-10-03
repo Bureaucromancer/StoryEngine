@@ -514,8 +514,24 @@ API key make it an appealing zero-configuration path, and its generator ignores
 the seed the load-bearing field of a recipe, echoed back and hashed into the
 digest. A Pollinations rendition could never be re-created while the record
 claimed a seed nobody honoured. It needs the seed plumbed through, or it needs a
-way for a rendition to declare itself non-reproducible — which does not exist and
-should not be invented for one endpoint.
+way for a rendition to declare itself non-reproducible~~ — which does not exist
+and should not be invented for one endpoint~~.
+
+*That way now exists, and it was built for every endpoint rather than one
+(2026-10-03).* `RenditionProvenance.seedSent` ([21 §7](21-internal-contracts.md))
+records whether the seed left the process, gated on the connection's
+`supportsImageSeed` ([21 §3](21-internal-contracts.md)), and the workbench says
+beside the seed, when it is `false`, that re-creating the picture will not
+reproduce it. It only works one way: `true` means *sent*, never *honoured*. A
+Pollinations adapter — its own request encoding, not a table row — could
+therefore leave the capability off, send no seed and record `seedSent: false`
+honestly, without new machinery. The `Math.random()` objection above is
+unchanged: the corpus's generator still cannot be taken as it is. And *the record
+claimed a seed nobody honoured* turned out not to be a Pollinations hazard at
+all: it was the OpenAI-compatible adapter's own behaviour until `64c5e08`
+merged to main (written 2026-09-26, merged 2026-10-03), because `@ai-sdk/openai-compatible` dropped the top-level seed while every record
+and the workbench went on stating it
+([P9 §3.2](workplan/26-p9-implementation.md)).
 
 **Arli, Venice, Z.AI and Atlas are not built**, on the corpus's own evidence
 above.

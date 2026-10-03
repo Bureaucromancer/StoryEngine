@@ -54,6 +54,17 @@ export const CONSERVATIVE_CAPABILITIES: ProviderCapabilities = {
    * says so.
    */
   rendersImages: false,
+  /**
+   * **False, for the reason `supportsStructuredOutput` is** — a field the
+   * endpoint may not know, where the pessimistic answer costs a less
+   * reproducible picture and the optimistic one costs the picture.
+   *
+   * `seed` is not part of the OpenAI images request, and an endpoint that holds
+   * to that schema answers an unknown parameter with a 400 — so a connection
+   * pointed at one would fail every picture `terminal` the day this was true by
+   * default. The endpoints that do take a seed are told so per connection.
+   */
+  supportsImageSeed: false,
 };
 
 /**

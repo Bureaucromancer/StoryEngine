@@ -98,6 +98,28 @@ export interface ProviderCapabilities {
    */
   rendersImages: boolean;
   /**
+   * ***Whether this endpoint takes a sampling seed for a picture*** —
+   * [06 §10.7]'s load-bearing field, and the one fact about it that belongs to
+   * the endpoint rather than to the recipe.
+   *
+   * **False in the conservative baseline, and so false everywhere until a
+   * connection says otherwise** — `rendersImages`' posture, for the reason
+   * `supportsStructuredOutput` is off for `openai-compatible`: the endpoint
+   * behind the protocol could be anything. `seed` is not part of the OpenAI
+   * images request, and an endpoint strict about its schema refuses a field it
+   * does not know — OpenAI's own answers an unknown parameter with a 400 — so
+   * sending it unasked would turn a picture that would have been made into a
+   * `terminal` failure. Where the endpoint does take one, one line on the
+   * connection says so.
+   *
+   * *What it decides is whether the seed leaves the process, which is all an
+   * adapter can know.* Whether the endpoint then honours it, no response says;
+   * the record keeps which one was **sent** (`RenditionProvenance.seedSent`),
+   * and an ignored seed is the honest failure: [06 §10.7] makes the seed what
+   * re-creation depends on, and the record still states what was sent.
+   */
+  supportsImageSeed: boolean;
+  /**
    * How many named subjects one picture can hold.
    *
    * ***A capability rather than a sentence in a prompt*** — [06 §10.3] is
@@ -248,8 +270,17 @@ export interface ImageRequest {
    * an implementation is most likely to drop as uninteresting"* — and an adapter
    * that chose its own would be choosing the one value the record has to be able
    * to state.
+   *
+   * *Whether it leaves the process is the connection's to say*, not the
+   * caller's — {@link ProviderCapabilities.supportsImageSeed}.
    */
   seed: number;
+  /**
+   * Everything else the endpoint is asked for — **minus the seed**, which is the
+   * contract every producer writes to and the one `recipeDigest` enforces by
+   * stripping a `seed` key before it hashes. An adapter strips it too: the
+   * recipe has one seed, and it is {@link ImageRequest.seed}.
+   */
   workflow: Readonly<Record<string, string | number | boolean>>;
   signal?: AbortSignal;
 }
@@ -260,8 +291,24 @@ export interface ImageResult {
   mime: string;
   /** What the endpoint says answered, which may not be what was asked for. */
   modelId: string;
-  /** Echoed back, so the record states what ran rather than what was requested. */
+  /**
+   * The seed the recipe asked for, echoed so the record states it from the
+   * result rather than from the request. ***Not a claim that it ran*** — see
+   * {@link ImageResult.seedSent} for how far that claim can go.
+   */
   seed: number;
+  /**
+   * ***Whether the seed left the process*** — which is as far as an adapter can
+   * see.
+   *
+   * `false` when the connection does not declare
+   * {@link ProviderCapabilities.supportsImageSeed}, and then the endpoint made
+   * the picture from a seed of its own that no response reports: re-creating it
+   * will not reproduce it, and the record has to be able to say so rather than
+   * showing a number the endpoint never saw. `true` means *sent*, never
+   * *honoured* — nothing in an images response says which.
+   */
+  seedSent: boolean;
   cost: { amount: number; currency: string } | null;
 }
 

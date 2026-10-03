@@ -233,7 +233,8 @@ preset but never sent. See [Presets and prompts](presets.md).
   to twice more, after a quarter of a second and then a second — but only if no
   text has streamed yet and you have not pressed **Stop**. Any other refusal (a bad
   key, an unknown model) is not retried. The workbench shows how many retries a
-  call took.
+  call took. Picture requests are not retried at all: each is sent once (see
+  [Pictures](pictures.md#good-to-know)).
 
 ## When a call fails
 
@@ -299,6 +300,12 @@ through the API). The one you are most likely to need is `"rendersImages": true`
 which says the endpoint can make pictures. It goes **inside** `"capabilities"`, as
 in `"capabilities": { "maxContextTokens": 32768, "rendersImages": true }`; at the top
 level it is ignored. See [Pictures](pictures.md#before-any-picture).
+
+Beside it, `"supportsImageSeed": true` says the endpoint accepts a `seed` with a picture
+request, so each picture's seed is sent and **Try again** can redraw the same picture.
+It is off unless you set it, because an endpoint that holds strictly to OpenAI's image
+API refuses the unknown field, and every picture would then fail. See
+[Pictures](pictures.md#illustrating-a-turn).
 
 If two files in one folder claim the same `id`, the one whose **Name** (`label`)
 sorts first is used; the file name plays no part, so renaming either connection can

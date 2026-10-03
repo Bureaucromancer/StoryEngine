@@ -372,6 +372,150 @@ describe('failures', () => {
   });
 });
 
+/**
+ * **The image verb, which retried behind the engine's back** — [P9.2]'s second
+ * arm, held to the rule `toSdkParams` states for the first.
+ *
+ * `generateImage` takes the SDK's default of two retries unless it is told
+ * otherwise, and `renderImage` did not tell it. So a rate limit was asked three
+ * times and recorded once, and what came out of the end was a `RetryError` — no
+ * status, no body, no `isRetryable` — which `asProviderError` could only read as
+ * `terminal`. Both halves are asserted, because either alone passes a half-fix:
+ * the count catches the retry, and the class catches the wrapper.
+ *
+ * The falsifying mutation is deleting `maxRetries: 0` from `renderImage`: three
+ * requests, and `terminal`.
+ */
+describe('rendering an image', () => {
+  it('asks once, and a rate limit arrives retryable rather than retried', async () => {
+    const asked: string[] = [];
+    const provider = new OpenAICompatibleProvider({
+      connection: connectionWith({ capabilities: { rendersImages: true } }),
+      fetch: async (input) => {
+        asked.push(
+          new URL(typeof input === 'string' || input instanceof URL ? input : input.url).pathname,
+        );
+        return new Response(JSON.stringify({ error: { message: 'Rate limit reached' } }), {
+          status: 429,
+          headers: {
+            'content-type': 'application/json',
+            /**
+             * **Zero, so the red state is a count rather than a clock.** The SDK
+             * honours `retry-after` over its own backoff, which otherwise sleeps
+             * two seconds and then four before giving up — and a test that
+             * failed by taking six seconds would be measuring the wait rather
+             * than the retries. With the fix in place nothing reads it.
+             */
+            'retry-after': '0',
+          },
+        });
+      },
+    });
+
+    const failure = await provider
+      .renderImage({ modelId: 'sdxl-local', prompt: 'A tavern at dusk.', seed: 7, workflow: {} })
+      .catch((error: unknown) => error);
+
+    expect(asked).toEqual(['/v1/images/generations']);
+    expect(failure).toBeInstanceOf(ProviderError);
+    expect((failure as ProviderError).class).toBe('retryable');
+  });
+
+  it('sends the recipe’s seed when the connection says the endpoint takes one', async () => {
+    const { provider, bodies } = imageEndpoint({ supportsImageSeed: true });
+
+    const result = await provider.renderImage({
+      modelId: 'sdxl-local',
+      prompt: 'A tavern at dusk.',
+      seed: 7,
+      workflow: { steps: 24 },
+    });
+
+    expect(bodies[0]?.['seed']).toBe(7);
+    expect(bodies[0]?.['steps']).toBe(24);
+    expect(result.seed).toBe(7);
+    expect(result.seedSent).toBe(true);
+  });
+
+  /**
+   * **The default, and the case most installs are in.** An endpoint strict about
+   * the OpenAI images schema refuses a field it does not know, so nothing is
+   * sent that the connection has not vouched for — and the result says so,
+   * which is what keeps the record from showing a seed the endpoint never saw.
+   *
+   * `steps` arriving is the other half: the workflow still reaches the body, so
+   * the options key the seed rides on is one the SDK actually reads.
+   */
+  it('withholds it by default, and says it did', async () => {
+    const { provider, bodies } = imageEndpoint();
+
+    const result = await provider.renderImage({
+      modelId: 'sdxl-local',
+      prompt: 'A tavern at dusk.',
+      seed: 7,
+      workflow: { steps: 24 },
+    });
+
+    expect(Object.keys(bodies[0] ?? {})).not.toContain('seed');
+    expect(bodies[0]?.['steps']).toBe(24);
+    // The recipe's seed is still reported — it is what re-creation replays once
+    // the connection does declare it — beside the fact that it did not travel.
+    expect(result.seed).toBe(7);
+    expect(result.seedSent).toBe(false);
+  });
+
+  /**
+   * ***A recipe has one seed.*** The workflow is minus the seed by contract and
+   * `recipeDigest` strips the key before hashing, so a `seed` a workflow happens
+   * to carry is out of contract — and it must neither override the recipe's
+   * when the seed is sent nor sneak one onto the wire when it is not, because
+   * either would make `seedSent` a false statement.
+   */
+  it('never lets a workflow’s own seed travel', async () => {
+    const request = {
+      modelId: 'sdxl-local',
+      prompt: 'A tavern at dusk.',
+      seed: 7,
+      workflow: { seed: 99, steps: 24 },
+    };
+
+    const declared = imageEndpoint({ supportsImageSeed: true });
+    await declared.provider.renderImage(request);
+    expect(declared.bodies[0]?.['seed']).toBe(7);
+
+    const undeclared = imageEndpoint();
+    await undeclared.provider.renderImage(request);
+    expect(Object.keys(undeclared.bodies[0] ?? {})).not.toContain('seed');
+  });
+});
+
+/** A 1×1 PNG, base64 — the shape an OpenAI-compatible image endpoint answers in. */
+const ONE_PIXEL =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+/**
+ * An image endpoint that answers every request with a picture and keeps each
+ * request body, because the body is the only place the question *did the seed
+ * leave the process* has an answer.
+ */
+function imageEndpoint(capabilities: Partial<Connection['capabilities']> = {}): {
+  provider: OpenAICompatibleProvider;
+  bodies: Record<string, unknown>[];
+} {
+  const bodies: Record<string, unknown>[] = [];
+  const provider = new OpenAICompatibleProvider({
+    connection: connectionWith({ capabilities: { rendersImages: true, ...capabilities } }),
+    fetch: async (_url, init) => {
+      bodies.push(JSON.parse(bodyOf(init)) as Record<string, unknown>);
+      return new Response(JSON.stringify({ data: [{ b64_json: ONE_PIXEL }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+  return { provider, bodies };
+}
+
 describe('what the connection decides', () => {
   it('takes its capabilities from the endpoint, not from the adapter', async () => {
     // Two OpenAI-compatible URLs can be a frontier model and a laptop, so the

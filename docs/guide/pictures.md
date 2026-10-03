@@ -73,13 +73,25 @@ another description call:
 | The placeholder says | Because |
 | --- | --- |
 | *Nothing is set up to make pictures.* | No connection you may use says it makes pictures. |
-| *The image service refused this one.* | The endpoint refused it: a wrong key or model, a refused prompt, a picture sent as a link, or — after repeated tries — a rate limit or a server error. |
-| *That did not come out.* | The endpoint could not be reached. |
+| *The image service refused this one.* | The endpoint refused it: a wrong key or model, a refused prompt, a field it does not accept (a seed, on an endpoint that takes none), or a picture sent as a link. |
+| *That did not come out.* | The endpoint was busy or having trouble — a rate limit or a server error — or could not be reached. |
 | *The server restarted while this was being made.* | The picture was cut off by a restart. |
 | *The picture was cleared to save space.* | The picture's file is gone from the disk. |
 
-The recipe records a seed, but this build does not send the seed to the endpoint, so
-**Try again** makes a new picture from the same prompt rather than the same picture again.
+A picture is asked for **once**. A rate limit or a server error is not retried for you,
+however brief, so when a busy or paid service turns a picture away for a moment, the
+placeholder appears straight away and **Try again** is how it is asked again.
+
+The recipe records a seed, and the seed is sent to the endpoint **only when the connection
+says the endpoint takes one**: `"supportsImageSeed": true` in its `capabilities`, which,
+like `rendersImages`, has no control in Settings (see
+[Connections and models](connections-and-models.md#editing-connection-files-by-hand)).
+Without it — the default — **Try again** makes a new picture from the same prompt rather
+than the same picture again. With it, **Try again** sends the same seed, and an endpoint
+that honours seeds draws the same picture; nothing in the endpoint's answer says whether
+it did. Set it only for an endpoint that accepts a `seed`: one that holds strictly to
+OpenAI's image API refuses the unknown field, and every picture then fails with *The image
+service refused this one.*
 
 ## Backdrops
 
@@ -170,7 +182,10 @@ that session, once a day has passed.
 
 The workbench's **Pictures** section, over a turn, shows each picture's recipe: what it is
 for, the model asked, the seed, the anchor sentence for an illustration, and every piece of
-the prompt, with any that were dropped struck through. When a turn that was meant to make a
+the prompt, with any that were dropped struck through. Beside the seed it says *Not sent: …*
+when the connection did not say its endpoint takes a seed — re-creating that picture will
+not reproduce it — and *Not recorded whether this reached the endpoint.* for a picture made
+before the server began recording it. When a turn that was meant to make a
 picture made none, it says why: the place had not changed, there was no moment worth a
 picture, the story had not said where it is yet, or the place had been drawn before. A turn
 left without pictures because a job is unbound has no **Pictures** section at all.
@@ -185,9 +200,10 @@ The block table marks a picture on a move as **Picture sent**, **Picture as word
   reply, to name the place, even when no picture is drawn. The description calls appear on
   the turn's record or in your usage log (`users/<handle>/usage.jsonl` in the data
   directory, which has no screen in the app); image calls are not counted anywhere.
-- **Hidden retries.** An image request that the endpoint answers with a rate limit or a
-  server error is retried up to twice by the underlying library before it is reported —
-  and each attempt may be billed by a paid service.
+- **No automatic retries.** An image request is sent once. A rate limit or a server
+  error, even a passing one, fails that picture at once: an illustration becomes *That did
+  not come out.*, and **Try again** is the retry — each press one more request, which a
+  paid service may bill; a backdrop is asked for again after the next reply, as above.
 - **No time limit.** Image requests are not bound by the provider timeout. A stalled image
   endpoint leaves *Making a picture of this…* until the server restarts, after which **Try
   again** works.

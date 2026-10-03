@@ -1456,6 +1456,40 @@ Two things worth calling out:
   among the most common real failures in this domain and the one most likely to
   be met with a shrug if handled generically.
 
+**Pictures are asked once, and a person retries — answered 2026-10-03.** The
+table's *Transient* row has a picture-shaped exception, and it was made by
+accident before it was made on purpose. `renderImage` was written without the
+`maxRetries: 0` every chat call carries, so the AI SDK retried a 429 or a 5xx
+twice behind it — requests no rendition record counted — and the last failure
+arrived as a status-less `RetryError` classed `terminal`, a rate limit reported
+as *do not try again*. `0d6152e` turned the hidden pair off: a picture is now
+sent once, a 429 or 5xx arrives classed `retryable`, and the failed placeholder's
+**Try again** ([06 §10.2](06-modes-and-turn-pipeline.md)) is the only retry an
+*illustration* has. That trade is real — an illustration that the hidden pair
+would have ridden out now needs a click — and it was put to the owner, who
+**accepted it for now**, as *"something to play with later"*, with one
+condition: ***if pictures ever get automatic retries, the policy must be
+configurable***. So it will not arrive as a ladder hard-coded around the call —
+`renditions/worker.ts` says at the call why it is not a loop there, since there
+is nowhere honest to count a retry — but as a config key, a five-place edit made
+then ([21 §4](21-internal-contracts.md)), most naturally beside the
+per-connection queue above, where a retry is *visible in progress events* and
+has somewhere to be counted. The chat calls' ladder is untouched by this answer.
+
+*A backdrop is the exception this answer did not decide.* A failed backdrop has
+no placeholder and no **Try again**, and it gets no immediate retry either — but
+it is asked for again, as a new rendition record with a fresh seed, after every
+reply while its place stands, because the render step's reuse checks
+(`reusableBackdrop` and `backdropInFlight` in `renditions/store.ts`) count only
+`ready` and `pending` records and a `failed` one matches neither (the guide's
+[Backdrops](../guide/pictures.md#backdrops) says so to players). That re-ask
+predates this answer and is not a retry of one call in the sense the hidden pair
+was — each one is a record the workbench shows, not a request spent behind one —
+and the question put to the owner was about retries of a single call. ***Whether
+the configurable condition also covers the per-reply re-ask of a failed
+backdrop is open***, and is the owner's to answer: today it is automatic, paced
+only by how often a person replies, and has no setting.
+
 ### E8. Content rating — advisory, and always caveated
 
 **Decided: `contentRating` is advisory. It states authorial *intent*, never a

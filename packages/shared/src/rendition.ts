@@ -268,6 +268,33 @@ export interface RenditionProvenance {
    * are not the same promise.
    */
   seed: number | null;
+  /**
+   * ***Whether that seed left the process*** — which is not the same fact as
+   * which seed it was, and the difference was invisible until 2026-10-03
+   * (written 2026-09-26 on a branch, merged then).
+   *
+   * `seed` is the recipe's and is known before the call; this is what the
+   * call did with it, known only after. The two came apart in practice: the
+   * OpenAI-compatible adapter never put the seed on the wire at all, while
+   * every record went on stating one — and the workbench showed it as the
+   * answer to *why did this one come out different*. An endpoint is now sent
+   * the seed only where its connection declares it takes one
+   * (`supportsImageSeed`), so on most installs the answer to this is `false`,
+   * and a record that could not say so would be making a claim.
+   *
+   * - `true` — sent. **Never *honoured***: no images response says whether
+   *   the endpoint used it, and an ignored seed is the honest failure, because
+   *   the record still says what was sent ([06 §10.7] is why the seed is kept
+   *   at all).
+   * - `false` — not sent. The endpoint drew its own, which nothing reports, so
+   *   re-creating the picture will not reproduce it.
+   * - absent — **not recorded**: a pending or failed record, one written
+   *   before this field existed, or one re-created and not yet run again.
+   *   Absent rather than `null` because an older record simply lacks the key,
+   *   and a type that said otherwise would be describing bytes that are not on
+   *   anyone's disk.
+   */
+  seedSent?: boolean;
   /** Everything else the endpoint was asked for. Never discarded (§10.7). */
   workflow: Readonly<Record<string, string | number | boolean>>;
 }

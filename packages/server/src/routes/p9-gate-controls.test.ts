@@ -588,6 +588,11 @@ describe('the recipe outlives the pixels', () => {
       payload: {},
     });
     expect(again.status).toBe(202);
+    // **Re-creation clears what the last run learned about its seed.** The next
+    // call may go out on a connection whose capability changed, so a pending
+    // record still saying *sent* would be a claim about a call not yet made.
+    const pendingAgain = (again.body as { rendition: Rendition }).rendition;
+    expect(pendingAgain.provenance).not.toHaveProperty('seedSent');
     await eventually(async () => (await renditionsOf())[0]?.asset !== null);
 
     // **Step 15.** Not one more text call — the moment was replayed off the
@@ -608,6 +613,10 @@ describe('the recipe outlives the pixels', () => {
     expect(remade?.digest).toBe(before.digest);
     expect(remade?.prompt.text).toBe(before.text);
     expect(remade?.provenance.seed).toBe(before.seed);
+    // Answered afresh by the run that made it — and `false`, because this
+    // suite's double declares no `supportsImageSeed`, which is every install's
+    // default: the seed is kept for the replay and says it did not travel.
+    expect(remade?.provenance.seedSent).toBe(false);
     expect(remade?.asset).not.toBeNull();
 
     /**

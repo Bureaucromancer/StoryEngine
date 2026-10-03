@@ -103,6 +103,12 @@ means no connection you may use is marked as making pictures.
 *Making a picture of this…* that never ends means the image endpoint stalled. Image requests
 have no time limit; restart the server, then **Try again**.
 
+*That did not come out.* can be a rate limit or a server error as well as an endpoint that
+could not be reached: picture requests are asked once and never retried for you, so wait a
+moment and press **Try again**. If every picture fails with *The image service refused
+this one.* after you added `"supportsImageSeed": true` to the connection, the endpoint does
+not accept a seed — take it out again.
+
 ## Importing
 
 The panel's review says what happened to every file. For refusals — upload limits, a reverse
