@@ -2944,6 +2944,55 @@ describe('the privateConnections capability', () => {
     expect(logLines.filter((entry) => entry['event'] === 'connections.disabled')).toEqual([]);
   });
 
+  /**
+   * **A personal file claiming a system connection's id is said, and the turn
+   * still runs.** Since the provider memo checks what each slot was built from
+   * (`providers/factory.ts`, 2026-09-27), the collision reaches nobody but its
+   * author — so it is reported rather than refused
+   * (`ConnectionResolution.shadowing`), and this line is the only trace an
+   * operator gets of somebody having tried the cross-account version.
+   *
+   * The same count-only rule as `connections.disabled`, and a second secret in
+   * play so the line has two things it could leak rather than one.
+   */
+  it('says how many personal connections shadow a system one, without naming them', async () => {
+    const system = new Layout(dataDir).systemConnectionsRoot;
+    await mkdir(system, { recursive: true });
+    await writeFile(
+      join(system, 'house.json'),
+      JSON.stringify({
+        id: CONNECTION_ID,
+        label: 'The house',
+        provider: 'openai-compatible',
+        models: ['fake-hi'],
+        apiKey: 'sk-house-must-never-appear',
+      }),
+    );
+
+    // Personal first, so the author's own file still wins for the author.
+    expect((await runNextTurn()).status).toBe('complete');
+
+    const line = logLines.find((entry) => entry['event'] === 'connections.shadowing');
+    expect(line).toBeDefined();
+    expect(line?.['shadowing']).toBe(1);
+    // `warn`, where `connections.disabled` is an `info`: the runner argues the
+    // difference (a revoked capability is an admin's decision, a file nobody
+    // chose is nobody's), and an argued level the test never read would be
+    // free to drift back to its sibling's without anything going red.
+    expect(line?.['level']).toBe('warn');
+    for (const secret of ['sk-test-must-never-appear', 'sk-house-must-never-appear']) {
+      expect(JSON.stringify(line)).not.toContain(secret);
+    }
+    expect(JSON.stringify(line)).not.toContain('The double');
+    expect(JSON.stringify(line)).not.toContain(CONNECTION_ID);
+  });
+
+  it('says nothing about shadowing when no personal id collides', async () => {
+    await runNextTurn();
+
+    expect(logLines.filter((entry) => entry['event'] === 'connections.shadowing')).toEqual([]);
+  });
+
   it('leaves the connection file exactly where it was', async () => {
     const path = join(new Layout(dataDir).userConnectionsRoot(ACCOUNT), 'fake.json');
     const before = await readFile(path, 'utf8');

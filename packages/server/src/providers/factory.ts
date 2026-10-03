@@ -78,6 +78,12 @@ export function createProviderFactory(options: ProviderFactoryOptions = {}): Pro
    * bill. Duplicate ids are surfaced and never blocked (`connections.ts`,
    * after [P1 §1.2]), which is right while each account resolves its own
    * connections and was not true of one memo every account shared.
+   * *(2026-10-03: "surfaced" was true within one scope, where the list marks
+   * the loser `shadowed`, and not across them — a personal file claiming a
+   * system id was reported by nothing until `ConnectionResolution.shadowing`,
+   * which the runner logs as a count. It is still shown by nothing on screen.
+   * Two accounts' files claiming one id are no duplicate to either account's
+   * resolver, and since this memo they are none to the memo either.)*
    *
    * So each slot remembers what it was built from, and a connection that says
    * anything different gets a provider built from what it says. Two accounts

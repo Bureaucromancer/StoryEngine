@@ -398,6 +398,19 @@ async function trashedSessionIds(
  *
  * **Never overwritten.** A connection already here is one this account is
  * using, and an import is not a reason to point it somewhere else.
+ *
+ * ***Ids travel verbatim, and that is survivable rather than safe by
+ * accident.*** A file brought in here can claim any id: a system connection's
+ * (from a crafted archive, or one made on another install), or another
+ * account's (an admin importing one person's subtree into somebody else's
+ * account copies that person's ids too). Re-minting would orphan every binding
+ * that names the old id, so this does not. What makes a colliding id harmless
+ * to everybody else is the provider memo checking what each slot was built
+ * from rather than trusting the id (`providers/factory.ts`, 2026-09-27). Under
+ * the id-only memo, the first of two claimants to be built was served to both.
+ * The author's own account still resolves personal first, and
+ * `resolveConnections` reports the system-id case as `shadowing`, which the
+ * runner logs as a count.
  */
 async function copyConnections(
   context: BackupImportContext,

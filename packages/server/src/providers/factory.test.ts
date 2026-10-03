@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { type Connection } from './connections.js';
-import { createProviderFactory } from './factory.js';
+import { createProviderFactory, type ProviderFactoryOptions } from './factory.js';
+import type { Provider, RenderedMessage } from './types.js';
 
 /**
  * The provider memo, and the invalidation the first writer owes it —
@@ -51,16 +52,27 @@ describe('the memo', () => {
 
 describe('invalidate', () => {
   /**
-   * Without this, changing a base URL leaves every subsequent turn talking to
-   * the **old** endpoint with the **old** limits until a restart — which is the
-   * thing P2B.1's ending sentence is about.
+   * **What it is for now is letting go.** Since each slot checks what it was
+   * built from (2026-09-27, *what the memo was built from* below), an edit
+   * reaches a fresh provider on its own. What a write still owes the memo is
+   * dropping the provider it replaced, and what a delete owes it is dropping
+   * the one it orphaned — which would otherwise sit in its slot, key and all,
+   * for as long as the process does.
+   *
+   * ***This replaced "rebuilds against the new connection after a write"***
+   * (2026-10-03), which invalidated and then asked for a connection with a new
+   * `baseUrl`. The fingerprint rebuilds for that whatever `invalidate` does, so
+   * from 2026-09-27 it passed against an `invalidate` that did nothing — and so
+   * did every other test in this file. Hence the *identical* connection here:
+   * nothing about it changed, and the only reason the next call is not the
+   * memo's instance is that the instance was released.
    */
-  it('rebuilds against the new connection after a write', () => {
+  it('releases the provider, so the next call builds a fresh one', () => {
     const factory = createProviderFactory();
     const before = factory(connection());
 
     factory.invalidate?.('house');
-    const after = factory(connection({ baseUrl: 'https://second.example.invalid/v1' }));
+    const after = factory(connection());
 
     expect(after).not.toBe(before);
   });
@@ -150,4 +162,122 @@ describe('what the memo was built from', () => {
     expect(factory(reordered)).toBe(first);
     expect(builtFrom).toHaveLength(1);
   });
+});
+
+const messages: RenderedMessage[] = [{ role: 'user', content: 'It is raining.', fromBlocks: [] }];
+
+/** A chat completion, in the shape an OpenAI-compatible endpoint returns. */
+function completion(): Response {
+  return new Response(
+    JSON.stringify({
+      id: 'chatcmpl-1',
+      object: 'chat.completion',
+      created: 0,
+      model: 'gpt-hi',
+      choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } },
+  );
+}
+
+/**
+ * A transport that answers every request and remembers where it was sent.
+ *
+ * **Through the factory's own `wrapFetch` seam**, which is the cassette
+ * recorder's, so the provider under test is the real adapter the factory
+ * builds. What gets recorded is what the SDK actually put on the wire, not
+ * which `Connection` the wrapper happened to be handed — the difference from
+ * *what the memo was built from* above, and the reason this is a second test
+ * of the same defect rather than a repeat of one.
+ *
+ * Not `async`: it has nothing to await, and a `fetch` only has to return a
+ * promise.
+ */
+function recordingTransport(): {
+  sent: { url: string; authorization: string | null }[];
+  wrapFetch: NonNullable<ProviderFactoryOptions['wrapFetch']>;
+} {
+  const sent: { url: string; authorization: string | null }[] = [];
+  return {
+    sent,
+    wrapFetch: () => (input, init) => {
+      sent.push({
+        url: typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+        authorization: new Headers(init?.headers).get('authorization'),
+      });
+      return Promise.resolve(completion());
+    },
+  };
+}
+
+/** Where one turn through this provider lands. */
+async function destinationOf(
+  provider: Provider,
+  transport: ReturnType<typeof recordingTransport>,
+): Promise<{ url: string; authorization: string | null } | undefined> {
+  const before = transport.sent.length;
+  await provider.generate({ modelId: 'gpt-hi', messages, params: {} });
+  return transport.sent[before];
+}
+
+/**
+ * ***A personal file claiming a system connection's id***, on the wire — the
+ * collision the memo settled by build order while it was keyed on the id alone
+ * ([P2B §1.5](../../../../docs/design/workplan/10-p2b-provider-configuration.md)'s
+ * 2026-10-03 correction).
+ *
+ * `resolveConnections` puts personal connections first and `resolveRole` takes
+ * the first id match, so within the author's own account their file wins. The
+ * memo is the one piece of state every account shares, and keyed on the id it
+ * served whichever claimant was built first to both:
+ *
+ * - **the personal file built first** → every account bound to the system
+ *   connection was served the planter's provider, so their prompts went to the
+ *   planter's endpoint;
+ * - **the system connection built first** → the planter's own file was
+ *   silently ignored, and their turns spent the install's key.
+ *
+ * Both orders, because the first is the exploit and the second is the same bug
+ * seen from the other side — a fix that only reversed which one won would pass
+ * one of these and fail the other. *What the memo was built from* covers two
+ * user-scope files in one order at build time; this is the cross-scope case,
+ * where the leak crossed accounts, asserted as the URL and key that were sent.
+ */
+describe('a personal file claiming a system id', () => {
+  const system = connection({
+    scope: 'system',
+    baseUrl: 'https://house.example.invalid/v1',
+    apiKey: 'sk-the-house-key',
+  });
+  const personal = connection({
+    scope: 'user',
+    label: 'Definitely the house key',
+    baseUrl: 'https://elsewhere.example.invalid/v1',
+    apiKey: 'sk-somebody-elses-key',
+  });
+
+  it.each([
+    ['the personal file', [personal, system]],
+    ['the system connection', [system, personal]],
+  ] as const)(
+    'sends each to its own endpoint with its own key, when %s is built first',
+    async (_first, order) => {
+      const transport = recordingTransport();
+      const factory = createProviderFactory({ wrapFetch: transport.wrapFetch });
+      for (const one of order) factory(one);
+
+      const theirs = factory(system);
+      const mine = factory(personal);
+
+      expect(await destinationOf(theirs, transport)).toEqual({
+        url: 'https://house.example.invalid/v1/chat/completions',
+        authorization: 'Bearer sk-the-house-key',
+      });
+      expect(await destinationOf(mine, transport)).toEqual({
+        url: 'https://elsewhere.example.invalid/v1/chat/completions',
+        authorization: 'Bearer sk-somebody-elses-key',
+      });
+      expect(theirs).not.toBe(mine);
+    },
+  );
 });

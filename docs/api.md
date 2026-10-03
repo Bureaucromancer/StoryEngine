@@ -3048,6 +3048,46 @@ assists want `fast`, and until role fallback is decided for everyone, the person
 who knows whether their `fast` model is bound chooses. A server older than this
 omits `tasks`, which means `prose`.
 
+### `GET · POST /api/me/connections` · `PUT · DELETE /api/me/connections/:id` · `POST /api/me/connections/models`
+
+***Your own connections*** — [10 §15.1](design/10-ui-surfaces.md)'s *your
+connections*, built at [P10.3](design/workplan/27-p10-implementation.md)
+(`15043532`, 2026-09-16) and **documented here only from 2026-10-03**: until then
+this file's administration section said no route reached a user's own
+`connections/`, and nothing here said otherwise.
+
+**The administration routes below, with one substitution** — your
+`users/<handle>/connections/` for the system scope — so the bodies, the answers
+and the errors are [`POST /api/admin/connections`](#post-apiadminconnections--put-apiadminconnectionsid)'s,
+[`DELETE`](#delete-apiadminconnectionsid)'s and
+[`POST /api/admin/connections/models`](#post-apiadminconnectionsmodels)'s:
+`GET` answers `{ connections }` in the admin row shape, `POST` mints the id and
+answers `201 { connection }`, `PUT` requires `contentHash` and answers
+`412 stale` the same way, and `DELETE` is `204` and removes every file in your
+scope claiming the id. What differs:
+
+- **`privateConnections` is checked on every request**, re-read rather than
+  remembered from sign-in, and its absence is **`403 forbidden`** — not `404`,
+  because the route exists and what is missing is permission. It is the same
+  check the resolver makes at every turn ([09 §4.5](design/09-server-multiuser-deployment.md));
+  this route being refused is not what keeps a hand-written file from resolving.
+- **`PUT` and `DELETE` reach your scope only.** An id that exists only in the
+  system scope is `404`, never a way into the install's file.
+- **`DELETE` carries no binding count.** The admin warning exists because a
+  system connection is other people's; deleting your own breaks only your own.
+- **`shadowed` is computed over your scope alone**, so it marks the loser of two
+  of *your* files claiming one id. A file of yours claiming a **system**
+  connection's id reads `shadowed: false` — true, since it wins for you — and
+  nothing on this route says what it hides; the runner's `connections.shadowing`
+  log line is the only report, a known follow-up tracked at
+  [manual testing §10](design/workplan/05-manual-testing.md). It wins for your
+  account only: the provider memo has rebuilt per connection rather than per id
+  since 2026-09-27 ([P2B §1.5](design/workplan/10-p2b-provider-configuration.md)).
+- **`POST /api/me/connections/models` makes the server fetch a URL you typed**,
+  which the admin twin's note calls administrator-only. It adds the timing and
+  not the reach: an account with `privateConnections` can already store that URL
+  as a connection and have every turn call it.
+
 ---
 
 ## Administration
@@ -3256,8 +3296,12 @@ will not.
 
 **The system scope, and only the system scope.** A user's own `connections/` is
 read by the resolver, counted by the delete warning, hand-written by anyone who
-wants one, and reachable from no route here
-([P2B §2.7](design/workplan/10-p2b-provider-configuration.md)).
+wants one, and ~~reachable from no route here~~ reachable from no route under
+`/api/admin` ([P2B §2.7](design/workplan/10-p2b-provider-configuration.md)).
+*(2026-10-03: its owner's own routes have reached it since `15043532`, P10.3,
+2026-09-16 —
+[`/api/me/connections`](#get--post-apimeconnections--put--delete-apimeconnectionsid--post-apimeconnectionsmodels),
+which this file did not document until today.)*
 
 **Two shapes exist and the boundary between them is the key alone.** What a
 non-admin can reach carries a label, a provider and its models
@@ -3393,7 +3437,10 @@ not refused.** On a box whose whole purpose is pointing at `localhost:8080` and
 the machine next door, refusing them would break the primary use case. The
 mitigation is that the action is administrator-only, explicit, never automatic,
 and its response only populates a picker. That is a smaller claim than *this is
-safe*, and it is the true one.
+safe*, and it is the true one. *(2026-10-03: administrator-only no longer — an
+account with `privateConnections` has the same fetch at
+[`POST /api/me/connections/models`](#get--post-apimeconnections--put--delete-apimeconnectionsid--post-apimeconnectionsmodels)
+since P10.3, which says why that adds timing rather than reach.)*
 
 A `POST` that writes nothing, because it carries a key — and a key does not
 belong in a URL.
@@ -3978,10 +4025,15 @@ changed. What changed is the audience: `400 invalid` with `issues`,
 rather than `curl` output, which is the first real test of whether they say
 anything useful.*
 
-**One half of it is still deferred, deliberately**, so it is named here rather
+~~**One half of it is still deferred, deliberately**, so it is named here rather
 than left to be discovered: there is **no route that writes a user's own
-connection or their own `bindings.json`.** P2B writes the system scope and only
+connection or their own `bindings.json`.**~~ P2B writes the system scope and only
 the system scope ([P2B §2.7](design/workplan/10-p2b-provider-configuration.md)),
-and [10 §15.1](design/10-ui-surfaces.md)'s *your connections* half waits with the
-rest of the user surface. Both files are read by the resolver and hand-written
-by anyone who wants one, exactly as before.
+and [10 §15.1](design/10-ui-surfaces.md)'s *your connections* half ~~waits with the
+rest of the user surface~~ is the user surface's. Both files are read by the
+resolver and hand-written by anyone who wants one, exactly as before. *(2026-10-03:
+the deferral ended in two halves — [`PUT /api/me/bindings`](#get-apimeroles--put-apimebindings--put-apimetask-roles)
+has written your own `bindings.json` since `201cef3b`, P7.3, 2026-09-12, and since
+`15043532`, P10.3, 2026-09-16,
+[`/api/me/connections`](#get--post-apimeconnections--put--delete-apimeconnectionsid--post-apimeconnectionsmodels)
+writes your own connections. This paragraph went on saying neither existed.)*

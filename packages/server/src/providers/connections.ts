@@ -126,6 +126,41 @@ export interface ConnectionResolution {
    * wondering why a model call started failing ([09 §4.5]).
    */
   disabled: Connection[];
+  /**
+   * Personal connections whose id a **system** connection also claims — so,
+   * resolution being personal first, the ones that shadow it for this account.
+   * One per id: where two personal files claim it, only the one `resolveRole`
+   * reaches is here (`resolveConnections` says why).
+   *
+   * ***Reported, not refused*** — [P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)'s
+   * *nothing blocks*, which [P2B §2.3] adopts for a duplicate id found on disk
+   * as *reported, not repaired*. Refusing would be the wrong fix twice over. Since the provider
+   * memo began checking what each slot was built from (`factory.ts`,
+   * 2026-09-27), a collision like this reaches nobody but its author: their
+   * bindings that name the id reach their own endpoint on their own key, which
+   * is P2B §1.5's *"at least the safe direction"*, and every other account
+   * bound to the system connection reaches the system connection. Before that
+   * the memo was keyed on the id alone and shared by every account, so
+   * whichever claimant was built first was served to both — and that, not
+   * this resolver, was where the cross-account half of the collision lived.
+   * And dropping the file would move the author onto the install's key without
+   * a word, which is the silent half of the very bug that fix closed.
+   *
+   * What it still is, is *"not a thing anyone chose"* (§1.5) — a
+   * `writeConnection` create mints a uuidv7, so an id matching a system one
+   * got there by a hand edit or an archive (`backup/import.ts` copies ids
+   * verbatim) — and so it is returned the way `disabled` is, for the caller to
+   * say so. Empty when `privateConnections` is off: nothing personal resolves
+   * then, so nothing shadows.
+   *
+   * ***Said in the log, and not yet on screen.*** The runner logs a count as
+   * `connections.shadowing`; the *Your connections* list presents the personal
+   * scope alone, so the file reads `shadowed: false` there — true, since it is
+   * the one that wins, and silent about what it hides. Showing it is a known
+   * follow-up, recorded under P2B §1.5 and tracked, unowned, as a row of
+   * [manual testing §10](../../../../docs/design/workplan/05-manual-testing.md).
+   */
+  shadowing: Connection[];
 }
 
 /**
@@ -151,11 +186,30 @@ export async function resolveConnections(
   const system = await readConnectionsIn(layout, layout.systemConnectionsRoot, 'system');
 
   if (!capabilities.privateConnections) {
-    return { usable: system, disabled: personal };
+    return { usable: system, disabled: personal, shadowing: [] };
   }
+  const systemIds = new Set(system.map((connection) => connection.id));
   // Personal first: a personal binding wins over a system default, visibly and
   // switchably.
-  return { usable: [...personal, ...system], disabled: [] };
+  return {
+    usable: [...personal, ...system],
+    disabled: [],
+    /**
+     * **Only the claimant that wins**, which is the first personal file per id
+     * in this scope's own label order — the order `usable` hands `resolveRole`,
+     * whose `usable.find(…)` is what makes it the winner. A second personal
+     * file claiming the same system id shadows nothing: it is itself shadowed,
+     * inside its own scope, and *Your connections* already marks it
+     * `shadowed: true` through `presentConnectionsForAdmin`. Counting it here
+     * would have the runner say two files win for this account when one does
+     * (found in review of the loving-bardeen merge, 2026-10-03).
+     */
+    shadowing: personal.filter(
+      (connection, index) =>
+        systemIds.has(connection.id) &&
+        personal.findIndex((other) => other.id === connection.id) === index,
+    ),
+  };
 }
 
 /**
@@ -450,7 +504,10 @@ export function connectionFile(root: string, id: string): string {
  * **Ids are minted server-side as uuidv7, never accepted from the body**, which
  * closes the shadowing hole [P2B §1.5] found — a personal file reusing a system
  * connection's id silently shadows it — for anything created through the UI,
- * without outlawing the hand-written file that already works.
+ * without outlawing the hand-written file that already works. *(2026-10-03: no
+ * longer silent in the log — `resolveConnections` reports it as `shadowing`
+ * and the runner logs a count as `connections.shadowing`; it is still shown by
+ * nothing on screen, a known follow-up under P2B §1.5.)*
  *
  * **Buildability is checked here rather than at the next turn.** `KNOWN_PROVIDERS`
  * carries capability defaults for five names and this build constructs exactly

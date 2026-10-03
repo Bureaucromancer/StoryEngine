@@ -16,6 +16,7 @@ import {
   presentConnectionsForAdmin,
   presentForAdmin,
   readSystemConnectionEntries,
+  readUserConnectionEntries,
   resolveConnections,
   seesImages,
   writeConnection,
@@ -126,6 +127,97 @@ describe('privateConnections', () => {
     // and the user is told rather than left wondering why a call started
     // failing.
     expect(disabled.map((connection) => connection.id)).toEqual(['mine-local']);
+  });
+});
+
+/**
+ * ***A personal file claiming a system connection's id*** — reported, and not
+ * refused.
+ *
+ * The cross-account half of this collision lived in the provider memo and is
+ * `factory.test.ts`'s to prove. What is left here is the author's own account,
+ * where the personal file wins — P2B §1.5's *"at least the safe direction"* —
+ * and where the resolver's job is to say it happened rather than to undo it.
+ */
+describe('a personal file claiming a system id', () => {
+  const PLANTED = { ...MINE, id: HOUSE.id, label: 'Not the house key' };
+
+  it('still wins for its author, and is reported as shadowing', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    const { usable, shadowing } = await resolveConnections(layout, 'ned', ALLOWED);
+
+    // Personal first is unchanged, so a role naming the id reaches the
+    // author's own endpoint on the author's own key. Refusing the file instead
+    // would move them onto the install's key without a word.
+    expect(usable.map((connection) => connection.scope)).toEqual(['user', 'system']);
+    const role = resolveRole({
+      role: 'prose',
+      bindings: { prose: { connectionId: HOUSE.id, modelId: 'llama-local' } },
+      usable,
+    });
+    expect(role.ok && role.connection.scope).toBe('user');
+
+    expect(shadowing.map((connection) => [connection.id, connection.scope])).toEqual([
+      [HOUSE.id, 'user'],
+    ]);
+  });
+
+  /**
+   * **Two personal files claiming one system id: one of them wins, so one is
+   * reported.** The runner's line says the files it counts *win for this
+   * account*, and only the first per id in the resolver's order does — the
+   * other loses to it inside the personal scope, which is a collision the list
+   * already shows. The filenames run against the labels on purpose, so a
+   * report that followed the directory's order instead of `resolveRole`'s
+   * would name the wrong file.
+   */
+  it('reports only the claimant that wins, when two personal files claim one id', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    const root = layout.userConnectionsRoot('ned');
+    await seedConnectionFile(root, { ...PLANTED, label: 'Zed, planted second' }, 'a.json');
+    await seedConnectionFile(root, { ...PLANTED, label: 'Amy, planted first' }, 'z.json');
+
+    const { usable, shadowing } = await resolveConnections(layout, 'ned', ALLOWED);
+
+    const role = resolveRole({
+      role: 'prose',
+      bindings: { prose: { connectionId: HOUSE.id, modelId: 'llama-local' } },
+      usable,
+    });
+    expect(role.ok && role.connection.label).toBe('Amy, planted first');
+    expect(shadowing.map((connection) => connection.label)).toEqual(['Amy, planted first']);
+
+    // And the one left out is not unreported: *Your connections* presents
+    // the personal scope through the same presenter, which marks it.
+    const listed = presentConnectionsForAdmin(await readUserConnectionEntries(layout, 'ned'));
+    expect(listed.map((row) => [row.label, row.shadowed])).toEqual([
+      ['Amy, planted first', false],
+      ['Zed, planted second', true],
+    ]);
+  });
+
+  it('reports nothing when the ids differ', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), MINE);
+
+    const { shadowing } = await resolveConnections(layout, 'ned', ALLOWED);
+
+    expect(shadowing).toEqual([]);
+  });
+
+  it('reports nothing when the account may not use its own', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    const { usable, disabled, shadowing } = await resolveConnections(layout, 'ned', REVOKED);
+
+    // Nothing personal resolves, so nothing shadows: the file is `disabled`,
+    // which is the one report it earns.
+    expect(usable.map((connection) => connection.scope)).toEqual(['system']);
+    expect(disabled).toHaveLength(1);
+    expect(shadowing).toEqual([]);
   });
 });
 
@@ -486,7 +578,10 @@ describe('writing a connection', () => {
     // Server-side ids close the shadowing hole [P2B §1.5] found — a personal
     // file reusing a system connection's id silently shadows it — for anything
     // created through the UI, without outlawing the hand-written file that
-    // already works.
+    // already works. (2026-10-03: no longer silent in the log —
+    // `resolveConnections` reports it as `shadowing` and the runner logs a
+    // count as `connections.shadowing`; still shown by nothing on screen, a
+    // known follow-up under P2B §1.5.)
     expect(written.connection.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
 
     const { usable } = await resolveConnections(layout, 'ned', ALLOWED);

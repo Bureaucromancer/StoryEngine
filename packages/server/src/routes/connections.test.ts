@@ -164,6 +164,14 @@ describe('connections', () => {
  * phase nothing could change a connection while the server ran. The analogue of
  * what P2A found in `applyLiveConfig`: a cache whose staleness was unreachable
  * while the surface that writes it did not exist.
+ *
+ * *Each slot also checks what it was built from now* (`factory.ts`,
+ * 2026-09-27), so an edit reaches a fresh provider on its own, and this call is
+ * what lets go of the provider a write replaced or a delete orphaned — key and
+ * all. The assertion is unchanged, because the writer still owes the memo that
+ * call. This proves the route makes it, against a `vi.fn()`; that the call
+ * *does* anything is `factory.test.ts`'s *releases the provider, so the next
+ * call builds a fresh one*, the one factory test a no-op `invalidate` fails.
  */
 describe('the provider memo', () => {
   it('is dropped for the connection a write touched', async () => {

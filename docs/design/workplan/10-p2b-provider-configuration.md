@@ -107,9 +107,14 @@ and it is §2.1.
 ### 1.3 The provider cache is never invalidated, because nothing writes
 
 `createProviderFactory()` is called once, at server assembly, and memoises
-`connection.id → Provider` for the life of the process. The memo is correct and
-its reasoning is good — capabilities are per connection, so keying on the
-provider *string* would hand one llama.cpp box's context window to another.
+`connection.id → Provider` for the life of the process. ~~The memo is correct and
+its reasoning is good~~ The memo's reasoning is good — capabilities are per
+connection, so keying on the provider *string* would hand one llama.cpp box's
+context window to another — *but from P2B until §2.4's* Amended 2026-09-27 *it
+trusted the id alone: one slot served every account, so two files claiming one
+id were both served whichever provider was built first (§1.5's correction). The
+slot is still keyed by id; it now remembers the connection it was built from and
+rebuilds for one that says anything else (2026-10-03).*
 
 **But there is no invalidation, and there has never needed to be one**, because
 until P2B nothing can change a connection while the server runs. The moment an
@@ -163,6 +168,43 @@ goes through `presentConnection`* — is not the rule. §2.2 is what it becomes.
   Two of the five layers §5.1 names have no caller; they are P7's, and they are
   named here so that P2B's role table does not quietly present three layers as
   though they were the whole order.
+
+> ***CORRECTION, 2026-10-03: the second bullet's "at least the safe direction"
+> was true of `resolveRole`, and false of the provider memo from P2B until
+> 2026-09-27.*** Within the author's own account, their file wins with their
+> own key, as written. But §1.3's memo was keyed on `connection.id` alone and
+> shared by every account, so whichever of the two claimants was built first
+> was served to **both**. With the personal file first, every other account
+> whose role resolved to the system connection sent its prompts to the
+> planter's endpoint. With the system connection first, the planter's file was
+> silently ignored. The system ids that make this plantable are on the wire to
+> every account through `/api/me/roles`, and a backup import that carries
+> connections copies ids verbatim (`backup/import.ts`, `copyConnections`), so
+> the file did not even need a text editor.
+>
+> **§2.4's *Amended 2026-09-27* is the fix** — each memo slot remembers the
+> connection it was built from and rebuilds for one that says anything else —
+> found there from the two-accounts side, and it closes this case too: the
+> sentence above is true again, and this note is the record that it was not.
+> The same defect was found from this side on 2026-09-26, on a branch
+> (`claude/loving-bardeen-ey9bhv`) whose own fix main did not take; what it
+> added that main lacked was ported on 2026-10-03, on the branch review's
+> recommendation, to which the owner left the question. The collision stays
+> **reported, not repaired**, per §2.3, and is not refused either —
+> [P1 §1.2](07-p1-implementation.md)'s *nothing blocks*, which §2.3 names as
+> its source: `resolveConnections` returns it as `shadowing`, and the runner
+> logs a count as `connections.shadowing`, at `warn`. One per system id: where
+> two personal files claim it, only the one `resolveRole` reaches is counted,
+> and the other is the personal scope's own collision, which the list already
+> marks `shadowed: true`.
+>
+> ***Known follow-up: it is not on screen.*** *Your connections* lists the
+> personal scope alone, so the planted file reads `shadowed: false` there —
+> true, since it is the one that wins, and silent about the system connection
+> it hides. Nothing in the client says so; the log line is the only report.
+> Tracked, unowned and named rather than assigned, as
+> [manual testing §10](05-manual-testing.md)'s *A personal connection shadowing
+> a system one is not on screen*.
 
 ---
 

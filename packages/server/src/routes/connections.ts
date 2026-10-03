@@ -258,6 +258,13 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
          * Without it, changing a base URL leaves every subsequent turn talking
          * to the old endpoint with the old limits until a restart — a cache
          * whose staleness was unreachable while nothing could write.
+         * (2026-10-03: not since 2026-09-27 — each memo slot remembers the
+         * connection it was built from and rebuilds for one that says anything
+         * new (`factory.ts`), and every turn re-reads the files, so an edit
+         * reaches the next turn without this call. What it still does is
+         * release the provider the write replaced, key and all: see
+         * `factory.test.ts`, "releases the provider, so the next call builds a
+         * fresh one", and [P2B §2.4]'s *Amended 2026-09-27*.)
          */
         services.providers.invalidate?.(written.connection.id);
 
@@ -647,7 +654,17 @@ async function respond(error: unknown, reply: FastifyReply): Promise<FastifyRepl
  * `presentConnectionsForAdmin` computes `shadowed` from the array it is given.
  * *The array here is the personal scope alone*, so a personal file shadowing a
  * **system** one reads as `shadowed: false` — correct, because it is the one
- * that wins.
+ * that wins. It wins for **this account only**, which was not true until the
+ * provider memo began checking what each slot was built from (`factory.ts`,
+ * 2026-09-27): before that, the memo was keyed on the id alone, and whichever
+ * of the two was built first was served to every account.
+ *
+ * A create here mints a uuidv7 and cannot collide; a file a person wrote by
+ * hand, or a backup import carried in, can. `resolveConnections` reports it as
+ * `shadowing` and the runner logs a count. ***This list does not say so*** —
+ * `shadowed: false` is the truth about the row and silence about what it
+ * hides, and showing that is a known follow-up recorded under
+ * [P2B §1.5](../../../../docs/design/workplan/10-p2b-provider-configuration.md).
  */
 export function registerMyConnectionRoutes(app: FastifyInstance, services: AppServices): void {
   /**
