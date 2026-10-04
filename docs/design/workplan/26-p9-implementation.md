@@ -1832,7 +1832,14 @@ all without someone setting it, which is exactly [work plan
 it**: the row stands as recorded for what it named, and this is a debt beside it,
 carried here so it does not live only in a merge message. The natural place for
 the control is beside the *Makes pictures* control the `practical-wozniak` branch
-brings to the same form.
+brings to the same form. ***Paid later the same day*** (2026-10-03, the
+recommended answer, which the owner deferred to): that branch merged with
+[polish §25](06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn),
+and the form now has **Sends a seed with a picture** beside *Makes pictures*,
+in a group headed *Drawing pictures*, shown once the connection says it makes
+pictures. Both flags are a control now and a hand edit still works; the
+standing line's ✅ above covers seed sending from this date, and sitting O's O0
+names the control.
 
 ---
 

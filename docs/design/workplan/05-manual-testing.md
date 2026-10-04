@@ -293,6 +293,12 @@ is below; this is the afternoon.*
    feature's privacy rests on; U2–U4 want [R12](#3-standing-prerequisites). Not
    a phase's gate: a roadmap feature's, which is why it drains with the
    standing list rather than holding anything open.
+10. **V** — added 2026-09-26 on a branch as T, re-lettered at its merge
+    (2026-10-03): [polish §25](06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)'s
+    connection test against real endpoints. It rides along with whichever of
+    item 8's walks first puts a real endpoint in front of somebody: twenty
+    minutes against R2 and R3, and **V5 is the cheapest way to find out whether
+    an R10 candidate is one** — the errand the paragraph below says O waits on.
 
 **Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
 sitting — K5–K8 are the short form of it, and what they cannot reach is exactly
@@ -360,7 +366,7 @@ not of the steps.
 | **R9** | **A session two hundred turns deep**, against a book of a few hundred entries. | J | **Only G has ever produced one.** Walk J in the same sitting as G, while one exists — recreating one on purpose is an afternoon, noticing you still have one is free. |
 | **R11** | **A supervised install** — the image under `compose.yaml`'s `restart: unless-stopped`, ~~an unraid container with autostart~~ an unraid container whose Extra Parameters carry `--restart=unless-stopped`, or a systemd unit. *R8 is close and is not this*: a Docker daemon is what runs a container, and what this needs is a container something will start **again**. | [P10 §3](27-p10-implementation.md) step 6, and sitting P's C2 | **Partly to hand** — R8's first install ran 2026-09-07 under unraid, ~~which is supervised, so what is missing is a walk rather than a machine~~. Added 2026-09-17 by [P10 §3.1](27-p10-implementation.md). *The thing it blocks is narrow and is exactly the half a test cannot reach*: `restart.test.ts` proves the refusal, the 503 and the drain in-process, and **nobody has watched the process come back**. **Corrected 2026-09-27**: that unraid container was *not* supervised. Autostart restarts nothing that exits, and the template set no restart policy, so a walk there would have watched it stay stopped. The shipped unit did the same thing a different way: `Restart=on-failure` against a restart that exited 0. And on every deployment the process never exited at all, because the tab pressing the button held the listener's close open. All three are fixed underneath this row (the stream closer in `preClose`, the template's `--restart=unless-stopped`, an exit status of 75 and `RestartForceExitStatus=75`; [09 §6.4](../09-server-multiuser-deployment.md)). R8's container predates the template change, so add the parameter to it by hand before walking this. `main.test.ts` now proves the status and that a process with a tab open exits at all. **Watching it come back is still nobody's yet** |
 | **R10** | **An endpoint that serves the `image` role**, with a key — hosted or local. **R2 is a chat endpoint and does not answer this**; no prerequisite here ever has. | [P9](26-p9-implementation.md)'s whole gate: twelve of its fifteen steps want pixels, and **both of its criticals are blocked on this and nothing else** ([P9 §3.1](26-p9-implementation.md)) | **Not to hand**, added 2026-09-15 by [P9 §0.2](26-p9-implementation.md)'s readiness audit and **the row that made this table ten** — which is why that document's own *"nine standing prerequisites"* is struck in two places rather than left to read as though the audit had not happened ([P9 §0.3](26-p9-implementation.md), 2026-09-16). *Second-longest lead item after R1 and the only one a whole phase's critical list waits on.* ***And it is its own errand***: K, L, M and N — the four sittings that hold a phase open — all queue on a **chat** endpoint, and none of them produces this one. ~~It is also what settles [P9 §1.2](26-p9-implementation.md) — whether image providers go behind the same `Connection` vocabulary or beside it — which that document deliberately leaves open rather than deciding at a desk.~~ ***That half was decided at a desk after all*** (2026-09-16, [P9 §1.2](26-p9-implementation.md)): the pinned SDK already exports `imageModel` and `generateImage`, so the fork had no second client on the other side of it and `Provider` grew a second **verb** rather than a second **kind**, with the reversal condition written down — an endpoint whose request is not prompt-plus-scalars. **What R10 still blocks is the gate**, which is the larger half: [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start) cannot start without it, and P9 is built and open behind it |
-| **R12** | **A chat endpoint serving one model that sees pictures and one that does not** — Ollama with `llava` beside a text model is the cheap form; a hosted key whose provider offers both works too. *Neither R2 nor R10 answers it*: R2 is a chat endpoint that may or may not see, and R10 makes pictures rather than reading them. | T2–T4, and `pnpm test:live`'s picture case (`STORYENGINE_LIVE_VISION_MODEL`) | **Unconfirmed**, added 2026-09-27 with [25 E15](../25-open-questions.md) R1 |
+| **R12** | **A chat endpoint serving one model that sees pictures and one that does not** — Ollama with `llava` beside a text model is the cheap form; a hosted key whose provider offers both works too. *Neither R2 nor R10 answers it*: R2 is a chat endpoint that may or may not see, and R10 makes pictures rather than reading them. | ~~T2–T4~~ U2–U4 *(the sitting was re-lettered U on 2026-10-02 and this cell was missed; corrected 2026-10-03)*, and `pnpm test:live`'s picture case (`STORYENGINE_LIVE_VISION_MODEL`) | **Unconfirmed**, added 2026-09-27 with [25 E15](../25-open-questions.md) R1 |
 
 ---
 
@@ -1000,7 +1006,7 @@ endpoint.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **O0** | **The install, and R10.** A connection whose endpoint answers image generation, saved with `rendersImages` set on it — [P2B](10-p2b-provider-configuration.md)'s per-connection capability override is where a person says so, because whether the URL behind `openai-compatible` also serves images is a fact about that endpoint. Bind the `image` role to it and the `fast` role to a chat model. Then open the Session panel's **Pictures** section and set *Illustrate the story* to **Every turn**. *Added 2026-10-03, a courtesy rather than a step any row needs:* if the endpoint accepts a `seed`, set `supportsImageSeed` beside `rendersImages`; without it the workbench says *Not sent* beside each seed, which is correct and not a finding ([P9 §3.2](26-p9-implementation.md)). | R10 | |
+| **O0** | **The install, and R10.** A connection whose endpoint answers image generation, saved with `rendersImages` set on it — ~~[P2B](10-p2b-provider-configuration.md)'s per-connection capability override is where a person says so~~ ***the form's* Makes pictures *says so since [polish §25](06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)*** (written 2026-09-26, merged 2026-10-03; before it, only a hand edit to the file could), because whether the URL behind `openai-compatible` also serves images is a fact about that endpoint. ***Then press* Test → Try a picture *on its row before binding anything*** — a picture there confirms R10 for the price of one image, where O1 would spend a turn finding out. Bind the `image` role to it and the `fast` role to a chat model. Then open the Session panel's **Pictures** section and set *Illustrate the story* to **Every turn**. *Added 2026-10-03, a courtesy rather than a step any row needs:* if the endpoint accepts a `seed`, set ~~`supportsImageSeed` beside `rendersImages`~~ ***Sends a seed with a picture*** *beside* Makes pictures *(the same day: the control arrived with polish §25's merge)*; without it the workbench says *Not sent* beside each seed, which is correct and not a finding ([P9 §3.2](26-p9-implementation.md)). | R10 | |
 | **O1** | ***An image arrives and renders in place, and a reattached client finds it.* Only a person can walk it.** Take a turn; watch the **text** land and the turn finish, then watch the picture follow it seconds later. *The turn must be usable the whole time* — type the next one while the first picture is still being made. Then take another turn and **close the tab while it is generating**; reopen the session and check the finished picture is there. | P9 1, 2; **C1** | |
 | **O2** | ***The picture lands *in* the prose, at the sentence the moment call quoted.*** Read the paragraph. The image should sit **after the sentence it is of**, not underneath the message — and the workbench's **Pictures** section names the anchor it was given, so the two can be compared. Then **edit that message** so the quoted words are gone, and check the picture moves to the end and stays `ready`: *a miss is ordinary and must never be an error.* | P9 13, 14; **C2** | |
 | **O3** | **The remainder, cheap once O0 is up.** Press **Illustrate** on an old turn and check a **second** picture appears with the first still choosable; press **Set the scene** and check the backdrop stages behind the reading column without competing with the prose; turn *Illustrate the story* to **Never** and check Play looks like a text-only session. *All three are asserted by tests; what a person is here for is whether it looks like anything.* | P9 4, 12; §1.5's remainder | *Underneath, 2026-09-30*: there was nothing to look at for the second check — a generated backdrop was made, selected and never drawn until `75f88d0`. *Set the scene* now draws, and where the story has named no place yet it says so and makes nothing (`c52f6d4`); a picture of a turn draws only who is in the room, and nobody by name (`2362524`). The walk is still owed |
@@ -1214,7 +1220,9 @@ registered on `main` by a branch that could not see
 [P12A](33-p12a-the-look.md)'s T, registered five days earlier on a local `main`
 that had not been pushed; the two met at the merge, and the later registration
 took the next letter. Its rows, their order and their wording are unchanged
-apart from the letter, and nothing outside this file had cited it.
+apart from the letter, and nothing outside this file had cited it. *(2026-10-03:
+one citation inside it had — R12's* Unblocks *cell still said T2–T4 until this
+date, and now says U2–U4 with a note.)*
 
 | # | What | Why a person |
 |---|---|---|
@@ -1226,6 +1234,39 @@ apart from the letter, and nothing outside this file had cited it.
 *What it deliberately does not reach*: whether pictures make narration better,
 which E15 says only real sessions will answer — that is G's kind of sitting, with
 a model that sees, and extends the standing list when somebody has one.
+
+### V — A connection, tried — *twenty minutes, and it wants R2 and R3*
+
+**[Polish §25](06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)'s
+*what needs a person***: the Test button on a connection row, against endpoints
+that are real. Every test of it runs against `FakeProvider` or a stub transport,
+which proves the route's vocabulary and not that a real endpoint's refusals land
+in it — and *which sentence a real 401 produces* is the whole of what this
+button is for.
+
+***Lettered T when it was written, and re-lettered V on 2026-10-03.*** It was
+registered on a branch, cut on 2026-09-26 from the pushed `main`, that could not
+see [P12A](33-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`
+that met the pushed one only on 2026-10-02) or the pictures-on-a-move sitting
+(registered as T on 2026-09-27, after the branch was cut, and re-lettered U on
+2026-10-02). They met at the merge, and the later registration took the next
+free letter. Its rows are unchanged apart from the letter, two dated notes on
+what the merge changed underneath them, and one on the control the merge added
+beside *Makes pictures*.
+
+***Why it is a sitting and not a critical row*** — Q's reason exactly. No phase
+gate owns it, and nothing here can lose data or take a one-way door: a test
+writes nothing but a usage line, and the worst outcome is a sentence that sends
+somebody to the wrong field. It extends the standing list.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **V1** | **A hosted endpoint (R2).** Settings → the connection → **Test** → *Send a test message* with the offered prompt. A reply, a time, and a token sentence. **Open DevTools' network panel and read the request and the response: no key in either.** *Since the merge (2026-10-03) the test is also a line in your `usage.jsonl`, purpose `connection-test:text`* — look, once. | [polish §25](06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn) | |
+| **V2** | **Save a wrong key** on a copy of it and press Test. *That endpoint refused the key* — not *could not be reached*, which is finding 5 in the [P2C log](14-p2c-log.md) at its second route. | [P2C log](14-p2c-log.md) | |
+| **V3** | **A model it does not serve.** Add a nonsense id to the connection's *Models*, save, pick it in the test, and press Test. *Refused the request … check the model.* Write down what the endpoint actually answered with (the server log's `connection.tested` line has its words, key redacted) — if it is a 401 or a 5xx rather than a 400/404, this row's sentence is wrong for that endpoint. | [polish §25](06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn) | |
+| **V4** | **A local runtime (R3).** With it stopped: *could not be reached*, and **never** *no internet access* — *after about a second, since the merge: a message is asked again twice, as a turn's is, before nothing answering is believed.* Start it with a model that is not yet loaded and press Test: it should wait rather than fail, and answer. If a reasoning model is to hand, try it: an empty reply should read *used the whole test allowance … all worked*, not as a failure. | [09 §6.5](../09-server-multiuser-deployment.md) | |
+| **V5** | **R10, if a candidate is to hand.** Save it with *Makes pictures* → **Yes**, then **Test → Try a picture** with the offered prompt. A picture on the page. *Since the merge (2026-10-03), under a group headed* Drawing pictures*:* **Sends a seed with a picture** *appears once* Makes pictures *says Yes.* Then set *Makes pictures* back to the default and confirm *Try a picture* is gone, and the seed control with it. | R10 | |
+| **V6** | **As a non-admin with `privateConnections`**, Test one of your own connections. It works, and the admin's connections are not offered at all. | [10 §15.1](../10-ui-surfaces.md) | |
 
 ## 5. Already discharged, and by what
 

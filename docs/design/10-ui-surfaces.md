@@ -2411,8 +2411,19 @@ before they are discovered:
   assists, impersonation, and the moment call behind **Illustrate** — and it is
   what the aggregate view in [24 §3](24-roadmap.md) will read. **Not yet**: an
   image render's own cost, which [25 E16](25-open-questions.md) records as
-  dropped, and a call that failed or was cancelled after the provider had
-  started billing, which records nothing because nothing returned.
+  dropped, and ~~a call that failed or was cancelled after the provider had
+  started billing, which records nothing because nothing returned~~ *(struck
+  2026-10-03: not since P14. The on-demand step behind* Update trackers
+  *(`turns/on-demand.ts`) and the background summary chain
+  (`turns/warm-summaries.ts`) write a line for a failed or cancelled call that
+  reached the provider, with null figures; the field assist, impersonation,
+  Illustrate's moment call and the connection test below still write nothing
+  for one. Two rules, then, and no decision yet between them)*. *Since
+  2026-10-03 it also covers the **Test** button on a saved connection*
+  ([polish §25](workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)),
+  both arms — so a test picture is the one image call the log carries, because
+  unlike a rendition it leaves no record of its own; its line has no tokens and
+  the role `connection-test`, which no binding can have.
 
 ### 11.5 Traps
 

@@ -45,6 +45,29 @@ import type { Layout } from '../storage/layout.js';
 export const USAGE_SCHEMA = 'storyengine.usage/1';
 
 /**
+ * ***The role a connection test's line carries, which is no role at all***
+ * (2026-10-03, [polish §25] — the recommended answer, which the owner deferred
+ * to).
+ *
+ * Every other line here names the role its call resolved: an assist asks the
+ * role the account picked, impersonation and the moment call ask theirs. A
+ * test resolves nothing — a person picked one model on one connection and
+ * pressed a button — so any `ModelRole` written here would be a claim about a
+ * binding that was never consulted, and a spend view grouping by role would
+ * fold a person's tests into the role they happened to be filed under. **A
+ * value no binding can ever have** keeps them apart and says what they were;
+ * it widens this field and nothing else, so `ModelRole` itself, the bindings
+ * files and the role tables are untouched. The purpose beside it,
+ * `connection-test:text` or `connection-test:image`, says which arm.
+ *
+ * *Additive inside `storyengine.usage/1`*: nothing reads this file yet, and the
+ * aggregate view that will ([24 §3.3](../../../../docs/design/24-roadmap.md))
+ * is specified against [21 §1.4](../../../../docs/design/21-internal-contracts.md),
+ * which records the value.
+ */
+export const CONNECTION_TEST_ROLE = 'connection-test';
+
+/**
  * One call's line in `usage.jsonl`.
  *
  * ***The same three measured fields `ModelCall` carries, with the same rule.***
@@ -64,12 +87,14 @@ export interface UsageRecord {
   /** When the call returned. ISO 8601. */
   at: string;
   /**
-   * What the call was for — `impersonate`, `assist:<field path>`, `illustrate`.
-   * An open string rather than a union, because the next call path to need a
-   * line should not need a migration to write one.
+   * What the call was for — `impersonate`, `assist:<field path>`, `illustrate`,
+   * `summarise`, `connection-test:text`, `connection-test:image`. An open string
+   * rather than a union, because the next call path to need a line should not
+   * need a migration to write one.
    */
   purpose: string;
-  role: ModelRole;
+  /** The role the call resolved — or, for a connection test, which resolved none, {@link CONNECTION_TEST_ROLE}. */
+  role: ModelRole | typeof CONNECTION_TEST_ROLE;
   resolved: { connectionId: string; modelId: string };
   usage: TokenUsage | null;
   cost: { amount: number; currency: string } | null;

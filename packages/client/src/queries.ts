@@ -56,6 +56,8 @@ import {
   type MyRoles,
   type TaskRoles,
   type ConnectionInput,
+  type ConnectionTestInput,
+  type ConnectionTestResult,
   type RoleRow,
   type ConfigView,
   type AuthState,
@@ -1625,6 +1627,29 @@ export function useFetchModels(
 ): UseMutationResult<{ models: string[] }, Error, { baseUrl?: string; apiKey?: string }> {
   return useMutation({
     mutationFn: scope === 'system' ? adminApi.fetchModels : api.fetchMyModels,
+  });
+}
+
+/**
+ * Trying a saved connection — [polish §25].
+ *
+ * A mutation for `useFetchModels`' reason: it is something a person does, and
+ * the answer is about this press rather than state the page holds. **It
+ * invalidates nothing**, ~~because it writes nothing — the one call on this
+ * surface that spends money is also the one that changes no file~~ *(2026-10-03:
+ * false since the test began recording what it spends — a test that returns
+ * appends one line to the presser's `usage.jsonl` under the role
+ * `connection-test`; see `testConnection` in the server's
+ * `routes/connections.ts`)*. Invalidating nothing is still right: the only
+ * thing a test writes is that usage line, and no query on this page, or
+ * anywhere in the client, reads the usage log — no route serves it yet.
+ */
+export function useTestConnection(
+  scope: ConnectionScope = 'system',
+): UseMutationResult<ConnectionTestResult, Error, { id: string } & ConnectionTestInput> {
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string } & ConnectionTestInput) =>
+      scope === 'system' ? adminApi.testConnection(id, input) : api.testMyConnection(id, input),
   });
 }
 

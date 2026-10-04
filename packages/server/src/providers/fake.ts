@@ -49,11 +49,7 @@ export interface ScriptedReply {
    * double that could not would let the log-shape tests pass over a system that
    * drops them.
    */
-  /**
-   * `stalled` is a transport that gave up on a quiet endpoint beneath the
-   * runner's own bound — undici's header and body limits (2026-09-27).
-   */
-  error?: { class: ErrorClass; message: string; detail?: string; stalled?: boolean };
+  error?: ScriptedFailure;
   /** The model the endpoint says answered, when it is not the one asked for. */
   answeredAs?: string;
   /** Why generation stopped. Defaults to a clean `stop`. */
@@ -106,6 +102,30 @@ export interface ScriptedReply {
   stallMs?: number;
 }
 
+/**
+ * A scripted refusal, on either arm.
+ *
+ * `status` is the HTTP answer a real adapter reads off the SDK's error
+ * ([`ProviderError.status`](./types.ts)) — scriptable because the connection
+ * test ([polish §25]) says *the key was refused* on a 401 and *the request was
+ * refused* on a 404, and both are `terminal`. A double that could not carry it
+ * would let that distinction ship untested.
+ *
+ * `stalled` is a transport that gave up on a quiet endpoint beneath the
+ * runner's own bound — undici's header and body limits (2026-09-27). It was
+ * an inline field on the chat arm's error before this type existed (merged
+ * 2026-10-03), and it lives here now so both arms can script it: the
+ * connection test answers a stall as `timeout`, and a double that could stall
+ * only a chat call would leave the picture arm's answer to it untested.
+ */
+export interface ScriptedFailure {
+  class: ErrorClass;
+  message: string;
+  detail?: string;
+  status?: number;
+  stalled?: boolean;
+}
+
 export interface FakeProviderOptions {
   /** Replies, consumed in order. The last one repeats once they run out. */
   script?: ScriptedReply[];
@@ -152,7 +172,7 @@ export interface ScriptedImage {
   /** What the endpoint says answered, when it is not what was asked for. */
   answeredAs?: string;
   /** Fail instead of answering. */
-  error?: { class: ErrorClass; message: string; detail?: string };
+  error?: ScriptedFailure;
   /** Milliseconds to wait — the seam that makes *while it is pending* mean anything. */
   stallMs?: number;
 }
@@ -227,7 +247,7 @@ export class FakeProvider implements Provider {
 
     await quiet(scripted.stallMs, request.signal);
     if (scripted.error) {
-      throw new ProviderError(scripted.error.class, scripted.error.message, scripted.error.detail);
+      throw refusal(scripted.error);
     }
 
     return {
@@ -266,9 +286,7 @@ export class FakeProvider implements Provider {
     const reply = this.#next(request, false);
     await quiet(reply.stallMs, request.signal);
     if (reply.error) {
-      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail, {
-        stalled: reply.error.stalled === true,
-      });
+      throw refusal(reply.error);
     }
     return this.#result(reply, request);
   }
@@ -278,9 +296,7 @@ export class FakeProvider implements Provider {
   ): AsyncGenerator<GenerationChunk, GenerationResult, undefined> {
     const reply = this.#next(request, true);
     if (reply.error && reply.failAfterChunks === undefined) {
-      throw new ProviderError(reply.error.class, reply.error.message, reply.error.detail, {
-        stalled: reply.error.stalled === true,
-      });
+      throw refusal(reply.error);
     }
 
     await quiet(reply.stallMs, request.signal);
@@ -363,6 +379,17 @@ function splitInto(text: string, count: number): string[] {
     pieces.push(text.slice(at, at + size));
   }
   return pieces;
+}
+
+/** A scripted failure as the error a real adapter would throw — one spelling for three sites. */
+function refusal(failure: ScriptedFailure): ProviderError {
+  // `status` spread rather than assigned: under `exactOptionalPropertyTypes`
+  // an optional field may be absent but not present-and-undefined, and the
+  // adapter builds the same bag the same way.
+  return new ProviderError(failure.class, failure.message, failure.detail, {
+    stalled: failure.stalled === true,
+    ...(failure.status === undefined ? {} : { status: failure.status }),
+  });
 }
 
 /**

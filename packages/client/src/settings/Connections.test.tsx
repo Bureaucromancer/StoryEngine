@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -38,9 +38,20 @@ const writeDefaultBindings = vi.fn();
  * nothing, which is exactly what an unused surface looks like from a test file.
  */
 const writeBindings = vi.fn();
+const testConnection = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  /**
+   * **Only `authState`, for the test panel's locale** ([polish §25]): it reads
+   * the account to format a duration and a count, and an unmocked query would
+   * reach for a network jsdom does not have. Pending forever is the honest stub
+   * — the panel formats in the default locale until an account arrives, and
+   * nothing here is about which locale that is.
+   */
+  api: {
+    authState: () => new Promise(() => undefined),
+  },
   adminApi: {
     listConnections: (...a: unknown[]) => listConnections(...a) as unknown,
     readBindings: (...a: unknown[]) => readBindings(...a) as unknown,
@@ -52,6 +63,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     fetchModels: (...a: unknown[]) => fetchModels(...a) as unknown,
     writeDefaultBindings: (...a: unknown[]) => writeDefaultBindings(...a) as unknown,
     writeBindings: (...a: unknown[]) => writeBindings(...a) as unknown,
+    testConnection: (...a: unknown[]) => testConnection(...a) as unknown,
   },
 }));
 
@@ -88,6 +100,15 @@ beforeEach(() => {
   fetchModels.mockResolvedValue({ models: ['gpt-hi'] });
   writeDefaultBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:written' });
   writeBindings.mockResolvedValue({ bindings: {}, contentHash: 'sha256:written' });
+  testConnection.mockResolvedValue({
+    kind: 'text',
+    text: 'Hello there.',
+    modelId: 'gpt-hi',
+    finishReason: 'stop',
+    usage: { promptTokens: 12, completionTokens: 3 },
+    cost: null,
+    elapsedMs: 840,
+  });
 });
 
 /**
@@ -741,6 +762,437 @@ describe('what an endpoint can do', () => {
     // Removed rather than set to zero — which is what *leave blank to use the
     // default* has to mean, and zero would be a real (wrong) window.
     expect(cleared.capabilities).toEqual({});
+  });
+});
+
+/**
+ * ***Makes pictures*** — [polish §25]. The flag [21 §3] says is set per
+ * connection, and until this control a hand edit was the only place to set it.
+ * It rides the same merge the other two overrides do, so what matters is the
+ * same two things: it is sent when set, and setting it back to the default
+ * removes it without touching anything written by hand.
+ */
+describe('whether an endpoint makes pictures', () => {
+  it('sends it when it is set', async () => {
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Name/ }), 'Images');
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'gpt-image');
+
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Makes pictures' }), 'yes');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          capabilities: expect.objectContaining({ rendersImages: true }),
+        }),
+      );
+    });
+  });
+
+  it('forgets it when set back to the default, and keeps the rest', async () => {
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { rendersImages: true, supportsTools: true } })],
+    });
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: /Edit/ }));
+
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+    const picker = screen.getByRole('combobox', { name: 'Makes pictures' });
+    expect((picker as HTMLSelectElement).value).toBe('yes');
+    await userEvent.selectOptions(picker, 'default');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection).toHaveBeenCalled();
+    });
+    const [, saved] = updateConnection.mock.calls[0] as [string, { capabilities: unknown }];
+    expect(saved.capabilities).toEqual({ supportsTools: true });
+  });
+
+  /**
+   * ***Drawing is not seeing*** (merged 2026-10-03). [25 E15]'s per-model
+   * *Models that can see pictures* reached this form while the branch was out,
+   * and the two questions sit one control apart; answering *Makes pictures*
+   * yes on a chat endpoint because a vision model is ticked is the mistake
+   * [21 §3] says the flag exists to stop. So the control lives in a group of
+   * its own, and the group is not the other one.
+   */
+  it('asks it under drawing pictures, apart from the models that see them', async () => {
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'llava');
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+
+    const drawing = screen.getByRole('group', { name: 'Drawing pictures' });
+    expect(within(drawing).getByRole('combobox', { name: 'Makes pictures' })).toBeTruthy();
+    const seeing = screen.getByRole('group', { name: 'Models that can see pictures' });
+    expect(within(seeing).queryByRole('combobox', { name: 'Makes pictures' })).toBeNull();
+  });
+});
+
+/**
+ * ***Sends a seed with a picture*** — owed since the youthful-keller merge
+ * (2026-10-03), which made the seed travel only where `supportsImageSeed` says
+ * so and left the flag a hand edit; work plan §2.3 counts that as configuration
+ * without a surface. It sits beside *Makes pictures*, and only once that says
+ * yes, so what is worth holding is the same merge as the other overrides plus
+ * the one thing hiding could break: a value written by hand that the form
+ * never showed.
+ */
+describe('whether an endpoint takes a seed with a picture', () => {
+  it('is offered only once the connection makes pictures, and sent when set', async () => {
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a connection' }));
+    await userEvent.type(screen.getByRole('textbox', { name: /Name/ }), 'Images');
+    await userEvent.type(screen.getByRole('textbox', { name: /Models/ }), 'gpt-image');
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+
+    expect(screen.queryByRole('combobox', { name: 'Sends a seed with a picture' })).toBeNull();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Makes pictures' }), 'yes');
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Sends a seed with a picture' }),
+      'yes',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(createConnection).toHaveBeenCalled();
+    });
+    expect(createConnection.mock.calls[0]?.[0]).toMatchObject({
+      capabilities: { rendersImages: true, supportsImageSeed: true },
+    });
+  });
+
+  it('forgets it when set back to the default, and keeps the rest', async () => {
+    listConnections.mockResolvedValue({
+      connections: [
+        connection({
+          capabilities: { rendersImages: true, supportsImageSeed: true, supportsTools: true },
+        }),
+      ],
+    });
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: /Edit/ }));
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+
+    const picker = screen.getByRole('combobox', { name: 'Sends a seed with a picture' });
+    expect((picker as HTMLSelectElement).value).toBe('yes');
+    await userEvent.selectOptions(picker, 'default');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection).toHaveBeenCalled();
+    });
+    const [, saved] = updateConnection.mock.calls[0] as [string, { capabilities: unknown }];
+    expect(saved.capabilities).toEqual({ rendersImages: true, supportsTools: true });
+  });
+
+  it('keeps a seed written by hand through a save that never showed it', async () => {
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { supportsImageSeed: true } })],
+    });
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: /Edit/ }));
+    await userEvent.click(screen.getByText('What this endpoint can do'));
+
+    expect(screen.queryByRole('combobox', { name: 'Sends a seed with a picture' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection).toHaveBeenCalled();
+    });
+    const [, saved] = updateConnection.mock.calls[0] as [string, { capabilities: unknown }];
+    expect(saved.capabilities).toEqual({ supportsImageSeed: true });
+  });
+
+  /**
+   * ***Load what is on disk* loads the two picture overrides too.** The handler
+   * was written before the form held them, and a field it does not load is one
+   * the next save puts back from the page as it was opened — here, deleting
+   * both from a file that had them, because the page read none.
+   */
+  it('loads both picture overrides from disk after a refusal, so the save keeps them', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    updateConnection.mockRejectedValueOnce(
+      new ApiError(
+        412,
+        'stale',
+        'That connection has changed on disk.',
+        connection({
+          contentHash: 'sha256:what-is-there-now',
+          capabilities: { rendersImages: true, supportsImageSeed: true },
+        }),
+        'sha256:what-is-there-now',
+      ),
+    );
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load what is on disk' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateConnection.mock.calls.length).toBe(2);
+    });
+    expect(updateConnection.mock.calls[1]?.[1]).toMatchObject({
+      contentHash: 'sha256:what-is-there-now',
+      capabilities: { rendersImages: true, supportsImageSeed: true },
+    });
+  });
+});
+
+/**
+ * **Trying a saved connection** — [polish §25].
+ *
+ * The claims worth a test are the ones a person would act on wrongly if they
+ * broke: it tries what is saved (the id, never a key), it offers a picture only
+ * where the connection says it can make one, an empty reply cut off at the
+ * limit reads as a working connection, and a refused key says *key*.
+ */
+describe('trying a saved connection', () => {
+  async function openTest(): Promise<void> {
+    renderSurface();
+    await userEvent.click(await screen.findByRole('button', { name: 'Test' }));
+  }
+
+  it('tries what is saved, with the first model and the offered prompt', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith('house', {
+        kind: 'text',
+        modelId: 'gpt-hi',
+        prompt: 'Say hello in one short sentence.',
+      });
+    });
+    expect(await screen.findByText('Hello there.')).toBeTruthy();
+    expect(screen.getByText('That used 12 tokens of prompt and 3 of reply.')).toBeTruthy();
+    // Nothing a key could travel in: the id and three fields, and no more.
+    const [, sent] = testConnection.mock.calls[0] as [string, Record<string, unknown>];
+    expect(Object.keys(sent).sort()).toEqual(['kind', 'modelId', 'prompt']);
+  });
+
+  it('asks the model picked and the words typed', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    await openTest();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Model' }), 'gpt-lo');
+    const message = screen.getByRole('textbox', { name: 'Message' });
+    await userEvent.clear(message);
+    await userEvent.type(message, 'Write one line about rain.');
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith('house', {
+        kind: 'text',
+        modelId: 'gpt-lo',
+        prompt: 'Write one line about rain.',
+      });
+    });
+  });
+
+  it('offers a picture only on a connection that says it makes them', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    await openTest();
+    expect(screen.queryByRole('combobox', { name: 'Ask for' })).toBeNull();
+  });
+
+  it('shows the picture a picture test made', async () => {
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { rendersImages: true } })],
+    });
+    testConnection.mockResolvedValue({
+      kind: 'image',
+      mime: 'image/png',
+      base64: 'AQID',
+      modelId: 'gpt-hi',
+      seed: 7,
+      cost: null,
+      elapsedMs: 14_300,
+    });
+    await openTest();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Ask for' }), 'image');
+    await userEvent.click(screen.getByRole('button', { name: 'Try a picture' }));
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith(
+        'house',
+        expect.objectContaining({ kind: 'image', modelId: 'gpt-hi' }),
+      );
+    });
+    const picture: HTMLImageElement = await screen.findByRole('img');
+    expect(picture.getAttribute('src')).toBe('data:image/png;base64,AQID');
+  });
+
+  it('takes a typed model when the connection lists none', async () => {
+    listConnections.mockResolvedValue({ connections: [connection({ models: [] })] });
+    await openTest();
+
+    const button = screen.getByRole('button', { name: 'Send a test message' });
+    // Nothing to ask with yet, so nothing to press.
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.type(screen.getByRole('textbox', { name: /Model/ }), 'qwen3:8b');
+    await userEvent.click(button);
+
+    await waitFor(() => {
+      expect(testConnection).toHaveBeenCalledWith(
+        'house',
+        expect.objectContaining({ modelId: 'qwen3:8b' }),
+      );
+    });
+  });
+
+  it('says a refused key was refused', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockRejectedValue(
+      new ApiError(401, 'unauthorized', 'That endpoint refused the key.'),
+    );
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/refused the key/);
+  });
+
+  it('says a prompt too long to send was too long, rather than blaming the endpoint', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockRejectedValue(new ApiError(400, 'invalid', 'body/prompt must be shorter'));
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/shorter message/);
+  });
+
+  /**
+   * ***A window too small to hold a test*** — the one refusal the message earned
+   * by going through `performCall` (2026-10-03). The field to fix is on this
+   * connection, and the sentence has to send a person there rather than to the
+   * endpoint, which was never asked.
+   */
+  it('sends a person to the context window when it cannot hold a test', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockRejectedValue(
+      new ApiError(422, 'window-too-small', 'This connection’s context window is 100 tokens.'),
+    );
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/check Context window/);
+  });
+
+  /**
+   * ***A picture the server says this connection cannot make*** means the page
+   * is stale (2026-10-03). The sentence the branch wrote sent a person to save
+   * the connection so the server would pick up a hand edit — a remedy for the
+   * memo keyed by id that 8dc8e587 replaced on 2026-09-27, after which a hand
+   * edit is in force at the next call, and a save from a stale row only meets
+   * `412 stale`. So the sentence has to send a person to reload, and must not
+   * still send them to save.
+   */
+  it('sends a person to reload when the server no longer reads the connection as making pictures', async () => {
+    const { ApiError } = await import('../api.js');
+    listConnections.mockResolvedValue({
+      connections: [connection({ capabilities: { rendersImages: true } })],
+    });
+    testConnection.mockRejectedValue(
+      new ApiError(422, 'not-an-image-endpoint', 'This connection does not say it makes pictures.'),
+    );
+    await openTest();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Ask for' }), 'image');
+    await userEvent.click(screen.getByRole('button', { name: 'Try a picture' }));
+
+    const said = (await screen.findByRole('alert')).textContent;
+    expect(said).toMatch(/Reload the page/);
+    expect(said).not.toMatch(/save it once/);
+  });
+
+  /**
+   * ***The one answer that most needs a sentence.*** A model that thinks before
+   * it answers spends the test's small allowance where nobody sees it, and what
+   * comes back — no text, stopped by length — is the exact shape of a broken
+   * endpoint unless something says otherwise.
+   */
+  it('calls an empty reply cut off at the limit a working connection', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockResolvedValue({
+      kind: 'text',
+      text: '',
+      modelId: 'gpt-hi',
+      finishReason: 'length',
+      usage: { promptTokens: 12, completionTokens: 256 },
+      cost: null,
+      elapsedMs: 4_000,
+    });
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect(await screen.findByText(/The key, the address and the model all worked/)).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('says so when a different model answered than the one asked for', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockResolvedValue({
+      kind: 'text',
+      text: 'Hi.',
+      modelId: 'gpt-hi-2026-09-01',
+      finishReason: 'stop',
+      usage: null,
+      cost: null,
+      elapsedMs: 300,
+    });
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect(
+      await screen.findByText(
+        'You asked for gpt-hi; the endpoint says gpt-hi-2026-09-01 answered.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('The endpoint did not say how many tokens that used.')).toBeTruthy();
+  });
+
+  it('cannot be pressed twice while it waits', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    testConnection.mockReturnValue(new Promise(() => undefined));
+    await openTest();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    const waiting = await screen.findByRole('button', { name: 'Waiting for the endpoint…' });
+    expect((waiting as HTMLButtonElement).disabled).toBe(true);
+    expect(testConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no test on a copy nothing resolves to', async () => {
+    listConnections.mockResolvedValue({
+      connections: [
+        connection({ label: 'A first by label' }),
+        connection({ label: 'Z last by label', shadowed: true, contentHash: 'sha256:other' }),
+      ],
+    });
+    renderSurface();
+    await screen.findByText('Z last by label');
+
+    expect(screen.getAllByRole('button', { name: 'Test' })).toHaveLength(1);
   });
 });
 

@@ -851,3 +851,184 @@ Unstruck, because none of it has shipped.
   track at about 1.45:1, as faint as before §18. The figure beside it carries
   the number, so it is not a WCAG 1.4.11 failure; it is a meter that barely
   reads as one.
+
+---
+
+# Filed after the pass
+
+***Numbering carries on from the pass, and an entry here is not one of its
+commits.*** §25 was built on 2026-09-26 on a branch cut when this file ended at
+§12, and was §13 there; the review's entries took §13 to §24 on `main` on
+2026-10-01, and when the two met at the merge (2026-10-03) the later filing took
+the next free number. Every citation of it moved with it — thirty-three in
+fourteen files — and nothing outside the branch had cited it.
+
+## 25. A connection can be tried without taking a turn
+
+*Built 2026-09-26, routed here from
+[P2B §5](10-p2b-provider-configuration.md), which put it out of scope in so
+many words: "a connection health check beyond the model fetch — *is this key
+still good* is a live call with a cost, and it belongs with the connectivity
+work P10 does once P11's producer exists." Both have landed, and
+[P11.6](28-p11-implementation.md) gave `/models` the `offline` code this
+answers in. Merged to `main` 2026-10-03, adapted to what `main` had become in
+the week between — see* Merged a week later *below.*
+
+**The condition it fixes.** The connections surface had one way to touch an
+endpoint — *ask it what it offers*, a `GET /models` — and that one sends only
+what is typed in the form, so it cannot use a stored key, and it never calls
+`/chat/completions` or `/images/generations`, which are the two calls a turn
+makes. So the first real evidence that a connection works was a failed turn.
+For pictures it was worse: `rendersImages` could only be set by editing the
+file, and [manual testing R10](05-manual-testing.md) — *an endpoint that serves
+the `image` role* — had no cheap way to be confirmed before P9's gate.
+
+**What shipped.**
+
+- A **Test** button on every connection row, admin and personal, opening a
+  panel with a model picker, an editable prompt that starts filled, and the
+  answer: the reply or the picture, how long it took, which model answered when
+  that is not the one asked for, and what it used. Not on a row nothing
+  resolves to, under the same guard as that row's Edit and Remove.
+- A ***Makes pictures*** control in *What this endpoint can do*, merged over
+  what is stored the way *reports token counts* is, in a group headed *Drawing
+  pictures* so it cannot be read as [25 E15](../25-open-questions.md)'s *Models
+  that can see pictures* beside it. **Try a picture** is offered only where it
+  says yes, and the server refuses a picture anywhere else before sending
+  anything.
+- ***Sends a seed with a picture*** beside it, shown once *Makes pictures* says
+  yes — `supportsImageSeed`, which the youthful-keller merge made the seed's
+  gate on 2026-10-03 and left a hand edit (see *Merged a week later*).
+- `POST /api/admin/connections/:id/test` and its personal twin
+  ([`api.md`](../../api.md)), and a `status` on `ProviderError` — carried on
+  through `CallFailed` — so a refused key and a refused request, both
+  `terminal`, can be told apart, which is finding 5 in the
+  [P2C log](14-p2c-log.md) arriving at its second route.
+
+**Why it is polish and not a phase stage.** It changes what a person sees and
+does, it is bounded, and it needs no schema change — `rendersImages` has been a
+stored capability since [21 §3](../21-internal-contracts.md), and
+`supportsImageSeed` since the merge before this one — and no new contract: two
+routes in the model fetch's family, an optional field on two internal classes
+nothing in 21 specifies, and one more value in a field 21 does specify, the
+usage line's `role` ([21 §1.4](../21-internal-contracts.md), recorded there),
+which is additive inside `storyengine.usage/1` and read by nothing yet.
+[Item 8](#8-five-sampler-settings-the-adapter-drops) is the precedent for
+server work in this file. P10 and P11 are both merged, so a stage heading there
+would have claimed more than this is.
+
+**What it deliberately is not:**
+
+- **Not automatic.** It costs money, and a picture can cost more than a turn, so
+  it is a button a person presses and nothing else —
+  [10 §11.5](../10-ui-surfaces.md)'s first trap.
+- **Not a test of a turn.** It sends one user message, a completion ceiling of
+  256 and no sampler settings, through the non-streaming call. It proves the
+  key, the address and the model; it says nothing about a preset or about
+  streaming.
+- **Not a test of the form.** It tries what is *saved* — the stored key through
+  the same memoised provider a turn gets — and refuses a body carrying a key.
+  Unsaved edits have to be saved first. That keeps the key on the server and
+  means a pass is a promise about turns.
+- ~~**Not recorded.** [10 §11.4](../10-ui-surfaces.md) says a model call that is
+  not a turn must still be recorded; nothing in this build records one, field
+  assists included, and a test button is not where a ledger should start. The
+  log line's token counts are the only trace, and that gap is §11.4's, not this
+  item's.~~ ***Recorded*** *(2026-10-03, at the merge: the struck sentence was
+  true of the build it was written against and false of `main` from 2026-09-27,
+  when c814f3ed gave the calls that write no turn a usage log — field assists
+  first)*. A test that returns writes one line to the presser's `usage.jsonl`;
+  see *Merged a week later* for the role it carries and why.
+
+**The model that thinks first.** The ceiling is 256 rather than something
+smaller because a reasoning model spends its first tokens where nobody sees
+them, and at a tiny cap it returns *no text, finished by length* — the exact
+shape of a broken endpoint. That answer is a `200`, and the panel says so in a
+sentence: the key, the address and the model all worked, and a turn gives it
+far more room.
+
+**Merged a week later, and what that changed.** The branch was written against
+a `main` that had no usage log, no rule about how a model call is made, no
+`disconnectSignal` and no per-model vision list, and it met all four at the
+merge. Four questions that raised were put to the owner, who deferred each to
+its recommended answer; they are recorded here as decisions, **2026-10-03,
+recommended answer, owner deferred**:
+
+1. ***The message goes through `performCall`***, like every call that is not a
+   turn since 8c34a7f7 (2026-09-27), which moved the field assist — the last
+   direct caller — because it was the one call with no idle bound, no retry
+   ladder and no classification. So a test message is planned, timed, retried
+   and classed as a turn's call is, and the branch's *one attempt* goes: a 429
+   that clears on the second ask clears for a turn too, so answering `busy` to
+   it reported a fault no turn would meet. A 429 that lasts the ladder is still
+   `busy`. It also earns one refusal the branch had no way to give:
+   `window-too-small`, when the connection's own context window cannot hold the
+   test beside its reply — which every turn would meet too. **The picture does
+   not, and cannot**: `performCall` has no picture arm, `renditions/worker.ts`
+   calls `renderImage` directly for the same reason, and a picture is asked
+   once by the owner's other decision of the day
+   ([25 E7](../25-open-questions.md)), so it keeps the branch's one bounded
+   attempt. Argued at the route as well as here.
+2. ***It is recorded***, in the usage log of whoever pressed it, admin or not,
+   with the purpose `connection-test:text` or `connection-test:image` and the
+   role **`connection-test`** — a value no binding can have, because a test
+   resolves no role, and any real role written there would fold a person's
+   tests into a spend view's figures for that role. A failed or cancelled test
+   writes nothing, as the field assist, impersonation and Illustrate's moment
+   call do — which is not `main`'s one rule, because there is none yet: the
+   on-demand step behind *Update trackers* and background summaries, both since
+   P14, write a line for a failed or cancelled call that reached the provider,
+   with null figures. The picture's line is the one image call the log
+   carries: a rendition's cost has no field
+   ([25 E16](../25-open-questions.md)), and a test picture leaves no record of
+   its own.
+3. ***It stops when the person leaves*** — `disconnectSignal`, as Illustrate
+   and the field assist take it, on both arms. The branch had argued that
+   aborting a picture does not un-spend what a hosted endpoint has already
+   accepted; that is still true, and nobody is left to see the answer, the
+   server stops holding a socket for it, and an endpoint that notices a closed
+   request stops working. A request ended so answers nothing and logs nothing
+   at error level.
+4. ***A control for `supportsImageSeed`, beside* Makes pictures**. The
+   youthful-keller merge made the seed travel only where that capability says
+   so, left it settable only by hand, and recorded the control as owed at
+   [P9 §3.2](26-p9-implementation.md) — [work plan §2.3](01-work-plan.md)'s
+   *no configuration without a surface*. It is shown only once *Makes pictures*
+   says yes, and hiding it never clears a value written by hand.
+
+Three smaller things the merge took on without asking, because the code would
+otherwise have been wrong on `main`: a stall the transport reports from below
+(undici's header and body limits, `ProviderError.stalled`, 2026-09-27) answers
+`timeout` rather than falling through to `refused`; *Load what is on disk*
+after a refusal reloads the two picture overrides, which it was written before
+the form held; and the Test button sits under `main`'s guard on a shadowed
+row, which had grown to cover Edit and Remove while the branch was out.
+
+**A code/doc disagreement this found and does not fix.**
+`ProviderCapabilities.rendersImages`' docstring in `providers/types.ts`, and
+[21 §3](../21-internal-contracts.md) beside it, say the binding surface reads the
+flag. Nothing in the client does: the role table offers every connection for
+the `image` role. Filtering it is a role-table change with its own argument
+about what an unset `image` role should look like, and is left for that. *Still
+so at the merge (2026-10-03)*: the form now sets the flag, and the role table
+still does not read it.
+
+**Proved against doubles only.** Every test of the button, the routes and the
+form runs against `FakeProvider` or a stub transport — the real adapter over a
+stubbed `fetch` for the image arm's rate limit and its first adapter-level
+picture test — and none against a live endpoint: the machine this was merged on
+has none configured. Which sentence a real 401, a real 404 and a real stall
+produce is sitting V's to say.
+
+**What the changelog will say**, parked here because
+`changelog.test.ts` refuses an `## Unreleased` section:
+
+- **A connection can be tried.** *Test* on any connection sends one short
+  message — or, where the connection makes pictures, one picture — using what
+  is saved, and says what came back or, in plain words, which field to go and
+  fix. *Makes pictures* and *Sends a seed with a picture* are settings on the
+  connection at last.
+
+**What needs a person:** [sitting V](05-manual-testing.md#v--a-connection-tried--twenty-minutes-and-it-wants-r2-and-r3)
+— a real hosted endpoint and a real local one, a wrong key, a model the
+endpoint does not serve, and R10 if one is to hand.

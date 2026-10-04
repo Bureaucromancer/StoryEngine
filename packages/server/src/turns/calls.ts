@@ -871,7 +871,13 @@ export async function performCall(
         // `updates.ts`'s, reused rather than copied: one definition of *on this
         // network* is what keeps the update check's conditionality and this
         // sentence from being able to disagree.
-        { endpoint: isLocalEndpoint(connection.baseUrl) ? 'local' : 'remote', stalled },
+        // And the status, read off the error *after* a stall replaced it: a
+        // `Stalled` carries none, which is right — nothing answered.
+        {
+          endpoint: isLocalEndpoint(connection.baseUrl) ? 'local' : 'remote',
+          stalled,
+          status: error instanceof ProviderError ? error.status : undefined,
+        },
         detail,
       );
     } finally {
@@ -926,13 +932,28 @@ export class CallFailed extends Error {
    * rather than folded into it.
    */
   readonly stalled: boolean;
+  /**
+   * ***The HTTP status the endpoint answered the last attempt with***, when it
+   * answered at all — `ProviderError.status`, carried past this function
+   * rather than dropped at it (merged 2026-10-03, [polish §25]).
+   *
+   * The class cannot say it, for the reason `stalled` is beside it: a refused
+   * key and a model the endpoint does not serve are both `terminal`, and they
+   * send a person to opposite fields of the form. The connection test is the
+   * caller that reads it today, and it reaches this class only because it goes
+   * through `performCall` like every other call that is not a turn; without the
+   * field it would have had to bypass this function to tell the two apart. A
+   * number cannot echo a key, so unlike `detail` it may decide a response.
+   * `undefined` is *nothing answered*, and is what a stall leaves too.
+   */
+  readonly status: number | undefined;
 
   constructor(
     errorClass: ProviderError['class'],
     message: string,
     partialText: string,
     call: ModelCall,
-    where: { endpoint: 'local' | 'remote'; stalled: boolean },
+    where: { endpoint: 'local' | 'remote'; stalled: boolean; status?: number | undefined },
     detail?: string,
   ) {
     super(message);
@@ -943,6 +964,7 @@ export class CallFailed extends Error {
     this.call = call;
     this.endpoint = where.endpoint;
     this.stalled = where.stalled;
+    this.status = where.status;
   }
 }
 

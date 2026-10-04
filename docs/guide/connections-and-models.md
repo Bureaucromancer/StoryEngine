@@ -54,8 +54,8 @@ address and key as typed in the form. When you edit a connection the stored key 
 not sent, so an endpoint that needs one answers *That endpoint refused the key*
 unless you type the key again.
 
-**What this endpoint can do**, a disclosure below Models, holds three things you
-set only if you know them:
+**What this endpoint can do**, a disclosure below Models, holds things you set only
+if you know them:
 
 - **Context window** — how many tokens the endpoint accepts in one request. Blank
   uses the install's default (`limits.contextTokens`, 8192 unless changed). If your
@@ -70,9 +70,19 @@ set only if you know them:
   a player attaches to a move is sent as a picture only to a ticked model; every
   other model gets the player's description of it instead. Nothing is ticked by
   default.
+- **Drawing pictures** — whether the endpoint *makes* pictures for the story, which
+  is a different question from which models can *see* one:
+  - **Makes pictures** — **Use the default for this kind** (which is no), **Yes** or
+    **No**. Say yes only if the address also answers image requests; nothing
+    guesses it. See [Pictures](pictures.md#before-any-picture).
+  - **Sends a seed with a picture** — appears once **Makes pictures** is **Yes**.
+    Default no. Say yes only if the endpoint accepts a `seed` with an image
+    request: one that holds strictly to OpenAI's image API refuses it, and every
+    picture then fails. With it, **Try again** on a picture can draw the same
+    picture again. A value set in the file is kept even while this is hidden.
 
 **Save** stores the connection on the server. The list then shows each connection
-with **Edit**, **Remove** *name*… and a line saying whether a key is stored.
+with **Test**, **Edit**, **Remove** *name*… and a line saying whether a key is stored.
 
 ### Use this for everything?
 
@@ -107,6 +117,41 @@ default, or stop working if there is none. Removing a connection stops its key
 being used here at once, but revokes nothing at the provider — do that there too
 if the key has leaked.
 
+### Trying a connection
+
+**Test**, on a connection's row, opens a small panel under it: a **Model** picker
+(or a box, if the connection lists none), the words to send — **Message**, filled
+in with a harmless one — and **Send a test message**. On a connection that makes
+pictures, **Ask for** offers *A picture* too, with **Describe the picture** and
+**Try a picture**. It uses what is **saved** — the stored key and address, not
+anything in an unsaved form — so save first. It is never automatic, and a paid
+endpoint charges for it like any other call.
+
+What comes back is the reply or the picture, how long it took, which model
+answered if it is not the one you asked for, and how many tokens it used. An
+empty reply that ran out of room — usually a model that thinks before it answers
+— says the key, the address and the model all worked. A failure names what to
+fix:
+
+| What happened | What you see |
+| --- | --- |
+| The key was refused | *That endpoint refused the key. Edit the connection and check it — the address is fine.* |
+| Nothing answered | *That endpoint could not be reached. Check the address, and that the model server is running.* — or, for a remote address when the server has no internet, *This server appears to have no internet access…* |
+| No answer before the timeout | *That endpoint did not answer before the provider timeout…* |
+| Busy or rate-limited | *That endpoint is busy or rate-limited, and asked to be tried later.* |
+| Any other refusal | *That endpoint refused the request — most often a model name it does not serve. Check the model.* |
+| The context window cannot hold even the test | *This connection's context window is too small to hold even a test message beside its reply…* |
+| A picture, on a connection whose file stopped saying it makes them after the page loaded | *This connection no longer says it makes pictures — its file was changed after this page loaded. Reload the page to see what it says now.* |
+
+A message is sent the way a turn's call is: the same timeout, and a busy or
+unreachable endpoint asked twice more before the panel says so, so it takes a
+second or so to say *could not be reached*. A picture is asked once, and is
+bound by the provider timeout, which a picture in a story is not. Closing the
+page stops a test. Each test that answers is a line in your usage log
+(`users/<handle>/usage.jsonl` in the data directory) — yours, even for an
+install connection an administrator tests. Your own connections have **Test**
+too; a row that loses to another file with the same id does not.
+
 ## Your own connections
 
 Settings → **Your connections**, on any account an administrator has not barred
@@ -118,7 +163,7 @@ editing. Four differences:
 - **Remove** *name*… does not say what points at the connection.
 - **Adding a connection does not use it.** It is used only once you choose one of
   its models under [Which models your stories use](#choosing-models-for-your-own-stories)
-  — with one exception: a connection of yours whose file says it makes pictures
+  — with one exception: a connection of yours that says it makes pictures
   takes your picture requests ahead of the install's (see
   [Which model answers](#which-model-answers)).
 
@@ -228,7 +273,8 @@ preset but never sent. See [Presets and prompts](presets.md).
   **without progress** before it is abandoned. Every streamed piece of text resets
   the clock, so a long reply is fine; a call that does not stream is bounded as a
   whole. `0` turns it off, leaving only **Stop**. Picture requests are not bound by
-  it.
+  it — except a **Test** picture: somebody is waiting on the panel's answer, whereas
+  nobody waits on a picture in a story. For a Test picture `0` means none too.
 - **Retries**: a call that got no answer at all, or an HTTP 429 or 5xx, is tried up
   to twice more, after a quarter of a second and then a second — but only if no
   text has streamed yet and you have not pressed **Stop**. Any other refusal (a bad
@@ -295,22 +341,24 @@ or `provider`, is ignored, and nothing says so. A key goes in `"apiKey"`; keys a
 stored in these files as plain text, a full backup includes them, and a redacted
 one leaves every `connections/` folder out.
 
-A few capabilities have no control in the app and are set by editing the file (or
-through the API). The one you are most likely to need is `"rendersImages": true`,
-which says the endpoint can make pictures. It goes **inside** `"capabilities"`, as
-in `"capabilities": { "maxContextTokens": 32768, "rendersImages": true }`; at the top
-level it is ignored. See [Pictures](pictures.md#before-any-picture).
-
-Beside it, `"supportsImageSeed": true` says the endpoint accepts a `seed` with a picture
-request, so each picture's seed is sent and **Try again** can redraw the same picture.
-It is off unless you set it, because an endpoint that holds strictly to OpenAI's image
-API refuses the unknown field, and every picture would then fail. See
-[Pictures](pictures.md#illustrating-a-turn).
+**Context window**, **Reports token counts**, **Makes pictures** and **Sends a
+seed with a picture**, under **What this endpoint can do**, are keys **inside**
+`"capabilities"` — `"maxContextTokens"`, `"reportsUsage"`, `"rendersImages"` and
+`"supportsImageSeed"` — and at the top level they are ignored: **Makes
+pictures** is `"rendersImages": true`, as in
+`"capabilities": { "maxContextTokens": 32768, "rendersImages": true }`. **Models
+that can see pictures**, in the same section, is the exception: it is the
+top-level `"imageModels"` list beside `"models"`, as in the example above, and
+inside `"capabilities"` it is ignored. A few
+capabilities have no control in the app at all and are set only here (or through
+the API); a save from the app keeps whatever it has no control for. See
+[Pictures](pictures.md#before-any-picture) and
+[Pictures](pictures.md#illustrating-a-turn) for what the two picture settings do.
 
 If two files in one folder claim the same `id`, the one whose **Name** (`label`)
 sorts first is used; the file name plays no part, so renaming either connection can
-change which copy wins. The other row says so and has no **Edit** or **Remove**
-button. Delete the extra file by hand: removing the connection in the app removes
+change which copy wins. The other row says so and has no **Test**, **Edit** or
+**Remove** button. Delete the extra file by hand: removing the connection in the app removes
 every file with that id.
 
 ## Good to know

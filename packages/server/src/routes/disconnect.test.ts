@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -16,6 +16,8 @@ import { FakeProvider, type FakeProviderOptions } from '../providers/fake.js';
 import {
   type GenerationRequest,
   type GenerationResult,
+  type ImageRequest,
+  type ImageResult,
   ProviderError,
 } from '../providers/types.js';
 import { readRenditions } from '../renditions/store.js';
@@ -25,7 +27,8 @@ import { disconnectSignal } from './disconnect.js';
 
 /**
  * ***A client that leaves cancels the model call it started*** — the two
- * routes that dispatch one from inside a request, and the helper both now use.
+ * routes that dispatch one from inside a request, and the helper both now use;
+ * and since 2026-10-03 a third, the connection test, at the foot of the file.
  *
  * **Over a real socket, which is the exception to `test-server.ts`'s *nothing
  * binds a port*, and it cannot be avoided.** The defect this file pins down
@@ -76,14 +79,26 @@ function held(signal: AbortSignal, ms: number): Promise<void> {
  * snapshot `requests` and a signal has no business in one. `holds` picks the
  * calls that stall until aborted; everything else answers at once, so a turn
  * taken to set up a test is not held by the call the test is about.
+ *
+ * *`holdsPictures` is the same for `renderImage`* (2026-10-03), for the one
+ * route that asks for a picture inside a request — the connection test. Off by
+ * default, so Illustrate's worker, which renders after its route has answered,
+ * is not held by it.
  */
 class Watched extends FakeProvider {
   readonly signals: AbortSignal[] = [];
   readonly #holds: (request: GenerationRequest) => boolean;
+  readonly #holdsPictures: boolean;
 
-  constructor(options: FakeProviderOptions & { holds: (request: GenerationRequest) => boolean }) {
+  constructor(
+    options: FakeProviderOptions & {
+      holds: (request: GenerationRequest) => boolean;
+      holdsPictures?: boolean;
+    },
+  ) {
     super(options);
     this.#holds = options.holds;
+    this.#holdsPictures = options.holdsPictures === true;
   }
 
   override async generate(request: GenerationRequest): Promise<GenerationResult> {
@@ -92,6 +107,14 @@ class Watched extends FakeProvider {
       await held(request.signal, 10_000);
     }
     return await super.generate(request);
+  }
+
+  override async renderImage(request: ImageRequest): Promise<ImageResult> {
+    if (request.signal !== undefined && this.#holdsPictures) {
+      this.signals.push(request.signal);
+      await held(request.signal, 10_000);
+    }
+    return await super.renderImage(request);
   }
 }
 
@@ -443,5 +466,87 @@ describe('a picture nobody is waiting for', () => {
     expect(errorLines()).toEqual([]);
     const renditions = await readRenditions(on.services.sessions.layout, 'ned', sessionId);
     expect(renditions.size).toBe(0);
+  });
+});
+
+/**
+ * ***A connection test nobody is waiting for*** — [polish §25], merged
+ * 2026-10-03 with the recommended answer the owner deferred to: the test stops
+ * when the person leaves, as Illustrate and the field assist do. The branch it
+ * came from had argued the other way (a picture already accepted is billed
+ * either way), and the answer to that is in the route's docstring.
+ *
+ * *Both arms*, because they are different code: a message is ended by
+ * `performCall` seeing its signal, a picture by the signal reaching
+ * `renderImage` directly. **Nothing logged at error level and nothing in the
+ * usage log** is the other half — a closed tab is not a fault, and a call that
+ * returned nothing has no figures to record.
+ */
+describe('a connection test nobody is waiting for', () => {
+  async function aConnection(on: TestServer, rendersImages: boolean): Promise<string> {
+    const made = await on.request({
+      method: 'POST',
+      url: '/api/admin/connections',
+      payload: {
+        label: 'The double',
+        provider: 'openai-compatible',
+        models: ['fake-hi'],
+        ...(rendersImages ? { capabilities: { rendersImages: true } } : {}),
+      },
+    });
+    return made.body.connection.id as string;
+  }
+
+  async function usageLog(on: TestServer): Promise<string> {
+    return await readFile(on.services.layout.usageLogFile('ned'), 'utf8').catch(() => '');
+  }
+
+  it('stops a message when the client leaves, and says nothing about it', async () => {
+    const provider = new Watched({ script: [{ text: 'Hello.' }], holds: () => true });
+    const on = await standUpServer(provider);
+    const id = await aConnection(on, false);
+
+    const call = send(
+      await listen(on.app),
+      `/api/admin/connections/${id}/test`,
+      { kind: 'text', modelId: 'fake-hi', prompt: 'Say hello.' },
+      asTheBrowser(on),
+    );
+    await eventually(() => Promise.resolve(provider.signals.length === 1), { timeoutMs: 3_000 });
+    call.leave();
+
+    await eventually(() => Promise.resolve(provider.signals[0]?.aborted === true), {
+      timeoutMs: 3_000,
+    });
+    await settled();
+    expect(errorLines()).toEqual([]);
+    expect(await usageLog(on)).toBe('');
+  });
+
+  it('stops a picture when the client leaves, and says nothing about it', async () => {
+    const provider = new Watched({
+      images: [{}],
+      capabilities: { rendersImages: true },
+      holds: () => false,
+      holdsPictures: true,
+    });
+    const on = await standUpServer(provider);
+    const id = await aConnection(on, true);
+
+    const call = send(
+      await listen(on.app),
+      `/api/admin/connections/${id}/test`,
+      { kind: 'image', modelId: 'fake-hi', prompt: 'A lamp.' },
+      asTheBrowser(on),
+    );
+    await eventually(() => Promise.resolve(provider.signals.length === 1), { timeoutMs: 3_000 });
+    call.leave();
+
+    await eventually(() => Promise.resolve(provider.signals[0]?.aborted === true), {
+      timeoutMs: 3_000,
+    });
+    await settled();
+    expect(errorLines()).toEqual([]);
+    expect(await usageLog(on)).toBe('');
   });
 });

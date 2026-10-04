@@ -2,7 +2,9 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  type FinishReason,
   type TagEntry,
+  type TokenUsage,
   LIBRARY_DIRECTORIES,
   LOREBOOK_SCHEMA,
   SETUP_SCHEMA,
@@ -776,6 +778,10 @@ export const api = {
 
   fetchMyModels: (body: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
     request('POST', '/api/me/connections/models', body),
+
+  /** Tries one of your own saved connections — the admin route's twin ([polish §25]). */
+  testMyConnection: (id: string, input: ConnectionTestInput): Promise<ConnectionTestResult> =>
+    request('POST', `/api/me/connections/${encodeURIComponent(id)}/test`, input),
 
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 
@@ -2720,7 +2726,8 @@ export interface AdminConnection {
   /**
    * What this endpoint can do, where the install disagrees with the defaults.
    *
-   * Only the two an operator has a reason to set are surfaced — see
+   * Only the ones an operator has a reason to set are surfaced — four since
+   * 2026-10-03, listed on {@link ConnectionCapabilities}; see
    * {@link ConnectionInput}. The rest of the shape travels untouched so an
    * override written by hand is not lost by a save that does not know about it.
    */
@@ -2735,11 +2742,12 @@ export interface AdminConnection {
 /**
  * Per-connection overrides for what an endpoint can do.
  *
- * **Two of them are surfaced and the rest are not, deliberately.** The
+ * **Four of them are surfaced and the rest are not, deliberately.** The
  * conservative defaults are right for a provider nobody has told us about, and
- * these two are the ones an operator has a reason to correct because only they
- * know what they are running: a local model's real context window, and whether
- * their endpoint counts tokens.
+ * these four are the ones an operator has a reason to correct because only they
+ * know what they are running: a local model's real context window, whether
+ * their endpoint counts tokens, whether the same address also makes pictures,
+ * and whether it takes a seed with one (the fourth since 2026-10-03).
  *
  * Open-ended because the server's shape is, and because a save must not lose an
  * override somebody wrote by hand for a capability this form does not know
@@ -2750,8 +2758,63 @@ export interface ConnectionCapabilities {
   maxContextTokens?: number;
   /** Whether this endpoint reports token usage. */
   reportsUsage?: boolean;
+  /**
+   * Whether this address also answers image requests — [21 §3], [P9.2].
+   *
+   * A fact about the endpoint rather than the protocol: `openai-compatible`
+   * names a *chat* API, and whether the URL behind it serves
+   * `/images/generations` is something only the operator knows. Until
+   * [polish §25] a file edited by hand was the only place to say it.
+   */
+  rendersImages?: boolean;
+  /**
+   * Whether this endpoint takes a seed with a picture — [21 §3], set beside
+   * `rendersImages` since [polish §25]'s merge (2026-10-03).
+   *
+   * Off unless said, because `seed` is not part of OpenAI's image request and a
+   * strict endpoint refuses a field it does not know: sending it unasked turns
+   * a picture into a refusal. Where it is on, the recipe's seed travels and
+   * *Try again* can draw the same picture; the record says which was sent.
+   */
+  supportsImageSeed?: boolean;
   [capability: string]: unknown;
 }
+
+/** What a connection test asks — [polish §25]. The model and the words; never a key. */
+export interface ConnectionTestInput {
+  kind: 'text' | 'image';
+  modelId: string;
+  prompt: string;
+}
+
+/**
+ * What a connection test answered with.
+ *
+ * `modelId` is what the endpoint says answered, which may not be what was
+ * asked for. `cost` is null on every endpoint this build knows — the record's
+ * own refusal to invent a number, carried here for the same shape. A picture
+ * arrives as base64 so a page can show it without the picture being stored
+ * (the presser's usage log records the call, not the picture).
+ */
+export type ConnectionTestResult =
+  | {
+      kind: 'text';
+      text: string;
+      modelId: string;
+      finishReason: FinishReason;
+      usage: TokenUsage | null;
+      cost: { amount: number; currency: string } | null;
+      elapsedMs: number;
+    }
+  | {
+      kind: 'image';
+      mime: string;
+      base64: string;
+      modelId: string;
+      seed: number;
+      cost: { amount: number; currency: string } | null;
+      elapsedMs: number;
+    };
 
 export interface ConnectionInput {
   label: string;
@@ -2910,6 +2973,17 @@ export const adminApi = {
    */
   fetchModels: (input: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
     request('POST', '/api/admin/connections/models', input),
+
+  /**
+   * Tries a saved connection — [polish §25]: a message on a turn's retry
+   * ladder, a picture once.
+   *
+   * **What is saved, not what is typed**: the server uses the stored key and
+   * address, and refuses a body that carries either. So this is a question
+   * about a connection that exists, and the form's unsaved edits are not in it.
+   */
+  testConnection: (id: string, input: ConnectionTestInput): Promise<ConnectionTestResult> =>
+    request('POST', `/api/admin/connections/${encodeURIComponent(id)}/test`, input),
 
   readBindings: (): Promise<BindingsState> => request('GET', '/api/admin/bindings'),
 

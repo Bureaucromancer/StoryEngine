@@ -478,7 +478,7 @@ interface UsageRecord {
   schema: "storyengine.usage/1"
   at: string                                       // when the call returned
   purpose: string                                  // "impersonate", "assist:<field path>", "illustrate" — open
-  role: ModelRole
+  role: ModelRole | "connection-test"              // the second only for a connection test (2026-10-03)
   resolved: { connectionId: string; modelId: string }  // the model that answered, as above
   usage: { promptTokens: number; completionTokens: number } | null
   cost: { amount: number; currency: string } | null
@@ -493,6 +493,21 @@ never estimated, and null when it said nothing. A file in the account's
 directory rather than the index or `state.sqlite`, by §5.1's test — it is not
 derived, and an account archive carries files but holds none of the install's
 state.
+
+***A connection test is a line too, under a role no binding has***
+(2026-10-03 — the recommended answer, which the owner deferred to;
+[polish §25](workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)).
+The Test button on a saved connection is a model call that writes no turn, so
+a test that returns writes one line to the presser's log, purpose
+`connection-test:text` or `connection-test:image`. Its `role` is the literal
+`"connection-test"` rather than a `ModelRole`, because a test resolves no role:
+a person picked one model on one connection, and any role written there would
+be a claim about a binding nobody consulted, folding their tests into a spend
+view's figures for that role. The widening is this field's alone — `ModelRole`,
+the bindings files and the role tables are untouched — and additive inside
+`storyengine.usage/1`, which nothing reads yet. A test picture's line has
+`usage: null` and is the one image call the log carries; a rendition's own cost
+still has no field ([25 E16](25-open-questions.md)).
 
 ### 1.5 `BudgetVerdict`
 

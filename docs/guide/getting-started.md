@@ -46,7 +46,8 @@ Settings → **Administration** → **Connections** → **Add a connection**:
 
 **Save**. Because nothing is set up yet, StoryEngine offers **Use this for everything?**: choose
 **The good one** — the model you want to write the story — and **The cheap one**, and press **Use
-these**.
+these**. **Test** on the connection's row sends it one short message and says whether the key,
+the address and the model work — or which of them to fix.
 
 Settings → **Which models your stories use** should now show a model against **Writing the
 story**. That is the one job a turn cannot do without. See

@@ -146,18 +146,43 @@ export class ProviderError extends Error {
    * reported from below `performCall` instead of by its own timer.
    */
   readonly stalled: boolean;
+  /**
+   * The HTTP status the endpoint answered with, when it answered at all.
+   *
+   * ***Added for the connection test ([polish §25]), and for one distinction
+   * the class cannot make.*** A refused key and a model the endpoint does not
+   * serve are both `terminal` — correctly, since retrying either is pointless —
+   * but they send a person to opposite fields of the form, which is finding 5
+   * in [P2C log](../../../../docs/design/workplan/14-p2c-log.md) and the reason
+   * the `/models` route already answers `unauthorized` apart from
+   * `unreachable`. The class is the engine's vocabulary; this is the one fact
+   * about the response a caller needs to say *which field*.
+   *
+   * **Safe to carry where `detail` is not**: a number cannot echo a key, so it
+   * may reach a response body as a class-deciding input without the endpoint's
+   * words coming with it. `undefined` is *nothing answered* — a refused port,
+   * a timeout — and not a status of its own.
+   *
+   * *It rides in `how` beside `stalled`* (merged 2026-10-03). The branch that
+   * added it (2026-09-26) gave it a fourth positional parameter; main had
+   * meanwhile made that parameter the options bag for exactly this kind of
+   * fact about how a call failed, so it joined the bag rather than growing a
+   * fifth position that every caller passing `stalled` would have to pad.
+   */
+  readonly status: number | undefined;
 
   constructor(
     errorClass: ErrorClass,
     message: string,
     detail?: string,
-    how: { stalled?: boolean } = {},
+    how: { stalled?: boolean; status?: number } = {},
   ) {
     super(message);
     this.name = 'ProviderError';
     this.class = errorClass;
     this.detail = detail;
     this.stalled = how.stalled === true;
+    this.status = how.status;
   }
 }
 

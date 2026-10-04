@@ -10,17 +10,18 @@ again**; a backdrop that fails simply does not appear. Neither fails the turn.
 
 ## Before any picture
 
-Three things have to be in place, and the first has no control in Settings, so it is
-done by editing a file (or through the API):
+Three things have to be in place:
 
 1. **A connection that makes pictures.** Its endpoint must answer OpenAI's image API
    (`/images/generations`) with the picture inline as base64 — an endpoint that answers
-   with a link to the picture fails. The connection has to say it makes pictures, and
-   there is no control for that in Settings yet: add `"rendersImages": true` to the
-   `capabilities` in the connection's file (see
-   [Connections and models](connections-and-models.md#editing-connection-files-by-hand)).
-   Pictures are requested from the **first** connection you may use that says so — your
-   own before the install's — so mark only the connection you mean.
+   with a link to the picture fails. The connection has to say it makes pictures: edit it,
+   open **What this endpoint can do**, and under **Drawing pictures** set **Makes
+   pictures** to **Yes** (see
+   [Connections and models](connections-and-models.md#adding-a-connection)). Then **Test**
+   on its row → **Ask for** *A picture* → **Try a picture** shows whether it really does,
+   for the price of one picture. Pictures are requested from the **first** connection you
+   may use that says so — your own before the install's — so mark only the connection you
+   mean.
 2. **The job *Making images* bound** to the image model — in Settings → **Which models
    your stories use**, or for the whole install in **What each job uses**.
 3. **The job *Quick background jobs* bound**, for everything except **Set the scene**: a
@@ -83,9 +84,9 @@ however brief, so when a busy or paid service turns a picture away for a moment,
 placeholder appears straight away and **Try again** is how it is asked again.
 
 The recipe records a seed, and the seed is sent to the endpoint **only when the connection
-says the endpoint takes one**: `"supportsImageSeed": true` in its `capabilities`, which,
-like `rendersImages`, has no control in Settings (see
-[Connections and models](connections-and-models.md#editing-connection-files-by-hand)).
+says the endpoint takes one**: **Sends a seed with a picture** set to **Yes** on the
+connection, which appears under **Drawing pictures** once **Makes pictures** says yes (see
+[Connections and models](connections-and-models.md#adding-a-connection)).
 Without it — the default — **Try again** makes a new picture from the same prompt rather
 than the same picture again. With it, **Try again** sends the same seed, and an endpoint
 that honours seeds draws the same picture; nothing in the endpoint's answer says whether
@@ -199,12 +200,14 @@ The block table marks a picture on a move as **Picture sent**, **Picture as word
   that every turn. Staging the scene costs one call on *Writing the story* after **every**
   reply, to name the place, even when no picture is drawn. The description calls appear on
   the turn's record or in your usage log (`users/<handle>/usage.jsonl` in the data
-  directory, which has no screen in the app); image calls are not counted anywhere.
+  directory, which has no screen in the app); image calls are not counted anywhere,
+  except a **Test** picture on a connection, which has a line there of its own.
 - **No automatic retries.** An image request is sent once. A rate limit or a server
   error, even a passing one, fails that picture at once: an illustration becomes *That did
   not come out.*, and **Try again** is the retry — each press one more request, which a
   paid service may bill; a backdrop is asked for again after the next reply, as above.
-- **No time limit.** Image requests are not bound by the provider timeout. A stalled image
+- **No time limit.** Image requests in a story are not bound by the provider timeout (a
+  **Test** picture on a connection is, and gives up when it runs out). A stalled image
   endpoint leaves *Making a picture of this…* until the server restarts, after which **Try
   again** works.
 - **Notifications** say *A picture is ready* or *A picture could not be made* — but not

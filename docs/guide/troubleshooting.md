@@ -30,7 +30,10 @@ When you report a problem, Settings shows the **Version** and **Commit** at the 
 A failed turn stays in the story as *This turn did not finish.* with a sentence saying why.
 That sentence is worked out from the kind of failure alone; the notification for the turn —
 sent only if you were not on the session's page — can say more. Fix the cause, then **Redo**
-the turn.
+the turn. For anything that names the endpoint, the key or the model, **Test** on the
+connection's row (Settings → **Administration** → **Connections**, or Settings → **Your
+connections** for your own) tries it without taking a turn and says which of the three it is —
+see [Trying a connection](connections-and-models.md#trying-a-connection).
 
 | The sentence | Check |
 | --- | --- |
@@ -93,7 +96,8 @@ for space.
 ## Pictures
 
 If no pictures appear, work through [Before any picture](pictures.md#before-any-picture): a
-connection marked as making pictures (a hand edit), *Making images* bound, and *Quick background
+connection marked as making pictures (**Makes pictures** on the connection, and **Test** →
+**Try a picture** on its row to check it does), *Making images* bound, and *Quick background
 jobs* bound — for automatic backdrops as well as illustrations. Automatic pictures that cannot be
 made are skipped without a message. Over the turn, the workbench's **Pictures** section says why a
 picture that was meant to be made was not; a turn with no **Pictures** section at all usually
@@ -106,8 +110,8 @@ have no time limit; restart the server, then **Try again**.
 *That did not come out.* can be a rate limit or a server error as well as an endpoint that
 could not be reached: picture requests are asked once and never retried for you, so wait a
 moment and press **Try again**. If every picture fails with *The image service refused
-this one.* after you added `"supportsImageSeed": true` to the connection, the endpoint does
-not accept a seed — take it out again.
+this one.* after you set **Sends a seed with a picture** to **Yes** on the connection, the
+endpoint does not accept a seed — set it back.
 
 ## Importing
 

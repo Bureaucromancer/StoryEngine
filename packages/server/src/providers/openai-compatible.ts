@@ -777,7 +777,18 @@ function asProviderError(error: unknown): ProviderError {
    * than *"Bad Request"*. Bounded, because an HTML error page is a whole
    * document and a log line is not.
    */
-  return new ProviderError(errorClass, 'The provider call failed.', detail);
+  //
+  // The status goes with it ([polish §25]): a refused key and a refused model
+  // are both `terminal`, and only the number says which field to go and fix.
+  // Spread rather than written `{ status }`, because under
+  // `exactOptionalPropertyTypes` an optional field may be absent but may not be
+  // present-and-undefined, and a refused port answers with no status at all.
+  return new ProviderError(
+    errorClass,
+    'The provider call failed.',
+    detail,
+    status === undefined ? {} : { status },
+  );
 }
 
 /**
