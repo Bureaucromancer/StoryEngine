@@ -212,6 +212,115 @@ describe('MyRoles', () => {
 });
 
 /**
+ * ***An install connection one of yours hides*** — [polish §26](../../../../docs/design/workplan/06-polish.md),
+ * 2026-10-04.
+ *
+ * Both share an id, so a job set to either reaches your file. Before this the
+ * pane offered the install's models as choices that saved and then sent to
+ * yours — and where both listed a model, two options with one value. The
+ * server marks the hidden one (`shadowedBy`) and the pane takes its word.
+ */
+describe('an install connection one of yours hides', () => {
+  const MINE = {
+    id: HOUSE.id,
+    label: 'My copy',
+    provider: 'openai-compatible',
+    scope: 'user' as const,
+    models: ['llama-local', 'gpt-hi'],
+  };
+  const HIDDEN = { ...HOUSE, shadowedBy: { label: 'My copy' } };
+
+  it('is not offered, and the pane says why', async () => {
+    readMyRoles.mockResolvedValue(state({ connections: [MINE, HIDDEN] }));
+    renderPane();
+
+    const control = (await screen.findAllByRole('combobox'))[0]!;
+    const labels = [...control.querySelectorAll('option')].map((one) => one.textContent);
+    expect(labels).toEqual([
+      'Use this install’s default',
+      'llama-local — My copy',
+      'gpt-hi — My copy',
+    ]);
+    expect(
+      screen.getByText(
+        'The install’s connection “The house key” is not offered below: your own “My copy” has the same id, so any job set to it uses yours.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('says nothing when nothing is hidden', async () => {
+    readMyRoles.mockResolvedValue(state({ connections: [{ ...MINE, id: 'conn-mine' }, HOUSE] }));
+    renderPane();
+
+    await screen.findAllByRole('combobox');
+    expect(screen.queryByText(/is not offered below/)).toBeNull();
+  });
+
+  /**
+   * **A binding chosen on the install's connection before your file arrived**
+   * is not gone: it reaches your file, asking for a model your file does not
+   * list. Calling it gone would send somebody looking for a removed connection
+   * that is sitting in the list above it.
+   */
+  it('calls a binding to the hidden connection by the file it reaches', async () => {
+    readMyRoles.mockResolvedValue(
+      state({
+        connections: [MINE, HIDDEN],
+        bindings: { prose: { connectionId: HOUSE.id, modelId: 'gpt-lo' } },
+      }),
+    );
+    renderPane();
+
+    await screen.findAllByRole('combobox');
+    expect(screen.getByText('gpt-lo — My copy, which does not list it')).toBeTruthy();
+    expect(screen.queryByText('gpt-lo — on a connection that is gone')).toBeNull();
+  });
+
+  /**
+   * **And one your file does list is simply yours** — the other half of the
+   * case above, and the one a straight copy always produces, since a copy
+   * keeps the install's `models`. The held pair `<id>\n<model>` is then the
+   * value of an option the pane already offers, so it is that option, chosen,
+   * and no second label is drawn for it. Sitting Z2 and the guide both say a
+   * person sees exactly this; without it they would be promising a sentence
+   * the code had only been shown to draw for the other case (found in review,
+   * 2026-10-04).
+   */
+  it('calls a binding to a model your file also lists by your file alone', async () => {
+    readMyRoles.mockResolvedValue(
+      state({
+        connections: [MINE, HIDDEN],
+        bindings: { prose: { connectionId: HOUSE.id, modelId: 'gpt-hi' } },
+      }),
+    );
+    renderPane();
+
+    const control = (await screen.findAllByRole('combobox'))[0] as HTMLSelectElement;
+    const labels = [...control.querySelectorAll('option')].map((one) => one.textContent);
+    expect(labels).toEqual([
+      'Use this install’s default',
+      'llama-local — My copy',
+      'gpt-hi — My copy',
+    ]);
+    expect(control.value).toBe(`${HOUSE.id}\ngpt-hi`);
+  });
+
+  /**
+   * **Said once for two install copies of one connection.** The server marks
+   * every install file claiming the hidden id, and two that share it by a
+   * straight copy share the label too — so the pane had two identical
+   * sentences under one React key. What a person should see is one.
+   */
+  it('says it once when two install files share the id and the label', async () => {
+    readMyRoles.mockResolvedValue(state({ connections: [MINE, HIDDEN, { ...HIDDEN }] }));
+    renderPane();
+
+    await screen.findAllByRole('combobox');
+    expect(screen.getAllByText(/is not offered below/)).toHaveLength(1);
+  });
+});
+
+/**
  * ***Which of your models writes a field when you ask for help*** — the
  * stopgap for [25 C15] that lets a person point field assist at their quick
  * model. It picks a **row of the table**, so the model it reports is that row's

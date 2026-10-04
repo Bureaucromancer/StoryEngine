@@ -129,6 +129,43 @@ export function MyRoles(): JSX.Element {
         </Alert>
       ) : null}
 
+      {
+        /**
+         * ***An install connection one of yours hides, said rather than
+         * offered*** — [polish §26], 2026-10-04.
+         *
+         * The two share an id, so a job set to either reaches yours: the
+         * install's models were choices that saved cleanly and then sent to a
+         * different file, and where both listed a model, two options with one
+         * value. `choicesFor` leaves them out on the server's word, and this
+         * says why — the disabled list's reason above, one case over: somebody
+         * told rather than left wondering where a connection went.
+         *
+         * ***Each sentence once, and keyed by the sentence.*** The server marks
+         * *every* install file claiming a hidden id, since none of them can
+         * answer for you — and two install files sharing an id usually got
+         * there by a straight copy, which shares the label as well. Keyed on
+         * id and label, those two were one React key twice, which React warns
+         * about and can reconcile wrongly; and they said one sentence twice,
+         * which tells a person nothing the first did not. A set of the
+         * sentences answers both at once, and drops only what nobody reading
+         * could have told apart. (Found in review, before this was committed.)
+         */
+        [
+          ...new Set(
+            data.connections.flatMap((connection) =>
+              connection.scope === 'system' && connection.shadowedBy !== undefined
+                ? [hiddenNote(connection.label, connection.shadowedBy.label)]
+                : [],
+            ),
+          ),
+        ].map((note) => (
+          <Alert key={note} tone="warning" role="status">
+            {note}
+          </Alert>
+        ))
+      }
+
       <div className="overflow-x-auto">
         <table className="w-full text-start text-sm">
           <thead>
@@ -284,6 +321,9 @@ function choicesFor(data: MyRolesData, row: RoleRow): readonly (readonly [string
   const options: [string, string][] = [[NONE, 'Use this install’s default']];
 
   for (const connection of data.connections) {
+    // Hidden by one of yours ([polish §26]): its models would bind the id,
+    // and the id reaches yours. The server says which; nothing here decides.
+    if (connection.shadowedBy !== undefined) continue;
     for (const model of connection.models) {
       options.push([`${connection.id}\n${model}`, `${model} — ${connection.label}`]);
     }
@@ -291,8 +331,40 @@ function choicesFor(data: MyRolesData, row: RoleRow): readonly (readonly [string
 
   const held = data.bindings[row.role];
   if (held !== undefined && !options.some(([value]) => value === choiceOf(held))) {
-    options.push([choiceOf(held), `${held.modelId} — on a connection that is gone`]);
+    options.push([choiceOf(held), heldLabel(data, held)]);
   }
 
   return options;
+}
+
+/**
+ * What a binding the options above do not carry is called.
+ *
+ * ***Gone, unless one of yours hides the connection it names*** — [polish §26].
+ * The likeliest way to arrive here with a hidden connection is the natural
+ * order of events: a job chosen on the install's connection, then a file of
+ * yours with the same id restored from a backup or copied by hand. That
+ * binding is not gone — it reaches your file, asking for a model your file
+ * does not list, which is what the same row's *Model* column says it does — and
+ * calling it *gone* would send somebody looking for a removed connection that
+ * is sitting in the list. The label of the file it reaches is the server's
+ * (`shadowedBy`), so this decides nothing about precedence.
+ *
+ * *A model removed from a connection that is still offered keeps the old
+ * sentence*, which [the guide](../../../../docs/guide/connections-and-models.md)
+ * records as a known imprecision; it is not this case, and widening the fix to
+ * it would change a sentence a person may already have learned.
+ */
+function heldLabel(data: MyRolesData, held: Binding): string {
+  const reached = data.connections.find(
+    (connection) => connection.id === held.connectionId && connection.shadowedBy !== undefined,
+  )?.shadowedBy;
+  return reached === undefined
+    ? `${held.modelId} — on a connection that is gone`
+    : `${held.modelId} — ${reached.label}, which does not list it`;
+}
+
+/** An install connection hidden by one of yours, as a sentence — [polish §26]. */
+function hiddenNote(installLabel: string, yoursLabel: string): string {
+  return `The install’s connection “${installLabel}” is not offered below: your own “${yoursLabel}” has the same id, so any job set to it uses yours.`;
 }

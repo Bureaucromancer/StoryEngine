@@ -81,7 +81,10 @@ export function createProviderFactory(options: ProviderFactoryOptions = {}): Pro
    * *(2026-10-03: "surfaced" was true within one scope, where the list marks
    * the loser `shadowed`, and not across them — a personal file claiming a
    * system id was reported by nothing until `ConnectionResolution.shadowing`,
-   * which the runner logs as a count. It is still shown by nothing on screen.
+   * which the runner logs as a count. ~~It is still shown by nothing on screen.~~
+   * (2026-10-04: and shown on screen since [polish §26], to the file's owner,
+   * on their own row and in the role pane, and on the install's row for an
+   * administrator.)
    * Two accounts' files claiming one id are no duplicate to either account's
    * resolver, and since this memo they are none to the memo either.)*
    *

@@ -1040,8 +1040,14 @@ export class TurnRunner {
      * [09 §4.5]'s reason above. And silent when there is nothing to say,
      * because a line on every turn would train an operator to stop reading it.
      *
-     * *The only place it is said, for now* — the Connections list does not show
-     * it, which `ConnectionResolution.shadowing` records as a known follow-up.
+     * ~~*The only place it is said, for now* — the Connections list does not show
+     * it, which `ConnectionResolution.shadowing` records as a known follow-up.~~
+     * *(2026-10-04: no longer the only place — since [polish §26] Settings
+     * tells the person whose file it is, on their own row and in the role
+     * pane, and also on the install's row when that person is an
+     * administrator; a person who is not one never sees the install's rows.
+     * This line stays the operator's, for an account whose owner never opens
+     * Settings.)*
      */
     if (inputs.shadowing.length > 0) {
       log?.warn(

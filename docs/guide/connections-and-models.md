@@ -171,6 +171,27 @@ If an administrator turns off **May use their own connections** for your account
 your connections stay on disk but are not used, and your choices that named them
 fall back to the install's defaults.
 
+### One of yours with the same id as one of the install's
+
+A connection added here never shares an id with anything. A file copied by hand,
+or one a backup brought back, can: if a connection of yours has the same `id` as
+one of the install's, yours is used in its place for your stories — wherever a
+job is set to the install's connection, by you or by the install's defaults. It
+changes nothing for anyone else. Settings says so in three places:
+
+- under **Your connections**, your row says *This has the same id as the
+  install's connection "…"*, and still has **Test**, **Edit** and **Remove** —
+  removing it is how to undo it;
+- under **Which models your stories use**, the install's connection is not
+  offered, and a line above the table says which of yours stands in for it. A job
+  you had already set to it shows as your connection: *model — your connection*
+  if your file lists that model, as a straight copy does, or *model — your
+  connection, which does not list it* if it does not;
+- for an administrator whose own file it is, the install's row under
+  **Administration** → **Connections** says *Your own connection "…" has the same
+  id as this one*. Its buttons still act on the install's connection, for
+  everyone.
+
 ## Jobs
 
 Each job, what it is called on screen, and what uses it today:
@@ -203,7 +224,9 @@ Settings → **Which models your stories use** has the same rows. Each job start
 **Use this install's default**; choose any model on a connection you may use —
 your own first, then the install's — and it applies to your stories only. You need
 no key of your own to choose a different model on one of the install's
-connections. It saves as you choose.
+connections. It saves as you choose. An install connection that one of yours
+shares an id with is not offered (see
+[One of yours with the same id](#one-of-yours-with-the-same-id-as-one-of-the-installs)).
 
 **Writing help in the library** chooses which job's model writes when you ask for
 help with a field: **Writing the story** (the default), **Quick background jobs** or
@@ -360,6 +383,10 @@ sorts first is used; the file name plays no part, so renaming either connection 
 change which copy wins. The other row says so and has no **Test**, **Edit** or
 **Remove** button. Delete the extra file by hand: removing the connection in the app removes
 every file with that id.
+
+A file in your folder with the same `id` as one in the install's is different:
+yours wins, for you alone, and both rows keep their buttons — see
+[One of yours with the same id](#one-of-yours-with-the-same-id-as-one-of-the-installs).
 
 ## Good to know
 

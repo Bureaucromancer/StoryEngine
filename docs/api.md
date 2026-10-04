@@ -3213,6 +3213,18 @@ want of `privateConnections`, returned rather than dropped so you are told rathe
 than left wondering why a model call started failing
 ([09 §4.5](design/09-server-multiuser-deployment.md)).
 
+**`shadowedBy: { "label": "…" }`, on an install connection one of your own
+hides** (since 2026-10-04, [polish §26](design/workplan/06-polish.md)). A file of
+yours that claims an install connection's `id` wins it for you — personal comes
+first — so every binding naming that id, yours and the install's defaults alike,
+reaches your file. The install connection is still listed, in resolution order,
+and carries the label of the file of yours that answers in its place; every
+install file claiming the id is marked, since none of them can answer for you.
+Nothing else of your file travels with it. Absent everywhere else, and always
+absent without `privateConnections`, because then nothing of yours resolves. A
+client offering bindings should leave a marked connection's models out: a
+binding chosen from them names the id, and the id reaches yours.
+
 `PUT /api/me/bindings` takes `{ bindings, contentHash }` and answers the same
 `{ bindings, contentHash }`. The document is **replaced wholesale** — it is
 exactly its known role keys, so there is nothing a merge would preserve — and the
@@ -3270,11 +3282,21 @@ scope claiming the id. What differs:
 - **`shadowed` is computed over your scope alone**, so it marks the loser of two
   of *your* files claiming one id. A file of yours claiming a **system**
   connection's id reads `shadowed: false` — true, since it wins for you — and
-  nothing on this route says what it hides; the runner's `connections.shadowing`
+  ~~nothing on this route says what it hides; the runner's `connections.shadowing`
   log line is the only report, a known follow-up tracked at
-  [manual testing §10](design/workplan/05-manual-testing.md). It wins for your
+  [manual testing §10](design/workplan/05-manual-testing.md)~~ *(2026-10-04:
+  it says so now — next bullet)*. It wins for your
   account only: the provider memo has rebuilt per connection rather than per id
   since 2026-09-27 ([P2B §1.5](design/workplan/10-p2b-provider-configuration.md)).
+- **`shadows: { "label": "…" }` names the system connection such a file hides**
+  (since 2026-10-04, [polish §26](design/workplan/06-polish.md)): on the file of
+  yours that wins an id a system connection also claims, the label of the system
+  connection your bindings — and the install's defaults — would otherwise reach,
+  which is the first system file claiming the id by label. Its label alone:
+  never its key, its address or its models. On the list and on `PUT`'s answer;
+  absent from every other row, from a loser already marked `shadowed`, and from
+  `POST`'s, whose minted id cannot collide. The system connection's own half is
+  `shadowedBy` on [`GET /api/me/roles`](#get-apimeroles--put-apimebindings--put-apimetask-roles).
 - **`POST /api/me/connections/models` makes the server fetch a URL you typed**,
   which the admin twin's note calls administrator-only. It adds the timing and
   not the reach: an account with `privateConnections` can already store that URL

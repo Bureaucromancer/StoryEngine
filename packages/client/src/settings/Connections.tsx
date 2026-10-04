@@ -21,6 +21,7 @@ import {
   useConnections,
   useDeleteConnection,
   useFetchModels,
+  useMyRoles,
   useRoles,
   useSaveConnection,
   useTestConnection,
@@ -97,6 +98,29 @@ export function AdminConnections(): JSX.Element {
    * hand-written does not either.
    */
   const unbound = bindings.data !== undefined && Object.keys(bindings.data.bindings).length === 0;
+  /**
+   * ***Which of the install's connections this administrator's own files
+   * hide*** — [polish §26], 2026-10-04.
+   *
+   * **Read from `/api/me/roles`, not from the admin list**, because it is a
+   * fact about this person's turns rather than about the install — and the
+   * admin routes answer *what has the install got* and nothing narrower
+   * ([P2B §2.7]'s line, which `GET /api/admin/roles` keeps too). The query is
+   * the one `MyRoles` already holds on this page, so it costs no request; it
+   * needs no capability, so it cannot be refused; and the server has already
+   * said which install connection is hidden (`shadowedBy`), so this decides no
+   * precedence of its own — it only finds the row by the id the two share.
+   * While it loads, or if it fails, no row says anything, which is the old
+   * behaviour rather than a wrong one.
+   */
+  const mine = useMyRoles();
+  const hiddenForYou = new Map(
+    (mine.data?.connections ?? []).flatMap((connection) =>
+      connection.scope === 'system' && connection.shadowedBy !== undefined
+        ? [[connection.id, connection.shadowedBy.label] as const]
+        : [],
+    ),
+  );
 
   return (
     <ConnectionsPanel
@@ -106,6 +130,7 @@ export function AdminConnections(): JSX.Element {
       blurb="Shared by everybody on this install. Keys stay on the server and are never sent back to a browser."
       empty="There are no connections yet, so nobody can send a message."
       offerDefaults={unbound}
+      hiddenForYou={hiddenForYou}
     >
       <RoleTable />
     </ConnectionsPanel>
@@ -156,6 +181,7 @@ function ConnectionsPanel({
   blurb,
   empty,
   offerDefaults,
+  hiddenForYou,
   children,
 }: {
   scope: ConnectionScope;
@@ -164,6 +190,13 @@ function ConnectionsPanel({
   blurb: string;
   empty: string;
   offerDefaults: boolean;
+  /**
+   * The install's connections one of the viewer's own files hides, each to the
+   * label of the file that answers instead — the admin panel only, where the
+   * rows are the install's. Absent on the personal panel, whose rows carry
+   * their own half of it (`shadows`).
+   */
+  hiddenForYou?: ReadonlyMap<string, string>;
   children?: ReactNode;
 }): JSX.Element {
   const connections = useConnections(scope);
@@ -271,6 +304,33 @@ function ConnectionsPanel({
                  */
                 <p className="mt-2 text-sm text-warn-ink">{shadowedNote()}</p>
               ) : null}
+              {/*
+               * ***The other scope's collision, said on both of its rows***
+               * — [polish §26], 2026-10-04, and until then a count in the
+               * server's log and nothing on screen.
+               *
+               * A personal file sharing an install connection's id wins it for
+               * its owner, so every job naming the id — theirs and the
+               * install's defaults — reaches the personal file. The personal
+               * row says what it stands in for (`shadows`); the install's row,
+               * where the viewer can see it, says it is hidden for them.
+               *
+               * ***And both keep their controls***, which is the decision
+               * rather than an omission, against the same-scope rule above.
+               * That rule exists because Edit, Test and Remove act on an *id*
+               * and reach the other file of two in **one** directory. Across
+               * scopes they cannot: the personal routes reach the personal
+               * directory only, and the admin routes the install's, so every
+               * button on either row acts on exactly the file it is drawn
+               * under. Removing the personal one is the undo; and taking the
+               * controls off the install's row would let one person's file
+               * stop an administrator managing a connection everybody else
+               * still uses.
+               */}
+              {row.shadows === undefined ? null : (
+                <p className="mt-2 text-sm text-warn-ink">{standsInForNote(row.shadows.label)}</p>
+              )}
+              {row.shadowed ? null : <HiddenForYou by={hiddenForYou?.get(row.id)} />}
               {testing === row.id && !row.shadowed ? (
                 // Keyed on the hash, so a save that changes the model list
                 // starts the test over rather than offering a model it lost.
@@ -318,6 +378,20 @@ function ConnectionsPanel({
 
       {children}
     </section>
+  );
+}
+
+/**
+ * An install connection's row, saying it is hidden for the person looking —
+ * [polish §26]. Nothing when it is not.
+ *
+ * Only on a row that is not itself `shadowed`: a second install file claiming
+ * the id already says nothing resolves to it, for anybody, and a second
+ * sentence about one person would be noise under that one.
+ */
+function HiddenForYou({ by }: { by: string | undefined }): JSX.Element | null {
+  return by === undefined ? null : (
+    <p className="mt-2 text-sm text-warn-ink">{hiddenForYouNote(by)}</p>
   );
 }
 
@@ -1494,6 +1568,31 @@ function removeTitle(label: string): string {
 
 function shadowedNote(): string {
   return "Another connection file on disk already uses this id, so nothing will ever resolve to this one. Delete this copy's file by hand: removing the connection here removes every file with this id, including the one in use.";
+}
+
+/**
+ * A personal row that hides an install connection — [polish §26].
+ *
+ * **It names the defaults**, because that is the half nobody would guess: the
+ * person may never have chosen the install's connection for anything, and the
+ * install's own default for *Writing the story* still reaches this file for
+ * them. **It names who is unaffected**, because the next question is whether
+ * this broke anybody else's stories, and since the provider memo's repair of
+ * 2026-09-27 it cannot. **And it names the undo**, which is the button beside
+ * it: removing this file leaves only the install's to answer the id.
+ */
+function standsInForNote(label: string): string {
+  return `This has the same id as the install’s connection “${label}”, so your stories use this one wherever a job is set to “${label}” — including this install’s defaults. Everyone else still uses “${label}”. If that is not what you meant, remove this connection.`;
+}
+
+/**
+ * An install row that one of the viewer's own files hides — [polish §26]. For
+ * an administrator, whose Edit, Test and Remove here still act on the
+ * install's file and so still reach everybody else, which the second sentence
+ * is there to say.
+ */
+function hiddenForYouNote(label: string): string {
+  return `Your own connection “${label}” has the same id as this one, so your stories use yours wherever a job is set to this one. Everyone else still uses this one, and changes here still reach them.`;
 }
 
 function duplicateRemoved(): string {

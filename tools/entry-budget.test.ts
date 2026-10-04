@@ -177,6 +177,20 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * which is what this file is for. *The 342 paragraph above stays* as the
  * record of what the merge measured and why it chose to raise.
  */
+/*
+ * ***Not raised on 2026-10-04, at [polish §26] — saying out loud what it
+ * added, as the paragraph above asks.*** A connection that hides another says
+ * so: two sentences on the Connections rows, one above the role pane's table,
+ * the label of a binding to a hidden connection, and the install panel's read
+ * of the caller's role answer. The entry measured **335.55** before it and
+ * **335.96** after — **+0.41 kB**, all the client's own words and wiring, and
+ * **no new dependency**, which is the [20 §7] trigger. It fits, and leaves
+ * **0.04 kB**, which no client change will fit inside: the next one meets this
+ * ceiling, and the choice it faces is this file's usual one — a raise argued
+ * here, or code moved off the entry the way the wizard's was. Choosing which
+ * is a loading decision and not a polish entry's, so it is named rather than
+ * taken.
+ */
 const JS_CEILING_KB = 336;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */

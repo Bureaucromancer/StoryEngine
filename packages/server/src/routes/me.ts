@@ -16,7 +16,11 @@ import {
   userBindingsState,
   writeBindings,
 } from '../providers/bindings.js';
-import { presentConnection, resolveConnections } from '../providers/connections.js';
+import {
+  presentConnection,
+  presentUsableConnections,
+  resolveConnections,
+} from '../providers/connections.js';
 import { presentRoleRow, roleTable } from '../providers/roles.js';
 import { ASSIST_ROLES, readTaskRoles, writeTaskRoles } from '../providers/task-roles.js';
 import { ingestFile } from '../index-db/ingest.js';
@@ -454,7 +458,7 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    const { usable, disabled } = await resolveConnections(
+    const { usable, disabled, shadowing } = await resolveConnections(
       services.layout,
       account.handle,
       account.capabilities,
@@ -473,7 +477,15 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
       // `presentConnection`, so this carries a label, a provider and the model
       // list a binding picks from — and no `apiKey` and no `baseUrl`, which is
       // the rule that lets this route live outside the admin prefix at all.
-      connections: usable.map(presentConnection),
+      //
+      // *Through `presentUsableConnections` since 2026-10-04* ([polish §26]),
+      // which is `presentConnection` plus `shadowedBy` on an install
+      // connection one of this account's own hides: the label of the personal
+      // connection that answers in its place, so the picker stops offering a
+      // choice that saves and then reaches a different file, and so Settings
+      // can say why — on this pane, and on the install's row for an
+      // administrator whose own file hides it.
+      connections: presentUsableConnections({ usable, shadowing }),
       /**
        * Personal connections on disk that were ignored for want of
        * `privateConnections` — [09 §4.5] wants the user *told* rather than left

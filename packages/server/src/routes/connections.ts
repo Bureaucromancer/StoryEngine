@@ -20,6 +20,7 @@ import {
   deleteConnection,
   presentConnectionsForAdmin,
   presentForAdmin,
+  presentMyConnections,
   readSystemConnectionEntries,
   readSystemConnections,
   readUserConnectionEntries,
@@ -1182,10 +1183,16 @@ async function respond(error: unknown, reply: FastifyReply): Promise<FastifyRepl
  *
  * A create here mints a uuidv7 and cannot collide; a file a person wrote by
  * hand, or a backup import carried in, can. `resolveConnections` reports it as
- * `shadowing` and the runner logs a count. ***This list does not say so*** —
+ * `shadowing` and the runner logs a count. ~~***This list does not say so*** —
  * `shadowed: false` is the truth about the row and silence about what it
  * hides, and showing that is a known follow-up recorded under
- * [P2B §1.5](../../../../docs/design/workplan/10-p2b-provider-configuration.md).
+ * [P2B §1.5](../../../../docs/design/workplan/10-p2b-provider-configuration.md).~~
+ * ***It says so since 2026-10-04*** ([polish §26](../../../../docs/design/workplan/06-polish.md)):
+ * `shadowed: false` is still the truth about the row, and the row now also
+ * carries `shadows` — the label of the install connection it stands in for —
+ * through `presentMyConnections`, on the list and on an edit's answer alike.
+ * The install's connections are read for that label and for nothing else;
+ * nothing of theirs but the label reaches this response.
  */
 export function registerMyConnectionRoutes(app: FastifyInstance, services: AppServices): void {
   /**
@@ -1225,7 +1232,9 @@ export function registerMyConnectionRoutes(app: FastifyInstance, services: AppSe
     if (!mine) return;
 
     const entries = await readUserConnectionEntries(services.layout, mine.handle);
-    return reply.send({ connections: presentConnectionsForAdmin(entries) });
+    return reply.send({
+      connections: presentMyConnections(entries, await readSystemConnections(services.layout)),
+    });
   });
 
   app.post('/me/connections', { schema: { body: ConnectionBody } }, async (request, reply) => {
@@ -1290,9 +1299,15 @@ export function registerMyConnectionRoutes(app: FastifyInstance, services: AppSe
         // Presented over the list, for the admin path's reason: an edit can
         // change which of two files claiming one id wins, and answering with
         // the single presenter would report `shadowed: false` about a
-        // connection the same write had just killed.
+        // connection the same write had just killed. *And with the install's
+        // connections beside it* (2026-10-04, [polish §26]), for the same
+        // reason one scope over: a rename can hand the win — and with it the
+        // install connection this file hides — to the other claimant, so the
+        // row this answers with is the list's row, `shadows` included, rather
+        // than the same file described two ways. (This client re-reads the
+        // list after a save regardless; the answer is for whoever does not.)
         const after = await readUserConnectionEntries(services.layout, mine.handle);
-        const rows = presentConnectionsForAdmin(after);
+        const rows = presentMyConnections(after, await readSystemConnections(services.layout));
         const at = after.findIndex((entry) => entry.path === written.path);
         return await reply.send({
           connection:

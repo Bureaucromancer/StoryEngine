@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -240,6 +241,96 @@ describe('what the resolver then sees', () => {
 
     expect(usable).toEqual([]);
     expect(disabled.map((one) => one.label)).toEqual(['My own key']);
+  });
+});
+
+/**
+ * ***A file of yours claiming an install connection's id*** —
+ * [polish §26](../../../../docs/design/workplan/06-polish.md), 2026-10-04.
+ *
+ * A create here mints a uuidv7 and cannot collide, so the file is planted the
+ * way one really arrives: by hand, or by a backup import that copies ids
+ * verbatim. What the route owes is the sentence's data — the install
+ * connection's **label**, on the row that hides it — and not one byte more of
+ * the install's connection. The falsifying mutation is the list presenter this
+ * route used before (`presentConnectionsForAdmin`), which reads the personal
+ * scope alone and so has nothing to say about the install's.
+ */
+describe('a file of yours claiming an install connection’s id', () => {
+  async function plant(): Promise<{ id: string; contentHash: string }> {
+    const house = await server.request({
+      method: 'POST',
+      url: '/api/admin/connections',
+      payload: {
+        ...MINE,
+        label: 'The house key',
+        apiKey: 'sk-the-install-s-own',
+        baseUrl: 'https://api.house.example/v1',
+      },
+    });
+    const id = house.body.connection.id as string;
+    const root = server.services.layout.userConnectionsRoot('ned');
+    await mkdir(root, { recursive: true });
+    await writeFile(
+      join(root, 'copied-by-hand.json'),
+      JSON.stringify({ ...MINE, id, label: 'My copy of it' }),
+    );
+    const listed = await server.request({ method: 'GET', url: '/api/me/connections' });
+    return { id, contentHash: listed.body.connections[0].contentHash as string };
+  }
+
+  it('says which install connection it stands in for, by label alone', async () => {
+    await plant();
+
+    const listed = await server.request({ method: 'GET', url: '/api/me/connections' });
+
+    expect(listed.body.connections).toHaveLength(1);
+    expect(listed.body.connections[0]).toMatchObject({
+      label: 'My copy of it',
+      // Still false: this is the file that resolves, and its controls stay.
+      shadowed: false,
+      shadows: { label: 'The house key' },
+    });
+    const body = JSON.stringify(listed.body);
+    expect(body).not.toContain('sk-the-install-s-own');
+    expect(body).not.toContain('api.house.example');
+  });
+
+  /**
+   * **And an edit answers with the same row**, `shadows` included — the list's
+   * presenter rather than the single one, for the reason the route gives: an
+   * answer missing the field would describe the file one way and the list
+   * another.
+   */
+  it('answers an edit with the row the list would show', async () => {
+    const { id, contentHash } = await plant();
+
+    const edited = await server.request({
+      method: 'PUT',
+      url: `/api/me/connections/${id}`,
+      payload: { ...MINE, label: 'Renamed copy', contentHash },
+    });
+
+    expect(edited.status).toBe(200);
+    expect(edited.body.connection).toMatchObject({
+      label: 'Renamed copy',
+      shadows: { label: 'The house key' },
+    });
+    expect(JSON.stringify(edited.body)).not.toContain('sk-the-install-s-own');
+  });
+
+  it('says nothing on a connection whose id the install does not have', async () => {
+    await server.request({
+      method: 'POST',
+      url: '/api/admin/connections',
+      payload: { ...MINE, label: 'The house key' },
+    });
+    await createMine();
+
+    const listed = await server.request({ method: 'GET', url: '/api/me/connections' });
+
+    expect(listed.body.connections).toHaveLength(1);
+    expect('shadows' in listed.body.connections[0]).toBe(false);
   });
 });
 

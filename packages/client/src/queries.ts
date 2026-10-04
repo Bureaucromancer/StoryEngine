@@ -1461,6 +1461,16 @@ function invalidateProviderSurface(client: QueryClient, scope: ConnectionScope =
    * the person who would have both open.
    */
   void client.invalidateQueries({ queryKey: ['me', 'roles'] });
+  /**
+   * ***And your own list, after a write to the install's*** — [polish §26],
+   * 2026-10-04. A personal row that hides an install connection names it
+   * (`shadows`), so renaming or removing the install's changes what that row
+   * says — and the person who would see it go stale is, again, an admin with
+   * both lists open on one page. A write to the personal scope already
+   * invalidates that list above, and the install's list says nothing about
+   * anybody's own, so nothing else moves.
+   */
+  if (scope === 'system') void client.invalidateQueries({ queryKey: connectionsKey('mine') });
 }
 
 /**

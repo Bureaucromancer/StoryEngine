@@ -2905,6 +2905,14 @@ export interface AdminConnection {
   hasKey: boolean;
   /** An earlier file already claims this id, so nothing resolves to this one. */
   shadowed: boolean;
+  /**
+   * ***On one of your own connections: the install connection it stands in
+   * for*** — [polish §26], 2026-10-04. Present when this file shares an
+   * install connection's id and wins it, so every job naming that id reaches
+   * this file for you. Its label alone; never on an install row, and absent
+   * from a server older than the field, which reads as *hides nothing*.
+   */
+  shadows?: { label: string };
   /** Presented back on an edit — *I have seen what is on disk*. */
   contentHash: string;
 }
@@ -3046,6 +3054,13 @@ export interface UsableConnection {
   models: string[];
   /** Which of `models` can see pictures ([25 E15]). Absent means none. */
   imageModels?: string[];
+  /**
+   * ***On an install connection one of your own hides: the label of yours***
+   * — [polish §26], 2026-10-04. The two share an id, so a job naming it reaches
+   * your file whichever of the two a picker claimed to choose. Absent on
+   * everything else, and from a server older than the field.
+   */
+  shadowedBy?: { label: string };
 }
 
 /**

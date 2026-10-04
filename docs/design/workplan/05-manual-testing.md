@@ -309,6 +309,11 @@ is below; this is the afternoon.*
     played against it, so it is cheapest in the sitting that has played one:
     **after K, beside G**, whose hours produce exactly the session W1 starts
     from.
+12. **Z** — added 2026-10-04: [polish §26](06-polish.md#26-a-connection-that-hides-another-says-so)'s
+    connection that hides another. **Ten minutes, a text editor and a second
+    account, and no endpoint** — walkable today, as D11–D20 and U1 are. Not a
+    phase's gate, so it holds nothing open; it is on this list because it is
+    cheap, not because anything waits on it.
 
 **Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
 sitting — K5–K8 are the short form of it, and what they cannot reach is exactly
@@ -1345,6 +1350,47 @@ is this known gap, not a regression**: record which kind of session the setup
 was made from — its mode, and whether the character was a companion — and no
 row is edited for it.
 
+### Z — A connection that hides another — *ten minutes, a text editor and a second account*
+
+**[Polish §26](06-polish.md#26-a-connection-that-hides-another-says-so)'s
+*what needs a person***: a personal connection that shares an install
+connection's id, read on every row that now says so, by somebody who did not
+make the file. The suite plants the file and asserts the sentences and the
+controls; what it cannot say is whether the sentences tell a person what
+happened, and that is the whole of the feature.
+
+***Lettered Z, and not X or Y, on 2026-10-04.*** X and Y are held for the
+critical lists of the two import phases —
+[P13 §3.1 and §3.3](30-p13-aventuras-import.md) and
+[P14 §4.1](31-p14-scene-and-session-import.md) — which are written and not yet
+registered here as sittings. Both phases were merged before this entry was
+filed, so their lists keep the next two letters, and this takes the one after
+rather than a letter that would have to move when they arrive — the re-lettering
+V and W went through, avoided. ***Three lists for two letters***, because P13
+has two — Part 1's rows 1–4 and Part 2's rows 10–13, the second written
+2026-09-30 once Part 2 was scheduled. The reading this note takes is that
+**X is P13's sitting with those two lists as its halves** — one Aventuras
+install serves both, which is what §3.3's third clause says it assumes — and
+**Y is P14's**. The mapping is whoever registers them to make; if X has to
+split, this note is where the dated line goes, and this sitting's letter does
+not move for it.
+
+***Its own sitting rather than a row of V***, which is the connections sitting
+already: V wants R2 and R3, real endpoints, and this wants neither — the
+running app, [R7](#3-standing-prerequisites)'s text editor on the machine
+holding the data directory, and a second account. A row
+inside V would wait on V's errands for no reason of its own. ***And a sitting
+rather than a critical row*** — Q's reason exactly: no phase gate owns it,
+and nothing here can lose data or take a one-way door; the worst outcome is a
+sentence that confuses. It extends the standing list.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **Z1** | **As an administrator** (the account may keep its own connections, which is the default). **First**, under **Which models your stories use**, pick one install connection that lists at least two models and set two jobs to two different ones of them — *Writing the story* to one, *Quick background jobs* to the other. **Then** copy that connection's file from `data/system/connections/` into your own `data/users/<handle>/connections/`, keep its `id`, change its `label` to *My copy*, and delete from its `models` the model *Writing the story* is set to. Reload Settings. **Your connections**: *My copy* says it has the same id as the install's connection and that your stories use it wherever a job is set to that one, including the install's defaults, and still has **Test**, **Edit** and **Remove**. **Administration → Connections**: the install's row says your own *My copy* is used instead *for you*, that everyone else still uses it — and also keeps its three buttons. **Read both sentences as somebody who did not make the file: do they say what happened, and what to do?** | [polish §26](06-polish.md#26-a-connection-that-hides-another-says-so) | |
+| **Z2** | **Which models your stories use**: the install connection's models are no longer offered, and a sentence above the table names both connections. *Writing the story*, set to the model *My copy* no longer lists, reads *model — My copy, which does not list it*, not *on a connection that is gone*. *Quick background jobs*, set to a model *My copy* kept, reads plainly *model — My copy*: the same choice, which now reaches your file. **Does the first say what changed for that job, and does the second leave anyone wondering where it went?** | [polish §26](06-polish.md#26-a-connection-that-hides-another-says-so) | |
+| **Z3** | **Sign in as a second account** with no file of its own. Nothing is said anywhere, and the install connection is offered as before — the sentence is about one person's files, and nobody else's turns changed. | [P2B §1.5](10-p2b-provider-configuration.md) | |
+| **Z4** | **Back as the administrator, remove *My copy*** from Your connections. Both sentences go, the install connection's models are offered again, and both of Z1's jobs read as the install connection's. | [polish §26](06-polish.md#26-a-connection-that-hides-another-says-so) | |
+
 ## 5. Already discharged, and by what
 
 Listed so the count is honest. **Nobody walks these.**
@@ -1701,7 +1747,7 @@ Anything that loses its owner comes back to §0's rule.*
 | **Print, and copy as Markdown**, for a lorebook ([10 §5.3](../10-ui-surfaces.md)) | specified, never routed | ~~**[P11.1](28-p11-implementation.md)**~~ **Built 2026-09-17 at [P11.1](28-p11-implementation.md)** | The same two formats and the same print stylesheet the reading view ships; a second implementation would disagree with the first |
 | **The per-kind library panels** for the four kinds still on the generic shelf ([10 §5.1](../10-ui-surfaces.md)) | [polish §4](06-polish.md) | **Treatments and Presets: [P7B](24-p7b-presets-and-prompts.md)**; Setups and Packages stay with polish §4 until their editors have a phase | Create arrives with the kind's editor and the panel is what renders it, so the two kinds gaining editors gain panels in the same stage; polish keeps the shared machinery specified. ***Updated 2026-09-14***: Setups and Packages get their editors at [P7B.6](24-p7b-presets-and-prompts.md), so their panels follow into the same phase rather than waiting on one |
 | **Personal connections and bindings** ([10 §15.1](../10-ui-surfaces.md)'s *your connections*) | [P2B §2.7](10-p2b-provider-configuration.md) (*"the phase after, or at P10"*); [P6B §5](20-p6b-playable.md) (*"that is P10's"*) | **[P10.3](27-p10-implementation.md)** | P10's stage list never carried it. The enforcement half landed at P2A and the fallback display at P2B; what is left is the writer for the per-user file and the second column of the role table. The role-binding editor itself is P7.3's on branch `p7` |
-| **A personal connection shadowing a system one is not on screen** | the [P2B §1.5](10-p2b-provider-configuration.md) correction note, 2026-10-03, at the `claude/loving-bardeen-ey9bhv` merge | **unowned, and named rather than assigned** — [F-03](21-playable-log.md)'s pattern | *Your connections* reads `shadowed: false` for the file that wins — true of the row, silent about the system connection it hides — and the only report is the runner's `connections.shadowing` log line, a count. The phase that built *Your connections* is [P10.3](27-p10-implementation.md), and P10 is merged and open; adding scope to it is the owner's call rather than this row's. **Deferred rather than polish** because showing it needs a new field on `/api/me/connections` or `/api/me/roles` and the `docs/api.md` text to match — a new contract, which [polish](06-polish.md)'s house rule excludes |
+| ~~**A personal connection shadowing a system one is not on screen**~~ **Closed 2026-10-04 — built, as [polish §26](06-polish.md)** | the [P2B §1.5](10-p2b-provider-configuration.md) correction note, 2026-10-03, at the `claude/loving-bardeen-ey9bhv` merge | ~~**unowned, and named rather than assigned** — [F-03](21-playable-log.md)'s pattern~~ **[polish §26](06-polish.md)**, on the recommended answer, owner deferred: show it | *Your connections* reads `shadowed: false` for the file that wins — true of the row, silent about the system connection it hides — and the only report is the runner's `connections.shadowing` log line, a count. The phase that built *Your connections* is [P10.3](27-p10-implementation.md), and P10 is merged and open; adding scope to it is the owner's call rather than this row's. ~~**Deferred rather than polish** because showing it needs a new field on `/api/me/connections` or `/api/me/roles` and the `docs/api.md` text to match — a new contract, which [polish](06-polish.md)'s house rule excludes~~ ***2026-10-04: filed as polish after all, on [polish §25](06-polish.md)'s reading of the house rule*** — merged the same day as this row, it took *no new contract* to mean nothing [21](../21-internal-contracts.md) specifies, and two optional fields on existing responses are that; §26 says so and can be overruled. Both rows now say it (`shadows` on `/api/me/connections`, `shadowedBy` on `/api/me/roles`), and the person-visible check is [sitting Z](#z--a-connection-that-hides-another--ten-minutes-a-text-editor-and-a-second-account). **Kept rather than deleted**, for the reason the closed rows above it are |
 
 ### 10.1 The dangling owner, which is the finding this sweep exists to have produced
 

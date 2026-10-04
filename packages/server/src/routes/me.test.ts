@@ -525,6 +525,53 @@ describe('the role bindings of the person asking', () => {
     expect(body).not.toContain('sk-must-never-come-back');
     expect(body).not.toContain('api.internal.example');
   });
+
+  /**
+   * ***An install connection one of yours hides is said, not offered as
+   * though it worked*** — [polish §26](../../../../docs/design/workplan/06-polish.md),
+   * 2026-10-04.
+   *
+   * Both connections share an id, so a binding naming it reaches the personal
+   * file whichever of the two a picker said it was choosing. The route marks
+   * the install's with the personal one's label — `shadowedBy` — so the pane
+   * can leave its models out and say why. The falsifying mutation is the
+   * mapping this route used before, `usable.map(presentConnection)`.
+   */
+  it('marks an install connection that a file of yours hides, with your file’s label', async () => {
+    const id = await installed();
+    const root = server.services.layout.userConnectionsRoot('ned');
+    await mkdir(root, { recursive: true });
+    await writeFile(
+      join(root, 'restored-from-a-backup.json'),
+      JSON.stringify({
+        id,
+        label: 'My own copy',
+        provider: 'openai-compatible',
+        baseUrl: 'https://api.mine.example/v1',
+        models: ['local-hi'],
+      }),
+    );
+
+    const response = await server.request({ method: 'GET', url: '/api/me/roles' });
+
+    expect(
+      (response.body.connections as { label: string; scope: string; shadowedBy?: unknown }[]).map(
+        (one) => [one.scope, one.label, one.shadowedBy],
+      ),
+    ).toEqual([
+      ['user', 'My own copy', undefined],
+      ['system', 'The house key', { label: 'My own copy' }],
+    ]);
+    // And the install default for `prose`, which names the id, reaches the
+    // personal file — which is what the mark is warning about.
+    expect(row(response.body, 'prose')).toMatchObject({
+      via: 'default',
+      connectionLabel: 'My own copy',
+    });
+    const body = JSON.stringify(response.body);
+    expect(body).not.toContain('sk-must-never-come-back');
+    expect(body).not.toContain('api.internal.example');
+  });
 });
 
 /**

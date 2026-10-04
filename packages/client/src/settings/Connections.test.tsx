@@ -39,6 +39,10 @@ const writeDefaultBindings = vi.fn();
  */
 const writeBindings = vi.fn();
 const testConnection = vi.fn();
+/** The caller's own role answer — read by the admin panel for `shadowedBy` ([polish §26]). */
+const readMyRoles = vi.fn();
+/** The caller's own list, for the personal panel ([polish §26]'s `shadows`). */
+const listMyConnections = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
@@ -48,9 +52,15 @@ vi.mock('../api.js', async (importOriginal) => ({
    * reach for a network jsdom does not have. Pending forever is the honest stub
    * — the panel formats in the default locale until an account arrives, and
    * nothing here is about which locale that is.
+   *
+   * *And the two reads [polish §26] added* (2026-10-04): the admin panel asks
+   * `/api/me/roles` which install connections the viewer's own files hide,
+   * and the personal panel lists the viewer's own.
    */
   api: {
     authState: () => new Promise(() => undefined),
+    readMyRoles: (...a: unknown[]) => readMyRoles(...a) as unknown,
+    listMyConnections: (...a: unknown[]) => listMyConnections(...a) as unknown,
   },
   adminApi: {
     listConnections: (...a: unknown[]) => listConnections(...a) as unknown,
@@ -67,7 +77,7 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
-const { AdminConnections } = await import('./Connections.js');
+const { AdminConnections, MyConnections } = await import('./Connections.js');
 
 function connection(over: Record<string, unknown> = {}) {
   return {
@@ -109,6 +119,14 @@ beforeEach(() => {
     cost: null,
     elapsedMs: 840,
   });
+  readMyRoles.mockResolvedValue({
+    roles: [],
+    bindings: {},
+    contentHash: 'sha256:mine',
+    connections: [],
+    disabled: [],
+  });
+  listMyConnections.mockResolvedValue({ connections: [] });
 });
 
 /**
@@ -531,6 +549,156 @@ describe('a duplicated id', () => {
     expect(
       screen.queryByText('Another file on disk claims this id as well, and it is removed too.'),
     ).toBeNull();
+  });
+});
+
+/**
+ * ***A file of yours sharing an install connection's id*** —
+ * [polish §26](../../../../docs/design/workplan/06-polish.md), 2026-10-04.
+ *
+ * The other scope's collision, which until then the server logged as a count
+ * and nothing drew. It is said on both of its rows — your own, which stands in
+ * for the install's, and the install's, which is hidden for you — and **both
+ * keep their controls**, unlike the same-scope copy above: across scopes every
+ * button acts on exactly the file it is drawn under, and Remove on yours is the
+ * undo.
+ */
+describe('a file of yours sharing an install connection’s id', () => {
+  const STANDS_IN =
+    'This has the same id as the install’s connection “The house key”, so your stories use this one wherever a job is set to “The house key” — including this install’s defaults. Everyone else still uses “The house key”. If that is not what you meant, remove this connection.';
+  const HIDDEN =
+    'Your own connection “My copy” has the same id as this one, so your stories use yours wherever a job is set to this one. Everyone else still uses this one, and changes here still reach them.';
+
+  function renderMine(): void {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MyConnections />
+      </QueryClientProvider>,
+    );
+  }
+
+  /** `/api/me/roles` as it answers when the viewer's own `My copy` hides `house`. */
+  function hiddenByMine(): void {
+    readMyRoles.mockResolvedValue({
+      roles: [],
+      bindings: {},
+      contentHash: 'sha256:mine',
+      connections: [
+        { id: 'house', label: 'My copy', provider: 'openai-compatible', scope: 'user', models: [] },
+        {
+          id: 'house',
+          label: 'The house key',
+          provider: 'openai-compatible',
+          scope: 'system',
+          models: ['gpt-hi'],
+          shadowedBy: { label: 'My copy' },
+        },
+      ],
+      disabled: [],
+    });
+  }
+
+  it('says, on your own row, which install connection it stands in for — and keeps its controls', async () => {
+    listMyConnections.mockResolvedValue({
+      connections: [
+        connection({ scope: 'user', label: 'My copy', shadows: { label: 'The house key' } }),
+      ],
+    });
+    renderMine();
+
+    expect(await screen.findByText(STANDS_IN)).toBeTruthy();
+    // The row that can fix it keeps the button that does.
+    expect(screen.getByRole('button', { name: 'Remove My copy…' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Test' })).toBeTruthy();
+  });
+
+  it('says nothing on a row of yours that hides nothing', async () => {
+    listMyConnections.mockResolvedValue({
+      connections: [connection({ id: 'mine', scope: 'user', label: 'My copy' })],
+    });
+    renderMine();
+
+    await screen.findByText('My copy');
+    expect(screen.queryByText(/has the same id as the install’s connection/)).toBeNull();
+  });
+
+  it('says, on the install’s row, that it is hidden for you — and keeps its controls', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    hiddenByMine();
+    renderSurface();
+
+    expect(await screen.findByText(HIDDEN)).toBeTruthy();
+    // Everybody else's turns still use this file, so the administrator must
+    // still be able to edit, try and remove it.
+    expect(screen.getByRole('button', { name: 'Remove The house key…' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Test' })).toBeTruthy();
+  });
+
+  /**
+   * **Once, on the install copy that would answer.** A second install file
+   * claiming the id already says nothing resolves to it, for anybody.
+   */
+  it('says it once, not on an install copy nothing resolves to', async () => {
+    listConnections.mockResolvedValue({
+      connections: [
+        connection({ label: 'A first by label' }),
+        connection({ label: 'Z last by label', shadowed: true, contentHash: 'sha256:other' }),
+      ],
+    });
+    hiddenByMine();
+    renderSurface();
+
+    expect(await screen.findByText(HIDDEN)).toBeTruthy();
+    expect(screen.getAllByText(/Your own connection “My copy” has the same id/)).toHaveLength(1);
+  });
+
+  it('says nothing on an install row your files do not hide', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    renderSurface();
+
+    await screen.findByText('The house key');
+    expect(screen.queryByText(/Your own connection/)).toBeNull();
+  });
+
+  /**
+   * **Your list is read again after a write to the install's**, because a row
+   * of yours names an install connection by label. An administrator renaming
+   * the install's connection with both panels open — the one person who would
+   * have both — would otherwise go on reading the old name under their own
+   * row until a reload.
+   */
+  it('reads your own list again after the install’s changes, since a row of yours names it', async () => {
+    listConnections.mockResolvedValue({ connections: [connection()] });
+    listMyConnections.mockResolvedValue({
+      connections: [
+        connection({ scope: 'user', label: 'My copy', shadows: { label: 'The house key' } }),
+      ],
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AdminConnections />
+        <MyConnections />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(STANDS_IN)).toBeTruthy();
+
+    // Renamed on save; the server's next answer for your list says so.
+    listMyConnections.mockResolvedValue({
+      connections: [
+        connection({ scope: 'user', label: 'My copy', shadows: { label: 'The shared key' } }),
+      ],
+    });
+    const install = screen.getByRole('region', { name: 'Connections' });
+    await userEvent.click(within(install).getByRole('button', { name: 'Edit' }));
+    await userEvent.click(within(install).getByRole('button', { name: 'Save' }));
+
+    expect(
+      await screen.findByText(/has the same id as the install’s connection “The shared key”/),
+    ).toBeTruthy();
   });
 });
 

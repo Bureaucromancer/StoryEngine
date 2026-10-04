@@ -107,6 +107,46 @@ export function presentConnection(connection: Connection): PublicConnection {
 }
 
 /**
+ * A connection an account may bind, as `/api/me/roles` offers it — the public
+ * shape, and one more fact about this account's view of it.
+ *
+ * **`shadowedBy`, on an install connection one of the account's own hides** —
+ * [polish §26](../../../../docs/design/workplan/06-polish.md). The label of the
+ * personal connection that answers in its place, and nothing else of it.
+ */
+export type UsableConnection = PublicConnection & { shadowedBy?: { label: string } };
+
+/**
+ * The connections an account may bind, in resolution order, each saying
+ * whether this account can reach it at all.
+ *
+ * ***Why the role pane needs telling.*** `usable` lists a shadowed install
+ * connection beside the personal file that hides it, and both carry the same
+ * id, so a picker built from `usable` offered the install connection's models
+ * as choices that saved cleanly and then reached the personal file — and, where
+ * both listed a model, offered two options with one value. The server says
+ * which ones are hidden so the pane need not work out precedence itself, which
+ * is the rule `GET /api/me/roles` was built on.
+ *
+ * **Every system claimant of a shadowed id is marked, not only the first**:
+ * for this account the personal file wins the id, so a second system file
+ * claiming it is no more reachable than the first. The pairing comes from
+ * `resolution.shadowing`, which {@link shadowsAcrossScopes} filled, so the
+ * winner is decided once.
+ */
+export function presentUsableConnections(
+  resolution: Pick<ConnectionResolution, 'usable' | 'shadowing'>,
+): UsableConnection[] {
+  const winners = new Map(resolution.shadowing.map((connection) => [connection.id, connection]));
+  return resolution.usable.map((connection) => {
+    const winner = connection.scope === 'system' ? winners.get(connection.id) : undefined;
+    return winner === undefined
+      ? presentConnection(connection)
+      : { ...presentConnection(connection), shadowedBy: { label: winner.label } };
+  });
+}
+
+/**
  * Whether this model on this connection may be sent a picture — the one
  * question the send rule asks of a connection ([25 E15]). **Absent means no**,
  * which is the conservative answer every other capability starts from.
@@ -153,14 +193,81 @@ export interface ConnectionResolution {
    * say so. Empty when `privateConnections` is off: nothing personal resolves
    * then, so nothing shadows.
    *
-   * ***Said in the log, and not yet on screen.*** The runner logs a count as
+   * ~~***Said in the log, and not yet on screen.***~~ The runner logs a count as
    * `connections.shadowing`; the *Your connections* list presents the personal
    * scope alone, so the file reads `shadowed: false` there — true, since it is
-   * the one that wins, and silent about what it hides. Showing it is a known
+   * the one that wins~~, and silent about what it hides~~. ~~Showing it is a known
    * follow-up, recorded under P2B §1.5 and tracked, unowned, as a row of
-   * [manual testing §10](../../../../docs/design/workplan/05-manual-testing.md).
+   * [manual testing §10](../../../../docs/design/workplan/05-manual-testing.md).~~
+   * *(2026-10-04: on screen since
+   * [polish §26](../../../../docs/design/workplan/06-polish.md) — the row says
+   * so through `shadows` ({@link presentMyConnections}), and the system
+   * connection it hides says so through `shadowedBy`
+   * ({@link presentUsableConnections}), both paired by
+   * {@link shadowsAcrossScopes}, which is also what fills this list. The
+   * `shadowed` flag still reads `false` on the winning row, and still should:
+   * it means "nothing resolves to this file", which is untrue of the winner.)*
    */
   shadowing: Connection[];
+}
+
+/**
+ * One personal connection hiding one system connection, for one account —
+ * [polish §26](../../../../docs/design/workplan/06-polish.md).
+ *
+ * **A pair rather than the personal file alone**, because the two sentences
+ * that say so on screen each need the *other* half's label: the personal row
+ * names the install connection it stands in for, and the install connection
+ * names the personal one that answers in its place. Neither label is a secret
+ * from this account — the system connection's is on the wire to every account
+ * through `/api/me/roles`, and the personal one is their own — and nothing else
+ * of either connection travels with it.
+ */
+export interface Shadow {
+  /** The personal file that wins the id for this account. */
+  personal: Connection;
+  /**
+   * The system connection this account would reach by that id without it —
+   * the first system claimant in label order, which is the one `resolveRole`
+   * would find if the personal file were gone. A second system file claiming
+   * the same id is the install's own collision, marked `shadowed` on the admin
+   * list as it always was.
+   */
+  system: Connection;
+}
+
+/**
+ * Which of an account's personal connections shadow a system one, paired with
+ * what they hide.
+ *
+ * ***The one implementation of the cross-scope rule***, and the reason it is a
+ * function of its own rather than a filter inside `resolveConnections`: three
+ * things are built from it — the resolver's `shadowing` list, which the runner
+ * counts and the role pane's `shadowedBy` is read from, and the personal
+ * list's `shadows` — and three spellings of *which personal file wins an id*
+ * would be three things to keep in step with `resolveRole`. The rule is
+ * `resolveRole`'s own, read off the same order: the first personal claimant of
+ * an id wins it (the scope is label-ordered, so a second claimant is shadowed
+ * inside its own scope and is not counted twice), and it hides the first
+ * system claimant.
+ *
+ * Callers pass **the arrays they will present from**, so a caller can match a
+ * pair back to its own row by object identity rather than by re-deciding which
+ * of two same-id rows it meant.
+ */
+export function shadowsAcrossScopes(
+  personal: readonly Connection[],
+  system: readonly Connection[],
+): Shadow[] {
+  const shadows: Shadow[] = [];
+  const claimed = new Set<string>();
+  for (const connection of personal) {
+    if (claimed.has(connection.id)) continue;
+    claimed.add(connection.id);
+    const hidden = system.find((other) => other.id === connection.id);
+    if (hidden !== undefined) shadows.push({ personal: connection, system: hidden });
+  }
+  return shadows;
 }
 
 /**
@@ -188,7 +295,6 @@ export async function resolveConnections(
   if (!capabilities.privateConnections) {
     return { usable: system, disabled: personal, shadowing: [] };
   }
-  const systemIds = new Set(system.map((connection) => connection.id));
   // Personal first: a personal binding wins over a system default, visibly and
   // switchably.
   return {
@@ -203,12 +309,13 @@ export async function resolveConnections(
      * `shadowed: true` through `presentConnectionsForAdmin`. Counting it here
      * would have the runner say two files win for this account when one does
      * (found in review of the loving-bardeen merge, 2026-10-03).
+     *
+     * *Through {@link shadowsAcrossScopes} since 2026-10-04*, which holds that
+     * rule for the two on-screen callers as well ([polish §26]); it was a
+     * `filter` here, and the same rule spelled a second time for the screen
+     * is what that function exists to prevent.
      */
-    shadowing: personal.filter(
-      (connection, index) =>
-        systemIds.has(connection.id) &&
-        personal.findIndex((other) => other.id === connection.id) === index,
-    ),
+    shadowing: shadowsAcrossScopes(personal, system).map((shadow) => shadow.personal),
   };
 }
 
@@ -421,6 +528,24 @@ export interface AdminConnection {
    */
   shadowed: boolean;
   /**
+   * ***On a personal row only: the install connection this one stands in for***
+   * — [polish §26](../../../../docs/design/workplan/06-polish.md), 2026-10-04.
+   * Present when the row wins an id a system connection also claims, so that
+   * every binding naming the id — the person's own and the install's defaults —
+   * reaches this file for this account. The system connection's label and
+   * nothing else of it: not its key, its address or its models, which this
+   * account has no business with beyond the label `/api/me/roles` already
+   * shows it.
+   *
+   * **Beside `shadowed` rather than folded into it**, because the two say
+   * opposite things about the row. `shadowed` is *nothing resolves to this
+   * file*, and is why the row has no controls; a row with `shadows` is the file
+   * that *does* resolve, and its Edit, Test and Remove act on exactly the file
+   * they name — Remove is the undo. Overloading the flag would have taken the
+   * controls off the one row that can fix the collision.
+   */
+  shadows?: { label: string };
+  /**
    * The file's bytes, hashed — the same guard the library and the config form
    * use, and settled as *yes* in [P2B §6].
    *
@@ -471,6 +596,37 @@ export function presentConnectionsForAdmin(
   });
 }
 
+/**
+ * One account's own scope, presented — `presentConnectionsForAdmin`, plus
+ * what each row hides in the install's — [polish §26](../../../../docs/design/workplan/06-polish.md).
+ *
+ * ***`shadowed` is still computed over the personal scope alone***, and stays
+ * right to be: it answers *does anything resolve to this file*, which the
+ * install's connections cannot change, since personal comes first. What the
+ * scope alone cannot say is the cross-scope half — that the winner of an id is
+ * hiding an install connection — and that comes from
+ * {@link shadowsAcrossScopes}, given the very connection objects these rows were
+ * presented from, so each pair is matched back to its row by identity rather
+ * than by an id two rows may share.
+ *
+ * `system` is the install's connections read for the label alone. Taking them
+ * as an argument rather than reading them here keeps this a pure function of
+ * two lists, which is what lets its test be a table.
+ */
+export function presentMyConnections(
+  entries: readonly { connection: Connection; contentHash: string }[],
+  system: readonly Connection[],
+): AdminConnection[] {
+  const shadows = shadowsAcrossScopes(
+    entries.map((entry) => entry.connection),
+    system,
+  );
+  return presentConnectionsForAdmin(entries).map((row, index) => {
+    const shadow = shadows.find((one) => one.personal === entries[index]?.connection);
+    return shadow === undefined ? row : { ...row, shadows: { label: shadow.system.label } };
+  });
+}
+
 export class ConnectionError extends Error {
   readonly code: 'not-found' | 'invalid' | 'unbuildable';
 
@@ -506,8 +662,11 @@ export function connectionFile(root: string, id: string): string {
  * connection's id silently shadows it — for anything created through the UI,
  * without outlawing the hand-written file that already works. *(2026-10-03: no
  * longer silent in the log — `resolveConnections` reports it as `shadowing`
- * and the runner logs a count as `connections.shadowing`; it is still shown by
- * nothing on screen, a known follow-up under P2B §1.5.)*
+ * and the runner logs a count as `connections.shadowing`; ~~it is still shown by
+ * nothing on screen, a known follow-up under P2B §1.5~~ — 2026-10-04: and on
+ * screen since [polish §26](../../../../docs/design/workplan/06-polish.md): on
+ * the owner's row and in the role pane, and on the install's row for an
+ * administrator.)*
  *
  * **Buildability is checked here rather than at the next turn.** `KNOWN_PROVIDERS`
  * carries capability defaults for five names and this build constructs exactly

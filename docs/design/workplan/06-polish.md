@@ -1032,3 +1032,144 @@ produce is sitting V's to say.
 **What needs a person:** [sitting V](05-manual-testing.md#v--a-connection-tried--twenty-minutes-and-it-wants-r2-and-r3)
 — a real hosted endpoint and a real local one, a wrong key, a model the
 endpoint does not serve, and R10 if one is to hand.
+
+## 26. A connection that hides another says so
+
+*Filed and built 2026-10-04, from the known follow-up the loving-bardeen merge
+recorded under [P2B §1.5](10-p2b-provider-configuration.md) on 2026-10-03 and
+tracked, unowned, as a row of [manual testing §10](05-manual-testing.md). That
+merge left one question open — should the collision also show in the
+Connections list? — and its review recommended no answer to it.* **Decided
+2026-10-04, recommended answer, owner deferred: show it.** The question was put
+again with that recommendation, and the owner deferred to it; this entry is
+where to overrule it.
+
+**The condition it fixes.** A personal connection file whose id an install
+connection also claims wins that id for its owner: every job naming it — the
+person's own choices *and* the install's defaults — reaches the personal file,
+on the personal key. Since [P2B §2.4](10-p2b-provider-configuration.md)'s
+*Amended 2026-09-27* that reaches nobody else, and since the merge it was
+reported — as a count in the runner's log, `connections.shadowing`, at `warn`.
+Nothing on screen said it. *Your connections* read `shadowed: false` for the
+file, which is true, since it is the one that wins, and silent about what it
+hid; an administrator's install row looked like any other; and *Which models
+your stories use* offered the hidden connection's models as choices that saved
+cleanly and then sent to the personal file — and, where both connections listed
+a model, two options with one value. A create through the form mints a uuidv7
+and cannot collide, so the file arrives by a hand copy or by a backup import,
+which copies ids verbatim (`backup/import.ts`): exactly the cases where nobody
+chose it.
+
+**What shipped.**
+
+- **Your connections.** A row that wins an install connection's id says so in
+  a sentence naming that connection: your stories use this one wherever a job
+  is set to it, *including this install's defaults*; everyone else still uses
+  the install's; remove this one if that is not what you meant. The row keeps
+  **Test**, **Edit** and **Remove**, and Remove is the undo.
+- **Administration → Connections.** The install row an administrator's own
+  file hides says it is hidden *for them*, that everyone else still uses it,
+  and that changes there still reach everyone else. It keeps its controls.
+- **Which models your stories use.** The hidden connection's models are not
+  offered, and a sentence above the table says why — once, even where two
+  install files share the id *and* the label, a straight copy inside the
+  install's folder, since every install claimant is marked and two identical
+  sentences say nothing the first did not. A job already set to it —
+  the natural order is choosing the install's connection first and restoring
+  the file second — reads as the file it reaches. *Where that file lists the
+  model*, which a straight copy always does, it is simply that file's option,
+  *"gpt-hi — My copy"*, since the two share the value `<id>\n<model>`; *where it
+  does not*, it reads *"gpt-lo — My copy, which does not list it"*, rather than
+  *on a connection that is gone*.
+- **On the wire** ([`api.md`](../../api.md)): `shadows: { label }` on a
+  `/api/me/connections` row, on the list and on an edit's answer, and
+  `shadowedBy: { label }` on a `/api/me/roles` connection. A label each, and
+  nothing else of the other connection. **One function pairs them**,
+  `shadowsAcrossScopes` in `providers/connections.ts`, which the resolver's
+  `shadowing` list — and so the runner's count — now comes from too, so *which
+  personal file wins an id* is decided once rather than three times.
+
+**Decisions taken in building it** — each **2026-10-04, recommended answer,
+owner deferred**, recorded here so that each can be overruled on its own:
+
+1. ***Both rows keep their controls*** — against the letter of `main`'s
+   shadowed-row rule (no Edit or Remove on a shadowed row, 2026-09-27, and no
+   Test either since §25) and in keeping with its reason. That rule exists
+   because those buttons act on an *id* and, within **one** directory, reach
+   the other file of two. Across scopes they cannot: the personal routes reach
+   the personal directory and the admin routes the install's, so every button
+   on either row acts on exactly the file it is drawn under. Taking them off
+   the personal row would remove the undo; taking them off the install row
+   would let one person's file stop an administrator managing a connection
+   everybody else still uses. So `shadowed` keeps its meaning — *nothing
+   resolves to this file* — and the new fields sit beside it rather than
+   overloading it.
+2. ***The install row's sentence reads `/api/me/roles`, not the admin route.***
+   It is a fact about one person's turns, and the admin routes answer *what has
+   the install got* and nothing narrower ([P2B §2.7](10-p2b-provider-configuration.md)'s
+   line, which `GET /api/admin/roles` keeps too). The query is the one the role
+   pane already holds on the same page, needs no capability, and carries the
+   server's answer, so the client decides no precedence of its own.
+3. ***Left out of the role picker, not relabelled.*** Two options with one
+   value cannot both be chosen, and the one a person picked would not be the
+   one saved.
+4. ***Said, not refused or repaired*** — [P1 §1.2](07-p1-implementation.md)'s
+   *nothing blocks*, which [P2B §2.3](10-p2b-provider-configuration.md) adopts
+   as *reported, not repaired*. The file still wins for its owner, as P2B §1.5
+   says it should.
+
+**Why it is polish and not a phase stage — and the row that said otherwise.**
+The house rule wants no schema change and no new contract. Nothing stored
+changes. The [manual testing §10](05-manual-testing.md) row filed at the merge
+said *deferred rather than polish*, because showing it needs a new field on one
+of the two routes and the `api.md` text to match — *a new contract*. §25,
+merged the same day, read the rule the other way: its *no new contract* covered
+two whole routes and optional fields on classes
+[21](../21-internal-contracts.md) does not specify. On §25's reading, two
+optional fields on existing responses,
+neither specified by 21, are not a new contract, and that is the reading taken
+here; that row is struck and noted rather than left disagreeing. And
+[P10](27-p10-implementation.md), whose P10.3 built *Your connections*, is
+merged, so a stage heading there would claim more than this is — §25's
+argument, unchanged.
+
+**What it deliberately is not:**
+
+- **Not a cross-account view.** Each person sees what their *own* files hide;
+  an administrator is never told which accounts' files hide an install
+  connection. The runner's count stays the operator's only trace of that, by
+  [09 §4.5](../09-server-multiuser-deployment.md)'s rule as the runner applies
+  it: counts, never contents.
+- **Not about two files in one scope.** Two personal files claiming one id were
+  already marked `shadowed`, and so were two install files on the admin list.
+  ***Found and left***: the role picker still offers *both* of two install files
+  claiming one id, which is this entry's defect in the install's own scope — a
+  person sees two connections, and choosing the second binds the first. The
+  remedy is the same field one case wider; it is left because the sentence it
+  would carry is one only an administrator can act on, and that wants its own
+  wording.
+
+**Proved against** `providers/connections.test.ts` (*what each row says it
+hides* — the pairing, the winner of two personal claimants, the install file
+resolution would fall back to, every install claimant marked, nothing when the
+capability is off), `routes/my-connections.test.ts` and `routes/me.test.ts`
+(the routes, by label alone, with neither the install key nor its address in
+the body), and `settings/Connections.test.tsx` and `settings/MyRoles.test.tsx`
+(both sentences, the controls kept, the picker, the role pane's sentence said
+once for two install copies sharing an id and a label, and the held binding
+both ways — a model your file lists and one it does not). Each mechanism was
+reverted and the tests seen red before it was restored.
+
+**What it cost the entry bundle**: **0.41 kB** gzip, from 335.55 to 335.96
+against `tools/entry-budget.test.ts`'s ceiling of 336, which leaves 0.04 — so
+the next client change meets that ceiling, and the file says so in its own
+words rather than this entry raising it.
+
+**What the changelog will say**, parked here for §25's reason:
+
+- **A connection of yours that shares an install connection's id says so** — on
+  your row, on the install's row where you can see it, and in *Which models
+  your stories use*, which stops offering the one that can never answer.
+
+**What needs a person:** [sitting Z](05-manual-testing.md#z--a-connection-that-hides-another--ten-minutes-a-text-editor-and-a-second-account)
+— a file copied by hand, read on both rows by somebody who did not make it.

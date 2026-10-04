@@ -15,7 +15,10 @@ import {
   presentConnection,
   presentConnectionsForAdmin,
   presentForAdmin,
+  presentMyConnections,
+  presentUsableConnections,
   readSystemConnectionEntries,
+  readSystemConnections,
   readUserConnectionEntries,
   resolveConnections,
   seesImages,
@@ -218,6 +221,155 @@ describe('a personal file claiming a system id', () => {
     expect(usable.map((connection) => connection.scope)).toEqual(['system']);
     expect(disabled).toHaveLength(1);
     expect(shadowing).toEqual([]);
+  });
+});
+
+/**
+ * ***What each row says it hides*** — [polish §26](../../../../docs/design/workplan/06-polish.md),
+ * 2026-10-04, and the on-screen half of the block above, which until then was
+ * a count in the log.
+ *
+ * Two presenters, one per surface, and both read the pairing from
+ * `shadowsAcrossScopes` so neither decides a winner of its own: *Your
+ * connections* marks the personal file with the install connection it stands
+ * in for (`shadows`), and the role pane marks the install connection with the
+ * personal file that answers in its place (`shadowedBy`). **A label each, and
+ * nothing else of the other connection** — the system one's key and address
+ * stay where `presentConnection` keeps them.
+ */
+describe('what each row says it hides', () => {
+  const PLANTED = { ...MINE, id: HOUSE.id, label: 'Not the house key' };
+
+  async function myRows() {
+    return presentMyConnections(
+      await readUserConnectionEntries(layout, 'ned'),
+      await readSystemConnections(layout),
+    );
+  }
+
+  it('names the install connection a personal file stands in for, and nothing else of it', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), MINE);
+
+    const rows = await myRows();
+
+    expect(rows.map((row) => [row.label, row.shadowed, row.shadows])).toEqual([
+      ['My laptop', false, undefined],
+      // `shadowed` stays false: it means *nothing resolves to this file*, and
+      // this is the file that does. The two fields say opposite things.
+      ['Not the house key', false, { label: 'The house key' }],
+    ]);
+    // Absent rather than empty on a row that hides nothing, so the wire says
+    // nothing about a collision that is not there.
+    expect('shadows' in (rows[0] ?? {})).toBe(false);
+    const serialised = JSON.stringify(rows);
+    expect(serialised).not.toContain(HOUSE.apiKey);
+    expect(serialised).not.toContain('api.internal.example');
+  });
+
+  /**
+   * **On the winner only.** The second personal claimant is already marked
+   * `shadowed` inside its own scope, has no controls, and hides nothing — so a
+   * second sentence there would tell somebody that a file nothing reads is
+   * standing in for the install's. Filenames against labels, as above.
+   */
+  it('says it on the file that wins the id, when two personal files claim it', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    const root = layout.userConnectionsRoot('ned');
+    await seedConnectionFile(root, { ...PLANTED, label: 'Zed, planted second' }, 'a.json');
+    await seedConnectionFile(root, { ...PLANTED, label: 'Amy, planted first' }, 'z.json');
+
+    expect((await myRows()).map((row) => [row.label, row.shadowed, row.shadows])).toEqual([
+      ['Amy, planted first', false, { label: 'The house key' }],
+      ['Zed, planted second', true, undefined],
+    ]);
+  });
+
+  /**
+   * **The install connection a turn would otherwise reach**, which is the first
+   * system claimant by label — the one `resolveRole` would find were the
+   * personal file gone. Naming the other would point the person at a file
+   * nobody's turns read.
+   */
+  it('names the install connection resolution would fall back to, when two system files claim the id', async () => {
+    await seedConnectionFile(
+      layout.systemConnectionsRoot,
+      { ...HOUSE, label: 'Zulu house' },
+      'a.json',
+    );
+    await seedConnectionFile(
+      layout.systemConnectionsRoot,
+      { ...HOUSE, label: 'Alpha house' },
+      'z.json',
+    );
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    expect((await myRows()).map((row) => row.shadows)).toEqual([{ label: 'Alpha house' }]);
+  });
+
+  it('marks the install connection a personal file hides, with the personal label', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.systemConnectionsRoot, {
+      ...HOUSE,
+      id: 'house-other',
+      label: 'Another house key',
+    });
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    const offered = presentUsableConnections(await resolveConnections(layout, 'ned', ALLOWED));
+
+    expect(offered.map((one) => [one.scope, one.label, one.shadowedBy])).toEqual([
+      // The personal file is the one that answers, so it is never marked —
+      // marking it with its own label would hide the one choice that works.
+      ['user', 'Not the house key', undefined],
+      ['system', 'Another house key', undefined],
+      ['system', 'The house key', { label: 'Not the house key' }],
+    ]);
+    const serialised = JSON.stringify(offered);
+    expect(serialised).not.toContain(HOUSE.apiKey);
+    expect(serialised).not.toContain('api.internal.example');
+  });
+
+  /**
+   * **Every system claimant of the id, not only the first.** For this account
+   * the personal file wins the id, so the install's second file claiming it is
+   * no more reachable than its first, and a picker offering its models would
+   * offer choices that reach the personal file.
+   */
+  it('marks every install file claiming a shadowed id', async () => {
+    await seedConnectionFile(
+      layout.systemConnectionsRoot,
+      { ...HOUSE, label: 'Zulu house' },
+      'a.json',
+    );
+    await seedConnectionFile(
+      layout.systemConnectionsRoot,
+      { ...HOUSE, label: 'Alpha house' },
+      'z.json',
+    );
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    const offered = presentUsableConnections(await resolveConnections(layout, 'ned', ALLOWED));
+
+    expect(offered.map((one) => [one.label, one.shadowedBy?.label])).toEqual([
+      ['Not the house key', undefined],
+      ['Alpha house', 'Not the house key'],
+      ['Zulu house', 'Not the house key'],
+    ]);
+  });
+
+  it('marks nothing when the account may not use its own', async () => {
+    await seedConnectionFile(layout.systemConnectionsRoot, HOUSE);
+    await seedConnectionFile(layout.userConnectionsRoot('ned'), PLANTED, 'planted.json');
+
+    const offered = presentUsableConnections(await resolveConnections(layout, 'ned', REVOKED));
+
+    // The personal file does not resolve, so the install's is what a turn
+    // reaches — offering it is right, and saying it is hidden would be false.
+    expect(offered.map((one) => [one.label, 'shadowedBy' in one])).toEqual([
+      ['The house key', false],
+    ]);
   });
 });
 
@@ -580,8 +732,9 @@ describe('writing a connection', () => {
     // created through the UI, without outlawing the hand-written file that
     // already works. (2026-10-03: no longer silent in the log —
     // `resolveConnections` reports it as `shadowing` and the runner logs a
-    // count as `connections.shadowing`; still shown by nothing on screen, a
-    // known follow-up under P2B §1.5.)
+    // count as `connections.shadowing`; ~~still shown by nothing on screen, a
+    // known follow-up under P2B §1.5~~ — 2026-10-04: on screen too, since
+    // [polish §26]; see 'what each row says it hides' above.)
     expect(written.connection.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-/);
 
     const { usable } = await resolveConnections(layout, 'ned', ALLOWED);

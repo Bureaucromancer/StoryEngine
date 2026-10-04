@@ -198,13 +198,25 @@ goes through `presentConnection`* — is not the rule. §2.2 is what it becomes.
 > and the other is the personal scope's own collision, which the list already
 > marks `shadowed: true`.
 >
-> ***Known follow-up: it is not on screen.*** *Your connections* lists the
+> ~~***Known follow-up: it is not on screen.***~~ *Your connections* lists the
 > personal scope alone, so the planted file reads `shadowed: false` there —
-> true, since it is the one that wins, and silent about the system connection
-> it hides. Nothing in the client says so; the log line is the only report.
+> true, since it is the one that wins~~, and silent about the system connection
+> it hides~~. ~~Nothing in the client says so; the log line is the only report.
 > Tracked, unowned and named rather than assigned, as
 > [manual testing §10](05-manual-testing.md)'s *A personal connection shadowing
-> a system one is not on screen*.
+> a system one is not on screen*.~~
+>
+> ***Built, 2026-10-04, as [polish §26](06-polish.md)*** — the recommended
+> answer, owner deferred: show it. The planted file's row says which install
+> connection it stands in for (`shadows`, on `/api/me/connections`); the install
+> connection says it is hidden — in the role pane, where its models are no
+> longer offered, and on an administrator's install row when the file is their
+> own (`shadowedBy`, on `/api/me/roles`). `shadowed` still reads `false` on the
+> winner, as it should. The flag on its own still says nothing about what the
+> file hides; the clause above is struck because it read as the *row's*
+> silence, and the row now says it.
+> The collision is still reported and not repaired, and the log line stays the
+> operator's, by count. Manual testing §10's row is closed with a note.
 
 ---
 
