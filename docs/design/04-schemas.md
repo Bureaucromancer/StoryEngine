@@ -1121,6 +1121,16 @@ URLs, no per-install toggles — enforced by there being nowhere to put them
 ([00 §3.2](00-stance.md)). `mode.config` is opaque to the host but is subject to
 the same rule.
 
+**[OPEN] `cast` has a party and no scene.** `partyDefault` is read at creation
+as a party — seated and made companions — and nothing in `cast` names an actor
+seated without being one, which a session has had since P7.3 put `se.party`
+beside the cast, and which P14.5 made something a person does (the session
+form's *Characters*, the cast panel's *Add to the cast*). So neither *Save as
+a setup* nor a Setup made from a turn can carry a character who was present
+and not travelling with you. Recorded 2026-10-04 as
+[25 B19](25-open-questions.md), and left as a documented asymmetry until the
+owner answers it.
+
 **Sessions are created from a Setup by copy**, per prefill-not-binding
 ([00 §3.1](00-stance.md)). Editing a Setup afterwards cannot reach a running
 session. The reverse operation is also worth having and now has a clean shape:

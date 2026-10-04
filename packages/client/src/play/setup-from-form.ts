@@ -84,7 +84,9 @@ export function setupFromForm(form: SessionForm): Setup {
       // start a different session from the one the form starts. A Setup saved
       // from a form that picked characters therefore starts with nobody
       // seated — recorded at [P7.4](../../../../docs/design/workplan/23-p7-implementation.md),
-      // with what closing it would take (a cast on a Setup that is not a party).
+      // with what closing it would take (a cast on a Setup that is not a party),
+      // and since 2026-10-04 an open question of its own,
+      // [25 B19](../../../../docs/design/25-open-questions.md).
       partyDefault: [],
       narrator: null,
     },

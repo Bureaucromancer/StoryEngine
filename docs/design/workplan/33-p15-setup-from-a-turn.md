@@ -11,6 +11,12 @@ filed as a phase for [P12 §1.5](29-p12-implementation.md)'s reason: a roadmap
 entry ([24](../24-roadmap.md)) holds no release commitment, and this was built
 now.
 
+*2026-10-04: the three questions the merge left open — whether a turn that only
+seeds is drawn, whether the wizard leaves the common entry, and the
+`partyDefault` round trip — are answered on the recommended answer, owner
+deferred, at [§1.10–§1.12](#110-a-turn-that-only-seeds-is-drawn-as-every-turn-with-no-words-is).
+None of them closes the phase; sitting W still does.*
+
 *Renamed 2026-10-03, at the merge.* Written and built as **P13**, in a document
 30 (`30-p13-implementation.md`), on a branch cut from `main` at `8cd8cc6c`
 before `main`'s own P13 — the Aventuras import, [P13](30-p13-aventuras-import.md),
@@ -215,6 +221,19 @@ value (the wizard's original answer in `mode.config` is kept); a session's own
 edits to its preset copy (the Setup refers to the library preset); and a
 `committed` or `forced` hook intent, which carries as an ordinary unfired hook.
 
+*A fifth, found 2026-10-04 while recording §1.12:* **a seated actor who is not
+in the party.** The party group is read off `se.party`, and a seated actor is
+not a member until something made them one — and only a model's effect can:
+the cast panel seats, mutes and sets status, but has no party control, so a
+person cannot make anyone a companion by hand. So a Scene chat started with a
+character cast carries nobody unless the model made that character a
+companion, and a Setup made from any of its turns starts without the character
+the chat was with. Nor is it only chats: any seated actor outside the party is
+left behind, as the seeded session's Mara would be. The wizard's preview says so
+(*The party (nobody but you)*), which is honest and is not a remedy. A Setup
+has no field for a cast that is not a party; [25 B19](../25-open-questions.md)
+is that question.
+
 ### 1.3 Hidden content stays on the server
 
 [`sessions/promote.ts`](../../../packages/server/src/sessions/promote.ts)'s
@@ -353,6 +372,134 @@ and P14.4's keeps `unknown-opening`; [the API reference](../../api.md) names
 both. *The branch's reference also said any `opening` without a `setup` was
 refused; the code refused only a string, and the reference now says so.*
 
+### 1.10 A turn that only seeds is drawn, as every turn with no words is
+
+**Recommended answer, owner deferred — 2026-10-04.** The merge left one thing
+seen and not judged, in [sitting W](05-manual-testing.md)'s notes: a Setup
+started cold, or one with no written opening that makes a party's members or
+spends a hook, begins on `setupTurn`'s effects-only turn — no move, no words,
+only the engine's writes — and the transcript draws it as an empty row
+carrying only its hover actions. Whether to draw it at all was left to a
+reader. **It is drawn, and nothing changed to make it so.**
+
+***By the convention already in force.*** The play surface draws a turn by what
+it carries: prose as prose — a Setup's opening, §1.5 — messages as a chat —
+[P14.4](31-p14-scene-and-session-import.md)'s greetings — and a turn that
+carries neither as a row holding its gestures. Every turn the engine writes
+without a move has that shape and has always been drawn that way: an undo's
+inverse (`undoTurn`), a hand edit's divergence turn (`divergenceTurn`, the very
+shape `setupTurn` copies), a person's write to a channel (`writeChannel`), a
+backdrop chosen (`selectBackdrop`, `renditions/backdrop.ts`), the record a
+*Remember this* capture leaves (`recordEscape`, `memory/capture.ts`), and an
+on-demand step's run (`turns/on-demand.ts`). Nothing filters any of them.
+Hiding the seeding turn alone would need something that tells it from the
+rest, which is the marker §1.8 declined to put on the frozen record; hiding
+them all would reverse the convention for turns nobody asked about.
+
+***By the stance.*** The transcript shows the record, not a selection of it.
+[03 §8.1](../03-data-model.md) puts a change of state in the turn record so
+that it is visible, and the play surface already draws a failed turn rather
+than hide it because *"it is on the record with what it managed"*. And the row
+is not empty of use: its **Undo** takes the companions out of the party
+(`se.party`) — they stay seated in the cast, which the session file holds and
+no turn wrote — and puts the spent hooks back in the pool, which is what
+somebody rewinding past the start of a story means, and *Continue from here*
+and *Make a setup from here* work on it as on any turn. Hidden, all three
+would be unreachable from the story.
+
+**What would change it, named so the wrong remedy is not reached for:** if the
+row reads as a gap to whoever walks W1, the answer is a line saying what the
+turn changed — within what the player may see — on every turn of that shape,
+not skipping this one. `PlayPage.test.tsx`'s *a turn that only seeds* pins the
+row and its gestures; with turns that have no input and no output skipped when
+the transcript is drawn, it fails.
+
+### 1.11 The wizard's dialog loads when it is first opened
+
+**Recommended answer, owner deferred — 2026-10-04.** The merge raised the
+entry bundle's ceiling from 336 to 342 kB rather than split (the merge record
+below), and named the wizard the plainest candidate yet for the client's first
+`lazy()` — a dialog nobody sees until they press a button on one turn, with
+every byte of it on the common entry. **Taken.** The dialog moved, unchanged,
+into `play/SetupWizard.tsx`, which `SetupFromTurn.tsx` reaches through
+`React.lazy` inside a `Suspense`; the button stays on the play page, because
+every turn draws it and a lazy button would be fetched as soon as a transcript
+drew its first turn. The entry measured **337.79 kB** with the dialog on it,
+**335.38** without, and **335.55** with review's changes below, and the
+ceiling is **336** again — restored rather than re-chosen, with 0.45 kB to
+spare, so the next client change of any size has to say what it added.
+
+- **Where it is drawn**: the module's hook, `useSetupFromTurn`, hands the play
+  page the button and what the button opens as two pieces, and the page draws
+  the second *after* the turn's row of gestures, not in it — that row fades
+  unless the turn is hovered or focused, and a failure note inside it vanished
+  as soon as somebody followed its advice to go to the composer. *A review
+  finding, 2026-10-04*; [20 §7.2](../20-client-loading.md) records *Remember
+  this* as the exception still drawn inside the row.
+- **While it loads**, a sentence under the turn's gestures — *Opening the setup
+  wizard…* — and not a modal frame. Nothing is covered while the chunk is on
+  its way, and a frame the dialog replaced could leave the dialog's focus trap
+  remembering one of the frame's own buttons as the place to return focus to,
+  gone by the time the dialog closes.
+- **If it never arrives** — [20 §5](../20-client-loading.md)'s upgrade under an
+  open tab — a local error boundary says the wizard could not be loaded and
+  that a reload is the remedy, and the transcript, the composer and an unsent
+  move stay where they were; without the boundary the router's would have
+  replaced the whole play page. No *Try again*, because `lazy` caches the
+  failure as it caches a success; no *Reload* button, because a reload
+  discards an unsent move, which is not kept. **If it arrives and then fails
+  as it draws**, the same boundary catches it and says only that the wizard
+  stopped with an error: the reload advice belongs to a failed load, which the
+  `lazy` factory marks with an error type of its own, and a bug would only
+  recur after a reload. *Dismiss* hands focus back to the button.
+- **Proved**: `tools/entry-budget.test.ts` gained *keeps the setup wizard off
+  the entry*, and with the lazy import reverted to a static one both it and
+  the byte ceiling fail (the entry measured 338.19 kB).
+  `SetupFromTurn.load.test.tsx` holds the waiting and failing states and the
+  focus on *Dismiss*, `SetupFromTurn.crash.test.tsx` the dialog that fails as
+  it draws, and `PlayPage.test.tsx`'s *opens the wizard outside the row that
+  fades* the placement — each shown failing with its mechanism removed. The
+  dialog's own tests open it through the button, so through `lazy()`.
+
+[20 §7.2](../20-client-loading.md) records it as the client's first lazy
+boundary, and the shape the next one starts from.
+
+### 1.12 A Setup has no place for a cast that is not a party — open, as 25 B19
+
+**Recommended answer, owner deferred — 2026-10-04: the asymmetry stays as
+documented, and is recorded as an open question so it is not lost.** The merge
+found that *Save as a setup* writes no `partyDefault` while the creation path
+has read one since P15.3, and argued — [P7.4](23-p7-implementation.md)'s
+symmetry paragraph and `setup-from-form.ts` — that writing the form's
+*Characters* there would not close it: they are a cast, which Start seats
+without making anyone a companion, and `partyDefault` is a party, which the
+creation path makes companions on a seeding turn. So a Setup saved from a form
+that picked characters starts with nobody seated. **The same gap reaches this
+phase's own carry-over**, found while recording it, and §1.2's known gaps now
+carry it: a chat whose character was cast and never made a companion yields a
+Setup without them. In a chat, the cast panel's *Add to the cast* seats them
+once the session exists, which is a workaround and not a round trip.
+
+*Said where a person reads it, and not in the wizard's last sentence.* The
+in-app help and the user guide now say what *the party* means — who travels
+with you, not everyone seated — and that a character in the scene who never
+joined it does not carry. The wizard's *Saved* screen still says *a session
+started from it begins where this one was*, and stays so: the preview the
+person saved from had just said *The party (nobody but you)*, the other four
+known gaps of §1.2 are not qualified there either, and a caveat on that one
+sentence would stand in for B19's answer rather than be one.
+
+**What closing it takes is a Setup that holds a cast distinct from its party.**
+[04 §2](../04-schemas.md) makes a new optional field free in format terms — no
+version bump, and readers keep what they do not know (`schema/common.ts` sets
+no `additionalProperties`) — so this is *not* [25 B16](../25-open-questions.md)'s
+closed-union question. What makes it the owner's is permanence: from the first
+release that exports native objects, a Setup field's name and meaning are fixed
+in every file anyone holds, and how a Setup's cast meets
+[25 B18](../25-open-questions.md)'s greetings rule and this phase's carry-over
+is a design question rather than a field to add in passing.
+[25 B19](../25-open-questions.md) is the question.
+
 ---
 
 ## 2 — Stages
@@ -440,7 +587,9 @@ at the turn is `goals[0]`, and an unfired hook is still in the pool.
 *Make a setup from here* beside *Continue from here*, opening a dialog with the
 carry-over, the story so far, the opening, the facts, and a name.
 
-**Done — `e033435`.**
+**Done — `e033435`.** *Since 2026-10-04 the dialog is a chunk of its own,
+fetched the first time the button is pressed (§1.11); what it shows and saves
+is unchanged.*
 ### P15.9 — Close-out
 
 The gate lands in [manual testing](05-manual-testing.md) as a sitting, the
@@ -472,7 +621,9 @@ merged into it — the [P14](31-p14-scene-and-session-import.md) precedent,
   greetings aside, and offers *How they open* when it has none; the two new
   refusals clear the stale choice; a blank greeting is not offered; *Redo*
   reads `redoable`; the wizard gives remedies; *Story so far* links to its
-  Setup; the entry ceiling rose from 336 to 342 (`tools/entry-budget.test.ts`).
+  Setup; the entry ceiling rose from 336 to 342 (`tools/entry-budget.test.ts`)
+  — *and fell back to 336 on 2026-10-04, when the wizard's dialog moved off the
+  entry (§1.11)*.
 
 No gate row was edited.
 
@@ -512,6 +663,11 @@ the About surface and an unreleased one is not a heading it takes.*
   this one was, without the turns behind it, and it travels in a package like
   any other Setup. **Nothing it would spoil is shown**: hooks that have not
   happened and goals hidden from you are carried, and counted, and not described.
+  *(2026-10-04, §1.2's fifth gap and [25 B19](../25-open-questions.md):
+  whoever writes the release should say that **the party** is who travels with
+  you — a character who was in the scene without ever joining the party, such
+  as a chat's character the story never made a companion, does not carry, and
+  in a chat can be added to the cast again once the new session has begun.)*
 - **Start a session from a Setup.** From the session form, which now offers your
   Setups and their openings, and from a Setup's own library page. Until now the
   browser had no way to start from one.

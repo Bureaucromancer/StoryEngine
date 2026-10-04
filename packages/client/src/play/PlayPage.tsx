@@ -87,7 +87,7 @@ import { LorePanel } from './LorePanel.js';
 import { SessionPanel } from './SessionPanel.js';
 import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
-import { SetupFromTurn } from './SetupFromTurn.js';
+import { useSetupFromTurn } from './SetupFromTurn.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
 import { Note, SectionTitle } from '../ui/Text.js';
@@ -1226,6 +1226,18 @@ export function PlayPage({
         className="flex min-h-[50dvh] flex-1 flex-col gap-4 overflow-y-auto"
         aria-label="Transcript"
       >
+        {/* ***Every turn on the path is drawn, including one with no words***
+            ([P15 §1.10], 2026-10-04 — recommended answer, owner deferred).
+            Every turn the engine writes without a move — an undo, a hand
+            edit's divergence turn, a person's write to a channel, a backdrop
+            chosen, a *Remember this* capture's record, an on-demand step's run
+            and a Setup's seeding turn among them — carries no prose, only its
+            writes; each is a row holding its gestures, because the
+            transcript shows the record rather than a selection of it, and
+            because Undo and Continue from here on that row are the only way to
+            act on it from the story. If an empty row reads as a gap, the
+            remedy is a line saying what it changed, on every turn of the shape —
+            not skipping this one. */}
         {(transcript.data?.turns ?? []).map((turn) => (
           <TurnView
             key={turn.id}
@@ -1837,6 +1849,11 @@ function TurnView({
   const [guiding, setGuiding] = useState(false);
   const [note, setNote] = useState('');
 
+  // ***Make a setup from here*** — [P15.8]: its button for the row below, and
+  // what the button opens for after it, the guided redo's field's reason
+  // (2026-10-04, `SetupFromTurn.tsx`'s header).
+  const setup = useSetupFromTurn({ sessionId, turnId: turn.id, busy });
+
   const redoWith = (rewrite: boolean): void => {
     const trimmed = note.trim();
     onRedo(turn, rewrite, guiding && trimmed.length > 0 ? trimmed : undefined);
@@ -1986,8 +2003,9 @@ function TurnView({
             because it is the other answer to the same wish: continuing keeps
             the history behind this turn, and this condenses it into somewhere
             new sessions start from. Any turn, including an opening — a point
-            worth starting from again is not only ever one somebody typed. */}
-        <SetupFromTurn sessionId={sessionId} turnId={turn.id} busy={busy} />
+            worth starting from again is not only ever one somebody typed. The
+            button only: what it opens is drawn after this row, below. */}
+        {setup.trigger}
         {/* ***Illustrate*** — [06 §10.6], [P9.4]. *"A manual **Illustrate**
             action on any message in the history, which is the same step invoked
             by hand — additive, never replacing."* Beside the other per-message
@@ -2064,6 +2082,20 @@ function TurnView({
           </label>
         </form>
       ) : null}
+
+      {/* ***What Make a setup from here opens*** — its waiting sentence, the
+          dialog, or the note that it failed — outside the row for the field
+          above's reason (2026-10-04). The note's own advice, to send or copy
+          what was typed, takes the pointer and focus to the composer, and drawn
+          in the row it went invisible as it was being followed.
+
+          *Remember this* is the known exception: its panel and its refusal
+          are still drawn inside the row, and fade the same way once neither
+          the pointer nor focus is in the turn. Focus stays in the panel while
+          it is typed into, which is most of its life; moving it changes a
+          component with tests of its own, so it is recorded at [20 §7.2]
+          rather than made in passing. */}
+      {setup.place}
 
       <SiblingStrip
         turn={turn}

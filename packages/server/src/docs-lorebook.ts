@@ -391,6 +391,12 @@ const ENTRIES: readonly LoreEntry[] = [
    * again from this point* — and the setup is the answer rather than the
    * subject. Keyed on the words somebody uses before they know the feature's
    * name, and never on `setup` alone, which the kinds entry above already owns.
+   *
+   * *The sentence saying what "the party" is was added 2026-10-04*, with
+   * [25 B19](../../../docs/design/25-open-questions.md): a chat's character
+   * who was seated and never joined the party is not carried, and help that
+   * said *the party carries* to somebody making a setup from a chat would have
+   * promised them the one character they came for.
    */
   entry({
     id: '0199c000-0000-7000-8000-00000000001a',
@@ -408,7 +414,7 @@ const ENTRIES: readonly LoreEntry[] = [
     description:
       'Making a setup from any turn of a session, what it carries and hides, and how a session started from a setup begins.',
     content:
-      "**Make a setup from here**, on any turn beside *Continue from here*, saves that point as a **setup** in your library: somewhere new sessions start, again and again, without the turns that led there. *Continue from here* keeps the history; this condenses it away.\n\nA dialog drafts **the story so far**, an **opening**, a **name and blurb**, and the **facts** the story established — each its own call on the writing model, each editable and regenerable on its own. Kept facts become a lorebook linked from the setup. The party, the current goal and the plot hooks carry too, each with a switch to leave it out.\n\n**Nothing it would spoil is shown.** Hooks that have not happened are counted, not described, and a goal hidden from you says only that it is hidden. They are carried all the same, and hooks already used are marked so they do not happen twice.\n\nA session started from the setup — on the sessions page, or **Start a session** on the setup's own page — shows the model the story so far from its first turn, as the oldest part of its running summary, which needs a preset with a summary slot. **A setup's own opening is always its first turn**: in a chat whose characters would greet you, their greetings are not used when the setup has an opening of its own, even if you start it cold. A setup with no opening begins on the greetings instead. An opening was written, not generated, so it cannot be redone.",
+      "**Make a setup from here**, on any turn beside *Continue from here*, saves that point as a **setup** in your library: somewhere new sessions start, again and again, without the turns that led there. *Continue from here* keeps the history; this condenses it away.\n\nA dialog drafts **the story so far**, an **opening**, a **name and blurb**, and the **facts** the story established — each its own call on the writing model, each editable and regenerable on its own. Kept facts become a lorebook linked from the setup. The party, the current goal and the plot hooks carry too, each with a switch to leave it out. *The party* is who travels with you: a character who was in the scene without ever joining it does not carry, and in a chat can be added to the cast again once the new session has begun.\n\n**Nothing it would spoil is shown.** Hooks that have not happened are counted, not described, and a goal hidden from you says only that it is hidden. They are carried all the same, and hooks already used are marked so they do not happen twice.\n\nA session started from the setup — on the sessions page, or **Start a session** on the setup's own page — shows the model the story so far from its first turn, as the oldest part of its running summary, which needs a preset with a summary slot. **A setup's own opening is always its first turn**: in a chat whose characters would greet you, their greetings are not used when the setup has an opening of its own, even if you start it cold. A setup with no opening begins on the greetings instead. An opening was written, not generated, so it cannot be redone.",
   }),
 ];
 

@@ -7,6 +7,10 @@ were checked against `main` at `3ab6a62`; the size is the earlier audit's
 measurement, not a new measurement of that commit. No bundle attribution or
 browser performance profile was taken for this note.
 
+*2026-10-04: one boundary is built — the setup wizard's dialog, the client's
+first `lazy()`, recorded at [§7.2](#72-the-first-lazy-boundary-the-setup-wizards-dialog-2026-10-04).
+Everything else here is still exploration, and §6's baseline was never taken.*
+
 **The planning assumption is continued growth.** The client has reached this
 size with much of the intended application still ahead of it. Modes, richer
 editors, memory inspection, renditions and localisation will add browser code;
@@ -374,3 +378,96 @@ entry, and puts only the renderer in a chunk `/` fetches. It is exactly §4.2's
 *optional tools within a page*, and the cost is one line of fallback text on a
 surface [10 §1.1](10-ui-surfaces.md) files as Quiet, which should be a sentence
 rather than a spinner.
+
+### 7.2 The first lazy boundary: the setup wizard's dialog (2026-10-04)
+
+**What forced it was the tripwire, not a complaint.** `tools/entry-budget.test.ts`
+is [P11.9](workplan/28-p11-implementation.md)'s recorded ceiling on the entry
+bundle, and between 2026-09-29 and 2026-10-03 it was raised five times — 310 to
+320, 325, 331, 336 and 342 kB — each time naming the same remedy and declining
+it as a loading decision no feature stage should make in passing. The fifth,
+at [P15](workplan/33-p15-setup-from-a-turn.md)'s merge, named a candidate:
+*make a setup from here*, a dialog nobody sees until they press a button on one
+turn. [P15 §1.11](workplan/33-p15-setup-from-a-turn.md) took it, on the
+recommended answer with the owner's decision deferred, and the ceiling went
+back to 336.
+
+**The boundary is §4.2's, at the smallest useful size.** The button
+(`play/SetupFromTurn.tsx`) stays on the play page, because every turn draws it;
+the dialog (`play/SetupWizard.tsx`) is a chunk fetched the first time somebody
+presses it. *Not a route boundary*: §4.1's first experiment is still unrun, and
+this does not start it. Measured with the entry-budget test's own compressor —
+gzip level 9, the units its ceiling is written in — the entry went from
+**337.79 kB** to **335.38**, and to **335.55** with review's changes to the
+button's side (below). Imported statically again, with those changes kept, the
+dialog puts the entry at **338.19**, so it costs the entry 2.64; the chunk is
+**3.78** on its own. *The gap is not shared modules* — the modules the dialog
+shares with the entry stay on the entry and are in neither number — but
+compression and wiring. Gzipped alone, the chunk lacks the entry's context:
+appended to the entry it costs **3.04**, so about 0.74 is compression the
+chunk cannot borrow. The other 0.40 is the split's own code: the chunk's
+import of the bindings it shares with the entry, and on the entry an export
+list for them and the `import()` that fetches the chunk. (The bundler's preload
+helper was on the entry already, for the locale catalogues.)
+
+**The loading and failure states, against §5:**
+
+- *Where both are drawn*: under the turn's row of gestures, not in it. That row
+  is transparent unless the turn is hovered or holds focus, and the first
+  version drew the waiting sentence and the failure note beside the button,
+  inside it — so on any device that can hover the note vanished when the
+  pointer left the turn, which its own advice (send or copy what you typed)
+  makes the pointer do. Review moved them out, where the guided redo's field
+  already was: the module hands the play page the button for the row and what
+  it opens for after it (`useSetupFromTurn`). *Remember this* is the known
+  exception — its panel and its refusal are still drawn inside the row and
+  fade the same way once neither pointer nor focus is in the turn; focus stays
+  in the panel while it is typed into, which is most of its life, and moving
+  it is a change to that component of its own, not this boundary's.
+- *Pending* is a sentence under the turn's gestures, announced as a status,
+  rather than a modal frame. Nothing is covered while the chunk loads, so there
+  is no close control to keep; and a frame the dialog replaced could leave the
+  dialog's focus trap remembering one of the frame's buttons as the place to
+  return focus to, which keeping focus predictable rules out.
+- *Failure* is a local error boundary: a note under the turn's gestures, and
+  the page beside it — transcript, composer, an unsent move — is untouched.
+  Without it the router's page-level boundary would have replaced the whole
+  play page. **The boundary guards the dialog's render as well as its load**,
+  because it wraps everything the dialog draws, and §5's *a failed inspector
+  should leave the page beside it usable* holds for a bug as much as for a
+  missing file. *Only a failed load is told to reload*: the `lazy` factory
+  wraps the import's rejection in an error of its own type, and the boundary
+  says *could not be loaded … reload the page to fetch the new version* to
+  that alone. Anything else — the dialog throwing once its chunk is in — says
+  the wizard stopped with an error, because a reload would only repeat a bug
+  and the upgrade it blames did not happen.
+- *Focus*: the note's *Dismiss* hands focus back to the button. It unmounts
+  itself while holding focus, and the browser would otherwise drop it on
+  `<body>`; the dialog's own close already returns focus through its trap.
+- *No retry, and no reload control.* React caches a rejected `lazy` load as it
+  caches a success (§4.2), so *Try again* through the same declaration cannot
+  ask the network again; the failure a self-hosted install is likeliest to see
+  is the upgrade under an open tab, which only a reload answers; and a reload
+  button would discard an unsent move, which nothing keeps. So the sentence
+  says what to do and the person chooses when. *A retry that builds a fresh
+  `lazy` is the shape to reach for* if transient failures turn out to matter.
+- *Upgrades*: unchanged from §5. The server still answers a missing asset with
+  `index.html`, which fails the module request — a rejected load, so the
+  boundary catches it and gives it the reload advice.
+
+**The guardrail is structural, as §6 asks.** Besides the byte ceiling, the
+entry-budget test now asserts *keeps the setup wizard off the entry*: a chunk
+named for the module exists, and `index.html` does not reference it. With the
+lazy import reverted to a static one, both checks fail (the entry measured
+338.19 kB). The component tests cannot be this guardrail — §6 says why, and
+`SetupFromTurn.load.test.tsx` says it again — so they hold the pending and
+failure states, the focus on *Dismiss*, and (`SetupFromTurn.crash.test.tsx`)
+the dialog that fails as it draws, and nothing about where the code lives;
+`PlayPage.test.tsx` holds where on the page the states are drawn.
+
+**What it does not settle**, and §7's list still holds: which page groups load
+together, prefetch, compression and cache headers, and whether old assets are
+retained across an upgrade. This is one optional tool off the entry, and the
+precedent it sets is the sizing — the dialog, not the button; one boundary,
+not a subdivision — and the two states every later boundary owes, drawn where
+they stay visible and with focus handed back when one is dismissed.

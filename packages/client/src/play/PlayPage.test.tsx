@@ -98,6 +98,10 @@ vi.mock('../api.js', async (importOriginal) => {
     impersonateAs: (...a: unknown[]) => impersonateAs(...a) as unknown,
     // Since [25 E15] the composer uploads pictures as they are attached.
     uploadPicture: (...a: unknown[]) => uploadPicture(...a) as unknown,
+    // Since 2026-10-04 one test opens the setup wizard, which drafts on open —
+    // four model calls, never real ones here, and never answered: the test is
+    // about where the dialog is drawn, not what it shows.
+    draftSetupFromTurn: () => new Promise<never>(() => undefined),
     api: {
       ...actual.api,
       listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
@@ -169,6 +173,9 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 });
 
 const { PlayPage } = await import('./PlayPage.js');
+// The wizard's chunk, transformed before any test is timed —
+// `SetupFromTurn.test.tsx`'s reason; the press still goes through `lazy()`.
+await import('./SetupWizard.js');
 
 const SESSION = {
   id: '01a008de-7e08-70d0-899c-f6869d6b9aeb',
@@ -1124,6 +1131,114 @@ describe('making a setup from a turn', () => {
     // Drawn as a chat, not as prose: the speaker is named on the message.
     expect(within(turn).getByText('Vera')).toBeTruthy();
     expect(within(turn).getByRole('button', { name: 'Make a setup from here' })).toBeTruthy();
+  });
+
+  /**
+   * ***What the button opens is drawn outside the row that fades*** —
+   * 2026-10-04, in review of [P15 §1.11].
+   *
+   * The turn's gestures sit in a row that is transparent unless the turn is
+   * hovered or holds focus (`reveal`). The wizard's waiting sentence and its
+   * failure note were drawn beside the button, inside that row, and so went
+   * invisible as soon as the pointer left the turn — which the note's own
+   * advice, to send or copy what was typed, makes the pointer do. They are
+   * drawn after the row now, where the guided redo's field already was.
+   *
+   * *Read through the dialog*, because the waiting sentence is there for a
+   * moment and the failure needs a module that never loads, which this file's
+   * other tests cannot have; all three are the one piece `useSetupFromTurn`
+   * hands back, so where one is drawn is where they all are. *And by the class
+   * that does the fading*, because jsdom computes no opacity — the assertion
+   * is the reason itself: the button has a fading ancestor, the dialog has
+   * none, and both are in the same turn. Mutation: draw `setup.place` inside
+   * the row, and the second expectation fails.
+   */
+  it('opens the wizard outside the row that fades', async () => {
+    renderPage();
+    await screen.findByText('The door opens a handspan.');
+
+    const trigger = screen.getByRole('button', { name: 'Make a setup from here' });
+    expect(trigger.closest('.opacity-0'), 'the button is in the fading row').not.toBeNull();
+
+    await userEvent.click(trigger);
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.closest('.opacity-0'), 'what it opens fades with the row').toBeNull();
+    expect(dialog.closest('li')).toBe(trigger.closest('li'));
+  });
+});
+
+/**
+ * ***A turn that only seeds is drawn, not hidden*** —
+ * [P15 §1.10](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
+ * 2026-10-04, the recommended answer with the owner's decision deferred.
+ *
+ * A Setup started cold, or one with no opening of its own that makes a
+ * party's members or spends a hook, begins on a turn with no move and no
+ * words — only the engine's writes. Sitting W recorded it at the merge as *an
+ * empty row carrying only its hover actions* and left whether to draw it to a
+ * reader.
+ * The answer is the convention every such turn already follows: every turn
+ * the engine writes without a move — an undo, a hand edit's divergence turn,
+ * a person's write to a channel and a backdrop chosen among them — is the
+ * same shape and is drawn, because the transcript shows the record rather
+ * than an edited selection of it ([03 §8.1]'s *a change of state is visible
+ * in the turn record*), and because its gestures are the only way to act on
+ * it from the story — **Undo** here takes them out of the party again, which
+ * is exactly what somebody rewinding past the start of a story means.
+ *
+ * *What it pins is that the row is there with its gestures*, so the day
+ * somebody tidies empty rows away it fails rather than quietly making the
+ * seeding unreachable. Mutation: skip a turn with no input and no output when
+ * the transcript is drawn, and the counts and the undo below fail.
+ */
+describe('a turn that only seeds', () => {
+  it('is drawn with its gestures, and Redo is not one of them', async () => {
+    const seeding: TurnRecord = {
+      id: 'turn-seed',
+      sessionId: SESSION.id,
+      parentTurnId: null,
+      createdAt: '2026-08-18T09:59:00.000Z',
+      status: 'complete',
+      effects: [
+        {
+          id: 'effect-seat',
+          turnId: 'turn-seed',
+          channelId: 'se.party',
+          scopeKey: 'actor-vera',
+          op: { type: 'set', path: '/' },
+          before: null,
+          after: 'companion',
+          proposedBy: { kind: 'engine' },
+          applied: true,
+          rejectedReason: null,
+          supersedes: null,
+          channelVersion: 1,
+          scope: 'session',
+        },
+      ],
+      tape: [],
+    };
+    readTranscript.mockResolvedValue({
+      turns: [seeding, { ...TURN, parentTurnId: 'turn-seed' }],
+    });
+    renderPage();
+    await screen.findByText('The door opens a handspan.');
+
+    const transcript = screen.getByRole('list', { name: 'Transcript' });
+    expect(within(transcript).getAllByRole('button', { name: 'Continue from here' })).toHaveLength(
+      2,
+    );
+    expect(
+      within(transcript).getAllByRole('button', { name: 'Make a setup from here' }),
+    ).toHaveLength(2);
+    // Nothing made it, so there is nothing to make again — `redoable`.
+    expect(within(transcript).getAllByRole('button', { name: 'Redo' })).toHaveLength(1);
+
+    // The seeding turn's Undo is its own: the first in transcript order.
+    await userEvent.click(within(transcript).getAllByRole('button', { name: 'Undo' })[0]!);
+    await waitFor(() => {
+      expect(undoTurn).toHaveBeenCalledWith(SESSION.id, 'turn-seed');
+    });
   });
 });
 

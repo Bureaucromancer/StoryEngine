@@ -276,7 +276,12 @@ document):
   `resolveWorld` stays a test seam, documented as one.
 - **The entry budget's remedy** — the first `React.lazy`, or the note sentences
   off the entry with the library surface that reads them — named a fourth time
-  at `7508a7d` and still not a polish commit's decision.
+  at `7508a7d` and still not a polish commit's decision. *Taken 2026-10-04, the
+  first half: the setup wizard's dialog is the client's first `lazy()`, and the
+  ceiling, raised to 342 at P15's merge, is back at 336
+  ([P15 §1.11](33-p15-setup-from-a-turn.md),
+  [20 §7.2](../20-client-loading.md)). The note sentences are still on the
+  entry.*
 - **The polish pass's own leftovers** are
   [polish §24](06-polish.md#24-what-the-pass-found-and-left).
 

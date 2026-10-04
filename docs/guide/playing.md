@@ -244,6 +244,9 @@ up for writing), and each one you can edit, steer with a note and **Regenerate**
 A part that fails says why and leaves the others as they were. Above them, **What it
 carries** lists the mode, treatment, preset, persona and lorebooks, and three switches:
 **The party**, **Goals** and **Plot hooks**. Switch one off and the setup leaves it out.
+*The party* is who travels with you — your companions — not everyone in the scene: a
+character who was there without ever joining the party is not carried, and the switch
+reads *The party (nobody but you)* when nobody has joined.
 
 **Nothing it would spoil is shown.** A plot hook that has not happened yet is counted,
 not described — *3 still waiting, 2 already used* — and a goal hidden from you reads
@@ -262,8 +265,11 @@ writes, and every session started afterwards begins from the edited version. See
 [Starting from a setup](#starting-from-a-setup).
 
 What does not carry: who is present or dead (the story so far says it, the cast does
-not), a dial's current value, and changes this session made to its own copy of the
-prompt pack — the setup names the library preset.
+not); a character who was in the scene without ever joining the party — in a chat, the
+character you were talking to, unless the story made them a companion — whom you can put
+back with [Add to the cast](modes.md#the-cast-in-a-chat) once the new session has begun;
+a dial's current value; and changes this session made to its own copy of the prompt
+pack — the setup names the library preset.
 
 ## The panels
 

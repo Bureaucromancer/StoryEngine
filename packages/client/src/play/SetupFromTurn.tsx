@@ -1,30 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { Link } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useState, type JSX } from 'react';
-
 import {
-  draftSetupFromTurn,
-  listModes,
-  saveSetupFromTurn,
-  type SetupCarryPreview,
-  type SetupDraft,
-  type SetupFromTurn as SetupFromTurnBody,
-  type SetupPart,
-  type SetupPartOutcome,
-  type SetupPartRefusal,
-} from '../api.js';
-import { remedySentence } from '../failures.js';
-import { labels } from '../i18n/catalogue.js';
-import { StartSession } from '../library/StartSession.js';
-import { Alert } from '../ui/Alert.js';
+  Component,
+  Suspense,
+  lazy,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+  type ReactNode,
+} from 'react';
+
+import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
-import { Dialog } from '../ui/Dialog.js';
-import { CheckboxField, Field } from '../ui/Field.js';
-import { link } from '../ui/classes.js';
-import { Fine, SectionTitle, SubsectionTitle } from '../ui/Text.js';
+import { Note } from '../ui/Text.js';
 
 /**
  * ***Make a setup from here*** — [04 §7.2](../../../../docs/design/04-schemas.md),
@@ -37,34 +27,77 @@ import { Fine, SectionTitle, SubsectionTitle } from '../ui/Text.js';
  * hooks, and the facts play established — which a new session starts from, and
  * which travels in a package without a turn record behind it.
  *
- * ***One dialog with sections, not a stepper.*** [10 §1.1] rejects steppers on
- * tooling surfaces, and [10 §6] endorses a wizard for setup flows; what both
- * want is a person who can see everything they are about to save at once. So
- * every section drafts on open, each says whether its draft landed, and each can
- * be redrafted on its own — *Regenerate*, with a note if somebody has one —
- * without discarding the others, which is the route's own per-part shape.
+ * ***The button is here and the dialog is not*** (2026-10-04,
+ * [P15 §1.11](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
+ * [20 §7.2](../../../../docs/design/20-client-loading.md)). Every turn of every
+ * transcript draws this button, so it has to be on the play page's code; the
+ * dialog behind it is seen by somebody who pressed it on one turn, and until
+ * this date every byte of it was on the common entry — paid for by a first load
+ * of the sign-in page, the library and Settings alike. P15's merge raised the
+ * entry's ceiling to make room for it rather than decide that, and named the
+ * wizard the plainest candidate yet for the client's first `lazy()`. This is
+ * that decision: the dialog is `SetupWizard.tsx`, a chunk of its own, fetched
+ * the first time anybody presses the button and never before. *Lazy at the
+ * dialog rather than at the button*, because a lazy button would be fetched the
+ * moment a transcript drew its first turn, which is a smaller entry and the
+ * same download on every visit to play.
  *
- * **Offered, never automatic, and reviewed before it lands** ([16 §3]):
- * nothing is written until *Save*, and everything a model wrote is on screen,
- * editable, when it is pressed.
- *
- * ***What it cannot show is by design.*** The carry arrives redacted — the goal
- * play would begin on only when a player may read it, and hooks as counts —
- * because the person making this is still playing the session it comes from,
- * and an unfired hook or a hidden goal is the one thing this surface must not
- * spoil. The Setup itself holds them in full; opening it in the library is an
- * authoring act, and a deliberate one.
+ * ***A hook that hands back two pieces, rather than a component that draws
+ * one*** (2026-10-04, in review). The button belongs in the turn's row of
+ * gestures, and that row fades unless the turn is hovered or holds focus
+ * (`reveal`, `ui/classes.ts`) — so what the button opens cannot be drawn inside
+ * it. The wizard's waiting sentence and its failure note were, at first, as
+ * siblings of the button: on any device that can hover, *the setup wizard could
+ * not be loaded* was invisible unless the pointer was over that turn, and the
+ * note's own advice — send or copy what you typed — moves the pointer and focus
+ * to the composer, which hid the note while it was still saying something.
+ * `PlayPage.tsx` had already written the rule down for the guided redo's field,
+ * *a field that vanished when the pointer left it would be a field nobody could
+ * read back*, and placed that field after the row. So this returns the
+ * `trigger`, for the row, and the `place`, for after it: `TurnView` puts each
+ * where it belongs, and the state both share — whether the wizard is open, and
+ * where focus goes back to — stays here rather than in a component that draws
+ * eleven other things. `PlayPage.test.tsx`'s *opens the wizard outside the row
+ * that fades* holds the placement.
  */
-export function SetupFromTurn(props: {
-  sessionId: string;
-  turnId: string;
-  busy: boolean;
-}): JSX.Element {
+export function useSetupFromTurn(props: { sessionId: string; turnId: string; busy: boolean }): {
+  trigger: JSX.Element;
+  place: JSX.Element | null;
+} {
   const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  /**
+   * ***Whether closing should hand focus back to the button*** — `TwoStep`'s
+   * pattern, and needed by one way of closing only. The dialog's own close
+   * already returns focus: `Dialog`'s `useFocusTrap` remembers what was focused
+   * when it opened, which is this button, and restores it as it unmounts. The
+   * failure note has no trap, so its *Dismiss* unmounts the very button that
+   * held focus and the browser drops focus to `<body>` — the *"where did my
+   * keyboard go"* bug `useFocusTrap.ts` is written against, and in a long
+   * transcript a keyboard or screen-reader user's place in the story gone with
+   * it. So *Dismiss* asks for focus back, and the dialog's close leaves it to
+   * the trap that already does it — one owner for each way out.
+   */
+  const returning = useRef(false);
 
-  return (
-    <>
+  useEffect(() => {
+    if (open || !returning.current) return;
+    returning.current = false;
+    button.current?.focus();
+  }, [open]);
+
+  const close = (): void => {
+    setOpen(false);
+  };
+  const dismiss = (): void => {
+    returning.current = true;
+    setOpen(false);
+  };
+
+  return {
+    trigger: (
       <Button
+        ref={button}
         type="button"
         disabled={props.busy}
         aria-haspopup="dialog"
@@ -74,554 +107,122 @@ export function SetupFromTurn(props: {
       >
         Make a setup from here
       </Button>
-      {open ? (
-        <SetupWizard
-          sessionId={props.sessionId}
-          turnId={props.turnId}
-          onClose={() => {
-            setOpen(false);
-          }}
-        />
-      ) : null}
-    </>
-  );
-}
-
-/**
- * What a part that did not land says — the route sends a class, never prose.
- *
- * *`window-too-small` and `truncated` added at the merge* (2026-10-03), when
- * the server's draft learned them. A cut-off reply names both fixes, because
- * either works and only the person knows which they want: a shorter part asks
- * the same model for less, and a longer reply length lets it finish. The first
- * says what the failure catalogue's `window-too-small` says, *written out
- * rather than read from it*: `catalogue.test.ts` sweeps only tables of plain
- * literals, and one borrowed value would take this whole table out of its
- * sight.
- *
- * *The two `summary-` reasons since review the same day*: a link of the
- * session's summary chain that was cut off, or came back with nothing, fails
- * every part at once. The part's own sentences named the wrong reply and
- * offered a note, which reaches only the part it names and never the
- * summariser — so these say *a summary of the earlier story*, and the fix
- * that reaches it.
- */
-const REFUSAL: Record<SetupPartRefusal, string> = labels('play.setup-part-refusal', {
-  'role-unbound': 'No model is set up for writing. Choose one in Settings, then try again.',
-  'role-dangling': 'The model for writing points at a connection that is gone.',
-  'window-too-small':
-    'The model’s context window is too small to hold the story beside its reply. Raise the context window in the connection’s settings, or lower the reply length.',
-  'call-failed': 'The model did not answer. Try again.',
-  truncated:
-    'The draft ran past the reply length and was cut off, so it is not shown. Try again with a note asking for it shorter, or raise the reply length.',
-  'no-answer': 'The model answered with nothing usable. Try again, perhaps with a note.',
-  'summary-truncated':
-    'A summary of the earlier story ran past the reply length and was cut off, so nothing was drafted from it. Raise the reply length, then try again.',
-  'summary-no-answer':
-    'The model wrote no usable summary of the earlier story, so nothing was drafted from it. Try again.',
-});
-
-/**
- * ***The sentence for a part that failed***, and for a provider failure the
- * remedy's — impersonation's rule (`impersonateLine`), since 2026-10-03, when
- * the route began sending one. *The model did not answer* was right for an
- * endpoint that was down and wrong for a wrong key or a busy one, and each has
- * its own fix. The generic line stays for a remedy this build has never heard
- * of, which `remedySentence` answers with nothing rather than a guess.
- */
-function refusalOf(outcome: Extract<SetupPartOutcome<unknown>, { ok: false }>): string {
-  if (outcome.reason === 'call-failed') {
-    return remedySentence(outcome.remedy) ?? REFUSAL['call-failed'];
-  }
-  return REFUSAL[outcome.reason];
-}
-
-type PartState = { kind: 'idle' } | { kind: 'drafting' } | { kind: 'failed'; reason: string };
-
-interface Fact {
-  text: string;
-  /** Comma-separated while it is being edited; split on save. */
-  keys: string;
-  kept: boolean;
-}
-
-function SetupWizard(props: {
-  sessionId: string;
-  turnId: string;
-  onClose: () => void;
-}): JSX.Element {
-  const headingId = useId();
-  const queryClient = useQueryClient();
-
-  const [carry, setCarry] = useState<SetupCarryPreview | null>(null);
-  const [warnings, setWarnings] = useState<SetupDraft['warnings']>([]);
-  const [status, setStatus] = useState<Record<SetupPart, PartState>>({
-    storySoFar: { kind: 'drafting' },
-    opening: { kind: 'drafting' },
-    title: { kind: 'drafting' },
-    facts: { kind: 'drafting' },
-  });
-
-  const [storySoFar, setStorySoFar] = useState('');
-  const [opening, setOpening] = useState('');
-  const [openingFrom, setOpeningFrom] = useState<'scene' | 'verbatim'>('scene');
-  const [name, setName] = useState('');
-  const [blurb, setBlurb] = useState('');
-  const [facts, setFacts] = useState<Fact[]>([]);
-  const [include, setInclude] = useState({ party: true, goals: true, hooks: true });
-  const [notes, setNotes] = useState<Partial<Record<SetupPart, string>>>({});
-  /** What a model wrote first, per path — the Setup's `generated` map. */
-  const [originals, setOriginals] = useState<SetupFromTurnBody['generated']>({});
-
-  const draft = useMutation({
-    mutationFn: (parts: SetupPart[]) =>
-      draftSetupFromTurn(props.sessionId, props.turnId, {
-        parts,
-        ...(openingFrom === 'verbatim' ? { openingFrom } : {}),
-        guidance: Object.fromEntries(
-          parts.flatMap((part) => {
-            const note = notes[part]?.trim() ?? '';
-            return note === '' ? [] : [[part, note]];
-          }),
-        ),
-      }),
-    onMutate: (parts) => {
-      setStatus((was) => ({
-        ...was,
-        ...Object.fromEntries(parts.map((p) => [p, { kind: 'drafting' }])),
-      }));
-    },
-    onSuccess: ({ draft: drafted }, parts) => {
-      setCarry(drafted.carry);
-      setWarnings(drafted.warnings);
-      const next: Partial<Record<SetupPart, PartState>> = {};
-      const wrote: NonNullable<SetupFromTurnBody['generated']> = {};
-
-      for (const part of parts) {
-        const outcome = drafted.parts[part];
-        if (outcome === undefined) continue;
-        if (!outcome.ok) {
-          next[part] = { kind: 'failed', reason: refusalOf(outcome) };
-          continue;
-        }
-        next[part] = { kind: 'idle' };
-        switch (part) {
-          case 'storySoFar': {
-            const text = outcome.value as string;
-            setStorySoFar(text);
-            wrote.storySoFar = { original: text, model: outcome.model };
-            break;
-          }
-          case 'opening': {
-            const text = outcome.value as string;
-            setOpening(text);
-            // The narrator's own words are not a model's draft of this Setup.
-            if (outcome.model !== null) {
-              // The Setup's dotted path for its one written opening's text.
-              wrote['openings.written.0.text'] = { original: text, model: outcome.model };
-            }
-            break;
-          }
-          case 'title': {
-            const { name: named, blurb: blurbed } = outcome.value as {
-              name: string;
-              blurb: string;
-            };
-            setName(named);
-            setBlurb(blurbed);
-            wrote.name = { original: named, model: outcome.model };
-            wrote.blurb = { original: blurbed, model: outcome.model };
-            break;
-          }
-          case 'facts':
-            setFacts(
-              (outcome.value as { text: string; keys: string[] }[]).map((fact) => ({
-                text: fact.text,
-                keys: fact.keys.join(', '),
-                kept: true,
-              })),
-            );
-            break;
-        }
-      }
-      setStatus((was) => ({ ...was, ...next }));
-      setOriginals((was) => ({ ...was, ...wrote }));
-    },
-    onError: (error, parts) => {
-      setStatus((was) => ({
-        ...was,
-        ...Object.fromEntries(parts.map((p) => [p, { kind: 'failed', reason: error.message }])),
-      }));
-    },
-  });
-
-  // Draft everything once, on open.
-  const { mutate } = draft;
-  useEffect(() => {
-    mutate(['storySoFar', 'opening', 'title', 'facts']);
-  }, [mutate]);
-
-  const save = useMutation({
-    mutationFn: () =>
-      saveSetupFromTurn(props.sessionId, props.turnId, {
-        texts: {
-          name,
-          blurb,
-          storySoFar,
-          opening: { label: openingFrom === 'verbatim' ? 'Where it left off' : '', text: opening },
-        },
-        include,
-        facts: facts
-          .filter((fact) => fact.kept)
-          .map((fact) => ({
-            text: fact.text,
-            keys: fact.keys
-              .split(',')
-              .map((key) => key.trim())
-              .filter((key) => key !== ''),
-          })),
-        ...(originals === undefined || Object.keys(originals).length === 0
-          ? {}
-          : { generated: originals }),
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['library'] });
-    },
-  });
-
-  const regenerate = (part: SetupPart) => {
-    draft.mutate([part]);
+    ),
+    place: open ? (
+      <WizardLoad onDismiss={dismiss}>
+        <Suspense fallback={<Note role="status">Opening the setup wizard…</Note>}>
+          <SetupWizard sessionId={props.sessionId} turnId={props.turnId} onClose={close} />
+        </Suspense>
+      </WizardLoad>
+    ) : null,
   };
+}
 
-  if (save.isSuccess) {
-    const saved = save.data;
+/**
+ * ***The wizard's chunk did not arrive*** — the one failure a reload answers,
+ * told apart from every other by its type rather than by its message, which is
+ * the browser's and differs between them.
+ */
+class WizardChunkError extends Error {
+  constructor(cause: unknown) {
+    super('The setup wizard’s code could not be loaded.', { cause });
+    this.name = 'WizardChunkError';
+  }
+}
+
+/**
+ * ***The dialog, fetched when it is first wanted*** — and declared here, at
+ * module scope, because [React's `lazy`](https://react.dev/reference/react/lazy)
+ * caches what it loads on the declaration: one declared inside a component
+ * would be a new boundary every render and fetch again each time.
+ *
+ * *A named export mapped to `default`* rather than a default export added to
+ * the wizard, so the module keeps the one export style the client uses and its
+ * tests import it by name.
+ *
+ * ***The rejection is wrapped*** (2026-10-04, in review), because `lazy` throws
+ * whatever the import rejected with to the boundary below, and that boundary
+ * also catches the dialog's own render once the chunk is in. Wrapped here — the
+ * one place that knows the failure is a *load* — the boundary can say *reload*
+ * to the failure a reload fixes and something plainer to a bug in the dialog,
+ * which a reload would only repeat.
+ */
+const SetupWizard = lazy(() =>
+  import('./SetupWizard.js').then(
+    (module) => ({ default: module.SetupWizard }),
+    (cause: unknown) => {
+      throw new WizardChunkError(cause);
+    },
+  ),
+);
+
+/**
+ * ***What the turn shows while the dialog is on its way, and if it never
+ * arrives or fails once it has.***
+ *
+ * **Waiting is a sentence under the turn's gestures, not a dialog** — the
+ * *Suspense* fallback above. A modal frame drawn while the code loads would
+ * have its own focus trap and buttons, and the real dialog replacing it could
+ * remember one of those buttons as the place to hand focus back to — gone by
+ * the time the dialog closes, so focus would land on nothing. And nothing is
+ * covered while the chunk is on its way, so there is nothing to close: the
+ * transcript, the composer and the other turns' buttons all stay in reach. On a
+ * LAN the sentence is there for a moment; [20 §7.1]'s contingency for the
+ * changelog said the same of its own fallback — *a sentence rather than a
+ * spinner*.
+ *
+ * **A failure says so here, and nowhere else breaks.** `lazy` throws its load's
+ * rejection to the nearest error boundary, and without this one the nearest is
+ * the router's `RouteErrorCard`, which would swap the whole play page —
+ * transcript, composer, an unsent move — for *This page could not be rendered*
+ * over one dialog. [20 §5](../../../../docs/design/20-client-loading.md): *"a
+ * failed inspector should leave the page beside it usable."* *A class
+ * component, which `router.tsx` argues against for the page-sized case* because
+ * a hand-rolled boundary forgets to reset on navigation; this one cannot
+ * outlive what it guards, because *Dismiss* closes the wizard and unmounts it,
+ * and leaving the page unmounts it too.
+ *
+ * ***It guards the dialog's render as well as its load, and says which***
+ * (2026-10-04, in review). The boundary wraps everything the wizard draws, so
+ * an exception thrown while rendering it, once the chunk is in, lands here too
+ * — and 20 §5's sentence holds for a bug as much as for a missing file, so it
+ * is caught rather than handed on to the router's card. What differs is the
+ * advice: *only a `WizardChunkError` is told to reload*. Telling somebody whose
+ * dialog hit a bug that StoryEngine was probably updated, and to reload, would
+ * misdiagnose it and send them to a remedy that reproduces it.
+ *
+ * ***No Try again, and no Reload button, each for its reason.*** `lazy` caches
+ * the rejection as it caches a success, so a retry through the same
+ * declaration fails the same way without asking the network; and the likelier
+ * cause on a self-hosted install is the one 20 §5 names — an upgrade replaced
+ * the server while this tab was open, and the chunk this tab knows by name is
+ * gone — which only a reload answers. A button that reloads would also discard
+ * a move typed and not sent, which is not persisted, so the sentence says what
+ * to do and the person chooses when.
+ */
+class WizardLoad extends Component<
+  { onDismiss: () => void; children: ReactNode },
+  { failed: 'chunk' | 'render' | null }
+> {
+  override state: { failed: 'chunk' | 'render' | null } = { failed: null };
+
+  static getDerivedStateFromError(error: unknown): { failed: 'chunk' | 'render' } {
+    return { failed: error instanceof WizardChunkError ? 'chunk' : 'render' };
+  }
+
+  override render(): ReactNode {
+    if (this.state.failed === null) return this.props.children;
     return (
-      <Dialog role="dialog" labelledBy={headingId} onDismiss={props.onClose} size="wide">
-        <SectionTitle id={headingId}>{`Saved “${saved.setup.name}”`}</SectionTitle>
-        <p className="text-sm">
-          {saved.lorebook === null
-            ? 'It is in your library as a setup. A session started from it begins where this one was.'
-            : `It is in your library as a setup, with its facts in “${saved.lorebook.name}”. A session started from it begins where this one was.`}
-        </p>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <StartSession setupId={saved.setup.id} label="Start a session from it" />
-          <Link
-            to="/library/$kind/$id"
-            params={{ kind: 'setups', id: saved.setup.id }}
-            className={link.action}
-          >
-            Open it in the library
-          </Link>
-          <Button type="button" variant="quiet" onClick={props.onClose}>
-            Back to the story
-          </Button>
-        </div>
-      </Dialog>
+      <AlertNote role="alert">
+        <span className="me-2">
+          {this.state.failed === 'chunk'
+            ? 'The setup wizard could not be loaded. If StoryEngine was updated since this page was opened, reload the page to fetch the new version — after sending or copying anything you have typed, which a reload does not keep.'
+            : 'The setup wizard stopped with an error. The rest of the page is unaffected.'}
+        </span>
+        <Button type="button" variant="quiet" size="compact" onClick={this.props.onDismiss}>
+          Dismiss
+        </Button>
+      </AlertNote>
     );
   }
-
-  return (
-    <Dialog role="dialog" labelledBy={headingId} onDismiss={props.onClose} size="wide">
-      <SectionTitle id={headingId}>Make a setup from here</SectionTitle>
-      <Fine>
-        Everything up to this point, condensed into somewhere to start from. Nothing is saved until
-        you press Save, and everything below can be edited first.
-      </Fine>
-
-      <form
-        className="mt-4 flex max-h-[70vh] flex-col gap-5 overflow-y-auto pe-1"
-        onSubmit={(event) => {
-          event.preventDefault();
-          save.mutate();
-        }}
-      >
-        <section aria-label="What it carries" className="flex flex-col gap-2">
-          <SubsectionTitle>What it carries</SubsectionTitle>
-          {carry === null ? (
-            <Fine>Reading the story at this point…</Fine>
-          ) : (
-            <Carried carry={carry} include={include} onInclude={setInclude} />
-          )}
-          {warnings.includes('no-summary-slot') ? (
-            <Alert tone="warning">
-              This session’s preset has no place for the story so far, so a session started with the
-              same preset will not show it to the model. A preset with a summary slot will.
-            </Alert>
-          ) : null}
-        </section>
-
-        <PartSection
-          title="The story so far"
-          part="storySoFar"
-          state={status.storySoFar}
-          note={notes.storySoFar ?? ''}
-          onNote={(next) => {
-            setNotes((was) => ({ ...was, storySoFar: next }));
-          }}
-          onRegenerate={regenerate}
-        >
-          <Field
-            label="What had already happened"
-            value={storySoFar}
-            onChange={setStorySoFar}
-            multiline
-            rows={8}
-            hint="The model reads this at the start of every session made from the setup."
-          />
-        </PartSection>
-
-        <PartSection
-          title="Opening"
-          part="opening"
-          state={status.opening}
-          note={notes.opening ?? ''}
-          onNote={(next) => {
-            setNotes((was) => ({ ...was, opening: next }));
-          }}
-          onRegenerate={regenerate}
-        >
-          <fieldset className="flex flex-wrap gap-4 text-sm">
-            <legend className="sr-only">Where the opening comes from</legend>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name={`${headingId}-opening`}
-                checked={openingFrom === 'scene'}
-                onChange={() => {
-                  setOpeningFrom('scene');
-                }}
-              />
-              A new scene, written for someone arriving
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name={`${headingId}-opening`}
-                checked={openingFrom === 'verbatim'}
-                onChange={() => {
-                  setOpeningFrom('verbatim');
-                }}
-              />
-              This turn’s own words
-            </label>
-          </fieldset>
-          <Field
-            label="The first thing the story says"
-            value={opening}
-            onChange={setOpening}
-            multiline
-            rows={6}
-          />
-        </PartSection>
-
-        <PartSection
-          title="Established facts"
-          part="facts"
-          state={status.facts}
-          note={notes.facts ?? ''}
-          onNote={(next) => {
-            setNotes((was) => ({ ...was, facts: next }));
-          }}
-          onRegenerate={regenerate}
-        >
-          <Fine>Kept facts become a lorebook linked from the setup, each found by its keys.</Fine>
-          {facts.length === 0 && status.facts.kind === 'idle' ? (
-            <Fine>Nothing was found worth keeping.</Fine>
-          ) : null}
-          <ul className="flex flex-col gap-3" aria-label="Facts">
-            {facts.map((fact, at) => (
-              <li key={at} className="flex flex-col gap-1">
-                <CheckboxField
-                  label={`Keep fact ${String(at + 1)}`}
-                  checked={fact.kept}
-                  onChange={(kept) => {
-                    setFacts((was) => was.map((one, i) => (i === at ? { ...one, kept } : one)));
-                  }}
-                />
-                <Field
-                  label={`Fact ${String(at + 1)}`}
-                  value={fact.text}
-                  onChange={(text) => {
-                    setFacts((was) => was.map((one, i) => (i === at ? { ...one, text } : one)));
-                  }}
-                />
-                <Field
-                  label={`Keys for fact ${String(at + 1)}`}
-                  value={fact.keys}
-                  onChange={(keys) => {
-                    setFacts((was) => was.map((one, i) => (i === at ? { ...one, keys } : one)));
-                  }}
-                  hint="Separated by commas. A fact with no keys is never found."
-                />
-              </li>
-            ))}
-          </ul>
-        </PartSection>
-
-        <PartSection
-          title="Name and blurb"
-          part="title"
-          state={status.title}
-          note={notes.title ?? ''}
-          onNote={(next) => {
-            setNotes((was) => ({ ...was, title: next }));
-          }}
-          onRegenerate={regenerate}
-        >
-          <Field label="Name" value={name} onChange={setName} required />
-          <Field label="Blurb" value={blurb} onChange={setBlurb} multiline rows={2} />
-        </PartSection>
-
-        {save.isError ? (
-          <Alert tone="error" role="alert">
-            {save.error.message}
-          </Alert>
-        ) : null}
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={name.trim() === '' || save.isPending || draft.isPending}
-          >
-            Save as a setup
-          </Button>
-          <Button type="button" variant="quiet" onClick={props.onClose}>
-            Cancel
-          </Button>
-          {name.trim() === '' && !draft.isPending ? <Fine>A setup needs a name.</Fine> : null}
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-/**
- * ***The carry, as far as it may be shown*** — names and counts, and three
- * switches. A group switched off is left out of the Setup, which is how a
- * person says *start fresh on this* without editing the Setup afterwards.
- */
-function Carried(props: {
-  carry: SetupCarryPreview;
-  include: { party: boolean; goals: boolean; hooks: boolean };
-  onInclude: (next: { party: boolean; goals: boolean; hooks: boolean }) => void;
-}): JSX.Element {
-  const { carry, include } = props;
-  /**
-   * The mode by the name the session form shows it by — the same query and the
-   * same fallback, so a mode this build cannot name is shown by its id rather
-   * than hidden.
-   */
-  const modes = useQuery({ queryKey: ['modes'], queryFn: listModes });
-  const modeName =
-    modes.data?.modes.find((one) => one.id === carry.mode)?.displayName ?? carry.mode;
-  const set = (key: 'party' | 'goals' | 'hooks') => (checked: boolean) => {
-    props.onInclude({ ...include, [key]: checked });
-  };
-
-  const current = carry.goals.current;
-  const goalLine =
-    carry.goals.carried === 'concluded'
-      ? 'The story had ended here, so no goal carries.'
-      : carry.goals.carried === 'open'
-        ? 'The story was on no goal here, by choice, so none carries.'
-        : carry.goals.carried === 'none'
-          ? 'No goals.'
-          : current !== null && 'statement' in current
-            ? `Begins on: ${current.statement}`
-            : 'Begins on a goal that is hidden from you.';
-
-  return (
-    <div className="flex flex-col gap-2 text-sm">
-      <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
-        <dt className="text-ink-muted">Mode</dt>
-        <dd>{modeName === '' ? carry.mode : modeName}</dd>
-        <dt className="text-ink-muted">Treatment</dt>
-        <dd>{carry.treatment ?? 'None'}</dd>
-        <dt className="text-ink-muted">Preset</dt>
-        <dd>{carry.preset ?? 'The mode’s own'}</dd>
-        <dt className="text-ink-muted">Persona</dt>
-        <dd>{carry.persona ?? 'Nobody in particular'}</dd>
-        <dt className="text-ink-muted">Lorebooks</dt>
-        <dd>{carry.lore.length === 0 ? 'None' : carry.lore.join(', ')}</dd>
-      </dl>
-      <CheckboxField
-        label={
-          carry.party.length === 0
-            ? 'The party (nobody but you)'
-            : `The party: ${carry.party.join(', ')}`
-        }
-        checked={include.party}
-        onChange={set('party')}
-      />
-      <CheckboxField
-        label={`Goals — ${goalLine}`}
-        checked={include.goals}
-        onChange={set('goals')}
-        {...(carry.goals.count > 1
-          ? { hint: `${String(carry.goals.count - 1)} more after it.` }
-          : {})}
-      />
-      <CheckboxField
-        label={
-          carry.hooks.carried === 0 && carry.hooks.spent === 0
-            ? 'Plot hooks — none'
-            : `Plot hooks — ${String(carry.hooks.carried)} still waiting, ${String(carry.hooks.spent)} already used`
-        }
-        checked={include.hooks}
-        onChange={set('hooks')}
-        hint="Used ones are marked spent so they do not happen twice. What they are is not shown here."
-      />
-    </div>
-  );
-}
-
-function PartSection(props: {
-  title: string;
-  part: SetupPart;
-  state: PartState;
-  note: string;
-  onNote: (next: string) => void;
-  onRegenerate: (part: SetupPart) => void;
-  children: React.ReactNode;
-}): JSX.Element {
-  const drafting = props.state.kind === 'drafting';
-  return (
-    <section aria-label={props.title} className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <SubsectionTitle>{props.title}</SubsectionTitle>
-        {drafting ? (
-          <span role="status" className="text-sm text-ink-muted">
-            Drafting…
-          </span>
-        ) : null}
-      </div>
-      {props.state.kind === 'failed' ? (
-        <Alert tone="error" role="alert">
-          {props.state.reason}
-        </Alert>
-      ) : null}
-      {props.children}
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-48 flex-1">
-          <Field
-            label={`A note for the next draft of ${props.title.toLowerCase()}`}
-            value={props.note}
-            onChange={props.onNote}
-            placeholder="Optional — shorter, darker, leave out the weather…"
-          />
-        </div>
-        <Button
-          type="button"
-          size="compact"
-          disabled={drafting}
-          onClick={() => {
-            props.onRegenerate(props.part);
-          }}
-        >
-          {props.state.kind === 'failed' ? `Try ${props.title.toLowerCase()} again` : 'Regenerate'}
-        </Button>
-      </div>
-    </section>
-  );
 }

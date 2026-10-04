@@ -124,6 +124,14 @@ export function carryAt(source: CarrySource): Carry {
    * other surface uses. **The persona is left out**, because it is in the party
    * by the reader's invariant and a Setup offers it separately, as
    * `personaOptions`.
+   *
+   * *What that leaves behind, said 2026-10-04*: a seated actor nothing made a
+   * member — a chat's character, cast at creation and never made a companion —
+   * is not carried, and a Setup has no field that could carry them, because
+   * `partyDefault` is read at creation as a party. That is
+   * [25 B19](../../../../docs/design/25-open-questions.md), the owner's to
+   * answer, and [P15 §1.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)'s
+   * fifth known gap.
    */
   const party: Ref[] = [];
   for (const key of Object.keys(channels)) {

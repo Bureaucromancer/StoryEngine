@@ -35,7 +35,35 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
 }));
 
-const { SetupFromTurn } = await import('./SetupFromTurn.js');
+const { useSetupFromTurn } = await import('./SetupFromTurn.js');
+
+/**
+ * ***The two halves where `TurnView` puts them*** (2026-10-04): the button in
+ * a row, and what it opens after the row. The hook hands back both since the
+ * failure note moved out of the row that fades; where the play page puts them
+ * is `PlayPage.test.tsx`'s to hold, and this only has to draw both.
+ */
+function Turn(props: { sessionId: string; turnId: string; busy: boolean }) {
+  const setup = useSetupFromTurn(props);
+  return (
+    <>
+      <div>{setup.trigger}</div>
+      {setup.place}
+    </>
+  );
+}
+/*
+ * ***The dialog's own module, imported once before any test opens it***
+ * (2026-10-04). Since [P15 §1.11] the button reaches the dialog through
+ * `lazy()`, so the first press makes vitest transform `SetupWizard.tsx` and
+ * everything it imports that the button does not — on a loaded runner, a
+ * wait `findByRole`'s one second was never sized for. Imported here, the
+ * lazy's own `import()` resolves from the module cache: **the path under test
+ * is still the lazy one**, button to boundary to dialog, and only the
+ * transform has moved out of the timed part. The waiting and failing states
+ * are `SetupFromTurn.load.test.tsx`'s.
+ */
+await import('./SetupWizard.js');
 
 const CARRY = {
   mode: 'storyengine.scene',
@@ -94,7 +122,7 @@ async function openWizard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <SetupFromTurn sessionId="s1" turnId="t9" busy={false} />
+      <Turn sessionId="s1" turnId="t9" busy={false} />
     </QueryClientProvider>,
   );
   await userEvent.click(screen.getByRole('button', { name: 'Make a setup from here' }));

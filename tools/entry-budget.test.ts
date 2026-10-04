@@ -37,9 +37,14 @@ import { describe, expect, it } from 'vitest';
  * build log's is comparing two compressors.
  *
  * **What is measured is what a first load pays**: the scripts and stylesheets
- * `index.html` itself references. A chunk reached by `import()` later — the
- * workbench, a locale catalogue — is deliberately *not* here, because not being
- * here is the whole point of splitting it.
+ * `index.html` itself references. A chunk reached by `import()` later — ~~the
+ * workbench~~ *the setup wizard's dialog (`SetupWizard.tsx`,
+ * [20 §7.2](../docs/design/20-client-loading.md))*, a locale catalogue — is
+ * deliberately *not* here, because not being here is the whole point of
+ * splitting it. *(Corrected 2026-10-04: the workbench was never one of these
+ * chunks — `Shell.tsx` imports it statically, as
+ * [20 §2](../docs/design/20-client-loading.md) records — and the wizard's
+ * dialog, split off that day, is the one that is.)*
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -143,7 +148,36 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * above is named a fifth, with a candidate this time. About four kB of
  * margin, roughly what each raise above has left.
  */
-const JS_CEILING_KB = 342;
+/*
+ * ***Back to 336 on 2026-10-04 — the remedy named five times above, taken.***
+ * [P15 §1.11](../docs/design/workplan/33-p15-setup-from-a-turn.md) decided it,
+ * on the recommended answer with the owner's decision deferred, and
+ * [20 §7.2](../docs/design/20-client-loading.md) records the boundary: the
+ * wizard's dialog is `SetupWizard.tsx`, reached through the client's first
+ * `lazy()` from the button that stays on the play page. The entry measured
+ * **337.79** with the dialog on it, **335.38** without, and **335.55** once
+ * review's changes to the button's side were in — the failure note drawn
+ * outside the row that fades, focus handed back on *Dismiss*, and a second
+ * sentence for a dialog that fails as it draws rather than as it loads. With
+ * those states on the entry and the dialog imported statically again — the
+ * mutation that proved the two checks below red — it measures **338.19**, so
+ * the dialog costs the entry 2.64. The chunk it became is **3.78** on its own,
+ * and the gap is *not* the modules the dialog shares with the entry: those
+ * stay on the entry and are in neither number. It is compression and wiring.
+ * A small file gzipped alone compresses worse than the same bytes inside the
+ * entry — appended to the entry, the chunk costs **3.04**, so about 0.74 is
+ * context the chunk does not have — and the other 0.40 is the split's own
+ * code: the chunk's import of the bindings it shares with the entry, and on
+ * the entry an export list for them and the `import()` that fetches it (the
+ * bundler's preload helper was already there, for the locale catalogues).
+ * **This is not a raise reversed by a cleverer number**: 336 is the ceiling
+ * P15 found when it merged, restored rather than re-chosen, and the margin it
+ * leaves is **0.45 kB** — less than any raise above left, so the next client
+ * change of any size will meet it and has to say out loud what it added,
+ * which is what this file is for. *The 342 paragraph above stays* as the
+ * record of what the merge measured and why it chose to raise.
+ */
+const JS_CEILING_KB = 336;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;
@@ -209,6 +243,39 @@ describe('what a first load pays for', () => {
     expect(locale, 'the test French is not a chunk of its own').not.toEqual([]);
     for (const name of entryAssets('.js')) {
       expect(name.startsWith('fr-x-machine'), name).toBe(false);
+    }
+  });
+
+  /**
+   * ***The setup wizard's dialog is not on the entry, and this is the check
+   * that says so*** — [P15 §1.11](../docs/design/workplan/33-p15-setup-from-a-turn.md),
+   * [20 §7.2](../docs/design/20-client-loading.md), 2026-10-04.
+   *
+   * The locale test's argument, for the client's first `lazy()`: **the
+   * regression is one line** — `SetupWizard.tsx` imported statically from
+   * anywhere the entry reaches, which typechecks, lints, works, and folds the
+   * dialog back into every first load. The byte ceiling above catches it
+   * today, by about two kB (338.19 against 336); it would stop catching it the
+   * day a raise put the ceiling past that, and this names it regardless.
+   * [20 §6](../docs/design/20-client-loading.md) asks for exactly this kind of
+   * guardrail first — *structural*, read off the build graph — and says why
+   * the unit tests cannot be it: a rendered mock of a lazy component is a
+   * module however it was imported.
+   *
+   * *By the chunk's name*, which the bundler takes from the module's file
+   * name: renaming `SetupWizard.tsx` fails the first expectation with a message
+   * saying which name it looked for, rather than passing because nothing
+   * matched.
+   */
+  it('keeps the setup wizard off the entry', () => {
+    const chunks = readdirSync(join(DIST, 'assets'));
+    const wizard = chunks.filter((name) => name.startsWith('SetupWizard-'));
+    expect(
+      wizard,
+      'no chunk named SetupWizard-* in dist/assets: the setup wizard is not a chunk of its own',
+    ).not.toEqual([]);
+    for (const name of entryAssets('.js')) {
+      expect(name.startsWith('SetupWizard-'), name).toBe(false);
     }
   });
 });

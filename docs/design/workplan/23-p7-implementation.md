@@ -3019,7 +3019,10 @@ saved Setup would start a different session — a seeding turn, and companions
 — from the one the form starts. What stands is plain: a Setup saved from a
 form that picked characters starts with nobody seated. Closing it needs a
 Setup to carry a cast that is not a party, which the schema has no field for;
-that is the owner's to decide, and nothing here guesses it.
+that is the owner's to decide, and nothing here guesses it. *(Recorded as an
+open question, [25 B19](../25-open-questions.md), on 2026-10-04 —
+[P15 §1.12](33-p15-setup-from-a-turn.md) — with the second gap the same cause
+leaves: a Setup made from a turn carries the party and not the cast.)*
 
 *`setups` stays out of `EDITOR_ROUTES` and `NEW_ROUTES`, and `fields.ts` now says
 why:* [10 §5]'s rule is about the **library's** New button, which opens a form

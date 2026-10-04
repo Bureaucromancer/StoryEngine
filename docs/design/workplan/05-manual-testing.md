@@ -1323,7 +1323,27 @@ above the greetings in a Scene chat. It was so on the
 branch for a cold start; the merge's greetings-as-its-children
 ([P15 §1.7](33-p15-setup-from-a-turn.md)) made it reachable from a Scene
 session too. Whether it should be drawn at all is a reader's call, and no row
-here was edited for it.
+here was edited for it. *Answered 2026-10-04 on the recommended answer, owner
+deferred ([P15 §1.10](33-p15-setup-from-a-turn.md)): it is drawn, as every
+turn the engine writes without a move already is — an undo's, a hand edit's
+and a channel write's among them — because the transcript shows the record and
+the row's Undo is how the seeding is taken back. Whoever walks W1 and finds the
+empty row reads as a gap should say so — the remedy §1.10 names is a line on
+every turn of that shape, never hiding this one — and still no row is edited
+for it.*
+
+*And one thing found 2026-10-04 that a W1 walk will meet* (recommended answer,
+owner deferred, [P15 §1.12](33-p15-setup-from-a-turn.md),
+[25 B19](../25-open-questions.md)): a setup carries the party at the turn, not
+the cast. An actor who was seated and never made a member of `se.party` is not
+carried — a Scene chat's character, unless the model made them a companion,
+and an NPC such as the seeded session's Mara — so the new session starts
+without them, and in a Scene chat there may be nobody to answer its second
+turn. The
+wizard's *The party (nobody but you)* is the cue. **A character missing in W1
+is this known gap, not a regression**: record which kind of session the setup
+was made from — its mode, and whether the character was a companion — and no
+row is edited for it.
 
 ## 5. Already discharged, and by what
 

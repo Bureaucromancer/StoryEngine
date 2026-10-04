@@ -556,6 +556,50 @@ blank greeting is never offered or played.
 *[03 §6](03-data-model.md), [04 §7.2](04-schemas.md),
 [P14 §1.7](workplan/31-p14-scene-and-session-import.md), [the API reference](../api.md)*
 
+**B19. May a Setup carry a cast that is not a party? — OPEN, for the owner;
+recorded 2026-10-04, and left as a documented asymmetry until it is answered.**
+A Setup's `cast` ([04 §7](04-schemas.md)) has `personaOptions`, `partyDefault`
+and `narrator`, and nothing for *who is in the scene*. Since P7.3 a session has
+had both: a **cast**, the actors seated in it (`PUT /sessions/:id/cast`, since
+the P2 audit; since P14.5 also the session form's *Characters* and the cast
+panel's *Add to the cast*), and a **party**, the members `se.party` names,
+companions and the player. The two differ on purpose — a seated actor is not a
+member until something made them one, and only a model's effect can: the cast
+panel seats, mutes and sets status, and has no party control — and since
+[P15.3](workplan/33-p15-setup-from-a-turn.md) the creation path reads
+`partyDefault` as a party: it seats each member and makes them a companion on
+a seeding turn. So a Setup can say *who travels with you* and cannot say *who
+is here*, and that leaves two gaps with one cause:
+
+- ***Save as a setup*** writes no `partyDefault`, and writing the form's
+  *Characters* there would make a saved Setup start a different session from
+  the one *Start* makes — companions, and a seeding turn. A Setup saved from a
+  form that picked characters therefore starts with nobody seated
+  ([P7.4](workplan/23-p7-implementation.md)'s symmetry paragraph).
+- ***Make a setup from here*** carries the party at the turn and not the cast,
+  so a chat whose character was seated and never made a companion yields a
+  Setup without them ([P15 §1.2](workplan/33-p15-setup-from-a-turn.md)'s known
+  gaps).
+
+In a chat, the cast panel's *Add to the cast* seats them once the session
+exists — a workaround, not a round trip; outside one there is no such
+control. The choices: **a cast field on a Setup** — seated, not made members —
+read at creation as the form's *Characters* are, and written by both makers;
+**keep one list and let a Setup say how it is read**, which is a semantic
+change to `partyDefault` and so a version under [04 §2](04-schemas.md); or
+**accept** that a Setup is a party and not a scene, and say so where a Setup
+is made. *Not B16's question*: a new optional field is additive and free under
+04 §2, and a reader keeps what it does not know. What makes it the owner's is
+that from the first release that exports native objects a Setup field's name
+and meaning are fixed in every file anyone holds, and that a cast on a Setup
+has to meet B18's rule — it would bring greetings of its own, which B18 sets
+aside whenever the Setup has an opening — and P15's carry-over, which would
+have to choose what counts as seated at a turn. *Recommended answer, owner
+deferred: leave the asymmetry documented until then*
+([P15 §1.12](workplan/33-p15-setup-from-a-turn.md)).
+*[04 §7](04-schemas.md), [03 §7.1](03-data-model.md),
+[P14 §1.8](workplan/31-p14-scene-and-session-import.md)*
+
 ---
 
 ## C. Mode and pipeline questions
