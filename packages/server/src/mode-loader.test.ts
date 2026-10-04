@@ -4,7 +4,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { BUILT_IN_MODE_PACKAGES, installBuiltIns, loadModes } from './mode-loader.js';
-import { DEFAULT_MODE_ID, modeById, planFor, registeredModes } from './mode-registry.js';
+import {
+  CHAT_IMPORT_MODE_ID,
+  DEFAULT_MODE_ID,
+  modeById,
+  planFor,
+  registeredModes,
+} from './mode-registry.js';
 import { schemaFailure } from './sessions/channel-schema.js';
 import {
   channelDefinition,
@@ -70,6 +76,18 @@ describe('loading the built-in modes', () => {
 
     expect(mode, `the default mode ${DEFAULT_MODE_ID} did not load`).not.toBeNull();
     expect(mode?.definition.id).toBe(DEFAULT_MODE_ID);
+  });
+
+  it('registers the mode chats are imported into, the second literal the registry holds', () => {
+    // [P14.8]: `CHAT_IMPORT_MODE_ID` is a literal for `DEFAULT_MODE_ID`'s
+    // reason — the engine may not import the mode's own constant — so it needs
+    // the same meeting place to be held to a mode that exists. Checked against
+    // the real packages rather than a fake, which is the whole of what this
+    // file is for.
+    const mode = modeById(CHAT_IMPORT_MODE_ID);
+
+    expect(mode, `the chat import mode ${CHAT_IMPORT_MODE_ID} did not load`).not.toBeNull();
+    expect(mode?.definition.id).toBe(CHAT_IMPORT_MODE_ID);
   });
 
   it('builds a runnable plan for the default mode, over the real package', () => {

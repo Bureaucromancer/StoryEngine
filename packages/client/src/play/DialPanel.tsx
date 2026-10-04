@@ -6,6 +6,7 @@ import type { JSX } from 'react';
 import type { DialAxes } from '../api.js';
 import { useSession, useWriteChannel } from '../queries.js';
 import { Fine } from '../ui/Text.js';
+import { WriteFailed } from './WriteFailed.js';
 
 /**
  * Difficulty and directedness — [06 §7.3.1](../../../../docs/design/06-modes-and-turn-pipeline.md),
@@ -91,23 +92,28 @@ function Dial(props: {
   const words = WORDS[props.axis];
 
   return (
-    <label className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
-      <span>{words.label}</span>
-      <select
-        className="rounded-control border border-line bg-surface p-1 text-ink"
-        value={props.dial.levelId ?? ''}
-        disabled={write.isPending}
-        onChange={(event) => {
-          write.mutate({ key: `se.${props.axis}`, value: event.target.value });
-        }}
-      >
-        {props.dial.levels.map((level) => (
-          <option key={level.id} value={level.id}>
-            {level.label}
-          </option>
-        ))}
-      </select>
-      <Fine>{words.hint}</Fine>
-    </label>
+    <div className="flex flex-col gap-1">
+      <label className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+        <span>{words.label}</span>
+        <select
+          className="rounded-control border border-line bg-surface p-1 text-ink"
+          value={props.dial.levelId ?? ''}
+          disabled={write.isPending}
+          onChange={(event) => {
+            write.mutate({ key: `se.${props.axis}`, value: event.target.value });
+          }}
+        >
+          {props.dial.levels.map((level) => (
+            <option key={level.id} value={level.id}>
+              {level.label}
+            </option>
+          ))}
+        </select>
+        <Fine>{words.hint}</Fine>
+      </label>
+      {/* A dial the server refused sprang back without a word (2026-10-01,
+          polish 9). */}
+      <WriteFailed error={write.error} />
+    </div>
   );
 }

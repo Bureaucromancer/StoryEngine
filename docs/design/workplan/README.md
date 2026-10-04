@@ -12,49 +12,78 @@ citation key. Work-plan documents are referenced as
 [`P2B §1.2`](10-p2b-provider-configuration.md), [`P6A §1.8`](19-p6a-alpha-1.md),
 [`polish §4`](06-polish.md), [`testing §2`](03-testing.md) and
 [`releases §2`](04-repo-and-releases.md).
-Design documents keep their numbers — a bare `[testing §5]` or `[playable log §1]` is one level
+Design documents keep their numbers — a bare `[03 §5]` or `[21 §1]` is one level
 up, and unambiguously so, because nothing here is cited by a number.
 
 **That is what makes the ordering below maintainable.** Nothing points at a
 work-plan number, so a document can move into its right place for nothing —
 which is how these came to be in execution order at all.
 [`tools/doc-links.test.ts`](../../../tools/doc-links.test.ts) enforces both
-halves and refuses a work-plan file that has no name in the registry.
+halves and refuses a work-plan file that has no name in the registry. *(True
+from 2026-10-02, its rule (h). Until then nothing read the registry —
+`PLAN_ORDER` in [`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs)
+— and P12, P13, P14 and the main audit were each filed green without a line in
+it.)*
+
+*(Restored 2026-10-03: the two design examples under "cited by name", and every
+filename label below — the table's and the two in the paragraphs after it. The
+2026-09-14 renumber run, `378cbea9`, spliced a work-plan name onto each filename
+label — the polish row read `polish-polish.md` — because the script tested a
+label for the citation shape before the filename shape; and it rewrote the two
+examples as work-plan names because it read this file's filename labels, where
+every other `03` and `21` is a work-plan document, as evidence of what those
+numbers mean. Five rows written afterwards copied the broken pattern, which is
+how a defect in an index spreads. Both had happened once before, on the
+script's first run (`8008e8af`, 2026-09-09), and were repaired by hand in
+`c375f68b` with the script left as it was. The script now tests the filename
+first and no longer counts a filename label as evidence. What the gate checks:
+[`doc-links.test.ts`](../../../tools/doc-links.test.ts) rule (i) refuses a label
+ending in `.md`, or a bare `NN-slug`, that disagrees with its link — every
+filename label here has one of those shapes — so the labels cannot come back
+unseen; and rule (j) refuses the two examples written as anything but a design
+note's number. They are also pinned in `tools/renumber-docs.overrides.json`,
+keyed to this file's path and to their literal text, so a run that renumbers
+design 03 or 21 leaves the keys stale; (j) and the bare-path rule (e) say so,
+and the entries then want re-keying or deleting.)*
 
 ## The documents
 
 | Doc | What it covers |
 |---|---|
-| [work plan-work-plan.md](01-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
-| [triage-triage.md](02-triage.md) | Build-versus-fork, and per-subsystem verdicts on the source projects: adopt, port, rebuild, discard, buy |
-| [P1-p1-implementation.md](07-p1-implementation.md) | P1 in detail — stages, the decisions the design left open, and the exit gate |
-| [P2-p2-implementation.md](08-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
-| [P3-p3-implementation.md](15-p3-implementation.md) | P3 in detail — the workbench as a reader over the record |
-| [P4-p4-implementation.md](16-p4-implementation.md) | P4 in detail — import from the three sources, presets first; ends at PLAYABLE |
-| [P5-p5-implementation.md](17-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Landed and merged; §0.5 is the close-out audit, and the decisions that need PLAYABLE are still marked open |
-| [P6-p6-implementation.md](18-p6-implementation.md) | P6 in detail — reconstruction at every node, the head gate and the snapshot cache first, then branching UI, rewrite/reroll and sibling navigation. Audited three times before it opened; landed and merged, with §3 marking what the suite covers and what still needs a person |
-| [polish-polish.md](06-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
-| [testing-testing.md](03-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
-| [releases-repo-and-releases.md](04-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
-| [manual gate-p2-manual-gate.md](11-p2-manual-gate.md) | What the machine cannot check, across P2, P2A and P2B: what needs a person, what will fail because it is not built, and what should be a test |
-| [P2A-p2a-configuration-surface.md](09-p2a-configuration-surface.md) | P2A in detail — [10 §15](../10-ui-surfaces.md)'s core pulled forward, and the config subsystem repaired before a form displays it |
-| [P2B-p2b-provider-configuration.md](10-p2b-provider-configuration.md) | P2B in detail — system connections and the install default bindings through the UI, and the fallback layer three documents assume and nothing implements |
-| [P2C-p2c-first-real-run.md](12-p2c-first-real-run.md) | P2C in detail — the first time a person and a real model meet this software, and the twenty-two things to repair before they do |
-| [P2C log-p2c-log.md](14-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
-| [P2C brief-p2c-brief.md](13-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
-| [P7-p7-implementation.md](23-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes. Still the largest, and §5 argues P7.0 *is* the phase. §0.1 is the readiness audit: the phase in front of us, with PLAYABLE the only thing before it |
-| [P7B-p7b-presets-and-prompts.md](24-p7b-presets-and-prompts.md) | P7B skeleton — presets and prompt handling into a usable state: the built-in pack as a library object, a preset editor, a treatment editor, a session-settings panel, and edit-a-block through the pack. Written 2026-09-11 while P7 runs on its branch, and **filed at 28 with its place at 24**, so nothing renumbers under P7's document until it merges. **Widened 2026-09-14** by a second sweep that found the same failure on five more surfaces — the setup and package editors, session delete and archive, the workbench on any turn, the import quarantine's listing, and home as a changelog-only prototype |
-| [P8-p8-implementation.md](25-p8-implementation.md) | P8 in detail — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook. ~~Waits on three phases rather than on time~~ **all three landed, and §0.1 is the revisit they were waited for**: the storage fork settled, cadence narrowed to a procedure, and three findings that move the phase — the spoiler defence is not buildable through `reads` as the step contract stands, nothing on the lore path can be advisory, and this is the first producer of an escaped effect |
-| [P9-p9-implementation.md](26-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
-| [P10-p10-implementation.md](27-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
-| [P11-p11-implementation.md](28-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
-| [P12-p12-implementation.md](29-p12-implementation.md) | P12 — backups a person can take, list, delete, import and restore, from the web UI, on a schedule. The one phase that reverses a decision marked *Opinionated*: [25 E6](../25-open-questions.md) said *do not build a subsystem*, and §0 is the four arguments for doing it anyway — chiefly that E6 reasoned about a process on the **outside**, and from the inside `VACUUM INTO` and the atomic write path make this strictly more consistent than the script. §0.5 records two defects in what [P11.11](28-p11-implementation.md) shipped, one of which meant the derived index was in every archive ever written |
-| [P13-p13-implementation.md](30-p13-implementation.md) | P13 — *make a setup from here*: a wizard on any turn that condenses the story so far into a real Setup new sessions start from, rather than a branch or a pre-played session. §0 records that the design has promised this since the Setup split and [16 §3](../16-authoring.md) claims it already exists, and that an emitted Setup would be unplayable today three ways — openings consumed by nothing, `partyDefault` read by nothing, and no way to start from a Setup in the browser |
-| [P6A-p6a-alpha-1.md](19-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed, the phase closed on its merge, and Alpha 1 was cut 2026-09-06 with its image built; the rest of the exit gate needs a person with Docker |
-| [P6B-p6b-playable.md](20-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
-| [playable log-playable-log.md](21-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](17-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
-| [manual testing-manual-testing.md](05-manual-testing.md) | **What a person still owes, and what they did about it — standing, and it does not complete.** Every gate’s state, the sittings walked and outstanding, the prerequisites with long lead times, what a test now covers, what should be a test and is not, and every deferral with a name beside it. A phase that closes lands its gate here |
-| [refinements-walkthrough-refinements.md](22-walkthrough-refinements.md) | The eleven refinements from the 2026-09-08 walkthrough, graded against the code and the design corpus — eight of them are not what the note says. Where each goes, what it costs, and the four decisions a person has to make first |
+| [01-work-plan.md](01-work-plan.md) | Sequence to beta, and the day-one checklist of now-or-never decisions |
+| [02-triage.md](02-triage.md) | Build-versus-fork, and per-subsystem verdicts on the source projects: adopt, port, rebuild, discard, buy |
+| [07-p1-implementation.md](07-p1-implementation.md) | P1 in detail — stages, the decisions the design left open, and the exit gate |
+| [08-p2-implementation.md](08-p2-implementation.md) | P2 in detail — the P1 audit and hardening stage, the turn pipeline, and the exit gate |
+| [15-p3-implementation.md](15-p3-implementation.md) | P3 in detail — the workbench as a reader over the record |
+| [16-p4-implementation.md](16-p4-implementation.md) | P4 in detail — import from the three sources, presets first; ends at PLAYABLE |
+| [17-p5-implementation.md](17-p5-implementation.md) | P5 in detail — the lorebook as a document, then lore activation, budgets, trim order, skip reporting. Landed and merged; §0.5 is the close-out audit, and the decisions that need PLAYABLE are still marked open |
+| [18-p6-implementation.md](18-p6-implementation.md) | P6 in detail — reconstruction at every node, the head gate and the snapshot cache first, then branching UI, rewrite/reroll and sibling navigation. Audited three times before it opened; landed and merged, with §3 marking what the suite covers and what still needs a person |
+| [06-polish.md](06-polish.md) | Bounded user-facing improvements that are not roadmap items — a working todo list |
+| [03-testing.md](03-testing.md) | Testing, validation and CI — what to build, what to automate, what to skip |
+| [04-repo-and-releases.md](04-repo-and-releases.md) | Project phases, branching and release model; draft CONTRIBUTING.md |
+| [11-p2-manual-gate.md](11-p2-manual-gate.md) | What the machine cannot check, across P2, P2A and P2B: what needs a person, what will fail because it is not built, and what should be a test |
+| [09-p2a-configuration-surface.md](09-p2a-configuration-surface.md) | P2A in detail — [10 §15](../10-ui-surfaces.md)'s core pulled forward, and the config subsystem repaired before a form displays it |
+| [10-p2b-provider-configuration.md](10-p2b-provider-configuration.md) | P2B in detail — system connections and the install default bindings through the UI, and the fallback layer three documents assume and nothing implements |
+| [12-p2c-first-real-run.md](12-p2c-first-real-run.md) | P2C in detail — the first time a person and a real model meet this software, and the twenty-two things to repair before they do |
+| [14-p2c-log.md](14-p2c-log.md) | P2C's findings log — appended to as things happen, emptied by its triage, kept afterwards |
+| [13-p2c-brief.md](13-p2c-brief.md) | What the tester has in front of them on the day: the runbook, and the long list of what not to report |
+| [23-p7-implementation.md](23-p7-implementation.md) | P7 skeleton — the mode contract made real, channels, hooks, goals, party, mentions, two modes. Still the largest, and §5 argues P7.0 *is* the phase. §0.1 is the readiness audit: the phase in front of us, with PLAYABLE the only thing before it |
+| [24-p7b-presets-and-prompts.md](24-p7b-presets-and-prompts.md) | P7B skeleton — presets and prompt handling into a usable state: the built-in pack as a library object, a preset editor, a treatment editor, a session-settings panel, and edit-a-block through the pack. Written 2026-09-11 while P7 runs on its branch, and ~~**filed at 28 with its place at 24**, so nothing renumbers under P7's document until it merges~~ *moved to 24 at P7B.5, 2026-09-14 (corrected 2026-10-03)*. **Widened 2026-09-14** by a second sweep that found the same failure on five more surfaces — the setup and package editors, session delete and archive, the workbench on any turn, the import quarantine's listing, and home as a changelog-only prototype |
+| [25-p8-implementation.md](25-p8-implementation.md) | P8 in detail — the rolling summary as an immutable chain, and memory as an auto-maintained lorebook. ~~Waits on three phases rather than on time~~ **all three landed, and §0.1 is the revisit they were waited for**: the storage fork settled, cadence narrowed to a procedure, and three findings that move the phase — the spoiler defence is not buildable through `reads` as the step contract stands, nothing on the lore path can be advisory, and this is the first producer of an escaped effect |
+| [26-p9-implementation.md](26-p9-implementation.md) | P9 skeleton — renditions: the contract that does not exist yet, then illustration and the backdrop. The phase most dependent on other phases having gone well |
+| [27-p10-implementation.md](27-p10-implementation.md) | P10 skeleton — reachable and safe for someone who is not the developer: bind, token, notifications, the gallery. Two phases wearing one number |
+| [28-p11-implementation.md](28-p11-implementation.md) | P11 skeleton — the beta gate: the audit, the reading view, the assistant, the sweeps, release engineering. A plan for producing a plan |
+| [29-p12-implementation.md](29-p12-implementation.md) | P12 — backups a person can take, list, delete, import and restore, from the web UI, on a schedule. The one phase that reverses a decision marked *Opinionated*: [25 E6](../25-open-questions.md) said *do not build a subsystem*, and §0 is the four arguments for doing it anyway — chiefly that E6 reasoned about a process on the **outside**, and from the inside `VACUUM INTO` and the atomic write path make this strictly more consistent than the script. §0.5 records two defects in what [P11.11](28-p11-implementation.md) shipped, one of which meant the derived index was in every archive ever written |
+| [30-p13-aventuras-import.md](30-p13-aventuras-import.md) | P13 — the whole of an Aventuras install in one import: the library now (Part 1, planned to the stage), the stories after (Part 2, ~~headed and **not scheduled**~~ **scheduled 2026-09-29**, as a producer of P11.10's session format rather than an importer of its own). ~~Design only, 2026-09-26.~~ Written 2026-09-26; merged to `main` 2026-09-29 at `7565265` and, built, at `6f55e6e` on 2026-09-30. Every stage of Parts 1 and 2 is built, and neither gate is walked. §0.4 records three findings against shipped code, one of them in P11.10's `importSession` |
+| [31-p14-scene-and-session-import.md](31-p14-scene-and-session-import.md) | P14 — **Scene built out to [06 §7.2](../06-modes-and-turn-pipeline.md)'s spec**, a functional equivalent of a SillyTavern or Marinara roleplay chat (embodied voice, per-actor dispatch, ST's four activation strategies, greetings, swipes, continue, force-talk, edit, hide), **then session import from both into it**. §0.6 is why this finishes a mode rather than inventing one; §1.1 adds `Turn.output.messages`, the first field on the frozen record |
+| [33-p15-setup-from-a-turn.md](33-p15-setup-from-a-turn.md) | P15 — *make a setup from here*: a wizard on any turn that condenses the story so far into a real Setup new sessions start from, rather than a branch or a pre-played session. §0 records that the design has promised this since the Setup split and [16 §3](../16-authoring.md) claims it already exists, and that an emitted Setup would be unplayable ~~today~~ *on 2026-09-26* three ways — openings consumed by nothing, `partyDefault` read by nothing, and no way to start from a Setup in the browser. Built 2026-09-26 as "P13" in a document 30 on `claude/nice-davinci-xjdpf6`, both of which `main` had spent on the Aventuras import by the time it landed; renamed P15, filed at 33, and merged through `p15` on 2026-10-03. Every stage built, and its critical list — sitting W — unwalked, so the phase is open. §1.7 is the decision the merge forced: a Setup's opening wins over a cast's greetings |
+| [34-p12a-the-look.md](34-p12a-the-look.md) | P12A skeleton — the look, and the last phase before beta is said: [10 §1.3](../10-ui-surfaces.md)'s direction built. Faces on the play surface, the channel HUD made editable, the backdrop's legibility mechanism, a motion vocabulary, section jumps in the editors, and the phone rules. Written 2026-09-22 as P11A, after P11 merged and before its gate was walked, renamed on 2026-09-23 when P12 merged first, and filed at 33 on 2026-10-02, behind P13, P14 and the main audit, which reached `main` first and ran before it — and at 34 on 2026-10-03, behind P15, for the same reason |
+| [19-p6a-alpha-1.md](19-p6a-alpha-1.md) | P6A in detail — Alpha 1: the first build you can go back to. An artifact, not a distribution; and the three things standing in front of the release flow that are not release engineering. All five stages landed, the phase closed on its merge, and Alpha 1 was cut 2026-09-06 with its image built; the rest of the exit gate needs a person with Docker |
+| [20-p6b-playable.md](20-p6b-playable.md) | P6B in detail — PLAYABLE, three phases late, plus P5's unwalked close-out. Why it never ran (nothing chooses a session's lorebooks), the repairs that make its findings trustworthy, and the bar that keeps them repairs rather than features |
+| [21-playable-log.md](21-playable-log.md) | P6B's findings log — the receptacle [P5 §0.4](17-p5-implementation.md) noticed had never been created. Appended to as things happen, emptied by P6B.3's triage, kept afterwards |
+| [05-manual-testing.md](05-manual-testing.md) | **What a person still owes, and what they did about it — standing, and it does not complete.** Every gate’s state, the sittings walked and outstanding, the prerequisites with long lead times, what a test now covers, what should be a test and is not, and every deferral with a name beside it. A phase that closes lands its gate here |
+| [22-walkthrough-refinements.md](22-walkthrough-refinements.md) | The eleven refinements from the 2026-09-08 walkthrough, graded against the code and the design corpus — eight of them are not what the note says. Where each goes, what it costs, and the four decisions a person has to make first |
+| [32-main-audit.md](32-main-audit.md) | **The audit of `main`, 2026-09-25 to 2026-10-01**, after it landed: how it ran, what was decided and by whom, the 103 commits by tier, the records it corrects, what it left, CI across it, and the changelog entry the next release owes — the one place the audit's own record lives, because its plan and its verdicts were working files outside the repository |
 
 ## How to read them
 
@@ -67,10 +96,27 @@ beta does, because it is where the design starts being tested by use.
 record.** 07 through 20 are the phases that have landed, in the order they
 landed, each holding its stages struck through with what actually shipped
 against what was planned; several began as skeletons and were revised as their
-phases arrived. 23 through 27 are skeletons — and so is 28, filed out of order — and will be filled in as each phase
-approaches. **20 is the phase in front of us** — P6B, PLAYABLE three phases
+phases arrived. 23 through 27 are skeletons ~~— and so is 28, filed out of
+order —~~ *(P7B, which was 28, moved to 24 on 2026-09-14, and 28 is now P11;
+corrected 2026-10-03)* and will be filled in as each phase
+approaches. ~~**20 is the phase in front of us** — P6B, PLAYABLE three phases
 overdue, which [P7 §0.1](23-p7-implementation.md) found blocking its own demo as
-much as the checkpoint's; P7 follows it.
+much as the checkpoint's; P7 follows it.~~ ***Stale, corrected 2026-09-22:
+P6B through P12 have all merged, and ~~30~~ ~~33~~ 34 is the phase in front of us*** —
+[P12A](34-p12a-the-look.md), written after P11 merged and before its gate was
+walked, and renamed from P11A when P12 merged first. *Refiled 2026-10-02*:
+[P13](30-p13-aventuras-import.md) and [P14](31-p14-scene-and-session-import.md)
+were planned, built and merged on `main` while P12A sat on a local one that had
+not been pushed, and the [main audit](32-main-audit.md) ran beside them, so all
+three come before it in execution order and it moved from 30 to 33 to follow
+them. *Refiled again 2026-10-03*, from 33 to 34, by the same reasoning one
+phase later: [P15](33-p15-setup-from-a-turn.md), *make a setup from here*, was
+built on a branch on 2026-09-26 as "P13" in a document 30 — both of which
+`main` spent on the Aventuras import while the branch was out — and merged while
+P12A still had not opened, so it ran first and
+files first, at 33. **What is still true of every one of them is the gate**: a
+merge is not a close ([manual testing §0](05-manual-testing.md)), and several of the
+documents above are open on a critical list rather than on code.
 
 *They are in execution order, which they were not until 2026-09-09.* Filed by
 the date they were written, the lettered phases sat at the tail — P2A, P2B and
@@ -78,14 +124,19 @@ P2C after P6, and P6A and P6B after P11 — so reading by number went forward to
 P6, back to P2A, forward to P11, and back again to two phases that run before
 it. Two backward jumps in one sequence.
 
-**One document is filed out of order on purpose, and says so.**
+~~**One document is filed out of order on purpose, and says so.**
 [P7B](24-p7b-presets-and-prompts.md) belongs after P7 and before P8, which is
 24; taking that number renumbers P8 through P11 and repoints every citation to
 them, including the ones inside the P7 document a branch is editing. So it sits
 at the first free number, `PLAN_ORDER` in
 [`tools/renumber-docs.mjs`](../../../tools/renumber-docs.mjs) already holds its
 real position, and one scripted run after P7 merges moves it — the
-twenty-minute operation that script exists to make cheap.
+twenty-minute operation that script exists to make cheap.~~ ***True from
+2026-09-11 until 2026-09-14; corrected 2026-10-03.*** That run was
+[P7B.5](24-p7b-presets-and-prompts.md#p7b5--the-sweep)'s, and P7B is at 24.
+Its status keeps the reasoning, because it is the argument for filing a
+document at the wrong number rather than waiting, and records what the run
+cost.
 
 **Two phases are manual, and both carry a log.** P2C and P6B are the phases
 whose deliverable is *what a person saw*, so each has a findings log beside it —
@@ -178,14 +229,14 @@ phase that follows P2 without renumbering P3. The dotted form doubles as a
 timestamp throughout these documents — *"added at P2.5"* names a stage, never a
 release.
 
-**[polish-polish.md](06-polish.md) is the odd one out**, and deliberately here
+**[06-polish.md](06-polish.md) is the odd one out**, and deliberately here
 rather than in the feature list. Its entries are user-facing, bounded, and need
 no schema change and no new contract — the difference between a surface that
 works and one that is pleasant. The bar for the feature list
 ([24 up one level](../24-roadmap.md)) is a deferred *feature*; anything that
 clears it leaves this file and picks up a priority tier there.
 
-**[triage-triage.md](02-triage.md) is history that still binds.** It records what
+**[02-triage.md](02-triage.md) is history that still binds.** It records what
 was taken from Aventuras, Marinara Engine and SillyTavern and what was
 deliberately left, and the discard verdicts are the ones worth re-reading before
 proposing something that looks obviously missing.

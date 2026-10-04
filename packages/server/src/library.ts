@@ -9,6 +9,7 @@ import encodeChunks from 'png-chunks-encode';
 import {
   ACTOR_SCHEMA,
   isKnownSchema,
+  mediaRowsIn,
   type PortableSchemaId,
   schemaIdOf,
   uuidv7,
@@ -17,8 +18,8 @@ import {
 } from '@storyengine/shared';
 
 import {
+  acceptObject,
   contentHashOf,
-  decodeObject,
   type FileErrorReason,
   ingestFile,
   listFileErrors,
@@ -34,7 +35,7 @@ import {
 } from './index-db/query.js';
 import { writeAtomic } from './storage/atomic.js';
 import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
-import { mediaRowsIn, readAsset } from './library/assets.js';
+import { readAsset } from './library/assets.js';
 import type { BlobStore } from './storage/card/envelope.js';
 import { moveTree, readFileBytes } from './storage/files.js';
 import { KeyedQueue } from './storage/keyed-queue.js';
@@ -498,7 +499,7 @@ export async function encodeObject(
  */
 let blankCard: Uint8Array | null = null;
 
-function blankCardPixels(): Uint8Array {
+export function blankCardPixels(): Uint8Array {
   if (blankCard) return blankCard;
 
   const ihdr = new Uint8Array(13);
@@ -713,6 +714,18 @@ export async function update(
   expectedHash: string,
   change: ChangeAttribution = MANUAL,
   inKind?: PortableSchemaId,
+  /**
+   * ***Pictures a replacing import brings*** (2026-09-27), merged over the
+   * card's own as `create`'s `media` is.
+   *
+   * **The canvas stays the one on disk.** An actor's history keeps its JSON
+   * and not its pixels, so a replace that swapped the portrait would destroy
+   * the one somebody had with nothing to restore it from. Adding blobs
+   * destroys nothing, and it is what makes an incoming `media` row resolve:
+   * before this, a replace wrote rows naming pictures this card had never
+   * held, and each answered *the bytes are missing*.
+   */
+  extraBlobs?: BlobStore,
 ): Promise<StoredObject> {
   const schemaId = assertValidObject(object);
 
@@ -802,6 +815,8 @@ export async function update(
       current.slug,
       object,
       existingBytes,
+      undefined,
+      extraBlobs,
     );
 
     // **The no-op rule** ([03 §11.1]). A write that changes nothing produces no
@@ -825,7 +840,16 @@ export async function update(
     const stamp = change.stamp !== false;
     const stamped = stamp ? stampProvenance(object) : object;
     const { path, bytes, contentHash } = stamp
-      ? await encodeObject(context.layout, owner, schemaId, current.slug, stamped, existingBytes)
+      ? await encodeObject(
+          context.layout,
+          owner,
+          schemaId,
+          current.slug,
+          stamped,
+          existingBytes,
+          undefined,
+          extraBlobs,
+        )
       : asSent;
 
     // Write, then snapshot the replaced state (held in memory), then index.
@@ -986,8 +1010,13 @@ export async function readCardPixels(
   handle: string,
   id: string,
   inKind?: PortableSchemaId,
+  /**
+   * ***Which copy*** (2026-09-28), as `read` takes it: a download of a shadowed
+   * copy's card hands over that copy's file, not the winner's.
+   */
+  address?: ObjectAddress,
 ): Promise<{ bytes: Uint8Array; contentHash: string }> {
-  const current = read(context, handle, id, inKind);
+  const current = read(context, handle, id, inKind, address);
   if (current.schemaId !== ACTOR_SCHEMA) {
     throw new LibraryError('not-found', 'Only actors have a card image.');
   }
@@ -1093,6 +1122,29 @@ export async function readMedia(
 }
 
 /**
+ * The object a file currently holds, or `null` when the loader will not have it.
+ *
+ * The distinction the write paths need after P2C finding 8: *the file changed*
+ * and *the file broke* are different situations, and answering both the same
+ * way is what left a broken object neither writable nor deletable. Anything
+ * that throws, decodes to nothing, or sits at a path the layout does not
+ * recognise is the second case.
+ *
+ * ***And anything the index would refuse*** (2026-09-28). ~~Anything that
+ * throws, decodes to nothing~~ was the line, and the index draws it further
+ * in: a file that parses and is not a valid object of its kind is quarantined
+ * with the last good row kept. Here it read as an edit, so the write refused
+ * as `stale` with the refused file as the reload, and the loop was back.
+ * `acceptObject` is the index's own test, so the two cannot disagree again.
+ */
+function decodeOnDisk(context: LibraryContext, path: string, bytes: Uint8Array): unknown {
+  const parsed = context.layout.parseObjectPath(path);
+  if (parsed === null) return null;
+  const accepted = acceptObject(parsed, bytes);
+  return accepted.ok ? accepted.payload : null;
+}
+
+/**
  * Removes an object — by moving its folder, history and all, to the user's
  * trash. Deletion is a move, not an erasure ([03 §10.2]): the retention sweep
  * and a restore surface are P11's, but nothing should be unrecoverable in the
@@ -1102,25 +1154,6 @@ export async function readMedia(
  * Also hash-checked: deleting something a second tab has since edited is the
  * same mistake as overwriting it, and rather more final.
  */
-/**
- * The object a file currently holds, or `null` when the loader will not have it.
- *
- * The distinction the write paths need after P2C finding 8: *the file changed*
- * and *the file broke* are different situations, and answering both the same
- * way is what left a broken object neither writable nor deletable. Anything
- * that throws, decodes to nothing, or sits at a path the layout does not
- * recognise is the second case.
- */
-function decodeOnDisk(context: LibraryContext, path: string, bytes: Uint8Array): unknown {
-  const parsed = context.layout.parseObjectPath(path);
-  if (parsed === null) return null;
-  try {
-    return decodeObject(parsed, bytes);
-  } catch {
-    return null;
-  }
-}
-
 export async function remove(
   context: LibraryContext,
   handle: string,

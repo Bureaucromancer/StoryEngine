@@ -2,13 +2,23 @@
 
 A self-hosted, multi-user engine for character-driven interactive fiction.
 
-**Status: alpha.** The design is written down in
-[`docs/design/`](docs/design/); the code is through
-[P7](docs/design/workplan/23-p7-implementation.md) — P1 to P7 of the
-[work plan](docs/design/workplan/01-work-plan.md) and the five lettered phases
-beside them. P7's buildable work landed 2026-09-13; **three of its exit-gate
-checks await a person**, which is the state its §3.2 records rather than
-glosses. What exists: the storage spine and a derived
+**Status: a work in progress, public but not released.** This repository has
+been public since 2026-10-03, for reasons of licensing and CI rather than
+readiness ([releases §0.1a](docs/design/workplan/04-repo-and-releases.md)).
+Nothing here is a release. There are no published builds — the container image
+is a private package, and the `v1.0.0-alpha.*` tags are builds the project made
+for itself — nothing is supported, data formats may change without a migration,
+and issues and pull requests may go unanswered. Running it means building it
+from source ([Running it](#running-it)).
+
+The design is written down in [`docs/design/`](docs/design/); the code is
+through [P14](docs/design/workplan/31-p14-scene-and-session-import.md) of the
+[work plan](docs/design/workplan/01-work-plan.md) — P13's whole-install
+Aventuras import and P14's Scene and session import merged on 2026-09-29 and
+2026-09-30 — with **several phases' exit gates still awaiting a person**;
+[the work plan's index](docs/design/workplan/README.md) records each phase's
+state rather than glossing it. *(This paragraph said "through P7" until
+2026-10-03, seven phases after it stopped being true.)* What exists: the storage spine and a derived
 index that can be thrown away and rebuilt from it; accounts and sign-in; the
 library, with import from SillyTavern, Marinara and Aventuras and export back
 out again; **the turn, end
@@ -20,7 +30,7 @@ accounts and its model connections; and, since P6A, what a container needs — a
 server that can be told where to bind, serves its own client, guards its first
 admin with a token, and can say which commit it is.
 
-**Alpha 1 is that state, tagged 2026-09-06.** Its version is `1.0.0-alpha.1`,
+**Alpha 1 was tagged 2026-09-06, at P6A.** Its version is `1.0.0-alpha.1`,
 named *1.0-alpha 1* — the first prerelease of 1.0, under the scheme
 [releases §7.1](docs/design/workplan/04-repo-and-releases.md) records — in the
 root `package.json`, in [`CHANGELOG.md`](CHANGELOG.md) and on the tag
@@ -31,9 +41,11 @@ moved to the fix. The image is private, so nothing pulls it without a login
 ([`docs/deploy.md`](docs/deploy.md)). What has not happened is the walk —
 [P6A §3](docs/design/workplan/19-p6a-alpha-1.md) steps 3 through 12, which
 need a machine with Docker and an unraid host. It is a build the
-project makes for itself, not a distribution: the repository and the registry
-package are private, and [releases §0.1](docs/design/workplan/04-repo-and-releases.md)
-says why that is the point rather than a stage on the way to something.
+project makes for itself, not a distribution: the registry package is private
+— the repository was too, until 2026-10-03 — and
+[releases §0.1](docs/design/workplan/04-repo-and-releases.md) says why that is
+the point for the build rather than a stage on the way to something. Alphas 2
+to 4 followed on 2026-09-07, -08 and -09, under the same terms.
 
 **The UI browses, plays, reads and configures.** Sign in and browse all six
 kinds of library object, or fill the library from a SillyTavern, Marinara or
@@ -90,9 +102,13 @@ reload-and-reapply or save as a copy rather than guess.
 one person sits down with an imported library and plays, and the design gets
 tested by use rather than completed on paper. Alpha 1 is being cut before it,
 under the rule [P6A §5](docs/design/workplan/19-p6a-alpha-1.md) sets: *it may
-be cut before PLAYABLE; it does not go public before it.*
+be cut before PLAYABLE; it does not go public before it.* The repository went
+public before it anyway, on 2026-10-03, knowingly and for the reasons
+[releases §0.1a](docs/design/workplan/04-repo-and-releases.md) gives; the build
+did not, and PLAYABLE is still the checkpoint ahead.
 
-Start with [`docs/design/README.md`](docs/design/README.md) if you want to know
+Start with [`docs/guide/`](docs/guide/README.md) if you want to use it as it is
+built today, [`docs/design/README.md`](docs/design/README.md) if you want to know
 what this is going to be, and [`docs/design/00-stance.md`](docs/design/00-stance.md)
 if you want to know why.
 
@@ -317,7 +333,7 @@ boundary the lint graph enforces in code.
 | `pnpm dev:client` | Vite on 5173, proxying `/api` to 8080 |
 | `pnpm dev:logged` | The API alone, stdout copied to a dated file in `./logs`, provider exchanges recorded to `./captures` |
 | `pnpm seed` | A known library and a playable session, over HTTP. Idempotent |
-| `pnpm reset-data` | Removes the data directory, or removes nothing. Stop the server first |
+| `pnpm reset-data` | Removes the data directory, or removes nothing — and refuses a directory that is not one (`--force` overrides that check) or that holds the checkout. Stop the server first |
 | `pnpm format` | Prettier over the code; Markdown is hand-wrapped and left alone |
 | `pnpm format:check` | The same, checking rather than writing — what CI runs |
 
@@ -389,7 +405,10 @@ fixture test asserting the enforcement actually fires:
 
 ## Licence
 
-AGPL-3.0-or-later. See [`LICENSE`](LICENSE), and
+AGPL-3.0-or-later, except three files that hold code from SillyTavern and Marinara Engine —
+both licensed under version 3 alone — and are `AGPL-3.0-only`; so the program as a whole is
+AGPL-3.0. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists them and everything else
+taken from elsewhere. See [`LICENSE`](LICENSE), and
 [triage §1](docs/design/workplan/02-triage.md) for why — including why the SDK is AGPL too,
 deliberately rather than incidentally.
 

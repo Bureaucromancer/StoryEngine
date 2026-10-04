@@ -716,6 +716,17 @@ pictures are ready* are different facts, so the memory is a count per id rather
 than a set of ids, and [09 §3.4]'s coalescing would be pointless if the second
 one were silent.
 
+*Corrected 2026-09-28.* ~~what is on a snapshot was already true before this tab
+attached~~ — of the first snapshot, and not of a reattach's. A row raised in the
+seconds the stream was down reaches the tab only inside the reattach's snapshot,
+so it was recorded as announced and never announced: no chime for the turn a
+person left the room waiting to hear, and no toast for the notice a restore's
+restart raises before it listens. The flaky-LAN case never needed the silence —
+the per-row fold count already refuses a repeat. So a later snapshot announces
+the newest row it had not said yet, if it is unread and inside the coalescing
+window of the server's clock, which the snapshot now carries as `at`; a laptop
+waking hours later still does not chime for what finished while it slept.
+
 ***The transport was extracted rather than copied.*** `play/stream.ts` was
 written when the session stream was the only one; [09 §3.1] describes two, and
 the second has the same retry problem at a different address. So the `fetch`
@@ -838,6 +849,20 @@ unraid template — §1.2's *one documented environment variable* on a second
 subject — and systemd's own `INVOCATION_ID` is the one honest detection.
 **Default-deny**, because a wrong *no* costs one manual restart and a wrong *yes*
 costs the server.
+
+*Corrected 2026-09-27* ([09 §6.4](../09-server-multiuser-deployment.md) has the
+whole of it). Two of the three wrappers this section counted as supervised were
+not: the unraid template had no restart policy, and the unit's
+`Restart=on-failure` did not restart the clean exit *Restart now* made. Under
+all three the process never exited in the first place, because the admin's own
+tab held the listener's close open. And `INVOCATION_ID` was not honest on its
+own. It is inherited, and for eighteen CI runs every test server on the GitHub
+runner, itself a systemd service, believed it. The stream closer runs in
+`preClose`, the restart exits 75, the unraid template sets
+`--restart=unless-stopped`, the unit declares `SE_SUPERVISED=1` beside a
+`RestartForceExitStatus=75`, and detection asks for `SYSTEMD_EXEC_PID` as well.
+`restart.test.ts`'s in-process proof was sound and could not see any of this:
+`services.exit` is null under the harness, and `inject()` never listens.
 
 *And "drain" meant writing one*, because `runner.drain()` aborts. The sequence is
 **stop accepting** (a 503 with `retry-after` at the submission route, which is

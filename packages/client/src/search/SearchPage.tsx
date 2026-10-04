@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
-import { searchEverything, type SearchResults } from '../api.js';
+import { kindOfSchema, searchEverything, type SearchResults } from '../api.js';
+import { sessionLabel } from '../play/session-label.js';
 import { Button } from '../ui/Button.js';
 import { link, page } from '../ui/classes.js';
 import { Note, PageTitle } from '../ui/Text.js';
@@ -46,7 +47,11 @@ export function SearchPage(props: { query: string }): JSX.Element {
   });
 
   return (
-    <main className={page.tooling}>
+    // ***A `div`, not a landmark*** (2026-10-01, polish 11) — the shell owns
+    // the routed app's one `<main>`, and this was a second one inside it, the
+    // nesting [P3.−1] took out of Play, Sessions and Settings. Nothing caught
+    // it because `shell-layout.test.tsx` never visited this page; it does now.
+    <div className={page.tooling}>
       <PageTitle id="search">Search</PageTitle>
       <form
         className="flex flex-wrap gap-2"
@@ -80,12 +85,24 @@ export function SearchPage(props: { query: string }): JSX.Element {
         </Note>
       ) : null}
 
-      {results.isPending && props.query.trim() !== '' ? <Note>Searching…</Note> : null}
+      {/* ***Said, as well as shown*** (2026-10-01, polish 11). *Searching…*
+          appeared and the hits replaced it, and neither reached a screen
+          reader: a person who pressed Search heard nothing, then nothing, and
+          had to go looking for whether anything had come back. One line, kept
+          mounted so it is a live region before it has anything to say — one
+          inserted already holding its words is one most screen readers never
+          read (`ui/TwoStep.tsx` has the longer argument) — says the search's
+          progress and then its answer, and says it again when the branch
+          filter changes what is shown. Empty while there is nothing to say,
+          which is also why it is not a `Note` with a margin of its own. */}
+      <p role="status" className="text-sm text-ink-subtle">
+        {statusLine(props.query, results.isError ? undefined : results.data, onPathOnly)}
+      </p>
 
       {results.data === undefined ? null : (
         <Results data={results.data} onPathOnly={onPathOnly} onWiden={setOnPathOnly} />
       )}
-    </main>
+    </div>
   );
 }
 
@@ -93,19 +110,22 @@ function Results(props: {
   data: SearchResults;
   onPathOnly: boolean;
   onWiden: (value: boolean) => void;
-}): JSX.Element {
-  const turns = props.onPathOnly ? props.data.turns.filter((hit) => hit.onPath) : props.data.turns;
-  const offPath = props.data.turns.filter((hit) => !hit.onPath).length;
-  const total = turns.length + props.data.objects.length + props.data.entries.length;
+}): JSX.Element | null {
+  const { turns, total, offPath } = shown(props.data, props.onPathOnly);
 
-  if (total === 0 && offPath === 0) return <Note>Nothing matched.</Note>;
+  // Nothing to list, and the status line above has said so.
+  if (total === 0 && offPath === 0) return null;
 
   return (
     <div className="flex flex-col gap-6">
+      {/* `h2`s under the page's `h1` (2026-10-01, polish 11): they were `h3`s,
+          so a screen reader's list of headings went from *Search* straight to
+          a third level with no second, the outline of a page missing a part.
+          The look is the class's and did not change. */}
       <section className="flex flex-col gap-2" aria-labelledby="hits-turns">
-        <h3 id="hits-turns" className="text-sm font-medium text-ink-muted">
+        <h2 id="hits-turns" className="text-sm font-medium text-ink-muted">
           In your stories
-        </h3>
+        </h2>
         {/*
           ***The default is the current path and one click widens*** — §14.2.
           The count is on the control because the control is otherwise a
@@ -134,7 +154,10 @@ function Results(props: {
                   className={link.object}
                   href={`/read/${hit.sessionId}?from=${encodeURIComponent(hit.turnId)}`}
                 >
-                  {hit.sessionName}
+                  {/* An unnamed session is *Untitled session* here as
+                      everywhere (2026-09-27): a blank link is nothing to
+                      click and has no name to announce. */}
+                  {sessionLabel(hit.sessionName)}
                 </a>
                 <p className="whitespace-pre-wrap text-sm text-ink-muted">{hit.snippet}</p>
                 {hit.onPath ? null : <p className="text-sm text-warn-ink">{OFF_PATH}</p>}
@@ -145,28 +168,52 @@ function Results(props: {
       </section>
 
       <section className="flex flex-col gap-2" aria-labelledby="hits-objects">
-        <h3 id="hits-objects" className="text-sm font-medium text-ink-muted">
+        <h2 id="hits-objects" className="text-sm font-medium text-ink-muted">
           In your library
-        </h3>
+        </h2>
         {props.data.objects.length === 0 ? (
           <Note>Nothing in the library matched.</Note>
         ) : (
           <ul className="flex flex-col gap-2">
-            {props.data.objects.map((hit) => (
-              <li key={hit.id}>
-                <a className={link.object} href={`/library/${hit.schema}s/${hit.id}`}>
-                  {hit.name}
-                </a>
-              </li>
-            ))}
+            {props.data.objects.map((hit) => {
+              /**
+               * ***The kind from the schema, not the schema with an `s`***
+               * (2026-09-27). The hit carries `storyengine.actor/1`, so every
+               * link was `/library/storyengine.actor/1s/<id>`: four segments,
+               * no route, and not one library hit on this page opened.
+               *
+               * *And the copy the search found*, by its address: two files can
+               * hold one id (F19), each is its own hit, and an id alone would
+               * open the winner from either row. The key is per file for the
+               * same reason.
+               */
+              const kind = kindOfSchema(hit.schema);
+              return (
+                <li key={`${hit.source}/${hit.slug}/${hit.id}`}>
+                  {kind === null ? (
+                    <span>{hit.name}</span>
+                  ) : (
+                    <a
+                      className={link.object}
+                      href={
+                        `/library/${kind}/${encodeURIComponent(hit.id)}` +
+                        `?source=${hit.source}&slug=${encodeURIComponent(hit.slug)}`
+                      }
+                    >
+                      {hit.name}
+                    </a>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
       <section className="flex flex-col gap-2" aria-labelledby="hits-entries">
-        <h3 id="hits-entries" className="text-sm font-medium text-ink-muted">
+        <h2 id="hits-entries" className="text-sm font-medium text-ink-muted">
           In your lorebooks
-        </h3>
+        </h2>
         {props.data.entries.length === 0 ? (
           <Note>No lore entries matched.</Note>
         ) : (
@@ -198,6 +245,33 @@ function Results(props: {
  * catalogue can hold.
  */
 const OFF_PATH = 'On a branch you left.';
+
+/** What the results show under the branch filter, and what it holds back. */
+function shown(
+  data: SearchResults,
+  onPathOnly: boolean,
+): { turns: SearchResults['turns']; total: number; offPath: number } {
+  const turns = onPathOnly ? data.turns.filter((hit) => hit.onPath) : data.turns;
+  const offPath = data.turns.filter((hit) => !hit.onPath).length;
+  return { turns, total: turns.length + data.objects.length + data.entries.length, offPath };
+}
+
+const SEARCHING = 'Searching…';
+const NOTHING = 'Nothing matched.';
+/** Hits only on lines you left, held back by the filter that offers them. */
+const NOTHING_ON_PATH = 'Nothing matched on the line you are on.';
+
+/**
+ * The status line's words: nothing before a search and after a failure (the
+ * alert says that one), *Searching…* while it runs, then what came back.
+ */
+function statusLine(query: string, data: SearchResults | undefined, onPathOnly: boolean): string {
+  if (query.trim() === '') return '';
+  if (data === undefined) return SEARCHING;
+  const { total, offPath } = shown(data, onPathOnly);
+  if (total > 0) return total === 1 ? '1 match.' : `${String(total)} matches.`;
+  return offPath === 0 ? NOTHING : NOTHING_ON_PATH;
+}
 
 function branchesLine(count: number): string {
   return count === 1

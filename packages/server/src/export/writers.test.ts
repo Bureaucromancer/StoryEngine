@@ -202,6 +202,28 @@ describe('a lorebook, written as Aventuras entries', () => {
     expect(after[0]?.metadata['hiddenInfo']).toBe(before[0]?.metadata['hiddenInfo']);
   });
 
+  it('writes an entry that was switched off as never, even a constant one', () => {
+    /**
+     * ***Off wins*** (2026-09-27). Aventuras has one mode where we have two
+     * flags, and the writer asked `constant` first: an entry somebody had
+     * switched off but left constant went out as `always`, injected every turn
+     * there, and came back on here.
+     */
+    const inbound = convertAventurasLorebook(aventurasLorebook(), 'Harbour lore');
+    if (!inbound.ok) return;
+    const book = inbound.value.lorebook;
+    const harbour = book.entries[0]!;
+    expect(harbour.constant).toBe(true);
+    harbour.enabled = false;
+
+    const written = EXPORT_WRITERS['aventuras.lorebook']?.(book, () => null);
+    const rows = written?.body as { injection: { mode: string } }[];
+    expect(rows[0]?.injection.mode).toBe('never');
+
+    const back = convertAventurasLorebook(written?.body, 'Harbour lore');
+    expect(back.ok && back.value.lorebook.entries[0]?.enabled).toBe(false);
+  });
+
   it('warns that folder gates do not survive', () => {
     /**
      * [11 §2] calls a folder gate *a variant switch*, and Aventuras' `Entry` has

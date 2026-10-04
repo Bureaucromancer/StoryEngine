@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
 import { beforeAll, describe, expect, it } from 'vitest';
+
+import { DERIVED_FILES } from '../../eslint.rules.js';
 
 import { FIXTURE_ROOT, fixtureConfig } from './fixture-config.js';
 
@@ -97,6 +100,17 @@ describe('the architectural boundary graph (docs/design/workplan/03-testing.md �
     expect(fired).toContain('no-restricted-imports');
   });
 
+  /**
+   * ***And a deep import of it*** (2026-10-01). The name ban listed
+   * `@storyengine/server/*` under `paths`, which compares exact names, so it
+   * matched only a module literally called that; the glob is a `patterns`
+   * entry now.
+   */
+  it('blocks client → a path inside the server, by name', async () => {
+    const fired = await rulesFiredIn('packages/client/src/imports-server-subpath.ts');
+    expect(fired).toContain('no-restricted-imports');
+  });
+
   it('blocks sdk → server', async () => {
     const fired = await rulesFiredIn('packages/sdk/src/imports-server.ts');
     expect(fired).toContain('boundaries/dependencies');
@@ -145,6 +159,23 @@ describe('no randomness outside the RNG service (docs/design/19-tech-stack.md §
   it('blocks crypto.randomUUID on the global', async () => {
     const fired = await rulesFiredIn('packages/shared/src/uses-global-crypto.ts');
     expect(fired).toContain('no-restricted-syntax');
+  });
+
+  /**
+   * ***However the draw is reached*** (2026-10-01). The selector this replaced
+   * matched an object *named* `crypto` or `globalThis` and saw nothing else —
+   * not `globalThis.crypto.randomUUID()`, a computed key, a default import
+   * under another name, `webcrypto`, or a destructured dynamic import.
+   */
+  it('blocks a draw however it is reached', async () => {
+    const fired = await syntaxReportsMatching(
+      'packages/shared/src/uses-other-crypto.ts',
+      /Every random draw/,
+    );
+    // Six: `globalThis.crypto.randomUUID`, `crypto['randomUUID']`,
+    // `nodeCrypto.randomInt`, the destructured `randomInt`, and the webcrypto
+    // line twice — the object it reaches through, and the draw.
+    expect(fired).toHaveLength(6);
   });
 
   it('permits it in the id generator — an id is not a draw', async () => {
@@ -206,6 +237,33 @@ describe('the AGPL header', () => {
     const fired = await rulesFiredIn('packages/sdk/src/imports-shared.ts');
     expect(fired).not.toContain('headers/header-format');
   });
+
+  /**
+   * ***The version-3-only files are the ones the notices name*** (2026-10-03).
+   * `DERIVED_FILES` decides which header lint demands; the table in
+   * `THIRD_PARTY_NOTICES.md` is what a reader is told was taken. A file added
+   * to one and not the other is either upstream code under a licence it cannot
+   * carry, or a notice for code that is not there — so they are compared, and
+   * each named file has to exist.
+   */
+  it('requires the version-3-only header on exactly the files the notices list', () => {
+    const notices = readFileSync(new URL('../../THIRD_PARTY_NOTICES.md', import.meta.url), 'utf8')
+      .replace(/\r\n/g, '\n')
+      .split('\n');
+    const start = notices.indexOf('## Version 3 only');
+    expect(start, 'THIRD_PARTY_NOTICES.md has its "## Version 3 only" section').toBeGreaterThan(-1);
+    const section = notices.slice(start + 1);
+    const end = section.findIndex((line) => line.startsWith('## '));
+    const listed = (end === -1 ? section : section.slice(0, end))
+      .map((line) => /^\| `([^`]+)` \|/.exec(line)?.[1])
+      .filter((path): path is string => path !== undefined);
+
+    expect(listed.length, 'the table lists at least one file').toBeGreaterThan(0);
+    expect([...listed].sort()).toEqual([...DERIVED_FILES].sort());
+    for (const path of DERIVED_FILES) {
+      expect(existsSync(new URL(`../../${path}`, import.meta.url)), path).toBe(true);
+    }
+  });
 });
 
 /**
@@ -238,15 +296,22 @@ describe('the engine names no mode (docs/design/06-modes-and-turn-pipeline.md §
     // Two: `switch (mode)` and `switch (session.modeId)`. A selector anchored
     // only on the identifier would let the second through, and the second is
     // what engine code actually looks like.
-    expect(fired).toHaveLength(2);
+    //
+    // ***And four more since 2026-10-01***, for the shapes the engine's own
+    // data takes — `session.mode?.id`, `declared.mode.id`, `mode.id`, and a
+    // `case` naming a mode id under a discriminant that names nothing. All four
+    // were silent: the first two selectors match a property *named* mode, and a
+    // session's mode is an object whose `id` is the thing switched on.
+    expect(fired).toHaveLength(6);
   });
 
   it('catches a comparison against a mode id, both operators and both sides', async () => {
     const fired = await syntaxReportsMatching('packages/server/src/branches-on-mode.ts', BRANCH);
     // Three: `===` with the literal on the right, `===` with it on the left, and
     // `!==`. The rewrite between them is one keystroke, so all three have to
-    // fire or the rule is a speed bump.
-    expect(fired).toHaveLength(3);
+    // fire or the rule is a speed bump. *And a fourth, the assistant's id*
+    // (2026-10-01), which the pattern's fixed list did not have.
+    expect(fired).toHaveLength(4);
   });
 
   it('catches a table keyed by mode id', async () => {
@@ -308,6 +373,20 @@ describe('sentences assembled from fragments (docs/design/workplan/01-work-plan.
 
   it('catches a comparison against displayed text', async () => {
     const fired = await syntaxReportsMatching('packages/client/src/assembled-prose.tsx', DISPLAYED);
+    // Two: `label === 'All kinds'`, and `message.includes('already there')` —
+    // the same mistake through a string method, which four settings panels had
+    // made where the comparison selector could not see it (2026-09-27).
+    expect(fired).toHaveLength(2);
+  });
+
+  it('lets a test search what was rendered, and still not compare to it', async () => {
+    // The string-method half is for code that decides something by a sentence;
+    // a test that finds a row by its label is doing what a test is for. The
+    // comparison half keeps applying, which is what proves the file was linted.
+    const fired = await syntaxReportsMatching(
+      'packages/client/src/reads-the-screen.test.tsx',
+      DISPLAYED,
+    );
     expect(fired).toHaveLength(1);
   });
 
@@ -330,7 +409,11 @@ describe('sentences assembled from fragments (docs/design/workplan/01-work-plan.
   it('does not apply to the server, whose strings are log lines', async () => {
     // docs/design/19-tech-stack.md §12.7 keeps those deliberately untranslated,
     // and a rule that fired on them would teach people to work around it.
-    const fired = await syntaxReportsMatching('packages/server/src/uses-fs.ts', ASSEMBLY);
+    //
+    // ~~`uses-fs.ts`~~ — which holds no sentence and no `+`, so this passed
+    // whatever the server's rules were (2026-10-01). The fixture is a log line
+    // the client's rule would refuse, joined with `+` around prose.
+    const fired = await syntaxReportsMatching('packages/server/src/log-lines.ts', ASSEMBLY);
     expect(fired).toEqual([]);
   });
 });

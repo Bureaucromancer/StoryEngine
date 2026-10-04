@@ -423,6 +423,130 @@ create index notification_by_account on notification(account, created_at);
 create index notification_by_dedupe on notification(account, dedupe_key, updated_at);
 create index notification_unread on notification(account, read_at);
 `,
+
+  /**
+   * ***The index `STEPS[4]`'s comment described, replacing the one it built***
+   * — 2026-09-26.
+   *
+   * The comment says *"one live job per rendition"*; the index under it is
+   * `unique (rendition_id)` with no condition, which is **one job per rendition,
+   * ever**. Nothing noticed while every rendition was run once. The retry
+   * button is the second run: `enqueueRendition` is idempotent on that index,
+   * so a retry was handed the first try's **finished** row, and
+   * `setRenditionJobStatus` — which stamps `finished_at` only on a terminal
+   * status and otherwise leaves it — set it back to `running` with the old
+   * finish time still on it. The two readers of *what is still in flight*,
+   * `pendingRenditionJobs` and boot recovery, both ask `finished_at is null`,
+   * so neither could see a running retry. A process that died holding one left
+   * it `running` for good, with its record `pending` behind it.
+   *
+   * ***Which is why the fix is this index and not a reset.*** The other repair
+   * keeps one row per rendition and has the retry path clear `finished_at`,
+   * `error` and the status and bump `attempt` — and it was declined, for three
+   * reasons:
+   *
+   * - **The design already chose.** `STEPS[4]`'s own column comment says *"a
+   *   retry is a **new job** with a higher number rather than a reset, so the
+   *   store can say how many times a picture has been paid for"*, and
+   *   `RenditionJob.attempt` says the same. A reset would reverse that decision
+   *   to fit the defect; this makes the schema say what the notes said.
+   * - **A reset loses the history it counts.** The first try's error class and
+   *   its finish time are overwritten by the second, and *paid for twice* shrinks
+   *   to a counter with nothing behind it.
+   * - **A reset is careful rather than structural.** It is five columns every
+   *   future writer has to remember to clear; this is
+   *   `job_one_active_per_session`'s shape from `STEPS[0]`, where *is this being
+   *   worked on* is a constraint, and the two readers above need no change at
+   *   all — their query was already right about the live set.
+   *
+   * ***Three statements, in an order that matters.***
+   *
+   * 1. **The heal, first.** An install that hit the defect holds rows whose
+   *    status says `queued` or `running` and whose `finished_at` is set. Only
+   *    re-running a finished row produces that — `enqueueRendition` inserts
+   *    with a null finish time and nothing else writes the column except on a
+   *    terminal status — so the update is exact. Clearing it makes those rows
+   *    live again, and since migrations run at open, before `buildApp`'s
+   *    recovery, the first boot of this build abandons them as `interrupted`
+   *    and marks their records: the recovery they were owed on the day. What
+   *    the update loses is the *previous* try's finish time, which the row had
+   *    already stopped being about; the healed row keeps `attempt = 1`, because
+   *    the true count was never recorded and inventing one would be worse.
+   * 2. **The swap.** Both new indexes are safe to create over any store the old
+   *    one allowed, because the old one allowed at most one row per rendition —
+   *    so neither a second live row nor a repeated number can exist yet.
+   *    Dropping an *index* is not what this file forbids: an index is a
+   *    restatement of rows, and the rows are all still here.
+   * 3. **`(rendition_id, attempt)` is unique too.** `enqueueRendition` assigns
+   *    the number, as the next after the highest this rendition has had; the
+   *    constraint is what makes *never a reset* true of the store rather than of
+   *    that one function, and it serves that function's `max(attempt)` lookup.
+   *
+   * *`STEPS[4]` is left exactly as it was*, comment and all, because it is what
+   * every store at version 5 ran; the correction lives here, where a reader
+   * following the chain meets it in order.
+   */
+  `
+update rendition_job set finished_at = null
+ where status in ('queued', 'running') and finished_at is not null;
+
+drop index rendition_job_by_rendition;
+
+-- One live job per rendition — what the comment on the index this replaces
+-- said, and now what the index says. A finished job is history and any number
+-- of them may sit beside the live one.
+create unique index rendition_job_live on rendition_job(rendition_id) where finished_at is null;
+
+-- One number per try, so a retry cannot be a reset by any writer.
+create unique index rendition_job_attempt on rendition_job(rendition_id, attempt);
+`,
+
+  /**
+   * ***A rendition's name is its session plus its id*** — found 2026-09-27,
+   * when importing renditions made it reachable twice over.
+   *
+   * `STEPS[4]` and `STEPS[6]` both key a job by `rendition_id` alone, on the
+   * reading that a rendition id names one record. It does not: ids are
+   * `<turnId>.<n>`, and session import keeps turn ids ([P11.10]), so two
+   * sessions on one install can hold **the same rendition ids**. Import has
+   * refused a session whose turns are already here since 2026-09-27, which
+   * closes the front door and leaves two others: the copies every earlier
+   * import of somebody's own backup made, which are still on disk; and a
+   * session deleted and imported back, whose job rows this store keeps after
+   * the session is gone. Keyed as they were, Try again in one found the other's
+   * live row — and the worker, which reads the record at the job's own session,
+   * rendered **the other** while this one sat pending — and a first try was
+   * numbered after another session's last, and read back as its latest job.
+   *
+   * *`STEPS[6]`'s two indexes with the session added to each.* Less strict than
+   * what they replace, so no row any earlier build wrote can violate them, and
+   * an index rather than a table is what is dropped.
+   */
+  `
+drop index rendition_job_live;
+create unique index rendition_job_live on rendition_job(session_id, rendition_id)
+  where finished_at is null;
+
+drop index rendition_job_attempt;
+create unique index rendition_job_attempt on rendition_job(session_id, rendition_id, attempt);
+`,
+
+  /**
+   * ***How an import arrived*** (2026-09-28): `path`, a sweep of the server's
+   * own disk, or `upload`, a file or a folder a browser sent.
+   *
+   * Uploads were never recorded, so an object brought in by one had no import
+   * notes on its page and the review could not be opened again. Recording
+   * them meets the one reader that relied on their absence: *Update from
+   * source* re-sweeps the root a session last came in from, and treated every
+   * recorded root as a path it could reopen. An upload's root is the name of
+   * what was sent — nothing a sweep can open — so the reader asks for
+   * `path` rows, and every row written before this step is one, which is why
+   * that is the default.
+   */
+  `
+alter table import_job add column transport text not null default 'path';
+`,
 ];
 
 export const STATE_SCHEMA_VERSION = STEPS.length;

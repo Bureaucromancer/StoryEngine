@@ -38,7 +38,7 @@ import { LOREBOOK_SCHEMA, newLoreEntry, type Lorebook, type LoreEntry } from '@s
  * moved would orphan every session that named the book.
  *
  * **Every entry is `constant: false` and keyed.** A constant entry would be in
- * every assistant prompt, which for twenty-five entries is the whole budget
+ * every assistant prompt, which for twenty-six entries is the whole budget
  * spent on documentation nobody asked about — and §7.4's own claim is that
  * *keyword activation plus the budgeter already do the work*.
  */
@@ -50,7 +50,8 @@ export const DOCS_LOREBOOK_ID = '0199c000-0000-7000-8000-00000000d0c5';
 
 /**
  * The shelves — §11.2b's folders, used here for what folders are for: a reader
- * opening this book sees eleven headings rather than twenty-five entries.
+ * opening this book sees eleven headings rather than twenty-six entries
+ * (twenty-five until 2026-10-03, when *make a setup from here* joined them).
  */
 const FOLDERS: readonly { id: string; name: string }[] = [
   { id: 'lore', name: 'Lorebooks' },
@@ -184,7 +185,7 @@ const ENTRIES: readonly LoreEntry[] = [
     description:
       'What a connection holds, the difference between an install connection and your own, and where the capability flags come from.',
     content:
-      "A **connection** is an endpoint: a base URL, a provider kind, a credential if it needs one, and the model ids it serves.\n\nThere are two scopes. The **install's** connections are the administrator's and are shared; **your own** are yours and need the private-connections capability. A role binding names a connection and a model id on it.\n\n**Capabilities are declared, not guessed.** Whether the URL behind an OpenAI-compatible connection also answers image requests is a fact about that endpoint, so it is a flag somebody who knows sets on the connection. Nothing infers it from the provider name.",
+      "A **connection** is an endpoint: a base URL, a provider kind, a credential if it needs one, and the model ids it serves.\n\nThere are two scopes. The **install's** connections are the administrator's and are shared; **your own** are yours and need the private-connections capability. A role binding names a connection and a model id on it.\n\n**Capabilities are declared, not guessed.** Whether the URL behind an OpenAI-compatible connection also answers image requests is a fact about that endpoint, so it is a flag somebody who knows sets on the connection — **Makes pictures**, under *What this endpoint can do*, and beside it **Sends a seed with a picture** for an endpoint that accepts one. Nothing infers either from the provider name.\n\n**Test** on a connection tries it using what is saved: one short message, asked again the way a turn is if the endpoint is busy or unreachable, or one picture, asked once, where it makes them. It costs what any call costs, and it tells a refused key from an unreachable address from a model the endpoint does not serve.",
   }),
   entry({
     id: '0199c000-0000-7000-8000-000000000009',
@@ -227,10 +228,13 @@ const ENTRIES: readonly LoreEntry[] = [
       'world info',
       'chub',
       'import a card',
+      'import chats',
+      'chat history',
     ],
-    description: 'What can be imported, how, and what the import reports back.',
+    description:
+      'What can be imported, how — chats included, as sessions — and what the import reports back.',
     content:
-      "Character cards (v2 and v3, PNG or JSON), world-info books, and presets convert on the way in. Drop a file on the library's import panel, or point the sweep at a folder.\n\nWhat lands is reported per object: what it was, what it became, and anything the converter had to decide. **A file is a fact about the world rather than a malformed request**, so a file the reader does not recognise is reported rather than refused.\n\nRe-importing the same file is recognised as the same object rather than doubling it, and what a re-import does on a conflict — replace, or keep both — is a question the panel asks rather than a default it applies silently.",
+      "Character cards (v2 and v3, PNG or JSON), world-info books, and presets convert on the way in. Drop a file on the library's import panel, or point the sweep at a folder.\n\n**Chats from SillyTavern or Marinara become sessions.** A folder picked in the browser that holds chats stops and asks first, saying how many and how large, with **Also import the chats** unticked, because chats are most of a folder's size; a folder swept from the server brings its chats with it. A single `.jsonl` loads from the sessions page. Each chat arrives as a new session in Play whose cast is the matching characters in your library. Updating a session from its source comes later: until then, importing the same chat again the same way changes nothing, and the review says so when the chat has grown since.\n\nWhat lands is reported per object: what it was, what it became, and anything the converter had to decide. **A file is a fact about the world rather than a malformed request**, so a file the reader does not recognise is reported rather than refused.\n\nRe-importing the same file is recognised as the same object rather than doubling it, and what a re-import does on a conflict — replace, or keep both — is a question the panel asks rather than a default it applies silently.",
   }),
   entry({
     id: '0199c000-0000-7000-8000-00000000000d',
@@ -284,10 +288,20 @@ const ENTRIES: readonly LoreEntry[] = [
     id: '0199c000-0000-7000-8000-000000000012',
     name: 'Taking a session somewhere else',
     folderId: 'sessions',
-    keys: ['export session', 'import session', 'share a session', 'session file', 'move a session'],
-    description: 'Exporting a session to a file and loading one on another install.',
+    keys: [
+      'export session',
+      'import session',
+      'share a session',
+      'session file',
+      'move a session',
+      'jsonl',
+      'load a chat',
+      'chat file',
+    ],
+    description:
+      'Exporting a session to a file, loading one on another install, and loading a chat from SillyTavern or Marinara.',
     content:
-      "**Export this session** on the session panel writes a file with **every branch**, not only the line you are on.\n\nLoading one back is **Load an exported session** on the sessions page. It arrives as a **new session** with a new id, keeping the turn ids it came with and recording where it came from — so an export and its original can sit side by side without either pretending to be the other.\n\nIt is on the sessions page rather than in the library's import panel because a session is not a library object: it does not merge into a shelf, and what it produces is a session.",
+      "**Export this session** on the session panel writes a file with **every branch**, not only the line you are on.\n\nLoading one back is **Load a session or a chat** on the sessions page. It arrives as a **new session** with a new id, keeping the turn ids it came with and recording where it came from — so an export and its original can sit side by side without either pretending to be the other.\n\nThe same button takes a `.jsonl` chat from SillyTavern or Marinara: it arrives as a new session, with its characters found in your library. Updating a session from its source comes later; until then, loading the same chat again changes nothing, and a chat already imported with its folder arrives as a second session.\n\nAn export loads here rather than in the library's import panel because a session is not a library object: it does not merge into a shelf, and what it produces is a session. A folder's chats can also come in with the folder, through the library's import panel.",
   }),
   entry({
     id: '0199c000-0000-7000-8000-000000000013',
@@ -368,7 +382,33 @@ const ENTRIES: readonly LoreEntry[] = [
     ],
     description: 'How to read a failed turn, and the four commonest causes.',
     content:
-      'A failed turn is a turn: it commits, it is in the transcript, and it says why. The workbench over it carries the step that failed and what the provider said.\n\nThe common ones, in the order they are worth checking:\n\n1. **Nothing bound** — the role the step asked for resolved to nothing usable. `prose` is the one a story turn needs.\n2. **The endpoint is unreachable** — wrong base URL, or the server is not running.\n3. **The credential is wrong or missing** — for an endpoint that wants one.\n4. **The model id is not one that endpoint serves** — the connection lists them; a typo is a 404 from the provider.\n\nA turn that failed before assembly ever ran says so with *this turn made no request*, which is a different fault from one that asked and was refused.',
+      'A failed turn is a turn: it commits, it is in the transcript, and it says why. The workbench over it carries the step that failed and what the provider said.\n\nThe common ones, in the order they are worth checking:\n\n1. **Nothing bound** — the role the step asked for resolved to nothing usable. `prose` is the one a story turn needs.\n2. **The endpoint is unreachable** — wrong base URL, or the server is not running.\n3. **The credential is wrong or missing** — for an endpoint that wants one.\n4. **The model id is not one that endpoint serves** — the connection lists them; a typo is a 404 from the provider.\n\nItems 2 to 4 can be checked without taking another turn: **Test** on the connection says which of them it is.\n\nA turn that failed before assembly ever ran says so with *this turn made no request*, which is a different fault from one that asked and was refused.',
+  }),
+  /**
+   * ***Make a setup from here*** — [P15](../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
+   * added 2026-10-03 at its merge. In the *sessions* folder rather than the
+   * library's, because the question arrives from inside a story — *can I start
+   * again from this point* — and the setup is the answer rather than the
+   * subject. Keyed on the words somebody uses before they know the feature's
+   * name, and never on `setup` alone, which the kinds entry above already owns.
+   */
+  entry({
+    id: '0199c000-0000-7000-8000-00000000001a',
+    name: 'Starting again from a point in a story',
+    folderId: 'sessions',
+    keys: [
+      'make a setup',
+      'setup from here',
+      'start from here again',
+      'save this point',
+      'story so far',
+      'start from a setup',
+      'setup opening',
+    ],
+    description:
+      'Making a setup from any turn of a session, what it carries and hides, and how a session started from a setup begins.',
+    content:
+      "**Make a setup from here**, on any turn beside *Continue from here*, saves that point as a **setup** in your library: somewhere new sessions start, again and again, without the turns that led there. *Continue from here* keeps the history; this condenses it away.\n\nA dialog drafts **the story so far**, an **opening**, a **name and blurb**, and the **facts** the story established — each its own call on the writing model, each editable and regenerable on its own. Kept facts become a lorebook linked from the setup. The party, the current goal and the plot hooks carry too, each with a switch to leave it out.\n\n**Nothing it would spoil is shown.** Hooks that have not happened are counted, not described, and a goal hidden from you says only that it is hidden. They are carried all the same, and hooks already used are marked so they do not happen twice.\n\nA session started from the setup — on the sessions page, or **Start a session** on the setup's own page — shows the model the story so far from its first turn, as the oldest part of its running summary, which needs a preset with a summary slot. **A setup's own opening is always its first turn**: in a chat whose characters would greet you, their greetings are not used when the setup has an opening of its own, even if you start it cold. A setup with no opening begins on the greetings instead. An opening was written, not generated, so it cannot be redone.",
   }),
 ];
 

@@ -61,9 +61,12 @@ import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
  * The mode packages a stock build ships.
  *
  * **A list in the engine and not a scan of a directory**, because a built-in is
- * exactly the mode this distribution decided to ship: `Dockerfile` deploys each
- * of these beside the server for the same reason, and the two lists agreeing is
- * a repo-shape assertion rather than a runtime discovery. Installed extensions
+ * exactly the mode this distribution decided to ship: ~~`Dockerfile` deploys each
+ * of these beside the server for the same reason~~ the image and the release
+ * tarball import each of these before they ship, for the same reason (2026-10-01:
+ * the per-mode deploys that stood there failed, because the server's deploy
+ * already carries the root's dependencies), and the lists agreeing is a
+ * repo-shape assertion rather than a runtime discovery. Installed extensions
  * are discovered — from the data directory, at P10 — and that is a different
  * mechanism with a different failure mode, which is why this one stays a
  * literal somebody can read.

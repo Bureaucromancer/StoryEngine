@@ -185,20 +185,32 @@ export async function readRendition(
   if (bytes === null) return null;
 
   try {
-    // Read as unknown rather than as a `Partial<Rendition>`, for `readSummary`'s
-    // reason: the file is whatever is on disk, and a declared type would make
-    // the checks below look redundant to the compiler while doing the only work
-    // that matters.
-    const held = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
-    if (held['schema'] !== RENDITION_SCHEMA || held['id'] !== id) return null;
-    if (typeof held['turnId'] !== 'string') return null;
-    if (typeof held['digest'] !== 'string') return null;
-    if (!isRecipe(held['prompt'])) return null;
-    if (!isProvenance(held['provenance'])) return null;
-    return held as unknown as Rendition;
+    const held = renditionFrom(JSON.parse(new TextDecoder().decode(bytes)));
+    return held?.id === id ? held : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * A rendition record, or null when this is not one: `readRendition`'s checks,
+ * for a record that did not come from this install's disk. The session
+ * importer writes what passes, so a record it accepts is one this module
+ * would read back.
+ */
+export function renditionFrom(value: unknown): Rendition | null {
+  // Read as unknown rather than as a `Partial<Rendition>`, for `readSummary`'s
+  // reason: the file is whatever is on disk, and a declared type would make
+  // the checks below look redundant to the compiler while doing the only work
+  // that matters.
+  if (typeof value !== 'object' || value === null) return null;
+  const held = value as Record<string, unknown>;
+  if (held['schema'] !== RENDITION_SCHEMA || typeof held['id'] !== 'string') return null;
+  if (typeof held['turnId'] !== 'string') return null;
+  if (typeof held['digest'] !== 'string') return null;
+  if (!isRecipe(held['prompt'])) return null;
+  if (!isProvenance(held['provenance'])) return null;
+  return held as unknown as Rendition;
 }
 
 /**
@@ -289,7 +301,9 @@ export function renditionsOfTurn(all: ReadonlyMap<string, Rendition>, turnId: st
  *
  * *Only `ready` renditions count.* A pending one is a job already in flight and
  * a failed one is a placeholder; reusing either would either double-dispatch or
- * show nothing, and both read on screen as the feature being broken.
+ * show nothing, and both read on screen as the feature being broken. *A pending
+ * one is not a reason to ask again, either* (2026-09-30): {@link backdropInFlight}
+ * answers that, and the render step asks it second.
  */
 export function reusableBackdrop(
   all: ReadonlyMap<string, Rendition>,
@@ -314,6 +328,28 @@ export function reusableBackdrop(
    * would make regenerating a backdrop look like it had done nothing.
    */
   return matches.sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+}
+
+/**
+ * ***Whether a backdrop for this recipe is already being made*** (2026-09-30) —
+ * the half of the money row {@link reusableBackdrop} leaves out.
+ *
+ * Ready-only is right for *what to show*, and was taken for *whether to ask*:
+ * a turn taken while its place's backdrop was still pending found nothing
+ * ready and asked for another of the same place. The worker selects the
+ * pending one when it lands, so the answer to *a second one?* is no.
+ */
+export function backdropInFlight(all: ReadonlyMap<string, Rendition>, digest: string): boolean {
+  for (const rendition of all.values()) {
+    if (
+      rendition.purpose === 'background' &&
+      rendition.state === 'pending' &&
+      rendition.digest === digest
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Enough of an {@link AssembledPrompt} to be re-runnable. */

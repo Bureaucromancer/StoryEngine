@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { newLoreEntry, uuidv7, type Actor, type Lorebook, type Turn } from '@storyengine/shared';
+import { newLoreEntry, type Actor, type Lorebook, type Turn } from '@storyengine/shared';
 
 import { read, update, type LibraryContext } from '../library.js';
-import { walkPath } from '../sessions/segments.js';
 import {
-  appendTurnToSession,
+  appendEngineTurnLocked,
+  engineTurn,
   readSession,
   readTurns,
-  reconstructAlong,
+  withSessionLock,
   type SessionContext,
 } from '../sessions/store.js';
 import { acceptEffect } from '../turns/effects.js';
@@ -90,7 +90,9 @@ export type CaptureOutcome =
   | { kind: 'not-in-cast' }
   | { kind: 'empty' }
   /** [08 §6]'s *never from hidden content*, at the cheap end — see below. */
-  | { kind: 'refused'; reason: string };
+  | { kind: 'refused'; reason: string }
+  /** A turn is in flight, and the effect recording this would be orphaned by it. */
+  | { kind: 'busy' };
 
 /**
  * ***A turn a hook fired on is refused, and told why*** — [08 §6], [P8 §1.5],
@@ -134,6 +136,15 @@ function hiddenContentIn(turn: Turn): string | null {
  * leaves an entry with no effect recorded rather than an effect claiming an
  * entry that is not there. *The first is a memory the banner under-counts; the
  * second is a banner that lies.*
+ *
+ * ***The session lock is now held for the whole capture*** (2026-09-27). The
+ * effect was recorded by reading the head and building its turn outside the
+ * lock, then appending, so a turn committing in between left it parented on a
+ * dead line; and a capture while the narrator was writing became a sibling of
+ * the turn being written. Now nothing is written while a turn is in flight
+ * (`busy`), and the check, the entry and the effect are one critical section,
+ * so a turn cannot start between them either. The library's own queue is
+ * taken inside it, which is safe because the library never takes a session's.
  */
 export async function rememberThis(
   sessions: SessionContext,
@@ -146,6 +157,21 @@ export async function rememberThis(
   const keys = request.keys.map((key) => key.trim()).filter((key) => key !== '');
   if (text === '' || keys.length === 0) return { kind: 'empty' };
 
+  return withSessionLock(sessionId, async () => {
+    if (sessions.busy?.(sessionId) === true) return { kind: 'busy' };
+    return captureLocked(sessions, library, handle, sessionId, request, text, keys);
+  });
+}
+
+async function captureLocked(
+  sessions: SessionContext,
+  library: LibraryContext,
+  handle: string,
+  sessionId: string,
+  request: CaptureRequest,
+  text: string,
+  keys: string[],
+): Promise<CaptureOutcome> {
   const session = await readSession(sessions, handle, sessionId);
   if (session === null) return { kind: 'no-session' };
 
@@ -270,52 +296,40 @@ async function recordEscape(
   bookId: string,
   entryId: string,
 ): Promise<void> {
-  const session = await readSession(sessions, handle, sessionId);
-  if (session === null) return;
-
-  const turns = await readTurns(sessions, handle, sessionId);
-  const path = walkPath(turns, session.headTurnId);
-  const running = await reconstructAlong(sessions, handle, sessionId, path);
-
-  const id = uuidv7();
-  const effect = acceptEffect(
-    id,
-    {
-      channelId: SE_MEMORY_WRITTEN,
-      scopeKey: bookId,
-      op: { type: 'set', path: '/' },
-      /**
-       * ***The ids written on **this** turn, and it cannot be a running total.***
-       *
-       * A first draft read the channel's current value and appended to it, which
-       * is what the phrase *"appending the entry ids written this turn"* sounds
-       * like it wants — and it silently produced a list of one every time.
-       * **`applyEffects` skips `scope: 'escaped'`**, which is the whole point of
-       * the scope: an escaped effect is never replayed, so the state it would
-       * have accumulated into never exists to be read back.
-       *
-       * That is not a limitation to work around; it is the mechanism being
-       * right. What a rewind needs to know is *how many things did the turns I
-       * am leaving write*, and that is a sum over the effects on those turns —
-       * `abandonedBy` counts effects, not channel values. A running total would
-       * have made the newest turn's value the count for the whole line, so
-       * abandoning one turn would have reported everything the line ever wrote.
-       */
-      after: { entryIds: [entryId] },
-      proposedBy: { kind: 'user' },
-    },
-    running,
+  // The caller holds the session lock and has found no turn in flight, so
+  // this reads the head, builds and appends as one critical section.
+  await appendEngineTurnLocked(sessions, handle, sessionId, (session, running) =>
+    engineTurn(session, (id) =>
+      acceptEffect(
+        id,
+        {
+          channelId: SE_MEMORY_WRITTEN,
+          scopeKey: bookId,
+          op: { type: 'set', path: '/' },
+          /**
+           * ***The ids written on **this** turn, and it cannot be a running total.***
+           *
+           * A first draft read the channel's current value and appended to it, which
+           * is what the phrase *"appending the entry ids written this turn"* sounds
+           * like it wants — and it silently produced a list of one every time.
+           * **`applyEffects` skips `scope: 'escaped'`**, which is the whole point of
+           * the scope: an escaped effect is never replayed, so the state it would
+           * have accumulated into never exists to be read back.
+           *
+           * That is not a limitation to work around; it is the mechanism being
+           * right. What a rewind needs to know is *how many things did the turns I
+           * am leaving write*, and that is a sum over the effects on those turns —
+           * `abandonedBy` counts effects, not channel values. A running total would
+           * have made the newest turn's value the count for the whole line, so
+           * abandoning one turn would have reported everything the line ever wrote.
+           */
+          after: { entryIds: [entryId] },
+          proposedBy: { kind: 'user' },
+        },
+        running,
+      ),
+    ),
   );
-
-  await appendTurnToSession(sessions, handle, sessionId, {
-    id,
-    sessionId,
-    parentTurnId: session.headTurnId,
-    createdAt: new Date().toISOString(),
-    status: 'complete',
-    effects: [effect],
-    tape: [],
-  });
 }
 
 /**
@@ -325,10 +339,11 @@ async function recordEscape(
  * for two fields. Truncated on a word boundary, because a title cut mid-word
  * reads as a bug rather than as a summary — and the whole text is in `content`
  * either way.
- */
-/**
- * An entry's name from its words: one line, cut at a word. Exported at [P13.7]
- * for the facts a Setup made from a turn keeps, which are named the same way.
+ *
+ * *Exported at [P15.7]* for the facts a Setup made from a turn keeps in its
+ * companion lorebook, which are named the same way and for the same reason.
+ * (One comment, 2026-10-03: the branch stacked a second above this one, and
+ * a doc tool reads only the nearer.)
  */
 export function titleFor(text: string): string {
   const oneLine = text.replace(/\s+/g, ' ').trim();

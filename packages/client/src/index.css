@@ -57,12 +57,23 @@
 
   /* One action colour. `on-accent` exists for the second theme's sake: the
      accent flips from dark-on-light to light-on-dark, so a button that spells
-     its label `text-white` is a button that breaks. */
-  --color-accent: var(--color-slate-800);
-  --color-accent-hover: var(--color-slate-700);
-  --color-accent-muted: var(--color-slate-400);
+     its label `text-white` is a button that breaks.
+
+     **Indigo, not ink** (2026-10-01, polish 6). The accent was slate-800 —
+     the same family as every word on the page, one step off the darkest ink —
+     so a primary button read as a heavier paragraph, and a selected chip, the
+     lorebook's drop line and the keyboard's ring were all more grey on grey.
+     The one colour that means *you can do this* is a colour now. The steps
+     keep the slate ones' lightness where it mattered: `muted` sits where
+     slate-400 did, so a disabled button looks exactly as disabled as it did,
+     and `focus` stays the mid-ramp step that clears 3:1 against every
+     surface. contrast.test.ts measures the label on the fill and the ring and
+     the accent against the surfaces, in both themes. */
+  --color-accent: var(--color-indigo-700);
+  --color-accent-hover: var(--color-indigo-600);
+  --color-accent-muted: var(--color-indigo-400);
   --color-on-accent: var(--color-white);
-  --color-focus: var(--color-slate-500);
+  --color-focus: var(--color-indigo-500);
 
   /* Refusal — a destruction, or a write the server rejected. */
   --color-danger: var(--color-red-700);
@@ -149,6 +160,32 @@
   --text-story: var(--text-base);
   --text-story--line-height: 1.7;
   --container-reading: 48rem;
+
+  /* Two faces, and both of them already on the machine (2026-10-01).
+
+     **`--font-ui` is the platform's own interface face**, named rather than
+     left to `system-ui`: on Windows that keyword follows the display language,
+     and for several languages it resolves to that language's interface face —
+     Yu Gothic UI, Microsoft YaHei UI — whose Latin letters are the secondary
+     design. Naming Segoe UI, San Francisco and Noto Sans asks for the face
+     each system draws its own controls in, and leaves the other scripts to the
+     system's fallback, which is what it is for.
+
+     **`--font-story` is a book face**, for prose and nothing else: Charter on
+     macOS and iOS, Sitka Text or Cambria on Windows, Bitstream Charter or Noto
+     Serif on Linux, and the platform's serif after that. It is spent wherever
+     `text-story` is — the step and the face are one separator, §1.2's *type*,
+     and `theme.test.ts` refuses the one without the other.
+
+     **No webfont**, deliberately. A downloaded face is a request on every cold
+     load, a flash of the fallback while it arrives, and a licence to carry —
+     for a self-hosted server whose whole point is that nothing leaves the
+     house. Every stack ends in its generic family, so a machine with none of
+     the named faces still gets a serif story and a sans interface. */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Roboto, 'Helvetica Neue', Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-story: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, 'Noto Serif', Georgia, serif;
 }
 
 /* Tells the browser which way to render the things CSS does not reach: the
@@ -175,6 +212,10 @@
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);
+
+  /* The interface face, for everything; the story face is spent per element,
+     with `text-story`. Controls follow it through preflight's `font: inherit`. */
+  font-family: var(--font-ui);
 }
 
 /**
@@ -256,11 +297,11 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
     --color-ink-faint: var(--color-slate-400);
     --color-line: var(--color-slate-800);
     --color-line-strong: var(--color-slate-700);
-    --color-accent: var(--color-slate-200);
-    --color-accent-hover: var(--color-slate-100);
-    --color-accent-muted: var(--color-slate-700);
+    --color-accent: var(--color-indigo-300);
+    --color-accent-hover: var(--color-indigo-200);
+    --color-accent-muted: var(--color-indigo-800);
     --color-on-accent: var(--color-slate-900);
-    --color-focus: var(--color-slate-400);
+    --color-focus: var(--color-indigo-400);
     --color-danger: var(--color-red-600);
     --color-danger-ink: var(--color-red-300);
     --color-danger-line: var(--color-red-800);
@@ -328,12 +369,13 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
 
   /* The accent flips end for end — a light button on a dark page. This is what
      `on-accent` was for: every label on an accent surface follows it, and no
-     component had to know. */
-  --color-accent: var(--color-slate-200);
-  --color-accent-hover: var(--color-slate-100);
-  --color-accent-muted: var(--color-slate-700);
+     component had to know. Indigo here too, the light ramp's steps mirrored:
+     300 to fill, 200 to hover, 800 for the muted step slate-700 held. */
+  --color-accent: var(--color-indigo-300);
+  --color-accent-hover: var(--color-indigo-200);
+  --color-accent-muted: var(--color-indigo-800);
   --color-on-accent: var(--color-slate-900);
-  --color-focus: var(--color-slate-400);
+  --color-focus: var(--color-indigo-400);
 
   /* Refusal keeps its hue and swaps its role: the fill stays saturated enough
      to read as a button, while ink and surface trade ends of the ramp. */
@@ -425,16 +467,22 @@ summary > :is(h1, h2, h3, h4, h5, h6) {
    * prints as its *first page* and nothing after it, in Chrome and Firefox
    * alike — so a forty-turn story printed as whatever happened to be on screen.
    *
-   * **Here for `main`, and at the call site for its two ancestors.** This rule
-   * already owns `main`'s printed geometry, so its height belongs beside its
-   * width. The `h-dvh` column and the dock row above it are known only to
+   * **Here for `main`, and at the call site for its two ancestors.** ~~This
+   * rule already owns `main`'s printed geometry, so its height belongs beside
+   * its width.~~ The `h-dvh` column and the dock row above it are known only to
    * `Shell.tsx`, and they release themselves there with `print:` variants —
    * position is a call-site concern in this codebase, and a selector here that
    * had to describe the shell's tree would break the next time it changed.
+   *
+   * ***Not the width, and not the padding*** (2026-10-01, polish 11). Those two
+   * were the reading view's: its column was a `<main>` of its own, nested in
+   * the shell's, and this rule caught it by landmark. The shell's `main` is
+   * bare — no width, no padding — so there was never anything of its own here
+   * to release. The column is a `div` now, the one landmark being the shell's,
+   * and releases its width and padding at its call site like everything else
+   * of its position.
    */
   main {
-    max-inline-size: none !important;
-    padding: 0 !important;
     block-size: auto !important;
     overflow: visible !important;
   }

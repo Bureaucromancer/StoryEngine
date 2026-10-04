@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -175,6 +177,8 @@ interface WorkflowStep {
   readonly name: string | undefined;
   /** The `run:` script, block scalars folded into one string. */
   readonly run: string | undefined;
+  /** The step's `if:` condition, when it has one. */
+  readonly if: string | undefined;
 }
 
 /**
@@ -235,7 +239,7 @@ function workflowSteps(): WorkflowStep[] {
       fields.set(key, body.join('\n').trim());
     }
 
-    return { name: fields.get('name'), run: fields.get('run') };
+    return { name: fields.get('name'), run: fields.get('run'), if: fields.get('if') };
   });
 }
 
@@ -445,6 +449,24 @@ describe('gate step 1 — the P1 gate runs on both platforms, on every change', 
   });
 
   /**
+   * ***The matrix excludes nothing*** (2026-10-03). For one day the Windows leg
+   * ran weekly rather than per change — an `exclude:` keyed on the event, while
+   * the repository was private and its Actions minutes had run out — and every
+   * assertion above stayed green throughout, because the matrix still *named*
+   * Windows and `runs-on` still consumed it. A conditional exclusion is the one
+   * way to retire a leg that the two tests above cannot see, so it is refused
+   * here outright. The repository went public, its runners are not metered, and
+   * both platforms run on every change ([releases §0.1a]).
+   */
+  it('excludes nothing from the matrix, so both legs run on every change', () => {
+    const matrix = blockUnder(workflowLines(), /^\s*matrix:\s*$/);
+    expect(
+      matrix.filter((line) => /^\s*(?:exclude|include):/.test(line)),
+      'a conditional exclusion retires a leg while the matrix keeps naming it',
+    ).toEqual([]);
+  });
+
+  /**
    * The per-PR tier from [testing §6]: *"typecheck, lint including the boundary
    * rules, unit, golden-file, schema validation, build"*, with `format:check`
    * ahead of them per the workflow's own header.
@@ -510,6 +532,27 @@ describe('gate step 20 — the rebuild property test is a named CI step', () => 
       'the name in the checks list is the whole of what F17 asked for; without it the step is ' +
         'the anonymous suite run it already had',
     ).toMatch(/rebuild/i);
+  });
+
+  /**
+   * ***A named gate that can go red under its own name.*** `pnpm test` runs the
+   * `gate`, `fixture-pair` and `docs` projects before any of these steps, so
+   * under the implicit `success()` a failing gate failed `pnpm test` first and
+   * its own step then showed *skipped* — the checks list could say a named gate
+   * held or was skipped, and never that it broke. That was the state of every
+   * run on `main` from 2026-09-15 for eighteen runs.
+   *
+   * Catches: deleting the `if:` from any of the three, or narrowing it back to
+   * a plain `success()`.
+   */
+  it('runs each named gate even after the suite before it has failed', () => {
+    for (const script of ['test:gate', 'test:fixture-pair', 'test:docs']) {
+      const step = workflowSteps().find((one) => one.run === `pnpm ${script}`);
+      expect(step, `the step that runs pnpm ${script}`).toBeDefined();
+      expect(step?.if, `pnpm ${script} has to run after an earlier failure`).toMatch(
+        /!\s*cancelled\(\)/,
+      );
+    }
   });
 
   /**
@@ -618,5 +661,223 @@ describe('gate step 20 — the rebuild property test is a named CI step', () => 
       /fc\.asyncProperty\(/,
     );
     expect(code, 'and the rebuild is one of the two producers being compared').toMatch(/rebuild\(/);
+  });
+});
+
+/**
+ * ***The emitted schemas are checked whole, new files included*** — gap round
+ * A4.5, 2026-10-01.
+ *
+ * The step was `git diff --exit-code -- packages/shared/schemas`, and `git diff`
+ * compares the tree with the index: a file the build has just written is in
+ * neither, so a seventh portable kind emitted and never committed passed it —
+ * and the counts that read the directory (`repo-shape.test.ts`,
+ * `invariants.test.ts`) counted CI's own build output, which agreed with itself.
+ *
+ * **Run rather than read.** The step's own commands are executed, as CI would,
+ * in a throwaway repository with a committed schema in it — which is the only
+ * way to know the pair actually sees what one of them alone did not. Each
+ * command is split on spaces and run directly, which is also why the step is
+ * two plain commands: the Windows leg runs it under PowerShell, and
+ * `test -z "$(…)"` is not a thing PowerShell can run.
+ */
+describe('the emitted-schemas step sees every change the build made', () => {
+  const step = workflowSteps().find((one) => one.name === 'Emitted schemas are current');
+  const commands = (step?.run ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+
+  /** The step's commands against a repository holding one committed schema. */
+  function runStep(change: (schemas: string) => void): number | null {
+    const repo = mkdtempSync(join(tmpdir(), 'se-schemas-'));
+    try {
+      const git = (...args: string[]): void => {
+        spawnSync('git', args, { cwd: repo });
+      };
+      const schemas = join(repo, 'packages', 'shared', 'schemas');
+      mkdirSync(schemas, { recursive: true });
+      writeFileSync(join(schemas, 'storyengine.actor.1.json'), '{}\n');
+      git('init', '-q');
+      git('add', '.');
+      // Identity and signing stated, so a machine's own git config — no name,
+      // or every commit signed — cannot leave the base uncommitted and turn
+      // every case below into a new file.
+      git(
+        '-c',
+        'user.email=ci@example.invalid',
+        '-c',
+        'user.name=ci',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '-qm',
+        'base',
+      );
+
+      change(schemas);
+      let status: number | null = 0;
+      for (const command of commands) {
+        const [program = '', ...args] = command.split(' ');
+        status = spawnSync(program, args, { cwd: repo }).status;
+      }
+      return status;
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  }
+
+  it('is two commands, the second the one that decides', () => {
+    expect(commands).toEqual([
+      'git add --intent-to-add -- packages/shared/schemas',
+      'git diff --exit-code -- packages/shared/schemas',
+    ]);
+  });
+
+  it('fails on a schema the build wrote that was never committed', () => {
+    expect(
+      runStep((schemas) => {
+        writeFileSync(join(schemas, 'storyengine.rendition.1.json'), '{}\n');
+      }),
+    ).toBe(1);
+  });
+
+  it('fails on a committed schema the build changed', () => {
+    expect(
+      runStep((schemas) => {
+        writeFileSync(join(schemas, 'storyengine.actor.1.json'), '{"changed":true}\n');
+      }),
+    ).toBe(1);
+  });
+
+  it('passes when the build changed nothing', () => {
+    expect(runStep(() => undefined)).toBe(0);
+  });
+});
+
+/**
+ * ***What stayed from the month the minutes ran out*** (2026-10-02, kept when
+ * the repository went public on 2026-10-03) — the three things `ci.yml`'s
+ * header lists, each of which a one-line edit could quietly undo, and one of
+ * which (the docs fast path) is only safe while a list stays complete that
+ * nobody would remember to extend.
+ */
+describe('the time CI spends', () => {
+  const DOCS_WORKFLOW = '.github/workflows/docs.yml';
+  const WORKFLOWS = ['.github/workflows/ci.yml', DOCS_WORKFLOW, '.github/workflows/release.yml'];
+
+  function yamlLines(path: string): string[] {
+    return repoText(path)
+      .split('\n')
+      .map((line) => line.replace(/(^|\s)#.*$/, ''))
+      .map((line) => (line.trim() === '' ? '' : line));
+  }
+
+  /** Each job's name and the lines of its block, under `jobs:`. */
+  function jobsOf(path: string): Map<string, string[]> {
+    const jobs = new Map<string, string[]>();
+    let current: string | null = null;
+    for (const line of blockUnder(yamlLines(path), /^jobs:\s*$/)) {
+      const start = /^ {2}([\w-]+):\s*$/.exec(line);
+      if (start !== null) {
+        current = start[1] ?? null;
+        if (current !== null) jobs.set(current, []);
+        continue;
+      }
+      if (current !== null) jobs.get(current)?.push(line);
+    }
+    return jobs;
+  }
+
+  it('gives every job a timeout, because the default is six hours', () => {
+    for (const path of WORKFLOWS) {
+      const jobs = jobsOf(path);
+      expect(jobs.size, `${path} has jobs`).toBeGreaterThan(0);
+      for (const [name, block] of jobs) {
+        expect(
+          block.some((line) => /^ {4}timeout-minutes:\s*\S/.test(line)),
+          `${path}'s ${name} has no timeout-minutes — a hung job holds its queue for six hours`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('skips the full run only for `docs/`, and sends exactly that to docs.yml', () => {
+    const ci = yamlLines(WORKFLOW);
+    const on = blockUnder(ci, /^on:\s*$/);
+    for (const trigger of ['push', 'pull_request']) {
+      expect(
+        sequenceUnder(blockUnder(on, new RegExp(`^\\s*${trigger}:`)), 'paths-ignore'),
+        `${trigger}: not \`**/*.md\` — CHANGELOG.md is built into the client`,
+      ).toEqual(['docs/**']);
+    }
+    const docsOn = blockUnder(yamlLines(DOCS_WORKFLOW), /^on:\s*$/);
+    for (const trigger of ['push', 'pull_request']) {
+      expect(
+        sequenceUnder(blockUnder(docsOn, new RegExp(`^\\s*${trigger}:`)), 'paths'),
+        `docs.yml's ${trigger} has to catch every push ci.yml lets go`,
+      ).toEqual(['docs/**']);
+    }
+  });
+
+  /**
+   * The fast path is safe only while it runs every test that reads a document,
+   * so the list is found rather than remembered: every tracked test file with a
+   * code line that builds a path into `docs/`. Each must be in the `docs`
+   * project, which `pnpm test:docs` runs, or named in a `docs.yml` step.
+   *
+   * **Comment lines dropped by their first characters, not by `stripComments`**:
+   * a citation is not a read, and the citations here are all docblock and `//`
+   * lines — while `stripComments` is not regex-literal aware, so across four
+   * hundred test files it meets a backtick inside a regex and gives up. A path
+   * built on the same line as a trailing comment is still found.
+   */
+  it('runs, on a docs-only push, every test that opens a document', () => {
+    const tracked = spawnSync('git', ['ls-files', '-z', '*.test.ts', '*.test.tsx'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    })
+      .stdout.split('\0')
+      .filter((path) => path !== '');
+    expect(tracked.length, 'git ls-files found the tests').toBeGreaterThan(100);
+
+    const opensDocs =
+      /(?:new URL|join|resolve|readFileSync|readdirSync)\([^)]*['"`](?:\.\.\/)*docs(?:\/|['"`])/;
+    const codeLines = (path: string): string[] =>
+      repoText(path)
+        .split('\n')
+        .filter((line) => !/^\s*(?:\/\/|\/\*|\*)/.test(line));
+    const readers = tracked.filter((path) => codeLines(path).some((line) => opensDocs.test(line)));
+    expect(readers, 'the scan finds the one it is known to need').toContain(
+      'packages/server/src/config.test.ts',
+    );
+
+    const docsProject = /const DOCS = \[([^\]]*)\]/
+      .exec(stripComments(repoText(VITEST_CONFIG)))?.[1]
+      ?.split(',')
+      .map((entry) => entry.trim().replace(/^'|'$/g, ''))
+      .filter((entry) => entry !== '');
+    expect(docsProject, 'vitest.config.ts declares DOCS').toBeDefined();
+
+    const docsRun = yamlLines(DOCS_WORKFLOW).join('\n');
+    expect(docsRun).toContain('pnpm test:docs');
+    for (const path of readers) {
+      expect(
+        (docsProject ?? []).includes(path) || docsRun.includes(path),
+        `${path} reads a document, and a push touching only docs/ would never run it — ` +
+          'add it to docs.yml\'s "The tests that read the documents" step',
+      ).toBe(true);
+    }
+  });
+
+  it('runs the suite in at least two workers, whatever the machine', async () => {
+    const config = (await import('../../vitest.config.js')) as {
+      default: { test?: { maxWorkers?: number | string } };
+    };
+    const workers = config.default.test?.maxWorkers;
+    expect(typeof workers, 'a number, not vitest’s default of one fewer than the cores').toBe(
+      'number',
+    );
+    expect(workers).toBeGreaterThanOrEqual(2);
   });
 });

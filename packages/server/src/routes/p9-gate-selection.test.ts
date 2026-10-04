@@ -13,7 +13,13 @@ import type { Rendition } from '@storyengine/shared';
 import { FakeProvider } from '../providers/fake.js';
 import { readRenditions, reusableBackdrop } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * ***Gate steps 4, 9, 10 and 11*** —
@@ -55,11 +61,27 @@ let fake: FakeProvider;
 let head: string | null = null;
 let counter = 0;
 
-async function boot(): Promise<void> {
+/**
+ * Stalls, for a picture that has to land while the next turn is written; and a
+ * place, for the stager to find in every passage.
+ */
+async function boot(
+  stalls: { replyMs?: number; imageMs?: number; place?: string } = {},
+): Promise<void> {
   dataDir = await mkdtemp(join(tmpdir(), 'se-p9-sel-'));
   fake = new FakeProvider({
-    script: [{ text: 'The room was dim.', object: { subject: 'a dim room', anchor: 'The room' } }],
-    images: [{}],
+    script: [
+      {
+        text: 'The room was dim.',
+        object: {
+          subject: 'a dim room',
+          anchor: 'The room',
+          ...(stalls.place === undefined ? {} : { place: stalls.place }),
+        },
+        ...(stalls.replyMs === undefined ? {} : { stallMs: stalls.replyMs }),
+      },
+    ],
+    images: [stalls.imageMs === undefined ? {} : { stallMs: stalls.imageMs }],
     capabilities: { rendersImages: true, supportsStructuredOutput: true },
   });
   server = await makeTestServer({ dataDir, providers: () => fake });
@@ -115,6 +137,53 @@ async function readHead(): Promise<string | null> {
   return (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
 }
 
+/** A turn submitted and committed, with what it dispatched left running. */
+async function submitATurn(): Promise<string> {
+  const before = head;
+  const submitted = await server.request({
+    method: 'POST',
+    url: `/api/sessions/${sessionId}/turns`,
+    payload: {
+      idempotencyKey: `k-${String(counter++)}`,
+      headTurnId: before,
+      input: { text: 'Walk on.' },
+    },
+  });
+  expect(submitted.status).toBe(202);
+  await eventually(async () => {
+    const now = await readHead();
+    return now !== null && now !== before;
+  });
+  await server.services.runner.settle();
+  head = await readHead();
+  return head ?? '';
+}
+
+/** What the session read says the backdrop is, and what the stage draws. */
+async function stage(): Promise<{ selected: string | null; drawn: string | null }> {
+  const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+  const body = read.body as {
+    session: { channels: Record<string, { value: unknown }> };
+    surfaces: { region: string; image?: { url: string } }[];
+  };
+  const value = body.session.channels['se.backdrop']?.value as { renditionId?: string } | undefined;
+  return {
+    selected: value?.renditionId ?? null,
+    drawn: body.surfaces.find((one) => one.region === 'stage')?.image?.url ?? null,
+  };
+}
+
+/** The session's first real turn — the one after the channel writes. */
+async function firstTurnOf(): Promise<string> {
+  const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+  const all = (turns.body as { turns: { id: string; output?: { text: string } | null }[] }).turns;
+  return all.find((turn) => (turn.output?.text ?? '') !== '')?.id ?? '';
+}
+
+function assetOf(renditionId: string): string {
+  return `/api/sessions/${sessionId}/renditions/${renditionId}/asset`;
+}
+
 async function takeATurn(): Promise<string> {
   const before = head;
   const submitted = await server.request({
@@ -131,6 +200,8 @@ async function takeATurn(): Promise<string> {
     const now = await readHead();
     return now !== null && now !== before;
   });
+  // Not when the head moves: when the turn, and what it dispatched, are done.
+  await settled(server);
   head = await readHead();
   return head ?? '';
 }
@@ -157,31 +228,51 @@ describe('a place already rendered dispatches no job', () => {
      * changes, so the step dispatches; moving it *back* restores the recipe, so
      * the digest matches a rendition already on disk.
      */
+    /**
+     * **Waited for by count, not merely by non-emptiness.** `every` over an
+     * empty list is **true**, so a wait without a length clause waits for
+     * nothing at all while no record has been written — *found 2026-09-16 under
+     * the full suite's load, where it presented as "the backdrop never landed"
+     * in one file and passed in isolation every time.* The dispatch is
+     * fire-and-forget by [P9.2]'s deliberate design, so *no renditions yet* and
+     * *all renditions settled* are the same answer.
+     *
+     * **`> 0` is only enough for the first one.** *Found 2026-09-22, the same
+     * way.* After the second turn the first turn's rendition is already there
+     * and already `ready`, so the wait returns at once and the assertion below
+     * reads the provider's log before the second image was ever asked for. A
+     * stale answer satisfies the same predicate an empty one did.
+     *
+     * ***No longer the wait, still the claim*** (2026-10-02, the merge of
+     * origin's main). Main fixed the same race at its cause while this was
+     * being written: `takeATurn` now awaits `settled(server)`, which drains the
+     * pictures a turn dispatched, so by the time this runs there is nothing
+     * left to wait for and it passes on its first look. It stays because its
+     * predicate says what the row needs and the drain does not: the drain
+     * returns when a picture *stops*, and a picture cut off at the grace stops
+     * as `interrupted` — this asks for `count` of them, every one `ready`.
+     * Named `landed` rather than the `settled` it was written as, because the
+     * merge brought `settled` in as an import and a local of the same name hid
+     * it for the rest of this test: a later `settled(server)` here would have
+     * called this one, and been refused by the typechecker as a server where a
+     * count belongs, which is a confusing way to learn there are two.
+     */
+    const landed = async (count: number): Promise<void> => {
+      await eventually(async () => {
+        const all = await renditionsOf();
+        return all.length >= count && all.every((one) => one.state === 'ready');
+      });
+    };
+
     await write('se.location', 'the taproom');
     await takeATurn();
-    await eventually(async () => {
-      const all = await renditionsOf();
-      // **Non-empty, and that clause is load-bearing.** `every` over an empty
-      // list is **true**, so without it this waits for nothing at all whenever
-      // the record has not been written yet — and the next line reads
-      // `[0]` off an empty array. *Found 2026-09-16 under the full suite's
-      // load, where it presented as "the backdrop never landed" in one file and
-      // passed in isolation every time.* It is the vacuous half of the same
-      // fire-and-forget design [P9.2] chose deliberately: the dispatch is
-      // detached, so *no renditions yet* and *all renditions settled* are the
-      // same answer to `every`.
-      return all.length > 0 && all.every((one) => one.state === 'ready');
-    });
+    await landed(1);
     expect(fake.images).toHaveLength(1);
 
     // A second room. A new place is a new recipe, so this one is paid for.
     await write('se.location', 'the cellar');
     await takeATurn();
-    await eventually(async () => {
-      const all = await renditionsOf();
-      // Non-empty, for the reason spelled out on the first of these.
-      return all.length > 0 && all.every((one) => one.state === 'ready');
-    });
+    await landed(2);
     expect(fake.images).toHaveLength(2);
 
     // And back upstairs. **Nothing is dispatched**, which is the whole row.
@@ -190,6 +281,43 @@ describe('a place already rendered dispatches no job', () => {
     expect(fake.images).toHaveLength(2);
   });
 
+  /**
+   * ***And the place you come back to is the one on the stage*** (2026-09-30).
+   * The step recorded which backdrop it reused and nothing pointed the channel
+   * at it, so the cellar stayed behind the taproom's prose. Written in the
+   * turn that reused it, and drawn: the session read draws a generated
+   * backdrop now, where it drew nothing, having no session to address it by.
+   */
+  it('shows the returning place’s own backdrop, drawn from the session read', async () => {
+    const ready = async (): Promise<void> => {
+      await eventually(async () => {
+        const all = await renditionsOf();
+        return all.length > 0 && all.every((one) => one.state === 'ready');
+      });
+    };
+
+    await write('se.location', 'the taproom');
+    await takeATurn();
+    await ready();
+    const taproom = (await renditionsOf())[0]?.id ?? '';
+    expect(await stage()).toEqual({ selected: taproom, drawn: assetOf(taproom) });
+
+    await write('se.location', 'the cellar');
+    await takeATurn();
+    await ready();
+    const cellar = (await renditionsOf()).find((one) => one.id !== taproom)?.id ?? '';
+    expect(await stage()).toEqual({ selected: cellar, drawn: assetOf(cellar) });
+
+    await write('se.location', 'the taproom');
+    const returned = await takeATurn();
+    expect(await stage()).toEqual({ selected: taproom, drawn: assetOf(taproom) });
+    // In the turn that walked back, not a node after it.
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    const walkedBack = (
+      turns.body as { turns: { id: string; effects: { channelId: string }[] }[] }
+    ).turns.find((turn) => turn.id === returned);
+    expect(walkedBack?.effects.some((one) => one.channelId === 'se.backdrop')).toBe(true);
+  });
   it('comes back to the backdrop you chose rather than the oldest', async () => {
     /**
      * §10.1a's clause, at the level it is decided. A manual regenerate adds a
@@ -262,6 +390,109 @@ describe('a place already rendered dispatches no job', () => {
     expect(backdropEffects.length).toBeGreaterThan(0);
     // **Ordinary, never escaped** — the amendment [P9 §0.3] made to §1.7.
     expect(backdropEffects.every((one) => one.scope === 'session')).toBe(true);
+  });
+});
+
+/**
+ * ***The place, tracked for a backdrop alone*** (2026-09-30). The stager is the
+ * place's only writer, and it asked nothing unless somebody present had faces
+ * to choose — so with *Stage a backdrop* on and staging left at its default, or
+ * a cast of imported cards with no sprites, the place was never written and
+ * every backdrop was the tone's mood.
+ */
+describe('the place, with only the backdrop on', () => {
+  beforeEach(async () => {
+    await boot({ place: 'the taproom' });
+    await write('se.backdrop.on', true);
+  });
+
+  it('is written from the passage every turn', async () => {
+    await takeATurn();
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const channels = (read.body as { session: { channels: Record<string, { value: unknown }> } })
+      .session.channels;
+    expect(channels['se.location']?.value).toBe('the taproom');
+  });
+
+  /**
+   * ***And drawn in the same turn*** (2026-09-30). The render step read the
+   * channels as they were when the plan was built, before the stager wrote
+   * the place: the first turn's backdrop was a mood, and every move after it
+   * reached the backdrop a turn late.
+   */
+  it('is this turn’s backdrop, not the next one’s', async () => {
+    await takeATurn();
+    await eventually(async () => {
+      const all = await renditionsOf();
+      return all.length > 0 && all.every((one) => one.state === 'ready');
+    });
+
+    const [drawn] = await renditionsOf();
+    expect(drawn?.turnId).toBe(await firstTurnOf());
+    expect(drawn?.prompt.text).toContain('the taproom');
+  });
+});
+
+/**
+ * ***A backdrop that lands while the next turn is being written*** (2026-09-30).
+ *
+ * Two things went wrong at once. The next turn found the place's backdrop
+ * pending rather than ready and asked for another of the same place, which
+ * made the first give way when it landed: paid for twice, and the first never
+ * shown. And a backdrop held for a turn is selected after that turn's
+ * `turn.finished`, which sends a page to read the head, so the page kept the
+ * turn as its head and its next submission was refused as out of date — the
+ * frame that says the backdrop moved had gone out while the turn was running.
+ */
+describe('a backdrop that lands while the next turn is written', () => {
+  beforeEach(async () => {
+    await boot({ replyMs: 1500, imageMs: 800 });
+    await write('se.backdrop.on', true);
+    await write('se.location', 'the taproom');
+  });
+
+  it('is paid for once, shown on top of that turn, and told after it', async () => {
+    const heard: string[] = [];
+    const unsubscribe = server.services.bus.subscribe(sessionId, {
+      onEvents: (_jobId, events) => {
+        for (const event of events) if (event.key === 'turn.finished') heard.push('finished');
+      },
+      onDelta: () => undefined,
+      onRendition: (rendition) => {
+        heard.push(`rendition ${rendition.state}`);
+      },
+    });
+
+    try {
+      const first = await submitATurn();
+      const drawn = (await renditionsOf())[0];
+      expect(drawn?.state).toBe('pending');
+
+      await takeATurn();
+
+      expect(fake.images).toHaveLength(1);
+      expect(heard.lastIndexOf('rendition ready')).toBeGreaterThan(heard.lastIndexOf('finished'));
+      const shown = await stage();
+      expect(shown.selected).toBe(drawn?.id);
+      // A node of its own on top of the second turn, which sits on the first.
+      const turns = await server.request({
+        method: 'GET',
+        url: `/api/sessions/${sessionId}/turns`,
+      });
+      const byId = new Map(
+        (
+          turns.body as {
+            turns: { id: string; parentTurnId: string | null; effects: { channelId: string }[] }[];
+          }
+        ).turns.map((turn) => [turn.id, turn]),
+      );
+      const selection = byId.get(head ?? '');
+      expect(selection?.effects.map((one) => one.channelId)).toEqual(['se.backdrop']);
+      expect(byId.get(selection?.parentTurnId ?? '')?.parentTurnId).toBe(first);
+    } finally {
+      unsubscribe();
+    }
   });
 });
 

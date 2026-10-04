@@ -164,12 +164,3 @@ export function aventurasLorebook(): Record<string, unknown>[] {
     },
   ];
 }
-
-/** The three, as an upload tree a `MemoryFileSource` can read. */
-export function aventurasFiles(): Record<string, string> {
-  return {
-    'Ash Harbour.json': JSON.stringify(aventurasScenario(), null, 2),
-    'Ines Vaur.json': JSON.stringify(aventurasCharacter(), null, 2),
-    'Harbour lore.json': JSON.stringify(aventurasLorebook(), null, 2),
-  };
-}

@@ -15,7 +15,7 @@ import { readPacing, SE_HOOK_PACING } from '../sessions/hooks.js';
 import { applyEffects } from '../sessions/store.js';
 import type { ChannelState } from '../sessions/types.js';
 import { installBuiltIns } from '../mode-loader.js';
-import { acceptEffect, type EffectProposal } from './effects.js';
+import { acceptEffect, acceptStepEffect, type EffectProposal } from './effects.js';
 
 /**
  * The engine decides, and records the decision either way — [21 §1.2].
@@ -348,5 +348,85 @@ describe('a proposal is judged against the channel’s schema', () => {
 
     expect(effect.applied).toBe(true);
     expect(effect.rejectedReason).toBeNull();
+  });
+});
+
+/**
+ * ***A step's proposal, held to what the step declared*** (2026-09-30) —
+ * `acceptStepEffect`. The channel's policy read the proposal's own stamp, and
+ * nothing held the channel or the stamp to the step: a step could write what
+ * it never declared, and stamp itself a person (which `user-only` admits) or
+ * the engine (which `engine-computed` does).
+ */
+describe('a step’s proposal is held to its declaration', () => {
+  beforeEach(async () => {
+    await installBuiltIns();
+  });
+
+  const claim = { id: 'example.step', writes: [SE_HOOK_PACING], calls: new Set(['call-1']) };
+  const pacing = (proposedBy: EffectProposal['proposedBy']): EffectProposal => ({
+    channelId: SE_HOOK_PACING,
+    op: { type: 'set', path: '/' },
+    after: 'aggressive',
+    proposedBy,
+  });
+
+  it('refuses a person’s stamp, and records the step as the one who proposed', () => {
+    const effect = acceptStepEffect('t1', pacing({ kind: 'user' }), {}, claim);
+
+    expect(effect.applied).toBe(false);
+    expect(effect.rejectedReason).toBe('not-its-proposer');
+    expect(effect.proposedBy).toEqual({ kind: 'step', stepId: 'example.step' });
+    // What it tried is kept, as every refusal keeps it ([21 §1.2]).
+    expect(effect.after).toBe('aggressive');
+  });
+
+  it('refuses the engine’s stamp, another step’s, and a call it did not make', () => {
+    for (const forged of [
+      { kind: 'engine' },
+      { kind: 'step', stepId: 'another.step' },
+      { kind: 'model', callId: 'call-of-another' },
+    ] as const) {
+      const effect = acceptStepEffect('t1', pacing(forged), {}, claim);
+      expect(effect.rejectedReason, forged.kind).toBe('not-its-proposer');
+      expect(effect.applied, forged.kind).toBe(false);
+    }
+  });
+
+  it('refuses a channel outside what it declared it writes', () => {
+    const effect = acceptStepEffect(
+      't1',
+      proposal({ proposedBy: { kind: 'model', callId: 'call-1' } }),
+      atStart(),
+      claim,
+    );
+
+    expect(effect.rejectedReason).toBe('undeclared-write');
+    expect(effect.applied).toBe(false);
+  });
+
+  it('leaves its own proposals to the channel’s policy', () => {
+    // Its own stamps: the channel decides, as it always has — and `user-only`
+    // refuses a step even when the step is honest about being one.
+    expect(
+      acceptStepEffect('t1', pacing({ kind: 'model', callId: 'call-1' }), {}, claim),
+    ).toMatchObject({ applied: false, rejectedReason: 'user-only' });
+    expect(
+      acceptStepEffect('t1', pacing({ kind: 'step', stepId: 'example.step' }), {}, claim),
+    ).toMatchObject({ applied: false, rejectedReason: 'user-only' });
+
+    const lore = acceptStepEffect(
+      't1',
+      {
+        channelId: SE_LORE_TIMING,
+        scopeKey: 'e-1',
+        op: { type: 'set', path: '/' },
+        after: { sticky: 0, cooldown: 0, fired: 1 },
+        proposedBy: { kind: 'step', stepId: 'example.step' },
+      },
+      {},
+      { ...claim, writes: [SE_LORE_TIMING] },
+    );
+    expect(lore.rejectedReason).toBe('engine-computed');
   });
 });

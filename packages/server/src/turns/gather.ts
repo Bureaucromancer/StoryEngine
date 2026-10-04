@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import {
+  collectCandidates,
+  type CollectChat,
+  type CollectContext,
+  type Collected,
+} from '../assembly/collect.js';
+import { castIsPresentFor, chatSettingsOf, noteDue } from '../sessions/chat-settings.js';
+import { saysSomething } from './speakers.js';
 import type { Accounts } from '../auth/accounts.js';
-import { DEFAULT_MODE_ID, defaultMode, modeById } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, defaultMode, resolvedMode } from '../mode-registry.js';
 import type { Mode } from '@storyengine/sdk';
 import { readBindings, readSystemBindings } from '../providers/bindings.js';
 import type { RoleBindings } from '../providers/roles.js';
@@ -15,9 +23,13 @@ import type { ChannelState, PooledHook, SessionFile, Turn } from '../sessions/ty
 import type { DifficultyLevel, Goal, Preset } from '@storyengine/shared';
 import { readRegistry } from '../tags/store.js';
 import { readDial, resolveLevel, type DialAxis } from '../sessions/dials.js';
-import { readConcluded, readCurrentGoal } from '../sessions/goals.js';
+import { readableGoals, readConcluded, readCurrentGoal } from '../sessions/goals.js';
+import { readPool } from '../sessions/pool-shape.js';
+import { storyTurns } from '../sessions/depth.js';
+import { presetOf } from '../sessions/preset-of.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
 import { summaryRootOf, type SummaryRoot } from '../sessions/summary-chain.js';
+import type { PlanContext } from './calls.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
 
@@ -51,12 +63,21 @@ export interface AssemblyInputs {
   turnsById: Map<string, Turn>;
   /** The path from the head, oldest first. */
   history: Turn[];
-  /** `history`, cut to the mode's `historyWindow`. **What the collector is given.** */
+  /**
+   * The story turns of `history`, cut to the mode's `historyWindow`. **What
+   * the collector is given.** Story turns, so a turn nothing narrated takes no
+   * place in the window (`sessions/depth.ts`).
+   */
   windowed: Turn[];
   channels: Record<string, ChannelState>;
   usable: Connection[];
   /** Personal connections this account may not use. The caller logs the count. */
   disabled: Connection[];
+  /**
+   * Personal connections whose id a system connection also claims, so they
+   * shadow it for this account. The caller logs the count, as for `disabled`.
+   */
+  shadowing: Connection[];
   bindings: RoleBindings;
   defaults: RoleBindings;
   mode: Mode;
@@ -135,7 +156,7 @@ export interface AssemblyInputs {
   /**
    * What had already happened before the first turn — the summary chain's root,
    * [04 §7.2](../../../../docs/design/04-schemas.md),
-   * [P13.2](../../../../docs/design/workplan/30-p13-implementation.md).
+   * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * **Here for the reason `goals` is here**: a preview and a real turn must not
    * be able to disagree about it, and it is read off the session's copy of its
@@ -145,6 +166,27 @@ export interface AssemblyInputs {
    * the window does. `null` for a session that did not start from one.
    */
   summaryRoot: SummaryRoot | null;
+}
+
+/**
+ * ***The text answers the session was set up with*** (2026-09-30) — what a
+ * `setup` slot names by field id ([04 §8.2]).
+ *
+ * *Read here, not in the collector*, for the dials' reason below: `mode.config`
+ * is a record field [04 §7] keeps opaque to the host, and this does not open
+ * it — it hands the pack what the pack asked for by name, without reading what
+ * any answer means. **Own string fields only, trimmed**: a blank answer is an
+ * empty one, which the slot's `omitWhenEmpty` decides about as it does for a
+ * blank framing, and never a heading over whitespace. A config that is not an
+ * object is none.
+ */
+function setupAnswers(config: unknown): Record<string, string> {
+  const answers: Record<string, string> = {};
+  if (typeof config !== 'object' || config === null || Array.isArray(config)) return answers;
+  for (const [field, value] of Object.entries(config)) {
+    if (typeof value === 'string') answers[field] = value.trim();
+  }
+  return answers;
 }
 
 /**
@@ -224,7 +266,7 @@ export async function gatherAssemblyInputs(
    */
   const account = await context.accounts.find(request.account);
   const capabilities = account?.capabilities ?? { privateConnections: false };
-  const { usable, disabled } = await resolveConnections(
+  const { usable, disabled, shadowing } = await resolveConnections(
     context.sessions.layout,
     request.account,
     capabilities,
@@ -243,11 +285,19 @@ export async function gatherAssemblyInputs(
    * [00 §3.3]: a session whose mode came from a newer build, or from an
    * extension that is not installed, is still somebody's story and should
    * still open. `declaredMode` travels out so the caller can say so.
+   * *Through `resolvedMode`*, the one answer the session's view gets too
+   * (2026-09-30).
    */
   const declaredMode = session?.mode?.id ?? DEFAULT_MODE_ID;
-  const mode = modeById(declaredMode) ?? defaultMode();
+  const mode = resolvedMode(declaredMode) ?? defaultMode();
 
-  const preset = session?.preset ?? mode.definition.assembly.defaultPreset;
+  /**
+   * The session's own copy, or the mode's pack for a session that has none —
+   * and a copy of the mode's own pack with whatever the mode has shipped since
+   * it was taken (2026-09-27, `presetOf`), so a block added after a session
+   * began is a block that session's turns are assembled from.
+   */
+  const preset = presetOf(session?.preset, mode);
   // One library handle for both resolvers. They read the same store as the same
   // account, and building it twice would be two chances to disagree about the
   // history depth.
@@ -272,9 +322,19 @@ export async function gatherAssemblyInputs(
    * the treatment it names, selected it — see `LoreRoute`.
    */
   const lore = resolveLore(library, request.account, session);
-  const pool = Array.isArray(session?.hooks) ? session.hooks : [];
-  const chain = Array.isArray(session?.goals) ? session.goals : [];
-  const windowed = history.slice(-mode.definition.assembly.historyWindow);
+  // The hooks the engine can read; one the schema refuses is the panel's to
+  // show and never the selector's to weigh (`pool-shape.ts`, 2026-09-27).
+  const pool = readPool(session?.hooks).usable;
+  const chain = readableGoals(session?.goals);
+  /**
+   * ***The last turns of the story, not of the path*** (2026-09-27). A channel
+   * write, an undo or a backdrop choice is on the path and says nothing, and
+   * each one in the last twenty took the place of a turn somebody read: a
+   * session with a few HUD edits sent the model fifteen turns of a twenty-turn
+   * window. The summary chain covers the rest of the same list
+   * (`transcriptOf`), so the two meet without a gap or an overlap.
+   */
+  const windowed = storyTurns(history).slice(-mode.definition.assembly.historyWindow);
 
   return {
     session,
@@ -284,6 +344,7 @@ export async function gatherAssemblyInputs(
     channels,
     usable,
     disabled,
+    shadowing,
     bindings,
     defaults,
     mode,
@@ -300,4 +361,116 @@ export async function gatherAssemblyInputs(
     dials: resolveDials(preset, channels, session?.mode?.config),
     summaryRoot: summaryRootOf(session?.setup),
   };
+}
+
+/**
+ * ***Which model a call resolves to, asked the same way by every caller*** —
+ * [19 §5.1]'s layers as this gather holds them (2026-09-27).
+ *
+ * The runner handed `planCall` the session's own overrides and the cast, and
+ * the preview and impersonation did not. So a session whose narrator was
+ * pointed at a hosted 128k model was metered against the account default's
+ * 8k window, under the account default's name, and its impersonations went to
+ * the account default's endpoint: a different provider, and a different key,
+ * from the one the person chose for this session. The layers come from here
+ * now, so a caller cannot hold some of them.
+ */
+export function roleLayersOf(
+  inputs: AssemblyInputs,
+): Pick<PlanContext, 'bindings' | 'defaults' | 'usable' | 'sessionRoles' | 'stepRoles' | 'cast'> {
+  return {
+    bindings: inputs.bindings,
+    defaults: inputs.defaults,
+    usable: inputs.usable,
+    ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
+    ...(inputs.session?.stepRoles === undefined ? {} : { stepRoles: inputs.session.stepRoles }),
+    // So a call naming an actor can be resolved with that actor's hint.
+    cast: inputs.cast,
+  };
+}
+
+/** What the collector takes from the gather rather than from the call. */
+type FromGather =
+  | 'preset'
+  | 'history'
+  | 'persona'
+  | 'actors'
+  | 'channels'
+  | 'modeId'
+  | 'setup'
+  | 'carriers'
+  | 'goal'
+  | 'dials'
+  | 'summaryRoot'
+  | 'chat';
+
+/**
+ * ***The collector's input, the half this gather knows filled here once***
+ * (2026-09-27).
+ *
+ * Three callers assemble — the runner, the preview and impersonation — and
+ * each wrote its own `collectCandidates` call, so a producer wired into one
+ * shipped without the others: the goal and the dials reached the preview a
+ * stage after the turn ([P7.8] says so where it fixed them), and nothing but
+ * reading all three could tell. The pack, the window, the cast, the channels,
+ * the lore's carriers, the goal and the dials come from the gather; the caller
+ * passes only what it alone knows — the call kind, the lore it retrieved, and
+ * what this turn brought. The runner passes its running channel map, which
+ * moves as its steps apply effects.
+ */
+export function collectFor(
+  inputs: AssemblyInputs,
+  call: Omit<CollectContext, FromGather> & Partial<Pick<CollectContext, 'channels'>>,
+): Collected {
+  /**
+   * ***The chat settings, read once for every caller*** — [P14.3], through
+   * `chatSettingsOf` for its reason (what absence means is not a local
+   * question). The author's note is decided here because deciding needs the
+   * whole path's input count, and the collector is handed only the window; it
+   * reaches **only a call that writes the turn's messages** (one with a
+   * `voice`), because a note steers the story's replies and a stager's or a
+   * judge's call is not one. Impersonation carries no voice and no note —
+   * SillyTavern sends its note to an impersonation too, and a person who wants
+   * that has the guidance box, which is per turn.
+   */
+  const chat = chatSettingsOf(inputs.session, inputs.mode.definition);
+  const spoken =
+    inputs.history.filter((turn) => saysSomething(turn.input)).length +
+    (saysSomething(call.input) ? 1 : 0);
+  const collectChat: CollectChat = {
+    dispatch: chat.dispatch,
+    // The mode's reading, in an embodied session only — see `castIsPresentFor`.
+    castIsPresent: castIsPresentFor(chat, inputs.mode.definition),
+    namesInHistory: chat.speakers.namesInHistory,
+    hidden: chat.hidden,
+    prompts: chat.prompts,
+    note: call.voice === undefined ? null : noteDue(chat.note, spoken),
+  };
+  return collectCandidates({
+    chat: collectChat,
+    preset: inputs.preset,
+    history: inputs.windowed,
+    persona: inputs.cast.persona,
+    actors: inputs.cast.actors,
+    channels: inputs.channels,
+    modeId: inputs.mode.definition.id,
+    setup: setupAnswers(inputs.session?.mode?.config),
+    carriers: { treatment: inputs.lore.treatment, books: inputs.lore.books },
+    ...(inputs.goals.current === null
+      ? {}
+      : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
+    dials: inputs.dials,
+    /**
+     * ***The story so far, read off the Setup copy*** — [P15.2]. Here, once,
+     * for this function's own reason: the branch that added it wrote it into
+     * the runner's, the preview's and impersonation's calls separately, which
+     * is the three-copies shape this function was written to end, and the
+     * merge (2026-10-03) folded it in. No call stands behind it, so every
+     * caller has it exactly as a turn does.
+     */
+    ...(inputs.summaryRoot === null
+      ? {}
+      : { summaryRoot: { text: inputs.summaryRoot.text, setupId: inputs.summaryRoot.setupId } }),
+    ...call,
+  });
 }

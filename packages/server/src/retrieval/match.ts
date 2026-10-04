@@ -102,6 +102,44 @@ export interface PatternRefusal {
   detail?: string;
 }
 
+/**
+ * ***What one scan has learned about its patterns*** (2026-09-27).
+ *
+ * `testPattern`'s fifty milliseconds bounds one call, and the scan made a great
+ * many: every key against every message, then again against every recursive
+ * pass, then again as a secondary key. A pattern that timed out on the first
+ * message was run again on the second. A book of five catastrophic keys, read
+ * to `scanDepth: 0` over an eight-hundred-message session, cost about two
+ * hundred seconds per call kind per turn, synchronously, for every account on
+ * the server. That is the denial of service [P5.4]'s timeout was written to
+ * close, reached by repetition.
+ *
+ * So a scan keeps a ledger. A pattern refused once, invalid or timed out, is
+ * refused for the rest of the scan without being run again: an invalid one is
+ * invalid everywhere, and one that times out on one haystack is not worth
+ * betting on the next. And a scan that has seen {@link SCAN_TIMEOUT_LIMIT}
+ * timeouts runs no more patterns, and reports each one it skips as timed out,
+ * because the scan's time for patterns is what ran out. Invalid patterns cost
+ * nothing to discover and do not count.
+ */
+export interface RegexLedger {
+  /** Patterns this scan has refused, keyed by flags and source. */
+  refused: Map<string, PatternRefusal>;
+  /** Patterns this scan has seen time out. */
+  timeouts: number;
+}
+
+export function newRegexLedger(): RegexLedger {
+  return { refused: new Map(), timeouts: 0 };
+}
+
+/**
+ * Timeouts one scan will spend before it runs no more patterns: a fifth of a
+ * second at `PATTERN_TIMEOUT_MS`. **Not configurable**, for the reason
+ * `regex.ts` gives about its own number.
+ */
+export const SCAN_TIMEOUT_LIMIT = 4;
+
 export interface MatchResult {
   /**
    * - `matched` — a primary key hit and any secondary condition allowed it.
@@ -140,6 +178,7 @@ function keyMatches(
   entry: LoreEntry,
   key: string,
   haystack: string,
+  ledger: RegexLedger,
 ): { hit: boolean; at?: Span; refusal?: PatternRefusal } {
   if (entry.useRegex) {
     /**
@@ -149,17 +188,27 @@ function keyMatches(
      * change what they wrote. It is also what SillyTavern does, which matters
      * because the library is full of patterns written against it.
      */
-    const outcome: PatternOutcome = testPattern(key, entry.caseSensitive ? '' : 'i', haystack);
+    const flags = entry.caseSensitive ? '' : 'i';
+    const id = `${flags}\u0000${key}`;
+    const known = ledger.refused.get(id);
+    if (known !== undefined) return { hit: false, refusal: known };
+    if (ledger.timeouts >= SCAN_TIMEOUT_LIMIT) {
+      const skipped: PatternRefusal = { key, reason: 'timed-out' };
+      ledger.refused.set(id, skipped);
+      return { hit: false, refusal: skipped };
+    }
+
+    const outcome: PatternOutcome = testPattern(key, flags, haystack);
     if (outcome.kind === 'matched') return { hit: true };
     if (outcome.kind === 'no-match') return { hit: false };
-    return {
-      hit: false,
-      refusal: {
-        key,
-        reason: outcome.kind === 'timed-out' ? 'timed-out' : 'invalid',
-        ...(outcome.kind === 'invalid' ? { detail: outcome.detail } : {}),
-      },
+    const refusal: PatternRefusal = {
+      key,
+      reason: outcome.kind === 'timed-out' ? 'timed-out' : 'invalid',
+      ...(outcome.kind === 'invalid' ? { detail: outcome.detail } : {}),
     };
+    ledger.refused.set(id, refusal);
+    if (outcome.kind === 'timed-out') ledger.timeouts += 1;
+    return { hit: false, refusal };
   }
 
   /**
@@ -228,18 +277,27 @@ function haystacksFor(
   return { named, unknownSources };
 }
 
+/**
+ * Adds a refusal once. A ledgered refusal comes back as the same object on
+ * every haystack, so an entry names each refused key once, not once per message.
+ */
+function note(refused: PatternRefusal[], refusal: PatternRefusal | undefined): void {
+  if (refusal !== undefined && !refused.includes(refusal)) refused.push(refusal);
+}
+
 /** The first key to hit anywhere, with where it hit, plus every refusal met. */
 function firstHit(
   entry: LoreEntry,
   keys: readonly string[],
   haystacks: readonly { source: string; text: string }[],
+  ledger: RegexLedger,
 ): { hit: KeyHit | null; refused: PatternRefusal[] } {
   const refused: PatternRefusal[] = [];
 
   for (const { source, text } of haystacks) {
     for (const key of keys) {
-      const outcome = keyMatches(entry, key, text);
-      if (outcome.refusal) refused.push(outcome.refusal);
+      const outcome = keyMatches(entry, key, text, ledger);
+      note(refused, outcome.refusal);
       if (outcome.hit) {
         return {
           hit: { key, source, ...(outcome.at === undefined ? {} : { at: outcome.at }) },
@@ -272,13 +330,14 @@ function secondaryAllows(
   entry: LoreEntry,
   haystacks: readonly { source: string; text: string }[],
   refused: PatternRefusal[],
+  ledger: RegexLedger,
 ): boolean {
   if (!entry.selective || entry.secondaryKeys.length === 0) return true;
 
   const hits = entry.secondaryKeys.map((key) => {
     for (const { text } of haystacks) {
-      const outcome = keyMatches(entry, key, text);
-      if (outcome.refusal) refused.push(outcome.refusal);
+      const outcome = keyMatches(entry, key, text, ledger);
+      note(refused, outcome.refusal);
       if (outcome.hit) return true;
     }
     return false;
@@ -296,17 +355,26 @@ function secondaryAllows(
   }
 }
 
-export function matchEntry(book: Lorebook, entry: LoreEntry, input: ScanInput): MatchResult {
+/**
+ * One entry against what it reads. `ledger` is the scan's, so a caller that
+ * matches many entries passes one; alone, an entry gets its own.
+ */
+export function matchEntry(
+  book: Lorebook,
+  entry: LoreEntry,
+  input: ScanInput,
+  ledger: RegexLedger = newRegexLedger(),
+): MatchResult {
   const { named, unknownSources } = haystacksFor(book, entry, input);
 
   if (entry.keys.length === 0) {
     return { outcome: 'no-keys', by: null, refused: [], unknownSources };
   }
 
-  const { hit, refused } = firstHit(entry, entry.keys, named);
+  const { hit, refused } = firstHit(entry, entry.keys, named, ledger);
   if (hit === null) return { outcome: 'no-match', by: null, refused, unknownSources };
 
-  return secondaryAllows(entry, named, refused)
+  return secondaryAllows(entry, named, refused, ledger)
     ? { outcome: 'matched', by: hit, refused, unknownSources }
     : { outcome: 'held-by-secondary', by: hit, refused, unknownSources };
 }

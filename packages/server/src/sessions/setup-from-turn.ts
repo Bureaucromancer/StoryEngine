@@ -23,7 +23,7 @@ import type { PooledHook, SessionFile } from './types.js';
 /**
  * ***What a Setup made from a turn carries*** —
  * [04 §7.2](../../../../docs/design/04-schemas.md),
- * [P13.5](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.5](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **Pure, and the most tested file in the phase**, because it is where the two
  * promises the feature makes are kept or broken: that a session started from
@@ -32,7 +32,7 @@ import type { PooledHook, SessionFile } from './types.js';
  *
  * ---
  *
- * ***Four groups cross, and channel state does not.*** [P13 §1.2] is the
+ * ***Four groups cross, and channel state does not.*** [P15 §1.2] is the
  * decision: the party, the goal the story is on, the hooks — unfired ones
  * carried and fired ones spent — and the story so far, which is not here
  * because it is written by a model and edited by a person rather than read off
@@ -326,7 +326,7 @@ export interface SetupTexts {
  * The texts come from the wizard, and the carry is the server's own reading of
  * the turn. `provenance.source` is `session` — honest about where it came from,
  * and safe on a Setup because only lorebooks are read for that marker
- * (`retrieval/blocks.ts`, [P13 §0.3]).
+ * (`retrieval/blocks.ts`, [P15 §0.3]).
  *
  * *`companion` is the facts lorebook when one was kept*, linked `required`: the
  * Setup's story was written against those facts, so a session that cannot find

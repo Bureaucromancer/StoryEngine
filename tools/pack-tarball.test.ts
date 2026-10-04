@@ -1,15 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readlink,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createGunzip } from 'node:zlib';
-import { createReadStream } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { filesUnder, pack } from './pack-tarball.mjs';
+import { EXECUTABLE, membersUnder, outsideTheTree, pack } from './pack-tarball.mjs';
+import { paxRecord } from './tar.mjs';
 
 /**
  * ***The half of "reproducible builds" a machine with no Docker can still
@@ -58,30 +70,76 @@ async function populate(): Promise<void> {
   await writeFile(join(tree, 'build-info.json'), '{"version":"1.0.0"}');
 
   await writeFile(join(extras, 'storyengine.service'), '[Unit]\n');
+  /**
+   * ***The packing filesystem's modes, deliberately wrong both ways.*** The
+   * installer carries no executable bit — what a Windows checkout, a
+   * `core.fileMode=false` clone or a source zip gives — and an ordinary file
+   * carries one. The archive has to come out the same regardless, because the
+   * mode is declared by name in `pack-tarball.mjs` rather than read off disk.
+   *
+   * *Here, in the fixture every test packs, rather than in the mode test alone*:
+   * that way no test in this file can pass because the fixture's mode happened
+   * to be the answer, which is how the version of the mode test that `chmod`ed
+   * the script to `0755` passed on Linux for the broken implementation.
+   */
   await writeFile(join(extras, 'install.sh'), '#!/bin/sh\n');
-  await chmod(join(extras, 'install.sh'), 0o755);
+  await chmod(join(extras, 'install.sh'), 0o644);
+  await chmod(join(tree, 'dist', 'main.js'), 0o755);
 }
 
-/** Member names and modes, read back out of the archive. */
-async function membersOf(archive: string): Promise<{ name: string; mode: string }[]> {
+/** One member as the archive describes it, PAX records already applied. */
+interface Member {
+  name: string;
+  mode: string;
+  /** ustar's type flag: `0` a file, `2` a link. */
+  type: string;
+  /** The header's own `linkname` field, exactly as written. */
+  linkname: string;
+  /** A target from a PAX record before it, which outranks the header's. */
+  linkpath: string | null;
+}
+
+/**
+ * Members read back out of the archive.
+ *
+ * ***A PAX header is attached, not listed***, which is what a reader does with
+ * one: its records describe the member after it, so a `linkpath` here belongs
+ * to that member and the `x` block itself is not a member of anything. Kept
+ * beside the header's own field rather than over it, because what that field
+ * holds when a record outranks it is part of what is asserted.
+ */
+async function membersOf(archive: string): Promise<Member[]> {
   const chunks: Buffer[] = [];
   for await (const chunk of createReadStream(archive).pipe(createGunzip())) {
     chunks.push(chunk as Buffer);
   }
   const tar = Buffer.concat(chunks);
+  const text = (from: number, length: number): string =>
+    tar
+      .subarray(from, from + length)
+      .toString('utf8')
+      .replace(/\0.*$/s, '');
 
-  const found: { name: string; mode: string }[] = [];
+  const found: Member[] = [];
+  let pending: string | null = null;
   let at = 0;
   while (at + 512 <= tar.length) {
     const header = tar.subarray(at, at + 512);
     if (header.every((byte) => byte === 0)) break;
-    const name = header.subarray(0, 100).toString('utf8').replace(/\0.*$/, '');
-    const mode = header.subarray(100, 108).toString('ascii').replace(/\0.*$/, '').trim();
-    const size = Number.parseInt(
-      header.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim(),
-      8,
-    );
-    found.push({ name, mode });
+    const size = Number.parseInt(text(at + 124, 12).trim(), 8);
+    const type = text(at + 156, 1);
+    if (type === 'x') {
+      pending = /^\d+ linkpath=(.*)\n$/s.exec(text(at + 512, size))?.[1] ?? null;
+    } else {
+      found.push({
+        name: text(at, 100),
+        mode: text(at + 100, 8).trim(),
+        type,
+        linkname: text(at + 157, 100),
+        linkpath: pending,
+      });
+      pending = null;
+    }
     at += 512 + size + ((512 - (size % 512)) % 512);
   }
   return found;
@@ -144,7 +202,7 @@ describe('the tarball a release cuts', () => {
    */
   it('orders its members rather than trusting the filesystem', async () => {
     await populate();
-    const walked = await filesUnder(tree);
+    const walked = await membersUnder(tree);
     expect(walked).toEqual([...walked].sort());
 
     const archive = join(out, 'storyengine.tar.gz');
@@ -154,11 +212,20 @@ describe('the tarball a release cuts', () => {
   });
 
   /**
-   * ***Executable or not, and nothing else.*** `install.sh` has to be runnable
-   * or the tier's one instruction does not work; everything else has to be
-   * `0644` whatever the packing machine's `umask` happened to be, because a
-   * mode leaking out of a build is a difference between two artifacts that
-   * should be the same.
+   * ***Executable by name, and the filesystem is not asked.*** `install.sh` has
+   * to be runnable or the tier's one instruction — `sudo ./install.sh` — does
+   * not work; everything else has to be `0644` whatever the packing machine
+   * thought.
+   *
+   * *The fixture lies on purpose, in both directions*: `populate` writes the
+   * script `0644` and a tree file `0755`. That is what makes this a test of the
+   * rule rather than of the fixture. The version of this test that `chmod`ed the
+   * script to `0755` and expected `0755` back passed on Linux for an
+   * implementation that copied the bit from `stat()` — and failed on every
+   * Windows run, because Windows cannot store the bit it was copying. On a
+   * POSIX filesystem both lies land and both halves are live; on Windows the
+   * `chmod`s are no-ops and the script half still is, which is the half that
+   * was broken there.
    */
   it('keeps the install script executable and normalises everything else', async () => {
     await populate();
@@ -166,10 +233,233 @@ describe('the tarball a release cuts', () => {
     await pack(tree, extras, archive);
 
     const members = await membersOf(archive);
-    const script = members.find((member) => member.name.endsWith('install.sh'));
+    const script = members.find((member) => member.name === 'storyengine/install.sh');
     expect(script?.mode).toBe('0000755');
-    for (const member of members.filter((one) => !one.name.endsWith('install.sh'))) {
+    for (const member of members.filter((one) => one !== script)) {
       expect(member.mode, member.name).toBe('0000644');
+    }
+  });
+
+  /**
+   * ***The list is the packer's; git is still the authority.*** `EXECUTABLE`
+   * exists so the archive is a function of names and bytes, but a hand-kept
+   * list drifts — and the drift is silent in exactly one direction, a new
+   * script under `deploy/tarball/` that ships `0644`. Git's index records
+   * `100755` on every platform whatever `core.fileMode` says, so comparing the
+   * two is the check that runs on Windows as well as Linux.
+   *
+   * `deploy/tarball` is named here because it is what `release.yml` passes as
+   * the extras directory; if that argument moves, this path moves with it.
+   */
+  it('names exactly the files git records as executable in deploy/tarball', () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const executableInGit = execFileSync('git', ['ls-files', '-s', '--', 'deploy/tarball'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((line) => line.startsWith('100755 '))
+      .map((line) => (line.split('\t')[1] ?? '').replace(/^deploy\/tarball\//, ''));
+
+    expect(executableInGit.length, 'git should record install.sh as 100755').toBeGreaterThan(0);
+    expect(new Set(executableInGit)).toEqual(EXECUTABLE);
+  });
+
+  /**
+   * ***A rename cannot quietly undo the fix.*** A name-keyed list has one
+   * silent failure — the script is renamed and the list is not — and the
+   * packer refuses rather than shipping the new name `0644` — before the archive
+   * is opened, as the link refusals below do, so there is nothing to upload.
+   */
+  it('refuses to pack when a listed executable is missing', async () => {
+    await populate();
+    await rm(join(extras, 'install.sh'));
+    await writeFile(join(extras, 'setup.sh'), '#!/bin/sh\n');
+    const archive = join(out, 'storyengine.tar.gz');
+
+    await expect(pack(tree, extras, archive)).rejects.toThrow(
+      /install\.sh should ship executable and is not in the archive/,
+    );
+    expect(existsSync(archive)).toBe(false);
+  });
+});
+
+/**
+ * ***The links a pnpm tree is made of*** — 2026-10-01.
+ *
+ * `pnpm deploy` puts every package in `node_modules/.pnpm/<name>@<version>/…` and
+ * makes the name a server imports a **link** into it, so the tree a release
+ * packs is the store plus a layer of links, and the layer is the part anything
+ * resolves through. The packer took regular files only: its archive held the
+ * store, dropped all 237 links in front of it, and the unpacked server died on
+ * its first `import` with `ERR_MODULE_NOT_FOUND`. None of the tests above could
+ * see it, because none of their fixtures had a link in them — which is the
+ * shape this block exists to give them.
+ *
+ * *Not on Windows*, where making a link needs a privilege the CI user need not
+ * have. The archive is a Linux one and `release.yml` packs it on Linux; the
+ * name-only checks at the end run everywhere.
+ */
+describe.skipIf(process.platform === 'win32')('the links in a deployed tree', () => {
+  /** pnpm's own long target, 107 bytes — past ustar's 100, as real ones are. */
+  const LONG =
+    '../.pnpm/@storyengine+mode-assistant@file+packages+modes+assistant/node_modules/@storyengine/mode-assistant';
+  /** And a short one, which fits the header as it is. */
+  const SHORT = '.pnpm/fastify@5.6.1/node_modules/fastify';
+
+  /** A store with two packages in it, and the two links pnpm makes to them. */
+  async function linked(): Promise<void> {
+    await populate();
+    for (const [link, target] of [
+      ['node_modules/@storyengine/mode-assistant', LONG],
+      ['node_modules/fastify', SHORT],
+    ] as const) {
+      const store = join(tree, dirname(link), target);
+      await mkdir(store, { recursive: true });
+      await writeFile(join(store, 'package.json'), `{"name":"${basename(link)}"}`);
+      await mkdir(join(tree, dirname(link)), { recursive: true });
+      await symlink(target, join(tree, link));
+    }
+  }
+
+  it('packs each link as a link, and an unpacked tree resolves through it', async () => {
+    await linked();
+    const archive = join(out, 'storyengine.tar.gz');
+    await pack(tree, extras, archive);
+
+    // **Unpacked by the system's tar, not by this file's reader**, because the
+    // claim is about the archive somebody downloads and the tar they have. A
+    // reader written beside the writer can share its misunderstanding.
+    const unpacked = await mkdtemp(join(tmpdir(), 'se-unpacked-'));
+    try {
+      execFileSync('tar', ['-xzf', archive, '-C', unpacked]);
+      const root = join(unpacked, 'storyengine', 'node_modules');
+
+      expect(await readlink(join(root, '@storyengine', 'mode-assistant'))).toBe(LONG);
+      expect(await readlink(join(root, 'fastify'))).toBe(SHORT);
+      const through = await readFile(
+        join(root, '@storyengine', 'mode-assistant', 'package.json'),
+        'utf8',
+      );
+      expect(JSON.parse(through)).toEqual({ name: 'mode-assistant' });
+    } finally {
+      await rm(unpacked, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * ***A target past 100 bytes travels in a PAX record***, because ustar gives a
+   * link's target no prefix field — and the header's own field is left empty
+   * rather than cut, so a reader that does not know PAX fails where it reads the
+   * link instead of following it somewhere plausible and wrong.
+   */
+  it('carries a long target in a PAX record and a short one in the header', async () => {
+    await linked();
+    const archive = join(out, 'storyengine.tar.gz');
+    await pack(tree, extras, archive);
+
+    const links = (await membersOf(archive)).filter((member) => member.type === '2');
+    expect(links).toEqual([
+      {
+        name: 'storyengine/node_modules/@storyengine/mode-assistant',
+        mode: '0000777',
+        type: '2',
+        linkname: '',
+        linkpath: LONG,
+      },
+      {
+        name: 'storyengine/node_modules/fastify',
+        mode: '0000777',
+        type: '2',
+        linkname: SHORT,
+        linkpath: null,
+      },
+    ]);
+  });
+
+  it('is byte-identical when packed twice, links and all', async () => {
+    await linked();
+    const first = join(out, 'first.tar.gz');
+    const second = join(out, 'second.tar.gz');
+    await pack(tree, extras, first);
+    await pack(tree, extras, second);
+
+    expect(await readFile(first)).toEqual(await readFile(second));
+  });
+
+  /**
+   * ***A link out of the tree is refused, and nothing is written.*** It names a
+   * place on the packing machine; unpacked anywhere else it points at nothing,
+   * or at something nobody shipped. The third case is the subtle one: it climbs
+   * out and comes back by the tree's own name, which resolves *here* and not
+   * after an unpack, where the root is `storyengine/`.
+   */
+  it.each([
+    ['an absolute target', () => '/etc'],
+    ['a target that climbs out', () => '../../elsewhere'],
+    ['a target that climbs out and back by name', () => `../../${basename(tree)}/dist`],
+  ])('refuses %s, and leaves no archive behind', async (_why, target) => {
+    await populate();
+    await mkdir(join(tree, 'node_modules'), { recursive: true });
+    await symlink(target(), join(tree, 'node_modules', 'away'));
+    const archive = join(out, 'storyengine.tar.gz');
+
+    await expect(pack(tree, extras, archive)).rejects.toThrow(
+      /node_modules\/away is a link to .*, which is outside the tree being packed/,
+    );
+    expect(existsSync(archive)).toBe(false);
+  });
+
+  /**
+   * ***A listed executable has to be the script, not a link to it*** — where
+   * the two rules meet. The link here stays inside the tree, so the rule above
+   * passes it; and `install.sh` is present by name, so the rename check passes
+   * it too. Packed, the link would carry `0777` and be ignored, and the script
+   * it points at would ship `0644` under its own unlisted name: the installer
+   * that `sudo ./install.sh` cannot run, by a route neither check sees alone.
+   */
+  it('refuses a listed executable that is a link, and leaves no archive behind', async () => {
+    await populate();
+    await rm(join(extras, 'install.sh'));
+    await mkdir(join(extras, 'bin'));
+    await writeFile(join(extras, 'bin', 'install.sh'), '#!/bin/sh\n');
+    await symlink('bin/install.sh', join(extras, 'install.sh'));
+    const archive = join(out, 'storyengine.tar.gz');
+
+    await expect(pack(tree, extras, archive)).rejects.toThrow(
+      /install\.sh should ship executable and is a link/,
+    );
+    expect(existsSync(archive)).toBe(false);
+  });
+});
+
+/** The two rules the links rest on, as text — which needs no link to check. */
+describe('what a link may point at, and how a PAX record counts', () => {
+  it.each([
+    ['node_modules/fastify', '.pnpm/fastify@5/node_modules/fastify', false],
+    ['node_modules/@a/b', '../.pnpm/b@1/node_modules/@a/b', false],
+    ['a/b', 'c/../../d', false],
+    ['x', '.', false],
+    ['x', '..', true],
+    ['node_modules/x', '../../x', true],
+    ['node_modules/x', '../../app/dist', true],
+    ['x', '/etc', true],
+    ['x', 'C:\\Windows', true],
+    ['x', '\\\\server\\share', true],
+  ])('%s → %s leaves the tree: %s', (name, target, leaves) => {
+    expect(outsideTheTree(name, target)).toBe(leaves);
+  });
+
+  /**
+   * ***The length counts its own digits***, so the record that would be 100
+   * bytes by a naive count is 101 — the boundary every hand-written PAX writer
+   * gets wrong once. Swept across both digit boundaries rather than tried at one.
+   */
+  it('gives every record the length it actually has', () => {
+    for (let size = 0; size <= 1100; size += 1) {
+      const record = paxRecord('linkpath', 'x'.repeat(size));
+      const [declared] = record.toString('utf8').split(' ', 1);
+      expect(Number(declared), `a ${String(size)}-byte value`).toBe(record.length);
     }
   });
 });

@@ -90,6 +90,78 @@ export interface RenderedMessage {
   content: string;
   /** Which blocks produced this message, in order. Non-empty always. */
   fromBlocks: string[];
+  /**
+   * ***The message in order, when a picture's pixels go in it*** — [25 E15],
+   * R1.
+   *
+   * Absent on every other message — one with no picture, and one whose picture
+   * went as its words — which is almost all of them and every one written before
+   * 2026-09-27. When present, **its text parts
+   * joined are exactly `content`**, so `content` stays what the frozen contract
+   * says it is — the whole text rendering — and a reader that knows nothing of
+   * pictures reads the same message it always did. An image part names its
+   * bytes **by digest**, never by value: the call record is a line in a JSONL
+   * file, and the pixels are loaded for the wire and never persisted.
+   */
+  parts?: MessagePart[];
+}
+
+/** One piece of a {@link RenderedMessage} that carries a picture. */
+export type MessagePart =
+  | { kind: 'text'; text: string }
+  | {
+      kind: 'image';
+      /** The block the picture belongs to, so the record maps it back. */
+      blockId: string;
+      /** `sha256:<hex>` of the bytes in the session's attachment store. */
+      digest: string;
+      mime: string;
+    };
+
+/**
+ * One picture on a player's move — [25 E15](../../../docs/design/25-open-questions.md), R1.
+ *
+ * ***An annotation on the move, never a replacement for its words.*** The
+ * player's text stays in `input.text` untouched, and the picture rides beside
+ * it with a text rendering of its own — the caption, or a placeholder when
+ * there is none — which is what any model that cannot see it is given instead.
+ * Nothing about a turn that carries one records that the session is
+ * "multimodal": whether the pixels are sent is decided per call, from the model
+ * that call resolved to, so a session that used a picture once continues on a
+ * text-only model exactly as it would have.
+ */
+export interface TurnAttachment {
+  /**
+   * Stable within the turn — the assembled block's id is keyed by it, so the
+   * workbench can pair two siblings' pictures. **An ordinal of the list the
+   * move was composed with**, and a redo copies the record's list as it stands
+   * (`input.attachmentsOf` on submit), so a redone move keeps its ids.
+   */
+  id: string;
+  /**
+   * What it is. **An open string**, so a later kind needs no migration; a reader
+   * that does not know one gives any model its text rendering and never its
+   * bytes.
+   */
+  kind: string;
+  /**
+   * `sha256:<hex>` of the bytes in `sessions/<id>/attachments/`, read by the
+   * server from its own store rather than taken from a client. Optional so a
+   * record can say a picture was there when the bytes never arrived — an
+   * importer without them.
+   */
+  digest?: string;
+  mime?: string;
+  bytes?: number;
+  /**
+   * Its size in pixels, read from the stored file's header — what a model's
+   * per-picture cost is a function of. Absent when the bytes never arrived, or
+   * were recorded before 2026-09-27.
+   */
+  width?: number;
+  height?: number;
+  /** What the player wrote about the picture, in their own words. */
+  caption?: string;
 }
 
 /** Provider-reported token usage. Never estimated — see `ModelCall.usage`. */
@@ -137,6 +209,16 @@ export interface Draw {
   value: unknown;
   /** True when this value came off a tape rather than from the source. */
   replayed: boolean;
+  /**
+   * ***The round message whose speaking call drew it*** — the index of the
+   * message that call wrote, set on the draws its lore retrieval made, and
+   * absent on every other draw (a turn-wide one, or one on a call that speaks
+   * for nobody). Added 2026-09-29, at the [P14.4] review: a rewrite swipe from
+   * message *k* runs call *k* first, and without this its draws were read
+   * against the keys call 0 had made, so message *k* was given message 0's
+   * rolls and the tape called them replayed (`rng/rng.ts`, `swipeReplay`).
+   */
+  message?: number;
 }
 
 /** A turn's draws, in the order they happened. */
@@ -197,7 +279,29 @@ export type BlockSource =
    * the identity ([P3.0]); `range` is an index into the *window* and stays as
    * display information — where in this prompt the turn sat.
    */
-  | { kind: 'history'; turnId: string; range: [number, number]; part: 'input' | 'output' }
+  | {
+      kind: 'history';
+      turnId: string;
+      range: [number, number];
+      /**
+       * `attachment` since 2026-09-27 ([25 E15]): one picture on the turn's
+       * input, emitted inside the `history` expansion rather than as a source of
+       * its own — a new top-level arm would become a slot any preset could
+       * position ([21 §1.1]'s derivation), and a picture belongs where its turn
+       * is.
+       */
+      part: 'input' | 'output' | 'attachment';
+      /** Which picture, when `part` is `attachment`. */
+      attachmentId?: string;
+      /**
+       * ***Which of the turn's `output.messages`***, when `part` is `output` and
+       * the turn has them — [P14.3]. Each message is its own entry since then:
+       * an assistant line named for its speaker, or a system line for the
+       * narrator ([P14 §1.5]'s *names in history*). Absent on a turn that has
+       * only `text`, which is still one entry.
+       */
+      message?: number;
+    }
   /**
    * One writing sample, from whichever kind carried it — [04 §3.1].
    *
@@ -218,7 +322,19 @@ export type BlockSource =
       sampleId: string;
     }
   | { kind: 'channel'; channelId: string }
+  /**
+   * The established-state block ([P14.5a]): `keys` are the channel keys whose
+   * values it rendered, scoped ones included, so the workbench can say which
+   * trackers — and whose — a prompt carried.
+   */
+  | { kind: 'state'; keys: string[] }
   | { kind: 'treatment'; part: 'framing' | 'tone' }
+  /**
+   * ***A text answer the session was set up with*** (2026-09-30) — the
+   * `setup` slot ([04 §8.2]): `field` is the wizard field's id, so the record
+   * says which answer the block carried.
+   */
+  | { kind: 'setup'; field: string }
   | { kind: 'goal'; goalId: string }
   /**
    * One fragment of one dial's level — [06 §7.3.1], [06 §7.3.2], [P7.8].
@@ -263,8 +379,11 @@ export type BlockSource =
    * block exists because the author asked for it, and there was no attempt.
    */
   | { kind: 'attempt'; turnId: string | null }
-  /** What the player just did — the turn that is happening, not history. */
-  | { kind: 'input' }
+  /**
+   * What the player just did — the turn that is happening, not history. With
+   * `part: 'attachment'`, one picture on it ([25 E15]); absent is the words.
+   */
+  | { kind: 'input'; part?: 'attachment'; attachmentId?: string }
   /**
    * One link of the summary chain — [07 §5.1], [P8.1].
    *
@@ -291,7 +410,7 @@ export type BlockSource =
   /**
    * The root of the summary chain: what had already happened before this
    * session's first turn — [04 §7.2](../../../docs/design/04-schemas.md),
-   * [P13.2](../../../docs/design/workplan/30-p13-implementation.md).
+   * [P15.2](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * **Its own arm rather than a `summary` with a sentinel range**, because it is
    * not a link anybody's summariser wrote. It is authored prose — made by the
@@ -305,7 +424,59 @@ export type BlockSource =
    * ([00 §3.1]), so the link can dangle and that is the ordinary reading.
    */
   | { kind: 'story-so-far'; setupId: string | null }
-  // The two a slot can never name, because no preset positions them.
+  // ~~The two~~ The three a slot can never name, because no preset positions
+  // them — `round` joined `preset` and `step` at [P14.2].
+  /**
+   * ***A message this turn has already said*** — the history a round builds as
+   * it goes, [P14 §1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+   * point 2, added at [P14.2].
+   *
+   * Under `per-actor` dispatch the second speaker answers the first, as in both
+   * sources (`group-chats.js:1051-1076` regenerates the chat between members;
+   * Marinara's `generate.routes.ts:7370-7386` appends each reply before the
+   * next responder's call). Those replies are not history yet — the turn that
+   * holds them has not been committed — so they are not a `history` block, whose
+   * identity is a past turn and one of its two halves.
+   *
+   * `message` is the index into the turn's own `output.messages`, which is the
+   * identity: the draft and the committed record agree on it. `actorId` is who
+   * said it, null for a narrator's line, so the block table can say *whose* reply
+   * the next speaker was shown without reading the output.
+   *
+   * *A third source no preset can position*, beside `preset` and `step` below:
+   * the engine places these immediately after the input slot of every pack
+   * (`collectCandidates`), because a round that a pack had to opt into would be
+   * a pack that silently lost the conversation. Additive under the [P11.10]
+   * freeze — a union that grows an arm accepts every record it accepted — and
+   * the workbench's open label map renders an arm it has never heard of as the
+   * word itself rather than failing.
+   */
+  | { kind: 'round'; message: number; actorId: string | null }
+  /**
+   * ***The session's author's note*** — `session.note`,
+   * [P14 §1.5](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.3]. SillyTavern's `note_prompt` at `note_depth`, on every
+   * `note_interval`-th input (`authors-note.js:324-392`).
+   *
+   * *A fourth source no preset can position*, for the round's reason: every
+   * pack written before this — every imported one — places no such thing, and
+   * a note a pack had to opt into would be a setting that silently did nothing
+   * in most sessions. The engine places it at its own depth in the history.
+   */
+  | { kind: 'note' }
+  /**
+   * ***The continue nudge*** — [P14 §1.6](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * *Continue*, added at [P14.4]: SillyTavern's `continue_nudge_prompt`
+   * (`openai.js:110`), the system line after the message being continued that
+   * asks the model to carry on rather than start again.
+   *
+   * *A fifth source no preset can position*, for the round's reason: every
+   * pack written before this places no such thing, and a continue that a pack
+   * had to opt into would be one that silently regenerated instead. The engine
+   * puts it last, after everything the pack and the chat placed, which is where
+   * ST's `continueMessageCollection` ends the chat history.
+   */
+  | { kind: 'continue' }
   /**
    * A block the preset authored, rather than a slot it positioned.
    *
@@ -363,7 +534,11 @@ export type CallPurpose = 'prose' | 'effects' | 'verdict';
  * sentence, and nothing durable grows another free-English field.
  *
  * - `disabled` — the author switched the block off.
- * - `not-applicable` — `appliesTo` excludes this call's kind.
+ * - `not-applicable` — `appliesTo` excludes this call's kind, or — since
+ *   [P14.2] — the block's `scope` excludes everybody this call could take a card
+ *   from: `speaker` on a call that speaks for nobody, `others` in a cast of one.
+ *   Both are the block saying *not this call*, which is the sentence this reason
+ *   already meant.
  * - `no-producer` — the source has no producer at this phase (lore is P5,
  *   goals are Setup-borne, a channel has no text renderer…).
  * - `empty-source` — the producer ran and yielded nothing: an empty guidance
@@ -412,6 +587,56 @@ export interface AssembledBlock {
    * not advisory.
    */
   advisory?: true;
+  /**
+   * ***The picture this block stands for, and whether its pixels went*** —
+   * [25 E15], R1. Absent on every block that is not a picture.
+   *
+   * `sent: false` is the ordinary case and carries its reason, because a block
+   * that was included and sent only its text rendering *did* emit something —
+   * so this is a disclosure on the block rather than a not-filled slot.
+   */
+  image?: BlockImage;
+}
+
+/**
+ * Why a picture went as words rather than pixels — the per-call send rule of
+ * [25 E15]:
+ *
+ * - `model-text-only` — the model this call resolved to is not one its
+ *   connection lists as seeing images;
+ * - `outside-window` — a picture from an earlier turn (R1 sends the current
+ *   turn's only);
+ * - `missing-bytes` — the bytes are not in this session's store, which is the
+ *   ordinary state after an import from an export;
+ * - `not-user-role` — the block sits in a system or assistant message, which
+ *   cannot carry a picture;
+ * - `unknown-kind` — an attachment kind this build does not send;
+ * - `budget` — the budget dropped the block, so neither the pixels nor the
+ *   words went, whatever else would have held it back. The collector's
+ *   pictures on the move being made are required and never meet this; a
+ *   picture in history, or a step's own picture candidate, can.
+ *
+ * ***When several apply, the one recorded is the one choosing another model
+ * cannot fix***: kind, then window, then role, then bytes, and the model last
+ * (`budget` is decided after the rest, by the budgeter).
+ */
+export type ImageWithheld =
+  | 'model-text-only'
+  | 'outside-window'
+  | 'missing-bytes'
+  | 'not-user-role'
+  | 'unknown-kind'
+  | 'budget';
+
+export interface BlockImage {
+  attachmentId: string;
+  /** Null when the record never had the bytes' digest. */
+  digest: string | null;
+  /** The bytes' type, as the store read it. Null when the bytes never arrived. */
+  mime: string | null;
+  sent: boolean;
+  /** Present exactly when `sent` is false. */
+  withheld?: ImageWithheld;
 }
 
 /**
@@ -546,7 +771,20 @@ export interface ModelCall {
  * own words go to the log; a class is what crosses to a reader.
  */
 export type StepFailureReason =
-  ErrorClass | 'cancelled' | 'advisory-leak' | 'unbound' | 'dangling' | 'internal';
+  | ErrorClass
+  | 'cancelled'
+  | 'advisory-leak'
+  | 'unbound'
+  | 'dangling'
+  | 'internal'
+  /**
+   * ***The context window is no larger than the room kept for the reply***
+   * (2026-09-27). Assembly spends the window less that reserve, and at zero or
+   * below it dropped every block that was not required and sent the call
+   * anyway: the model was asked to continue a story with none of it in front
+   * of it, and nothing said why. Refused before anything is sent.
+   */
+  | 'window-too-small';
 
 /**
  * ***What a person could do about it*** — [09 §6.5](../../../docs/design/09-server-multiuser-deployment.md),
@@ -599,6 +837,12 @@ export type FailureRemedy =
   | 'endpoint-stalled'
   /** No connection is bound to the role this step asked for, or it points at nothing. */
   | 'not-bound'
+  /**
+   * A setting leaves the call no room: the model's context window is no larger
+   * than what is kept for the reply. The connection's window or the reply
+   * length is the thing to change, not the network.
+   */
+  | 'window-too-small'
   /** Nothing about the network. This build did something it should not have. */
   | 'engine';
 
@@ -708,7 +952,8 @@ export type SpanTarget = ActorSpanTarget;
  * stage three. It was written beside the filter that produces it and moved the
  * moment the selector's line landed on a turn: a class the client renders is
  * `shared`'s the same way `StepSkipReason` and `NotFilledReason` are, and a
- * second copy of a nine-arm union is the thing that drifts.
+ * second copy of a nine-arm union (ten since 2026-09-27) is the thing that
+ * drifts.
  */
 export type HookRefusal =
   | 'fired'
@@ -719,7 +964,17 @@ export type HookRefusal =
   | 'cast-gone'
   | 'subject-gone'
   | 'subject-met'
-  | 'subject-unavailable';
+  | 'subject-unavailable'
+  /**
+   * ***Not a hook the engine can read*** (2026-09-27): the pool holds something
+   * the `PlotHook` schema refuses — no `involves`, an `introduces` without an
+   * actor, a `blockedBy` that is not a list. The tenth arm, and the second that
+   * is an authoring error, with the same remedy as `subject-gone`: fix the hook.
+   * Only the panel ever sees it. The engine never reads such an entry, so no
+   * selection, commitment or force can carry one past the filter; before this
+   * class existed, one of them made the whole session unreadable.
+   */
+  | 'malformed';
 
 /**
  * What the plot-hook selector did this turn — [06 §6.1], [P7 §1.5], [P7.5].
@@ -823,12 +1078,202 @@ export interface StepOutcome {
   stepId: string;
   stage: StepStage;
   state: 'ok' | 'skipped' | 'failed';
-  /** How the definition declared a failure should be handled. */
+  /**
+   * ~~How the definition declared a failure should be handled.~~ *How the
+   * failure was handled* — corrected 2026-09-29, at [P14.2], because from then
+   * the two can differ in one case, and a reader of the record needs the one
+   * that happened.
+   *
+   * It is the declaration everywhere but a **partial round**: a step whose
+   * speaking call failed after another speaking call of the same step had
+   * written its message (`round` below). The engine keeps the messages the round
+   * has and commits the turn, so an `abort` declaration was handled as a `warn`
+   * — [P14 §1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md):
+   * *"a group round that loses its third speaker to a timeout is a turn with two
+   * messages, not a lost turn."* A declared `ignore` stays `ignore`.
+   */
   failure?: 'abort' | 'warn' | 'ignore';
   skipReason?: StepSkipReason;
   error?: { reason: StepFailureReason; message: string };
   contributed: { blocks: number; effects: number };
   wallMs: number;
+  /**
+   * ***Who the smart order picked, how, and why*** — present on the outcome of
+   * `se.speakers.smart` alone,
+   * [P14 §1.3a](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * point 7, added at [P14.1].
+   *
+   * **On the step's outcome rather than on the turn**, which is where §1.3a
+   * puts it and the right place for a reason {@link HookSelection} does not
+   * share. The hook selector's decision had nowhere else to be recorded; this
+   * one's *result* already is — the output's messages name who spoke, and that
+   * is all the transcript shows. What is left over is the working: whether a
+   * model chose or the rules' pick played, and the one line the model gave for
+   * each. That is a fact about how one step ran, which is what an outcome is.
+   *
+   * *Present on a failed outcome too*, and that is the half of it that matters
+   * most. A warned `se.speakers.smart` is a turn that played the rule-based
+   * pick instead of the model's, and [00 §3.3] asks that a person who chose
+   * `smart` be able to see that it happened and to whom — the error says why,
+   * this says who spoke instead.
+   *
+   * **Optional, which after the [P11.10] freeze is the only kind of field this
+   * record can grow**; absent on every other step's outcome and on every turn
+   * written before it.
+   */
+  speakers?: SpeakerPick;
+  /**
+   * ***A round that lost a speaker, and kept the others*** —
+   * [P14 §1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * last paragraph, added at [P14.2].
+   *
+   * Present on a failed outcome whose failure was a **speaking call** — one that
+   * named a `speaker` — made after at least one earlier speaking call of the
+   * same step had finished. `kept` ~~is how many messages of the round
+   * survived, counted up to the one that failed~~ counts the speaking calls that
+   * finished; `lost` is ~~who did not get to answer~~ who failed to finish
+   * (*corrected 2026-09-29, at the [P14.2] review*). **When the lost speaker had
+   * already streamed words, those follow as one more message under their
+   * name**, cleaned as a finished reply is, and `cut` says so — kept because
+   * they are what the person watched arrive, and marked because nothing on the
+   * message itself says it stops mid-sentence. `lost` is the fact a person
+   * looking at a short round needs first, and
+   * which `error` — a class and an English sentence for the log — cannot say
+   * in a way the workbench can put a name to.
+   *
+   * ***The engine's to write, never a step's***, which is why it is here and not
+   * a `StepResult` field: the runner owns every speaking call's message while it
+   * streams, so it alone knows which messages were finished when the failure
+   * landed, and a step that could report its own partial round could report
+   * one that never happened. What the turn *says* is the output's messages;
+   * this is the working, the way `speakers` above is for a smart pick.
+   *
+   * *Absent when the first speaking call fails*: nothing was written, and the
+   * step's declared policy applies as it always has — an `abort` is a failed
+   * turn. Optional under the [P11.10] freeze, like every field this record grows.
+   */
+  round?: { kept: number; lost: Ref; cut?: true };
+  /**
+   * ***The direction a push gave this turn*** — present on the outcome of
+   * `se.scene.direct` alone,
+   * [P14 §1.9.3](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5b]. *"A pushed turn's record shows the direction it was
+   * given."*
+   *
+   * On the outcome for {@link speakers}' reason: what the turn *says* is the
+   * prose, and this is the working behind it — which flavour was asked for, the
+   * words the guidance slot carried, and whether a model wrote them or the
+   * pack's fixed text stood in. *Present on a failed outcome too*, beside the
+   * error: a warned push that fell back is still a push, and [00 §3.3] asks
+   * that a person see it happened. Absent `text` is a failure with nothing to
+   * stand in (a pack that ships no push text), so the turn ran undirected.
+   */
+  direction?: Direction;
+  /**
+   * ***What an editor did to this turn's messages, and what it noticed*** —
+   * [P14 §1.9.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.5c]. Present on the outcome of a step that declares
+   * `revises` and answered about at least one message; one row per message it
+   * answered about, by the message's index in the turn's output.
+   *
+   * ***On the outcome, for {@link direction}'s reason***: what the turn *says*
+   * is its messages, already edited — `OutputMessage.original` is where the
+   * unedited text went — and this is the working behind the edit. `changes`
+   * is the editor's own account of what it changed ([P14 §1.9.4]: *"the step
+   * outcome carries the `changes`"*); `notices` is what it found and did
+   * **not** change, which the transcript draws as a checklist on the message
+   * ([24 §2c.2]'s *"emits notices, never effects"*). *The engine writes it from
+   * the step's result*, as it writes `round`, so a step cannot record an edit
+   * that never reached the message.
+   */
+  revisions?: RevisionRecord[];
+}
+
+/**
+ * ***One thing an editor found in a message and left for a person*** —
+ * {@link StepOutcome.revisions}, [P14.5c]: a continuity finding, by default.
+ *
+ * `issue` is the finding in words. `quote` and `fix` together make it
+ * **applicable**: the exact text in the message and what should replace it, so
+ * applying the finding is the edit gesture over the message with that one
+ * substitution — a sibling authored with the fix ([P14 §1.6]), never a rewrite
+ * in place. A finding without both is one a person reads and fixes by hand.
+ */
+export interface RevisionNotice {
+  issue: string;
+  quote?: string;
+  fix?: string;
+}
+
+/**
+ * ***What a revising step answers about one message*** — the result half,
+ * [P14.5c]. `index` is the message's place in the turn's output (the one
+ * message a narrator's turn has is `0`). `text`, when present, **replaces**
+ * the message's text before the turn is written; the engine keeps the text it
+ * replaced as the message's `original`. `changes` and `notices` go on the
+ * outcome ({@link RevisionRecord}).
+ */
+export interface MessageRevision {
+  index: number;
+  text?: string;
+  changes?: readonly string[];
+  notices?: readonly RevisionNotice[];
+}
+
+/**
+ * ***One row of {@link StepOutcome.revisions}*** — a {@link MessageRevision}
+ * as the record keeps it: the text is not repeated (it is the message's now),
+ * and `edited` says whether it replaced anything.
+ */
+export interface RevisionRecord {
+  index: number;
+  edited?: true;
+  changes?: string[];
+  notices?: RevisionNotice[];
+}
+
+/**
+ * ***What a push asked for and what it said*** — {@link StepOutcome.direction}.
+ *
+ * `push` is the flavour the person armed: *natural*, the story moving through
+ * what it already has, or *random*, something plausible nobody saw coming —
+ * Marinara's two director modes. `by` is `model` when the direction call
+ * answered and `fallback` when the pack's fixed text stood in for it.
+ */
+export interface Direction {
+  push: 'natural' | 'random';
+  by: 'model' | 'fallback';
+  text?: string;
+}
+
+/**
+ * ***How a smart pick was reached, and what it was*** — the working behind a
+ * turn's speakers, [P14 §1.3a](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * `by` is one of three, and each is a different sentence in the workbench:
+ *
+ * - `model` — the call answered, and the answer survived the reader: every id
+ *   eligible, a name accepted only when it matched exactly one member.
+ * - `fallback` — the call failed or answered nothing usable, and `natural`'s
+ *   pick played. It was drawn on the turn's tape before the call, so it is the
+ *   same pick on any replay. The step's `error` beside this says why.
+ * - `rewrite` — no call was made, because a rewrite keeps the speakers of the
+ *   turn it redoes (§1.3a point 7: *"not that sentence"*, not *"not that
+ *   outcome"*). The redone turn's own speakers when it recorded any, else the
+ *   tape's pick replayed — which is what that turn's rules would have played.
+ */
+export interface SpeakerPick {
+  by: 'model' | 'fallback' | 'rewrite';
+  /**
+   * In the order they reply. **A name beside each id**, as a `Ref` carries
+   * one, so the workbench can say who without a library read — the name as it
+   * was when the pick was made, which is also what the model was shown.
+   *
+   * `because` is the model's one line for that member, cut to a line and to a
+   * length a panel can hold. Absent when it gave none, and always on a
+   * fallback or a rewrite, where nobody was asked.
+   */
+  picked: { id: string; name: string; because?: string }[];
 }
 
 /**
@@ -853,6 +1298,24 @@ export interface TurnCost {
   wallMs: number;
   /** The model that answered last, or null when nothing was called. */
   model: string | null;
+  /**
+   * ***What the turn cost in money, when every call's provider said*** — added
+   * 2026-09-27, because until then this record had tokens and no money at all,
+   * and [09 §4.5]'s *"turns already record cost"* was true only of tokens.
+   *
+   * **The sum of `ModelCall.cost`, under the same all-or-nothing rule as the
+   * token totals**: a figure only when every call reported one and all of them
+   * in one currency, and null otherwise — *not priced*, which is a different
+   * claim from *free*. Null is the ordinary value today: no adapter in this
+   * build prices a call, and [25 E16](../../../docs/design/25-open-questions.md)
+   * is where the approach to changing that is recorded. The field lands first
+   * so a turn priced later needs no migration to say so.
+   *
+   * **Optional**, so every turn written before it reads as absent rather than
+   * as a claim; after the [P11.10] freeze an optional field is the only kind
+   * this record can grow.
+   */
+  money?: { amount: number; currency: string } | null;
 }
 
 /**
@@ -861,6 +1324,30 @@ export interface TurnCost {
  * what a branch replays and what undo inverts — which is why `before` is
  * stored rather than derived.
  */
+/**
+ * ***Why the engine refused an effect*** (2026-09-30) — every class
+ * `acceptEffect` and `acceptStepEffect` record, named so the workbench's words
+ * for them are checked against the list at compile time; two of the five had
+ * shipped with no words and showed as their raw class. `rejectedReason` stays
+ * a string, because an extension's refusal, or a newer build's, is a word this
+ * build shows as written.
+ *
+ * - `unknown-channel` — no channel by that id ([P3.0]).
+ * - `engine-computed`, `user-only` — the channel's update policy ([P3.0]).
+ * - `needs-confirmation` — a loaded value a model may not set alone ([P7.2]).
+ * - `schema` — the value does not fit the channel ([P7.1]).
+ * - `undeclared-write` — a step's proposal for a channel outside its `writes`.
+ * - `not-its-proposer` — a step's proposal stamped with a proposer it is not.
+ */
+export type EffectRefusal =
+  | 'unknown-channel'
+  | 'engine-computed'
+  | 'user-only'
+  | 'needs-confirmation'
+  | 'schema'
+  | 'undeclared-write'
+  | 'not-its-proposer';
+
 export interface ChannelEffect {
   id: string;
   turnId: string;
@@ -879,9 +1366,11 @@ export interface ChannelEffect {
     | { kind: 'engine' };
   applied: boolean;
   /**
-   * Present when `applied` is false. The two shipped refusals are classes —
+   * Present when `applied` is false. ~~The two shipped refusals are classes —
    * `'engine-computed'` and `'user-only'` name *which* update policy refused,
-   * plus `'unknown-channel'` ([P3.0]). Open vocabulary for extensions.
+   * plus `'unknown-channel'` ([P3.0]).~~ *The engine's classes are
+   * {@link EffectRefusal} (2026-09-30), which grew past that list at [P7.1]
+   * and [P7.2] without it.* Open vocabulary for extensions.
    */
   rejectedReason: string | null;
   /**
@@ -948,6 +1437,78 @@ export interface ChannelState {
 }
 
 /**
+ * ***One message of a turn's output, and who spoke it*** —
+ * [P14 §1.1](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * added at [P14.0].
+ *
+ * **`speaker: null` is the narrator**, and null rather than absent because it is
+ * an answer: *nobody in the cast said this, the scene did*. That is a Scene
+ * turn in `narrator` voice, a `/comment` line imported from SillyTavern, and
+ * the narrator half of [25 C2](../../../docs/design/25-open-questions.md)'s
+ * mixed voice. An absent speaker would read as *not recorded*, which is a
+ * different fact and not one this record has any reason to hold.
+ *
+ * *A `Ref` and not a bare actor id*, as a span's target is and for the reason
+ * {@link ActorSpanTarget} gives: the name travels with the id, so a transcript
+ * of a session whose actor was since deleted — or an export read on an install
+ * that never had the card — still says who spoke.
+ *
+ * `reasoning` is the speaker's own, when the model that voiced them returned
+ * any. Per message rather than per turn because under `per-actor` dispatch each
+ * message is its own call, and one call's thinking is not another's.
+ */
+export interface OutputMessage {
+  speaker: Ref | null;
+  text: string;
+  reasoning?: string;
+  /**
+   * ***Copied from the sibling this turn redoes, not generated*** —
+   * [P14 §1.6](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * swipe.
+   *
+   * A swipe regenerates one message of a round, and the tree is append-only, so
+   * it is a sibling that carries the messages before the swiped one and writes
+   * the swiped one fresh. **The carried ones are marked because they were not
+   * this turn's work**: the workbench must not attribute them to its calls, and
+   * a reader counting what a model wrote must not count them twice. `true` or
+   * absent, the record's usual shape for a flag.
+   */
+  carried?: true;
+  /**
+   * ***The text as the model returned it, when something since changed it*** —
+   * [P14 §1.1](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [§1.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * reply cleanup and
+   * [§1.9.4](../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+   * style editor.
+   *
+   * ***Here because nowhere else keeps it.*** `ModelCall` records the prompt,
+   * the parameters, the usage and the outcome, and never the reply — the reply
+   * lives only in the output. So once P14.2's cleanup strips a leading
+   * `Speaker:` or cuts a reply at another member's line, or P14.5c's editor
+   * rewrites it, the unmodified reply survives on this field or not at all. §1.4
+   * first said *"the raw reply stays in the call record"*, and was corrected to
+   * this on finding that it does not.
+   *
+   * **Written only when the two differ**, so absent means *`text` is what the
+   * model said* rather than *not recorded*: a message cleanup left alone would
+   * otherwise carry its text twice. **`text` stays what the transcript shows** —
+   * what `output.text` is derived from and what search, the summary chain and a
+   * later step read — and `original` is only what *show original* offers.
+   * `joinMessageTexts` never joins it.
+   *
+   * *Declared at [P14.0] with no writer yet*, beside the rest of the record,
+   * because it is an optional field every existing turn lacks — so adding it
+   * now, like adding it later, tightens nothing under
+   * [P11.10](../../../docs/design/workplan/28-p11-implementation.md)'s freeze,
+   * and `storyengine.session-export/1` carries it through either way. Declaring
+   * it with the record is what lets the round trip be tested before the stages
+   * that write it.
+   */
+  original?: string;
+}
+
+/**
  * One turn, as it is written to a segment — [03 §8].
  *
  * `parentTurnId` from the very first turn: the turn store is a tree that P2
@@ -963,8 +1524,97 @@ export interface Turn {
   parentTurnId: string | null;
   createdAt: string;
   status: 'complete' | 'failed' | 'suspended';
-  input?: { actorId: string | null; kind: string; text: string; raw: string };
-  output?: { text: string; reasoning?: string };
+  input?: {
+    actorId: string | null;
+    kind: string;
+    text: string;
+    raw: string;
+    /**
+     * Pictures on this move — [25 E15], R1. **Optional, and absent on every turn
+     * without one**, which is what keeps it an addition under the [P11.10]
+     * freeze rather than a change to the record this project has the most of.
+     */
+    attachments?: TurnAttachment[];
+    /**
+     * ***Who the person asked to reply*** — force-talk, the submission's
+     * `speakers`, [P14 §1.3](../../../docs/design/workplan/31-p14-scene-and-session-import.md);
+     * added at [P14.1] and **optional under the [P11.10] freeze for the reason
+     * `attachments` is**, absent on every turn nobody forced.
+     *
+     * **On the input because it is part of what was asked**, beside the words
+     * and the pictures, and ***on the record at all because a rewrite has to
+     * read it back***. Force-talk is the one choice of speaker that is neither
+     * a draw on the tape nor a model's answer: a rewrite replays the tape and
+     * keeps a smart pick, and before this field a rewrite of a forced turn kept
+     * neither half of *"Lund, answer that"* — it played the session's policy
+     * and answered with whoever that chose, which under `manual` is nobody.
+     *
+     * *The request, not the result.* Who actually replied is on the output's
+     * messages; this is who was named, in the order named, before the runner
+     * dropped anybody the story had written out since. A rewrite hands it back
+     * to the same filter rather than trusting that it still holds.
+     */
+    speakers?: string[];
+  };
+  /**
+   * What the turn said — and, since [P14.0](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * **who said each part of it**.
+   *
+   * ***A turn is one node however many messages it emits.***
+   * [07 §3](../../../docs/design/07-branching.md) says so for `per-actor`
+   * dispatch — *"one turn produces several messages. A turn is still **one
+   * node**"* — and [25 C11](../../../docs/design/25-open-questions.md) settled
+   * it. The record had nowhere for the several messages and nowhere for their
+   * authors: this was `{ text, reasoning? }` and a Scene group round had to be
+   * one paragraph by nobody. `messages` is where they go, each with its
+   * speaker ([P14 §1.1](../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
+   *
+   * ***`text` stays, and becomes derived when `messages` is present*** — the
+   * messages' texts joined by a blank line (`joinMessageTexts`). **Every reader
+   * of `text` keeps working unchanged**, and there are more of them than there
+   * are writers: search indexes it, the summary chain and the memory extractor
+   * read it through the transcript, a later step reads it as `StepInput.output`,
+   * and an install older than this one reads it out of an export and has never
+   * heard of `messages`. A writer keeps the two consistent — `outputFromMessages`
+   * is the one way to — and a reader that knows `messages` prefers it, through
+   * `outputMessagesOf`, which also answers for every turn written before it.
+   *
+   * ***Additive and optional, so [P11.10](../../../docs/design/workplan/28-p11-implementation.md)'s
+   * freeze holds.*** The header above says what the freeze obliges: it is *a
+   * promise not to tighten*. An optional field every existing turn lacks
+   * tightens nothing — each of those turns stays valid, and a turn that carries
+   * it rides through `importSession`'s spread on an install that does not
+   * understand it, which is the second consequence of
+   * [18 §3](../../../docs/design/18-session-import.md) doing its job. So
+   * `storyengine.session-export/1` does not change.
+   *
+   * *It also gives [25 C2](../../../docs/design/25-open-questions.md) its
+   * record.* C2 is mixed voice within a turn — a narrator paragraph, then
+   * embodied dialogue — and that is a `speaker: null` message beside attributed
+   * ones. C2 is not built by this field; it no longer needs a format change
+   * when it is.
+   *
+   * ~~`Turn.output.speaker`, one speaker per output~~ — P14's first draft,
+   * superseded before it was built: it could not hold the group round
+   * SillyTavern writes as one batch, and C11 had already said what a turn is.
+   */
+  output?: {
+    text: string;
+    reasoning?: string;
+    messages?: OutputMessage[];
+    /**
+     * ***A narrated reply's text as the model returned it, once the editor
+     * changed it*** — [P14.5c], `OutputMessage.original` for a turn with only
+     * `text`. *Here rather than by giving the turn `messages`*, because a turn
+     * with `messages` is read as one entry per message and a narrator's as
+     * `system` (`assembly/collect.ts`), and the client draws it chat-shaped: an
+     * edit would change the role the narrator's reply has in every later
+     * prompt, and how it is drawn. `outputMessagesOf` puts it on the one
+     * narrator message it reads, so a reader of messages sees it where it
+     * would look. **Only beside a text-only output**, and only when it differs.
+     */
+    original?: string;
+  };
   /**
    * ***Where this turn came from, when it came from somewhere else*** —
    * [18 §3](../../../docs/design/18-session-import.md)'s second consequence,
@@ -1058,29 +1708,44 @@ export interface Turn {
    * distinction every optional field on this record draws.
    */
   renditions?: RenditionReport;
-  /**
-   * ***This turn is an opening, written by the engine rather than generated*** —
-   * [03 §6](../../../docs/design/03-data-model.md),
-   * [P13.3](../../../docs/design/workplan/30-p13-implementation.md).
-   *
-   * **`id` is the `Opening` it came from**, on the Setup the session was
-   * started from. The turn carries the opening's text as `output`, has no
-   * `input`, made no call, and holds the effects that seed what the Setup
-   * carries — the party and the spent hooks — because [P7.4] said seeding the
-   * party *"needs a turn"* and this is the turn.
-   *
-   * **Absent on every other turn**, which is what makes it the marker the play
-   * surface reads to withhold redo: nothing generated an opening, so there is
-   * nothing to generate again. *Additive, which matters because the record has
-   * been exported since [P11.10] — an older reader carries it through
-   * untouched.*
-   */
-  opening?: { id: string };
+  // ~~`opening?: { id: string }`~~ — [P15.1](../../../docs/design/workplan/33-p15-setup-from-a-turn.md)
+  // added it to mark a Setup's opening turn, and it was dropped before it
+  // reached `main` (2026-10-03, at the merge; recommended answer, owner
+  // deferred): an opening is recognised by what it lacks, `redoable` below,
+  // and this record is frozen, so a field is a promise every reader keeps.
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;
   /** A tombstone the reader skips. */
   removed?: true;
+}
+
+/**
+ * ***Whether a redo or a rewrite can make this turn again*** — a turn that
+ * answered a move (`input`) or made a call (`request`). [P14]'s convention for
+ * telling an opening from a reply, named here so the two readers of it read
+ * one rule: the play surface, which withholds Redo from a turn this answers
+ * `false` for (`rerunnable`, [P14.5]), and the turn route, which refuses one
+ * (`opening-turn`).
+ *
+ * **`false` is every turn nothing made** — a Setup's opening and its
+ * effects-only seeding turn, a cast's greeting, a hand edit's divergence turn,
+ * a turn written by hand with no move, an import's reply to nothing. Each
+ * answered no move and made no call, so there is no tape to replay and no
+ * call to repeat; a reply to nothing in its place would be *let them talk*,
+ * which is a different gesture. *A let-them-talk reply is `true`*: it answers
+ * no move but made a call, and a person may want it again.
+ *
+ * ***A predicate rather than a field***, decided at the
+ * [P15](../../../docs/design/workplan/33-p15-setup-from-a-turn.md) merge
+ * (2026-10-03; recommended answer, owner deferred): `Turn.opening` would have
+ * marked a Setup's opening by name, but with a Setup's opening winning over
+ * the greetings only one kind of opening can be a session's first turn, and
+ * no reader asks which opening a turn was — only whether anything made it,
+ * which the record already says by what it lacks.
+ */
+export function redoable(turn: Pick<Turn, 'input' | 'request'>): boolean {
+  return turn.input !== undefined || turn.request !== undefined;
 }
 
 /**

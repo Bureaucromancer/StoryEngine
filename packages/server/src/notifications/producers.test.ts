@@ -12,7 +12,13 @@ import { FakeProvider } from '../providers/fake.js';
 import { readRenditions } from '../renditions/store.js';
 import { listNotifications } from '../state/notifications.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * The producers, through a whole server — [09 §3.5](../../../../docs/design/09-server-multiuser-deployment.md),
@@ -145,6 +151,8 @@ async function takeATurn(): Promise<void> {
     const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
     return now !== null && now !== before;
   });
+  // Not when the head moves: when the turn, and what it dispatched, are done.
+  await settled(server);
 
   const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
   head = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
@@ -159,13 +167,82 @@ function held(): ReturnType<typeof listNotifications> {
   return listNotifications(server.services.state.db, 'ned');
 }
 
+/**
+ * Checks that the picture's own notification is held — and, if it is not, says
+ * what was there instead.
+ *
+ * ***Read once, not waited for***, for the reason the first test gives about
+ * `turn.complete`, one layer further out. `takeATurn` awaits `settled(server)`,
+ * and its `drainRenditions` waits for every job `launch` put in the worker's
+ * `inFlight` set. A job's last act, ready or failed, is the worker context's
+ * `settled` hook, which calls `notify`, which routes into `state.db`
+ * synchronously — so the row is written before the job leaves the set, and is
+ * already there when `takeATurn` returns. A poll here would pass on its first
+ * look on every green run, and on a red one would spend `eventually`'s eight
+ * seconds finding nothing more before saying so: the shape the first test's
+ * struck note rejects for `turn.complete`, and which the picture's notice kept
+ * until this merge. (The renditions polls just before each call are
+ * first-look for the same reason. They predate this and are left as they
+ * were.)
+ *
+ * ***This is where one of the header's two mutations ends, and it used to end
+ * in a shrug.*** Take `settled` out of the worker context in `buildServices`
+ * and the renditions still settle, the turn's `turn.complete` is still held,
+ * and the one thing missing is `artifact.ready` — so both picture tests fail
+ * here, and nowhere earlier. Until this merge they did so as a poll timing out
+ * with `eventually`'s bare *the condition never held*, which names neither the
+ * class that was missing nor the seam that dropped it, in one of the two
+ * failures this file exists to catch. (The other mutation, `notify` gone from
+ * the runner, never fails here: the picture's notice does not come from the
+ * runner, so this check passes, and the first and third tests fail at an
+ * `expect` on the missing `turn.complete` while the second passes.)
+ *
+ * **So the failure says what was missing, then the two things that tell the
+ * seams apart.** The classes held: a `turn.complete` among them means `notify`
+ * and the router are wired, so the gap is the worker's hook. And each
+ * rendition's state, purpose and error: `settled(server)` has already waited
+ * for every rendition, so a missing notice is the wiring and not the worker —
+ * and the list shows which settle point the hook should have fired from.
+ *
+ * *Said on failure only.* Three `console.log`s (`2303b295`) once printed this
+ * diagnosis on every run, pass or fail — noise on green and, on red, a dump
+ * nobody read above the one line that mattered. Main dropped them in
+ * `0be9ca13` with nothing in their place, which is the shrug above; the branch
+ * this came from moved them into a `describe` hook on the poll (`57072032`),
+ * and this is that description without the poll, shared by both picture
+ * tests. It is thrown here rather than left to the `expect`s below, because
+ * those would report only that `picture` is `undefined`.
+ */
+async function expectThePictureTold(): Promise<void> {
+  if (held().some((one) => one.class === 'artifact.ready')) return;
+  throw new Error(
+    `artifact.ready was not held once the turn had settled: ` +
+      `held ${JSON.stringify(held().map((one) => one.class))}; ` +
+      `renditions ${JSON.stringify((await renditionsOf()).map((r) => [r.state, r.purpose, r.error]))}`,
+  );
+}
+
 describe('a turn that ran through a whole server', () => {
   it('leaves a notification the person can come back to', async () => {
     await boot([{ stallMs: 20 }]);
     await takeATurn();
 
-    // The turn's own, by class. The picture's arrives separately and is waited
-    // for below rather than raced against here.
+    // The turn's own, by class. The picture's is a separate notification, and
+    // the two tests below check it (`expectThePictureTold`) rather than this one.
+    //
+    // ~~**Waited for rather than read once**, because `takeATurn` returns when
+    // the session's head has moved and this notification is written by a
+    // producer reacting to the same completion.~~ (2026-10-02, the merge of
+    // origin's main) **Read once, and that is now right.** The race was real —
+    // reading once passed on an unloaded machine and failed on the Windows
+    // runner and under a full-suite run — and it was fixed on both sides of the
+    // merge: here by polling for the row, on main by making `takeATurn` await
+    // `settled(server)`. The second is the cause rather than the symptom.
+    // `runner.settle()` waits for the job's whole promise, the job is still live
+    // until `#announce` has run, and `#announce` calls `notify`, which routes
+    // into `state.db` synchronously — so when `takeATurn` returns the row is
+    // there, and a poll would pass on its first look while describing a helper
+    // that no longer exists.
     const completion = held().find((one) => one.class === 'turn.complete');
     expect(completion).toBeDefined();
     expect(completion?.params['sessionName']).toBe('The harbour');
@@ -199,17 +276,7 @@ describe('a turn that ran through a whole server', () => {
       // successfully for a picture that was never asked for.
       return all.length > 0 && all.every((one) => one.state !== 'pending');
     });
-    const tr = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
-    console.log(
-      'STEPS',
-      JSON.stringify((tr.body as { turns: { steps?: unknown }[] }).turns.map((x) => x.steps)),
-    );
-    console.log(
-      'RENDITIONS',
-      JSON.stringify((await renditionsOf()).map((r) => [r.state, r.purpose, r.error])),
-    );
-    console.log('NOTIFS', JSON.stringify(held().map((n) => [n.class, n.params])));
-    await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')));
+    await expectThePictureTold();
 
     const picture = held().find((one) => one.class === 'artifact.ready');
     expect(picture?.params['outcome']).toBe('ready');
@@ -234,7 +301,7 @@ describe('a turn that ran through a whole server', () => {
       const all = await renditionsOf();
       return all.length > 0 && all.every((one) => one.state === 'failed');
     });
-    await eventually(() => Promise.resolve(held().some((one) => one.class === 'artifact.ready')));
+    await expectThePictureTold();
 
     const picture = held().find((one) => one.class === 'artifact.ready');
     expect(picture?.params['outcome']).toBe('failed');

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import type { JSX } from 'react';
 
 import type { LoreEntry } from '@storyengine/shared';
 
@@ -18,7 +18,7 @@ import {
 } from '../library/fields.js';
 import { CheckboxField, Field, SelectField } from '../ui/Field.js';
 import { Fine, SubsectionTitle } from '../ui/Text.js';
-import { joinLines, splitLines } from './form.js';
+import { LinesField } from './ListField.js';
 import { disclosure } from '../ui/classes.js';
 
 /**
@@ -85,6 +85,8 @@ function openerOf(group: FieldGroup): string {
 export function EntryFields(props: {
   entry: LoreEntry;
   onPatch: (patch: Partial<LoreEntry>) => void;
+  /** The reader's, for the counts in a closed group's heading. */
+  locale: string | undefined;
   /**
    * ***The entry's picture strip*** — [10 §11.2b], passed in rather than built
    * here.
@@ -163,7 +165,9 @@ export function EntryFields(props: {
              * below rather than beside the title.
              */}
             <summary className={disclosure.quiet}>
-              <SubsectionTitle as="h4">{groupSummary(group, props.entry)}</SubsectionTitle>
+              <SubsectionTitle as="h4">
+                {groupSummary(group, props.entry, props.locale)}
+              </SubsectionTitle>
             </summary>
             {group.note === undefined ? null : <Fine className="mt-1">{group.note}</Fine>}
             <div className="mt-3">
@@ -376,52 +380,4 @@ function positionOptions(row: FieldRow, current: string): [string, string][] {
   const values = choicesOf(row.schema);
   if (values === null || values.length === 0) return [[current, labelFor(current)]];
   return values.map((value) => [value, labelFor(value)]);
-}
-
-/**
- * A list of strings edited as one per line.
- *
- * **The text is state and the array is derived**, for the reason
- * [form.ts](./form.ts) keeps `aliasesText`: splitting on every keystroke and
- * re-joining would eat the newline somebody has just typed, so the buffer has
- * to be allowed to hold a line that is not yet a value.
- *
- * **Re-seeded on identity, not on content**, which is the part worth reading
- * slowly. Typing hands the parent exactly the array this component produced, so
- * that array comes back as the same reference and the buffer is left alone. A
- * value arriving from anywhere else — a version restored, a newer copy loaded
- * after a 412 — is a different reference and re-seeds. Comparing the *contents*
- * instead would loop forever the first time a hand-edited book carried a key
- * with a space around it, because `splitLines` trims and the comparison would
- * never converge.
- */
-function LinesField(props: {
-  label: string;
-  value: string[];
-  onChange: (value: string[]) => void;
-  hint: string;
-}): JSX.Element {
-  const [held, setHeld] = useState<{ text: string; from: string[] }>(() => ({
-    text: joinLines(props.value),
-    from: props.value,
-  }));
-
-  if (props.value !== held.from) {
-    setHeld({ text: joinLines(props.value), from: props.value });
-  }
-
-  return (
-    <Field
-      label={props.label}
-      value={held.text}
-      onChange={(text) => {
-        const parsed = splitLines(text);
-        setHeld({ text, from: parsed });
-        props.onChange(parsed);
-      }}
-      multiline
-      rows={4}
-      hint={props.hint}
-    />
-  );
 }

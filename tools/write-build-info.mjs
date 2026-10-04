@@ -85,7 +85,9 @@ if (typeof version !== 'string' || version === '0.0.0') {
  * failure mode is tagging `v1.0.0-alpha.2` against a tree that still says
  * `alpha.1` — an image that reports a version nobody released, discovered by
  * whoever tries to reproduce it. The release workflow passes the tag here, so
- * that mistake stops the build instead of shipping.
+ * that mistake stops the build instead of shipping. *The changelog is the
+ * third, and the workflow's own `verify` job holds it — before anything is
+ * pushed, since 2026-10-01.*
  */
 if (expected !== undefined && expected !== version && expected !== `v${version}`) {
   console.error(

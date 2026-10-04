@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import type { Lorebook } from '@storyengine/shared';
@@ -13,6 +13,7 @@ import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
 import {
   mergeEntries,
   readableAsEntries,
+  picturesLeftBehind,
   selectionAsLorebook,
   type MergeReport,
 } from './entry-travel.js';
@@ -51,6 +52,24 @@ const WORDS: Readonly<Record<string, string>> = labels('editor.entry-travel', {
   hint: 'An export is a lorebook, so it opens anywhere a lorebook does — and anything that reads one can be imported here.',
   dismiss: 'Dismiss',
 });
+
+/**
+ * ***What the export leaves behind, said beside the button*** (2026-09-27).
+ *
+ * A lorebook file carries a picture's row and never its bytes, so an export
+ * leaves the pictures where they are rather than sending rows that name
+ * nothing — and says so before the click rather than after the download.
+ */
+function PicturesStay(props: { count: number }): JSX.Element | null {
+  if (props.count === 0) return null;
+  return <Fine>{picturesStayLine(props.count)}</Fine>;
+}
+
+function picturesStayLine(count: number): string {
+  return count === 1
+    ? '1 picture stays behind: an export carries the entries’ text, not their pictures.'
+    : `${String(count)} pictures stay behind: an export carries the entries’ text, not their pictures.`;
+}
 
 /**
  * The name the downloaded file takes.
@@ -110,6 +129,26 @@ export function EntryTravel(props: {
   const [report, setReport] = useState<MergeReport | null>(null);
 
   /**
+   * ***The book as the form last rendered it, for a merge that lands late***
+   * (2026-09-27).
+   *
+   * The merge waits on `file.text()`, and the file input's handler closes over
+   * the book as it was when the dialog closed. Merging into that one wrote back,
+   * with the imported entries, a book that had lost whatever an assist or an
+   * upload put in it meanwhile. Everywhere else in the editor that is solved by
+   * writing an updater (`LorebookEditorPage`'s `edit` says why); this write
+   * cannot be one, because `mergeEntries` mints ids for clashing entries and the
+   * report it returns describes the book it merged into — an updater may run
+   * twice, and a report computed outside it would describe a different book. So
+   * it reads the book at the last possible moment instead. Kept in an effect
+   * rather than written during render, which is React's rule for refs.
+   */
+  const latestBook = useRef(props.book);
+  useEffect(() => {
+    latestBook.current = props.book;
+  });
+
+  /**
    * **Who this install has**, which is the only way *refers to nothing* gets an
    * answer — an `actorFilter` names an actor and a file cannot know whether it
    * is here. Read once when the panel mounts; a merge is not a moment where
@@ -163,6 +202,7 @@ export function EntryTravel(props: {
             >
               {WORDS['export']}
             </Button>
+            <PicturesStay count={picturesLeftBehind(props.book, props.chosen)} />
           </>
         ) : null}
 
@@ -201,7 +241,7 @@ export function EntryTravel(props: {
                   setProblem(WORDS[read.problem] ?? WORDS['unreadable'] ?? '');
                   return;
                 }
-                const merged = mergeEntries(props.book, read.book, knownActors);
+                const merged = mergeEntries(latestBook.current, read.book, knownActors);
                 setReport(merged.report);
                 props.onMerged(merged.book, file.name);
               },
@@ -251,6 +291,7 @@ const REVIEW: Readonly<Record<string, string>> = labels('editor.import-review', 
   collided:
     'These share an id with an entry already here, which usually means one was copied from the other. Both are kept — nothing was replaced.',
   dangling: 'These name an actor this install does not have:',
+  pictures: 'These arrived without their pictures, which a lorebook file names and cannot carry:',
   differences:
     'This book reads these settings differently from the one they came from, so an entry tuned there can go quiet here:',
   unsaved: 'Nothing is written until you save. Until then this is a change you can walk away from.',
@@ -318,6 +359,17 @@ function ImportReview(props: { report: MergeReport; onDismiss: () => void }): JS
           <ul className="list-inside list-disc text-ink">
             {props.report.dangling.map((one) => (
               <li key={one.entry.id}>{`${one.entry.name} — ${one.actorIds.join(', ')}`}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {props.report.withoutPictures.length === 0 ? null : (
+        <div>
+          <Note>{REVIEW['pictures']}</Note>
+          <ul className="list-inside list-disc text-ink">
+            {props.report.withoutPictures.map((one) => (
+              <li key={one.entry.id}>{one.entry.name}</li>
             ))}
           </ul>
         </div>

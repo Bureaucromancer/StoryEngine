@@ -138,7 +138,7 @@ the things decided.
 ***Corrected 2026-09-26.*** *The first of those two thirds did not exist when
 this was written*: [P7.4](workplan/23-p7-implementation.md)'s *Save as a setup*
 named the session **form's** configuration and never read a running session.
-[P13](workplan/30-p13-implementation.md) built it — a Setup made from any turn,
+[P15](workplan/33-p15-setup-from-a-turn.md) built it — a Setup made from any turn,
 its story so far condensed by a model and reviewed by a person
 ([04 §7.2](04-schemas.md)) — and in doing so built a **precursor** of the third:
 the wizard offers the facts a session established as a companion lorebook,
@@ -147,6 +147,14 @@ dropped entry by entry. *Offered, never automatic, reviewed before it lands*,
 exactly as below. It is not this section's extraction, which reads the story
 bible and lands with it; when the bible exists, it is the reader under that
 wizard that changes.
+
+*(2026-10-03: and the opening sentence is true on `main` from this date, not
+from the one above.* The correction was written on the branch that built the
+feature, where it was true at once; `main` went on saying *"a running session
+can emit a Setup"* with nothing behind it for another week, until the branch
+merged as P15 — renamed from P13, which `main` had spent — and brought the
+wizard with it. A correction written on a branch corrects `main` only when the
+branch lands, which is the reason for dating both.)
 
 It is the natural output of the story bible ([15 §4](15-world.md)): once the
 bible exists, *"make this a lorebook"* is a selection and a write rather than a

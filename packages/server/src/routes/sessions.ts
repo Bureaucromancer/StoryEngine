@@ -5,19 +5,24 @@ import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import {
+  Goal,
+  PlotHook,
+  Preset,
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   uuidv7,
-  type Goal,
-  type PlotHook,
+  redoable,
   type Setup,
+  type Actor,
+  type OutputMessage,
+  type Turn,
+  type TurnAttachment,
 } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
 import { walkPath } from '../sessions/segments.js';
 import {
-  appendTurnToSession,
   childrenByParent,
   createBranchRef,
   createSession,
@@ -36,21 +41,41 @@ import {
   setSessionRoles,
   readTurns,
   readTurnById,
+  reconstructAlong,
   setArchived,
   setMemoryConfig,
   setRenditionSelection,
   setName,
+  snapshotIsAt,
+  sessionFilePath,
   undoTurn,
+  withSessionLock,
   writeChannel,
   type BranchRefOutcome,
 } from '../sessions/store.js';
-import { castRows } from '../sessions/cast.js';
+import { actorsWithState, castRows, presentMembers } from '../sessions/cast.js';
+import {
+  castIsPresentFor,
+  chatSettingsAtCreation,
+  chatSettingsOf,
+  isChatMode,
+} from '../sessions/chat-settings.js';
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
+import { swipeGroups, type SwipeGroups } from '../sessions/swipes.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
-import { chooseOpening, openingTurn } from '../sessions/opening.js';
+import {
+  carriesOpening,
+  chooseOpening,
+  firstTurns,
+  openingChoiceRefusal,
+  writeOpening,
+} from '../sessions/opening.js';
 import type { HookSource } from '../sessions/types.js';
-import { goalRows, readConcluded } from '../sessions/goals.js';
-import { hookRows, readPacing } from '../sessions/hooks.js';
+import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
+import { hookRows, malformedRows, readPacing } from '../sessions/hooks.js';
+import { readPool } from '../sessions/pool-shape.js';
+import { presentSession } from '../sessions/present.js';
+import { presetOf } from '../sessions/preset-of.js';
 import { setupMisfit } from '../sessions/setup.js';
 import { ownerKey } from '../index-db/ingest.js';
 import { listSessionRows } from '../index-db/sessions.js';
@@ -59,7 +84,6 @@ import { rememberThis } from '../memory/capture.js';
 import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
-import { recreateRendition } from '../renditions/manual.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
 import {
   commitSetupFromTurn,
@@ -67,20 +91,35 @@ import {
   GENERATED_PATHS,
   SETUP_PARTS,
 } from '../turns/condense.js';
-import { assetPath } from '../renditions/worker.js';
-import { readFileBytes } from '../storage/files.js';
+import { assetPath, hasPixels } from '../renditions/worker.js';
+import { fileExists, readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
-import { channelInPlay, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
+import { channelInPlay, modeActions, modeSurfaces, sessionSurfaces } from '../mode-registry.js';
 import { degradedChannels, splitChannelKey } from '../sessions/channels.js';
 import { DIAL_CHANNELS, packLevels, readDial, resolveLevel } from '../sessions/dials.js';
-import { DEFAULT_MODE_ID, modeById, setupPlanFor } from '../mode-registry.js';
+import { DEFAULT_MODE_ID, modeById, resolvedMode, setupPlanFor } from '../mode-registry.js';
 import { attachToSession, formatCursor, parseCursor } from '../stream/attach.js';
 import { SseWriter } from '../stream/sse.js';
 import { activeJob, readJob, submitTurn } from '../state/jobs.js';
 import { exportSession } from '../sessions/export.js';
 import { importSession } from '../sessions/import.js';
+import {
+  attachmentsAgain,
+  attachmentsFor,
+  digestsOf,
+  isDigest,
+  readAttachment,
+  storeAttachment,
+  sweepAttachments,
+} from '../sessions/attachments.js';
+import { readOnePart } from './import.js';
+import { authoredMessages, editedFrom, gestureOf, type Gesture } from './gestures.js';
+import { Cancelled } from '../turns/calls.js';
 import { impersonate } from '../turns/impersonate.js';
-import { previewAssembly } from '../turns/preview.js';
+import { keptSpeakers } from '../turns/smart-speakers.js';
+import { SE_SCENE_DIRECT, type Push } from '../turns/direct.js';
+import { forceRefusal, type ForceRefusal } from '../turns/speakers.js';
+import { DEFAULT_INPUT_KIND, previewAssembly } from '../turns/preview.js';
 import { readSuggesting } from '../turns/suggest.js';
 import { readBackdropOn, readIllustration, SE_BACKDROP_ON } from '../turns/render.js';
 import { PathEscapeError } from '../storage/paths.js';
@@ -89,9 +128,12 @@ import { PathEscapeError } from '../storage/paths.js';
 // the module where that vocabulary is decided. A second spelling of the mapping
 // is how a caller comes to learn *403 means the system library* from one route
 // and something else from another.
-import { abortOnDisconnect } from './disconnect.js';
 import { respondToLibraryError } from './library.js';
-import type { Tape } from '../rng/rng.js';
+import { disconnectSignal } from './disconnect.js';
+import { swipeReplay, type Tape } from '../rng/rng.js';
+import type { TurnPayload } from '../turns/runner.js';
+import { resolveCast } from '../turns/cast.js';
+import { readRegistry } from '../tags/store.js';
 
 /**
  * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [19 §8].
@@ -117,6 +159,22 @@ const RenditionParams = Type.Object({
   renditionId: Type.String(),
 });
 
+/** One picture in a session's attachment store, by its content address. */
+const AttachmentParams = Type.Object({
+  sessionId: Type.String(),
+  digest: Type.String(),
+});
+
+/**
+ * ***The ceiling on one attached picture*** — below `limits.maxUploadMb`, for
+ * the avatar's reason: the client scales a picture down before it sends it
+ * ([25 E15]), so anything past this is a photograph that skipped that step,
+ * and a model would be sent more than it can use. *Not a config key*: nobody
+ * tunes it, and [work plan §2.3]'s standing line is that not everything is a
+ * setting.
+ */
+const ATTACHMENT_CAP_BYTES = 8 * 1024 * 1024;
+
 /** Choosing among a turn's siblings — [P9.3]. */
 const TurnRenditionParams = Type.Object({
   sessionId: Type.String(),
@@ -131,7 +189,7 @@ const IllustrateBody = Type.Object({
 });
 
 /**
- * ***Which parts of a Setup to draft, and how*** — [P13.6](../../../../docs/design/workplan/30-p13-implementation.md).
+ * ***Which parts of a Setup to draft, and how*** — [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * `parts` names what to (re)generate, so *Regenerate* on one section is this
  * request with one part named. `guidance` is a person's steer for a part and is
@@ -156,7 +214,7 @@ const SetupDraftBody = Type.Object(
 );
 
 /**
- * ***What a person kept*** — [P13.7](../../../../docs/design/workplan/30-p13-implementation.md).
+ * ***What a person kept*** — [P15.7](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **Texts, facts and three switches, and nothing the server holds.** The carry
  * is recomputed from the turn, so there is no field here that could carry a
@@ -300,6 +358,25 @@ const CastBody = Type.Object(
   { additionalProperties: false },
 );
 
+/**
+ * ***A hook as a session takes one*** (2026-09-27): the shared `PlotHook`, with
+ * the id optional because a session's own hook has no object upstream to keep
+ * one from, so the server mints it.
+ *
+ * The creation route and the add route both took any object and stored it as a
+ * `PlotHook` by a cast, on the reasoning that a hook the schema would refuse is
+ * an authoring mistake to show rather than a request to reject. Nothing showed
+ * it. One without `involves` made every read of the session a 500 and every
+ * turn a failure, since the actor lookup iterates `involves` on every gather,
+ * and the panel whose Remove could fix it was the page that would not load. A
+ * mistake is a `400` naming the field now, before anything is kept; one that
+ * reaches the file another way is `malformed` on the panel (`pool-shape.ts`).
+ */
+const HookInput = Type.Object(
+  { ...PlotHook.properties, id: Type.Optional(PlotHook.properties.id) },
+  { additionalProperties: false },
+);
+
 const CreateBody = Type.Object(
   {
     /**
@@ -381,14 +458,24 @@ const CreateBody = Type.Object(
     setup: Type.Optional(Type.String({ maxLength: 200 })),
     /**
      * Which of the Setup's written openings to start with — [03 §6],
-     * [P13.3](../../../../docs/design/workplan/30-p13-implementation.md).
+     * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
      *
      * **Absent is the primary**, which is what *start a session from this
      * Setup* means; **`null` is start cold**, 03 §6's third choice, and a choice
      * rather than an absence; an id names one. An id with no Setup beside it, or
      * one the Setup does not hold, is a 422 rather than a quiet substitution —
      * a story somebody did not choose is the dangling Setup's failure one field
-     * smaller.
+     * smaller. ~~`unknown-opening`~~ ***`unknown-setup-opening`*** —
+     * *recommended answer, owner deferred, 2026-10-03*: [P14.4] chose
+     * `unknown-opening` for a greeting naming somebody not cast or an opening
+     * they do not have, and the causes differ — this names a Setup's opening —
+     * so a client reading the code to say what went wrong says the right thing
+     * about each.
+     *
+     * ***A Setup that carries a written opening wins over the cast's
+     * greetings, always*** — the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md), 2026-10-03,
+     * `sessions/opening.ts` rule 1: whichever is chosen here, `null` included,
+     * the greetings below are not written for this session.
      */
     opening: Type.Optional(
       Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
@@ -402,12 +489,49 @@ const CreateBody = Type.Object(
      * session's own — which is the one source with no object to navigate to,
      * because the session is what you are already looking at.
      *
-     * *Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
+     * ~~*Unvalidated beyond the shape the handler reads, like `cast` and `lore`:
      * a hook the schema would refuse is an authoring mistake to show rather than
      * a request to reject, and the selector's filter is where a broken one stops
-     * being eligible.*
+     * being eligible.*~~ ***Checked as hooks*** (2026-09-27): nothing showed one
+     * and the filter never saw it, because the actor lookup before it fell over
+     * a hook with no `involves`, and so did every read of the session after.
+     * See {@link HookInput}.
      */
-    hooks: Type.Optional(Type.Array(Type.Object({}, { additionalProperties: true }))),
+    hooks: Type.Optional(Type.Array(HookInput, { maxItems: 256 })),
+    /**
+     * ***Which written opening each member starts on*** — actor id to opening
+     * id, [P14 §1.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.4]. Read only by a mode that declares `openingTurn`, and only when
+     * somebody besides the persona is cast — the guard on the greeting block
+     * below; anywhere else nothing reads it, its two refusals included.
+     *
+     * Absent for a member is their primary. In a group this is how an
+     * alternate is chosen at all — §1.7: *"siblings across N members would be a
+     * product"* — and in a single-character session it picks which sibling
+     * the head starts on, every opening still written beside it. A member not
+     * in the cast, or an opening that member does not have, is a 422 before
+     * anything is created.
+     *
+     * ***Refused beside a Setup that carries a written opening***
+     * (`conflicting-openings`) — *recommended answer, owner deferred,
+     * 2026-10-03*. That Setup's opening is what the session starts on
+     * (25 B18), so a greeting chosen here would be a choice the server
+     * quietly did not honour: the story somebody picked in the form would not
+     * be the one they got, which is the failure `unknown-setup-opening`
+     * exists to refuse. *Refused rather than ignored*, as wizard answers sent
+     * to a mode with no wizard are: the body asks for two first turns, and
+     * only the client that built it knows which it meant. An empty map asks
+     * for nothing and passes, and a mode that writes no greetings, or a
+     * session with nobody cast, reads none of this, as P14.4 has it — the
+     * scope settled at review on 2026-10-03, when the contract had stated the
+     * refusal without it (`sessions.test.ts`, *ignores a greeting chosen where
+     * no greeting would be written*).
+     */
+    openings: Type.Optional(
+      Type.Record(Type.String({ maxLength: 200 }), Type.String({ maxLength: 200 }), {
+        maxProperties: 32,
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -475,29 +599,41 @@ const SessionPatch = Type.Object(
 /**
  * One hook added to a running session — [03 §4.1], [P7.5].
  *
- * *Open, like the creation route's `hooks` array and for the same stated
+ * ~~*Open, like the creation route's `hooks` array and for the same stated
  * reason*: a hook the schema would refuse is an authoring mistake to **show**
  * rather than a request to reject, and the filter is where a broken one stops
- * being eligible with a class the panel can turn into a sentence. What is
- * closed is the envelope — one hook, under one key, so a client cannot post an
- * array and expect a pool.
+ * being eligible with a class the panel can turn into a sentence.~~ ***Checked
+ * as a hook*** (2026-09-27), for {@link HookInput}'s reason. The envelope is
+ * closed as it was — one hook, under one key, so a client cannot post an array
+ * and expect a pool.
  */
-const HookBody = Type.Object(
-  { hook: Type.Object({}, { additionalProperties: true }) },
-  { additionalProperties: false },
-);
+const HookBody = Type.Object({ hook: HookInput }, { additionalProperties: false });
 
 /**
  * One goal written at a completion — [06 §7.3.4]'s *"or one written now"*,
  * [P7.6].
  *
- * *Open past the envelope*, like the hook body beside it and for the stated
+ * ~~*Open past the envelope*, like the hook body beside it and for the stated
  * reason: a goal the schema would refuse is an authoring mistake to show rather
  * than a request to reject. What is closed is the envelope — one goal, under one
- * key.
+ * key.~~
+ *
+ * ***The shared `Goal`, with the id optional*** (2026-09-27). Nothing showed a
+ * goal the schema would refuse: it was stored behind an `as unknown as Goal`,
+ * and the first read that trusted the type fell over it. A goal without a
+ * `completion` made every read of the session a 500 and every turn a failure,
+ * and no route could take it out again. A mistake is shown now as a `400` that
+ * names the field, before anything is written. The id stays optional because
+ * a goal written here has no object upstream to keep one from, so the route
+ * mints it.
  */
 const GoalBody = Type.Object(
-  { goal: Type.Object({}, { additionalProperties: true }) },
+  {
+    goal: Type.Object(
+      { ...Goal.properties, id: Type.Optional(Goal.properties.id) },
+      { additionalProperties: false },
+    ),
+  },
   { additionalProperties: false },
 );
 
@@ -506,6 +642,33 @@ const HookParams = Type.Object({
   sessionId: Type.String(),
   hookId: Type.String({ maxLength: 200 }),
 });
+
+/**
+ * ***Which pooled row a Remove means*** (2026-09-28) — the query form of
+ * `PromoteBody.from` below, for the same reason: an id does not name one row,
+ * because a pool holds the same hook through two carriers on purpose.
+ *
+ * *Flat rather than nested*, because a query string is flat: `from` is the
+ * kind, `fromId` the carrier's id. **Closed**, and the id's presence checked
+ * against the kind in the handler, which is where a union of two query shapes
+ * can be said plainly — `session` has no id and the three carriers always do.
+ * Absent altogether, the remove takes every row under the id, which is what an
+ * id on its own can honestly ask for.
+ */
+const HookRemoveQuery = Type.Object(
+  {
+    from: Type.Optional(
+      Type.Union([
+        Type.Literal('session'),
+        Type.Literal('treatment'),
+        Type.Literal('setup'),
+        Type.Literal('lore'),
+      ]),
+    ),
+    fromId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * Where a pooled hook is being saved to — [03 §4.1], [15 §5.1].
@@ -588,7 +751,13 @@ const PromoteBody = Type.Object(
 const PresetBody = Type.Object(
   {
     presetId: Type.Optional(Type.String({ maxLength: 200 })),
-    preset: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    /**
+     * ***A pack, checked as one*** (2026-09-27). It was any object, stored as
+     * `Preset` by a cast, so a pack with no `blocks` was a session whose every
+     * turn failed. The library checks a preset against this schema before it
+     * keeps one; the session's own copy is checked the same way.
+     */
+    preset: Type.Optional(Preset),
   },
   { additionalProperties: false },
 );
@@ -658,6 +827,25 @@ const RememberBody = Type.Object(
  * absent because a redo is submitted from a turn's controls rather than
  * composed: the gestures submit, they do not preview.
  */
+/**
+ * Pictures named on a move — [25 E15], R1. **Digests and captions only**: the
+ * type and size are read from this server's store, and a digest it does not
+ * hold is refused. Four at most, which is more than a move needs and few enough
+ * that a model that sees them is not asked to read a gallery.
+ */
+const AttachmentsField = Type.Optional(
+  Type.Array(
+    Type.Object(
+      {
+        digest: Type.String({ pattern: '^sha256:[0-9a-f]{64}$' }),
+        caption: Type.Optional(Type.String({ maxLength: 2000 })),
+      },
+      { additionalProperties: false },
+    ),
+    { maxItems: 4 },
+  ),
+);
+
 const PreviewBody = Type.Object(
   {
     input: Type.Optional(
@@ -666,6 +854,7 @@ const PreviewBody = Type.Object(
           text: Type.String({ maxLength: 100_000 }),
           actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
           kind: Type.Optional(Type.String({ maxLength: 40 })),
+          attachments: AttachmentsField,
         },
         { additionalProperties: false },
       ),
@@ -725,12 +914,158 @@ const SubmitBody = Type.Object(
      * handler.
      */
     redoOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
-    input: Type.Object({
-      text: Type.String({ maxLength: 100_000 }),
-      actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-      kind: Type.Optional(Type.String({ maxLength: 40 })),
-    }),
+    /**
+     * ***Closed since 2026-09-27***, in the same change that gave it a field.
+     * It was open, so a newer client naming something this server did not know
+     * got a 200 and silently lost it — a picture sent to an older server would
+     * have vanished from the turn with nothing said. A closed object answers 400
+     * instead, which is the refusal a person can act on.
+     *
+     * ***Optional since [P14.4]*** — [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)'s
+     * *let them talk*: ST's empty send and Marinara's new reply. A turn with no
+     * input is the cast answering the last message, the speakers chosen by the
+     * policy with that message as the activation text, as [P14.1] computes
+     * (`turns/speakers.ts`, `activationText`). A swipe and a continue carry
+     * the input of the turn they name and refuse one beside them; an edit
+     * carries its own inside `authored`.
+     */
+    input: Type.Optional(
+      Type.Object(
+        {
+          text: Type.String({ maxLength: 100_000 }),
+          actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+          kind: Type.Optional(Type.String({ maxLength: 40 })),
+          attachments: AttachmentsField,
+          /**
+           * ***A redo's pictures, named by the turn that has them*** —
+           * [25 E15]. The server copies that turn's `input.attachments` as
+           * recorded, ids and kinds and digest-less pictures included, rather
+           * than rebuilding them from what a client re-sends — see
+           * `attachmentsAgain`. Not with `attachments`, which is for pictures
+           * just uploaded.
+           */
+          attachmentsOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+        },
+        { additionalProperties: false },
+      ),
+    ),
     guidance: Type.Optional(Type.String({ maxLength: 4000 })),
+    /**
+     * ***Force-talk*** — who should reply, by actor id, in order;
+     * [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.1]. ST's member *speak* button and `/trigger`; Marinara's
+     * `forCharacterId`.
+     *
+     * **Overrides the session's speaker policy**, whatever it is. Reaches a
+     * **muted** member — that is what the button is for — and never the
+     * persona, somebody outside the cast, or somebody the story has written
+     * out; each of those is a 422 naming which, checked in the handler because
+     * it depends on the session and not on the shape.
+     *
+     * *At least one and no repeats*: an empty list would be a request to force
+     * nobody, which `manual` already is, and a repeated id would be a speaker
+     * asked for twice in one round — a client bug the schema can name. At most
+     * 32, the cast route's own ceiling.
+     *
+     * ***Recorded on the turn, and kept by a rewrite.*** The list lands on
+     * `Turn.input.speakers`, and a `rewriteOf` submission that leaves this out
+     * is forced to the redone turn's list, read off the record for the tape's
+     * reason — a rewrite is *"not that sentence"*, and who was asked to say it
+     * is not the sentence. A reroll keeps nothing, as it keeps no draw; a
+     * client that wants the same member again sends them again. Sent beside
+     * `rewriteOf`, this wins.
+     */
+    speakers: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 200 }), {
+        minItems: 1,
+        maxItems: 32,
+        uniqueItems: true,
+      }),
+    ),
+    /**
+     * ***Push story*** — [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5b]: Marinara's director push, armed for this one turn.
+     * `natural` moves the story on through what it already has; `random`
+     * brings in something plausible nobody saw coming. It arms the engine's
+     * `se.scene.direct`, whose direction reaches the guidance slot and whose
+     * outcome records it; when that call fails the pack's own push text stands
+     * in, and the outcome says so.
+     *
+     * ***Kept by a rewrite and a guided redo***, as force-talk is: a
+     * `rewriteOf` or `redoOf` submission that leaves it out is pushed as the
+     * redone turn was, read off that turn's director outcome. Sent beside
+     * either, this wins. A plain reroll names no turn, so the client sends it
+     * (read off the same outcome). An edit makes no call, so it refuses one
+     * (`conflicting-gesture`).
+     */
+    push: Type.Optional(Type.Union([Type.Literal('natural'), Type.Literal('random')])),
+    /**
+     * ***Swipe*** — regenerate message *k* of the turn `redoOf` or `rewriteOf`
+     * names, [P14 §1.6](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.4]. The new turn is a sibling that carries messages `0..k-1`
+     * (`carried: true`) and the same input, and regenerates message *k* by
+     * whoever said it: the round starts at *k*, with the carried messages as
+     * the round so far. `redoOf` makes it a reroll, `rewriteOf` a rewrite, as
+     * for the whole turn. What each refusal means is `routes/gestures.ts`'.
+     */
+    fromMessage: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
+    /**
+     * ***Continue*** — a sibling of this turn whose last message is the old
+     * text and a continuation, [P14 §1.6], [P14.4]. One call, by the last
+     * message's speaker, shown that message as the last assistant entry and
+     * ending on SillyTavern's continue nudge (`openai.js:110`).
+     */
+    continueOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    /**
+     * ***The turn an edit rewrites*** — added 2026-09-29, at the [P14.4]
+     * review. Sent with `authored`, the edit is that turn's sibling and carries
+     * what `authored` does not rewrite: the input whole (pictures, force-talk,
+     * raw text) unless `authored.input` is sent, when only its text, actor and
+     * kind are laid over the carried one; the messages unless
+     * `authored.messages` is sent; and each line left as it was kept whole,
+     * hidden if it was. See `routes/gestures.ts`.
+     */
+    editOf: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    /**
+     * ***Edit*** — a turn written by hand, [P14 §1.6], [P14.4]: no call and
+     * no `request`. Sent with `editOf`, it is that turn's sibling and carries
+     * what it does not rewrite (above); ~~sent with `parentTurnId` set to the
+     * edited turn's parent, it is a sibling~~ — that still makes one, but
+     * re-authored from nothing: the input's pictures, force-talk and raw text
+     * are lost, which is why `editOf` was added. Sent at the head, it is a
+     * line added by hand. A speaker is an actor id the cast holds at that node,
+     * or `null` for the narrator, and never the persona — whose lines are the
+     * input. **At least one of the two**, since an edit of nothing is not one.
+     */
+    authored: Type.Optional(
+      Type.Object(
+        {
+          input: Type.Optional(
+            Type.Object(
+              {
+                text: Type.String({ maxLength: 100_000 }),
+                actorId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+                kind: Type.Optional(Type.String({ maxLength: 40 })),
+              },
+              { additionalProperties: false },
+            ),
+          ),
+          messages: Type.Optional(
+            Type.Array(
+              Type.Object(
+                {
+                  speaker: Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
+                  text: Type.String({ maxLength: 100_000 }),
+                },
+                { additionalProperties: false },
+              ),
+              { minItems: 1, maxItems: 64 },
+            ),
+          ),
+        },
+        { additionalProperties: false, minProperties: 1 },
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -744,7 +1079,11 @@ const SubmitBody = Type.Object(
  */
 const HeadBody = Type.Object(
   {
-    turnId: Type.String({ minLength: 1, maxLength: 200 }),
+    /**
+     * `null` is the root, since [P14.4]: [P14 §1.6]'s *Delete* of a first
+     * turn — the greeting — moves the head to its parent, which is nobody.
+     */
+    turnId: Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
     resume: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
@@ -787,7 +1126,7 @@ function refReply(reply: FastifyReply, outcome: BranchRefOutcome): FastifyReply 
     case 'no-ref':
       return reply.code(404).send({ error: 'no-such-ref', message: 'No such branch ref.' });
     case 'written':
-      return reply.send({ session: outcome.session });
+      return reply.send({ session: presentSession(outcome.session) });
   }
 }
 
@@ -803,10 +1142,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       modeConfig?: Record<string, unknown>;
       setup?: string;
       opening?: string | null;
-      hooks?: PlotHook[];
+      /** Checked against `HookInput`, so a hook may arrive without its id. */
+      hooks?: (Omit<PlotHook, 'id'> & { id?: string })[];
       cast?: { persona: string | null; actors: string[] };
       treatment?: string;
       lore?: string[];
+      openings?: Record<string, string>;
     };
 
     /**
@@ -836,20 +1177,24 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     }
 
     /**
-     * The opening, resolved before anything is written — [03 §6], [P13.3]. A
-     * named opening that is not there is refused here, while the refusal still
-     * costs nobody a half-made session.
+     * The Setup's opening, resolved before anything is written — [03 §6],
+     * [P15.3]. A named opening that is not there is refused here, while the
+     * refusal still costs nobody a half-made session; its code is its own
+     * (`unknown-setup-opening`, the `opening` field's note says why). An
+     * `opening` of `null` with no Setup asks for no opening, which is what it
+     * gets.
      */
-    const opening =
-      from === undefined
-        ? body.opening === undefined || body.opening === null
-          ? null
-          : ('unknown' as const)
-        : chooseOpening(from.openings, body.opening);
+    if (from === undefined && typeof body.opening === 'string') {
+      return reply.code(422).send({
+        error: 'unknown-setup-opening',
+        message: 'An opening was chosen with no setup to take it from.',
+      });
+    }
+    const opening = from === undefined ? null : chooseOpening(from.openings, body.opening);
     if (opening === 'unknown') {
       return reply
         .code(422)
-        .send({ error: 'unknown-opening', message: 'That setup has no such opening.' });
+        .send({ error: 'unknown-setup-opening', message: 'That setup has no such opening.' });
     }
 
     /**
@@ -914,12 +1259,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * with the setup turn's parts rather than with the session file. Named
      * rather than silently dropped.~~
      *
-     * ***`partyDefault` is read since [P13.3]***, in two halves. Its members are
+     * ***`partyDefault` is read since [P15.3]***, in two halves. Its members are
      * **seated** here — a companion has to be in the cast to be in the party,
      * and [06 §7.2]'s seat count below is held to them — and they are **made
      * members** by the opening turn, which is the turn the struck paragraph was
      * waiting for: an opening *is* a turn, so the effects ride on it
-     * (`sessions/opening.ts`).
+     * (`sessions/opening.ts`). With no opening chosen they ride on a turn of
+     * their own, which a cast's greetings then hang from (that module's rules
+     * 2 and 3, 2026-10-03).
      */
     const persona = from?.cast.personaOptions[0]?.id ?? null;
     const cast =
@@ -950,7 +1297,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     // What the mode says it can seat ([06 §7.2]) — the first real consumer of
     // `ParticipantPolicy`, which was a declaration nothing read.
     // The cast in effect, so a Setup's seated party is counted as a parameter's
-    // actors are — [P13.3].
+    // actors are — [P15.3].
     const actors = cast?.actors ?? [];
     if (actors.length > mode.definition.participants.maxActors) {
       return reply.code(422).send({
@@ -995,6 +1342,56 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       preset = structuredClone(row.body) as typeof mode.definition.assembly.defaultPreset;
     }
 
+    /**
+     * ***The members a greeting can come from, read before the session exists***
+     * — [P14 §1.7], [P14.4] — so a choice naming nobody is refused with
+     * nothing left behind. The cast in cast order, the persona out of it:
+     * the player does not greet themselves. Only for a mode that declares
+     * `openingTurn`, and only when somebody is cast.
+     *
+     * *Read even beside a Setup that carries an opening*, whose session will
+     * write none of them: whether the greetings are written is `firstTurns`'
+     * decision (25 B18, 2026-10-03), made in one place, and a second copy
+     * of the rule here to save one cast read at creation would be two places
+     * for it to drift. What this block does decide is the body: a greeting
+     * chosen beside that Setup is refused (`conflicting-openings`, the field's
+     * note says why).
+     */
+    let greeting: { members: Actor[]; persona: string | null } | null = null;
+    if (mode.definition.openingTurn === true && cast !== undefined && cast.actors.length > 0) {
+      if (carriesOpening(from) && Object.keys(body.openings ?? {}).length > 0) {
+        return reply.code(422).send({
+          error: 'conflicting-openings',
+          message:
+            'That setup has an opening of its own, which the session starts on instead of the cast’s greetings, so a greeting cannot be chosen beside it.',
+        });
+      }
+      const resolved = resolveCast(
+        services.library,
+        account.handle,
+        cast,
+        await readRegistry(services.sessions.layout, account.handle),
+        {},
+      );
+      greeting = {
+        members: resolved.actors
+          .map((member) => member.actor)
+          .filter((actor) => actor.id !== cast.persona),
+        persona: resolved.persona?.actor.name ?? null,
+      };
+      const refused = openingChoiceRefusal(greeting.members, body.openings ?? {});
+      if (refused !== null) {
+        return reply.code(422).send({
+          error: 'unknown-opening',
+          message:
+            refused.kind === 'not-in-cast'
+              ? 'An opening was chosen for somebody who is not in the cast.'
+              : 'That character has no such opening.',
+          actorId: refused.actorId,
+        });
+      }
+    }
+
     try {
       let session = await createSession(services.sessions, account.handle, {
         // Trimmed here so `{"name": "   "}` cannot produce a session whose
@@ -1017,6 +1414,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           config: Object.keys(answers).length === 0 ? null : answers,
         },
         preset,
+        /**
+         * **Voice, dispatch and the speaker policy, from what the mode declares
+         * today** — [P14 §1.2], [P14.0]. Written rather than left to default,
+         * because a session with none of the three is read as one made before
+         * P14.0 (`chatSettingsOf`), and this one was not: it keeps the voice it
+         * was made with when the mode's declared values change.
+         */
+        ...chatSettingsAtCreation(mode.definition),
         ...(cast === undefined ? {} : { cast }),
         ...(treatment === undefined ? {} : { treatment }),
         ...(lore === undefined ? {} : { lore }),
@@ -1049,7 +1454,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         hooks: poolFor({
           lore: resolveLore(services.library, account.handle, { treatment, lore }),
           ...(from === undefined ? {} : { setup: from }),
-          ...(body.hooks === undefined ? {} : { own: body.hooks }),
+          /**
+           * ***With ids minted, as the add route mints them*** (2026-09-27). A
+           * hook created with the session and no id was pooled as `se.hook#`
+           * with nothing after it: it could not be committed, blocked, recorded
+           * as fired or removed, since each of those keys on the id. Only the
+           * session's own hooks are minted for; a copied one keeps its source's
+           * id, which is [15 §5]'s obligation.
+           */
+          ...(body.hooks === undefined
+            ? {}
+            : {
+                own: body.hooks.map((hook) => ({
+                  ...hook,
+                  id: hook.id !== undefined && hook.id !== '' ? hook.id : uuidv7(),
+                })),
+              }),
         }),
       });
 
@@ -1107,48 +1527,67 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
 
       /**
-       * ***The Setup's opening, as the first turn*** — [03 §6], [04 §7.2],
-       * [P13.3](../../../../docs/design/workplan/30-p13-implementation.md).
+       * ***What the session starts on*** — a Setup's opening and its seeding
+       * ([03 §6], [04 §7.2],
+       * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)),
+       * the cast's greetings ([P14 §1.7], [P14.4]), or both stacked —
+       * decided by `firstTurns`, the one account of turn 1 since the merge.
        *
-       * Written here, synchronously, because nothing about it is a model call:
-       * the opening's words, and the party and spent hooks the Setup carries,
-       * as effects on the turn that [P7.4] said the party was waiting for.
-       * `openingTurn` returns nothing when there is nothing to write, which is
-       * every session not started from a Setup and every Setup with no opening
-       * and nothing to seed.
+       * ***A Setup that carries a written opening wins over the cast's
+       * greetings, always*** — **the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md),
+       * 2026-10-03.** Whichever opening was chosen, and when *start cold* was:
+       * the session takes the Setup's turn and writes no greeting. A Setup with
+       * no written opening leaves the greetings as P14.4 writes them, hung from
+       * the Setup's seeding turn when it seeds anything, so the head's path
+       * passes through the party and the spent hooks (*recommended answer,
+       * owner deferred, 2026-10-03* — the module says why children and not
+       * copies). `firstTurns` returns nothing when there is nothing to write,
+       * which is every session with no Setup and no greeting, and every Setup
+       * with no opening and nothing to seed beside a cast with nothing
+       * written.
+       *
+       * Written here, synchronously and under the session's lock, because
+       * nothing about it is a model call: there is nothing to stream and no job
+       * to watch, and the reply already carries the session with its head on
+       * the first turn.
        *
        * ***Before the mode's parts, and the order is a decision.*** A generating
        * mode's parts assemble with the opening in their history, so the world
-       * they make agrees with the scene an author wrote. The other order would
-       * mean waiting on an asynchronous job before the opening could be
-       * appended, and appending it as the parts' child would put a written
-       * opening after a generated one. *No shipped mode declares parts, so this
-       * is the fixture's case, and it is tested there.*
+       * they make agrees with the scene an author wrote — or from the
+       * greeting's node rather than beside it. The other order would mean
+       * waiting on an asynchronous job before the opening could be appended,
+       * and appending it as the parts' child would put a written opening after
+       * a generated one. *No shipped mode declares parts, so this is the
+       * fixture's case, and it is tested there.*
        *
        * *After the treatment warning's walk*, which reads the account's
        * sessions and is indifferent to whether this one has a turn yet.
        */
-      const first =
-        from === undefined
-          ? null
-          : openingTurn({
-              sessionId: session.id,
-              setup: from,
-              opening,
-              pool: session.hooks ?? [],
-              persona: session.cast?.persona ?? null,
-            });
+      const first = firstTurns({
+        sessionId: session.id,
+        setup:
+          from === undefined
+            ? null
+            : {
+                setup: from,
+                opening,
+                pool: session.hooks ?? [],
+                personaId: session.cast?.persona ?? null,
+              },
+        greetings:
+          greeting === null
+            ? null
+            : { members: greeting.members, user: greeting.persona, choices: body.openings ?? {} },
+      });
       if (first !== null) {
-        ({ session } = await appendTurnToSession(
-          services.sessions,
-          account.handle,
-          session.id,
-          first,
-        ));
+        session =
+          (await writeOpening(services.sessions, account.handle, session.id, first)) ?? session;
       }
 
       const parts = setupPlanFor(mode).steps.length;
-      if (parts === 0) return await reply.code(201).send({ session, ...warn });
+      if (parts === 0) {
+        return await reply.code(201).send({ session: presentSession(session), ...warn });
+      }
 
       const reserved = await submitTurn(services.jobs, {
         account: account.handle,
@@ -1156,17 +1595,20 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // The session is new, so there is exactly one turn this key can name and
         // a retried create cannot start a second generation.
         idempotencyKey: `setup:${session.id}`,
-        // The opening when there is one, so the parts are its child — above.
-        headTurnId: first?.id ?? null,
+        // The opening when there is one — the Setup's or the greeting the
+        // head was put on — so the parts are its child, above.
+        headTurnId: session.headTurnId,
       });
       if (reserved.kind !== 'created') {
         // Nothing else can have reserved a turn on a session created one line
         // ago. Answering with the session rather than an error is the honest
         // outcome if it somehow does: the session exists and is playable.
-        return await reply.code(201).send({ session, ...warn });
+        return await reply.code(201).send({ session: presentSession(session), ...warn });
       }
       services.runner.start(reserved.job, { setup: true });
-      return await reply.code(201).send({ session, activeJob: reserved.job, ...warn });
+      return await reply
+        .code(201)
+        .send({ session: presentSession(session), activeJob: reserved.job, ...warn });
     } catch (error) {
       if (error instanceof PathEscapeError) {
         return reply.code(422).send({ error: 'refused-path', message: error.message });
@@ -1183,7 +1625,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     const sessions = await listSessionFiles(services.sessions, account.handle, {
       includeArchived: archived === 'true',
     });
-    return reply.send({ sessions });
+    return reply.send({ sessions: sessions.map(presentSession) });
   });
 
   app.get('/sessions/:sessionId', { schema: { params: SessionParams } }, async (request, reply) => {
@@ -1259,7 +1701,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * today: the reads are real, the route is on the path of every poll, and an
      * empty array costs nothing to send.
      */
-    const pool = session.hooks ?? [];
+    /**
+     * ***What the engine can read, and what it can only show*** (2026-09-27).
+     * One hook the schema refuses, with no `involves`, made this read a 500:
+     * the actor lookup below iterated it. The engine takes `usable`; the panel
+     * lists the rest as `malformed`, so the person who wrote it can find it.
+     */
+    const { usable: pool, malformed } = readPool(session.hooks);
     const library = {
       db: services.sessions.index,
       layout: services.sessions.layout,
@@ -1286,8 +1734,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         ...(isRecord(session.setup) ? { setup: session.setup } : {}),
         ...(isRecord(lore?.treatment?.treatment) ? { treatment: lore.treatment.treatment } : {}),
       }),
-      rows:
-        lore === null
+      rows: [
+        ...(lore === null
           ? []
           : hookRows(pool, {
               channels: session.channels,
@@ -1295,7 +1743,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               activeBooks: new Set(lore.books.map((book) => book.id)),
               known: resolvableActors(library, account.handle, pool).known,
               persona: session.cast?.persona ?? null,
-            }),
+            })),
+        ...malformedRows(malformed),
+      ],
     };
 
     /**
@@ -1308,13 +1758,17 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * `achieved` plus `next`, both of which travel.
      */
     const goals = {
-      rows: goalRows(session.goals ?? [], session.channels, path),
+      rows: goalRows(readableGoals(session.goals), session.channels, path),
       concluded: readConcluded(session.channels),
     };
 
     // What this session is playing, which three of the blocks below need and
-    // none of them needed before a second mode declared anything.
-    const modeId = session.mode?.id ?? DEFAULT_MODE_ID;
+    // none of them needed before a second mode declared anything. ***Resolved***
+    // (2026-09-30, `resolvedMode`): a session naming a mode this build does not
+    // have plays the default, and is shown the default's HUD, surfaces,
+    // actions, dials and input kinds — where it was shown none of them.
+    const packMode = resolvedMode(session.mode?.id);
+    const modeId = packMode?.definition.id ?? session.mode?.id ?? DEFAULT_MODE_ID;
 
     /**
      * ***The two dials*** — [06 §7.3.1], [06 §7.3.2], [P7.8].
@@ -1341,11 +1795,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     /**
      * *The same resolution `gather.ts` makes*, in the one line that is the whole
      * of it: a session's own copied preset, or the mode's default. Copied at
-     * creation, so editing a preset does not change a game in progress ([03 §8]).
+     * creation, so editing a preset does not change a game in progress ([03 §8])
+     * — ***and through `presetOf` since 2026-09-27***, so a copy of the mode's
+     * own pack has the level lists the mode shipped after it was taken, and a
+     * dial the turn resolves is a dial this panel offers.
      */
-    const preset =
-      session.preset ??
-      (modeById(modeId) ?? modeById(DEFAULT_MODE_ID))?.definition.assembly.defaultPreset;
+    const preset = packMode === null ? session.preset : presetOf(session.preset, packMode);
     const dials: Record<
       string,
       { levelId: string | null; levels: { id: string; label: string }[] }
@@ -1366,8 +1821,20 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       };
     }
 
+    // Presence read as the mode reads it — [P14.3]: under `castIsPresent` a
+    // member nobody has muted is present, and the panel says so. ***In an
+    // embodied session only*** (2026-09-29, the review): a narrated one reads
+    // presence as it always did — see `castIsPresentFor`.
+    const cast = castRows(
+      session.cast,
+      session.channels,
+      path,
+      packMode !== null &&
+        castIsPresentFor(chatSettingsOf(session, packMode.definition), packMode.definition),
+    );
+
     return reply.send({
-      session,
+      session: presentSession(session),
       activeJob: job,
       health: degradedChannels(session.channels),
       // **Narrowed to this session's mode** — [06 §4.1], [P7.9]. The registry is
@@ -1384,8 +1851,31 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * appends to the strip; the other three regions have nowhere else to come
        * from.
        */
-      surfaces: modeSurfaces(session.channels, modeId),
-      cast: castRows(session.cast, session.channels, path),
+      surfaces: modeSurfaces(session.channels, modeId, session.id, {
+        actors: presentMembers(cast, session.cast?.persona ?? null),
+      }),
+      /**
+       * ***What a person may run between turns*** — `modeActions`, [P14.5a]:
+       * *Update trackers*, while a tracker is on. Here for `inputs`' reason
+       * below: a property of this session's mode, on the route the page polls.
+       */
+      actions: modeActions(session.channels, modeId),
+      cast,
+      /**
+       * ***How this session plays as a chat*** — [P14 §1.2], [P14 §1.5],
+       * [P14.5]: the effective voice, dispatch, speaker policy, author's note,
+       * hide map and prompt switches, read through `chatSettingsOf` — the one
+       * reader, so a settings panel shows what the next turn will do rather
+       * than what the file happens to spell. *A pre-P14 session shows its
+       * legacy values*, which is the reading its turns get.
+       *
+       * **Absent for a mode that does not play as a chat** (`isChatMode`),
+       * which is `dials`' rule: nothing to render rather than a panel of
+       * controls that change nothing.
+       */
+      ...(packMode !== null && isChatMode(packMode.definition)
+        ? { chat: chatSettingsOf(session, packMode.definition) }
+        : {}),
       hooks,
       goals,
       dials,
@@ -1404,7 +1894,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * what is accepted, which is the same list the submit route refuses
        * against.
        */
-      inputs: modeById(modeId)?.definition.inputs ?? [],
+      inputs: packMode?.definition.inputs ?? [],
       /**
        * Whether this session wants suggested actions — [R11], [P7.9].
        *
@@ -1432,7 +1922,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       renditions: {
         illustration: readIllustration(
           session.channels,
-          modeById(modeId)?.definition.renditions?.illustration,
+          packMode?.definition.renditions?.illustration,
         ),
         ...(SE_BACKDROP_ON in session.channels
           ? { backdrop: readBackdropOn(session.channels) }
@@ -1452,7 +1942,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!session) return;
 
       const body = request.body as { persona: string | null; actors: string[] };
-      const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID);
+      const mode = resolvedMode(session.mode?.id);
       if (mode !== null && body.actors.length > mode.definition.participants.maxActors) {
         return reply.code(422).send({
           error: 'too-many-actors',
@@ -1465,7 +1955,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       // so improving a character card reaches an ongoing game — the asymmetry
       // with the copied preset is the design ([03 §8]).
       const updated = await setCast(services.sessions, account.handle, sessionId, body);
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1510,7 +2000,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
       if (!(await mine(services, request, reply))) return;
 
-      const { hook } = request.body as { hook: Record<string, unknown> };
+      const { hook } = request.body as { hook: Omit<PlotHook, 'id'> & { id?: string } };
       const { sessionId } = request.params as { sessionId: string };
 
       /**
@@ -1522,14 +2012,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * without one it cannot be committed, blocked, or recorded as fired: every
        * one of those keys on `hook.id`.
        */
-      const id = typeof hook['id'] === 'string' && hook['id'] !== '' ? hook['id'] : uuidv7();
+      const id = hook.id !== undefined && hook.id !== '' ? hook.id : uuidv7();
       const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
-        add: { ...hook, id } as unknown as PlotHook,
+        add: { ...hook, id },
       });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1548,23 +2038,51 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * *Removing a hook that is already gone succeeds.* It is the state the caller
    * asked for, and a 404 would make a double-click an error — where a missing
    * **session** stays a 404, because that is a different claim.
+   *
+   * ***One row, when the caller names it*** (2026-09-28): `?from=&fromId=` is
+   * the pressed row's source, and only that row goes. Without it every row
+   * under the id went — both of two rows that one hook reached the pool as,
+   * from one press on either. A `from` that matches nothing removes nothing
+   * and still succeeds, for the double-click's reason above.
    */
   app.delete(
     '/sessions/:sessionId/hooks/:hookId',
-    { schema: { params: HookParams } },
+    { schema: { params: HookParams, querystring: HookRemoveQuery } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
+
+      const { from, fromId } = request.query as { from?: HookSource['kind']; fromId?: string };
+      if (
+        from === undefined ? fromId !== undefined : (from === 'session') !== (fromId === undefined)
+      ) {
+        return reply.code(400).send({
+          error: 'invalid',
+          message:
+            from === undefined
+              ? 'A row’s source id comes with its kind.'
+              : from === 'session'
+                ? 'A session’s own hook has no source id.'
+                : 'A hook from a library object names that object.',
+        });
+      }
       if (!(await mine(services, request, reply))) return;
 
       const { sessionId, hookId } = request.params as { sessionId: string; hookId: string };
+      const source: HookSource | undefined =
+        from === undefined
+          ? undefined
+          : from === 'session'
+            ? { kind: 'session' }
+            : { kind: from, id: fromId ?? '' };
       const updated = await setSessionHooks(services.sessions, account.handle, sessionId, {
         remove: hookId,
+        ...(source === undefined ? {} : { from: source }),
       });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1731,7 +2249,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
       if (!(await mine(services, request, reply))) return;
 
-      const { goal } = request.body as { goal: Record<string, unknown> };
+      const { goal } = request.body as { goal: Omit<Goal, 'id'> & { id?: string } };
       const { sessionId } = request.params as { sessionId: string };
 
       /**
@@ -1740,15 +2258,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * without one it could be neither completed nor pointed at — `se.goal` is
        * scoped by it and `Goal.next` names it.
        */
-      const id = typeof goal['id'] === 'string' && goal['id'] !== '' ? goal['id'] : uuidv7();
+      const id = goal.id !== undefined && goal.id !== '' ? goal.id : uuidv7();
       const updated = await addSessionGoal(services.sessions, account.handle, sessionId, {
         ...goal,
         id,
-      } as unknown as Goal);
+      });
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1809,7 +2327,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         if (presetId === 'default') {
           const session = await readSession(services.sessions, account.handle, sessionId);
           if (session === null) return reply.code(404).send({ error: 'not-found' });
-          const mode = modeById(session.mode?.id ?? DEFAULT_MODE_ID) ?? modeById(DEFAULT_MODE_ID);
+          const mode = resolvedMode(session.mode?.id);
           if (!mode) return reply.code(422).send({ error: 'unknown-mode' });
           next = structuredClone(mode.definition.assembly.defaultPreset);
         } else {
@@ -1835,7 +2353,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         next as NonNullable<Parameters<typeof setPreset>[3]>,
       );
       if (updated === null) return reply.code(404).send({ error: 'not-found' });
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1850,7 +2368,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const body = request.body as { treatment: string | null; lore: string[] };
       const { sessionId } = request.params as { sessionId: string };
       const updated = await setLore(services.sessions, account.handle, sessionId, body);
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1894,7 +2412,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (updated === null) {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
-      return reply.send({ session: updated });
+      return reply.send({ session: presentSession(updated) });
     },
   );
 
@@ -1938,10 +2456,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * this route would accept a write to it on **any** session — a Scene
        * session acquiring a `se.difficulty` nothing reads, which then sits in
        * `session.json` and in the effect log looking like state. `channelInPlay`
-       * is the `owner` rule: a channel owned by a *mode* belongs to a session
-       * playing it, and one owned by a *package* — cast, hooks, goals, lore —
-       * is available everywhere, which is why those were registered outside a
-       * mode to begin with.
+       * is ~~the `owner` rule: a channel owned by a *mode* belongs to a session
+       * playing it~~ *the declaration rule since 2026-09-30: a mode's channel
+       * belongs to a session whose mode declares it, so a dial two modes share
+       * is both of theirs*, and one owned by a *package* — cast, hooks, goals,
+       * lore — is available everywhere, which is why those were registered
+       * outside a mode to begin with. *The mode is the one the session plays*
+       * (2026-09-30): `channelInPlay` resolves an id this build does not know
+       * to the default, whose channels such a session's turns write — the
+       * staging switch its stager was reading was a 404 here.
        *
        * **A 404 rather than a 422**, and it is the same answer an unregistered
        * id gets: from this session's point of view there is no such channel, and
@@ -1949,7 +2472,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * ships from a session route.
        */
       const { channelId } = splitChannelKey(key);
-      if (!channelInPlay(channelId, session.mode?.id ?? DEFAULT_MODE_ID)) {
+      if (!channelInPlay(channelId, session.mode?.id)) {
         return reply
           .code(404)
           .send({ error: 'no-such-channel', message: 'This session has no such channel.' });
@@ -1959,13 +2482,14 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (outcome.kind === 'no-session') {
         return reply.code(404).send({ error: 'no-session', message: 'That session is gone.' });
       }
+      if (outcome.kind === 'busy') return busy(services, reply, sessionId);
 
       return reply.send({
-        session: outcome.session,
+        session: presentSession(outcome.session),
         effect: outcome.effect,
         health: degradedChannels(outcome.session.channels),
-        hud: sessionSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
-        surfaces: modeSurfaces(outcome.session.channels, session.mode?.id ?? DEFAULT_MODE_ID),
+        hud: sessionSurfaces(outcome.session.channels, session.mode?.id),
+        surfaces: modeSurfaces(outcome.session.channels, session.mode?.id, sessionId),
       });
     },
   );
@@ -1999,7 +2523,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (body.archived !== undefined) {
         session = await setArchived(services.sessions, account.handle, sessionId, body.archived);
       }
-      return reply.send({ session });
+      return reply.send({ session: presentSession(session) });
     },
   );
 
@@ -2065,6 +2589,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // 409 rather than 400: the request is well formed and the *turn* is
           // what cannot be remembered, which is a state rather than a mistake.
           return reply.code(409).send({ error: 'hidden-content', message: outcome.reason });
+        case 'busy':
+          return busy(services, reply, sessionId);
       }
     },
   );
@@ -2148,15 +2674,148 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!(await mine(services, request, reply))) return;
+      /**
+       * ***A read, not a reconcile*** (2026-09-30) — `readMine`, the preview's
+       * door, for the preview's reason: this is asked whenever a picture
+       * arrives or the stream comes back, and a full reconcile each time took
+       * the session's lock and could append a turn under a page that was only
+       * looking. The one read also carries the selection, which was a second.
+       */
+      const session = await readMine(services, request, reply);
+      if (!session) return;
 
       const { sessionId } = request.params as { sessionId: string };
-      const all = await readRenditions(services.sessions.layout, account.handle, sessionId);
-      const session = await readSession(services.sessions, account.handle, sessionId);
-      return reply.send({
-        renditions: [...all.values()],
-        selection: session?.renditionSelection ?? {},
-      });
+      const { layout } = services.sessions;
+      const all = await readRenditions(layout, account.handle, sessionId);
+      /**
+       * ***Ready with no file is no pixels*** (2026-09-30) — [25 E3], and the
+       * answer the client already renders as *cleared, try again*. The record
+       * went out as it was, `ready` with an asset, so the page drew a broken
+       * image where the design promised a picture that can be made again.
+       */
+      const renditions = await Promise.all(
+        [...all.values()].map(async (one) =>
+          one.state === 'ready' &&
+          one.asset !== null &&
+          !(await hasPixels(layout, account.handle, sessionId, one))
+            ? { ...one, asset: null }
+            : one,
+        ),
+      );
+      return reply.send({ renditions, selection: session.renditionSelection ?? {} });
+    },
+  );
+
+  /**
+   * ***A picture for a move, uploaded before the move is sent*** — [25 E15], R1,
+   * and [10 §11.2b]'s two-step shape: the bytes first, then the turn names them
+   * by digest in its ordinary JSON body.
+   *
+   * **Refused unless it is a PNG, JPEG or WebP by its own signature**, and
+   * never re-encoded here — the client has already done that, to strip what a
+   * phone photo records about where it was taken, and the server keeps its
+   * position of having no raster encoder. What comes back is the content
+   * address and what the store read, which is what the composer shows and the
+   * submission names.
+   *
+   * *The sweep rides on the upload*, because this is the one moment a session's
+   * store grows: pictures nothing names and nobody has touched for a day go, so
+   * a composer that attached and abandoned does not leave them for good.
+   */
+  app.post(
+    '/sessions/:sessionId/attachments',
+    { schema: { params: SessionParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      // A read, not a reconcile (2026-09-30): a reconcile here could move the
+      // head under the composer the picture is being attached in.
+      if (!(await readMine(services, request, reply))) return;
+
+      const { sessionId } = request.params as { sessionId: string };
+      const part = await readOnePart(request, reply, services);
+      if (part === null) return;
+      if (part.bytes.byteLength > ATTACHMENT_CAP_BYTES) {
+        return reply.code(413).send({
+          error: 'too-large',
+          message: 'That picture is larger than 8 MB.',
+        });
+      }
+
+      /**
+       * ***Stored under the session's lock, and only while the session is
+       * there*** — `intoSession`'s rule for a late writer. The body is read
+       * before this, outside the lock, so a slow transfer never holds it; and a
+       * session deleted during the transfer is not recreated as a folder holding
+       * one picture beside the trashed one, which nothing would ever list,
+       * sweep or remove.
+       */
+      const { layout } = services.sessions;
+      let stored: Awaited<ReturnType<typeof storeAttachment>> | 'gone';
+      try {
+        stored = await withSessionLock(sessionId, async () =>
+          (await fileExists(sessionFilePath(layout, account.handle, sessionId)))
+            ? storeAttachment(layout, account.handle, sessionId, part.bytes)
+            : 'gone',
+        );
+      } catch (error) {
+        if (error instanceof PathEscapeError) {
+          return reply.code(422).send({ error: 'refused-path', message: error.message });
+        }
+        throw error;
+      }
+      if (stored === 'gone') {
+        return reply.code(404).send({ error: 'not-found', message: 'No such session.' });
+      }
+      if (stored === null) {
+        return reply
+          .code(415)
+          .send({ error: 'not-an-image', message: 'That is not a PNG, JPEG or WebP picture.' });
+      }
+
+      try {
+        await sweepAttachments(layout, account.handle, sessionId, async () =>
+          digestsOf((await readTurns(services.sessions, account.handle, sessionId)).values()),
+        );
+      } catch {
+        // A sweep that fails leaves a file for next time; it must not cost the
+        // upload somebody is waiting on.
+      }
+
+      return reply.code(201).send({ attachment: stored });
+    },
+  );
+
+  /**
+   * The picture's bytes — the rendition asset route's shape: the type the store
+   * read, the digest as the `etag`, and a `404` the client renders as a
+   * placeholder when the bytes are not here, which after an import from an
+   * export is the ordinary case rather than an error.
+   */
+  app.get(
+    '/sessions/:sessionId/attachments/:digest',
+    { schema: { params: AttachmentParams } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      // Bytes, read on every render of a turn that has a picture: a read, not
+      // a reconcile (2026-09-30).
+      if (!(await readMine(services, request, reply))) return;
+
+      const { sessionId, digest } = request.params as { sessionId: string; digest: string };
+      const held = isDigest(digest)
+        ? await readAttachment(services.sessions.layout, account.handle, sessionId, digest)
+        : null;
+      if (held === null) {
+        return reply
+          .code(404)
+          .send({ error: 'no-picture', message: 'No picture under that digest.' });
+      }
+      return await reply
+        .header('content-type', held.mime)
+        .header('etag', digest)
+        .header('cache-control', 'private, max-age=31536000, immutable')
+        .send(Buffer.from(held.bytes));
     },
   );
 
@@ -2182,7 +2841,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
-      if (!(await mine(services, request, reply))) return;
+      // Bytes, read on every render of a picture: a read, not a reconcile
+      // (2026-09-30).
+      if (!(await readMine(services, request, reply))) return;
 
       const { sessionId, renditionId } = request.params as {
         sessionId: string;
@@ -2211,8 +2872,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
          * **A record that says `ready` and a file that is gone.** Which is not a
          * bug to guard against but the state [25 E3] describes: somebody emptied
          * `assets/`, and *"deleting one leaves `asset: null` and a picture that
-         * can be made again"*. A 404 is what the placeholder renders from, and
-         * the recipe on the record is what the retry runs.
+         * can be made again"*. ~~A 404 is what the placeholder renders from~~ —
+         * it was not: the page drew a broken image. *Since 2026-09-30 the list
+         * says so first* (`asset: null`), and the placeholder renders from that;
+         * this 404 is for a page that read the list before the file went. The
+         * recipe on the record is what the retry runs.
          */
         return reply.code(404).send({ error: 'no-asset', message: 'No pixels under that id.' });
       }
@@ -2315,36 +2979,47 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       /**
        * **The client's disconnect cancels the moment call**, because a call
-       * nobody is waiting for is money spent on an answer that reaches nothing
-       * — the same judgement `performCall`'s idle timeout makes about an
+       * nobody is waiting for is money spent on an answer that reaches nothing.
+       * It is the same judgement `performCall`'s idle timeout makes about an
        * endpoint that has stopped talking.
        *
-       * ~~*Fastify raises this when the socket closes*~~ — ***corrected
-       * 2026-09-26, found at [P13 §0.5](../../../../docs/design/workplan/30-p13-implementation.md).***
-       * This listened to the **request's** `close`, which is emitted once the
-       * body has been read rather than when the socket closes, and emitted
-       * once. Attached here, after two awaited reads, it had always already
-       * gone by: the button worked and **the cancellation never fired**, so a
-       * person who left still paid for the call. `abortOnDisconnect` reads the
-       * response instead, and says why at length.
+       * *Read off the reply, through `disconnectSignal`.* This used to be
+       * `request.raw.on('close')`, which on a POST has already fired by the time
+       * a handler has awaited anything, so it never cancelled anything; that
+       * file has the measurements.
        */
-      const signal = abortOnDisconnect(reply);
+      const signal = disconnectSignal(reply);
 
-      const made = await illustrateTurn(
-        {
-          sessions: services.sessions,
-          accounts: services.accounts,
-          providers: services.providers,
-          config: services.config,
-        },
-        {
-          handle: account.handle,
-          sessionId,
-          turnId,
-          purpose: purpose ?? 'illustration',
-          signal,
-        },
-      );
+      let made: Awaited<ReturnType<typeof illustrateTurn>>;
+      try {
+        made = await illustrateTurn(
+          {
+            sessions: services.sessions,
+            accounts: services.accounts,
+            providers: services.providers,
+            config: services.config,
+          },
+          {
+            handle: account.handle,
+            sessionId,
+            turnId,
+            purpose: purpose ?? 'illustration',
+            signal,
+          },
+        );
+      } catch (error) {
+        /**
+         * ***The cancellation this route caused ends here, silently.*** Nobody
+         * is there to read an answer, and rethrowing would reach
+         * `setErrorHandler` as an *Unhandled error*: a false alarm for every tab
+         * that closed, in the log a person reads when something is really
+         * wrong. Returning nothing to a destroyed socket is what Fastify itself
+         * does with one. Anything else, including a failure that merely
+         * coincides with the client leaving, still throws.
+         */
+        if (error instanceof Cancelled && signal.aborted) return;
+        throw error;
+      }
 
       if ('held' in made) {
         if (made.held === 'no-turn') {
@@ -2353,14 +3028,17 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         return reply.send({ held: made.held });
       }
 
-      services.renditions(account.handle, sessionId, [made.rendition], turnId);
+      // Awaited as far as the record, which the dispatch writes after claiming
+      // its job (2026-09-27): a client that refetches on this answer finds it.
+      // The picture itself is still never waited for.
+      await services.renditions(account.handle, sessionId, [made.rendition], turnId);
       return reply.code(202).send({ rendition: made.rendition });
     },
   );
 
   /**
    * ***Make a setup from here: the draft*** — [04 §7.2], [16 §3],
-   * [P13.6](../../../../docs/design/workplan/30-p13-implementation.md).
+   * [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * **Writes nothing.** What comes back is for a person to read, edit and keep
    * or discard — the story so far, an opening, a name and blurb, candidate
@@ -2375,8 +3053,17 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * succeeded are worth having beside the one that did not.
    *
    * ***Cancelled when the browser goes away, read off the response*** —
-   * `abortOnDisconnect`, which says why the request's own `close` is the wrong
-   * event.
+   * `disconnectSignal`, which says why the request's own `close` is the wrong
+   * event. ~~`abortOnDisconnect`~~ — the branch's own helper (3d499ca0) was
+   * dropped at the P15 merge (2026-10-03) for main's af5811a0, which is the
+   * same fix and also catches a client that left during the two awaited reads
+   * above (`raw.destroyed`).
+   *
+   * *A cancellation this route caused ends here, silently*, as the illustrate
+   * route's does and for its reason: nobody is left to read an answer, and a
+   * `Cancelled` rethrown to `setErrorHandler` would log an *Unhandled error*
+   * for every wizard closed mid-draft. Added at the merge (2026-10-03) with
+   * the helper, because the branch's draft let a part's `Cancelled` escape.
    */
   app.post(
     '/sessions/:sessionId/turns/:turnId/setup-draft',
@@ -2393,25 +3080,44 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         openingFrom?: 'scene' | 'verbatim';
       };
 
-      const signal = abortOnDisconnect(reply);
+      const signal = disconnectSignal(reply);
 
-      const draft = await draftSetupFromTurn(
-        {
-          sessions: services.sessions,
-          accounts: services.accounts,
-          providers: services.providers,
-          config: services.config,
-        },
-        {
-          account: account.handle,
-          sessionId,
-          turnId,
-          parts: body.parts,
-          ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
-          ...(body.openingFrom === undefined ? {} : { openingFrom: body.openingFrom }),
-          signal,
-        },
-      );
+      let draft: Awaited<ReturnType<typeof draftSetupFromTurn>>;
+      try {
+        draft = await draftSetupFromTurn(
+          {
+            sessions: services.sessions,
+            accounts: services.accounts,
+            providers: services.providers,
+            config: services.config,
+            /**
+             * ***Read at failure time, as impersonation's is*** — a completed
+             * update check replaces `updates` wholesale, so a value captured
+             * here would be the one from before the draft began. Without it a
+             * part that found nothing answering at a remote endpoint could
+             * only ever say *check that it is running*, never *this server
+             * has no internet*, which is [09 §6.5]'s whole sentence. Wired at
+             * the P15 merge (2026-10-03): the branch's parts carried no remedy
+             * at all, so there was nothing for it to inform.
+             */
+            online: () => services.updates.online,
+          },
+          {
+            account: account.handle,
+            sessionId,
+            turnId,
+            parts: body.parts,
+            ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+            ...(body.openingFrom === undefined ? {} : { openingFrom: body.openingFrom }),
+            signal,
+          },
+        );
+      } catch (error) {
+        // Anything else, including a failure that merely coincides with the
+        // client leaving, still throws — the illustrate route's line exactly.
+        if (error instanceof Cancelled && signal.aborted) return;
+        throw error;
+      }
 
       if ('held' in draft) {
         return reply.code(404).send({ error: 'no-such-turn', message: 'No such turn.' });
@@ -2422,7 +3128,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
   /**
    * ***Make a setup from here: the commit*** — [04 §7.2], [16 §3],
-   * [P13.7](../../../../docs/design/workplan/30-p13-implementation.md).
+   * [P15.7](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * **Writes the companion lorebook when facts were kept, then the Setup**, and
    * answers with the two ids and names and nothing else — the Setup holds the
@@ -2496,6 +3202,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * It is also the retry button [06 §10.2] promises: *"a failed rendition is a
    * placeholder with a retry button, never a failed turn."* Same route, because
    * they are the same act — a record with no pixels, run again.
+   *
+   * ***Each press is a new job with the next attempt number, and the job is
+   * claimed before the record is rewritten*** — `retryRendition` in
+   * `renditions/worker.ts`. A press that arrives while a try is still in flight
+   * is answered by that try, and gets the record back as it stands.
    */
   app.post(
     '/sessions/:sessionId/renditions/:renditionId/retry',
@@ -2518,14 +3229,24 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (held === null) {
         return reply.code(404).send({ error: 'no-rendition', message: 'No such rendition.' });
       }
+      /**
+       * ***Never over pixels that are here*** (2026-09-30) — [06 §10.7]'s
+       * *"regeneration must never be a destructive act on something the user
+       * liked"*. A retry runs the record again under the same file name, so
+       * pressed from a stale view — a second tab, a frame that went astray — it
+       * overwrote a finished picture, and a failed run left a failure where the
+       * picture had been; P13.13's imported pictures, drawn by a model this
+       * install does not have, could not be made again at all. Another picture
+       * of the turn is **Illustrate** again, which makes a sibling.
+       */
+      if (await hasPixels(services.sessions.layout, account.handle, sessionId, held)) {
+        return reply.code(409).send({
+          error: 'has-pixels',
+          message: 'That picture is here. Illustrate the turn again to make another beside it.',
+        });
+      }
 
-      const again = await recreateRendition(
-        services.sessions.layout,
-        account.handle,
-        sessionId,
-        held,
-      );
-      services.renditions(account.handle, sessionId, [again], again.turnId);
+      const again = await services.retryRendition(account.handle, sessionId, held);
       // `202`, like the illustrate route one up and for the same reason: what
       // comes back is the record set to `pending`, and the pixels arrive on the
       // stream. A `200` would read as *here is your picture*.
@@ -2542,7 +3263,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!(await mine(services, request, reply))) return;
 
       const { sessionId } = request.params as { sessionId: string };
-      await deleteSession(services.sessions, account.handle, sessionId);
+      const outcome = await deleteSession(services.sessions, account.handle, sessionId);
+      // A turn in flight would put `sessions/<id>/` back beside the trashed one.
+      if (outcome.kind === 'busy') return busy(services, reply, sessionId);
       // Moved to the trash rather than erased ([03 §10.3]) — 204 says the session
       // is gone from here, which is what the caller asked about.
       return reply.code(204).send();
@@ -2608,12 +3331,22 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        */
       const children = childrenByParent(byId);
       const siblings: Record<string, string[]> = {};
+      /**
+       * ***And which message each one is a swipe of*** — [P14 §1.6], [P14.5]:
+       * the counter is drawn on the message a swipe redid, not on the turn.
+       * `swipeGroups` says how the siblings are grouped; only nodes with
+       * siblings appear, by the rule above.
+       */
+      const swipes: Record<string, SwipeGroups> = {};
       for (const turn of path.slice(-limit)) {
-        const here = (children.get(turn.parentTurnId) ?? []).map((child) => child.id);
-        if (here.length > 1) siblings[turn.id] = here;
+        const family = children.get(turn.parentTurnId) ?? [];
+        if (family.length > 1) {
+          siblings[turn.id] = family.map((child) => child.id);
+          swipes[turn.id] = swipeGroups(turn, family);
+        }
       }
 
-      return reply.send({ turns: path.slice(-limit), siblings });
+      return reply.send({ turns: path.slice(-limit), siblings, swipes });
     },
   );
 
@@ -2636,7 +3369,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const account = await requireAccount(request, reply);
       if (!account) return;
 
-      const session = await mine(services, request, reply);
+      // One turn, read by the workbench as a person looks through a story: a
+      // read, not a reconcile (2026-09-30), for the renditions list's reason.
+      const session = await readMine(services, request, reply);
       if (!session) return;
 
       const { turnId } = request.params as { turnId: string };
@@ -2677,7 +3412,38 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const session = await readMine(services, request, reply);
       if (!session) return;
 
-      const body = request.body as { input?: { text: string }; guidance?: string };
+      const body = request.body as {
+        input?: {
+          text: string;
+          kind?: string;
+          attachments?: { digest: string; caption?: string }[];
+        };
+        guidance?: string;
+      };
+      /**
+       * The move's pictures, read as a submission reads them — so the preview
+       * and the turn assemble the same blocks. **A picture this session does not
+       * hold is left out rather than refused, and only that picture**: a preview
+       * answers *what would be sent*, and it fires on every pause in typing, so a
+       * stale composer must not turn the meter into an error — nor hide the
+       * pictures that are fine behind the one that is not.
+       */
+      const { attachments: named, ...rest } = body.input ?? { text: '' };
+      let attachments: TurnAttachment[] | undefined;
+      if (named !== undefined && named.length > 0) {
+        const read = await attachmentsFor(
+          services.sessions.layout,
+          account.handle,
+          session.id,
+          named,
+          'preview',
+        );
+        if (read.ok) attachments = read.attachments;
+      }
+      const input =
+        body.input === undefined
+          ? undefined
+          : { ...rest, ...(attachments === undefined ? {} : { attachments }) };
       const preview = await previewAssembly(
         {
           sessions: services.sessions,
@@ -2689,7 +3455,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           account: account.handle,
           sessionId: session.id,
           parentTurnId: session.headTurnId ?? null,
-          ...(body.input === undefined ? {} : { input: body.input }),
+          ...(input === undefined ? {} : { input }),
           ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
         },
       );
@@ -2742,8 +3508,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       request.body,
     );
     if (!result.ok) {
-      // A class, for the client to word — [21 §1.4], as everywhere else.
-      return reply.code(422).send({ error: result.reason });
+      // A class, for the client to word — [21 §1.4], as everywhere else. A
+      // session already here is a conflict with what is here rather than a
+      // fault in the file.
+      return reply
+        .code(result.reason === 'already-here' ? 409 : 422)
+        .send({ error: result.reason });
     }
     return reply.code(201).send(result);
   });
@@ -2804,31 +3574,89 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!session) return;
 
       const body = request.body as { actorId?: string };
+
+      /**
+       * ***A draft nobody is waiting for is a draft nobody wants***, so the
+       * client leaving is what cancels one. The signal comes from
+       * `disconnectSignal`, for the reason the illustrate route gives.
+       *
+       * ***And no timeout here, on purpose.*** `limits.providerTimeoutMs` is
+       * enforced inside `performCall`, per attempt, by `withIdleTimeout`, which
+       * bounds **silence rather than duration** and reads `<= 0` as *switched
+       * off*. Both are [21 §4]'s row and [P2C §1.3]'s semantics, and a draft
+       * goes through that helper like every other call. This route used to add
+       * its own copy as `AbortSignal.timeout(providerTimeoutMs)`, which broke
+       * both halves of that row. It was a wall-clock ceiling on top of the idle
+       * one, and when it fired it reported a hang as a cancellation rather than
+       * a stall. At zero it was `AbortSignal.timeout(0)`, which aborts on the
+       * next tick, so every draft failed for exactly the operators who had
+       * switched the bound off because their endpoint is slow.
+       */
+      const signal = disconnectSignal(reply);
+
       const drafted = await impersonate(
         {
           sessions: services.sessions,
           accounts: services.accounts,
           providers: services.providers,
           config: services.config,
+          // Read at failure time, since a completed check replaces it wholesale.
+          online: () => services.updates.online,
         },
         {
           account: account.handle,
           sessionId: session.id,
           parentTurnId: session.headTurnId ?? null,
           ...(body.actorId === undefined ? {} : { actorId: body.actorId }),
-          // A draft nobody is waiting for is a draft nobody wants: the request
-          // going away is the whole of when to stop.
-          signal: AbortSignal.timeout(services.config.limits.providerTimeoutMs),
+          signal,
         },
       );
 
+      if (!drafted.ok && drafted.reason === 'cancelled') {
+        // Nobody is left to answer when this route's own signal did it, as in
+        // the illustrate route. Anything else that stops a draft is the server
+        // stopping, and the person waiting is told so.
+        if (signal.aborted) return;
+        return reply.code(503).send({
+          error: 'cancelled',
+          message: 'The server stopped before the draft was written.',
+        });
+      }
+
+      if (!drafted.ok && drafted.reason === 'provider-failed') {
+        /**
+         * ***The class and the remedy, and never the prompt*** (2026-09-27).
+         * One line with the fields a reader filters on, which is the runner's
+         * `step.failed` shape, and a `502` because the server did its part and
+         * the endpoint behind it did not. The client words the remedy with the
+         * sentences a failed turn uses.
+         */
+        request.log.error(
+          {
+            event: 'impersonate.failed',
+            sessionId: session.id,
+            class: drafted.class,
+            callId: drafted.callId,
+            ...(drafted.detail === undefined ? {} : { detail: drafted.detail }),
+          },
+          'A draft could not be written',
+        );
+        return reply.code(502).send({
+          error: 'provider-failed',
+          class: drafted.class,
+          remedy: drafted.remedy,
+          message: 'The model endpoint could not write that draft.',
+        });
+      }
+
       if (!drafted.ok) {
         /**
-         * **A class, and the client has the sentences.** The four reasons point
-         * at four different places: a mode with no prose step is a mode that
-         * cannot do this at all, a non-player member is the design's own line
-         * ([06 §8]'s *"the difference between a party member and a second
-         * player"*), and the two role failures are the bindings surface.
+         * **A class, and the client has the sentences.** The reasons point at
+         * different places: a mode with no prose step is a mode that cannot do
+         * this at all, a non-player member is the design's own line ([06 §8]'s
+         * *"the difference between a party member and a second player"*), the
+         * two role failures are the bindings surface, and a window too small
+         * for the reply is the connection's or the pack's setting.
          */
         return reply.code(drafted.reason === 'not-a-player' ? 409 : 422).send({
           error: drafted.reason,
@@ -2863,7 +3691,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (!account) return;
 
       const { sessionId } = request.params as { sessionId: string };
-      const body = request.body as { turnId: string; resume?: boolean };
+      const body = request.body as { turnId: string | null; resume?: boolean };
 
       // No account filter, matching `submitTurn`'s own busy check: a session
       // belongs to the directory it is in, so the job on it is this account's.
@@ -2891,7 +3719,12 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
           // With what the line being left still has out in the world — [07 §7]'s
           // honesty banner. Zero until something writes an escaped effect, and
           // the field is here so the first producer has somewhere to surface.
-          return reply.send({ session: outcome.session, abandoned: outcome.abandoned });
+          return reply.send({
+            session: presentSession(outcome.session),
+            abandoned: outcome.abandoned,
+          });
+        case 'busy':
+          return busy(services, reply, sessionId);
       }
     },
   );
@@ -2966,8 +3799,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             keys: outcome.keys,
             branchFrom: outcome.branchFrom,
           });
+        case 'busy':
+          return busy(services, reply, sessionId);
         case 'undone':
-          return reply.send({ session: outcome.session, turn: outcome.turn });
+          return reply.send({ session: presentSession(outcome.session), turn: outcome.turn });
       }
     },
   );
@@ -3057,9 +3892,46 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         parentTurnId?: string | null;
         rewriteOf?: string;
         redoOf?: string;
-        input: { text: string; actorId?: string | null; kind?: string };
+        input?: {
+          text: string;
+          actorId?: string | null;
+          kind?: string;
+          attachments?: { digest: string; caption?: string }[];
+          attachmentsOf?: string;
+        };
         guidance?: string;
+        speakers?: string[];
+        push?: Push;
+        fromMessage?: number;
+        continueOf?: string;
+        editOf?: string;
+        authored?: {
+          input?: { text: string; actorId?: string | null; kind?: string };
+          messages?: { speaker: string | null; text: string }[];
+        };
       };
+
+      /**
+       * ***Which gesture this is, read against the record*** — [P14 §1.6],
+       * [P14.4]: a swipe, a continue or an edit, or none of them. First,
+       * because each can refuse the body outright, and because what it
+       * resolves to — the node, the carried move, who speaks — is what every
+       * check below is made against (`routes/gestures.ts`).
+       */
+      const resolved = await gestureOf(services, account.handle, sessionId, body);
+      if ('refused' in resolved) {
+        return reply.code(resolved.refused.status).send(resolved.refused.body);
+      }
+      const gesture = resolved.gesture;
+      // Where the turn goes: the gesture's node when it names one, else the
+      // body's — spread rather than read, for `SubmitRequest.parentTurnId`'s
+      // reason: *absent* and *null* are different requests.
+      const placing: { parentTurnId?: string | null } =
+        gesture.parentTurnId !== undefined
+          ? { parentTurnId: gesture.parentTurnId }
+          : 'parentTurnId' in body
+            ? { parentTurnId: body.parentTurnId ?? null }
+            : {};
 
       /**
        * The tape a rewrite replays, read from the record — [P6.2].
@@ -3069,6 +3941,30 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * refusal, and the runner's job starts after that question is settled.
        */
       let replay: Tape | undefined;
+      /**
+       * ***And who it spoke for*** — [P14 §1.3a](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+       * point 7, [P14.1]. *Rewrite keeps the speakers and reroll asks again*:
+       * the tape carries every choice the rule-based arms make, and this carries
+       * one it cannot — a smart pick, which was a model's answer rather than a
+       * draw. Read from the same record in the same read, for the tape's
+       * reason.
+       */
+      let kept: string[] | undefined;
+      /**
+       * ***And who it was asked to speak for*** — the redone turn's force-talk,
+       * `Turn.input.speakers`, [P14.1]. The other choice of speaker the tape
+       * cannot carry, and the one a rewrite lost before the record kept it: a
+       * forced turn's rewrite played the session's policy, so *"Lund, answer
+       * that"* came back as whoever the policy chose — under `manual`, nobody.
+       * **The body's own `speakers` wins when sent**, since a person naming
+       * somebody now is a newer request than the one on the record.
+       */
+      let forced: string[] | undefined;
+      /**
+       * ***And whether it was pushed*** — [P14.5b]: the redone turn's
+       * `direction.push`, for force-talk's reason. The body's own wins.
+       */
+      let pushed: Push | undefined;
       if (body.rewriteOf !== undefined) {
         const rewritten = await readTurnById(
           services.sessions,
@@ -3081,8 +3977,21 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
         }
-        if (rewritten.opening !== undefined) return refuseOpening(reply);
-        replay = rewritten.tape;
+        // A whole-turn rewrite of a turn nothing made — no input, no request —
+        // has nothing to replay; a swipe of one of its lines is the gesture's
+        // business, already read above. See `refuseOpening`.
+        if (body.fromMessage === undefined && !redoable(rewritten)) return refuseOpening(reply);
+        /*
+         * A rewrite swipe from *k* replays call *k*'s draws, not call 0's —
+         * `swipeReplay` (2026-09-29, the [P14.4] review).
+         */
+        replay =
+          body.fromMessage === undefined
+            ? rewritten.tape
+            : swipeReplay(rewritten.tape, body.fromMessage);
+        kept = keptSpeakers(rewritten);
+        forced = forcedOn(rewritten);
+        pushed = pushedOn(rewritten);
       }
 
       /**
@@ -3118,8 +4027,11 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session to redo.' });
         }
-        if (previous.opening !== undefined) return refuseOpening(reply);
+        if (body.fromMessage === undefined && !redoable(previous)) return refuseOpening(reply);
         attempt = { turnId: previous.id, text: previous.output?.text ?? '' };
+        // A guided redo of a pushed turn is pushed too, for a client that did
+        // not send it — the body's own, or a rewrite's record, still wins.
+        pushed ??= pushedOn(previous);
       }
 
       /**
@@ -3145,10 +4057,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * was a new outcome arm through the job layer for a check that is about
        * the **request** rather than about scheduling.
        */
-      const kind = body.input.kind;
-      if (kind !== undefined) {
+      // The move the person typed — a submission's or an edit's. A carried
+      // move was checked when its own turn was submitted.
+      const kind = (body.input ?? body.authored?.input)?.kind;
+      /**
+       * *The default kind is never refused*: a move sent without one is
+       * recorded as `do` whatever the mode declares (`payloadOf`), so its redo —
+       * which now repeats the recorded kind — sends `do`, and refusing that
+       * would make a turn this server wrote impossible to redo.
+       */
+      if (kind !== undefined && kind !== DEFAULT_INPUT_KIND) {
         const submitting = await readSession(services.sessions, account.handle, sessionId);
-        const accepted = modeById(submitting?.mode?.id ?? DEFAULT_MODE_ID)?.definition.inputs;
+        const accepted = resolvedMode(submitting?.mode?.id)?.definition.inputs;
         if (submitting !== null && accepted !== undefined && !accepted.includes(kind)) {
           return reply.code(422).send({
             error: 'unknown-input-kind',
@@ -3158,6 +4078,150 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         }
       }
 
+      /**
+       * ***Force-talk, checked against the node the turn will answer at*** —
+       * [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+       * [P14.1].
+       *
+       * **A 422 naming the class of refusal**, for the input kind's reason: a
+       * silently dropped name is a person pressing *speak* on somebody and
+       * getting somebody else, or nobody, with nothing said. The three classes
+       * are `forceRefusal`'s, which the runner applies again when the turn runs:
+       * this is the refusal a person can act on, and the runner's is the guard
+       * that still holds if the node's state moves between the two.
+       *
+       * ***At the node, not at the head***, because status is per node: a
+       * character dead on one branch is alive on the branch being written from,
+       * and `parentTurnId` is how a submission says which. The head's snapshot
+       * is the cheap answer for the node it describes, and a replay along the
+       * path is the general one — `gatherAssemblyInputs`' rule, applied to the
+       * one question this needs answered before a job exists.
+       *
+       * *The cast is the roster plus anyone the node's channels name*, which is
+       * the set `resolveCast` loads. An id naming a card since deleted passes
+       * here and is dropped by the runner, which reads the library; a second
+       * library read on the submit path would buy a nicer refusal for a request
+       * only a stale client can make.
+       */
+      /*
+       * ***The same door for every speaker a gesture names*** ([P14.4]): the
+       * carried speaker of a swipe or a continue, and every member an edit
+       * wrote a line for, are refused on the same three grounds as a forced
+       * one — the persona's lines are the input, and somebody outside the cast
+       * or written out of the story at that node has no line to be given.
+       * An edit's lines are then signed with the names the cast holds there.
+       */
+      const checking = body.speakers ?? gesture.speaking;
+      let authored: OutputMessage[] | undefined;
+      if (checking !== undefined && checking.length > 0) {
+        const forcing = await readSession(services.sessions, account.handle, sessionId);
+        if (forcing !== null) {
+          const node = 'parentTurnId' in placing ? (placing.parentTurnId ?? null) : body.headTurnId;
+          const channels = snapshotIsAt(forcing, node)
+            ? forcing.channels
+            : await reconstructAlong(
+                services.sessions,
+                account.handle,
+                sessionId,
+                walkPath(await readTurns(services.sessions, account.handle, sessionId), node),
+              );
+          const refused = firstForceRefusal(checking, forcing, channels);
+          if (refused !== null) {
+            return reply.code(422).send({
+              ...FORCE_REFUSALS[refused.reason],
+              speaker: refused.speaker,
+            });
+          }
+          if (gesture.authored !== undefined) {
+            const signed = await authoredMessages(
+              services,
+              account.handle,
+              forcing,
+              channels,
+              gesture.authored.messages,
+            );
+            if ('refused' in signed) {
+              return reply.code(signed.refused.status).send(signed.refused.body);
+            }
+            authored = signed.messages;
+          }
+        }
+      }
+      if (gesture.authored !== undefined && authored === undefined) {
+        // Nobody to check: every line is the narrator's, or there are none.
+        authored = gesture.authored.messages.map((message) => ({
+          speaker: null,
+          text: message.text,
+        }));
+      }
+      /*
+       * ***An edit that named its turn keeps what it left alone*** — each
+       * unchanged line whole, and the hide entry on those lines (`editedFrom`,
+       * 2026-09-29 at the [P14.4] review).
+       */
+      let hidden = gesture.hidden;
+      if (gesture.authored?.from !== undefined && authored !== undefined) {
+        const kept = editedFrom(authored, gesture.authored.from);
+        authored = kept.messages;
+        hidden = kept.hidden;
+      }
+
+      /**
+       * ***The pictures, read from this server's store rather than believed*** —
+       * [25 E15], R1. A digest the store does not hold names a picture that was
+       * never uploaded here, and recording it would be a turn pointing at
+       * nothing; refused before a job exists, while the request is still one.
+       *
+       * ***Or a redo's, copied from the turn it names*** — which is how a
+       * picture whose bytes never reached this server (an imported turn) is
+       * carried: it is on the record, so it is not a claim.
+       */
+      let attachments: TurnAttachment[] | undefined;
+      const composed = body.input?.attachments ?? [];
+      if (body.input?.attachmentsOf !== undefined) {
+        if (composed.length > 0) {
+          return reply.code(400).send({
+            error: 'invalid',
+            message: 'A move carries its own pictures or another turn’s, not both.',
+          });
+        }
+        const source = await readTurnById(
+          services.sessions,
+          account.handle,
+          sessionId,
+          body.input.attachmentsOf,
+        );
+        if (source === null) {
+          return reply.code(404).send({
+            error: 'no-such-turn',
+            message: 'No such turn in this session to take the pictures from.',
+          });
+        }
+        const again = await attachmentsAgain(
+          services.sessions.layout,
+          account.handle,
+          sessionId,
+          source.input?.attachments ?? [],
+        );
+        if (again.length > 0) attachments = again;
+      } else if (composed.length > 0) {
+        const read = await attachmentsFor(
+          services.sessions.layout,
+          account.handle,
+          sessionId,
+          composed,
+          'submit',
+        );
+        if (!read.ok) {
+          return reply.code(422).send({
+            error: 'unknown-attachment',
+            message: 'A picture on this move was never uploaded to this session.',
+            digest: read.digest,
+          });
+        }
+        attachments = read.attachments;
+      }
+
       const outcome = await submitTurn(services.jobs, {
         account: account.handle,
         sessionId,
@@ -3165,8 +4229,20 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         headTurnId: body.headTurnId,
         // Spread rather than passed, because *absent* and *null* are different
         // requests here — see `SubmitRequest.parentTurnId`.
-        ...('parentTurnId' in body ? { parentTurnId: body.parentTurnId } : {}),
+        ...placing,
       });
+      const fromRecord = {
+        replay,
+        kept,
+        forced,
+        pushed,
+        // A guided swipe's attempt is the one message it redoes ([P14.4]).
+        attempt: gesture.attempt ?? attempt,
+        attachments,
+        gesture,
+        ...(authored === undefined ? {} : { authored }),
+        ...(hidden === undefined ? {} : { hidden }),
+      };
 
       switch (outcome.kind) {
         case 'no-session':
@@ -3218,13 +4294,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
            * that already happened.
            */
           if (outcome.job.status === 'queued') {
-            services.runner.start(outcome.job, payloadOf(body, { replay, attempt }));
+            services.runner.start(outcome.job, payloadOf(body, fromRecord));
           }
           return reply.send(accepted(outcome.job, sessionId));
         }
 
         case 'created':
-          services.runner.start(outcome.job, payloadOf(body, { replay, attempt }));
+          services.runner.start(outcome.job, payloadOf(body, fromRecord));
           // 202: the work is accepted, not done. The stream is where it happens.
           return reply.code(202).send(accepted(outcome.job, sessionId));
       }
@@ -3312,9 +4388,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const release = (): void => {
         writer.close();
       };
-      // Registered so `app.close()` can end it: closing resolves in zero
-      // milliseconds with a hijacked stream open, so a surviving keepalive is a
-      // hung process rather than a failed test.
+      // Registered so closing the app can end it, in `preClose`, before the
+      // listener waits for open responses: a stream never finishes on its own.
+      // See `AppServices.streams`.
       services.streams.add(release);
 
       request.raw.on('close', release);
@@ -3351,8 +4427,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
 function payloadOf(
   body: {
-    input: { text: string; actorId?: string | null; kind?: string };
+    input?: { text: string; actorId?: string | null; kind?: string };
     guidance?: string;
+    speakers?: readonly string[];
+    push?: Push;
   },
   /**
    * What the route read off the record on the submission's behalf — the tape
@@ -3362,27 +4440,157 @@ function payloadOf(
    */
   fromRecord: {
     replay?: Tape | undefined;
+    /** Who a rewrite's redone turn spoke for — `TurnPayload.keptSpeakers`. */
+    kept?: readonly string[] | undefined;
+    /** Who a rewrite's redone turn was forced to speak for — its `input.speakers`. */
+    forced?: readonly string[] | undefined;
+    /** Whether a rewrite's redone turn was pushed — its director outcome's `direction.push`. */
+    pushed?: Push | undefined;
     attempt?: { turnId: string; text: string } | undefined;
+    /** The move's pictures, as the store described them — never the client's claim. */
+    attachments?: TurnAttachment[] | undefined;
+    /** What a swipe, a continue or an edit resolved to — `routes/gestures.ts`, [P14.4]. */
+    gesture?: Gesture;
+    /** An edit's lines, signed with the cast's names. */
+    authored?: OutputMessage[];
+    /** The new turn's hide entry — `TurnPayload.hidden`. */
+    hidden?: true | readonly number[];
   },
-): {
-  input: { actorId: string | null; kind: string; text: string; raw: string };
-  guidance?: string;
-  attempt?: { turnId: string; text: string };
-  replay?: Tape;
-} {
+): TurnPayload {
+  const hidden = fromRecord.hidden === undefined ? {} : { hidden: fromRecord.hidden };
+  const gesture = fromRecord.gesture ?? {};
+  /**
+   * ***An edit is its input and its lines, and nothing else*** ([P14.4]): the
+   * clash check has already refused every field that would steer a call, and
+   * the runner makes none.
+   */
+  if (gesture.authored !== undefined) {
+    return {
+      ...(gesture.input === undefined ? {} : { input: gesture.input }),
+      // The edited turn's force-talk, carried with its move (`editOf`).
+      ...(gesture.recorded === undefined ? {} : { speakers: gesture.recorded }),
+      authored: { messages: fromRecord.authored ?? [] },
+      ...hidden,
+    };
+  }
+  // The body's is checked by the handler before a job existed, and the
+  // record's was checked when its own turn was submitted; both are checked
+  // again by the selector when the turn runs — see `TurnPayload.speakers`.
+  // A carried move keeps the force-talk it recorded ([P14.4]).
+  const speakers = body.speakers ?? fromRecord.forced ?? gesture.recorded;
+  const push = body.push ?? fromRecord.pushed;
+  /**
+   * ***The move***: the gesture's, when it carries one — already a record's
+   * input, pictures and all — else the body's, else none: a turn with no
+   * input is *let them talk* ([P14.4]).
+   */
+  const input: TurnPayload['input'] =
+    gesture.input ??
+    (body.input === undefined
+      ? undefined
+      : {
+          actorId: body.input.actorId ?? null,
+          kind: body.input.kind ?? DEFAULT_INPUT_KIND,
+          text: body.input.text,
+          // What the player typed, before anything normalised it. Kept because a
+          // rewrite replays the original rather than the interpretation.
+          raw: body.input.text,
+          ...(fromRecord.attachments === undefined ? {} : { attachments: fromRecord.attachments }),
+        });
   return {
-    input: {
-      actorId: body.input.actorId ?? null,
-      kind: body.input.kind ?? 'do',
-      text: body.input.text,
-      // What the player typed, before anything normalised it. Kept because a
-      // rewrite replays the original rather than the interpretation.
-      raw: body.input.text,
-    },
+    ...(input === undefined ? {} : { input }),
     ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
     ...(fromRecord.attempt === undefined ? {} : { attempt: fromRecord.attempt }),
     ...(fromRecord.replay === undefined ? {} : { replay: fromRecord.replay }),
+    ...(fromRecord.kept === undefined ? {} : { keptSpeakers: fromRecord.kept }),
+    ...(speakers === undefined ? {} : { speakers }),
+    ...(push === undefined ? {} : { push }),
+    ...(gesture.carry === undefined ? {} : { carry: gesture.carry }),
+    ...hidden,
   };
+}
+
+/**
+ * ***The push a turn was given***, as a rewrite restores it — the flavour on
+ * its director's outcome ([P14.5b]), or `undefined` for a turn nobody pushed.
+ * Shape-guarded for `forcedOn`'s reason: the record is a file.
+ */
+function pushedOn(turn: Turn): Push | undefined {
+  const outcome = turn.steps?.find((step) => step.stepId === SE_SCENE_DIRECT);
+  const push: unknown = outcome?.direction?.push;
+  return push === 'natural' || push === 'random' ? push : undefined;
+}
+
+/**
+ * ***The force-talk a turn recorded***, as a rewrite restores it — or
+ * `undefined` for a turn nobody forced.
+ *
+ * *Shape-guarded*, because the record is a file and an imported session's
+ * turns ride in through a spread: a hand-edited or foreign `speakers` that is
+ * not a list of ids is read as nobody forced, rather than handed to a selector
+ * whose filter expects strings. **An empty list is nobody forced too**, which
+ * the schema would never have accepted on the way in.
+ */
+function forcedOn(turn: Turn): string[] | undefined {
+  const held: unknown = turn.input?.speakers;
+  if (!Array.isArray(held)) return undefined;
+  const ids = held.filter((id): id is string => typeof id === 'string' && id !== '');
+  return ids.length === 0 ? undefined : ids;
+}
+
+/**
+ * What each force-talk refusal says — [P14 §1.3], [P14.1]. **One error class
+ * per reason**, because a client acts differently on each: a persona named is
+ * a client that should have offered impersonate instead, somebody outside the
+ * cast is a stale roster, and somebody written out is a status a person can
+ * correct in the cast panel before asking again.
+ */
+const FORCE_REFUSALS: Record<ForceRefusal, { error: string; message: string }> = {
+  persona: {
+    error: 'speaker-is-persona',
+    message: 'You speak for yourself here: the persona cannot be asked to reply.',
+  },
+  'not-in-cast': {
+    error: 'speaker-not-in-cast',
+    message: 'That character is not in this session’s cast.',
+  },
+  'written-out': {
+    error: 'speaker-written-out',
+    message: 'That character is dead or has left the story, so cannot be asked to reply.',
+  },
+};
+
+/**
+ * The first name force-talk refuses, and why — or null when every one may
+ * speak. **The first rather than all**, as the input kind and the pictures are
+ * refused: one 422 names one thing to fix, and the next submission finds the
+ * next.
+ *
+ * *Shape-guarded*, because `readSession` hands back whatever is in the file and
+ * a hand-edited `cast` may not be the object its type says it is — the same
+ * guard `resolveCast` keeps, for the same reason.
+ */
+function firstForceRefusal(
+  speakers: readonly string[],
+  session: { cast?: unknown },
+  channels: Readonly<Record<string, { value: unknown }>>,
+): { speaker: string; reason: ForceRefusal } | null {
+  const held: unknown = session.cast;
+  const cast = typeof held === 'object' && held !== null ? (held as Record<string, unknown>) : {};
+  const declared = Array.isArray(cast['actors'])
+    ? (cast['actors'] as unknown[]).filter((id): id is string => typeof id === 'string')
+    : [];
+  const persona = typeof cast['persona'] === 'string' ? cast['persona'] : null;
+  const scene = {
+    cast: new Set([...declared, ...actorsWithState(channels)]),
+    persona,
+    channels,
+  };
+  for (const speaker of speakers) {
+    const reason = forceRefusal(speaker, scene);
+    if (reason !== null) return { speaker, reason };
+  }
+  return null;
 }
 
 function accepted(
@@ -3487,6 +4695,21 @@ async function mine(
 }
 
 /**
+ * ***The one answer for a write refused because a turn is in flight*** —
+ * `409 busy`, with the job, which is what head moves and undo have always
+ * sent (2026-09-27). The store decides, under the session's lock; this reads
+ * the job again only to say which one it was, and it may have finished by
+ * then, which is why `job` can be null.
+ */
+function busy(services: AppServices, reply: FastifyReply, sessionId: string): FastifyReply {
+  return reply.code(409).send({
+    error: 'busy',
+    message: 'This session already has a turn in flight.',
+    job: activeJob(services.state.db, sessionId),
+  });
+}
+
+/**
  * The wizard's answers a Setup carries, if it carries any.
  *
  * `Setup.mode.config` is `unknown` because [04 §7] keeps it *"stored verbatim,
@@ -3503,18 +4726,45 @@ function asAnswers(setup: Setup | undefined): Record<string, unknown> | undefine
 }
 
 /**
- * ***An opening is not redone*** — [P13.3](../../../../docs/design/workplan/30-p13-implementation.md).
+ * ***An opening is not redone*** — [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
+ * [P15 §1.8](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * Nothing generated it: it is an author's words copied off a Setup, so a
  * rewrite has no tape to replay and a guided redo has no call to repeat. The
- * play surface already offers neither for a turn with no input; this is the
- * door for a client that sends one anyway. **422 rather than 404**, because the
- * turn is there — what is wrong is asking to generate it.
+ * play surface already offers neither; this is the door for a client that
+ * sends one anyway. **422 rather than 404**, because the turn is there — what
+ * is wrong is asking to generate it.
+ *
+ * ***Which turns, since the merge*** — *recommended answer, owner deferred,
+ * 2026-10-03.* ~~A turn carrying `Turn.opening`~~: that field is dropped
+ * (`sessions/opening.ts` says why), and the test is [P14]'s convention instead
+ * — **no `input` and no `request`** (`redoable`), the predicate the play
+ * surface's Redo has been withheld by since [P14.5]. So the refusal covers
+ * every turn of that shape, and that is deliberate rather than a side effect:
+ * a Setup's opening and its effects-only seeding turn, a greeting, a hand
+ * edit's divergence turn, a turn written by hand with no move, an import's
+ * reply to nothing. Each answered no move and made no call, so a whole-turn
+ * redo of it would be a reply to nothing put in its place — which is *let
+ * them talk*, a gesture the composer already has, sent from the parent.
+ * Before the merge `main` refused none of them (a redo of a greeting answered
+ * nothing at the root), and the branch refused only turns that carried the
+ * field. *The code stays `opening-turn`*, after what the convention was
+ * named for and what the API reference already documents; the message says
+ * the wider truth.
+ *
+ * ***A swipe is not refused here*** (`fromMessage`): it regenerates one
+ * member's line with its speaker and the lines before it carried, which is
+ * [P14]'s Swipe on a greeting and has something to make — as does any line a
+ * member spoke on a turn of this shape, an import's or an edit's. The others
+ * are refused by the gesture's own reading of the record: a Setup's opening
+ * is a narrator's line (`narrated-message`, `narrated-session`), and a turn
+ * with no output has no line to swipe (`no-such-message`).
  */
 function refuseOpening(reply: FastifyReply): FastifyReply {
   return reply.code(422).send({
     error: 'opening-turn',
-    message: 'An opening was written, not generated, so there is nothing to redo.',
+    message:
+      'That turn answered no move and made no call — an opening, a greeting or a turn written by hand — so there is nothing to redo.',
   });
 }
 

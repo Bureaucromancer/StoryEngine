@@ -18,9 +18,29 @@ route touches `fs` is a rule negotiated with existing code.
 |---|---|
 | `paths.ts` | the audited path helper |
 | `atomic.ts` | `write-file-atomic`, plus the self-write suppression token the watcher consumes |
-| `files.ts` | the read side — the only other `fs` in the server |
+| `files.ts` | the read side |
 | `layout.ts` | user and system roots, kind directories, slug resolution, and the inverse: path → object |
 | `card/` | the embedded card envelope and its PNG codec |
+| `history.ts` | version history on library objects |
+| `trash.ts` | the trash, and its retention sweep |
+| `stamp.ts` | which build last opened this data directory |
+| `transaction.ts` | a mutation run as one unit |
+| `keyed-queue.ts` | a per-key FIFO, the serialisation behind the write paths |
+| `captures.ts` | the cassette recorder's filesystem half |
+| `local-source.ts` | a real directory, read as an import source |
+| `import-scratch.ts` | scratch for an import, one directory per use, removed whole |
+| `upload-landing.ts` | an upload written to disk as it arrives |
+| `zip.ts`, `zip-file.ts` | a zip read as bytes with bounds, and a zip read where it lies |
+| `sqlite-snapshot.ts`, `sqlite-snapshot-worker.ts` | a consistent private copy of somebody else's SQLite database |
+| `tar.ts`, `tar-archive.ts` | one ustar header — the server's copy of `tools/tar.mjs` — and a gzipped tar written from inside the server |
+| `test-zip.ts` | real zip archives, for tests |
+
+~~`files.ts` — the read side — the only other `fs` in the server.~~ *Corrected
+2026-10-01:* the table had stopped at five rows while the directory grew to
+twenty-odd, and ten of them import `node:fs` — `atomic`, `captures`, `files`,
+`local-source`, `paths`, `sqlite-snapshot`, `tar-archive`, `trash`,
+`upload-landing` and `zip-file`. That is the rule working, not breaking: it
+says *where* the filesystem is touched, never *how often*.
 
 **`paths.ts` has two entry points and the difference matters.** `resolveWithin`
 is lexical — pure, synchronous, and it catches everything expressible in the

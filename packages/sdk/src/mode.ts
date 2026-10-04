@@ -39,14 +39,51 @@ export interface ModeDefinition {
    *
    * **Neither has an engine consumer at this stage, and saying so is the point.**
    * §2.4 enumerates them as part of what the mode declares, and §3 makes them a
-   * pair — declaring one without the other would misstate the mode. At P7 they
+   * pair — declaring one without the other would misstate the mode. ~~At P7 they
    * become optional *session* fields whose absence means the mode's value, which
-   * is a field rather than a migration. What keeps them honest meanwhile is a
-   * test pinning them against what the default preset's narrator block actually
-   * instructs.
+   * is a field rather than a migration.~~ *Corrected 2026-09-29: P7 never did
+   * it* — [P7.3] deferred the fields to [P7.9], whose record never mentions
+   * them ([P14 §0.6](../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
+   * **They became optional session fields at [P14.0]**, and these are now what
+   * a new session is *created with* rather than what every session reads:
+   * creation writes them onto the session explicitly, and `chatSettingsOf` in
+   * the server reads the session's own before these. What keeps them honest
+   * meanwhile is a test pinning them against what the default preset's narrator
+   * block actually instructs.
    */
   voice: 'narrator' | 'embodied';
   dispatch: 'merged' | 'per-actor';
+  /**
+   * ***What a session that predates this mode's current declared values reads
+   * as*** — [P14 §1.2](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.0].
+   *
+   * **The problem it exists for is a default that moves.** Absence on a session
+   * has always meant *the mode's value*, and P14 changes Scene's values from
+   * `narrator`/`merged`/`fixed` to `embodied`/`per-actor`/`natural`. Without this,
+   * that change would silently re-voice every Scene session anybody has ever
+   * played: a chat narrated in the third person for forty turns would answer
+   * turn forty-one in the first. So creation now writes the three values
+   * explicitly, and a session carrying **none** of them — which is exactly the
+   * set written before that — reads these instead of the declared ones.
+   *
+   * ***A declaration, not a migration***, and the difference is the whole
+   * choice. A migration would rewrite `session.json` under every existing
+   * session, which needs each one's lock and is a write nobody asked for; this
+   * says what those files already mean and leaves them as they are. It also
+   * belongs to the mode rather than to the engine: only the mode knows what it
+   * used to declare.
+   *
+   * Absent means the declared values, which is every mode whose values have
+   * never moved — and a mode that declares this before it moves anything reads
+   * the same either way, which is what lets it be written ahead of the change it
+   * exists to survive.
+   */
+  legacy?: {
+    voice: ModeDefinition['voice'];
+    dispatch: ModeDefinition['dispatch'];
+    select: ParticipantPolicy['select'];
+  };
 
   /**
    * **Named configurations of this mode** — [06 §1]'s *freeform* / *campaign*.
@@ -97,6 +134,32 @@ export interface ModeDefinition {
    * Absent means off, which is every mode that says nothing.
    */
   renditions?: { illustration?: 'off' | 'on-demand' | 'each-turn' };
+  /**
+   * ***Whether a new session opens on its cast's written openings*** —
+   * [P14 §1.7](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.4].
+   *
+   * `true` makes session creation write an **opening turn**: output only, no
+   * call and no `request`, one message per cast member with a written opening —
+   * SillyTavern's greeting, which a chat opens on before anybody has typed. A
+   * single-character session writes the primary opening with each alternate as
+   * a sibling (ST's greetings-as-swipes); a group writes each member's primary,
+   * in cast order, as one message each.
+   *
+   * ***A declaration rather than a rule the engine infers***, because the
+   * engine may not name a mode and nothing it could read instead means this.
+   * `voice: 'embodied'` is the nearest, and the assistant is embodied too: an
+   * assistant session that greeted with whatever card was cast would be a
+   * mode's behaviour decided by a setting that says something else. Absent
+   * means no opening turn, which is every session every mode made before
+   * P14.4 — so a mode that says nothing is unchanged.
+   *
+   * *Unless the session starts from a Setup that carries a written opening*
+   * (2026-10-03, the owner's decision,
+   * [25 B18](../../../docs/design/25-open-questions.md)): that session opens on
+   * the Setup's opening, and no greeting is written even here.
+   */
+  openingTurn?: boolean;
   setup: SetupSchema;
 }
 
@@ -128,12 +191,45 @@ export interface ModePreset {
  * they decide who talks this turn, over whoever presence and status say is
  * available:
  *
- * - `natural` — whoever the scene just addressed. The heuristic is the last
- *   turn's prose scanned for names, which is ST's and is honestly a heuristic.
- * - `list` — each in turn, rotating.
- * - `pooled` — one at random, drawn on the turn's tape so a replay is the same
- *   scene.
- * - `manual` — whoever the player named with the input, and nobody otherwise.
+ * - ~~`natural` — whoever the scene just addressed. The heuristic is the last
+ *   turn's prose scanned for names, which is ST's and is honestly a heuristic.~~
+ * - ~~`list` — each in turn, rotating.~~
+ * - ~~`pooled` — one at random, drawn on the turn's tape so a replay is the same
+ *   scene.~~
+ * - ~~`manual` — whoever the player named with the input, and nobody otherwise.~~
+ *
+ * ***Corrected 2026-09-29, at [P14.1]: those four lines named ST's arms and
+ * described something else.*** [P7.3] took the taxonomy and not the behaviour
+ * — [P14 §0.7](../../../docs/design/workplan/31-p14-scene-and-session-import.md)
+ * lays the two side by side — and nothing noticed because no shipped step read
+ * the answer. The arms now do what `group-chats.js` does at the pinned commit
+ * ([P14 §1.3]), every random choice on the turn's tape:
+ *
+ * - `natural` — the default for a chat. Whoever the **activation text** names
+ *   (the input, or the last message when there is none), in the order the
+ *   words appear; then **every** member whose talkativeness roll succeeds; then,
+ *   if still nobody, one member at random. The last speaker sits out a turn
+ *   the player did not start, unless self-responses are allowed. *Not a
+ *   prose-only scan, and not able to answer nobody* while anybody is eligible.
+ * - `list` — **everybody** eligible, once each, in cast order. Not a rotation
+ *   of one: that was P7.3's reading, and ST's LIST (and Marinara's
+ *   `sequential`) is the whole group replying in turn within one round.
+ * - `pooled` — one member. After an input, anyone; on a turn with no input,
+ *   one who has not spoken since the last input, else anyone but the last
+ *   speaker.
+ * - `manual` — **nobody** replies to an input; replies are asked for by name
+ *   (force-talk, which overrides every arm). A turn with no input gets one
+ *   member at random, which is ST's and is what keeps *let them talk* from
+ *   silently doing nothing.
+ *
+ * **And a fifth, `smart`, which is not ST's** — [P14 §1.3a], Marinara's
+ * `smart` order built the way the hook selector is. The rules decide whenever
+ * they can (force-talk, a mention, a room of one); otherwise an engine step
+ * asks a model, with `natural`'s pick drawn beforehand as the fallback. It is
+ * the one arm that can cost a call, which is why §1.3a puts the cost in the
+ * control's label. The step is `se.speakers.smart`, engine-owned and planned
+ * only on a turn the rules could not settle; a session may point its
+ * `stepRoles` at that id to send the call to a cheaper model.
  *
  * **Lowercase, where the design note writes them as ST's constants.** A
  * `select` value lands in a mode definition, which is *content*, and every
@@ -143,9 +239,19 @@ export interface ModePreset {
  *
  * **`fixed` stays and is not one of the four.** It is the honest answer for a
  * mode that seats one actor, and removing it would force Scene to claim a
- * selection strategy for a choice it does not make.
+ * selection strategy for a choice it does not make. *It also stays after
+ * [P14.1]*: a pre-P14 Scene session reads as `fixed` through
+ * `ModeDefinition.legacy`, and a session file naming it has to keep meaning
+ * what it meant.
  */
-export const PARTICIPANT_SELECTORS = ['fixed', 'natural', 'list', 'pooled', 'manual'] as const;
+export const PARTICIPANT_SELECTORS = [
+  'fixed',
+  'natural',
+  'list',
+  'pooled',
+  'manual',
+  'smart',
+] as const;
 
 export interface ParticipantPolicy {
   /**
@@ -161,6 +267,40 @@ export interface ParticipantPolicy {
    * routed to a later phase does not survive.
    */
   select: (typeof PARTICIPANT_SELECTORS)[number];
+  /**
+   * ***A declared cast member with no presence value is present; presence
+   * `false` is muted*** —
+   * [P14 §1.3](../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * added at [P14.1].
+   *
+   * **The problem is a default that made every arm select from nobody.**
+   * `se.presence` has been the eligibility test since [P7.3], its `init` is
+   * `false` because *a cast member nobody has mentioned is not in the scene*,
+   * and nothing in the build writes it — so under that reading nobody was ever
+   * eligible, and a selector could only ever answer an empty room. That
+   * default is right for a story whose cast wanders in and out of rooms, and
+   * wrong for a chat: somebody who added three characters to a group expects
+   * three characters in it.
+   *
+   * ***So a mode says which reading it plays, rather than the engine choosing
+   * one for everybody.*** Declared, a card on the session's cast is in the
+   * scene until something says otherwise, and presence `false` becomes
+   * **muted** — SillyTavern's `disabled_members`, Marinara's
+   * `inactiveCharacterIds`, and the checkbox the cast panel already draws. A
+   * muted member is still in the cast, still in the prompt, and still reachable
+   * by force-talk, which is exactly what ST's `force_chid` does with a disabled
+   * member (`group-chats.js:1006`).
+   *
+   * Absent means the old reading — present only when presence says `true` —
+   * which is every mode that has not asked, and which is why declaring it is
+   * not a migration of anybody's saved games.
+   *
+   * *No built-in mode declares it yet.* Scene is the one meant to, and the
+   * design dates that twice — [P14 §1.2] and §1.3 read as P14.1, §3's stage
+   * list as [P14.3] with the rest of Scene's declared values; P14.1 follows
+   * the stage list, and `speakers.ts`'s `naturalOrder` says why.
+   */
+  castIsPresent?: boolean;
   /**
    * How many actors a person may seat, checked at the create and cast routes.
    *
@@ -447,8 +587,21 @@ export interface SurfaceContribution {
    *   mark on a message. Adding an arm is exactly what [10 §8.1]'s paired
    *   commitment requires of the widget vocabulary, and the same sentence
    *   governs regions: *"ask what widget would let it, and add that."*
+   * - `settings` — ***the session's settings***, added at [P14.5a] for
+   *   [P14 §1.9.6]: *"switches in the session's settings, grouped under
+   *   Agents because that is what a Marinara user will look for"*. A switch
+   *   that costs a model call every turn is configuration, and the panel stack
+   *   is where the story's state is read; putting six tracker switches beside
+   *   the trackers would be a settings form in the middle of the story.
    */
-  region: 'hud' | 'panel' | 'message' | 'stage';
+  region: 'hud' | 'panel' | 'message' | 'stage' | 'settings';
+  /**
+   * ***The heading a contribution goes under within its region*** — added at
+   * [P14.5a], for the same sentence of [P14 §1.9.6]. Authored content, like a
+   * widget's label; contributions sharing one are drawn together, in
+   * declaration order. Absent is the region's own, ungrouped.
+   */
+  group?: string;
   /**
    * The channel whose value this renders.
    *

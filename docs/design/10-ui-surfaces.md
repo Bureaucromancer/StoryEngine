@@ -103,6 +103,17 @@ what the user is doing at that moment, not by taste:
 | Workbench panel (§3), library (§5), editors (§11), cast panel (§13.2), search (§14), administration (§15) | Reading view (§12), the modes' play surfaces, first-run and the setup flows (§6), sign-in ([12](12-account-gallery.md)) |
 | Someone with forty actors and a lorebook that is not firing is *working*, and every hidden control is a tax on that | Someone reading their own story wants prose, and someone starting their first one wants a path, not an instrument panel |
 
+***"Quiet" was only ever the negative half, and the positive half is now written
+down*** (2026-09-22). The right-hand column says what the story surfaces
+*strip* — no tool chrome, no panel background, no instrument panel on arrival —
+and then leaves what they *are* to whoever builds one next, which is how a
+surface ends up quiet in the sense of unfinished. The other half is
+**atmospheric but legible**: those surfaces carry the fiction's own furniture — a
+face for whoever is speaking, a picture of where this is happening, motion when
+something arrives — under a rule the tooling side never needs, which is that
+none of it may cost a word of the prose. §1.3 is that direction, where it came
+from, and what it does not take with it.
+
 **The play surfaces have one element that tests this directly**, and it is worth
 naming here rather than only where it is specified: the **backdrop** (§2.3), an
 image the engine generates and puts behind the story. *Clean prose first* is the
@@ -206,6 +217,179 @@ measured **1.01 to 1**. What separates the two families is **type** (`text-story
 at looser leading against the tooling steps), **measure** (`--container-reading`
 against the shell's width), and **chrome**: the story surfaces carry no border
 and no panel background, so tool chrome cannot land on one by accident.
+
+**Type is a face as well as a step** (2026-10-01, polish 5 —
+[polish §17](workplan/06-polish.md)). At body size a looser leading alone read
+as the same page set a little wider, so the story takes `--font-story` — a book serif from the faces each system already ships —
+wherever it takes `text-story`, against the interface's `--font-ui`. Both are
+system stacks, with no webfont: a downloaded face is a request on every cold
+load and a flash of the fallback while it arrives, on a server meant to need
+nothing from outside the house. The step and the face are one separator, so
+`theme.test.ts` refuses the step without the face, and home's changelog, which
+takes *type* for its one block of prose, takes both.
+
+### 1.3 The Marinara direction, and the three layers it has to be separated into
+
+**Added 2026-09-22**, on a directive: push the client toward Marinara Engine's
+sensibilities, minus its colour palette, and keep rejecting anything whose only
+argument is *that is how SillyTavern did it*. This section is that direction
+written down so it is a position rather than a mood, and it is the positive half
+§1.1's Quiet column was missing.
+
+**Where the claims come from, because the corpus is careful about this.**
+Marinara's client component tree was on [01](01-source-survey.md)'s
+*not examined in any depth* list until this pass, so everything below is a fresh
+read of `packages/client/src`, `PRODUCT.md` and `DESIGN.md` (the latter states
+Marinara's own intended taste as named rules), with SillyTavern's
+`public/index.html` read beside it to tell inheritance from invention.
+[01](01-source-survey.md) records the read and what it covered.
+
+#### The three layers
+
+Marinara is not one taste. Sorting it is most of the work, and the sort is what
+makes this a direction rather than a resemblance:
+
+1. **Its own taste** — what it invented, and what its design document asks of
+   it. This is the layer the directive points at.
+2. **Its SillyTavern inheritance** — a large fraction of its surface area, and
+   its own `DESIGN.md` says so: *don't make it a bland SillyTavern clone*, and
+   it ships an explicit SillyTavern compatibility skin to keep the two apart.
+3. **Its excess** — the places it breaks its own written rules. Its
+   *No Tiny Mystery Rule* asks for readable controls, and the client carries
+   more than fourteen hundred uses of 8–10px type; its *no hover-only
+   essentials* rule sits beside about twelve hover-revealed icon buttons per
+   message.
+
+**The rule is symmetric, and that is the point of stating it.** Nothing here is
+adopted because a source does it, and nothing is rejected because SillyTavern
+does it. Every adoption below carries a reason that already exists in this
+corpus; every rejection carries one too. A convention's ancestry is evidence
+about how carefully it was chosen, never the verdict.
+
+#### What is taken
+
+Each of these is a Marinara sensibility, and each stands on something this
+project already committed to:
+
+- **Characters have faces wherever they speak.** Marinara puts a portrait rail
+  beside a message, a name plate above it, and the avatar first in an editor
+  header. The reason to want it here is not atmosphere, it is
+  [00 §3.6](00-stance.md): a face beside a line is the engine's **attribution
+  claim**, rendered, and §13.1 already marks that claim by confidence and offers
+  to correct it. This is the largest felt difference between the two clients and
+  the one place where ours can be better than theirs, because a wrong face is a
+  link into the cast panel (§13.2) rather than a decoration.
+- **World state as a strip of widgets you can edit in place.** Marinara's
+  roleplay HUD shows location, time and stats along the top, each opening an
+  editable popover. That is [00 §3.6](00-stance.md)'s *shown and correctable* in
+  the right form, and it is what §13's affordances were reaching for.
+- **Atmosphere behind the prose, with the prose always winning.** Crossfade,
+  vignette, scrim. §2.3 already decides the policy; what Marinara supplies is
+  the *mechanism*, and its own **Reading Surface Rule** — never heavy blur
+  behind long text, editors or logs — is the same sentence from the other end.
+  Glass is for chrome floating over a backdrop, never a panel style.
+- **Motion as a small named vocabulary.** A turn arriving, the streaming state,
+  a panel entering, a scene changing. Roughly five motions with names, honouring
+  `prefers-reduced-motion`. §9's *something happens between Send and the first
+  token* is the first word of it.
+- **Editors navigated by section jumps, not tabs.** Marinara has both — a tab
+  rail and anchor chips over one long form. Only the chips come across. They
+  give orientation without hiding a field, which is the only version compatible
+  with §1.1's rule against reflexive disclosure and with §11.2d, where the
+  editor's shape is the schema's shape. Tabs would break both.
+- **A gallery where a kind has images.** A card view beside the list for actors
+  and anything else carrying a portrait — §11.2b already points here.
+- **Setup that explains itself as it goes.** §6 takes *every step but the first
+  has a working default* from Marinara already; take the per-step explanation
+  with it.
+- **Arrival with some weight to it.** Not Marinara's simulated web browser with
+  tabs and an address bar — §2.2's four things, built as cards that carry a
+  portrait and a backdrop thumbnail, so resuming looks like the story you are
+  resuming. **This is [polish §5](workplan/06-polish.md)'s item and not a new
+  one**; what the direction adds to it is how it looks.
+- **A face for the prose itself.** Marinara gets its personality from effects
+  and runs one sans stack throughout; `--text-story` is where a distinct reading
+  face belongs here. This is Marinara's goal reached by a cheaper and quieter
+  means, and it is the one item on this list it did not think of. ***Built
+  2026-10-01***, before P12A opened and by a pass that had not read this
+  section: §1.2's last paragraph is the face, and
+  [polish §17](workplan/06-polish.md) the record.
+
+#### What is not taken
+
+The left column is Marinara-as-SillyTavern. The right column is why it fails
+here on its own merits — which is the form the argument has to take, because
+*SillyTavern does it* is not one:
+
+| The convention | Why not |
+|---|---|
+| A top-bar row of icons, one drawer per resource kind, beside the chat | The workbench (§3) follows what you are looking at and has no entry point of its own. A drawer per kind is depth charged per visit (§1.1). |
+| Twelve hover-revealed icon buttons on every message | A turn is a record ([03 §8](03-data-model.md)). A few actions stay visible; the rest is *inspect this turn*, which is a surface we already have. |
+| Swipes — including Marinara's improved jump-to-N control | §7's branches, P6's siblings and the attempt slot are the same idea with an identity and a history. A swipe is a reroll that forgets. |
+| A drag-sortable prompt manager with marker sections | It is the mega-string assembler [00 §2.1](00-stance.md) exists to replace. Blocks, budgets and inclusion reasons live in §3. |
+| Lorebook entries as World Info cards | §5.3 makes a book a document. Marinara's own row component says it was modelled on SillyTavern's card layout. |
+| `/impersonate`-style slash commands and quick replies as the command language | A keyboard command palette on the dense side would stand on §1.1 by itself; a chat-line command syntax stands on nothing but inheritance. |
+| The character card's V2 fields as the editor's shape | [00 §2.4](00-stance.md) rejected the card as a prompt configuration file; §11.2d says the editor follows the schema. |
+| A per-chat settings drawer of some seventeen sections | [00 §3.2](00-stance.md): content and production settings never mix. Marinara's samplers appear in three editors and its settings in four places, which is the failure this rule was written against. |
+
+**And Marinara's excess stays out**: the eight-to-ten-pixel type, the ten
+overlays a roleplay screen can stack, the eighty-eight keyframe animations, the
+ambient decoration, and — the structural one — a separate presentation of every
+feature per mode. Our defence against the last is architectural rather than
+disciplinary: a mode is a configuration of the pipeline
+([06 §1](06-modes-and-turn-pipeline.md)), and its presentation belongs in the
+mode region, not in a fork of each feature.
+
+#### What this does not do to §1.1
+
+**It does not move the tooling surfaces.** Marinara's `DESIGN.md` says *don't
+build developer-only control panels that assume technical confidence*, and that
+is a direct contradiction of §1.1's audience and of §2.1's near-raw library. The
+contradiction is resolved by the split rather than by a compromise: the
+left-hand column of §1.1's table is untouched, and this direction governs the
+right-hand one. Someone with forty actors is still working, and the library
+still shows them the model.
+
+**One item crosses the line anyway, and is meant to.** *Characters have faces*
+applies in the library, the editors and the cast panel as much as in play,
+because identity is not atmosphere — it is the thing [00 §3.6](00-stance.md)
+says must be visible and correctable everywhere it is inferred.
+
+**[25 E10](25-open-questions.md) is unaffected.** Whether the dense side ever
+becomes dialable is still open, and nothing here is an instalment on it.
+
+#### What this costs, and who owns it
+
+**Beta is a completeness gate** ([releases §0](workplan/04-repo-and-releases.md)):
+feature complete to the 1.0 spec, checkable against these documents. So a
+sentence written here is a sentence that gates beta, and a direction added to a
+design note without an owner is precisely the defect
+[P11 §0.1](workplan/28-p11-implementation.md) had to register nineteen of.
+
+The split is therefore explicit, and it is the last thing this section does:
+
+- **1.0, owned by [P12A](workplan/34-p12a-the-look.md)** — faces, the editable
+  channel HUD, the backdrop's legibility mechanism, the motion vocabulary, the
+  section jumps, ~~the story face,~~ and the phone rules below. Each discharges a
+  commitment this corpus already made; P12A is where each is sized. *The story
+  face left this list on 2026-10-02, at the merge that brought it in: `main`
+  had built it the day before ([polish §17](workplan/06-polish.md)), and what
+  [P12A](workplan/34-p12a-the-look.md) keeps of it is the measure check.*
+- **Not 1.0, and not commitments** — the gallery view and per-step setup
+  explanation. They are on the feature list ([24](24-roadmap.md))'s priorities,
+  and if P12A reaches them they ship early rather than late.
+- **Arrival is neither, and the distinction is not a quibble.**
+  [polish §5](workplan/06-polish.md) already carries the full home as
+  *nominally a 1.0 feature, expected immediately before the cut-over to
+  feature-complete beta* — and explicitly pushable past it. That item is
+  unchanged by this section: what is written here is what it should **look**
+  like when it is built, not a second commitment beside it, and no phase is
+  being asked to build home because a look argument mentioned it.
+
+**The phone rules come with the direction** and cost nothing to state: sheets
+rather than shrunken panels, and **no essential action that exists only on
+hover** — Marinara's own rule, which Marinara breaks. §1's 1.0 bar is unchanged:
+responsive and genuinely usable, not phone-first.
 
 ---
 
@@ -806,6 +990,13 @@ Honest accounting, because the user is right that this is a pain:
   flagged invalid with the parse error shown, and nothing crashes, hides it, or
   silently rewrites it. That behaviour is needed anyway for hand-edited-on-disk
   files and for imports, so the file browser doesn't create the requirement.
+
+  *Partly built, 2026-09-28.* The panel over the library list names every file
+  that will not read, with its reason in words and the parser's complaint, and
+  an object whose file broke after it was read says so on its own page, with
+  Edit withheld — a save would write over a file the page cannot show — and
+  Delete kept. Its row in the list is not flagged yet; the panel above the list
+  is what a person meets first.
 - **Upload is an attack surface** even among trusted users: size limits, no
   archive traversal on zip extraction (`zip-slip`), no execute bits, and content
   sniffing rather than trusting extensions.
@@ -1003,11 +1194,30 @@ does not keep it.
   lost — this is the primitive, and it is available for every kind. *As stored*
   ([polish §2](workplan/06-polish.md)) already shows these bytes in a fold; this
   is the same bytes with somewhere to put them.
+
+  *Corrected 2026-09-28.* ~~No conversion, so nothing lost~~ — for an actor the
+  route served the index's JSON, and that is not what is stored: an actor is its
+  card image, the portrait its pixels and every expression a chunk inside it
+  ([03 §5.2](03-data-model.md)), so the download lost every picture and said
+  nothing. It hands over the card now, and the import door reads a card of ours
+  back as ours. So *the same bytes* as the fold holds for every kind but the
+  actor, whose fold shows its JSON reading of the card. And a folder kind's
+  pictures live in `assets/` beside its JSON, so for a lorebook's gallery and
+  its entries' strips *nothing lost* holds of the object and not of its
+  pictures, which a download leaves behind — and the page says how many,
+  under the link.
 - **Export as…** are **writers**, built from a shared table of formats. A writer
   loses something by definition; what it must do is *say* what, in the same
   `{ key, params }` vocabulary the import review uses — because an export leaves
   no record behind, and the surface offering the download is the only place
   anybody will ever be told.
+
+  *Corrected 2026-09-28.* ~~the surface offering the download is the only place
+  anybody will ever be told~~ — and it told nobody. The rows were plain links,
+  so the answer went to the browser: the notes travelled in a header nothing
+  read, and a refused download was its JSON body, saved as the file. A plain
+  click fetches the address now, saves the file, and says under the link what
+  it left out, or why it could not be had.
 
 **One rule the table carries and the surface renders: whether the format
 round-trips.** Aventuras exports a `VaultScenario` and its own scenario import
@@ -1819,6 +2029,14 @@ It buys three things, the third of which is the interesting one:
   actually write?" becomes answerable. No source offers this, and it is a real
   trust feature rather than a novelty.
 
+*A known gap, recorded 2026-09-27 (`c3522f4`):* **the map keeps a path whose
+row has gone.** Remove an actor's sample, a lorebook's entry or a hook, and its
+`generated` entries stay in the file, keyed by a path nothing has any more — and
+a reader that walks the map, such as the library-wide view above, would count
+them. Pruning needs a per-kind map from form paths to object paths (an actor's
+`sections.<id>` is `profile.sections` on disk), which is why it waited; a late
+assist answering a removed row is one more way in.
+
 ### 11.2a Version history, in every editor
 
 Every library object keeps an edit history automatically
@@ -1904,6 +2122,16 @@ different arrays and only the form knows which one a picture belongs to — a ro
 that decided would write the object behind the editor's draft. What that costs is
 an orphan, and what pays it back is a sweep on save: **a file no manifest row
 names is exactly a file whose digest nothing carries.**
+
+*Corrected 2026-09-27.* ~~a file no manifest row names is exactly a file whose
+digest nothing carries~~: the history carries it too. Versions keep JSON and
+never pixels ([03 §11.2](03-data-model.md)), so removing a map and saving
+deleted the map, and restoring the version before brought back a row naming
+nothing. The manifest was also the only thing asked while an upload waited for
+its save, so a picture uploaded during another save, or in a second tab, went
+before it was named. A file is now collected when no version names it either,
+it is a day old, and its name is one the store writes, and every read, store
+and sweep checks where its path really lands ([03 §5.3](03-data-model.md)).
 
 *The crop is a centred square, in the browser.* §11's *"uploaded, cropped and
 replaced"* is three of four here; a drag-to-choose rectangle is a better tool and
@@ -2025,6 +2253,15 @@ clears the **book's** gallery rather than appearing to select from it: `media` i
 the world's art and `writingSamples` is how the world reads, and neither is a
 fact about twelve entries. `hooks` go the same way for a second reason — nothing
 links a hook to an entry, so *which hooks came with these* has no answer to give.
+
+*Corrected 2026-09-27:* ~~has nothing to carry yet~~ — §11.2b was built the same
+day, and from then an export sent each entry's picture **rows** in a plain JSON
+file that cannot hold their bytes, so every picture arrived naming a file the
+receiving book did not have. The zip form ([03 §5.2.3](03-data-model.md)) is still
+not built, so the rows now stay behind with their pictures, the export says how
+many beside its button, and an import drops the rows of any file that names
+pictures and says whose. The clause above is owed the zip container, not
+withdrawn.
 
 *The export is built in the page, not fetched from a route.* What is being
 exported is a selection of the **draft**, edits and all; a route would only ever
@@ -2149,14 +2386,50 @@ before they are discovered:
 - **They need a connection**, and it should not silently be the chat one. This
   is what `ModelHint.role` ([03 §2.6](03-data-model.md)) is for — assist work
   wants the `fast` role, image work wants an image connection, and a household
-  server needs those resolvable per user.
+  server needs those resolvable per user. *As built (2026-09-27):* field assist
+  asks for `prose` by default, because `fast` fails on any install that never
+  bound it ([25 C15](25-open-questions.md)), and each person may point it at
+  their `fast` or `reasoning` model instead from the role-binding settings — a
+  choice of **role**, so which model that means stays in the table beside it.
+  The per-account choice is a stopgap and retires when C15 decides fallback for
+  every role.
 - **They cost money, and must be *recorded* even though nothing displays it at
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
   to [24 §3](24-roadmap.md).
-- **They produce no turn record.** §8.2's provenance is the record, which is
-  another reason it is not optional.
+- **They produce no turn record.** ~~§8.2's provenance is the record, which is
+  another reason it is not optional.~~ **Corrected 2026-09-27.** There is no
+  §8.2 in this document, and the provenance that sentence most plausibly meant —
+  §11.2's `GeneratedFieldProvenance` — cannot be the record: it has no field for
+  usage, it is written by the client, and only when the person saves, so an
+  assist somebody rejected (which cost exactly as much) would leave nothing. The
+  record is the account's usage log, `users/<handle>/usage.jsonl`
+  ([21 §1.4](21-internal-contracts.md)): one line per call, the provider's own
+  figures or null. ~~It covers every call that makes no turn~~ *It covers the
+  text calls that make no turn and return* (corrected the same day) — field
+  assists, impersonation, and the moment call behind **Illustrate** — and it is
+  what the aggregate view in [24 §3](24-roadmap.md) will read. **Not yet**: an
+  image render's own cost, which [25 E16](25-open-questions.md) records as
+  dropped, and ~~a call that failed or was cancelled after the provider had
+  started billing, which records nothing because nothing returned~~ *(struck
+  2026-10-03: not since P14. The on-demand step behind* Update trackers
+  *(`turns/on-demand.ts`) and the background summary chain
+  (`turns/warm-summaries.ts`)* — and, since the
+  [P15](workplan/33-p15-setup-from-a-turn.md) merge the same day, the setup
+  draft (`turns/condense.ts`) — *write a line for a failed or cancelled call that
+  reached the provider, with null figures; the field assist, impersonation,
+  Illustrate's moment call and the connection test below still write nothing
+  for one. Two rules, then, and no decision yet between them)*. *Since
+  2026-10-03 it also covers the **Test** button on a saved connection*
+  ([polish §25](workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)),
+  both arms — so a test picture is the one image call the log carries, because
+  unlike a rendition it leaves no record of its own; its line has no tokens and
+  the role `connection-test`, which no binding can have. *Since the
+  [P15](workplan/33-p15-setup-from-a-turn.md) merge (2026-10-03) it also covers*
+  **Make a setup from here**: one line per call the draft makes, purpose
+  `setup-draft:<part>`, and `setup-draft:summarise` for each link of the
+  summary chain it had to derive ([21 §1.4](21-internal-contracts.md)).
 
 ### 11.5 Traps
 
@@ -2831,6 +3104,17 @@ not**, because *my keys did not come across* should be a question with an answer
 rather than a bug report. The admin's panel adds a fourth box for the install's
 settings, and says which account in the archive — from **the archive's** list of
 handles, because an account here the archive holds nothing for is not a choice.
+
+**A session already here is left alone** (2026-09-27). It is skipped when it
+is here under its own id, when it is in this account's trash, or when its turns
+are already on the install ([api](../api.md) has the three cases). Nothing is
+merged into it, and nothing is lost by that: a session's turns are append-only,
+so the copy here holds every turn the archive's copy does and any played since
+— the one exception is a branch pruned here after the archive was taken, which
+restoring the archive, not importing it, brings back. The alternative, a second
+copy, was the behaviour until that day, and it was worse than untidy: the copy
+kept the turn ids, the index holds one row per turn id, and the copy took the
+original's search rows with it.
 
 ### 15.3c Restore, which is the one control that replaces everything — [P12.13](workplan/29-p12-implementation.md)
 

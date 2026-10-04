@@ -215,4 +215,30 @@ describe('a memory book is an ordinary library object', () => {
       (shelf.body.objects as { id: string }[]).filter((one) => one.id === first.id),
     ).toHaveLength(1);
   });
+
+  /**
+   * ***And one book when the first two writes arrive together*** (2026-09-27).
+   * The look-up and the create were not one step: both callers missed, both
+   * created, each with its own id, so nothing refused the second and the shelf
+   * held two books for one scope. The case is *Remember this* pressed while
+   * the extractor writes.
+   */
+  it('makes one book when two first writes arrive at once', async () => {
+    const vera = await anActor('Vera');
+    const scope = { actor: vera, persona: null };
+    const names = { actor: 'Vera', persona: null };
+    const library = server.services.library;
+
+    const [one, other] = await Promise.all([
+      ensureMemoryBook(library, 'ned', scope, names),
+      ensureMemoryBook(library, 'ned', scope, names),
+    ]);
+
+    expect(other.id).toBe(one.id);
+    const shelf = await server.request({ method: 'GET', url: '/api/library/lorebooks' });
+    const books = (shelf.body.objects as { id: string; name: string }[]).filter((book) =>
+      book.name.includes('Vera'),
+    );
+    expect(books).toHaveLength(1);
+  });
 });

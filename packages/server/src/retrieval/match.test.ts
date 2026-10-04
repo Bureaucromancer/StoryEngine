@@ -155,6 +155,19 @@ describe('the three per-entry flags', () => {
     expect(matchEntry(book(), partial, scan('the dockside warehouses')).outcome).toBe('matched');
   });
 
+  /**
+   * ***A word is a word in every script*** (2026-09-30): a vowel sign is a
+   * combining mark, and a mark belongs to its word — so a Devanagari key fires
+   * on its own word and not inside a longer one (UAX #29 WB4, the rule the
+   * speakers already read names by).
+   */
+  it('matches a whole word whose next letter is a combining mark as one word', () => {
+    const ram = entry({ keys: ['राम'] });
+
+    expect(matchEntry(book(), ram, scan('उसने रामायण पढ़ी')).outcome).toBe('no-match');
+    expect(matchEntry(book(), ram, scan('राम घर गया')).outcome).toBe('matched');
+  });
+
   it('treats a key as a pattern only when the entry says so', () => {
     const literal = entry({ keys: ['ferry(man|boat)'], matchWholeWords: false });
     const pattern = entry({ keys: ['ferry(man|boat)'], useRegex: true });

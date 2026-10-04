@@ -20,7 +20,14 @@ import { DOCS_LOREBOOK_ID } from '../docs-lorebook.js';
 import { defaultMode, registerMode } from '../mode-registry.js';
 import { channelDefinition, registerChannel } from '../sessions/channels.js';
 import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
-import { GENERATING_MODE, GENERATING_MODE_ID, SETUP_MODE, SETUP_MODE_ID } from '../test-mode.js';
+import {
+  GENERATING_MODE,
+  GENERATING_MODE_ID,
+  SETUP_MODE,
+  SETUP_MODE_ID,
+  TEST_MODE,
+  TEST_MODE_ID,
+} from '../test-mode.js';
 import { Layout, userOwner } from '../storage/layout.js';
 import { makeTestServer, setUpAdmin, type SseFrame, type TestServer } from '../test-server.js';
 
@@ -108,8 +115,34 @@ function submit(body: Record<string, unknown> = {}): Promise<{ status: number; b
   });
 }
 
+/**
+ * `session.json` as the store wrote it. ***The pool and the Setup copy are read
+ * here, not off a reply*** (2026-09-27): a reply no longer carries either, for
+ * `presentSession`'s reasons, and what these tests claim is what the session
+ * holds.
+ */
+async function sessionFileOf(id: string): Promise<any> {
+  return JSON.parse(
+    await readFile(join(server.dataDir, 'users', 'ned', 'sessions', id, 'session.json'), 'utf8'),
+  );
+}
+
 const finished = (frame: SseFrame): boolean =>
   frame.event === 'progress' && (frame.data as { key: string }).key === 'turn.finished';
+
+/**
+ * ***How long a whole turn may take to say it has finished*** (2026-09-27).
+ *
+ * The scripted turn takes about fifty milliseconds on a developer's machine.
+ * CI run 66's Windows leg, with the rest of the suite running beside it, saw
+ * every frame of one up to its last `step.finished` and then no
+ * `turn.finished` within the four seconds this file allowed. Between those two
+ * frames is the commit, which is fsync'd writes, and that runner's disk under
+ * that load is slower than a budget written here. The P2 gate allows eight
+ * seconds for the same frame, so this file does too. A turn that never
+ * finishes still fails, eight seconds later instead of four.
+ */
+const TURN_FINISHES_MS = 8_000;
 
 describe('the session surface', () => {
   it('creates, lists, reads and archives', async () => {
@@ -279,7 +312,7 @@ describe('submitting a turn', () => {
   it('refuses a stale head, with the head it should have used', async () => {
     const accepted = await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const stale = await submit({ idempotencyKey: 'key-2' });
@@ -313,7 +346,7 @@ describe('the stream', () => {
     const snapshot = await stream.until((frame) => frame.event === 'snapshot');
     expect((snapshot.data as { sessionId: string }).sessionId).toBe(sessionId);
 
-    const end = await stream.until(finished, 4000);
+    const end = await stream.until(finished, TURN_FINISHES_MS);
     expect((end.data as { params: { state: string } }).params.state).toBe('complete');
     await stream.abort();
   });
@@ -328,8 +361,8 @@ describe('the stream', () => {
     const a = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
     const b = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
 
-    await a.until(finished, 4000);
-    await b.until(finished, 4000);
+    await a.until(finished, TURN_FINISHES_MS);
+    await b.until(finished, TURN_FINISHES_MS);
 
     const keys = (handle: typeof a): string[] =>
       handle
@@ -361,7 +394,7 @@ describe('the stream', () => {
     const second = await server.stream({
       url: `/api/sessions/${sessionId}/stream?after=${String(cursor)}`,
     });
-    await second.until(finished, 4000);
+    await second.until(finished, TURN_FINISHES_MS);
 
     const seqs = (handle: typeof first): number[] =>
       handle
@@ -395,7 +428,7 @@ describe('the stream', () => {
     // resolved from that alone would show a client nothing.
     await submit();
     const live = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await live.until(finished, 4000);
+    await live.until(finished, TURN_FINISHES_MS);
     await live.abort();
 
     const late = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
@@ -447,7 +480,7 @@ describe('the stream', () => {
     await standUp([{ text: 'abcdef', chunks: 3, chunkDelayMs: 5 }]);
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
 
     const deltas = stream.frames().filter((frame) => frame.event === 'delta');
     expect(deltas.length).toBeGreaterThan(0);
@@ -470,7 +503,7 @@ describe('cancelling', () => {
     });
     expect(cancelled.status).toBe(202);
 
-    const end = await stream.until(finished, 4000);
+    const end = await stream.until(finished, TURN_FINISHES_MS);
     expect((end.data as { params: { state: string } }).params.state).toBe('failed');
     await stream.abort();
 
@@ -508,7 +541,7 @@ describe('the transcript', () => {
   it('is the path from the head, and the turn carries its record', async () => {
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -527,7 +560,7 @@ describe('a hand-edited session file reaches the log', () => {
     // effect log, which is the failure [03 §8.1] exists to prevent.
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     // Open session.json in a text editor, so to speak, and set the clock.
@@ -562,7 +595,7 @@ describe('a hand-edited session file reaches the log', () => {
     // the session.
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -601,7 +634,7 @@ describe('a channel whose schema changed under a live session', () => {
   async function afterASchemaChange(): Promise<() => void> {
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const original = channelDefinition('se.clock');
@@ -789,7 +822,7 @@ describe('a hand edit that does not fit its channel', () => {
   it('is refused at the divergence step, so nothing is ever degraded', async () => {
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
@@ -868,7 +901,7 @@ describe('a session with a cast assembles the whole preset', () => {
       payload: { idempotencyKey: 'k', headTurnId: null, input: { text: 'She waited.' } },
     });
     const stream = await server.stream({ url: `/api/sessions/${withCast}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${withCast}/turns` });
@@ -912,7 +945,7 @@ describe('a session with a cast assembles the whole preset', () => {
       payload: { idempotencyKey: 'k-by-id', headTurnId: null, input: { text: 'She waited.' } },
     });
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
@@ -945,7 +978,11 @@ describe('a session with a cast assembles the whole preset', () => {
     });
 
     // Tracks the Scene preset's block count, so it moves when that preset
-    // gains a block — 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
+    // gains a block — 25 since the time and the place (2026-09-30), 23 since
+    // the secret plot's slot ([P14.5b]), 22 since
+    // the established-state slot ([P14.5a]), 21
+    // since the embodied instruction and the card's three
+    // prompt slots ([P14.3]), 17 since the summary slot ([07 §5.1]'s chain, [P8.1]), 16
     // from the goal slot ([06 §7.3.3]'s *always injected*, [P7.6]), 15 from the
     // second lore slot ([P6B.1], the phase every `after_char` entry was being
     // dropped for), 14 from the previous-attempt slot ([06 §5.1]), 13 from the
@@ -956,11 +993,42 @@ describe('a session with a cast assembles the whole preset', () => {
     // an absolute count of a shipped object is a number that changes whenever
     // anything ships — the lesson [P7B.0]'s scan-count assertion learned. So the
     // block below names the slot instead, which is the claim that survives.
-    expect(created.body.session.preset.blocks).toHaveLength(17);
+    expect(created.body.session.preset.blocks).toHaveLength(25);
     expect(created.body.session.preset.blocks.map((block: { id: string }) => block.id)).toContain(
       'se.summary',
     );
     expect(created.body.session.mode).toEqual({ id: 'storyengine.scene', config: null });
+  });
+
+  /**
+   * ***Voice, dispatch and the speaker policy are written down at creation*** —
+   * [P14 §1.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+   * [P14.0].
+   *
+   * Read off the file rather than the reply, because what matters is what a
+   * later build reads: a session with none of the three is taken for one made
+   * before P14.0 and read as the mode's *legacy* values, so a session made now
+   * has to carry what it was made with — or the stage that changes Scene's
+   * declared values would re-voice it.
+   */
+  it('writes the mode’s declared voice, dispatch and speakers onto the session', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Says how it plays' },
+    });
+    expect(created.status).toBe(201);
+
+    const definition = defaultMode().definition;
+    const file = await sessionFileOf(created.body.session.id as string);
+    expect(file.voice).toBe(definition.voice);
+    expect(file.dispatch).toBe(definition.dispatch);
+    expect(file.speakers).toEqual({
+      policy: definition.participants.select,
+      allowSelfResponses: false,
+      namesInHistory: 'groups',
+      maxPerRound: 3,
+    });
   });
 
   it('refuses a mode nobody has heard of at creation', async () => {
@@ -977,11 +1045,13 @@ describe('a session with a cast assembles the whole preset', () => {
 
   it('refuses more actors than the mode seats', async () => {
     // The first real consumer of `ParticipantPolicy`, which was a declaration
-    // nothing read. Scene seats one.
+    // nothing read. ~~Scene seats one.~~ Scene seats 32 since [P14.3] — the
+    // cast body's own ceiling — so the test mode, which seats one, asks.
+    registerMode(TEST_MODE);
     const refused = await server.request({
       method: 'POST',
       url: '/api/sessions',
-      payload: { name: 'x', cast: { persona: null, actors: ['a', 'b'] } },
+      payload: { name: 'x', mode: TEST_MODE_ID, cast: { persona: null, actors: ['a', 'b'] } },
     });
     expect(refused.status).toBe(422);
     expect(refused.body.error).toBe('too-many-actors');
@@ -1037,7 +1107,7 @@ describe('a session with a cast assembles the whole preset', () => {
 
     await submit();
     const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    const end = await stream.until(finished, 4000);
+    const end = await stream.until(finished, TURN_FINISHES_MS);
     expect((end.data as { params: { state: string } }).params.state).toBe('complete');
     await stream.abort();
   });
@@ -1047,7 +1117,7 @@ describe('the transcript is bounded and in order', () => {
   async function twoTurns(): Promise<void> {
     await submit({ input: { text: 'The first thing.' } });
     let stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
@@ -1057,7 +1127,7 @@ describe('the transcript is bounded and in order', () => {
       input: { text: 'The second.' },
     });
     stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
   }
 
@@ -1128,7 +1198,7 @@ describe('the snapshot frame carries what a client needs to render', () => {
     // never checked at all.
     await submit();
     let stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
-    await stream.until(finished, 4000);
+    await stream.until(finished, TURN_FINISHES_MS);
     await stream.abort();
 
     stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
@@ -1515,7 +1585,10 @@ describe('a session started from a Setup', () => {
 
     expect(created.status).toBe(201);
     // The object itself, not a link — [00 §3.1], the asymmetry the preset has.
-    expect(created.body.session.setup).toMatchObject({ id, schema: 'storyengine.setup/1' });
+    const held = await sessionFileOf(created.body.session.id as string);
+    expect(held.setup).toMatchObject({ id, schema: 'storyengine.setup/1' });
+    // And a reply names it without carrying it, goals and hooks and all.
+    expect(created.body.session.setup).toEqual({ id, name: held.setup.name });
   });
 
   it('takes its name when the session was not given one', async () => {
@@ -1557,7 +1630,7 @@ describe('a session started from a Setup', () => {
 
   /**
    * ***The story so far reaches the model on turn one*** — [04 §7.2],
-   * [P13.2](../../../../docs/design/workplan/30-p13-implementation.md).
+   * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * The root is read off the session's copy of its Setup by the gather, so it
    * needs no summariser and no window to have been passed: a session started
@@ -1693,7 +1766,7 @@ describe('a session’s hook pool', () => {
       payload: { name: 'Rain', treatment: id },
     });
 
-    expect(created.body.session.hooks).toEqual([
+    expect((await sessionFileOf(created.body.session.id as string)).hooks).toEqual([
       { hook: expect.objectContaining({ id: 'hook-war' }), source: { kind: 'treatment', id } },
     ]);
   });
@@ -1705,7 +1778,7 @@ describe('a session’s hook pool', () => {
       payload: { name: 'Rain', hooks: [hook('hook-mine')] },
     });
 
-    expect(created.body.session.hooks).toEqual([
+    expect((await sessionFileOf(created.body.session.id as string)).hooks).toEqual([
       { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
     ]);
   });
@@ -1725,7 +1798,7 @@ describe('a session’s hook pool', () => {
       payload: { setup: setupId },
     });
 
-    expect(created.body.session.hooks).toEqual([
+    expect((await sessionFileOf(created.body.session.id as string)).hooks).toEqual([
       {
         hook: expect.objectContaining({ id: 'hook-debt' }),
         source: { kind: 'setup', id: setupId },
@@ -1766,8 +1839,7 @@ describe('a session’s hook pool', () => {
       headers: { 'if-match': read.body.contentHash as string },
     });
 
-    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
-    expect(after.body.session.hooks[0].hook.id).toBe('hook-war');
+    expect((await sessionFileOf(sessionId)).hooks[0].hook.id).toBe('hook-war');
   });
 
   /**
@@ -1795,7 +1867,8 @@ describe('a session’s hook pool', () => {
         payload: { hook: hook('hook-mine') },
       });
 
-      expect(added.body.session.hooks).toEqual([
+      expect(added.status).toBe(200);
+      expect((await sessionFileOf(sessionId)).hooks).toEqual([
         { hook: expect.objectContaining({ id: 'hook-mine' }), source: { kind: 'session' } },
       ]);
       // And it is in the panel the same turn, with its source named — the one
@@ -1838,7 +1911,8 @@ describe('a session’s hook pool', () => {
         },
       });
 
-      const minted = added.body.session.hooks[0].hook.id as string;
+      expect(added.status).toBe(200);
+      const minted = (await sessionFileOf(sessionId)).hooks[0].hook.id as string;
       expect(minted).toMatch(/^[0-9a-f-]{36}$/);
       // Usable, which is the whole point of minting it: a hook with no id cannot
       // be committed, because Commit writes `se.hook#<id>`.
@@ -1915,6 +1989,124 @@ describe('a session’s hook pool', () => {
       // error, where a missing *session* stays a 404 because it is a different
       // claim.
       expect(removed.status).toBe(200);
+    });
+
+    /**
+     * ***One row, the one pressed*** (2026-09-28). A pool holds one hook
+     * through two carriers on purpose, and the panel draws each as its own
+     * row; by id alone, Remove on either took both. The pool is written by
+     * hand because that is the plainest way to hold two entries under one id —
+     * a treatment's and a lorebook's, edited apart.
+     */
+    describe('when two rows share one id', () => {
+      async function twoRows(): Promise<string> {
+        const sessionId = await aSession();
+        const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+        const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+        await writeFile(
+          file,
+          JSON.stringify({
+            ...stored,
+            hooks: [
+              { hook: hook('hook-war'), source: { kind: 'treatment', id: 't-rain' } },
+              {
+                hook: { ...hook('hook-war'), title: 'The war, as the kingdom tells it' },
+                source: { kind: 'lore', id: 'book-flowers' },
+              },
+            ],
+          }),
+        );
+        return sessionId;
+      }
+
+      function sourcesOf(held: { hooks?: { source: unknown }[] }): unknown[] {
+        return (held.hooks ?? []).map((entry) => entry.source);
+      }
+
+      it('removes only the row the caller names', async () => {
+        const sessionId = await twoRows();
+
+        const removed = await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/hook-war?from=lore&fromId=book-flowers`,
+        });
+
+        expect(removed.status).toBe(200);
+        expect(sourcesOf(await sessionFileOf(sessionId))).toEqual([
+          { kind: 'treatment', id: 't-rain' },
+        ]);
+      });
+
+      it('removes every row under the id when no row is named, as before', async () => {
+        const sessionId = await twoRows();
+
+        await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/hook-war`,
+        });
+
+        expect((await sessionFileOf(sessionId)).hooks).toBeUndefined();
+      });
+
+      it('removes nothing, and succeeds, for a row the pool does not hold', async () => {
+        const sessionId = await twoRows();
+
+        const removed = await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/hook-war?from=setup&fromId=s-elsewhere`,
+        });
+
+        expect(removed.status).toBe(200);
+        expect(sourcesOf(await sessionFileOf(sessionId))).toHaveLength(2);
+      });
+
+      it('refuses a source whose id does not fit its kind, and removes nothing', async () => {
+        const sessionId = await twoRows();
+
+        for (const query of ['from=session&fromId=x', 'from=lore', 'fromId=book-flowers']) {
+          const refused = await server.request({
+            method: 'DELETE',
+            url: `/api/sessions/${sessionId}/hooks/hook-war?${query}`,
+          });
+          expect(refused.status, query).toBe(400);
+        }
+        expect(sourcesOf(await sessionFileOf(sessionId))).toHaveLength(2);
+      });
+
+      /**
+       * *A malformed row is found by the source it is shown with* — the panel
+       * draws a source it cannot read as the session's own, and the remove
+       * reads it through the same function, so the row's Remove reaches it.
+       */
+      it('finds a malformed row by the source the panel showed for it', async () => {
+        const sessionId = await aSession();
+        const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+        const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+        await writeFile(
+          file,
+          JSON.stringify({
+            ...stored,
+            hooks: [
+              { hook: { id: 'broken', title: 'Storm' }, source: { kind: 'somewhere' } },
+              { hook: hook('broken'), source: { kind: 'treatment', id: 't-rain' } },
+            ],
+          }),
+        );
+        const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+        const shown = (read.body.hooks.rows as { hookId: string; source: unknown }[]).filter(
+          (row) => row.hookId === 'broken',
+        );
+        expect(shown.map((row) => row.source)).toContainEqual({ kind: 'session' });
+
+        await server.request({
+          method: 'DELETE',
+          url: `/api/sessions/${sessionId}/hooks/broken?from=session`,
+        });
+
+        expect(sourcesOf(await sessionFileOf(sessionId))).toEqual([
+          { kind: 'treatment', id: 't-rain' },
+        ]);
+      });
     });
 
     it('is a 404 for a session that is not there', async () => {
@@ -2102,7 +2294,7 @@ describe('a session’s hook pool', () => {
       // `updatedAt` or reordered the pool would satisfy a comparison of the one
       // field somebody thought to assert on.
       expect(JSON.stringify(after.body.session)).toBe(record);
-      expect(after.body.session.hooks[0].source).toEqual({ kind: 'session' });
+      expect((await sessionFileOf(session)).hooks[0].source).toEqual({ kind: 'session' });
     });
 
     it('is a 404 naming the object when the target is gone', async () => {
@@ -2371,6 +2563,142 @@ describe('a session’s hook pool', () => {
       committed: { overrode: 'too-early' },
     });
   });
+
+  /**
+   * ***A hook is checked before it is kept*** (2026-09-27). Both doors took any
+   * object and stored it as a hook by a cast, so one with no `involves` made
+   * every later read of the session a 500 and every turn a failure: the actor
+   * lookup iterates `involves` on every gather.
+   */
+  it('refuses a hook with no involves, at creation and when added, and keeps nothing', async () => {
+    const storm = { title: 'Storm', premise: 'The bridge falls.' };
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Rain', hooks: [storm] },
+    });
+    expect(created.status).toBe(400);
+
+    const added = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/hooks`,
+      payload: { hook: storm },
+    });
+    expect(added.status).toBe(400);
+    expect(JSON.stringify(added.body.issues)).toMatch(/involves/);
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    expect((await sessionFileOf(sessionId)).hooks).toBeUndefined();
+  });
+
+  /**
+   * ***A session's own hook gets an id at creation, as it does when added***
+   * (2026-09-27). Without one it pooled as `se.hook#` with nothing after it,
+   * and could never be committed, blocked, recorded as fired or removed.
+   */
+  it('mints an id for a hook a session is created with', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Rain',
+        hooks: [
+          {
+            title: 'Storm',
+            premise: 'The bridge falls.',
+            magnitude: 'sweeping',
+            involves: [],
+            weight: 1,
+            delivery: 'guidance',
+            once: true,
+          },
+        ],
+      },
+    });
+
+    expect(created.status).toBe(201);
+    const held = await sessionFileOf(created.body.session.id as string);
+    expect(held.hooks[0].hook.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  /**
+   * ***And one already in the file is shown as broken and never read***
+   * (2026-09-27): a hand edit, an import or an older build can hold one. The
+   * session reads, the turn plays past it, the panel names it `malformed`, and
+   * Remove takes it out, which is the repair that was on a page that would not
+   * load.
+   */
+  it('reads past a malformed hook in the file, shows it as broken, and removes it', async () => {
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...stored,
+        hooks: [
+          { hook: { id: 'broken', title: 'Storm', premise: 'x' }, source: { kind: 'session' } },
+          { hook: hook('hook-fine'), source: { kind: 'session' } },
+        ],
+      }),
+    );
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    const rows = read.body.hooks.rows as { hookId: string; refusal: string | null }[];
+    expect(rows.find((row) => row.hookId === 'broken')?.refusal).toBe('malformed');
+    expect(rows.find((row) => row.hookId === 'hook-fine')?.refusal).not.toBe('malformed');
+
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, TURN_FINISHES_MS);
+    await stream.abort();
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(turns.body.turns.at(-1)?.status).toBe('complete');
+
+    // Never saved out into a library object, which it would break too.
+    const treatment = await aTreatment([]);
+    const promoted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/hooks/broken/promote`,
+      payload: { target: { kind: 'treatment', id: treatment } },
+    });
+    expect(promoted.status).toBe(404);
+
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/sessions/${sessionId}/hooks/broken`,
+    });
+    expect(removed.status).toBe(200);
+    expect(
+      ((await sessionFileOf(sessionId)).hooks as { hook: { id: string } }[]).map(
+        (entry) => entry.hook.id,
+      ),
+    ).toEqual(['hook-fine']);
+  });
+
+  it('removes a hook beside an entry with no hook in it at all', async () => {
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...stored,
+        hooks: [
+          { source: { kind: 'session' } },
+          { hook: hook('hook-fine'), source: { kind: 'session' } },
+        ],
+      }),
+    );
+
+    const removed = await server.request({
+      method: 'DELETE',
+      url: `/api/sessions/${sessionId}/hooks/hook-fine`,
+    });
+
+    expect(removed.status).toBe(200);
+    expect((await sessionFileOf(sessionId)).hooks).toEqual([{ source: { kind: 'session' } }]);
+  });
 });
 
 /**
@@ -2598,16 +2926,389 @@ describe('a session’s goals', () => {
     const response = await server.request({
       method: 'POST',
       url: `/api/sessions/${uuidv7()}/goals`,
-      payload: { goal: { statement: 'x' } },
+      payload: { goal: goal('g-x') },
     });
 
     expect(response.status).toBe(404);
+  });
+
+  /**
+   * ***A goal is checked before it is kept*** (2026-09-27). The body was open
+   * and the goal was stored behind a cast, so one without a `completion` made
+   * every later read of the session a 500 and every turn a failure, with no
+   * route to take it out again. It is a `400` naming the field now, and
+   * nothing is written.
+   */
+  it('refuses a goal missing what a goal must say, and keeps nothing', async () => {
+    const refused = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/goals`,
+      payload: { goal: { statement: 'Find the key' } },
+    });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe('invalid');
+    expect(JSON.stringify(refused.body.issues)).toMatch(/completion/);
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    expect(read.body.goals.rows).toEqual([]);
+  });
+
+  /**
+   * ***And one already in the file is read past*** (2026-09-27): a hand edit,
+   * an import or an older build can hold a goal nothing checked. Placed first,
+   * where play begins, so the runner would have read its `completion` on the
+   * first turn. The file is left as it is: it is somebody's writing.
+   */
+  it('reads past a goal in the file that is not one, and plays on', async () => {
+    const file = join(server.dataDir, 'users', 'ned', 'sessions', sessionId, 'session.json');
+    const stored = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      file,
+      JSON.stringify({
+        ...stored,
+        goals: [{ id: 'broken', statement: 'Find the key' }, goal('g-fine')],
+      }),
+    );
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(read.status).toBe(200);
+    expect(read.body.goals.rows.map((row: { goalId: string }) => row.goalId)).toEqual(['g-fine']);
+    expect(read.body.goals.rows[0].current).toBe(true);
+
+    await submit();
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, TURN_FINISHES_MS);
+    await stream.abort();
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.activeJob).toBeNull();
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
+    expect(turns.body.turns.at(-1)?.status).toBe('complete');
+    expect((JSON.parse(await readFile(file, 'utf8')) as { goals: unknown[] }).goals).toHaveLength(
+      2,
+    );
+  });
+});
+
+/**
+ * ***A session's own pack is checked as a pack*** (2026-09-27). The body took
+ * any object and stored it as a `Preset` by a cast, so a pack with no `blocks`
+ * was a session whose every turn failed. The library checks a preset before it
+ * keeps one, and the session's copy is checked the same way.
+ */
+describe('a session’s pack, sent whole', () => {
+  it('refuses something that is not a pack, and keeps the one it had', async () => {
+    const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    const refused = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/preset`,
+      payload: { preset: { name: 'Not a pack' } },
+    });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe('invalid');
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(after.body.session.preset).toEqual(before.body.session.preset);
+  });
+
+  it('takes the pack it has, edited', async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const pack = read.body.session.preset as Record<string, unknown>;
+
+    const saved = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/preset`,
+      payload: { preset: { ...pack, name: 'Mine now' } },
+    });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body.session.preset.name).toBe('Mine now');
+  });
+});
+
+/**
+ * ***What a reply carries, which is not the file*** (2026-09-27).
+ *
+ * Every route that answered with a session sent `session.json` whole: the hook
+ * pool with every unfired premise in it, the Setup copy with its goals and
+ * hooks, and each goal's `detail`. The panel's rows redact a premise until the
+ * hook fires, and that redaction did nothing while the reply beside it carried
+ * the pool. So a spoiler is planted in each, and every route that answers with
+ * a session is asked for it.
+ */
+describe('what a session reply carries', () => {
+  const SPOILER = 'The Flower Kingdom will declare war.';
+  const SECOND = 'The old bridge gives way in the storm.';
+  const DETAIL = 'The ledger is under the third floorboard.';
+
+  function spoiler(id: string, premise: string): PlotHook {
+    return {
+      id,
+      title: id,
+      premise,
+      magnitude: 'sweeping',
+      involves: [],
+      weight: 1,
+      delivery: 'guidance',
+      once: true,
+    };
+  }
+
+  it('never carries an unfired premise, the Setup copy or a goal’s detail', async () => {
+    const setup = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: {
+        ...newSetup('The Fixer’s Debt'),
+        hooks: [spoiler('hook-war', SPOILER)],
+        goals: [
+          {
+            id: 'g-ledger',
+            statement: 'Find the ledger.',
+            detail: DETAIL,
+            visibility: 'player',
+            completion: { kind: 'narrative' },
+            thenDefault: 'continue-open',
+            next: null,
+          },
+        ],
+      },
+    });
+    const setupId = setup.body.object.id as string;
+
+    const replies: { status: number; body: unknown }[] = [];
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: setupId },
+    });
+    replies.push(created);
+    const id = created.body.session.id as string;
+    // The spoilers are in the file, which is where they belong.
+    const held = JSON.stringify(await sessionFileOf(id));
+    expect(held).toContain(SPOILER);
+    expect(held).toContain(DETAIL);
+
+    replies.push(await server.request({ method: 'GET', url: `/api/sessions/${id}` }));
+    replies.push(await server.request({ method: 'GET', url: '/api/sessions' }));
+    replies.push(
+      await server.request({
+        method: 'POST',
+        url: `/api/sessions/${id}/hooks`,
+        payload: { hook: spoiler('hook-bridge', SECOND) },
+      }),
+    );
+    replies.push(
+      await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${id}/lore`,
+        payload: { treatment: null, lore: [] },
+      }),
+    );
+    replies.push(
+      await server.request({ method: 'PATCH', url: `/api/sessions/${id}`, payload: { name: 'X' } }),
+    );
+    replies.push(
+      await server.request({
+        method: 'PUT',
+        url: `/api/sessions/${id}/channels/se.goal.current`,
+        payload: { value: 'g-ledger' },
+      }),
+    );
+    replies.push(
+      await server.request({
+        method: 'POST',
+        url: `/api/sessions/${id}/goals`,
+        payload: {
+          goal: {
+            statement: 'Pay the fixer.',
+            detail: DETAIL,
+            visibility: 'player',
+            completion: { kind: 'manual' },
+            thenDefault: 'end',
+            next: null,
+          },
+        },
+      }),
+    );
+
+    for (const answer of replies) {
+      expect(answer.status).toBeLessThan(300);
+      const said = JSON.stringify(answer.body);
+      expect(said).not.toContain(SPOILER);
+      expect(said).not.toContain(SECOND);
+      expect(said).not.toContain(DETAIL);
+    }
+    // What the client reads is still there: the Setup by id, the goals by id.
+    const read = replies[1]?.body as { session: { setup: unknown; goals: { id: string }[] } };
+    expect(read.session.setup).toEqual({ id: setupId, name: 'The Fixer’s Debt' });
+    expect(read.session.goals.map((goal) => goal.id)).toEqual(['g-ledger']);
+  });
+});
+
+/**
+ * ***A session's reply shows the pack its turns are assembled from***
+ * (2026-09-27) — `presetOf`, at the presenter and at the dials.
+ *
+ * Each file below is the one a session copied before something shipped would
+ * hold, arriving the way such a file reaches a newer build: already on disk.
+ * The panel edits the pack it is shown and writes it back whole, so a block the
+ * turn assembles from and the reply leaves out is a block nobody can switch off.
+ */
+describe('the pack a session reply shows', () => {
+  async function asCopiedBefore(id: string, change: (pack: any) => void): Promise<void> {
+    const path = join(server.dataDir, 'users', 'ned', 'sessions', id, 'session.json');
+    const file = JSON.parse(await readFile(path, 'utf8'));
+    change(file.preset);
+    await writeFile(path, JSON.stringify(file));
+  }
+
+  it('shows a block the mode shipped after the copy was taken', async () => {
+    await asCopiedBefore(sessionId, (pack) => {
+      pack.blocks = pack.blocks.filter((block: { id: string }) => block.id !== 'se.summary');
+    });
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(read.status).toBe(200);
+    expect(read.body.session.preset.blocks.map((block: { id: string }) => block.id)).toContain(
+      'se.summary',
+    );
+  });
+
+  it('offers a dial whose levels shipped after the copy was taken', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Freeform, begun early',
+        mode: 'storyengine.freeform',
+        modeConfig: { premise: 'Rain.', difficulty: 'even', directedness: 'following' },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.session.id as string;
+    await asCopiedBefore(id, (pack) => {
+      delete pack.difficultyLevels;
+    });
+
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+
+    expect(read.body.dials.difficulty.levels.map((level: { id: string }) => level.id)).toEqual([
+      'gentle',
+      'even',
+      'harsh',
+    ]);
+  });
+});
+
+/**
+ * ***A Freeform story's premise reaches its narrator*** (2026-09-30). The
+ * wizard requires it and promises *"The narrator opens from it"*; until the
+ * `setup` slot it was stored on the session and sent to no model.
+ */
+describe('a Freeform story’s premise', () => {
+  it('is on the wire of its first turn, and the record says where it came from', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        name: 'Drowned city',
+        mode: 'storyengine.freeform',
+        modeConfig: {
+          premise: 'A smuggler owes the wrong people.',
+          difficulty: 'even',
+          directedness: 'following',
+        },
+      },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.session.id as string;
+
+    const submitted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${id}/turns`,
+      payload: { idempotencyKey: 'premise-1', headTurnId: null, input: { text: 'Look around.' } },
+    });
+    expect(submitted.status, JSON.stringify(submitted.body)).toBe(202);
+    const stream = await server.stream({ url: `/api/sessions/${id}/stream` });
+    await stream.until(finished, TURN_FINISHES_MS);
+    await stream.abort();
+
+    const sent = provider.requests.map((request) =>
+      request.messages.map((message) => message.content).join('\n'),
+    );
+    expect(sent.join('\n')).toContain(
+      'What this story is about: A smuggler owes the wrong people.',
+    );
+    const turns = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+    const sources = (turns.body.turns[0].request.calls[0].blocks as { source: unknown }[]).map(
+      (block) => block.source,
+    );
+    expect(sources).toContainEqual({ kind: 'setup', field: 'premise' });
+  });
+});
+
+/**
+ * ***A session naming a mode this build does not have is shown the mode it
+ * plays*** (2026-09-30) — `resolvedMode`, [00 §3.3].
+ *
+ * The file arrives the way a session from a newer build or a missing extension
+ * does: already on disk, naming a mode nothing registered. Its turns played the
+ * default; the read showed it as nothing — no HUD, no stage, no actions, no
+ * input kinds — and refused a write to the staging switch its stager read.
+ */
+describe('a session whose mode is not installed', () => {
+  async function namingAnUnknownMode(id: string): Promise<void> {
+    const path = join(server.dataDir, 'users', 'ned', 'sessions', id, 'session.json');
+    const file = JSON.parse(await readFile(path, 'utf8'));
+    file.mode = { id: 'example.not-installed', config: null };
+    await writeFile(path, JSON.stringify(file));
+  }
+
+  it('is shown what the default shows, as its turns play it', async () => {
+    // A tracker on, so *Update trackers* is offered and the comparison below
+    // cannot hold by both lists being empty.
+    const on = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.track.world.on`,
+      payload: { value: true },
+    });
+    expect(on.status, JSON.stringify(on.body)).toBe(200);
+    const before = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    await namingAnUnknownMode(sessionId);
+    const after = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+
+    expect(after.status).toBe(200);
+    // The file says what it says; the view is of the mode that plays it.
+    expect(after.body.session.mode.id).toBe('example.not-installed');
+    for (const field of ['hud', 'surfaces', 'actions', 'inputs', 'renditions', 'chat']) {
+      expect(after.body[field], field).toEqual(before.body[field]);
+    }
+    expect(before.body.hud.length).toBeGreaterThan(0);
+    expect(before.body.surfaces.length).toBeGreaterThan(0);
+    expect(before.body.actions.length).toBeGreaterThan(0);
+    expect(before.body.inputs.length).toBeGreaterThan(0);
+  });
+
+  it('may write the switches its turns read', async () => {
+    await namingAnUnknownMode(sessionId);
+
+    const staged = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/se.staging`,
+      payload: { value: true },
+    });
+
+    expect(staged.status, JSON.stringify(staged.body)).toBe(200);
   });
 });
 
 /**
  * ***A Setup's opening, as the first turn*** — [03 §6](../../../../docs/design/03-data-model.md),
- * [P13.3](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * `sessions/opening.test.ts` holds the turn's shape over values; what is here
  * is the route's half — that the turn **arrives**, is the head, is what the
@@ -2667,9 +3368,12 @@ describe('a session started from a Setup with an opening', () => {
     expect(turns[0]).toMatchObject({
       parentTurnId: null,
       output: { text: 'The office, after hours.' },
-      opening: { id: 'o-office' },
     });
+    // What marks it is what it lacks — no move and no call — since
+    // `Turn.opening` was dropped at the merge (2026-10-03).
     expect(turns[0].input).toBeUndefined();
+    expect(turns[0].request).toBeUndefined();
+    expect(Object.keys(turns[0])).not.toContain('opening');
     // The response is the session **after** the append, so a client that opens
     // it straight away is not looking at a head of null.
     expect(created.body.session.headTurnId).toBe(turns[0].id);
@@ -2700,8 +3404,11 @@ describe('a session started from a Setup with an opening', () => {
       url: '/api/sessions',
       payload: { setup: id, opening: 'o-nowhere' },
     });
+    // Its own code since the merge — recommended answer, owner deferred,
+    // 2026-10-03 — and not P14.4's `unknown-opening`, whose cause is an
+    // actor's greeting. Mutation: send `unknown-opening` here and this fails.
     expect(missing.status).toBe(422);
-    expect(missing.body.error).toBe('unknown-opening');
+    expect(missing.body.error).toBe('unknown-setup-opening');
 
     // An opening with no Setup beside it names nothing either.
     const orphan = await server.request({
@@ -2710,6 +3417,122 @@ describe('a session started from a Setup with an opening', () => {
       payload: { opening: 'o-docks' },
     });
     expect(orphan.status).toBe(422);
+    expect(orphan.body.error).toBe('unknown-setup-opening');
+  });
+
+  /**
+   * ***A greeting chosen beside a Setup that carries an opening*** —
+   * `conflicting-openings`, recommended answer, owner deferred, 2026-10-03.
+   * The Setup's opening is what the session starts on (25 B18), so the
+   * choice could not be honoured; refused before anything is created, and
+   * without the choice the same body starts. Mutation: delete the check and
+   * the first request is a 201 that quietly ignored the greeting.
+   */
+  it('refuses a greeting chosen beside a setup that carries an opening', async () => {
+    // A real card with the greeting named, so the choice is one P14.4 would
+    // honour anywhere else — the refusal is the Setup's, not a stale form's.
+    const made = newActor('Vera');
+    const vera = {
+      ...made,
+      openings: {
+        ...made.openings,
+        written: [{ id: 'vera-greeting', label: 'Evening', text: '"Evening."' }],
+        primaryWrittenId: 'vera-greeting',
+      },
+    };
+    const card = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: vera,
+    });
+    expect(card.status, JSON.stringify(card.body)).toBe(201);
+    const id = await aSetup({
+      cast: { personaOptions: [], partyDefault: [{ id: vera.id, name: 'Vera' }], narrator: null },
+    });
+    const before = await server.request({ method: 'GET', url: '/api/sessions' });
+
+    const refused = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: id, openings: { [vera.id]: 'vera-greeting' } },
+    });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error).toBe('conflicting-openings');
+    const after = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(after.body.sessions).toHaveLength((before.body.sessions as unknown[]).length);
+
+    const plain = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: id, openings: {} },
+    });
+    expect(plain.status, JSON.stringify(plain.body)).toBe(201);
+  });
+
+  /**
+   * ***…and ignored where nothing reads `openings`*** — the refusal's scope,
+   * settled at review on 2026-10-03, keeping P14.4's. The map is read only in
+   * a mode that declares `openingTurn`, with somebody cast besides the
+   * persona; anywhere else no greeting would be written, so a choice among
+   * greetings asks for nothing and the Setup's opening plays as it would have.
+   * The contract had said *refused* without the condition (api.md, 25 B18,
+   * P15 §1.7) and the code never did — this pins the code's reading, which is
+   * now the contract's.
+   *
+   * Two such bodies: the very choice the test above refuses, sent in Freeform,
+   * which writes no greetings; and a Scene Setup that seats nobody, whose
+   * choice names a member who is not there — no cast, so P14.4's
+   * `unknown-opening` is not read either. Mutation: hoist the
+   * `conflicting-openings` check above the `openingTurn`/cast guard and both
+   * are 422.
+   */
+  it('ignores a greeting chosen where no greeting would be written', async () => {
+    const made = newActor('Vera');
+    const vera = {
+      ...made,
+      openings: {
+        ...made.openings,
+        written: [{ id: 'vera-greeting', label: 'Evening', text: '"Evening."' }],
+        primaryWrittenId: 'vera-greeting',
+      },
+    };
+    const card = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: vera,
+    });
+    expect(card.status, JSON.stringify(card.body)).toBe(201);
+    const seated = await aSetup({
+      cast: { personaOptions: [], partyDefault: [{ id: vera.id, name: 'Vera' }], narrator: null },
+    });
+
+    const freeform = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        setup: seated,
+        mode: 'storyengine.freeform',
+        modeConfig: { premise: 'Rain.', difficulty: 'even', directedness: 'following' },
+        openings: { [vera.id]: 'vera-greeting' },
+      },
+    });
+    expect(freeform.status, JSON.stringify(freeform.body)).toBe(201);
+    expect((await turnsOf(freeform.body.session.id as string))[0].output.text).toBe(
+      'The office, after hours.',
+    );
+
+    const nobody = await aSetup({
+      cast: { personaOptions: [], partyDefault: [], narrator: null },
+    });
+    const scene = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: nobody, openings: { [vera.id]: 'vera-greeting' } },
+    });
+    expect(scene.status, JSON.stringify(scene.body)).toBe(201);
+    const turns = await turnsOf(scene.body.session.id as string);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].output.text).toBe('The office, after hours.');
   });
 
   it('seats the party, makes them members, and spends the hooks on the opening', async () => {
@@ -2752,6 +3575,11 @@ describe('a session started from a Setup with an opening', () => {
     expect(rows.find((row) => row.hookId === 'hook-fresh')?.state).toBeNull();
   });
 
+  /**
+   * Read by the convention since the merge — no input, no request
+   * (`redoable`, 2026-10-03) — rather than by `Turn.opening`, which is gone.
+   * Mutation: let `redoable` answer `true` and both submissions are accepted.
+   */
   it('refuses to redo or rewrite an opening, because nothing generated it', async () => {
     const created = await server.request({
       method: 'POST',
@@ -2772,6 +3600,24 @@ describe('a session started from a Setup with an opening', () => {
       expect(refused.status, field).toBe(422);
       expect(refused.body.error, field).toBe('opening-turn');
     }
+
+    // A swipe passes the refusal above — it is the gesture's to read — and the
+    // gesture refuses it: a Setup's opening is a narrator's line, with no
+    // member to speak it again.
+    // Sent whole rather than through `submit`, whose default input a swipe
+    // would refuse as a clash before reading the turn at all.
+    const swiped = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: {
+        idempotencyKey: 'swipe-the-opening',
+        headTurnId: opening.id,
+        rewriteOf: opening.id,
+        fromMessage: 0,
+      },
+    });
+    expect(swiped.status).toBe(422);
+    expect(['narrated-message', 'narrated-session']).toContain(swiped.body.error);
   });
 
   it('runs a generating mode’s parts after the opening, as its child', async () => {
@@ -2798,7 +3644,7 @@ describe('a session started from a Setup with an opening', () => {
 
     const turns = await turnsOf(id);
     expect(turns).toHaveLength(2);
-    expect(turns[0].opening).toEqual({ id: 'o-office' });
+    expect(turns[0].output.text).toBe('The office, after hours.');
     expect(turns[1].parentTurnId).toBe(turns[0].id);
     expect(turns[1].output.text).toContain('Rain.');
   });

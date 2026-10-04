@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FakeProvider } from '../providers/fake.js';
 import { Layout } from '../storage/layout.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { pendingRenditionJobs } from './jobs.js';
 import { readRenditions } from './store.js';
 
 /**
@@ -153,5 +154,90 @@ describe('disposing the server', () => {
     expect(await statesOnDisk(), 'dispose returned with the job still running').not.toContain(
       'pending',
     );
+  });
+
+  /**
+   * ***And then it stops waiting*** (2026-09-27). The wait above had no bound,
+   * and the endpoint call it waited on had no signal, so a picture against an
+   * endpoint that had stopped answering held every shutdown open: a restart or
+   * a restore never finished, and a `docker stop` ended in `SIGKILL`. Now the
+   * drain gives pictures a grace, then aborts their calls, and each records
+   * itself as `interrupted`, with the recipe intact and a retry button, the
+   * record a crash would have left for `recoverRenditions`.
+   *
+   * *The grace is the test's*, far inside the stall, so the only way off
+   * `pending` is the abort.
+   *
+   * Catches: calling `renderImage` without the shutdown signal, and a drain
+   * that never aborts. Either way the stall runs past the settle bound, and the
+   * record is still `pending` when the drain returns.
+   */
+  it('cuts off a picture that outlives its grace, and records it as interrupted', async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const head = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
+    const submitted = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: { idempotencyKey: 'k-0', headTurnId: head, input: { text: 'Look around.' } },
+    });
+    expect(submitted.status).toBe(202);
+    await eventually(async () => (await statesOnDisk()).length === 1);
+    expect(await statesOnDisk(), 'the picture has not been made yet').toEqual(['pending']);
+
+    await server.services.drainRenditions({ graceMs: 50, settleMs: STALL_MS / 2 });
+
+    const records = await readRenditions(server.services.sessions.layout, 'ned', sessionId);
+    const [cut] = [...records.values()];
+    expect(cut?.state).toBe('failed');
+    expect(cut?.error).toBe('interrupted');
+    // The recipe survives, which is what makes the retry a replay.
+    expect(cut?.prompt.text).not.toBe('');
+    // And the job says it is over, so the next boot has nothing to reconcile.
+    expect(pendingRenditionJobs(server.services.state.db, sessionId)).toEqual([]);
+  });
+});
+
+/**
+ * ***A picture that finishes after its session was deleted writes nothing***
+ * (2026-09-27). Every write here makes its parent directories, so the late
+ * picture put `sessions/<id>/` back beside the trashed one: a folder with an
+ * image in it and no session, and the trash's restore refused for as long as
+ * it stood. The worker now writes into a session under its lock and only while
+ * it is there.
+ */
+describe('a session deleted while its picture is being made', () => {
+  it('stays deleted when the picture finishes, and comes back from the trash', async () => {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    const head = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
+    await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: { idempotencyKey: 'k-0', headTurnId: head, input: { text: 'Look around.' } },
+    });
+    // The record is written after the turn commits, so the turn is done here
+    // and the picture is not.
+    await eventually(async () => (await statesOnDisk()).length === 1);
+
+    const deleted = await server.request({ method: 'DELETE', url: `/api/sessions/${sessionId}` });
+    expect(deleted.status).toBe(204);
+    await eventually(
+      () => Promise.resolve(pendingRenditionJobs(server.services.state.db, sessionId).length === 0),
+      { timeoutMs: STALL_MS * 5 },
+    );
+
+    const live = new Layout(dataDir).sessionRoot('ned', sessionId);
+    const { fileExists } = await import('../storage/files.js');
+    expect(await fileExists(live), 'the late picture put the folder back').toBe(false);
+
+    const trash = await server.request({ method: 'GET', url: '/api/me/trash' });
+    const entry = (trash.body as { entries: { id: string; kind: string }[] }).entries.find(
+      (one) => one.kind === 'sessions',
+    );
+    const restored = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id: entry?.id },
+    });
+    expect(restored.status).toBe(200);
   });
 });

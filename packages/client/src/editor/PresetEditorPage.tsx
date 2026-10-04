@@ -9,7 +9,7 @@ import { newPreset, PRESET_SCHEMA, uuidv7 } from '@storyengine/shared';
 import { ApiError, type LibraryObject } from '../api.js';
 import { isRequiredField } from '../library/fields.js';
 import { useEditorBase, useLibrary } from '../queries.js';
-import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import { page } from '../ui/classes.js';
 import { Field } from '../ui/Field.js';
 import { nudge } from '../ui/reorder.js';
@@ -216,7 +216,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
         path="name"
         value={nameOfPreset(draft)}
         onChange={(name) => {
-          editor.patch({ ...draft, name });
+          editor.patch((current) => ({ ...current, name }));
         }}
         required={isRequiredField('presets', 'name')}
         error={missing.includes('name') ? 'A preset needs a name.' : null}
@@ -235,18 +235,26 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
               block={block}
               index={index}
               count={blocks.length}
+              /*
+               * Updaters, every one, over the pack as it is when the write
+               * lands — an assist on a block's template resolves long after
+               * its click, and a pack rebuilt from this render would put back
+               * whatever was typed into the name or another block meanwhile.
+               * `patch` in `object-editor.ts` has the whole argument; what a
+               * row captures here is only which block it is.
+               */
               onPatch={(patch) => {
-                editor.patch(withBlock(draft, block.id, patch));
+                editor.patch((current) => withBlock(current, block.id, patch));
               }}
               onPatchSource={(patch) => {
-                editor.patch(withBlockSource(draft, block.id, patch));
+                editor.patch((current) => withBlockSource(current, block.id, patch));
               }}
               onRemove={() => {
-                editor.patch(withoutBlock(draft, block.id));
+                editor.patch((current) => withoutBlock(current, block.id));
               }}
               onMove={(to) => {
                 const target = blocks[to];
-                editor.patch(moveBlockBefore(draft, block.id, target?.id ?? null));
+                editor.patch((current) => moveBlockBefore(current, block.id, target?.id ?? null));
               }}
             />
           ))}
@@ -270,7 +278,7 @@ function Editor(props: { initial: LibraryObject; unsaved?: boolean }): JSX.Eleme
         value={draft}
         handled={['name', 'blocks']}
         onChange={(key, next) => {
-          editor.patch({ ...draft, [key]: next });
+          editor.patch((current) => ({ ...current, [key]: next }));
         }}
       />
     </EditorFrame>
@@ -362,9 +370,14 @@ function BlockRow(props: {
         >
           ↓
         </button>
-        <Button type="button" variant="quiet" onClick={props.onRemove}>
-          Remove
-        </Button>
+        <TwoStep
+          label="Remove"
+          name={`Remove ${block.id}`}
+          question="Remove this block from the pack? Nothing is written until you save."
+          confirm="Remove"
+          variant="quiet"
+          onConfirm={props.onRemove}
+        />
       </div>
 
       {isSlot ? (

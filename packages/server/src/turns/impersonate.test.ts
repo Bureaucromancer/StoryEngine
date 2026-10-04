@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { impersonationInstruction } from './impersonate.js';
+import { newActor, newSetup } from '@storyengine/shared';
+
+import { FakeProvider } from '../providers/fake.js';
+import { Layout } from '../storage/layout.js';
+import { makeTestServer, setUpAdmin } from '../test-server.js';
+import { impersonate, impersonationInstruction } from './impersonate.js';
 
 /**
  * ***The card is the subject, not the audience*** —
@@ -58,5 +65,89 @@ describe('the instruction that flips the call', () => {
     const text = impersonationInstruction('Vera').text.toLowerCase();
     expect(text).toContain('one message only');
     expect(text).toContain('do not resolve what happens next');
+  });
+});
+
+/**
+ * ***The story so far reaches a draft too*** —
+ * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * Impersonation assembles the story's prompt and asks for the persona's next
+ * line, so a session started from a Setup with a story so far has to hand that
+ * story to the draft as it does to a turn: a draft written without it is a
+ * line from somebody who does not know where they are. The block's words in
+ * the request the provider was sent are the proof — the draft returns text,
+ * not blocks.
+ *
+ * *Through `collectFor`*, for the preview test's reason. Falsified by taking
+ * it back out of `collectFor`: the story so far is not in what was sent.
+ */
+describe('a draft in a session started from a story so far', () => {
+  it('is written with the story so far in its prompt', async () => {
+    const provider = new FakeProvider({ script: [{ text: 'I ask about the ledger.' }] });
+    const server = await makeTestServer({ providers: () => provider });
+    try {
+      await setUpAdmin(server, 'ned');
+      const connections = new Layout(server.dataDir).userConnectionsRoot('ned');
+      await mkdir(connections, { recursive: true });
+      const connection = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a33';
+      await writeFile(
+        join(connections, 'fake.json'),
+        JSON.stringify({
+          id: connection,
+          label: 'The double',
+          provider: 'openai-compatible',
+          models: ['fake-hi'],
+        }),
+      );
+      await writeFile(
+        join(server.dataDir, 'users', 'ned', 'bindings.json'),
+        JSON.stringify({ prose: { connectionId: connection, modelId: 'fake-hi' } }),
+      );
+      const marlow = newActor('Marlow');
+      await server.request({ method: 'POST', url: '/api/library/actors', payload: marlow });
+      const setup = await server.request({
+        method: 'POST',
+        url: '/api/library/setups',
+        payload: {
+          ...newSetup('From the docks'),
+          cast: {
+            personaOptions: [{ id: marlow.id, name: 'Marlow' }],
+            partyDefault: [],
+            narrator: null,
+          },
+          storySoFar: 'Before any of this, the ledger was lost.',
+        },
+      });
+      const created = await server.request({
+        method: 'POST',
+        url: '/api/sessions',
+        payload: { setup: setup.body.object.id as string },
+      });
+      expect(created.status).toBe(201);
+
+      const drafted = await impersonate(
+        {
+          sessions: server.services.sessions,
+          accounts: server.services.accounts,
+          providers: server.services.providers,
+          config: server.services.config,
+        },
+        {
+          account: 'ned',
+          sessionId: created.body.session.id as string,
+          parentTurnId: (created.body.session.headTurnId as string | null) ?? null,
+          signal: new AbortController().signal,
+        },
+      );
+
+      expect(drafted).toEqual({ ok: true, text: 'I ask about the ledger.' });
+      const sent = provider.requests
+        .flatMap((request) => request.messages.map((message) => message.content))
+        .join('\n');
+      expect(sent).toContain('Before any of this, the ledger was lost.');
+    } finally {
+      await server.dispose();
+    }
   });
 });

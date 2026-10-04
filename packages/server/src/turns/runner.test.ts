@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
-import type { PlotHook } from '@storyengine/shared';
+import type { OutputMessage, PlotHook, StepOutcome } from '@storyengine/shared';
 
 import { DEFAULT_CONFIG, type Config } from '../config.js';
 import { openIndex, type OpenedIndex } from '../index-db/open.js';
@@ -23,16 +23,16 @@ import {
   writeChannel,
   type SessionContext,
 } from '../sessions/store.js';
-import type { PooledHook, Turn } from '../sessions/types.js';
+import type { ChannelEffect, PooledHook, SessionFile, Turn } from '../sessions/types.js';
 import type { CommitContext, Logger } from '../state/commit.js';
-import { readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
+import { readDraft, readEvents, readJob, submitTurn, type Job } from '../state/jobs.js';
 import { openState, type OpenedState } from '../state/open.js';
 import { Layout } from '../storage/layout.js';
 import { Accounts } from '../auth/accounts.js';
 import { TurnStream } from '../stream/bus.js';
 import { AdvisoryLeakError } from '../assembly/assemble.js';
 import { callOnRecord, onRecord } from '../test-record.js';
-import type { StepDefinition, TurnPlan } from './steps.js';
+import type { EffectProposal, StepDefinition, StepResult, TurnPlan } from './steps.js';
 import { installBuiltIns } from '../mode-loader.js';
 import { registerMode } from '../mode-registry.js';
 
@@ -41,14 +41,18 @@ import {
   ENSEMBLE_MODE_ID,
   SHAPED_MODE,
   SHAPED_MODE_ID,
+  TEST_MODE,
+  TEST_MODE_ID,
   TEST_PRESET,
   TEST_STEP,
 } from '../test-mode.js';
 import { create, type LibraryContext } from '../library.js';
+import { convertCard } from '../import/sillytavern/card.js';
 import { newActor, newLorebook, newLoreEntry, newTreatment } from '@storyengine/shared';
 import { SE_LORE_TIMING } from '../sessions/channels.js';
 import type { Occurrence } from '../notifications/router.js';
 import { TurnRunner } from './runner.js';
+import { keptSpeakers, SE_SPEAKERS_SMART } from './smart-speakers.js';
 
 /**
  * The step loop — [P2 §2.5], [06 §6].
@@ -128,6 +132,7 @@ function makeRunner(
      * and is a state `remedyFor` handles rather than guesses at.
      */
     connectivity?: () => boolean | null;
+    committed?: (job: Job, turn: Turn) => Promise<void>;
   } = {},
 ): void {
   provider = new FakeProvider(options.script === undefined ? {} : { script: options.script });
@@ -149,6 +154,7 @@ function makeRunner(
       announced.push(occurrence);
     },
     ...(options.connectivity === undefined ? {} : { connectivity: options.connectivity }),
+    ...(options.committed === undefined ? {} : { committed: options.committed }),
   });
   // The runner's own logger seam, so a test reads what an operator would.
   logLines = [];
@@ -253,6 +259,35 @@ async function runTurn(text = 'She opened the door.'): Promise<{ job: Job; turn:
 }
 
 /**
+ * ***What waited for a turn is told once it has landed*** (2026-09-27) —
+ * `RunnerOptions.committed`, which is how a backdrop that finished during the
+ * turn gets shown on top of it. After the commit, so the head is the turn and
+ * the session is free: anything applied then is a child of the turn rather
+ * than a sibling its commit would abandon.
+ */
+describe('a committed turn', () => {
+  it('is announced to what waited for it, with the head on it and the job finished', async () => {
+    const seen: unknown[] = [];
+    makeRunner({
+      committed: async (job, turn) => {
+        const session = await readSession(sessions, ACCOUNT, sessionId);
+        seen.push({
+          job: job.id,
+          turn: turn.id,
+          head: session?.headTurnId ?? null,
+          finished: readJob(state.db, job.id)?.finishedAt !== null,
+        });
+      },
+    });
+
+    const { job, turn } = await runTurn();
+    await runner.settle();
+
+    expect(seen).toEqual([{ job: job.id, turn: turn.id, head: turn.id, finished: true }]);
+  });
+});
+
+/**
  * Runs the *next* turn, and can be called repeatedly.
  *
  * `runTurn` reserves with a fixed key against a null head, so calling it twice
@@ -289,6 +324,9 @@ async function runNextTurn(): Promise<Turn> {
  * named here once so that eight assertions about other features do not each
  * have to explain it.
  *
+ * *The third is [P14.5a]'s trackers*, and the note applies to it word for word:
+ * every tracker is off by default, so the step reads six booleans and returns.
+ *
  * `se.scene.stage` is Scene's stager, and on every session in this file it does
  * nothing: staging defaults off, so the step reads one boolean and returns. It
  * is in the record anyway because **`planFor` zips every step a mode declares
@@ -301,7 +339,31 @@ async function runNextTurn(): Promise<Turn> {
  * shape of the gap rather than a thing to fix under a stage. Recorded at
  * [25 C17].
  */
-const SCENE_STEPS = ['se.narrate', 'se.scene.stage'];
+/*
+ * *The fourth is [P14.5b]'s secret-plot pass*, and the note applies to it too —
+ * the plot is off by default, so the step reads one boolean and returns. It is
+ * first because it is `pre`, which moves the narrator off `steps[0]`: the
+ * assertions below that meant *the narrator's outcome* read it by id
+ * ({@link narrator}) rather than by position.
+ */
+/*
+ * *And [P14.5c]'s editor and echo chamber make six*, both off by default and
+ * both the same one-read `ok`: the editor after the narrator (first of the
+ * `post` steps), the chorus last of Scene's. 25 C17's dead rows are now four.
+ */
+const SCENE_STEPS = [
+  'se.scene.plot',
+  'se.narrate',
+  'se.scene.edit',
+  'se.scene.stage',
+  'se.scene.track',
+  'se.scene.echo',
+];
+
+/** The narrator's outcome on a Scene turn — by id, since [P14.5b] put a `pre` step first. */
+function narrator(turn: Turn | undefined): StepOutcome | undefined {
+  return turn?.steps?.find((step) => step.stepId === 'se.narrate');
+}
 
 describe('a turn goes all the way through', () => {
   it('commits, with the record of what actually ran', async () => {
@@ -310,10 +372,20 @@ describe('a turn goes all the way through', () => {
     expect(turn.status).toBe('complete');
     expect(turn.output?.text).toBe('The rain had not stopped for three days.');
     expect(turn.steps).toMatchObject([
+      // The secret plot's pass, [P14.5b]: off, so the same one-read `ok`.
+      { stepId: 'se.scene.plot', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       { stepId: 'se.narrate', state: 'ok' },
+      // The editor, [P14.5c]: off, and it revised nothing, so no `revisions`.
+      { stepId: 'se.scene.edit', state: 'ok', contributed: { blocks: 0, effects: 0 } },
       // `ok` and contributing nothing, which is the whole of `SCENE_STEPS`'s note.
       { stepId: 'se.scene.stage', state: 'ok', contributed: { blocks: 0, effects: 0 } },
+      // The trackers, [P14.5a]: all six off by default, so the same one-read
+      // `ok` for the same reason.
+      { stepId: 'se.scene.track', state: 'ok', contributed: { blocks: 0, effects: 0 } },
+      // The echo chamber, [P14.5c]: off, the same.
+      { stepId: 'se.scene.echo', state: 'ok', contributed: { blocks: 0, effects: 0 } },
     ]);
+    expect(turn.steps?.find((step) => step.stepId === 'se.scene.edit')?.revisions).toBeUndefined();
     // What was assembled, with provenance — the thing that makes the workbench
     // able to answer "why is this in the prompt?" ([03 §8]).
     // Bound once, and read from that binding below. Two spellings of the same
@@ -377,6 +449,50 @@ describe('a turn goes all the way through', () => {
     expect(clock[0]?.proposedBy).toEqual({ kind: 'engine' });
     expect(clock[0]?.applied).toBe(true);
     expect(readClock(session?.channels ?? {})).toEqual({ day: 1, hour: 8, minute: 5 });
+  });
+
+  /**
+   * ***Only a mode that plays the clock advances it*** (2026-09-30). The clock
+   * is Scene's ([06 §4.1]), and the channel route refused it on any other
+   * mode's session as no such channel; this runner advanced it on every one,
+   * so each Freeform turn recorded a time nothing in Freeform keeps.
+   */
+  async function aTurnPlaying(modeId: string): Promise<Turn> {
+    const session = await createSession(sessions, ACCOUNT, {
+      name: modeId,
+      mode: { id: modeId, config: null },
+      preset: TEST_PRESET,
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: `playing-${session.id}`,
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    return onRecord(written.at(-1), 'the turn on disk').turn;
+  }
+
+  it('advances no clock for a mode that does not play one', async () => {
+    registerMode(TEST_MODE);
+
+    const turn = await aTurnPlaying(TEST_MODE_ID);
+
+    expect(turn.status).toBe('complete');
+    expect(turn.effects.filter((effect) => effect.channelId === SE_CLOCK)).toEqual([]);
+  });
+
+  it('advances the default’s clock for a mode this build does not have', async () => {
+    // Played as the default ([00 §3.3]), so kept as the default keeps it.
+    const turn = await aTurnPlaying('example.not-installed');
+
+    expect(turn.status).toBe('complete');
+    expect(turn.effects.filter((effect) => effect.channelId === SE_CLOCK)).toHaveLength(1);
   });
 
   it('frees the session, so the next turn composes against the new head', async () => {
@@ -644,12 +760,21 @@ describe('the three failure modes are three', () => {
    * A multi-minute first token is ordinary on a local runtime, and a generation
    * that is still arriving is not a hang. So the clock is re-armed by every
    * chunk. This stream runs to four times the timeout and finishes, which is
-   * the assertion: without the re-arm it is killed a fifth of the way in.
+   * the assertion: without the re-arm it is killed a quarter of the way in.
+   *
+   * ***The window is wide against the gap, 400 milliseconds against 50, and it
+   * has to be.*** The gap a chunk is measured across is not only the fake's
+   * delay: the fake starts waiting when the runner asks for the next chunk, so
+   * the runner's own work on the last one (the stream event it writes) and the
+   * timer's granularity land in it too. This test first had 30 against 60, and
+   * on the Windows runner, loaded by a twenty-minute suite, one gap outgrew it
+   * and the turn failed (CI run 64, 2026-09-27). Production windows are
+   * minutes, so the margin is a fact about the test, not about the product.
    */
   it('does not interrupt a long answer that is still arriving', async () => {
     makeRunner({
-      script: [{ text: 'One two three four five six seven eight.', chunks: 8, chunkDelayMs: 30 }],
-      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } },
+      script: [{ text: 'One two three four five six seven eight.', chunks: 32, chunkDelayMs: 50 }],
+      config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 400 } },
     });
 
     const { turn } = await runTurn();
@@ -709,6 +834,24 @@ describe('the three failure modes are three', () => {
     expect(readEvents(commit, job.id).map((event) => event.key)).not.toContain('step.failed');
   });
 
+  /**
+   * ***A window that holds nothing beside the reply fails the step, and asks
+   * nobody*** (2026-09-27). It was sent with every unrequired block dropped,
+   * which read as the model having forgotten the story.
+   */
+  it('refuses a call whose window has no room beside the reply, and sends nothing', async () => {
+    makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 100 } } });
+
+    const { turn } = await runTurn();
+
+    expect(provider.requests).toHaveLength(0);
+    expect(turn.status).toBe('failed');
+    expect(narrator(turn)).toMatchObject({
+      state: 'failed',
+      error: { reason: 'window-too-small' },
+    });
+  });
+
   it('a skipped step is on the record as well as on the stream', async () => {
     // Silence is the worst possible answer to "why didn't that happen?".
     makeRunner({
@@ -725,6 +868,47 @@ describe('the three failure modes are three', () => {
 
     expect(turn.steps?.[0]).toMatchObject({ state: 'skipped', skipReason: 'not-armed' });
     expect(readEvents(commit, job.id).map((event) => event.key)).toContain('step.skipped');
+  });
+});
+
+/**
+ * ***A cadence counts the turns of the story*** (2026-09-27) —
+ * `sessions/depth.ts`.
+ *
+ * `turnsOnPath` was the path's length, and a path holds turns nobody narrated:
+ * the channel write a HUD edit or a dial change is, an undo, a backdrop choice.
+ * So memory extraction *every eight turns* ran at whatever turn the bookkeeping
+ * had shifted the modulus to, and a session that edited often could go a long
+ * stretch without it.
+ */
+describe('a cadence counts the turns of the story', () => {
+  const EVERY_OTHER: StepDefinition = {
+    ...TEST_STEP,
+    id: 'se.every-other',
+    when: { when: 'cadence', everyNTurns: 2 },
+  };
+
+  it('is not moved by a channel write between two turns', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          { definition: EVERY_OTHER, run: () => Promise.resolve({}) },
+          {
+            definition: TEST_STEP,
+            run: async (_i, host) => ({ message: { text: (await host.call({})).text } }),
+          },
+        ],
+      },
+    });
+
+    const first = await runNextTurn();
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook.pacing', 'sparse');
+    const second = await runNextTurn();
+
+    // The first turn of the story and the second: every other turn is the second,
+    // with the dial change between them counted as nothing.
+    expect(first.steps?.[0]).toMatchObject({ stepId: EVERY_OTHER.id, skipReason: 'cadence' });
+    expect(second.steps?.[0]).toMatchObject({ stepId: EVERY_OTHER.id, state: 'ok' });
   });
 });
 
@@ -772,7 +956,7 @@ describe('what the provider did, and what it cost', () => {
     const { turn } = await runTurn();
 
     // `unbound` and `dangling` are told apart because the remedies differ.
-    expect(turn.steps?.[0]).toMatchObject({ state: 'failed', error: { reason: 'unbound' } });
+    expect(narrator(turn)).toMatchObject({ state: 'failed', error: { reason: 'unbound' } });
     expect(provider.requests).toHaveLength(0);
   });
 });
@@ -845,6 +1029,35 @@ describe('a turn ending is news, and a turn you stopped is not', () => {
      * the endpoint in fact accepted the request and then went quiet, which is
      * not something anybody should change a key over.
      */
+    expect(failure.remedy).toBe('endpoint-stalled');
+  });
+
+  /**
+   * ***The same remedy when the transport, not our timer, ran out of
+   * patience*** (2026-09-27). undici's header and body limits sat beneath
+   * `providerTimeoutMs`; a request they cut off was retried as transient and
+   * then read as a refusal. It is a stall, asked once.
+   */
+  it('calls a transport that gave up on a quiet endpoint a stall, and asks once', async () => {
+    makeRunner({
+      script: [
+        {
+          error: {
+            class: 'terminal',
+            message: 'The provider call failed.',
+            detail: 'Headers Timeout Error',
+            stalled: true,
+          },
+        },
+      ],
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.status).toBe('failed');
+    expect(turn.request?.calls.at(-1)).toMatchObject({ outcome: 'error', retries: 0 });
+
+    await until(() => announced.length === 1, 'the failure to be announced');
+    const failure = announced[0] as Extract<Occurrence, { kind: 'turn.failed' }>;
     expect(failure.remedy).toBe('endpoint-stalled');
   });
 
@@ -952,7 +1165,7 @@ describe('cancellation', () => {
     );
     expect(written).toHaveLength(1);
     expect(written[0]?.turn.status).toBe('failed');
-    expect(written[0]?.turn.steps?.[0]?.error?.reason).toBe('cancelled');
+    expect(narrator(written[0]?.turn)?.error?.reason).toBe('cancelled');
   });
 
   /**
@@ -1138,6 +1351,68 @@ describe('the record says why a slot is empty', () => {
   });
 });
 
+/**
+ * ***A step held to what it declared*** (2026-09-30) — `acceptStepEffect`, in
+ * the loop that took a step's proposals as given. The step below declares the
+ * place and the hook pacing, stamps a person on the pacing (a `user-only`
+ * channel, which a person's stamp passes), and writes the clock it never
+ * declared; the place it stamps honestly with its own call.
+ */
+describe('a step held to what it declared', () => {
+  it('records a forged proposer and an undeclared write as refused, and lands its own', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: { ...TEST_STEP, writes: ['se.location', 'se.hook.pacing'] },
+            run: async (_input, host) => {
+              const result = await host.call({});
+              const set = { type: 'set', path: '/' } as const;
+              return {
+                message: { text: result.text },
+                effects: [
+                  {
+                    channelId: 'se.hook.pacing',
+                    op: set,
+                    after: 'aggressive',
+                    proposedBy: { kind: 'user' },
+                  },
+                  {
+                    channelId: SE_CLOCK,
+                    op: set,
+                    after: { day: 9, hour: 0, minute: 0 },
+                    proposedBy: { kind: 'model', callId: result.callId },
+                  },
+                  {
+                    channelId: 'se.location',
+                    op: set,
+                    after: 'the docks',
+                    proposedBy: { kind: 'model', callId: result.callId },
+                  },
+                ],
+              };
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+    const session = await readSession(sessions, ACCOUNT, sessionId);
+
+    const stepped = turn.effects.filter((effect) => effect.proposedBy.kind !== 'engine');
+    expect(stepped.map((one) => [one.channelId, one.applied, one.rejectedReason])).toEqual([
+      ['se.hook.pacing', false, 'not-its-proposer'],
+      [SE_CLOCK, false, 'undeclared-write'],
+      ['se.location', true, null],
+    ]);
+    // Recorded as the step's, which is who proposed it.
+    expect(stepped[0]?.proposedBy).toEqual({ kind: 'step', stepId: TEST_STEP.id });
+    expect(session?.channels['se.hook.pacing']).toBeUndefined();
+    expect(session?.channels['se.location']?.value).toBe('the docks');
+  });
+});
+
 describe('the engine says what it overrode', () => {
   /**
    * [10 §3]'s third effect outcome, linked rather than inferred — [P3.0]. A
@@ -1151,7 +1426,9 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: TEST_STEP,
+            // Declared (2026-09-30), so what refuses it is the clock's own
+            // policy and not the step's undeclared write — `acceptStepEffect`.
+            definition: { ...TEST_STEP, writes: [SE_CLOCK] },
             run: async (_input, host) => {
               const result = await host.call({});
               return {
@@ -1195,7 +1472,8 @@ describe('the engine says what it overrode', () => {
       plan: {
         steps: [
           {
-            definition: TEST_STEP,
+            // Declared, as the test above's is, for the reason given there.
+            definition: { ...TEST_STEP, writes: [SE_CLOCK] },
             run: async (_input, host) => {
               const result = await host.call({});
               return {
@@ -1546,6 +1824,111 @@ describe('a preset block can be scoped to a kind of call', () => {
   });
 
   /**
+   * ***[P7B §3.2] row 7, run rather than cited*** (2026-09-27). The row asks for
+   * *a treatment's framing in the next turn's `se.treatment` block* and was
+   * answered *yes* on the strength of the editor writing the field and the
+   * assembler having read it since P5 — which it had not: the collector's arm
+   * returned nothing, so the block was dropped as empty on every turn. This
+   * takes the whole path the row names, from the object in the library to the
+   * block on the turn's record.
+   */
+  it('puts a treatment’s framing into the turn’s treatment block', async () => {
+    const noir = newTreatment('Rain City Noir');
+    noir.framing = 'It always rains here, and nobody tells the whole truth.';
+    await create(library, ACCOUNT, noir);
+
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Framing',
+      preset: TEST_PRESET,
+      treatment: noir.id,
+      cast: { persona: null, actors: [] },
+    });
+
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: 'framing-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
+
+    expect(
+      blocks
+        .filter((one) => one.source.kind === 'treatment')
+        .map((one) => [one.id, one.text, one.source]),
+    ).toEqual([
+      [
+        'se.treatment',
+        'It always rains here, and nobody tells the whole truth.',
+        { kind: 'treatment', part: 'framing' },
+      ],
+    ]);
+  });
+
+  /**
+   * ***A card's own name reaches the wire, and its placeholder does not***
+   * (2026-09-27). The join the converter's own tests cannot show: a real
+   * SillyTavern card through the real converter, into the library, into a
+   * cast, into a turn. Its example dialogue said `{{char}}`, which nothing
+   * here renders in prose, so until the import wrote the name in, the braces
+   * were what the model read. The player's placeholder is kept on purpose and
+   * the review says so; see `inOwnName`.
+   */
+  it('sends an imported card’s own name where the card left a placeholder', async () => {
+    const converted = convertCard(
+      {
+        spec: 'chara_card_v2',
+        data: {
+          name: 'Vera Solano',
+          description: '{{char}} inspects the docks.',
+          mes_example: '<START>\n{{user}}: Anything unusual?\n{{char}}: Define unusual.',
+        },
+      },
+      'fallback',
+    );
+    if (!converted.ok) throw new Error(`refused: ${converted.refusal}`);
+    const vera = converted.value.actor;
+    await create(library, ACCOUNT, vera);
+
+    const session = await createSession(sessions, ACCOUNT, {
+      name: 'Imported',
+      preset: TEST_PRESET,
+      cast: { persona: null, actors: [vera.id] },
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: session.id,
+      idempotencyKey: 'imported-1',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: 'x', raw: 'x' } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', session.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+    const blocks = onRecord(callOnRecord(turn).blocks, 'the assembled blocks');
+
+    expect(blocks.find((one) => one.source.kind === 'samples')?.text).toBe(
+      '<START>\n{{user}}: Anything unusual?\nVera Solano: Define unusual.',
+    );
+    expect(blocks.find((one) => one.id === `se.actor.summary.${vera.id}`)?.text).toBe(
+      'Vera Solano inspects the docks.',
+    );
+    expect(blocks.filter((one) => /\{\{\s*char\s*\}\}/i.test(one.text))).toEqual([]);
+  });
+
+  /**
    * **The book carrier, in a real turn, with nothing having matched.**
    *
    * Its own test rather than a third fixture in the one above, because it
@@ -1757,6 +2140,50 @@ describe('a preset block can be scoped to a kind of call', () => {
     ).toEqual([]);
   });
 
+  /**
+   * ***And it has not fired*** (2026-09-27). The counters were proposed before
+   * the book's own budget, the outlets or the chat-wide cut had had their say,
+   * so the entry the record above shows refused was also recorded as having
+   * fired — an `ephemeral: 1` entry spent on a turn it never reached, and never
+   * read at all. They are settled now against what the assembled call carried.
+   */
+  it('leaves the counters of an entry its book had no room for where they were', async () => {
+    const book = newLorebook('Rain City');
+    book.tokenBudget = 1;
+    book.entries = [
+      {
+        ...newLoreEntry('The Ferryman'),
+        keys: ['ferryman'],
+        content: 'He works the crossing and remembers every face that ever crossed it.',
+        ephemeral: 1,
+      },
+    ];
+    await create(library, ACCOUNT, book);
+
+    const withLore = await createSession(sessions, ACCOUNT, {
+      name: 'A full book, once',
+      preset: TEST_PRESET,
+      lore: [book.id],
+    });
+    const outcome = await submitTurn(commit, {
+      account: ACCOUNT,
+      sessionId: withLore.id,
+      idempotencyKey: 'lore-once',
+      headTurnId: null,
+    });
+    if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const said = 'She asked the ferryman.';
+    runner.start(outcome.job, { input: { actorId: null, kind: 'do', text: said, raw: said } });
+    await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
+
+    const written = await readAllTurns(
+      join(dataDir, 'users', ACCOUNT, 'sessions', withLore.id, 'turns'),
+    );
+    const turn = onRecord(written[0], 'the turn on disk').turn;
+
+    expect(turn.effects.filter((effect) => effect.channelId === SE_LORE_TIMING)).toEqual([]);
+  });
+
   it('drops a block whose appliesTo does not name this step kind', async () => {
     // Driven through the runner with a session whose preset scopes one block to
     // a call kind the step does not make.
@@ -1888,7 +2315,10 @@ describe('the turn record answers what actually ran — gate step 11', () => {
   it('names what would go next when the window is too small to hold it all', async () => {
     // Under real pressure, which is the only state where the answer is
     // interesting — and where a verdict that merely existed would not do.
-    makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 300 } } });
+    // ~~300~~ (2026-09-27): three-quarters of 300 is less than the 800 kept
+    // for the reply, which is no window at all and is refused now (below).
+    // 1200 leaves 100 tokens to spend: pressure, and a call to make.
+    makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, contextTokens: 1200 } } });
     const { turn } = await runTurn('a'.repeat(400));
 
     const budget = turn.request?.calls[0]?.budget;
@@ -1980,6 +2410,90 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     expect(turn.request?.calls[0]?.usage).toEqual({ promptTokens: 11, completionTokens: 5 });
     expect(turn.request?.calls[1]?.usage).toBeNull();
     expect(turn.cost?.promptTokens).toBeNull();
+  });
+
+  /**
+   * ***Money follows the tokens' rule*** — the field added 2026-09-27. Null is
+   * *not priced*, which is what every real adapter produces today; a figure
+   * appears only when every call's provider gave one, in one currency.
+   */
+  it('says the turn was not priced when the provider priced nothing', async () => {
+    const { turn } = await runTurn();
+    expect(turn.cost?.money).toBeNull();
+  });
+
+  it('adds up what every call was priced at, in one currency', async () => {
+    makeRunner({
+      script: [
+        { text: 'first', cost: { amount: 0.002, currency: 'USD' } },
+        { text: 'second', cost: { amount: 0.001, currency: 'USD' } },
+      ],
+      plan: {
+        steps: [
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+    expect(turn.cost?.money?.currency).toBe('USD');
+    expect(turn.cost?.money?.amount).toBeCloseTo(0.003, 10);
+  });
+
+  /**
+   * ***No exchange rate, and no partial sum.*** Dollars on one connection and a
+   * provider's credits on another have no total this build can write without
+   * estimating one, and a total missing a term is wrong rather than smaller —
+   * the token rule's own argument, one test up.
+   */
+  it('gives no total across two currencies', async () => {
+    makeRunner({
+      script: [
+        { text: 'first', cost: { amount: 0.002, currency: 'USD' } },
+        { text: 'second', cost: { amount: 3, currency: 'credits' } },
+      ],
+      plan: {
+        steps: [
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    expect((await runTurn()).turn.cost?.money).toBeNull();
+  });
+
+  it('gives no total when one call went unpriced', async () => {
+    makeRunner({
+      script: [{ text: 'first', cost: { amount: 0.002, currency: 'USD' } }, { text: 'second' }],
+      plan: {
+        steps: [
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => {
+              await host.call({});
+              await host.call({});
+              return {};
+            },
+          },
+        ],
+      },
+    });
+
+    expect((await runTurn()).turn.cost?.money).toBeNull();
   });
 
   it('keeps every draw on the tape, keyed by site', async () => {
@@ -2398,7 +2912,7 @@ describe('the privateConnections capability', () => {
      * — the binding is untouched and correct, and it is the *permission* that
      * moved — so a UI reading this record offers the right sentence.
      */
-    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+    expect(narrator(turn)?.error?.reason).toBe('dangling');
   });
 
   /**
@@ -2428,6 +2942,55 @@ describe('the privateConnections capability', () => {
 
     // A line every turn would train an operator to stop reading it.
     expect(logLines.filter((entry) => entry['event'] === 'connections.disabled')).toEqual([]);
+  });
+
+  /**
+   * **A personal file claiming a system connection's id is said, and the turn
+   * still runs.** Since the provider memo checks what each slot was built from
+   * (`providers/factory.ts`, 2026-09-27), the collision reaches nobody but its
+   * author — so it is reported rather than refused
+   * (`ConnectionResolution.shadowing`), and this line is the only trace an
+   * operator gets of somebody having tried the cross-account version.
+   *
+   * The same count-only rule as `connections.disabled`, and a second secret in
+   * play so the line has two things it could leak rather than one.
+   */
+  it('says how many personal connections shadow a system one, without naming them', async () => {
+    const system = new Layout(dataDir).systemConnectionsRoot;
+    await mkdir(system, { recursive: true });
+    await writeFile(
+      join(system, 'house.json'),
+      JSON.stringify({
+        id: CONNECTION_ID,
+        label: 'The house',
+        provider: 'openai-compatible',
+        models: ['fake-hi'],
+        apiKey: 'sk-house-must-never-appear',
+      }),
+    );
+
+    // Personal first, so the author's own file still wins for the author.
+    expect((await runNextTurn()).status).toBe('complete');
+
+    const line = logLines.find((entry) => entry['event'] === 'connections.shadowing');
+    expect(line).toBeDefined();
+    expect(line?.['shadowing']).toBe(1);
+    // `warn`, where `connections.disabled` is an `info`: the runner argues the
+    // difference (a revoked capability is an admin's decision, a file nobody
+    // chose is nobody's), and an argued level the test never read would be
+    // free to drift back to its sibling's without anything going red.
+    expect(line?.['level']).toBe('warn');
+    for (const secret of ['sk-test-must-never-appear', 'sk-house-must-never-appear']) {
+      expect(JSON.stringify(line)).not.toContain(secret);
+    }
+    expect(JSON.stringify(line)).not.toContain('The double');
+    expect(JSON.stringify(line)).not.toContain(CONNECTION_ID);
+  });
+
+  it('says nothing about shadowing when no personal id collides', async () => {
+    await runNextTurn();
+
+    expect(logLines.filter((entry) => entry['event'] === 'connections.shadowing')).toEqual([]);
   });
 
   it('leaves the connection file exactly where it was', async () => {
@@ -2480,7 +3043,7 @@ describe('the privateConnections capability', () => {
     const turn = await runNextTurn();
 
     expect(turn.status).toBe('failed');
-    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+    expect(narrator(turn)?.error?.reason).toBe('dangling');
   });
 });
 
@@ -2560,7 +3123,7 @@ describe('the install default bindings', () => {
     // Both states are reachable and they are different, which is the whole
     // reason `resolveRole` tells them apart.
     expect(turn.status).toBe('failed');
-    expect(turn.steps?.[0]?.error?.reason).toBe('dangling');
+    expect(narrator(turn)?.error?.reason).toBe('dangling');
   });
 });
 
@@ -2621,82 +3184,132 @@ describe('the history the runner hands the collector', () => {
 
 /**
  * **A mode whose `select` is not `fixed`, running** — [P7.3]'s own *Ends at*,
- * and [06 §7.2]'s *"the policy selects speakers"*.
+ * [06 §7.2]'s *"the policy selects speakers"*, and ***the arms as ST runs them
+ * since [P14.1]***.
  *
- * The unit tests in `speakers.test.ts` say what each arm decides; what only a
- * turn can say is that the decision is **made once, before the loop, and reaches
- * a step**. `ENSEMBLE_MODE` declares `select: 'list'` and its step echoes what it
- * was handed, which is the one way a selection is observable from outside —
- * downstream, a merged call names nobody by design and `actorId` reaches
- * `resolveRole` and stops.
+ * The unit tests in `speakers.test.ts` say what each arm decides, row by row
+ * against `group-chats.js`; what only a turn can say is that the decision is
+ * **made once, before the loop, from the session's settings and the path, and
+ * reaches a step** — and that a rewrite makes the same one. `ENSEMBLE_MODE`
+ * declares `select: 'list'` and its step echoes what it was handed, which is
+ * the one way a selection is observable from outside — downstream, a merged
+ * call names nobody by design and `actorId` reaches `resolveRole` and stops.
+ *
+ * *The rotation tests this block used to hold went with the rotation*: ~~`list`
+ * rotates one speaker per turn on the path's depth~~ was P7.3's reading, and
+ * ST's LIST is everybody, once each, every round ([P14 §0.7]).
  */
 describe('a mode that selects speakers', () => {
+  /**
+   * ***The ensemble fixture under `castIsPresent`*** — [P14 §1.3]. A variant
+   * rather than a change to the fixture, because the tests below that write
+   * presence are about the old reading, which is still every mode's that does
+   * not ask for the new one.
+   */
+  const CHAT_MODE_ID = `${ENSEMBLE_MODE_ID}.chat`;
+
   beforeEach(() => {
     /**
      * Process-wide and not cleared afterwards, which is safe rather than
-     * sloppy: nothing else in the build names this id, and `installBuiltIns`
+     * sloppy: nothing else in the build names these ids, and `installBuiltIns`
      * re-registers the real modes on every `beforeEach` in this file. A
      * fixture that needed *removing* would be a reason to give the registry a
      * reset; this one does not.
      */
     registerMode(ENSEMBLE_MODE);
+    registerMode({
+      ...ENSEMBLE_MODE,
+      definition: {
+        ...ENSEMBLE_MODE.definition,
+        id: CHAT_MODE_ID,
+        participants: { ...ENSEMBLE_MODE.definition.participants, castIsPresent: true },
+      },
+    });
   });
 
-  /** A session playing the ensemble fixture, with the named actors in the room. */
-  async function ensemble(actors: string[], present = actors): Promise<string> {
+  /**
+   * A session playing the ensemble fixture, with the named actors in the room.
+   *
+   * *`speakers` is the session's own policy*, written the way creation writes
+   * it — so a test that passes one is testing that the session's setting wins
+   * over the mode's `list`.
+   */
+  async function ensemble(
+    actors: string[],
+    present: string[] | null = actors,
+    speakers?: SessionFile['speakers'],
+  ): Promise<string> {
     const session = await createSession(sessions, ACCOUNT, {
       name: 'Ensemble',
-      mode: { id: ENSEMBLE_MODE_ID, config: null },
+      mode: { id: present === null ? CHAT_MODE_ID : ENSEMBLE_MODE_ID, config: null },
       preset: TEST_PRESET,
       cast: { persona: null, actors },
+      ...(speakers === undefined ? {} : { speakers }),
     });
-    // Present, because eligibility is presence and status — which is the half of
-    // the taxonomy that could not have been built before [P7.2]. Each write is a
-    // bookkeeping turn, which is also what makes the depth arithmetic below
-    // worth pinning.
-    for (const id of present) {
+    // Present, because under the old reading eligibility is presence and
+    // status — which is the half of the taxonomy that could not have been
+    // built before [P7.2]. `null` is the chat variant, where nobody needs to be
+    // said to be here.
+    for (const id of present ?? []) {
       await writeChannel(sessions, ACCOUNT, session.id, `${SE_PRESENCE}#${id}`, true);
     }
     return session.id;
   }
 
-  /** One turn, and who its step said it was speaking for. */
-  async function spoke(sessionId: string, key: string): Promise<{ turn: Turn; chosen: string }> {
+  /** The session's speaker settings, with one policy — what creation writes. */
+  function policy(
+    select: 'natural' | 'list' | 'pooled' | 'manual' | 'smart',
+  ): NonNullable<SessionFile['speakers']> {
+    return { policy: select, allowSelfResponses: false, namesInHistory: 'groups', maxPerRound: 3 };
+  }
+
+  /**
+   * One turn, and who its step said it was speaking for — as a list, since a
+   * round is several.
+   */
+  async function spoke(
+    sessionId: string,
+    key: string,
+    options: {
+      text?: string;
+      speakers?: string[];
+      parentTurnId?: string | null;
+      replay?: Turn['tape'];
+      /** What the route reads off a rewrite's redone turn — `TurnPayload.keptSpeakers`. */
+      kept?: readonly string[];
+    } = {},
+  ): Promise<{ turn: Turn; chosen: string[] }> {
     const head = (await readSession(sessions, ACCOUNT, sessionId))?.headTurnId ?? null;
     const outcome = await submitTurn(commit, {
       account: ACCOUNT,
       sessionId,
       idempotencyKey: key,
       headTurnId: head,
+      ...(options.parentTurnId === undefined ? {} : { parentTurnId: options.parentTurnId }),
     });
     if (outcome.kind !== 'created') throw new Error('expected a reservation');
+    const text = options.text ?? 'Well?';
     runner.start(outcome.job, {
-      input: { actorId: null, kind: 'do', text: 'Well?', raw: 'Well?' },
+      input: { actorId: null, kind: 'do', text, raw: text },
+      ...(options.speakers === undefined ? {} : { speakers: options.speakers }),
+      ...(options.replay === undefined ? {} : { replay: options.replay }),
+      ...(options.kept === undefined ? {} : { keptSpeakers: options.kept }),
     });
     await until(() => readJob(state.db, outcome.job.id)?.status === 'committed', 'commit');
 
     const written = await readAllTurns(
       join(dataDir, 'users', ACCOUNT, 'sessions', sessionId, 'turns'),
     );
-    const turn = onRecord(written.at(-1), 'the turn on disk').turn;
-    const text = turn.output?.text ?? '';
-    return { turn, chosen: text.slice(1, text.indexOf(']')) };
+    const turn = onRecord(
+      written.find((record) => record.turn.id === outcome.job.turnId),
+      'the turn on disk',
+    ).turn;
+    const said = turn.output?.text ?? '';
+    const inside = said.slice(1, said.indexOf(']'));
+    return { turn, chosen: inside === '' ? [] : inside.split(',') };
   }
 
-  /**
-   * **Two turns, because one proves nothing about a rotation.** Over a cast of
-   * two, any assertion satisfiable by *either* actor is satisfied by a selector
-   * that ignores its policy — so what is pinned is that the second turn answers
-   * the *other* one, and which one each is.
-   *
-   * The arithmetic is worth spelling out because it is also the branching claim:
-   * `list` rotates on the path's **depth**, the two presence writes above are
-   * two turns on that path, so the first prose turn is depth 2 and takes
-   * `pool[0]`, and the second is depth 3 and takes `pool[1]`. Nothing counts
-   * prose turns, and nothing remembers who spoke — the node determines it, which
-   * is what makes two branches rotate independently for free ([07 §3]).
-   */
-  it('rotates through the cast, a turn each, and commits', async () => {
+  it('answers with everybody in the room, in cast order, every round', async () => {
     makeRunner();
     const vera = newActor('Vera');
     const lund = newActor('Lund');
@@ -2707,17 +3320,18 @@ describe('a mode that selects speakers', () => {
 
     const first = await spoke(sessionId, 'ensemble-1');
     expect(first.turn.status).toBe('complete');
-    expect(first.chosen).toBe(vera.id);
+    expect(first.chosen).toEqual([vera.id, lund.id]);
 
+    // The same again: nothing rotates, and nobody is skipped for having just
+    // spoken — ST's LIST bans nobody (`group-chats.js:1180`).
     const second = await spoke(sessionId, 'ensemble-2');
-    expect(second.turn.status).toBe('complete');
-    expect(second.chosen).toBe(lund.id);
+    expect(second.chosen).toEqual([vera.id, lund.id]);
   });
 
   it('skips somebody who is not in the room, so the policy reads the channels', async () => {
-    // The same cast and the same depth, with Vera absent — so a selector that
-    // rotated over `cast.actors` rather than over who is eligible would still
-    // answer Vera and this is what would notice.
+    // The same cast with Vera absent — so a selector that read `cast.actors`
+    // rather than who is eligible would still answer Vera, and this is what
+    // would notice.
     makeRunner();
     const vera = newActor('Vera');
     const lund = newActor('Lund');
@@ -2726,7 +3340,7 @@ describe('a mode that selects speakers', () => {
 
     const sessionId = await ensemble([vera.id, lund.id], [lund.id]);
 
-    expect((await spoke(sessionId, 'absent-1')).chosen).toBe(lund.id);
+    expect((await spoke(sessionId, 'absent-1')).chosen).toEqual([lund.id]);
   });
 
   it('selects nobody when the room is empty, and still runs the turn', async () => {
@@ -2742,6 +3356,506 @@ describe('a mode that selects speakers', () => {
 
     expect(only.turn.status).toBe('complete');
     expect(only.turn.output?.text.startsWith('[] ')).toBe(true);
+  });
+
+  /**
+   * **`castIsPresent`: a cast nobody has said anything about is all here** —
+   * [P14 §1.3]. Without it a chat is an empty room, because nothing in the
+   * build writes presence; with it, presence `false` is *muted*.
+   */
+  it('counts the cast as present under castIsPresent, and leaves out the muted', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], null);
+    expect((await spoke(sessionId, 'chat-1')).chosen).toEqual([vera.id, lund.id]);
+
+    await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${vera.id}`, false);
+    expect((await spoke(sessionId, 'chat-2')).chosen).toEqual([lund.id]);
+  });
+
+  /**
+   * ***The session's policy wins over the mode's*** — [P14 §1.2]. The fixture
+   * declares `list`; a session created with `manual` answers an input with
+   * nobody, which `list` never would.
+   */
+  it('plays the session’s policy rather than the mode’s declaration', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    await create(library, ACCOUNT, vera);
+
+    const sessionId = await ensemble([vera.id], null, policy('manual'));
+    expect((await spoke(sessionId, 'manual-1')).chosen).toEqual([]);
+  });
+
+  /**
+   * **Force-talk overrides the policy** — [P14 §1.3], `group-chats.js:1006`.
+   * `manual` replying to an input is nobody, so a forced turn answering at all
+   * is the override working; and a muted member is who the button reaches.
+   */
+  it('answers with whoever a submission forced, muted or not', async () => {
+    makeRunner();
+    const vera = newActor('Vera');
+    const lund = newActor('Lund');
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], null, policy('manual'));
+    await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${lund.id}`, false);
+
+    const forced = await spoke(sessionId, 'forced-1', { speakers: [lund.id, vera.id] });
+    expect(forced.chosen).toEqual([lund.id, vera.id]);
+  });
+
+  /**
+   * ***A rewrite picks the same speakers*** — [P14.1]'s proof obligation, and
+   * [19 §14.5]'s *same mechanical outcome, different prose* reaching who
+   * speaks. `natural` over three members draws a shuffle and a roll each, so
+   * the first turn's tape carries the selector's draws; the rewrite is a
+   * sibling handed that tape, and every one of those draws must come off it.
+   */
+  it('picks the same speakers when a turn is rewritten from its tape', async () => {
+    makeRunner();
+    const cast = [newActor('Vera'), newActor('Lund'), newActor('Abel')];
+    for (const actor of cast) await create(library, ACCOUNT, actor);
+
+    const sessionId = await ensemble(
+      cast.map((actor) => actor.id),
+      null,
+      policy('natural'),
+    );
+
+    const original = await spoke(sessionId, 'natural-1', { text: 'The rain did not let up.' });
+    const drawn = original.turn.tape.filter((draw) => draw.site === 'se.participants');
+    // **Before anything about replay**: the selector actually drew. Without
+    // this the rest holds just as well for a turn that drew nothing.
+    expect(drawn.filter((draw) => draw.purpose.startsWith('talkativeness:'))).toHaveLength(3);
+    expect(original.chosen.length).toBeGreaterThan(0);
+
+    const rewrite = await spoke(sessionId, 'natural-2', {
+      text: 'The rain did not let up.',
+      parentTurnId: original.turn.parentTurnId,
+      replay: original.turn.tape,
+    });
+
+    expect(rewrite.turn.parentTurnId).toBe(original.turn.parentTurnId);
+    expect(rewrite.chosen).toEqual(original.chosen);
+    const redrawn = rewrite.turn.tape.filter((draw) => draw.site === 'se.participants');
+    expect(redrawn.map((draw) => draw.key)).toEqual(drawn.map((draw) => draw.key));
+    expect(redrawn.every((draw) => draw.replayed)).toBe(true);
+  });
+
+  /**
+   * ***A rewrite of a forced turn keeps who was forced*** — [P14.1], and the
+   * one choice of speaker that is neither a draw on the tape nor a model's
+   * answer, so neither `replay` nor `keptSpeakers` can carry it.
+   *
+   * The forced turn records its list on `input.speakers`, and the rewrite is
+   * handed what the route hands it: the tape, `keptSpeakers`, and that list
+   * read back off the record. **Lund is muted and his talkativeness is 0**, so
+   * no policy would choose him on its own. The control is the same rewrite
+   * handed the tape alone — the route before this fix — which under each
+   * policy answers with somebody else: `manual` replying to an input is
+   * nobody, and `natural`, like `smart`'s rewrite replaying the tape's pick,
+   * is Vera, whose talkativeness is 1. Neither forced rewrite makes a smart
+   * call: force-talk settles the turn before the rules could ask.
+   */
+  const forcedRewrites: ['manual' | 'natural' | 'smart', 'vera' | null][] = [
+    ['manual', null],
+    ['natural', 'vera'],
+    ['smart', 'vera'],
+  ];
+  for (const [select, withoutIt] of forcedRewrites) {
+    it(`keeps a forced speaker on a rewrite under ${select}, muted as he is`, async () => {
+      makeRunner();
+      const talk = (value: number): Record<string, unknown> => ({
+        [CHAT_MODE_ID]: { talkativeness: value },
+      });
+      const vera = { ...newActor('Vera'), modeData: talk(1) };
+      const lund = { ...newActor('Lund'), modeData: talk(0) };
+      const abel = { ...newActor('Abel'), modeData: talk(0) };
+      for (const actor of [vera, lund, abel]) await create(library, ACCOUNT, actor);
+      const sessionId = await ensemble([vera.id, lund.id, abel.id], null, policy(select));
+      await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${lund.id}`, false);
+
+      const original = await spoke(sessionId, `forced-${select}`, { speakers: [lund.id] });
+      expect(original.chosen).toEqual([lund.id]);
+      expect(original.turn.input?.speakers).toEqual([lund.id]);
+
+      const rewrite = await spoke(sessionId, `forced-${select}-rewrite`, {
+        parentTurnId: original.turn.parentTurnId,
+        replay: original.turn.tape,
+        kept: keptSpeakers(original.turn),
+        speakers: onRecord(original.turn.input?.speakers, 'the force-talk on the forced turn'),
+      });
+      expect(rewrite.chosen).toEqual([lund.id]);
+      // Recorded again, so a rewrite of the rewrite keeps him too.
+      expect(rewrite.turn.input?.speakers).toEqual([lund.id]);
+      expect(rewrite.turn.request?.calls.map((call) => call.stepId)).toEqual([TEST_STEP.id]);
+
+      const tapeAlone = await spoke(sessionId, `forced-${select}-tape-alone`, {
+        parentTurnId: original.turn.parentTurnId,
+        replay: original.turn.tape,
+        kept: keptSpeakers(original.turn),
+      });
+      expect(tapeAlone.chosen).toEqual(withoutIt === null ? [] : [vera.id]);
+      expect(tapeAlone.turn.input).not.toHaveProperty('speakers');
+    });
+  }
+
+  /**
+   * ***Talkativeness is read through the session's mode id*** — never a
+   * literal one, which `tools/repo-shape.test.ts` forbids engine code to name.
+   * A card that says 0 for this mode, and 1 for another, stays quiet here:
+   * the other mode's value is not this one's.
+   */
+  it('reads talkativeness from the card under the session’s own mode', async () => {
+    makeRunner();
+    const vera = {
+      ...newActor('Vera'),
+      modeData: { [CHAT_MODE_ID]: { talkativeness: 1 } },
+    };
+    const lund = {
+      ...newActor('Lund'),
+      modeData: { [CHAT_MODE_ID]: { talkativeness: 0 }, [ENSEMBLE_MODE_ID]: { talkativeness: 1 } },
+    };
+    await create(library, ACCOUNT, vera);
+    await create(library, ACCOUNT, lund);
+
+    const sessionId = await ensemble([vera.id, lund.id], null, policy('natural'));
+    // Nobody named, so only the rolls decide: Vera's 1 beats any roll, and
+    // Lund's 0 beats none (a roll of exactly 0 aside, which a 48-bit float
+    // makes a one-in-2^48 flake rather than a real one).
+    expect((await spoke(sessionId, 'talk-1', { text: 'Rain.' })).chosen).toEqual([vera.id]);
+  });
+
+  /**
+   * ***Smart order, through a turn*** — [P14 §1.3a], and [P14.1]'s proof
+   * obligation for `smart` *"with a stubbed provider"*.
+   *
+   * `speakers.test.ts` holds the rules to their table and `smart-speakers.test.ts`
+   * holds the step to what it makes of an answer; **what only a turn can show is
+   * the wiring between them**, which is where each of §1.3a's promises is
+   * actually kept or broken. That a turn a rule settled *plans no step and makes
+   * no call* — invisible to a unit test of either half, and the design's first
+   * rule rather than a saving found afterwards. That an answer reaches the steps
+   * after the smart step through the runner's cell, and that the fallback
+   * reaches them when the answer is no good. And that a rewrite keeps the pick
+   * while a reroll asks again, which is the one place the route, the record and
+   * the runner have to agree.
+   *
+   * ***The room is rigged so `natural`'s pick can be stated without reading the
+   * tape.*** Vera's talkativeness is 1 and Lund's and Abel's are 0, so on a turn
+   * that names nobody `natural` answers Vera alone whatever the draws were (the
+   * one-in-2^48 roll of exactly 0 aside, as the test above says). That makes
+   * *"the tape's natural pick"* a value a test can write down, and it makes a
+   * model's answer of Abel or Lund distinguishable from the fallback on sight —
+   * a test whose model happened to agree with the rules could not tell a
+   * substituted answer from an ignored one. **Mara is in the cast and muted**:
+   * somebody the model can be tempted to name and may not choose.
+   */
+  describe('under smart order', () => {
+    interface Room {
+      sessionId: string;
+      vera: string;
+      lund: string;
+      abel: string;
+      mara: string;
+    }
+
+    async function room(): Promise<Room> {
+      const talk = (value: number): Record<string, unknown> => ({
+        [CHAT_MODE_ID]: { talkativeness: value },
+      });
+      const vera = { ...newActor('Vera'), modeData: talk(1) };
+      const lund = { ...newActor('Lund'), modeData: talk(0) };
+      const abel = { ...newActor('Abel'), modeData: talk(0) };
+      const mara = newActor('Mara');
+      for (const actor of [vera, lund, abel, mara]) await create(library, ACCOUNT, actor);
+
+      const sessionId = await ensemble([vera.id, lund.id, abel.id, mara.id], null, policy('smart'));
+      await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${mara.id}`, false);
+      return { sessionId, vera: vera.id, lund: lund.id, abel: abel.id, mara: mara.id };
+    }
+
+    /** An answer as a structured endpoint gives it: the object, and its JSON as the text. */
+    function answer(value: unknown): ScriptedReply {
+      return { object: value, text: JSON.stringify(value) };
+    }
+
+    /**
+     * The same reply three times — **the validation ladder's length**. An answer
+     * that fails the schema is re-asked twice before the step is handed the
+     * text (`performCall`, [P7.4]), so a script that gave one bad answer and
+     * then prose would hand the retry the prose and test the wrong thing.
+     */
+    function thrice(reply: ScriptedReply): ScriptedReply[] {
+      return [reply, reply, reply];
+    }
+
+    const PROSE: ScriptedReply = { text: 'The lamp guttered.' };
+
+    /** Which steps made the calls a turn records, in order. */
+    function callers(turn: Turn): string[] {
+      return (turn.request?.calls ?? []).map((call) => call.stepId);
+    }
+
+    function smartOutcome(turn: Turn): NonNullable<Turn['steps']>[number] | undefined {
+      return turn.steps?.find((step) => step.stepId === SE_SPEAKERS_SMART);
+    }
+
+    /**
+     * **Rules first, and most turns never make the call** — §1.3a point 1's
+     * three rows that answer without a model. Each turn below makes exactly one
+     * call, the ensemble step's own, and carries no `se.speakers.smart` outcome
+     * at all: the step is kept out of the plan rather than idling in it, which
+     * is the summariser's arrangement and the reason a smart session costs
+     * nothing extra on a turn where somebody is named.
+     */
+    describe('makes no call when a rule decides', () => {
+      it('when the input names somebody', async () => {
+        makeRunner();
+        const { sessionId, lund } = await room();
+
+        const named = await spoke(sessionId, 'smart-named', { text: 'Lund, is the lamp lit?' });
+        expect(named.chosen).toEqual([lund]);
+        expect(callers(named.turn)).toEqual([TEST_STEP.id]);
+        expect(smartOutcome(named.turn)).toBeUndefined();
+      });
+
+      it('when a submission forced somebody', async () => {
+        makeRunner();
+        const { sessionId, abel } = await room();
+
+        const forced = await spoke(sessionId, 'smart-forced', { speakers: [abel] });
+        expect(forced.chosen).toEqual([abel]);
+        expect(callers(forced.turn)).toEqual([TEST_STEP.id]);
+        expect(smartOutcome(forced.turn)).toBeUndefined();
+      });
+
+      it('when only one member can reply', async () => {
+        makeRunner();
+        const { sessionId, vera, lund, abel } = await room();
+        for (const id of [vera, lund]) {
+          await writeChannel(sessions, ACCOUNT, sessionId, `${SE_PRESENCE}#${id}`, false);
+        }
+
+        // Abel, whose talkativeness is 0: a room of one answers with them
+        // whoever they are, which is ST's `natural` fallback too.
+        const alone = await spoke(sessionId, 'smart-alone');
+        expect(alone.chosen).toEqual([abel]);
+        expect(callers(alone.turn)).toEqual([TEST_STEP.id]);
+        expect(smartOutcome(alone.turn)).toBeUndefined();
+      });
+    });
+
+    /**
+     * ***The answer reaches the steps after it, and nothing else carries it***
+     * — §1.3a point 6. The ensemble step echoes who it was handed, so Abel then
+     * Lund in its output is the cell working: the selector's own answer before
+     * the loop was Vera, and nothing but the smart step's report could have
+     * changed it. And point 7: the pick and each `because` on the step's
+     * outcome, the call an ordinary entry of `request.calls`.
+     */
+    it('hands the model’s answer to the steps after it, and records who and why', async () => {
+      makeRunner();
+      const { sessionId, vera, lund, abel } = await room();
+      provider.setScript([
+        answer({
+          speakers: [{ id: abel, because: 'He was the one asked about the lamp.' }, { id: lund }],
+        }),
+        PROSE,
+      ]);
+
+      const picked = await spoke(sessionId, 'smart-model');
+
+      expect(picked.turn.status).toBe('complete');
+      expect(picked.chosen).toEqual([abel, lund]);
+      // First of all, ahead of every step that reads who speaks.
+      expect(picked.turn.steps?.[0]).toMatchObject({
+        stepId: SE_SPEAKERS_SMART,
+        stage: 'pre',
+        state: 'ok',
+        speakers: {
+          by: 'model',
+          picked: [
+            { id: abel, name: 'Abel', because: 'He was the one asked about the lamp.' },
+            { id: lund, name: 'Lund' },
+          ],
+        },
+      });
+      expect(smartOutcome(picked.turn)?.speakers?.picked[1]).not.toHaveProperty('because');
+
+      // The call: its own, first, unstreamed, at 0.2, closed over who may reply.
+      expect(callers(picked.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+      expect(picked.turn.request?.calls[0]?.params).toMatchObject({ temperature: 0.2 });
+      expect(provider.requests[0]?.streamed).toBe(false);
+      expect(provider.requests[0]?.schema).toMatchObject({
+        properties: { speakers: { items: { properties: { id: { enum: [vera, lund, abel] } } } } },
+      });
+    });
+
+    /**
+     * ***Every failure lands on the tape's `natural` pick, and says so*** —
+     * §1.3a point 4, and the obligation's four cases. *"A name"* is read as
+     * point 3 reads it: a name is accepted when it matches exactly one eligible
+     * member (the next test), so the name that must fall back is one that
+     * matches nobody who may reply — Mara's, who is muted.
+     *
+     * **Warned, never silent**: the outcome is `failed` under `warn`, carrying
+     * the error that says why *and* the pick that played instead, and the turn
+     * still completes. The fallback is Vera, which the rigged talkativeness
+     * makes `natural`'s answer, and the three rolls on the tape are the draws
+     * that produced it — made before the call, so the fallback did not depend
+     * on how the call went.
+     */
+    const unusable: [string, (room: Room) => ScriptedReply[], string][] = [
+      [
+        'an id nobody here may choose',
+        ({ mara }) => thrice(answer({ speakers: [{ id: mara }] })),
+        'named nobody who can reply here',
+      ],
+      [
+        'a name matching nobody who may reply',
+        () => thrice(answer({ speakers: [{ id: 'Mara' }] })),
+        'named nobody who can reply here',
+      ],
+      ['an empty list', () => thrice(answer({ speakers: [] })), 'named nobody to reply'],
+      [
+        'a call that throws',
+        () => [{ error: { class: 'terminal', message: 'The endpoint refused the request.' } }],
+        'The endpoint refused the request.',
+      ],
+    ];
+
+    for (const [what, script, says] of unusable) {
+      it(`plays the tape’s natural pick, warned, for ${what}`, async () => {
+        makeRunner();
+        const here = await room();
+        provider.setScript([...script(here), PROSE]);
+
+        const played = await spoke(here.sessionId, `smart-${what}`);
+
+        expect(played.turn.status).toBe('complete');
+        expect(played.chosen).toEqual([here.vera]);
+        expect(smartOutcome(played.turn)).toMatchObject({
+          state: 'failed',
+          failure: 'warn',
+          speakers: { by: 'fallback', picked: [{ id: here.vera, name: 'Vera' }] },
+        });
+        expect(smartOutcome(played.turn)?.error?.message).toContain(says);
+        // The call happened and is on the record, whatever became of it.
+        expect(callers(played.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+
+        const rolls = played.turn.tape.filter(
+          (draw) => draw.site === 'se.participants' && draw.purpose.startsWith('talkativeness:'),
+        );
+        expect(rolls.map((draw) => draw.purpose).sort()).toEqual(
+          [here.vera, here.lund, here.abel].map((id) => `talkativeness:${id}`).sort(),
+        );
+      });
+    }
+
+    /**
+     * **A timeout falls back too** — the first of point 4's list, and the one
+     * a local model makes most often: an endpoint that accepts the request and
+     * says nothing. `limits.providerTimeoutMs` ends the call as `terminal`, so
+     * it is not retried; the rule-based pick plays and the outcome says the
+     * endpoint went quiet, and the ensemble step's own call, which answers at
+     * once, still runs.
+     *
+     * *Not an unbound role, which point 4 also names*, because that cannot
+     * happen to this step alone: its role is `prose`, which the generate step
+     * needs too, and a session's `stepRoles` pointing it at a connection that
+     * is gone drops through to the next layer rather than failing
+     * (`resolveRole`, [P2B §1.2]). The unbound case is a turn whose generate
+     * step fails as well, which is the summariser's and the hook selector's
+     * situation and not a new one.
+     */
+    it('plays the tape’s natural pick, warned, when the call times out', async () => {
+      makeRunner({ config: { limits: { ...DEFAULT_CONFIG.limits, providerTimeoutMs: 60 } } });
+      const here = await room();
+      provider.setScript([{ stallMs: 5_000 }, PROSE]);
+
+      const played = await spoke(here.sessionId, 'smart-timeout');
+
+      expect(played.turn.status).toBe('complete');
+      expect(played.chosen).toEqual([here.vera]);
+      expect(smartOutcome(played.turn)).toMatchObject({
+        state: 'failed',
+        failure: 'warn',
+        error: { reason: 'terminal' },
+        speakers: { by: 'fallback', picked: [{ id: here.vera, name: 'Vera' }] },
+      });
+      expect(callers(played.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+    });
+
+    /**
+     * **A name that matches exactly one eligible member is an answer** —
+     * §1.3a point 3, *"because Marinara found models do that"*. It fails the
+     * enum, so the ladder re-asks and then hands the step the text; the reader
+     * is what lets it through, and the turn says the model chose.
+     */
+    it('accepts a name that matches exactly one member who may reply', async () => {
+      makeRunner();
+      const { sessionId, lund } = await room();
+      provider.setScript([...thrice(answer({ speakers: [{ id: 'Lund' }] })), PROSE]);
+
+      const named = await spoke(sessionId, 'smart-by-name');
+
+      expect(named.chosen).toEqual([lund]);
+      expect(smartOutcome(named.turn)).toMatchObject({
+        state: 'ok',
+        speakers: { by: 'model', picked: [{ id: lund, name: 'Lund' }] },
+      });
+    });
+
+    /**
+     * ***Rewrite keeps the speakers, reroll asks again*** — §1.3a point 7, the
+     * line [07] draws between *"not that sentence"* and *"not that outcome"*.
+     *
+     * The rewrite is handed what the route hands it: the redone turn's tape
+     * and `keptSpeakers` of that turn, read off the record. The model is
+     * scripted to answer Lund if asked, so a rewrite that asked would say so;
+     * it answers Abel, the kept pick, and the only call is the ensemble's. The
+     * reroll is the same gesture with neither, and asks.
+     */
+    it('keeps the speakers on a rewrite without a call, and asks again on a reroll', async () => {
+      makeRunner();
+      const { sessionId, lund, abel } = await room();
+      provider.setScript([answer({ speakers: [{ id: abel }] }), PROSE]);
+      const original = await spoke(sessionId, 'smart-original');
+      expect(original.chosen).toEqual([abel]);
+
+      const lundIfAsked = [answer({ speakers: [{ id: lund }] }), PROSE];
+
+      provider.setScript(lundIfAsked);
+      const before = provider.requests.length;
+      const rewrite = await spoke(sessionId, 'smart-rewrite', {
+        parentTurnId: original.turn.parentTurnId,
+        replay: original.turn.tape,
+        kept: keptSpeakers(original.turn),
+      });
+      expect(rewrite.turn.parentTurnId).toBe(original.turn.parentTurnId);
+      expect(rewrite.chosen).toEqual([abel]);
+      expect(provider.requests.length - before).toBe(1);
+      expect(callers(rewrite.turn)).toEqual([TEST_STEP.id]);
+      expect(smartOutcome(rewrite.turn)).toMatchObject({
+        state: 'ok',
+        speakers: { by: 'rewrite', picked: [{ id: abel, name: 'Abel' }] },
+      });
+
+      provider.setScript(lundIfAsked);
+      const reroll = await spoke(sessionId, 'smart-reroll', {
+        parentTurnId: original.turn.parentTurnId,
+      });
+      expect(reroll.chosen).toEqual([lund]);
+      expect(callers(reroll.turn)).toEqual([SE_SPEAKERS_SMART, TEST_STEP.id]);
+      expect(smartOutcome(reroll.turn)?.speakers?.by).toBe('model');
+    });
   });
 });
 
@@ -3241,10 +4355,39 @@ describe('a session with a goal', () => {
       rejectedReason: 'needs-confirmation',
       proposedBy: { kind: 'model' },
     });
-    // The call it judged in, so the workbench can show the reasoning.
-    expect(turn.request?.calls.map((call) => call.id)).toContain(
-      (achieved?.proposedBy as { callId?: string }).callId,
-    );
+    // The call it judged in, so the workbench can show the reasoning — *that*
+    // call, not merely one of the turn's.
+    const judge = turn.request?.calls.find((call) => call.stepId === 'se.goals.judge');
+    expect(judge).toBeDefined();
+    expect((achieved?.proposedBy as { callId?: string }).callId).toBe(judge?.id);
+  });
+
+  /**
+   * ***The judge's call, not the turn's last one*** (2026-09-27). The credit
+   * read `calls.at(-1)`, and the judge is not the last step that calls when
+   * suggestions, the memory extractor or an illustration run after it: the
+   * record named the suggester's call as the reasoning for a completion. Only
+   * the id the judge reports can name the call it judged in.
+   */
+  it('credits the call the judge made, when a later step makes one too', async () => {
+    await seedGoals([ledger()]);
+    makeRunner({
+      script: [
+        { text: 'She walked out with it.' },
+        { object: { met: true } },
+        { object: { actions: ['Run.', 'Hide.', 'Wait.'] } },
+      ],
+    });
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.suggest', true);
+
+    const turn = await runNextTurn();
+    const achieved = turn.effects.find((effect) => effect.channelId === 'se.goal');
+    const judge = turn.request?.calls.find((call) => call.stepId === 'se.goals.judge');
+
+    // The case is only the case if something called after the judge.
+    expect(turn.request?.calls.at(-1)?.stepId).toBe('se.suggest');
+    expect(judge).toBeDefined();
+    expect(achieved?.proposedBy).toEqual({ kind: 'model', callId: judge?.id });
   });
 
   /**
@@ -3499,5 +4642,244 @@ describe('an introduction the narrator was asked to make', () => {
     makeRunner({ script: [{ object: { hookId: null } }, { text: 'Still raining.' }] });
     const next = await takeTurn(sessionId, 'intro-3');
     expect(next.hooks?.considered).toEqual([{ hookId: 'hook-vera', refusal: null }]);
+  });
+
+  /**
+   * ***The recovery path, for a subject who is not in the cast*** (2026-09-27).
+   * A firing its own turn could not settle — the extract step failed, or it
+   * predates [P7.7] — stays `provisional`, and a later turn confirms it when
+   * the narrator writes the subject in. The scan decided who was in flight by
+   * reading an empty channel map, so a subject outside the cast was never
+   * looked for and the arrival was recorded as declined.
+   */
+  it('confirms a firing an earlier turn left provisional, when the subject arrives', async () => {
+    const { sessionId, actorId } = await aSessionIntroducing();
+    await writeChannel(sessions, ACCOUNT, sessionId, 'se.hook#hook-vera', 'provisional');
+    // Nothing is eligible — the one hook is pending — so nobody is asked, and
+    // the only call is the narrator's.
+    makeRunner({ script: [{ text: 'Vera Kohl stepped in out of the rain.' }] });
+
+    const turn = await takeTurn(sessionId, 'intro-4');
+
+    const settled = turn.effects.find((effect) => effect.channelId === 'se.hook');
+    expect(settled).toMatchObject({ scopeKey: 'hook-vera', after: 'fired', applied: true });
+    expect(turn.spans?.some((span) => span.target.ref.id === actorId)).toBe(true);
+  });
+});
+
+/**
+ * ***A turn several people spoke in*** —
+ * [P14 §1.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.0].
+ *
+ * A turn is one node however many messages it emits ([07 §3], [25 C11]), so
+ * what these hold to account is the record rather than any dispatch: a step
+ * hands back attributed messages, and the turn that lands on disk keeps them
+ * **and** a `text` every older reader can read. *No mode ships a step that does
+ * this yet* — per-actor dispatch is [P14.2]'s — which is why the step is a
+ * fixture here rather than Scene's.
+ */
+describe('a turn that speaks with several voices', () => {
+  const MARLOW = { id: 'actor-marlow', name: 'Marlow' };
+  const ELENA = { id: 'actor-elena', name: 'Elena' };
+
+  /** One streamed call, and whatever the test makes of what it said. */
+  function voicing(answer: (said: string) => StepResult): TurnPlan {
+    return {
+      steps: [
+        {
+          definition: TEST_STEP,
+          run: async (_input, host) => answer((await host.call({ stream: true })).text),
+        },
+      ],
+    };
+  }
+
+  it('commits the messages, with the text and reasoning derived from them', async () => {
+    const messages: OutputMessage[] = [
+      { speaker: null, text: 'Rain on the tin roof.', original: 'Narrator: Rain on the tin roof.' },
+      { speaker: MARLOW, text: '"You came."', carried: true },
+      { speaker: ELENA, text: '"I said I would."', reasoning: 'She is tired.' },
+    ];
+    makeRunner({
+      script: [{ text: 'Rain on the tin roof.' }],
+      plan: voicing((said) => ({
+        messages: messages.map((one, at) => (at === 0 ? { ...one, text: said } : one)),
+      })),
+    });
+
+    const { job, turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+    // The narrator's `original` rides on its message and stays out of `text`,
+    // which is what the transcript shows and every older reader reads.
+    expect(turn.output).toEqual({
+      text: 'Rain on the tin roof.\n\n"You came."\n\n"I said I would."',
+      reasoning: 'She is tired.',
+      messages,
+    });
+    /**
+     * *And the draft says the same*, because the draft is what a client
+     * attaching to the stream is handed as its snapshot's `turn` — so the
+     * speakers reach a watching transcript by the same road the text does.
+     */
+    expect(readDraft(commit, job.id)?.output).toEqual(turn.output);
+  });
+
+  /**
+   * A proposal the record keeps whether or not it is admitted — `se.clock` is
+   * engine-computed, so a step's proposal lands `applied: false` — which makes
+   * it visible on `turn.effects` exactly when the runner let the result that
+   * carried it that far.
+   */
+  function clockProposal(stepId: string): EffectProposal {
+    return {
+      channelId: SE_CLOCK,
+      op: { type: 'set', path: '/' },
+      after: { day: 9, hour: 0, minute: 0 },
+      proposedBy: { kind: 'step', stepId },
+    };
+  }
+
+  /**
+   * ***Both is the step's failure, not a choice the runner makes for it.*** The
+   * two are rival answers to what the turn said; the falsifying mutation is a
+   * runner that prefers one, which would commit a `complete` turn missing
+   * whatever the other held.
+   *
+   * **And refused before any of it is applied**, which is what the runner's
+   * comment promises and what makes the refusal safe: the result also carries
+   * an effect and a `message` that differs from what streamed, so a check moved
+   * below the effect loop leaves the proposal on the failed turn, and one moved
+   * below `draft.output = result.message` records the other text.
+   */
+  it('refuses a result carrying both message and messages, under the step’s policy', async () => {
+    makeRunner({
+      script: [{ text: 'Rain on the tin roof.' }],
+      plan: voicing(() => ({
+        message: { text: 'Something else entirely.' },
+        messages: [{ speaker: MARLOW, text: '"You came."' }],
+        effects: [clockProposal(TEST_STEP.id)],
+      })),
+    });
+
+    const { turn } = await runTurn();
+
+    // `TEST_STEP` declares `abort`, so the turn fails with it.
+    expect(turn.status).toBe('failed');
+    expect(turn.steps?.[0]).toMatchObject({
+      stepId: TEST_STEP.id,
+      state: 'failed',
+      error: { reason: 'internal' },
+      contributed: { effects: 0 },
+    });
+    expect(turn.steps?.[0]?.error?.message).toContain('both message and messages');
+    // Neither answer was recorded — what streamed is what survives, as for any
+    // step that failed after its words had arrived.
+    expect(turn.output?.messages).toBeUndefined();
+    expect(turn.output?.text).toBe('Rain on the tin roof.');
+    // Nor anything else the result carried.
+    expect(turn.effects.filter((effect) => effect.proposedBy.kind === 'step')).toEqual([]);
+  });
+
+  /**
+   * ***A refused result under `warn` leaves no half of itself for the turn that
+   * goes on*** — the case where a misplaced check would do the most harm,
+   * because the turn completes and nothing marks what leaked into it: a
+   * candidate reaching the next step's prompt, an effect on the committed
+   * record.
+   *
+   * *With its control*: the same step returning only `messages` does
+   * contribute both, so the refused arm cannot pass by the candidate or the
+   * effect never having been able to get through at all.
+   */
+  describe('a refused result the turn goes on without', () => {
+    const VOICES: StepDefinition = { ...TEST_STEP, id: 'se.voices', failure: 'warn' };
+
+    /** A warned step voicing a round, and the narrator's call after it. */
+    function voicesThenNarrates(both: boolean): TurnPlan {
+      return {
+        steps: [
+          {
+            definition: VOICES,
+            run: async (_input, host) => {
+              await host.call({ stream: true });
+              return {
+                ...(both ? { message: { text: 'Something else entirely.' } } : {}),
+                messages: [{ speaker: MARLOW, text: '"You came."' }],
+                candidates: [
+                  {
+                    id: 'step.refused',
+                    source: { kind: 'step', stepId: VOICES.id },
+                    reason: 'what the voices step contributed',
+                    role: 'system',
+                    text: 'Marlow is lying.',
+                  },
+                ],
+                effects: [clockProposal(VOICES.id)],
+              };
+            },
+          },
+          {
+            definition: TEST_STEP,
+            run: async (_input, host) => ({ message: { text: (await host.call({})).text } }),
+          },
+        ],
+      };
+    }
+
+    async function taken(both: boolean): Promise<Turn> {
+      makeRunner({
+        script: [{ text: 'Rain on the tin roof.' }, { text: 'Still raining.' }],
+        plan: voicesThenNarrates(both),
+      });
+      const { turn } = await runTurn();
+      expect(turn.status).toBe('complete');
+      expect(turn.request?.calls).toHaveLength(2);
+      return turn;
+    }
+
+    const reachedTheNarrator = (turn: Turn): boolean =>
+      (turn.request?.calls[1]?.blocks ?? []).some((block) => block.id === 'step.refused');
+    const proposedByVoices = (turn: Turn): ChannelEffect[] =>
+      turn.effects.filter(
+        (effect) => effect.proposedBy.kind === 'step' && effect.proposedBy.stepId === VOICES.id,
+      );
+
+    it('the control: an accepted result contributes its candidate and its effect', async () => {
+      const turn = await taken(false);
+      expect(reachedTheNarrator(turn)).toBe(true);
+      expect(proposedByVoices(turn)).toHaveLength(1);
+    });
+
+    it('lets nothing of a refused result reach a later step or the record', async () => {
+      const turn = await taken(true);
+      expect(turn.steps?.[0]).toMatchObject({ stepId: VOICES.id, state: 'failed' });
+      expect(reachedTheNarrator(turn)).toBe(false);
+      expect(proposedByVoices(turn)).toEqual([]);
+    });
+  });
+
+  /**
+   * *An empty list spoke for nobody*, and the record's word for that is an
+   * absent output rather than an empty one — the distinction every optional
+   * field on a turn draws.
+   */
+  it('writes no output for a step that spoke for nobody', async () => {
+    makeRunner({
+      plan: {
+        steps: [
+          {
+            definition: { ...TEST_STEP, role: null },
+            run: () => Promise.resolve({ messages: [] }),
+          },
+        ],
+      },
+    });
+
+    const { turn } = await runTurn();
+
+    expect(turn.status).toBe('complete');
+    expect(turn).not.toHaveProperty('output');
   });
 });

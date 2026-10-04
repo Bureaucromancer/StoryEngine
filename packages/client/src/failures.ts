@@ -62,6 +62,8 @@ export const REMEDY_SENTENCES: Record<FailureRemedy, string> = labels('failure.r
     'The model endpoint refused the request. Check the key, the model name and the permissions in Settings.',
   'endpoint-stalled': 'The model endpoint accepted the request and then went quiet.',
   'not-bound': 'No connection is set up for the model this step needs. Bind one in Settings.',
+  'window-too-small':
+    'The model’s context window is too small to hold anything beside its reply. Raise the context window in the connection’s settings, or lower the reply length.',
   engine: 'The server could not finish the turn. Nothing is wrong with your connection.',
 });
 

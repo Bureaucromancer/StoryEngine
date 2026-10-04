@@ -846,6 +846,8 @@ disposable index**.
         packages/   <slug>/...             (see §7)
       trash/                  # deleted objects awaiting the retention window §10.2
       backup.json             # this account's backup schedule. [P12.4]
+      usage.jsonl             # what model calls that make no turn spent. Append-only. [10 §11.4]
+      task-roles.json         # which role field assist asks for — a stopgap for [25 C15]
       backups/                # their own archives. Never inside another archive.
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
@@ -855,6 +857,7 @@ disposable index**.
         summaries/             # derived, content-addressed. [07 §5.1], P8.0
         renditions/            # one file per rendition — the recipe. §5.5, P9.0
         assets/                # the pixels, and the one disposable directory
+        attachments/           # pictures a player attached. Not disposable. §5.5, [25 E15]
   backups/              # the install's archives — [25 E6], [P12.2]
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
@@ -908,6 +911,35 @@ place.
 diverge under crash. Mitigations: atomic replace (write temp + rename), a
 startup consistency check (mtime/size against recorded values) with automatic
 re-index of anything that does not match, and the write path in §5.1.1.
+
+***The startup consistency check was built on 2026-09-27.*** The other two
+mitigations were built at P1 and this one never was, though §5.1.1 below leans on
+it. A start that did not rebuild looked at nothing, and the watcher starts with
+`ignoreInitial`, so an edit, an addition or a delete made while the server was
+stopped went unseen until the file changed again. Sessions, which the watcher
+never looks at, never caught up at all: a turn that reached its segment and not
+the index before a crash stayed unsearchable, as did a session folder copied in.
+What the check does now (`index-db/reconcile.ts`):
+
+- **An object** is read again when its size or modification time differs from
+  what its row recorded, or when it has an error on record (an error row
+  records neither, and a `chmod` can fix a file without changing either). It is
+  read through the watcher's own path, so an edit made while the server was
+  stopped gets the history version one made while it ran gets (§11.2). A row
+  whose file has gone is forgotten.
+- **A session** had no recorded values to compare. The index now keeps a stamp
+  over `session.json` and its segments, written by a rebuild and by the check
+  and deliberately not by the running server's own writes. A session whose
+  stamp differs, which includes every session played since the last start, is
+  derived again whole.
+- It runs where a rebuild would, before the mode presets are written and before
+  the watcher starts. Its answer is held to a rebuild's over randomised changes
+  made with nothing watching.
+
+*What it cannot see* is the limit of the check this section chose: a file
+rewritten to the same length within one tick of the filesystem's clock, or given
+its old time back by hand. `index.rebuildOnStart` is there for anyone who doubts
+it.
 
 #### 5.1.1 Two writers, one index
 
@@ -1165,6 +1197,7 @@ sessions/<id>/
   turns/000001.jsonl … 000014.jsonl     # append-only, never rewritten
   renditions/<rendition-id>.json        # the recipe: prompt, seed, parameters
   assets/<rendition-id>.png             # the pixels
+  attachments/<sha256-hex>.<ext>        # pictures a player attached — 2026-09-27
 ```
 
 ***Two directories rather than one, and the split is the whole of §10.7's
@@ -1211,6 +1244,35 @@ backwards:
   thousand turns. Generated media is a different order of magnitude and a
   different policy: the records are kept because they are small and
   irreplaceable, and the pixels are evictable because they are neither.
+
+***`attachments/` is the third directory, and exists because `assets/` is
+disposable*** — added 2026-09-27 with R1 of
+[25 E15](25-open-questions.md), pictures on a player's move. Everything in
+`assets/` has a recipe that makes it again; a picture somebody uploaded has
+none, so in `assets/` the first eviction policy anyone wrote would delete the
+only copy of something a person made. The two directories differ on exactly the
+axis the paragraph above draws:
+
+- **Content-addressed**, `<sha256 hex>.<ext>` with the extension read from the
+  bytes' own signature: a picture attached twice, or carried across by a redo,
+  is one file and two references.
+- **Written atomically**, the library's posture rather than the renditions',
+  because a torn upload cannot be made again.
+- **Swept, never evicted.** A file goes only when no turn in the session names
+  it — every turn a reader sees, siblings included — *and* nobody has wanted it
+  for a day, which is the composer's grace: an upload waits in the composer,
+  unnamed, while the session goes on committing. *Wanted* is an upload or a
+  submitted move naming it, either of which renews the file. Walking the head
+  path would be the obvious reachability function and would delete a swipe's
+  pictures. *A tombstoned turn is not a reference*: the reader skips it, and
+  whether a pruned branch keeps its pictures is for whoever designs pruning.
+- **Contained where it lands.** Every path is resolved against the real session
+  folder, as the library's asset paths are (§5.3), so an
+  `attachments` that is a link leads nowhere.
+- **The turn names it; the turn is not changed by it.** The record is
+  `input.attachments` (§8), and the pixels are never copied into it.
+
+*A module function rather than a `Layout` method*, as the other two are.
 
 #### File order is creation order. Reading order is a tree walk.
 
@@ -1286,13 +1348,31 @@ Two lists — `written` and `seeds` — each with a designated primary.
   — not the session, which keeps its own copy regardless.
 
 ***The written half is built, for a Setup's openings, at
-[P13.3](workplan/30-p13-implementation.md)*** (2026-09-26). Creating a session from
+[P15.3](workplan/33-p15-setup-from-a-turn.md)*** (2026-09-26). Creating a session from
 a Setup plays its primary written opening, or the one the request names, as the
 session's first turn: the opening's text as output, no input, no call, and the
 effects that seed what the Setup carries ([04 §7.2](04-schemas.md)). `null`
 starts cold. The seed half — expand, edit, accept, promote — stays with the
-revisit [P7B §1.11](workplan/24-p7b-presets-and-prompts.md) left it to, and a
-treatment's or an actor's openings are still read by nothing.
+revisit [P7B §1.11](workplan/24-p7b-presets-and-prompts.md) left it to, ~~and a
+treatment's or an actor's openings are still read by nothing~~ *and a
+treatment's openings are still not played at creation.*
+
+***Corrected 2026-10-03, at the merge that brought this into `main`:*** *an
+actor's openings are read*, and had been since
+[P14.4](workplan/31-p14-scene-and-session-import.md) (2026-09-30), on `main`
+while the sentence above was on a branch that could not see it. In a mode that
+declares `openingTurn`, a session whose cast carries written openings opens on
+them as **greetings** — an output-only turn holding one message per cast member
+with a written opening, a single character's alternates as that turn's
+siblings, a group's chosen per member at creation. So two written halves were
+built, one for each object, and both write turn 1. **Which plays is decided, by the owner, on the
+same date: when a Setup carries a written opening, the Setup's opening is the
+session's first turn, always, and the cast's greetings are not used for that
+session** — whichever of the Setup's openings is chosen, and even when the
+session starts cold. A Setup with no written opening leaves the greetings as
+P14.4 has them. The reasoning is [P15 §1.7](workplan/33-p15-setup-from-a-turn.md)'s,
+and [25 B18](25-open-questions.md) records the decision where every document it
+touches can find it.
 
 ---
 
@@ -1422,6 +1502,21 @@ The rest of this block is older than the implementation in other ways too:
 `origin` is provenance only. Per [00 §3.1](00-stance.md), editing the source
 treatment later must not affect this session.
 
+***A copy of the mode's own pack gains what the mode ships later*** (2026-09-27).
+`preset` is a resolved copy, and for a pack taken from the library it stays
+exactly that: editing the library's preset reaches no session. But nothing ever
+brought a copy of the **mode's own** pack up to date either, so a session begun
+on the first alpha went without the summary slot, the goal slot and the pacing
+levels for good — its story above the window never reached a prompt — and the
+only remedy, switching to the mode's own, discarded every edit made to the copy.
+A copy that carries the id of its mode's default is now read with each block and
+level list the mode ships and the copy lacks, placed where the mode puts it
+(`sessions/preset-of.ts`), at every read and never written back. **Presence is
+the test, never state**: a block switched off stays off, and an edited block
+keeps its edit. *A change to a block the copy already has still reaches new
+sessions only* — telling an unedited block from an edited one needs a digest per
+block recorded at the copy, which sessions do not carry yet.
+
 ### 8.1 `session.json`'s channel state is the head snapshot
 
 Worth stating plainly, because the naive reading produces a bug that only
@@ -1478,7 +1573,14 @@ interface Turn {
   sessionId: SessionId
   parentTurnId: TurnId | null    // the tree edge. Siblings are swipes/branches.
   createdAt: string
-  input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string }
+  input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string
+           /** Pictures on the move — 2026-09-27, [25 E15] R1. Each has an id,
+            *  an open `kind`, the digest, and the type, size and pixel
+            *  dimensions the server read from its own store (optional, so a
+            *  record whose bytes never arrived can still say a picture was
+            *  there), and the player's caption. An annotation: `text` stays the
+            *  player's words, never an `[image]` marker. */
+           attachments?: { id; kind; digest?; mime?; bytes?; width?; height?; caption? }[] }
 
   /** One entry per model call, each carrying its own `blocks` and `budget`
    *  (P3.0) — "one per model call" made shape rather than promise. Blocks are
@@ -1492,8 +1594,13 @@ interface Turn {
 
   /** `toolCalls` is deliberately absent: no `ToolCall` type is defined anywhere
    *  in this design, and no adapter reports one distinctly. It arrives with the
-   *  first step that needs it rather than as a field nothing can fill. */
-  output: { text: string; reasoning?: string }
+   *  first step that needs it rather than as a field nothing can fill.
+   *  `messages` — P14.0, [P14 §1.1]: one per speaker, each `{ speaker: Ref |
+   *  null, text, reasoning?, carried?, original? }`, null the narrator. A turn
+   *  is still one node however many it holds, and when they are present `text`
+   *  is derived from them — their texts joined by a blank line — so every
+   *  reader of `text` keeps working. */
+  output: { text: string; reasoning?: string; messages?: OutputMessage[] }
   /** Terminal only — a turn in flight lives in the operational store ([P2 §2.10]). */
   status: "complete" | "failed" | "suspended"
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
@@ -1513,7 +1620,7 @@ interface Turn {
    *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1]
    *  ~~`mentions: MentionSpan[]`~~ — renamed 2026-09-11, see below. */
   spans: TextSpan[]
-  cost: { promptTokens, completionTokens, wallMs, model }
+  cost: { promptTokens, completionTokens, wallMs, model, money? }  // money: 2026-09-27, [25 E16]
 }
 
 interface TextSpan {
@@ -1591,6 +1698,16 @@ interface AssembledBlock {
    *  what makes [testing §1]'s invariant — no advisory block in an
    *  effect-producing call — expressible over a committed record. */
   advisory?: true
+  /** A picture on a player's move, and whether its pixels went — 2026-09-27,
+   *  [25 E15] R1. Decided per call: `{ attachmentId, digest, mime, sent,
+   *  withheld? }`, where `withheld` says why the block's text went instead —
+   *  `unknown-kind`, `outside-window`, `not-user-role`, `missing-bytes`,
+   *  `model-text-only` (the model last when several hold) — or `budget`, when
+   *  the budgeter dropped the block (a picture in history, or a step's own)
+   *  and neither went. A disclosure
+   *  rather than a not-filled slot, because the picture *did* emit something:
+   *  its words, which are `text`. */
+  image?: BlockImage
 }
 ```
 
@@ -1709,7 +1826,10 @@ The reason it is nearly free is the same reason the storage design keeps paying:
 a move, restoration is a move back, and neither needs a serialisation format, a
 tombstone convention or a schema. The index treats trashed objects as absent —
 they do not appear in the library, do not resolve as references, and do not match
-search. Restoring re-indexes them.
+search. Restoring re-indexes them. *(2026-09-27: for a session it did not, until
+now — the restore left it to the watcher, which does not look under `sessions/`,
+so a restored session was listed and never matched a search again. The restore
+indexes what it puts back, sessions through the rebuild's own derivation.)*
 
 Four properties worth fixing now:
 
@@ -1722,6 +1842,12 @@ Four properties worth fixing now:
 - **Purge is available and honest.** *Delete permanently* exists, says so, and
   skips the trash. The point of the window is to make the ordinary path
   recoverable, not to make deletion impossible for someone who means it.
+  *Two corrections, 2026-09-27.* The window never expired anything on a server
+  restarted more often than daily, because the sweep's only timer was a daily
+  interval; it now has a pass a minute after the start, and skips a pass when
+  the wall clock has jumped. And a session's prompts and prose outlived its
+  purge in the operational store, which kept every turn's draft and events;
+  those are collected now, a day after the turn (21 §5.1).
 - **Trash is excluded from export and from backup by default**
   ([25 E6](25-open-questions.md)) — restoring a backup should not resurrect
   everything the user threw away before taking it. ***This sentence had no
@@ -1839,6 +1965,15 @@ the database version rather than merely equivalent:
 (§5.5) for the same reasons: cheap writes, clean git diffs, and a corrupted tail
 costs the newest entry rather than the history.
 
+*Corrected 2026-09-27.* ~~a corrupted tail costs the newest entry~~ A corrupted
+tail cost the newest entry **and the one after it**, here and in turn segments
+alike: the next append landed on the end of the torn line, and the two made one
+line that parsed as neither. For a segment that could be the whole story,
+because the turn that tore was the one the commit appended again, the head was
+set to it, and a path walk from a head it could not read is empty.
+`storage/files.ts`'s `appendLine` now ends a torn line before it appends, and
+the history index goes through it. The sentence above is true again.
+
 ### 11.3 Retention
 
 **Marinara has no cap**, and that is the one place its design should not be
@@ -1854,6 +1989,13 @@ an unbounded list is a list nobody scrolls.
   alone for six months should not lose that evening.
 - **Pruning is not deletion of content.** Content-addressed payloads referenced
   by a surviving entry stay; only unreferenced ones are collected.
+
+*Corrected 2026-09-27.* The bytes beside a folder object, a lorebook's gallery
+and its entries' pictures, were under neither rule. A version names them and
+does not hold them, and the sweep on save ([10 §11.2b](10-ui-surfaces.md))
+deleted a file the moment the current manifest stopped naming it, so a restored
+version could name a picture that was gone. The sweep now keeps a file while
+any surviving version names it, which is the bullet above applied to the bytes.
 
 ### 11.4 Three scales of undo, and why they do not overlap
 

@@ -130,6 +130,32 @@ export const fixtureConfig = tseslint.config(
     },
   },
 
+  // A client test reads the screen, so it loses the string-method half of
+  // *branching on displayed text* and nothing else — mirrored from
+  // `eslint.config.js`, `ui/` restated for the same reason there.
+  {
+    files: [`${FIXTURE_ROOT}/packages/client/src/**/*.test.{ts,tsx}`],
+    ignores: [`${FIXTURE_ROOT}/packages/client/src/ui/**`],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        tokensOnly: true,
+        readsTheScreen: true,
+      }),
+    },
+  },
+  {
+    files: [`${FIXTURE_ROOT}/packages/client/src/ui/**/*.test.{ts,tsx}`],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        classList: true,
+        tokensOnly: true,
+        readsTheScreen: true,
+      }),
+    },
+  },
+
   // The RNG service: the destination the randomness rule points at, and
   // deliberately two files wide rather than a directory.
   {

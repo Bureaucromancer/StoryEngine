@@ -248,6 +248,15 @@ coincidence:
   present and alive — and is where you merge duplicates, split conflations and
   correct status.
 
+**A fourth arrived from the opposite direction, 2026-09-22**, and it is worth
+adding because of where it came from: a *look* argument
+([10 §1.3](10-ui-surfaces.md)) about giving characters faces on the play surface
+landed on this principle rather than on taste. **A portrait beside a line is an
+attribution claim** — the engine saying *this is who spoke* — and the moment it
+is drawn, it owes the same two halves as the three above. Which is the useful
+generalisation: a decorative-looking feature that renders an inference is not
+decorative, and the test below applies to it unchanged.
+
 **Both halves are required.** Showing without correcting produces a complaint the
 user cannot act on; correcting without showing means nobody knows there is
 anything to fix. The pairing is what makes the principle worth stating.

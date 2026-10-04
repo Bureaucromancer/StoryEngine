@@ -20,6 +20,46 @@ export const SPDX_CONTENT =
 
 export const COPYRIGHT_YEAR = '2026';
 
+/**
+ * ***The header a file carries when it holds upstream code*** (2026-10-03).
+ *
+ * SillyTavern, Marinara Engine and Aventuras are each licensed `AGPL-3.0` —
+ * version 3, with no *or any later version* — so a file that copies or ports
+ * their code can be offered under version 3 only, whatever this repository's
+ * own default is. Saying `-or-later` on such a file grants a permission nobody
+ * here can grant. The third line sends the reader to the record of what was
+ * taken and from where.
+ *
+ * **Where the line falls**, as `THIRD_PARTY_NOTICES.md` states it: upstream
+ * code copied into a file — a function, a table of patterns — takes this
+ * header; a function re-implemented from what the upstream one does, the names
+ * of a format's files, tables and fields, and a credited sentence of prompt
+ * text, do not. A file moves onto this list when it gains such code and never silently
+ * off it — `eslint-rules.test.ts` holds the list to the notices file's table.
+ */
+export const SPDX_CONTENT_DERIVED =
+  'SPDX-License-Identifier: AGPL-3.0-only\nCopyright (C) {year} StoryEngine contributors\nDerived in part from AGPL-3.0-only upstream code; see THIRD_PARTY_NOTICES.md';
+
+/** The files that carry {@link SPDX_CONTENT_DERIVED}, repository-relative. */
+export const DERIVED_FILES = [
+  'packages/server/src/import/marinara/preset.ts',
+  'packages/server/src/import/marinara/store-format.ts',
+  'packages/server/src/import/sillytavern/chat.ts',
+];
+
+export const derivedHeaderRule = {
+  'headers/header-format': [
+    'error',
+    {
+      source: 'string',
+      style: 'line',
+      content: SPDX_CONTENT_DERIVED,
+      variables: { year: COPYRIGHT_YEAR },
+      trailingNewlines: 2,
+    },
+  ],
+};
+
 export const headerRule = {
   'headers/header-format': [
     'error',
@@ -68,7 +108,17 @@ const CRYPTO_RANDOM_NAMES = [
   'randomFill',
   'randomFillSync',
   'getRandomValues',
+  // The Web Crypto object `node:crypto` also exports, whose `getRandomValues`
+  // is a draw like any other (2026-10-01).
+  'webcrypto',
 ];
+
+/**
+ * The same names as a pattern, for the syntax rule's member and destructuring
+ * selectors below — one list, so a name added to the import ban is a name the
+ * syntax ban sees.
+ */
+const CRYPTO_RANDOM_PATTERN = `^(${CRYPTO_RANDOM_NAMES.join('|')})$`;
 
 /**
  * Builds the `no-restricted-imports` value. ESLint allows a rule to be
@@ -96,12 +146,21 @@ export function restrictedImports({
     }
   }
 
+  // ~~`paths.push({ name: \`${banned.name}/*\` })`~~ — `paths` compares exact
+  // names, so that entry matched only a module literally called
+  // `@storyengine/server/*` and a deep import walked past it (2026-10-01).
+  // `patterns` is the glob form; TypeScript's export maps refuse most such
+  // imports too, but the lint layer is the one that survives a resolver
+  // failing, which is the reason it exists at all.
+  const patterns = bannedPackages.map((banned) => ({
+    group: [`${banned.name}/*`],
+    message: banned.message,
+  }));
   for (const banned of bannedPackages) {
     paths.push({ name: banned.name, message: banned.message });
-    paths.push({ name: `${banned.name}/*`, message: banned.message });
   }
 
-  return ['error', { paths }];
+  return ['error', patterns.length === 0 ? { paths } : { paths, patterns }];
 }
 
 export const restrictedProperties = [
@@ -275,14 +334,20 @@ const INTL_MESSAGE =
   '§12.6).';
 
 /**
- * The four ids a shipped or planned mode uses. Deliberately a fixed list rather
+ * The ids a shipped or planned mode uses. Deliberately a fixed list rather
  * than `storyengine\.\w+`, which would fire on `storyengine.cast` and every other
  * namespaced string in the build — and deliberately *not* the whole of row 2b,
  * because a selector cannot recognise the id of a mode nobody has written yet.
  * The enumeration with its reasoned allowlist stays in `tools/repo-shape.test.ts`;
  * this catches the **shapes**, at type time.
+ *
+ * ***`assistant` since 2026-10-01*** — the third shipped mode, and the one this
+ * list was a fixed list of four without: P11.3 made it a mode package like any
+ * other, and nothing here noticed, so the engine could have switched on it
+ * freely. `repo-shape.test.ts`'s survey carries the same list and was missing
+ * it the same way.
  */
-const MODE_ID_PATTERN = String.raw`^storyengine\.(scene|freeform|campaign|messages)`;
+const MODE_ID_PATTERN = String.raw`^storyengine\.(scene|freeform|assistant|campaign|messages)`;
 
 const MODE_SWITCH_MESSAGE =
   'A `switch` on a mode. docs/design/06-modes-and-turn-pipeline.md §2: the host ' +
@@ -308,6 +373,7 @@ export function restrictedSyntax({
   classList = false,
   tokensOnly = false,
   engineOnly = false,
+  readsTheScreen = false,
 } = {}) {
   const entries = [
     // Not anchored on `className`. See the pattern's docstring: the anchor was
@@ -358,6 +424,22 @@ export function restrictedSyntax({
     });
   }
 
+  // And the same through a string method (2026-09-27). Four settings panels
+  // chose their failure sentence with `message.includes('free space')` and its
+  // like — a server's English made into an identifier all the same, and out of
+  // the comparison selector's sight. A refusal carries its class, and
+  // `errorCode()` in the client's api.ts is how to read it.
+  //
+  // *Not in a test* (`readsTheScreen`): a test searching what was rendered for
+  // `'Prompt tokens'` is reading the screen, which is its job, and a rule that
+  // fired there would be worked around in every one of them.
+  if (userFacing && !readsTheScreen) {
+    entries.push({
+      selector: `CallExpression[callee.property.name=/^(includes|startsWith|endsWith)$/] > Literal[value=/${PROSE_PATTERN}/]`,
+      message: DISPLAYED_TEXT_MESSAGE,
+    });
+  }
+
   if (tokensOnly) {
     entries.push(
       { selector: `Literal[value=/${PALETTE_PATTERN}/]`, message: PALETTE_MESSAGE },
@@ -385,11 +467,30 @@ export function restrictedSyntax({
   }
 
   if (!allowRandomness) {
-    entries.push({
-      selector:
-        'MemberExpression[object.name=/^(crypto|globalThis)$/][property.name=/^(getRandomValues|randomUUID)$/]',
-      message: RANDOM_MESSAGE,
-    });
+    /*
+     * ~~`MemberExpression[object.name=/^(crypto|globalThis)$/][property.name=…]`~~
+     * — which saw `crypto.randomUUID()` and nothing else (2026-10-01): not
+     * `globalThis.crypto.randomUUID()`, whose object is a member expression;
+     * not `window.crypto`, `self.crypto` or a default import under another
+     * name; not `crypto['randomUUID']()`; not `const { randomInt } = await
+     * import('node:crypto')`. **Matched on the name being drawn**, whatever it
+     * is reached through, because the name is the draw: the import ban holds
+     * the module, and these hold every way of getting a function out of it.
+     */
+    entries.push(
+      {
+        selector: `MemberExpression[property.name=/${CRYPTO_RANDOM_PATTERN}/]`,
+        message: RANDOM_MESSAGE,
+      },
+      {
+        selector: `MemberExpression[computed=true][property.value=/${CRYPTO_RANDOM_PATTERN}/]`,
+        message: RANDOM_MESSAGE,
+      },
+      {
+        selector: `ObjectPattern > Property[key.name=/${CRYPTO_RANDOM_PATTERN}/]`,
+        message: RANDOM_MESSAGE,
+      },
+    );
   }
 
   if (engineOnly) {
@@ -415,6 +516,35 @@ export function restrictedSyntax({
       },
       {
         selector: 'SwitchStatement[discriminant.property.name=/[Mm]ode(Id)?$/]',
+        message: MODE_SWITCH_MESSAGE,
+      },
+      /*
+       * ***And the shape the engine's data actually has*** (2026-10-01).
+       * A session stores `mode?: { id, config }`, so the switch somebody writes
+       * is `switch (session.mode?.id)` — a `ChainExpression`, whose property is
+       * `id`, which neither selector above could see — or `switch
+       * (session.mode.id)`, or `switch (mode.id)`. Matched on the object being
+       * a mode and the property being `id`, in all three spellings; and,
+       * whatever the discriminant, on a `case` that names a mode id, which is
+       * the half of a switch that cannot be renamed away.
+       */
+      {
+        selector:
+          'SwitchStatement[discriminant.property.name="id"][discriminant.object.name=/[Mm]ode$/]',
+        message: MODE_SWITCH_MESSAGE,
+      },
+      {
+        selector:
+          'SwitchStatement[discriminant.property.name="id"][discriminant.object.property.name=/[Mm]ode$/]',
+        message: MODE_SWITCH_MESSAGE,
+      },
+      {
+        selector:
+          'SwitchStatement[discriminant.type="ChainExpression"][discriminant.expression.property.name="id"][discriminant.expression.object.property.name=/[Mm]ode$/]',
+        message: MODE_SWITCH_MESSAGE,
+      },
+      {
+        selector: `SwitchCase[test.value=/${MODE_ID_PATTERN}/]`,
         message: MODE_SWITCH_MESSAGE,
       },
       // `if (modeId === 'storyengine.scene')` — the same switch, spelled out.

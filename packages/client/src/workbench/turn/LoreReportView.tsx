@@ -102,7 +102,14 @@ const ROUTE_LABELS: Record<string, string> = labels('workbench.lore.route', {
 /** Enough to see the shape without becoming the panel. */
 const SHOWN = 12;
 
-export function LoreReportView({ lore }: { lore: LoreReport }): JSX.Element | null {
+export function LoreReportView({
+  lore,
+  locale,
+}: {
+  lore: LoreReport;
+  /** The reader's, for every count in the report. */
+  locale: string | undefined;
+}): JSX.Element | null {
   const [all, setAll] = useState(false);
 
   /**
@@ -121,11 +128,11 @@ export function LoreReportView({ lore }: { lore: LoreReport }): JSX.Element | nu
     <div className="flex flex-col gap-3">
       <Fine>Lore</Fine>
 
-      <BookRows books={lore.books} />
+      <BookRows books={lore.books} locale={locale} />
 
       {lore.skipped.length === 0 ? null : (
         <div className="flex flex-col gap-1">
-          <Fine>{`Did not fire — ${formatCount(lore.skipped.length)}`}</Fine>
+          <Fine>{`Did not fire — ${formatCount(lore.skipped.length, locale)}`}</Fine>
           <ul className="flex flex-col gap-0.5 text-sm text-ink-muted">
             {shown.map((row) => (
               <SkipRow key={`${row.bookId}:${row.entryId}`} row={row} />
@@ -140,7 +147,7 @@ export function LoreReportView({ lore }: { lore: LoreReport }): JSX.Element | nu
                 setAll(true);
               }}
             >
-              {`Show ${formatCount(rest)} more`}
+              {`Show ${formatCount(rest, locale)} more`}
             </Button>
           )}
         </div>
@@ -189,7 +196,13 @@ export function LoreReportView({ lore }: { lore: LoreReport }): JSX.Element | nu
  * *Is my lorebook even being looked at* is a different question from *did
  * anything match*, with a different repair, and only a row can tell them apart.
  */
-function BookRows({ books }: { books: LoreBookRow[] }): JSX.Element {
+function BookRows({
+  books,
+  locale,
+}: {
+  books: LoreBookRow[];
+  locale: string | undefined;
+}): JSX.Element {
   return (
     <table className="w-full text-sm">
       <thead className={table.head}>
@@ -216,9 +229,11 @@ function BookRows({ books }: { books: LoreBookRow[] }): JSX.Element {
             {/* Spent of allowed, both halves, because a number on its own
                 cannot say whether the limit was the thing in the way. */}
             <td className={table.cellNumeric}>
-              {`${formatCount(book.entriesKept)} / ${formatCount(book.entryLimit)}`}
+              {`${formatCount(book.entriesKept, locale)} / ${formatCount(book.entryLimit, locale)}`}
             </td>
-            <td className={table.cellNumeric}>{budgetCell(book.tokensSpent, book.tokenBudget)}</td>
+            <td className={table.cellNumeric}>
+              {budgetCell(book.tokensSpent, book.tokenBudget, locale)}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -235,10 +250,10 @@ function BookRows({ books }: { books: LoreBookRow[] }): JSX.Element {
  * which is the shape [19 §12.6a] forbids and also the only way to make the
  * denominator conditional without splitting the sentence.
  */
-export function budgetCell(spent: number, budget: number): string {
+export function budgetCell(spent: number, budget: number, locale: string | undefined): string {
   return budget === 0
-    ? `${formatCount(spent)} / no limit`
-    : `${formatCount(spent)} / ${formatCount(budget)}`;
+    ? `${formatCount(spent, locale)} / no limit`
+    : `${formatCount(spent, locale)} / ${formatCount(budget, locale)}`;
 }
 
 function SkipRow({ row }: { row: LoreSkipRow }): JSX.Element {

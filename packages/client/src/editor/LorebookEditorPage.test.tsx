@@ -5,17 +5,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   newLoreEntry,
   newLorebook,
+  type EmbeddedMedia,
   type LoreEntry,
   type Lorebook,
   type PlotHook,
 } from '@storyengine/shared';
 
-import { api, ApiError, type Account, type LibraryObject } from '../api.js';
+import { api, ApiError, type Account, type AssistFieldResult, type LibraryObject } from '../api.js';
 import { newHook } from './hook-form.js';
 
 /**
@@ -94,7 +96,8 @@ const ACCOUNT: Account = {
 function makeLibrary() {
   let stored: Record<string, unknown> = structuredClone(makeBook());
   let revision = 0;
-  const creates: { kind: unknown; object: Record<string, unknown> }[] = [];
+  const creates: { kind: unknown; object: Record<string, unknown>; copyOf?: string | undefined }[] =
+    [];
 
   const hash = (): string => `sha256:revision-${String(revision)}`;
   const envelope = (): LibraryObject => ({
@@ -129,8 +132,9 @@ function makeLibrary() {
     createObject: (
       kind: unknown,
       object: Record<string, unknown>,
+      copyOf?: string,
     ): Promise<{ id: string; slug: string; contentHash: string }> => {
-      creates.push({ kind, object: structuredClone(object) });
+      creates.push({ kind, object: structuredClone(object), copyOf });
       return Promise.resolve({
         id: object['id'] as string,
         slug: 'ardent-copy',
@@ -167,6 +171,30 @@ function makeLibrary() {
 let server = makeLibrary();
 
 /**
+ * ***The assist, answered when the test says*** (2026-09-27).
+ *
+ * A real assist takes ten to sixty seconds, and that interval is the whole of
+ * what *a write that lands late* is about: an `assistField` that resolved at
+ * once could never show a form putting back what was typed while it ran. So
+ * each call waits here until the test answers it, by the order it was asked in.
+ */
+const assist = {
+  asked: [] as { path: string }[],
+  answers: [] as ((text: string) => void)[],
+  failures: [] as ((cause: Error) => void)[],
+};
+
+function askAssist(body: { path: string }): Promise<AssistFieldResult> {
+  assist.asked.push(body);
+  return new Promise((resolve, reject) => {
+    assist.answers.push((text) => {
+      resolve({ text, model: 'fake-hi', seed: 'the prompt that ran' });
+    });
+    assist.failures.push(reject);
+  });
+}
+
+/**
  * `importOriginal`, so **`ApiError` stays the real class**: the editor decides
  * whether to open the conflict dialog with an `instanceof`, and a look-alike
  * would fail it silently while the test reported *no dialog* for a client that
@@ -176,6 +204,9 @@ vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
   return {
     ...actual,
+    // A top-level export, mocked at the top level: `FieldAssist` imports it by
+    // name, so a replacement inside `api` would replace something nothing calls.
+    assistField: (body: { path: string }) => askAssist(body),
     api: {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
@@ -183,8 +214,8 @@ vi.mock('../api.js', async (importOriginal) => {
       readPrefs: () => Promise.resolve({ prefs: {} }),
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       readObject: () => server.readObject(),
-      createObject: (kind: unknown, object: Record<string, unknown>) =>
-        server.createObject(kind, object),
+      createObject: (kind: unknown, object: Record<string, unknown>, copyOf?: string) =>
+        server.createObject(kind, object, copyOf),
       updateObject: (
         kind: unknown,
         id: unknown,
@@ -200,7 +231,36 @@ const { router } = await import('../router.js');
 
 beforeEach(() => {
   server = makeLibrary();
+  assist.asked = [];
+  assist.answers = [];
+  assist.failures = [];
 });
+
+/** Opens the assist beside this control and presses *Write it*, leaving it running. */
+async function startAssist(control: HTMLElement): Promise<void> {
+  const field = control.parentElement;
+  if (field === null) throw new Error('a control outside any field');
+  const before = assist.answers.length;
+  await userEvent.click(within(field).getByRole('button', { name: 'Assist' }));
+  await userEvent.click(within(field).getByRole('button', { name: 'Write it' }));
+  await waitFor(() => {
+    expect(assist.answers).toHaveLength(before + 1);
+  });
+}
+
+async function answerAssist(at: number, text: string): Promise<void> {
+  await act(async () => {
+    assist.answers[at]?.(text);
+    await Promise.resolve();
+  });
+}
+
+async function failAssist(at: number, cause: Error): Promise<void> {
+  await act(async () => {
+    assist.failures[at]?.(cause);
+    await Promise.resolve();
+  });
+}
 
 function renderApp(): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -369,6 +429,47 @@ describe('an entry created, edited and deleted through the real write path', () 
     const saved = server.stored();
     expect(saved.entries.find((each) => each.id === HARBOUR)?.content).toBe('Cranes.');
     expect(saved.entries.find((each) => each.id === BRIDGE)?.content).toBe('Iron.');
+  });
+
+  /**
+   * ***Both sides' provenance survives the merge*** (2026-09-27). The reapply
+   * merged the fields and kept this tab's `generated` map whole, so the other
+   * writer's record that *their* field was model-written was erased by the save
+   * that followed — the one thing the map is kept for.
+   */
+  it('keeps the other writer’s provenance through reload-and-reapply, and mine', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    await answerAssist(0, 'A wet quay under sodium light.');
+
+    const theirs = makeBook();
+    theirs.entries[1] = { ...theirs.entries[1]!, content: 'Iron, by a model.' };
+    server.handEdit({
+      ...theirs,
+      generated: {
+        [`entries.${BRIDGE}.content`]: {
+          original: 'Iron, by a model.',
+          at: '2026-09-01T00:00:00.000Z',
+          model: 'their-model',
+          seed: 'their prompt',
+          unreviewed: true,
+        },
+      },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alertdialog');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Load the newer version and reapply my edits' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+
+    const saved = server.stored() as unknown as { generated: Record<string, unknown> | null };
+    expect(Object.keys(saved.generated ?? {}).sort()).toEqual(
+      [`entries.${BRIDGE}.content`, `entries.${HARBOUR}.content`].sort(),
+    );
   });
 });
 
@@ -1112,6 +1213,9 @@ describe('leaving an editor with unsaved changes', () => {
       expect(router.state.location.pathname).not.toBe(wasAt);
     });
     expect(screen.queryByRole('alertdialog')).toBeNull();
+    // And it named what it copies, so the copy is made with its pictures
+    // rather than rows naming files its folder does not have (2026-09-27).
+    expect(server.creates[0]?.copyOf).toBe(BOOK_ID);
   });
 
   it('does not ask when the address changes but the editor does not', async () => {
@@ -1166,6 +1270,35 @@ describe('the critical controls in the lorebook editor', () => {
     expect(status.closest('form')).toBe(
       screen.getByRole('button', { name: 'Save' }).closest('form'),
     );
+  });
+
+  /**
+   * ***History says which way it goes, and its panel takes the keyboard***
+   * (2026-10-01, polish 10). The panel opens below *As stored*, a screen or
+   * more under the button on a long book, so a press showed nothing where it
+   * was made and read as a button that did nothing.
+   */
+  it('takes the keyboard to the History it opens, and offers to hide it', async () => {
+    const history = vi.spyOn(api, 'history').mockResolvedValue({ versions: [] });
+    try {
+      renderApp();
+      await openEditor(HARBOUR);
+
+      await userEvent.click(screen.getByRole('button', { name: 'History' }));
+
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'History' }));
+      const toggle = screen.getByRole('button', { name: 'Hide history' });
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+      await userEvent.click(toggle);
+
+      expect(screen.queryByRole('region', { name: 'Version history' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'History' }).getAttribute('aria-expanded')).toBe(
+        'false',
+      );
+    } finally {
+      history.mockRestore();
+    }
   });
 });
 
@@ -1250,6 +1383,26 @@ describe('a new lorebook', () => {
     expect(server.creates).toEqual([]);
     expect(screen.queryByRole('button', { name: 'History' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  /**
+   * ***A picture needs a saved book to sit beside*** (2026-09-27). An upload is
+   * stored in the object's folder, and a draft has none: every picture added
+   * to a new book was refused. The mocked upload succeeds for any id, so what
+   * is asserted is the control's absence — nothing here can prove a refusal the
+   * real server would make.
+   */
+  it('says to save before adding pictures, on the book and on a new entry', async () => {
+    renderApp();
+    await openNew();
+    const sentence = 'Pictures are stored beside the saved book. Save it once, then add them here.';
+
+    expect(screen.queryByRole('button', { name: 'Add a picture' })).toBeNull();
+    expect(screen.getByText(sentence)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: 'New entry' }));
+    expect(screen.queryByRole('button', { name: 'Add a picture' })).toBeNull();
+    expect(screen.getAllByText(sentence)).toHaveLength(2);
   });
 
   it('refuses a nameless book rather than filing one', async () => {
@@ -1359,6 +1512,37 @@ describe('entries travelling on their own', () => {
     expect(written.folders.map((one) => one.id)).toEqual(['places']);
   });
 
+  /**
+   * ***What the export leaves behind is said before the click*** (2026-09-27):
+   * a lorebook file cannot carry a picture's bytes, so the export leaves the
+   * entry's pictures where they are and counts them beside the button.
+   */
+  it('says how many pictures an export of the ticked entries leaves behind', async () => {
+    const book = makeBook();
+    const row = (id: string) => ({
+      id,
+      role: 'gallery' as const,
+      tags: [],
+      ref: `assets/${id}.png`,
+      digest: `sha256:${id}`,
+      bytes: 4,
+      mime: 'image/png',
+    });
+    book.entries[0] = { ...book.entries[0]!, media: [row('p1'), row('p2')] };
+    server.handEdit(book);
+    renderApp();
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Select several' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Harbour' }));
+
+    expect(
+      screen.getByText(
+        '2 pictures stay behind: an export carries the entries’ text, not their pictures.',
+      ),
+    ).toBeTruthy();
+  });
+
   it('will not export nothing', async () => {
     renderApp();
     await openEditor();
@@ -1368,6 +1552,96 @@ describe('entries travelling on their own', () => {
       'disabled',
       true,
     );
+  });
+
+  /**
+   * ***The merge lands on the book as it is once the file has been read***
+   * (2026-09-27). Reading the file is a wait, however short, and the file
+   * input's handler held the book as it was when the dialog closed: merging into
+   * that put back, along with the imported entries, a book without whatever an
+   * assist, an upload or a keystroke had changed in between.
+   */
+  it('merges into the book as it is when the file has been read', async () => {
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [entry('01a008de-7e08-70d0-899c-00000000000a', 'The lock keeper')],
+    };
+    const file = new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' });
+    let read: (text: string) => void = () => undefined;
+    Object.defineProperty(file, 'text', {
+      value: () =>
+        new Promise<string>((resolve) => {
+          read = resolve;
+        }),
+    });
+
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Isles');
+    await act(async () => {
+      read(JSON.stringify(incoming));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('The lock keeper').length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole('textbox', { name: 'Book name' })).toHaveProperty(
+      'value',
+      'Ardent Isles',
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.name).toBe('Ardent Isles');
+    expect(saved.entries.map((one) => one.name)).toContain('The lock keeper');
+  });
+
+  /**
+   * ***An entry that arrives without its pictures is named*** (2026-09-27): a
+   * lorebook file carries a picture's row and never its bytes, so the rows are
+   * dropped on the way in, and the review says whose.
+   */
+  it('names the entries that arrived without their pictures', async () => {
+    renderApp();
+    await openEditor();
+    const pictured = {
+      ...entry('01a008de-7e08-70d0-899c-00000000000b', 'The lighthouse'),
+      media: [
+        {
+          id: 'm1',
+          role: 'gallery' as const,
+          tags: [],
+          ref: 'assets/m1.png',
+          digest: 'sha256:m1',
+          bytes: 4,
+          mime: 'image/png',
+        },
+      ],
+    };
+    const incoming: Lorebook = { ...newLorebook('A gift'), entries: [pictured] };
+    const file = new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' });
+
+    await act(async () => {
+      fireEvent.change(filePicker(), { target: { files: [file] } });
+      await Promise.resolve();
+    });
+
+    const review = await screen.findByRole('region', { name: 'What arrived' });
+    expect(
+      within(review).getByText(
+        'These arrived without their pictures, which a lorebook file names and cannot carry:',
+      ),
+    ).toBeTruthy();
+    expect(within(review).getByText('The lighthouse')).toBeTruthy();
   });
 
   it('merges a file into the open book, reviews it, and saves it as an import', async () => {
@@ -1441,6 +1715,69 @@ describe('entries travelling on their own', () => {
     expect(
       await screen.findByText(/StoryEngine file of another kind, not a lorebook/),
     ).toBeTruthy();
+  });
+
+  /**
+   * ***A restore takes the import with it*** (2026-09-27). The import a save is
+   * recorded as is held until that save; a version restored in between carries
+   * none of the imported entries, and its next save still said *imported from
+   * gift.json*.
+   */
+  it('forgets the import when a version without it is restored', async () => {
+    vi.spyOn(api, 'history').mockResolvedValue({
+      versions: [
+        {
+          id: 'version-1',
+          digest: 'sha256:then',
+          revision: 1,
+          authoredAt: '2026-09-01T00:00:00.000Z',
+          recordedAt: '2026-09-01T00:00:00.000Z',
+          source: { kind: 'user' },
+          reason: '',
+          authorVersion: null,
+          pinned: false,
+        },
+      ],
+    });
+    vi.spyOn(api, 'restoreVersion').mockImplementation(() => {
+      server.handEdit(makeBook());
+      return Promise.resolve({
+        contentHash: server.envelope().contentHash,
+        object: structuredClone(makeBook()),
+      });
+    });
+    const client = renderApp();
+    await openEditor();
+
+    const incoming: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [entry('01a008de-7e08-70d0-899c-00000000000c', 'The lock keeper')],
+    };
+    await act(async () => {
+      fireEvent.change(filePicker(), {
+        target: {
+          files: [new File([JSON.stringify(incoming)], 'gift.json', { type: 'application/json' })],
+        },
+      });
+      await Promise.resolve();
+    });
+    await screen.findByRole('region', { name: 'What arrived' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'History' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+    // The import is unsaved, so the restore asks first (polish 8).
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Restore', description: /^Restore this version/ }),
+    );
+    await screen.findByText(/^Version restored\./);
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Isles');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().name).toBe('Ardent Isles');
+    expect(server.importedFrom).toBeUndefined();
   });
 
   it('leaves the next save alone — an import is one save, not a mode', async () => {
@@ -1536,7 +1873,9 @@ describe('image slots on a book and its entries', () => {
       await Promise.resolve();
     });
 
-    await userEvent.click(await within(gallery).findByRole('button', { name: 'Use as the cover' }));
+    await userEvent.click(
+      await within(gallery).findByRole('button', { name: 'Use picture 1 as the cover' }),
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Saved.');
     await settled(client);
@@ -1545,6 +1884,40 @@ describe('image slots on a book and its entries', () => {
     expect(saved.media).toHaveLength(1);
     expect(saved.media[0]?.ref).toBe('assets/1.png');
     expect(saved.primaryMediaId).toBe(saved.media[0]?.id);
+  });
+
+  /**
+   * ***A refusal says which one*** (2026-09-27). The strip read the class from
+   * `failure.body.error`, which `ApiError` has never had, so a PDF picked by
+   * mistake was only a picture that *could not be added*. And the class is
+   * checked against the two the strip has words for, not looked up in its
+   * label table: `remove` is a class no server sends and a label this strip
+   * has, and would have come back as the reason.
+   */
+  it('says why the server refused a picture, and only in its own words', async () => {
+    const refuse = vi.spyOn(api, 'uploadAsset');
+    renderApp();
+    await openEditor();
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    const pick = async (): Promise<void> => {
+      await act(async () => {
+        fireEvent.change(pickerIn(gallery), {
+          target: { files: [new File(['%PDF'], 'notes.pdf', { type: 'image/png' })] },
+        });
+        await Promise.resolve();
+      });
+    };
+
+    refuse.mockRejectedValue(new ApiError(415, 'not-an-image', 'That is not an image.'));
+    await pick();
+    expect(
+      await within(gallery).findByText('That file is not a PNG, JPEG or WebP image.'),
+    ).toBeTruthy();
+
+    refuse.mockRejectedValue(new ApiError(422, 'remove', 'A class this strip has a label for.'));
+    await pick();
+    expect(await within(gallery).findByText('That picture could not be added.')).toBeTruthy();
   });
 
   it('puts a strip on the entry rather than on the book', async () => {
@@ -1597,6 +1970,35 @@ describe('image slots on a book and its entries', () => {
     expect(within(gallery).getByRole('textbox', { name: 'Tags' })).toBeTruthy();
   });
 
+  /**
+   * ***A comma survives being typed*** (2026-09-27). The box split and
+   * re-joined itself on every keystroke, so the comma went the moment it was
+   * typed — and with it any second tag, and the space after it.
+   */
+  it('takes tags typed with commas and spaces between them', async () => {
+    uploads();
+    const client = renderApp();
+    await openEditor();
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'map.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    await userEvent.type(
+      await within(gallery).findByRole('textbox', { name: 'Tags' }),
+      'winter, aerial view',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().media[0]?.tags).toEqual(['winter', 'aerial view']);
+  });
+
   it('says the pictures are never sent', async () => {
     renderApp();
     await openEditor();
@@ -1604,6 +2006,427 @@ describe('image slots on a book and its entries', () => {
     // The one claim §11.2b makes that a mechanism cannot keep — so what is
     // guarded is the sentence.
     expect(screen.getAllByText(/never sent to a model/).length).toBeGreaterThan(0);
+  });
+
+  /** A picture already in the book, the way a save before this test left it. */
+  function picture(id: string, name: string): EmbeddedMedia {
+    return {
+      id,
+      role: 'gallery',
+      tags: [],
+      ref: `assets/${name}.png`,
+      digest: `sha256:${name}`,
+      bytes: 4,
+      mime: 'image/png',
+    };
+  }
+
+  const MAP = '01a008de-7e08-70d0-899c-0000000000a1';
+  const SKETCH = '01a008de-7e08-70d0-899c-0000000000a2';
+
+  /**
+   * ***Removing the cover removes the picture*** (2026-09-27). Two writes, the
+   * row and then the cover, and while both were whole books built from one
+   * render the second put back the first: the cover was unset and the picture
+   * stayed. Seeded rather than added here, because a picture added and removed
+   * in one sitting leaves a book equal to the one loaded — and Save has nothing
+   * to write.
+   */
+  it('removes the cover picture, and the cover with it', async () => {
+    server.handEdit({ ...makeBook(), media: [picture(MAP, 'map')], primaryMediaId: MAP });
+    const client = renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await userEvent.click(within(gallery).getByRole('button', { name: 'Remove picture 1' }));
+    await userEvent.click(
+      within(gallery).getByRole('button', { name: 'Remove', description: /^Remove this picture/ }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.media).toEqual([]);
+    expect(saved.primaryMediaId).toBeNull();
+  });
+
+  /**
+   * ***A picture's buttons say which picture*** (2026-10-01, polish 11). Two
+   * pictures were six buttons with three names between them, which a list of
+   * buttons cannot tell apart.
+   */
+  it('names every picture’s buttons by its number', async () => {
+    server.handEdit({ ...makeBook(), media: [picture(MAP, 'map'), picture(SKETCH, 'sketch')] });
+    renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    for (const n of [1, 2]) {
+      expect(
+        within(gallery).getByRole('button', { name: `Replace picture ${String(n)}` }),
+      ).toBeTruthy();
+      expect(
+        within(gallery).getByRole('button', { name: `Remove picture ${String(n)}` }),
+      ).toBeTruthy();
+      expect(
+        within(gallery).getByRole('button', { name: `Use picture ${String(n)} as the cover` }),
+      ).toBeTruthy();
+    }
+  });
+
+  /**
+   * ***An upload lands in the strip as it is when it lands*** (2026-09-27).
+   * Appending to the list the strip had when the picture was chosen wrote back
+   * that list — so a label typed and a picture removed while the bytes were on
+   * their way both came undone.
+   */
+  it('keeps edits made to the strip while a picture was uploading', async () => {
+    server.handEdit({ ...makeBook(), media: [picture(MAP, 'map'), picture(SKETCH, 'sketch')] });
+    let arrive: (answer: Awaited<ReturnType<typeof api.uploadAsset>>) => void = () => undefined;
+    vi.spyOn(api, 'uploadAsset').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          arrive = resolve;
+        }),
+    );
+    const client = renderApp();
+    await openEditor();
+
+    const gallery = screen.getByRole('heading', { name: 'Pictures' }).parentElement;
+    if (gallery === null) throw new Error('no gallery section');
+    await act(async () => {
+      fireEvent.change(pickerIn(gallery), {
+        target: { files: [new File(['fake'], 'coast.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+
+    // While it is on its way: a label on the first, and the second removed.
+    const [first] = within(gallery).getAllByRole('textbox', { name: 'Label' });
+    if (first === undefined) throw new Error('no label field');
+    await userEvent.type(first, 'The coast');
+    // By the name the second picture's button carries now (polish 11), not by
+    // its place in a list of eight buttons called *Remove*.
+    await userEvent.click(within(gallery).getByRole('button', { name: 'Remove picture 2' }));
+    await userEvent.click(
+      within(gallery).getByRole('button', { name: 'Remove', description: /^Remove this picture/ }),
+    );
+
+    await act(async () => {
+      arrive({
+        asset: { ref: 'assets/coast.png', digest: 'sha256:coast', bytes: 4, mime: 'image/png' },
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(within(gallery).getAllByRole('textbox', { name: 'Label' })).toHaveLength(2);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.media.map((one) => one.ref)).toEqual(['assets/map.png', 'assets/coast.png']);
+    expect(saved.media[0]?.label).toBe('The coast');
+  });
+
+  /**
+   * ***An entry's upload stays with its entry*** (2026-09-27). The page does not
+   * remount when `?entry=` changes, so one strip used to serve every entry in
+   * turn: its *Adding…* followed the person to the next entry they opened.
+   */
+  it('keeps an upload, and word of it, on the entry it was started on', async () => {
+    let arrive: (answer: Awaited<ReturnType<typeof api.uploadAsset>>) => void = () => undefined;
+    vi.spyOn(api, 'uploadAsset').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          arrive = resolve;
+        }),
+    );
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    const strip = screen.getByRole('heading', { name: 'Harbour', level: 3 }).parentElement
+      ?.parentElement;
+    if (strip === undefined || strip === null) throw new Error('no entry section');
+    await act(async () => {
+      fireEvent.change(pickerIn(strip), {
+        target: { files: [new File(['fake'], 'quay.png', { type: 'image/png' })] },
+      });
+      await Promise.resolve();
+    });
+    expect(within(strip).getByRole('button', { name: 'Adding…' })).toBeTruthy();
+
+    await openEditor(BRIDGE);
+    // Bridge has nothing on its way, and nor does anything else on the page.
+    const bridge = screen.getByRole('heading', { name: 'Bridge', level: 3 }).parentElement
+      ?.parentElement;
+    if (bridge === undefined || bridge === null) throw new Error('no entry section');
+    expect(within(bridge).getByRole('button', { name: 'Add a picture' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Adding…' })).toBeNull();
+
+    await act(async () => {
+      arrive({
+        asset: { ref: 'assets/quay.png', digest: 'sha256:quay', bytes: 4, mime: 'image/png' },
+      });
+      await Promise.resolve();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.entries.find((one) => one.id === HARBOUR)?.media).toHaveLength(1);
+    expect(saved.entries.find((one) => one.id === BRIDGE)?.media).toEqual([]);
+  });
+});
+
+/**
+ * ***An assist belongs to its field*** (2026-09-27).
+ *
+ * The page does not remount when `?entry=` changes, and the assist control used
+ * to be one instance serving whichever entry was open: its *Writing…* followed
+ * the person to the next entry, about text that was going somewhere else. Keyed
+ * by its field, the control goes when the field does — so the running request,
+ * and a failure that lands while the person is elsewhere, are held by the
+ * editor and drawn by whichever control is the field's now.
+ */
+describe('an assist belongs to its field', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('keeps its progress on the entry it was started on', async () => {
+    const client = renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    expect(screen.getByRole('button', { name: 'Writing…' })).toBeTruthy();
+
+    await openEditor(BRIDGE);
+    // Neither the running request nor Harbour's open panel follows the person
+    // to Bridge's field.
+    expect(screen.queryByRole('button', { name: 'Writing…' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Write it' })).toBeNull();
+
+    await answerAssist(0, 'A wet quay under sodium light.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.entries.find((one) => one.id === HARBOUR)?.content).toBe(
+      'A wet quay under sodium light.',
+    );
+    expect(saved.entries.find((one) => one.id === BRIDGE)?.content).toBe('');
+  });
+
+  it('says on return that it failed while the person was elsewhere', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+
+    await openEditor(BRIDGE);
+    await failAssist(0, new Error('the network went away'));
+    expect(screen.queryByText('The assist did not finish.')).toBeNull();
+
+    await openEditor(HARBOUR);
+    expect(await screen.findByText('The assist did not finish.')).toBeTruthy();
+  });
+
+  /**
+   * *Undo the assist* returns what the field held when the answer landed. It
+   * returned what it held at the click, so a paragraph typed into the field
+   * while the model wrote was replaced by the answer and then not brought back
+   * by undoing it either.
+   */
+  it('undoes to what was typed while the model was writing', async () => {
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
+
+    await answerAssist(0, 'A wet quay under sodium light.');
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty(
+        'value',
+        'A wet quay under sodium light.',
+      );
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Undo the assist' }));
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty('value', 'Cranes.');
+  });
+
+  /**
+   * An answer written for the form a restore replaced is not put into the
+   * restored version — it was never about that text — and the restore's own
+   * notice stays up rather than being cleared by a write nobody made.
+   */
+  it('is not put into a version restored while it was running', async () => {
+    const restored = { ...makeBook(), name: 'Ardent, as it was' };
+    vi.spyOn(api, 'history').mockResolvedValue({
+      versions: [
+        {
+          id: 'version-1',
+          digest: 'sha256:then',
+          revision: 1,
+          authoredAt: '2026-09-01T00:00:00.000Z',
+          recordedAt: '2026-09-01T00:00:00.000Z',
+          source: { kind: 'user' },
+          reason: '',
+          authorVersion: null,
+          pinned: false,
+        },
+      ],
+    });
+    vi.spyOn(api, 'restoreVersion').mockImplementation(() => {
+      server.handEdit(restored);
+      return Promise.resolve({
+        contentHash: server.envelope().contentHash,
+        object: structuredClone(restored),
+      });
+    });
+    renderApp();
+    await openEditor(HARBOUR);
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'History' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+    await screen.findByText(/^Version restored\./);
+    expect(screen.getByRole('textbox', { name: 'Book name' })).toHaveProperty(
+      'value',
+      'Ardent, as it was',
+    );
+
+    await answerAssist(0, 'A wet quay under sodium light.');
+
+    expect(
+      await screen.findByText(
+        'A version was restored while this was being written, so it was not put in.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty('value', '');
+    expect(screen.getByText(/^Version restored\./)).toBeTruthy();
+  });
+});
+
+/**
+ * ***Writes that land late*** (2026-09-27) — [10 §11.5]: *"every field stays
+ * directly typeable while an assist is running"*.
+ *
+ * Every write on this page used to build the whole next book from the book as
+ * the render had it — invisible for a click, and wrong for anything that lands
+ * later. The assist's result wrote back the book as it was when *Write it* was
+ * pressed, and whatever had been typed since went with it: in another entry,
+ * out of sight, with the *unsaved* mark cleared as well. The instrument is an
+ * assist that waits for the test to answer it.
+ */
+describe('writes that land late', () => {
+  it('keeps what was typed elsewhere while an entry was being written', async () => {
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    expect(assist.asked[0]?.path).toBe(`entries.${HARBOUR}.content`);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Isles');
+    await answerAssist(0, 'A wet quay under sodium light.');
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty(
+        'value',
+        'A wet quay under sodium light.',
+      );
+    });
+    expect(screen.getByRole('textbox', { name: 'Book name' })).toHaveProperty(
+      'value',
+      'Ardent Isles',
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.name).toBe('Ardent Isles');
+    expect(saved.entries.find((one) => one.id === HARBOUR)?.content).toBe(
+      'A wet quay under sodium light.',
+    );
+  });
+
+  it('keeps an entry typed in while the book’s name was being written', async () => {
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    await startAssist(screen.getByRole('textbox', { name: 'Book name' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Content' }), 'Cranes.');
+    await answerAssist(0, 'The Ardent Isles');
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Book name' })).toHaveProperty(
+        'value',
+        'The Ardent Isles',
+      );
+    });
+    expect(screen.getByRole('textbox', { name: 'Content' })).toHaveProperty('value', 'Cranes.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    const saved = server.stored();
+    expect(saved.name).toBe('The Ardent Isles');
+    expect(saved.entries.find((one) => one.id === HARBOUR)?.content).toBe('Cranes.');
+  });
+
+  /**
+   * A write addressed to an entry that has gone has nowhere to land — and the
+   * whole-book write this replaced *made* somewhere: the entry came back, with
+   * the model's paragraph in it, after the person had removed it.
+   */
+  it('does not bring back an entry removed while its assist ran', async () => {
+    const client = renderApp();
+    await openEditor(HARBOUR);
+
+    await startAssist(screen.getByRole('textbox', { name: 'Content' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove this entry' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await answerAssist(0, 'A wet quay under sodium light.');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+
+    expect(server.stored().entries.map((each) => each.name)).toEqual(['Bridge']);
+  });
+
+  /**
+   * ***Under StrictMode, which is how the app runs*** (`main.tsx`) and no other
+   * test here does. React runs a state updater twice in StrictMode, so an entry
+   * minted inside the write would be a different entry from the one the page
+   * then selects — and the editor would open on *"That entry is not in this
+   * book"* for the entry it had just made.
+   */
+  it('opens the entry it made, under StrictMode', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <StrictMode>
+        <QueryClientProvider client={client}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+    await openEditor();
+
+    await userEvent.click(screen.getByRole('button', { name: 'New entry' }));
+
+    expect(await screen.findByRole('heading', { name: 'Untitled entry', level: 3 })).toBeTruthy();
+    expect(screen.queryByText('That entry is not in this book. Choose one from the list.')).toBe(
+      null,
+    );
   });
 });
 
@@ -1717,6 +2540,9 @@ describe('the hooks a lorebook carries', () => {
 
     await userEvent.click(
       screen.getByRole('button', { name: 'Remove The Flower Kingdom declares war' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove', description: /^Remove this hook/ }),
     );
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 

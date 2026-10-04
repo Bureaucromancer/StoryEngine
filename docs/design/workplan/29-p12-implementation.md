@@ -60,6 +60,26 @@ From the inside, three of the four consistency questions are already answered:
   the one file a crash can leave half-written."* A restored install drops the
   partial turn and keeps the story.
 
+*Corrected 2026-09-27, by the audit that fixed it.* **The second bullet was true
+of a reader that opens a file once, and the archive writer was not one.** It
+took each file's size from the walk and opened the file later, by path, so a
+save in between put a *different file* under a header describing the old one:
+cut off, or padded with NULs, which is JSON that will not parse, in a backup
+that reported success. Each member is now sized from the handle it is read
+through (`writeTarGz`), which pins the file a rename would otherwise swap. Three
+smaller things went with it. A backup that did not fit found out by filling the
+disk, and a scheduled one did so hourly: it now checks for room before the
+snapshot (`507 no-space` from the route), and a failing scope is announced once.
+A removed account's archives and trash were archived from `removed/`, keys and
+all, `redacted` or not, and are now left out like the live ones'. And what a
+killed backup left, a `.part` and a copy of the store, is swept at the next boot.
+
+*And the third bullet was true of the read, not of the next write* (corrected
+the same day). A restored install did drop the partial turn when it read the
+segment. The first turn played after the restore was then appended onto the end
+of that partial line, and the story lost that turn as well. Appends now end a
+torn line first ([03 §11.2](../03-data-model.md)'s correction).
+
 So the in-process backup is **strictly more consistent** than
 `pnpm backup create`, not less. E6's sentence was true of the thing E6 was
 describing and does not generalise to this.
@@ -178,6 +198,19 @@ parses filenames rather than reading a table: **the directory is the record.**
 an hour and a machine that is up for a month want different halves and a machine
 that is usually up wants both.
 
+*Added 2026-09-27:* **the directory is the record only while its dates are
+true.** An archive's time is read from its id, and the shared id generator is
+monotonic, so after a clock that had been ahead was put right, every archive
+went on carrying the time it had reached. The newest stood in the future,
+*older than the frequency* was never true, and scheduled backups stopped
+without a word until the clock caught up. Each archive now takes its id from a
+generator of its own, so it carries the time it was taken; and the schedule
+measures from the newest archive that is not more than ten minutes ahead of
+the clock, and logs `backup.futureStamped` once when that is not the newest
+listed. And the route's *the queue serialises them* had no queue behind it:
+`takeBackup` now writes one archive at a time on a data directory, whoever
+asked.
+
 ### 1.5 A feature in its own document, and a branch that is not `p12`
 
 [P11 §1.1](28-p11-implementation.md)'s rule ejects features from a hardening
@@ -275,6 +308,21 @@ on"*, and a backup has one.
 *And the default policy is `skip` rather than `sweep`'s `replace`*, because a
 backup meeting a live account is the past meeting the present.
 
+***Corrected 2026-09-27: the bounds were the upload's, and the pictures were
+left behind.*** The bounds were `zip.ts`'s upload limits, applied to every
+member, so another account, the operational store and each object's history
+counted against an import that reads none of them. An account of about eighty
+edited objects is more than 4,096 files and was refused as *could not be read*. Now only what the import reads is held
+and counted, against limits sized for a backup (`importedBy`,
+`BACKUP_IMPORT_LIMITS`); every member is still checked for escaping. And **the
+reader dropped every picture**. An actor was created on the blank 1×1 card and
+not the archived one, so its portrait was gone and every expression answered
+*the bytes are missing*. A folder kind's `assets/` were skipped as *not the
+object*, so every gallery named files that were not there. The review said
+`created` throughout. The archived card is now the canvas, `assets/` ride on the
+object's candidate, and a `replace` keeps the portrait here and gains the
+archive's blobs, so the rows it writes resolve.
+
 ### P12.9 — Import routes, and what is optional
 
 Apply then report, through `sweep` and `import/jobs.ts`, so a backup import
@@ -283,6 +331,13 @@ Work and tags always; **provider connections, preferences and configuration
 each a checkbox, each off by default, each reported whether taken or not**. A
 configuration import refuses `dataDir` and `server.clientRoot`: both are paths
 on another machine.
+
+*Amended 2026-09-27.* **And the four keys that say where the other machine
+listened and what stood in front of it** — `server.host`, `server.port`,
+`server.cookieSecure`, `server.trustProxy`. A laptop's `127.0.0.1` imported into
+a container outranked `SE_HOST` at the next start and bound the container's own
+loopback. The refusal is *by name* now as well: the review says which keys the
+archive carried and this install kept, which it had not.
 
 ***This stage was planned as "preview then apply" and shipped as "apply then
 report", which is a correction rather than a cut.*** The plan named
@@ -302,6 +357,22 @@ questions the controls actually turn on. The safety story is the one a sweep
 already has and it is written down rather than assumed: `skip` is the default
 so nothing here is touched, `replace` writes what was here into the object's
 history first, and a session is never replaced at all.
+
+***Corrected 2026-09-27: a session was never replaced, and never left alone
+either.*** Nothing asked whether one was here, so every import of somebody's own
+backup made a second copy of every session, and the next import a third. The
+copies kept the turn ids ([P11.10]'s decision), and the index holds one row per
+turn id, so each copy took the original's search rows. An imported session also
+had no index row, its turns still named the session they were exported from, and
+its renditions were counted and not written. Now a session is skipped when it is
+here under its own id, in the trash, or when its turns are already on the
+install. An imported one is indexed, its turns name it, and its pictures arrive
+with their pixels. **The tag merge threw on a name clash** (`npc` minted on
+two installs) after the library had been written, so no session ever came from
+such an archive. It now runs inside `TagStore.mutate`, reads the archive with
+`readTagRegistry`, and keeps the tag here. **And the settings refusal came last**:
+a person ticking *settings* on their own archive got a 403 over a library, tags
+and sessions already written. It is now the route's first check.
 
 ### P12.10 — The import flow
 
@@ -373,12 +444,38 @@ existence is a condition is worth building against a route that already refuses.
 
 ### P12.12 — The swap, on the next boot
 
-Before `buildServices`, which opens handles and stamps the directory. Unpack to
-a sibling, rename the live directory aside, rename the new one in.
+Before `buildServices`, which opens handles and stamps the directory. ~~Unpack
+to a sibling, rename the live directory aside, rename the new one in.~~
 ***The marker needs no deletion***, and that is the property worth having: it
 lives in the directory that just moved aside, so a successful restore cannot
 leave one behind and an unsuccessful one keeps exactly the state that describes
 itself. A second attempt refuses rather than looping.
+
+*Corrected 2026-09-27, by the audit that fixed it.* **The sibling swap could not
+run where this ships.** Staging beside the data directory and renaming it aside
+both write in the data directory's parent: in Docker and on unraid that is a
+mount point in a root-owned directory, and under the systemd unit
+(`ProtectSystem=strict`) everything but the data directory is read-only. So the
+restore failed with `EACCES`, `EROFS` or `EBUSY` everywhere except a bare
+checkout, and no test could see it, because a test's temporary directory has a
+writable parent. And when the second rename did fail, the catch booted an
+**empty install** with a setup token and logged *unchanged*, with the real data
+in a sibling nothing named. Three further things were wrong around it: a swap
+moved `backups/` and everyone's own archives aside with the install, which
+emptied every backup list; the archive's read error was an uncaught exception,
+a crash on every start; and a second restore request deleted the first one's
+marker.
+
+What replaced it (`backup/swap.ts`): unpack into `<data>/.restore/<id>/staging`,
+write a journal at `<data>/.restore/swap.json` before the first move, then move
+the install's own entries into `.restore/<id>/replaced` and the archive's into
+their places, one at a time. A move that fails is moved back; a boot that died
+part way finishes from the journal; a failure to move back refuses the boot
+(`stranded`) and names both halves. `backups/` never moves, and each person's
+own archives are carried across. An entry that is not StoryEngine's and not in
+the archive (`lost+found` on a volume of its own) stays where it is. The
+`*Ends at*` below keeps its words; the undo it names is now
+`.restore/<id>/replaced`.
 
 ***It returns rather than logs, and that is not a small point.*** The swap runs
 before `buildServices`, which is before `buildApp`, which is where the logger
@@ -402,8 +499,9 @@ that moved aside **is** the undo, and *your previous data is safe* without
 saying where would be worse than saying nothing.
 
 *Ends at:* a restored install serves the sessions the archive was taken from,
-with the index rebuilt rather than carried — and `data.replaced-<uuid>` sitting
-beside it, which is the undo.
+with the index rebuilt rather than carried — and ~~`data.replaced-<uuid>`
+sitting beside it~~ `.restore/<id>/replaced` inside it *(2026-09-27, as above)*,
+which is the undo.
 
 ### P12.13 — The restore control, and Part 2's corpus
 

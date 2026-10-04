@@ -47,6 +47,11 @@ install.
 needed — gating the discovery endpoint behind the thing being discovered leaves
 the UI with a 503 and no way to read it.
 
+**The gate asks which route the request reached, not how its path was spelled**
+(2026-09-27). The router decodes a path before matching it, and the gate read
+the raw one, so `/%61pi/…` reached every route past it. The same is true of the
+CSRF check below.
+
 ### CSRF
 
 Double-submit: `se_csrf` is a script-readable cookie, and its value must come
@@ -58,6 +63,13 @@ authority to abuse — forging either requires already knowing the password — 
 requiring a token there would be a bootstrap paradox, since the token is issued
 *by* signing in. `SameSite=Lax` covers the login-CSRF gap that leaves.
 
+**At every address** (2026-09-27). The check was limited to paths spelled
+`/api/…`, and the router also answers `/%61pi/…`, so a page on another port of
+the same machine could restart the server or post into a signed-in person's
+library with no token. Outside `/api` only `GET` and `HEAD` are served, so the one
+visible change is that a signed-in `POST` to an address nothing serves is `403
+csrf` rather than the page.
+
 ### Sessions
 
 A signed stateless cookie, 14 days, `httpOnly` + `SameSite=Lax`. **No `secure`
@@ -68,6 +80,12 @@ be logged in.
 Logout clears the cookie. A copy already taken elsewhere stays valid until it
 expires; that is the honest cost of having no session table, argued in
 `packages/server/src/auth/session.ts`.
+
+**The cookie names one account, not a handle** (2026-09-27). It carries the
+account's `createdAt` beside the handle, and a request whose account was created
+at another time is anonymous. Before, a removed account's cookie signed into the
+next account given the same handle. A cookie from before this has no
+`createdAt` and is refused, so everyone signs in once more after upgrading.
 
 **A password change does not end them either**, and neither does an
 administrator disabling the account — for the second, the identity hook re-reads
@@ -182,8 +200,9 @@ admin answers `409 already-setup` instead — the honest reason, rather than a
 token refusal about a route that no longer applies.
 
 `handle` becomes a directory name, so it is validated hard: lowercase letters,
-digits and hyphens, 1–63 characters, not ending in a hyphen, and not a Windows
-reserved device name.
+digits and hyphens, 1–63 characters, starting with a letter or a digit, not
+ending in a hyphen, and not a Windows reserved device name. One that breaks the
+rule is `400 invalid` with the rule as the message (2026-09-27; it was a `500`).
 
 `locale` is defaulted from `Accept-Language`.
 
@@ -193,7 +212,9 @@ reserved device name.
 
 **One answer for a wrong password, an unknown handle and a disabled account.**
 The caller cannot tell which, which costs nothing here and avoids a handle
-oracle.
+oracle. ***Nor from how long it took*** (2026-09-27): an unknown or disabled
+handle pays the same key derivation a wrong password does. It answered in about a
+millisecond against fifty, which listed the handles a request each.
 
 **No length rule applies here, deliberately.** An empty password is a legitimate
 request — legal wherever `auth.minPasswordLength` is `0`, and possible on any
@@ -273,9 +294,13 @@ files that sit where an object should and cannot be read as one.
 Static, so it is not a `:kind`; `errors` is not a library directory either.
 
 `reason` is `unparsable` (the bytes are not JSON, or not a card), `wrong-kind`
-(it parses, but declares another schema or has no id), or `schema` (it is that
-kind and fails validation). `detail` is the parser's or the validator's own
-complaint, which is the part anyone can act on. `path` is **relative to the data
+(it parses, but declares another schema or has no id), `schema` (it is that
+kind and fails validation), `unusable-name` (the folder is named something this
+build will not open, such as `con`), `unreadable` (the file is there and cannot
+be read — its permissions, or a directory where the file should be), or
+`refused-path` (it is a link that leads out of the data directory). `detail` is
+the parser's or the validator's own complaint, which is the part anyone can act
+on. `path` is **relative to the data
 directory**: the client needs to know which file, not where the server keeps its
 disk.
 
@@ -286,12 +311,25 @@ who saved the file got no error, no toast, and a stale object
 ([03 §5.1](design/03-data-model.md)). An entry clears when the file parses again,
 or when it is deleted.
 
+The library page lists these over its list, and since 2026-09-28 the page of an
+object whose file broke after it was read says so where it is opened — the
+reason, the complaint and the path — with Edit withheld and Delete kept. It is
+matched by `source`, `kind` and `slug`, which is all a broken file still has.
+
 ### `POST /api/library/:kind`
 
 Body is the portable object, or `{ object }`. → `201 { id, slug, contentHash, object }`.
 
 The slug is derived from `name` here, once, and then frozen. Duplicates get a
 numeric suffix from `-2`.
+
+**`{ object, copyOf }` makes a copy that brings its pictures** (2026-09-27).
+`copyOf` is the id of the object this one copies — readable by the account and
+of the same kind, or the create is `404` and nothing is written. A picture is
+bytes the JSON only names, so without it a copy's every picture was broken:
+with it, an actor is written into the source's card, which carries its portrait
+and its expressions, and any other kind gets the source's file for each picture
+row the copy names. Honoured only in the envelope, never on a bare object.
 
 **Read-after-write is guaranteed**: a `GET` immediately after this reflects it.
 The server indexes its own writes synchronously; the watcher is only for foreign
@@ -311,10 +349,13 @@ nothing. An address that matches no row is `404`, including one that names the
 
 Three things it deliberately is not. It is **read-only**: no write takes it, so
 a `PUT` still resolves to the winner and a duplicate stays a warning rather than
-becoming a fork. It is **not the canonical address**: an object is its id, and
-this narrows a read the way a filter does. And it is **`slug`, not the path** —
-the stored path is the native absolute one and differs by platform, while the
-folder name is the same string everywhere.
+becoming a fork. (The two other reads of an object take it too —
+[`/download`](#get-apilibrarykindiddownload) and
+[`/export/:format`](#get-apilibrarykindidexportformat), since 2026-09-27 — so a
+copy's page hands over that copy's file.) It is **not the canonical address**:
+an object is its id, and this narrows a read the way a filter does. And it is
+**`slug`, not the path** — the stored path is the native absolute one and
+differs by platform, while the folder name is the same string everywhere.
 
 ### `PUT /api/library/:kind/:id`
 
@@ -327,7 +368,9 @@ the exit gate should not need one.
 - `428 {"error":"hash-required"}` if you sent none.
 - **`412 {"error":"stale", "current": …envelope}`** if the object moved since you
   read it.
-- **`409 {"error":"diverged"}`** if the file on disk cannot be read at all.
+- **`409 {"error":"diverged"}`** if the file on disk cannot be read as an object
+  of its kind: it will not parse, it names another kind or no id, or it fails
+  its schema. ~~cannot be read at all~~ (corrected 2026-09-28 — below).
 
 **The 412 is the interesting one.** It carries the *current* object so the UI can
 offer reload-and-reapply or save-as-a-copy rather than guessing
@@ -348,6 +391,15 @@ edit is still `412`, and **its envelope describes the file rather than the index
 row**, so the hash differs from the one you sent and reload-and-reapply works at
 once instead of after the watcher settles. Unreadable bytes are `409 diverged`
 with no envelope, because handing back the stale row is what invited the retry.
+
+**"Unreadable" is the index's word for it, not the parser's** (2026-09-28). The
+line was drawn at *does it parse*, and the index draws it at *would I take it*:
+a file that is JSON and not a valid lorebook is quarantined with the last good
+row kept, like one that is not JSON at all. The writes called it an edit, so a
+save was a `412` whose envelope was the refused file and the loop was back, and
+a `DELETE` was a `412` every time. Both paths now ask the index's own check
+(`acceptObject` in `index-db/ingest.ts`), so such a file is `409 diverged` on
+save and deletable — the same answers as bytes that do not parse.
 
 An object cannot change its `id` or its `schema`. System-owned objects are
 `403 {"error":"read-only"}` — copy-to-my-library is the intended move.
@@ -409,7 +461,8 @@ converted, `200 { item, notes }` when it did not.
 `item` is one row of the import review's vocabulary — `{ source, disposition,
 notes, objectId? }` — where `source` is the filename **as it arrived**, never a
 path ([21 §4.1.1](design/21-internal-contracts.md)). `disposition` is
-`converted`, `recorded` or `unrecognised`, and the middle one is the interesting
+`converted`, `recorded` or `unrecognised` — or `unchanged`, for a re-upload of
+what is already here — and `recorded` is the interesting
 answer: a PNG card today is a file this build converts at **P4.2**, so it is
 reported as *not yet* rather than refused as broken. Answering `4xx` would tell
 somebody their file is wrong when the truth is that the build is unfinished.
@@ -420,10 +473,72 @@ prose ([P4 §1.4](design/workplan/16-p4-implementation.md)).
 - `413 {"error":"too-large"}` over `limits.maxUploadMb`, **read per request**.
   That is what moved the key from `unread` to `applied` after three phases as
   the standing example of a live key nobody read: raise the limit in Settings and
-  the next upload takes the file, without a restart. Fastify's constructor
-  `bodyLimit` stays as the outer bound.
+  the next upload takes the file, without a restart. ~~Fastify's constructor
+  `bodyLimit` stays as the outer bound.~~ *Corrected 2026-09-27:* Fastify's
+  `bodyLimit` never sees a multipart body, so this is the only bound. **Since
+  [P13.8](design/workplan/30-p13-aventuras-import.md) a zip or a SQLite database
+  is bounded by `limits.maxImportUploadMb` instead** (below), and the message
+  names which of the two refused it. A request whose declared length is past
+  both is refused before its body is read.
 - `415 {"error":"not-multipart"}` for a body that is not multipart.
 - `400 {"error":"no-file"}` for a multipart body with no file in it.
+- `507 {"error":"no-space"}` when there is no room on the disk: for 1.1× a
+  landed upload and a reserve before it is written (below), or for the copy of
+  an Aventuras database the sweep reads from.
+- `503 {"error":"upload-busy"}`, with `retry-after`, when another **large**
+  upload is being landed — one declared larger than `limits.maxUploadMb`, or
+  declaring no length at all. One at a time, server-wide, because the disk is.
+- `408 {"error":"upload-stalled"}` when the file stopped arriving for a minute
+  part way through.
+
+**Every refusal made before the body has been read through carries
+`Connection: close`** ([P13.8](design/workplan/30-p13-aventuras-import.md)). A browser sending a large body reads nothing
+until it has finished sending, so a refusal left on an open connection reaches
+it as a reset rather than as this answer; closing is what lets the answer
+through. It is not a guarantee, and a client should read a dropped connection
+during an upload as *the server or something in front of it refused this*.
+
+**A zip or a SQLite database is landed, not buffered** —
+[P13.8](design/workplan/30-p13-aventuras-import.md). The first sixteen bytes are
+sniffed (across however many chunks they arrive in), and a file that begins
+like a zip or like SQLite is written to the import scratch root as it arrives,
+under `limits.maxImportUploadMb` — a limit of its own, which can be set below
+`maxUploadMb` — and read from there. Everything else is buffered as before.
+**A zip** is swept as a root, read on disk with the limits split: an entry is
+held to four times the import limit by its declared size, anything read into
+memory to 64 MB, and the archive's total to 256 MB of what was actually read —
+so an Aventuras backup's database is inflated to scratch at whatever size, and
+the `stories/*.avt` an old backup carries beside it cost nothing. **A bare
+SQLite database**, whatever it was called, is swept as an Aventuras root of one
+file, `aventura.db`, from where it landed; one that is not Aventuras' is
+refused by the reader's column gate, `unrecognised` with an
+`import.file.refused` note.
+
+**A root's answer carries its whole review** —
+[P13.7](design/workplan/30-p13-aventuras-import.md). A zip, a database or a
+Marinara envelope is swept as a root, and its answer is `{ item, notes, report }`:
+`item` and `notes` summarise it as one file (the first converted row, and every
+note), and `report` is the sweep's `{ jobId, source, items, counts }` row by row,
+exactly as `/import/sweep` and `/import/directory` answer — so a second upload
+of the same backup reads `unchanged` row by row, as a second sweep of its folder
+does. ~~`jobId` is `unsaved`: neither upload door records a job.~~ A single file's
+answer has no `report`; its one row is the review.
+
+***An upload is recorded*** (2026-09-28), as a sweep is, and the answer carries
+its `jobId` — beside `item` for one file, and in `report` for a root — so the
+review opens again from `GET /api/import/jobs` and the object's page shows what
+the import said about it. Uploads were never recorded, so neither worked for
+anything a browser sent. The job's `root` is the file's name, and the job is
+marked an upload, so *Update from source*
+(`POST /api/import/sessions/:sessionId/update`) never mistakes a file name for a
+path it can open again: a session from an uploaded chat still answers
+`409 no-recorded-source`, and the client offers the file picker.
+
+***When nothing in a root converted, `item` says what its rows say*** (2026-09-28):
+`unchanged` when anything in it was already here, and otherwise the first row's
+disposition. It was `recorded` whatever happened, so an archive uploaded twice
+said *read, and nowhere to put it* of a second upload whose every row said
+*already here*. The status follows it: `201` only when something converted.
 
 CSRF applies exactly as it does to every other mutation. An upload form is
 precisely where one would be tempted to make an exception, so there is a test
@@ -442,6 +557,39 @@ upload over a spelling is the worse answer.
 source with a genuine choice becomes. It follows the same before-the-file rule
 and the same unknown-is-absent rule, for the same reasons.
 
+**An optional `stories` field** — the word `true` — brings an Aventuras
+database's or backup's stories across as sessions, as the sweep's `stories`
+does ([P13.11](design/workplan/30-p13-aventuras-import.md)); anything else,
+or no field, is the default, which writes none. The same before-the-file rule
+applies. Every other kind of upload ignores it — **including an Aventuras
+story file**, below, which brings its story whatever the field says.
+
+**An Aventuras story file (`.avt`)** — [P13.15](design/workplan/30-p13-aventuras-import.md) —
+is recognised by its contents, whatever it is called: a JSON object whose
+`story` is an object and whose `entries` is an array, which is what
+Aventuras' own importer requires. It is one story, and becomes one session
+exactly as the same story does from the database (the sweep's `stories`,
+below): the same turns, cast, lorebook and illustrations, **under the same
+key**, `aventura.db/stories/<id>` from the story's id in the file — so a story
+brought across from the database and then from its file, or the other way
+round, is `unchanged` with `import.aventuras.storyAlreadyHere` the second
+time, naming the session the first made. The row's `source` is the file's
+name. **No `stories` field is needed**: the opt-in keeps a library sweep from
+filling the session list, and one file picked and previewed is a request for
+that story. What a file cannot carry: **backdrops** — `background_images` is
+not in a `.avt`, and the one backdrop a file may hold has no branch, so it is
+left out (`import.aventuras.avtBackdropNotCarried`), as Aventuras' own import
+leaves it. **The format is gated** as Aventuras reads it: `1.x` up to the
+pin's `1.10.0` imports, an older one as far as it goes
+(`import.aventuras.avtOlderFormat` — before 1.6.0 there are no branches, before
+1.4.0 no pictures), a newer `1.x` with `import.aventuras.avtNewerFormat` at
+`warn`; any other major, or a version that is not one, is `unrecognised` with
+`import.aventuras.avtUnknownFormat` and writes nothing, as is a file whose
+story has no id or that nests past 64 levels (`import.aventuras.avtUnreadable`).
+The file is buffered under `limits.maxUploadMb` like any JSON, and read once:
+its pictures stay in those bytes, measured and held to the 64 MB bound before
+each is decoded, one at a time.
+
 Exactly one format reads it, and that is the point rather than a limitation. A
 character card is an Actor and a world file is a Lorebook; neither poses a
 question, and a control over either would be a control with one answer.
@@ -452,12 +600,56 @@ the default and is what StoryEngine calls the unconflated version of that;
 `lorebook` is for a scenario whose setting prose is really a setting bible, and
 it costs the opening messages, which a lorebook has nowhere to hold.
 
+**A chat file becomes a session** —
+[P14.8](design/workplan/31-p14-scene-and-session-import.md). A SillyTavern chat,
+or Marinara's per-chat export of the same format, is JSON Lines, and it is
+recognised by its **content**, never its `.jsonl` name: two object lines, a
+header carrying `chat_metadata`, or — an old group chat holding only its
+greeting — one message line. It is read, its characters and persona are found in
+the account's library, and it is loaded as a new session in Play: `201` with
+`disposition: converted`, the new **session's** id as `item.objectId`, and an
+`import.chat.imported` note first. A chat a session here already holds entirely
+answers `200` `unchanged` with `import.chat.alreadyHere`. One whose beginning a
+session holds and which has grown in its source since answers `recorded` with
+`import.chat.grownSince`, counting the turns left out: updating a session from
+its source is [P14.10a](design/workplan/31-p14-scene-and-session-import.md)'s,
+and until then a grown chat is neither unchanged nor a second copy.
+
+**An optional `kind` field, `chat`, makes this door take a chat and nothing
+else.** A file that is not one answers `unrecognised` with
+`import.file.unrecognised` and nothing is written — the archive and envelope arms
+are not tried, and neither is the `.avt` arm; an archive, landed on disk since
+[P13.8](design/workplan/30-p13-aventuras-import.md), is refused before it is
+opened. It follows the before-the-file rule. Play's *Import session* sends
+a `.jsonl` here with `kind: chat` and opens the returned id; without the field, a
+`.jsonl` that was really a card would land in the library from a control that
+promised a session.
+
 ### `POST /api/import/file/preview`
 
 **What that upload would do, with nothing written.** `multipart/form-data` with
-one file part → `200 { preview }`. Same limits, same three transport refusals and
+one file part → `200 { preview }`. ~~Same limits, same three transport refusals and
 the same CSRF rule as `/import/file`, because both doors read the part through
-the same function.
+the same function.~~ *Since [P13.8](design/workplan/30-p13-aventuras-import.md)*
+the same three transport refusals and the same CSRF rule, and **not the same
+limits**: this door still buffers every file under `limits.maxUploadMb`, and
+lands nothing. An archive or a database is only ever answered *this is a folder
+in a file*, which the client knows from the file's first bytes without sending
+it — so the client does not send one here at all, and a large backup is not
+uploaded twice to be told what its name already said. **Since
+[P13.7](design/workplan/30-p13-aventuras-import.md) a SQLite file is answered
+the same way as a zip** — `import.file.importsAsFolder` and `{ kind: 'sweep' }`,
+by its first sixteen bytes and whatever it was called — where it had been
+`unrecognised` for bytes `/import/file` imports. The database is not opened to
+answer: whether it is an Aventuras database this build can read is the column
+gate's question at the commit, which can still refuse it.
+
+***A Marinara envelope is answered as the commit will answer it*** (2026-09-28):
+`importsAsFolder` for one that unpacks, and `recorded` with
+`import.file.notYetConvertible` for one this build cannot unpack yet — a chat
+preset, a settings profile, a memory recall. Every envelope was previewed as
+*everything inside would be imported*, and the commit then imported nothing of
+those.
 
 `preview` is `{ source, disposition, notes, advisories, object, reimport }`.
 `disposition` and `reimport` are **predictions**, not records — the file could
@@ -468,7 +660,13 @@ change underneath, and the commit's answer is the real one.
   blurb, framingChars, cast, openings, destination, alternatives }` for an
   Aventuras scenario, `{ kind: 'sweep' }` for an archive or a Marinara envelope,
   `{ kind: 'opaque', name }` for something that converts and has no summary yet,
-  and `null` when nothing would be imported.
+  and `null` when nothing would be imported. **An Aventuras story file** is
+  `{ kind: 'opaque', name }` with the story's title, and its first note,
+  `import.aventuras.avtStory`, says which story, which format version, and how
+  many entries and branches it holds; its `reimport` is `new`, or `unchanged`
+  with `import.aventuras.storyAlreadyHere` when the story's key already names a
+  session here — answered from the key, without converting anything
+  ([P13.15](design/workplan/30-p13-aventuras-import.md)).
 - The scenario arm is the only one carrying a **question** rather than only
   statements: `alternatives` is what it could also be converted to, so a client
   can offer the switch without knowing which formats have a choice. It takes the
@@ -502,7 +700,7 @@ and move the credential rule from the server to the client.
 
 ### `POST /api/import/sweep`
 
-`{ root, onConflict? }` → `200 { report }`. Points the server at a folder on its
+`{ root, onConflict?, stories? }` → `200 { report }`. Points the server at a folder on its
 own filesystem and imports what it finds.
 
 **Gated on `fileAccess`**, as [10 §4.2.2](design/10-ui-surfaces.md) widened it —
@@ -520,14 +718,179 @@ a symlink into the data directory is refused like a literal one.
 - `422 {"error":"live-install"}` — the source application is running, or is
   part-way through an upgrade. Reading it produces a torn library *quietly*,
   which is why this refuses rather than warns.
-- `422 {"error":"unknown-format"}` — written by a newer version than this build
-  reads.
+- `422 {"error":"unknown-format"}` — a format this build does not read: written
+  by a newer version (a Marinara store), or missing a part this build needs (an
+  Aventuras database without a table or column it reads).
 - `422 {"error":"ambiguous-root"}` — the folder probes as two applications at
   once. A wrong guess would convert a library through the wrong tables and the
   review would report that it went fine, so this refuses rather than picks.
+- `507 {"error":"no-space"}` — an Aventuras folder is read from a private copy of
+  its database, taken into this install's data directory first
+  ([P13 §1.2](design/workplan/30-p13-aventuras-import.md)), and there is not
+  room for one. The message carries the numbers. Not a refusal of the folder,
+  so it is not in the import ledger: the same request succeeds once there is room.
 
 Every refusal happens **before anything is written**. A refusal after the first
 object is a half-import, which is worse than none.
+
+**An Aventuras folder** — a config directory, or an unzipped backup — is one
+database, and its review is a row for the database, one per table (with its row
+count), one per prompt pack (below), one per story (with what that story holds
+across all its branches — a branch's edits and deletions left out) and one per
+other file in the folder;
+SQLite's own `-wal`, `-shm` and `-journal` are part of the database and not rows
+of their own. **Since P13.3 its characters convert**: `character_vault` has no
+row of its own, and instead each of its rows is one — an actor, with the source
+`aventura.db/character_vault/<id>` that a re-import is recognised by, and its
+portrait carried (a PNG as the card's image, a JPEG or WebP as the card's
+`portrait-source` media on a blank card). **Since P13.4 its lorebooks convert
+the same way**: each `lorebook_vault` row is a lorebook with the source
+`aventura.db/lorebook_vault/<id>`, taking the book's own name, description and
+tags, its vault entries mapped as Aventuras' own export maps them (keywords to
+keys, aliases to secondary keys, `always` to constant, `never` to disabled,
+priority inverted into order), and `favorite`, `source`, `originalFilename`,
+`originalStoryId` and the row's `metadata` kept in the book's `metadata`. A book
+with no entries imports as an empty book; one whose `entries` will not parse
+is refused with an `import.aventuras.columnUnreadable` note and nothing is
+written, so a book imported from that row earlier is left as it was. **Since
+P13.5 its scenarios convert too**: each `scenario_vault` row is a treatment, with
+the source `aventura.db/scenario_vault/<id>`, converted exactly as the same
+scenario exported as a file would be — its npcs actors of their own in its cast,
+its openings, and everything the converter does not read (`starting_time`
+included) kept in the treatment's `metadata`. A scenario whose `npcs`,
+`alternate_greetings` or `metadata` will not parse is refused the same way a
+book's `entries` is, and for the same reason; bad `tags` or `starting_time` are
+noted and left out. **Links resolve inside the database**: a character's or a
+scenario's `metadata.linkedLorebookId` becomes the actor's `lore`, or the
+treatment's `lore` (never `required`), pointing at the book that `lorebook_vault`
+row became — or, when that row was refused, at the book an earlier import of it
+left here. `import.aventuras.linkedLorebookMissing` is said only when neither
+exists. **Since P13.6 its tags merge into the account's tags** (`GET
+/api/tags`): each `vault_tags` row is a review row with the source
+`aventura.db/vault_tags/<id>` and no `objectId`, since a tag is not a library
+object. A name not already a tag (compared as tags always are — case and spacing
+aside) is added, `converted`, on the swatch nearest its Aventuras colour by hue,
+greys on `stone` and a colour that does not read on none; a name already a tag
+is `unchanged` and left exactly as it is — never recoloured or renamed, whatever
+`onConflict` says. Aventuras keeps a tag list per kind and this server keeps
+one, so a name two kinds share is one tag, in the first row's colour, and
+`import.aventuras.tagColourDiffers` says when another row's would have been a
+different swatch. **No imported object is given `tagIds`**: adopting tags stays
+`POST /api/tags/adopt`'s. Tags are merged first, then lorebooks are written,
+then characters, then scenarios, so every link finds its book. **Prompt packs
+are recorded, not converted** ([P13.9](design/workplan/30-p13-aventuras-import.md)):
+each `preset_packs` row is a `recorded` review row of its own, with the source
+`aventura.db/preset_packs/<id>` and no `objectId`, whose
+`import.aventuras.packRecorded` note counts its templates, how many of them
+differ from the text Aventuras ships (hashed as Aventuras hashes them: trimmed,
+CRLF made LF, SHA-256), its custom variables and its tracked variables; when
+any differ, `import.aventuras.packTemplatesDiffer` at `warn` names them — up to
+81 ids of at most 64 characters, and `import.aventuras.packTemplatesUnlisted`
+counts the rest. No preset is written. **Since
+[P13.11](design/workplan/30-p13-aventuras-import.md) its stories become sessions
+— when the request says `stories: true`, and only then.** Each story is one
+row, `aventura.db/stories/<id>`, which is also the session's
+`origin.originalFilename`; `stories`, `story_entries` and `branches` — and
+since P13.12 the five tables of a story's world — have no rows of their own. Asked, a story is `converted` with the new session as its
+`objectId` — its tree rebuilt from Aventuras' branches and positions (an action
+and its answer are one turn; an opening, a second narration in a row or a
+`system` entry is a turn with no input; an action nobody answered is a
+`failed` turn; a branch that begins between an action and its answer repeats
+the action with the branch's own answer, and
+`import.aventuras.forkSplitPair` says so), its branches as named `branchRefs`
+beside *Main*, and its head on the branch the person was on. Every turn has
+`foreign: { source: "aventuras", id }` and ids derived from the account, the
+story and its entries; generation metadata goes to `cost` (model, wall-clock
+time, Aventuras' own token count of the answer) and never to `request`;
+reasoning to `output.reasoning`; saved suggestions to `suggestions`. The
+session names no mode, and plays in the server's default mode;
+`import.aventuras.storyImported` says which mode it had in Aventuras, and
+`import.aventuras.storyWorldRecorded` counts the chapters and checkpoints
+that stayed behind (the pictures, until P13.13, below). **The chapters stay
+behind for good** ([P13.14](design/workplan/30-p13-aventuras-import.md),
+closed `recorded`): each is a summary Aventuras' own model wrote, and a
+session's summaries here are written by this server's summariser from the
+turns, all of which come across — so no summary, keyword or boundary of a
+chapter is read, only the count, and the note says why. Every turn's text is
+the entry's with Aventuras' inline `<pic …>` tags taken out, as Aventuras
+shows it (since P13.14; the pictures they stood for are below). **Since
+[P13.12](design/workplan/30-p13-aventuras-import.md) its world comes too**:
+`characters`, `locations`, `items`, `story_beats` and `entries` are resolved
+for the branch the session opens on — a branch's edit (`overrides_id`) in
+place of what it edits, a deletion (`deleted`) hidden, a row only another
+branch has left out — and written before the session, which links them. Each
+character is an actor keyed `aventura.db/stories/<id>/characters/<character
+id>` (the id of the character a branch edited, so an edit is the same actor),
+mapped as a vault character is, its portrait carried as a vault portrait is;
+the protagonist (`relationship: "self"`) is the session's `cast.persona`, and
+everyone else `cast.actors`. The story's entries, places, items and beats are
+one lorebook keyed `aventura.db/stories/<id>/lorebook`, in `session.lore`:
+places, items and beats each in a folder and tagged `location`, `item` and
+`story-beat`, with Aventuras' own fields in each entry's
+`metadata.aventuras` — story beats for now, until they have a home of their
+own (`import.aventuras.storyBeatsAsLore`). Entry ids are derived from the
+story, the table and the row, so no other book shares one. These objects
+have no rows of their own: the story's row names them in `alsoProduced`, and
+`import.aventuras.storyWorld` counts them. `import.aventuras.worldBranchesDiffer`
+counts the other branches whose world differs, which stay in Aventuras.
+**Since [P13.13](design/workplan/30-p13-aventuras-import.md) its pictures
+come too**, as finished renditions of the session — `ready`, with their
+bytes, and never queued as jobs: each `embedded_images` row an
+`illustration` on the turn that holds its entry, on whichever branch (a
+forked action's is on the turn of the line it was written on), anchored by
+Aventuras' `source_text` — or, for a picture the model asked for inline,
+whose `source_text` is its `<pic …>` tag, on the sentence the tag followed,
+so it sits where Aventuras drew it (since P13.14; a tag first in its entry
+leaves the picture unanchored, under the text, and a tag the entry does not
+hold keeps the tag as its anchor with `anchorResolved: false`); and each
+branch's newest `background_images` row
+a `background` on the turn its line ends on, **carried and not selected**
+— the import names no mode, and the `se.backdrop` selection is a mode's —
+so it is chosen by hand in a mode that shows one. Their ids are the turn's
+and an ordinal (`<turnId>.<n>`), their `prompt` is Aventuras' prompt as one
+fragment (a background's is empty), their `provenance` names no binding
+and no seed, and `foreign` is `{ source: "aventuras", id }`. The bytes are
+sniffed, not taken from the data URL's type: a PNG, JPEG or WebP is served
+by `GET /sessions/:id/renditions/:renditionId/asset` as any rendition is;
+anything else, or a link, is left out (`import.aventuras.pictureUnreadable`,
+`warn`), as is one past the 64 MB bound, measured before it is read
+(`import.aventuras.pictureTooLarge`, `warn`) — and the rest of the story
+imports. `import.aventuras.storyPictures` counts what came,
+`import.aventuras.pictureModels` names the Aventuras models that drew them,
+and `import.aventuras.picturesUnfinished`, `import.aventuras.picturesUnplaced`
+and `import.aventuras.checkpointBackgrounds` count the ones never finished,
+the ones whose entry or branch is gone, and the ones a checkpoint saved,
+which stay with it. The bytes are written by the session import itself, into
+the session it has just made, so a story it refuses leaves no picture
+anywhere; one whose bytes cannot be written arrives as its recipe, with no
+asset, and `import.aventuras.picturesWithoutPixels` counts it. A story's own narrator prompt (`settings.customSystemPrompt`) is not carried,
+for the reason packs are not: `import.aventuras.customNarratorPrompt` at
+`warn` names its length. A story with no entries is `skipped`
+(`import.aventuras.storyEmpty`). **A story brought across before is
+`unchanged`**, whatever `onConflict` says, with the session it became as its
+`objectId` and `import.aventuras.storyAlreadyHere`: a session is never
+replaced or doubled by an import, so what was written in Aventuras since is
+not brought across — its world included: nothing of it is written again, and
+the row's `alsoProduced` names what the session here already links to. Not asked, each story is `recorded`, and its
+`import.aventuras.storyRecorded` note counts what it holds. Every other
+table is `recorded`,
+`skipped` or, for `settings`, `credential` — counted and never read, since it
+holds provider keys. A database missing a column this build reads, or with no
+`_sqlx_migrations`, is `422 unknown-format`; one from a *newer* Aventuras that
+has every column is read, with a `warn` note saying so.
+
+**Aventuras story files (`.avt`) in a swept folder** —
+[P13.15](design/workplan/30-p13-aventuras-import.md). A folder with no
+database in it — an older backup's `stories/`, or a folder of files somebody
+exported — sweeps as loose files, and each `.avt` in it is read by its
+contents as `/import/file` reads one: asked (`stories: true`), it is its story,
+`converted` into a session under the database's key for the same story, so a
+re-sweep, or the database swept later, finds it `unchanged`; not asked, it is
+`recorded` with the same `import.aventuras.storyRecorded` counts a database's
+story row has. **Beside a database, a `.avt` is not read**: an older backup
+wrote them from that very database, so each is a story the database holds and
+the database's is the one read — `skipped`, with
+`import.aventuras.avtBesideDatabase`.
 
 `onConflict` decides what a re-import does when a file has changed: `replace`
 (the default, and the safe one — the write goes through the version history, so
@@ -553,11 +916,20 @@ way: `403 {"error":"no-file-access"}`, and every `422` listed above. A cheaper
 gate here would be a way to ask questions about the filesystem that the route
 which actually reads it refuses to answer.
 
-`verdict` is what the probes decided: `sillytavern`, `marinara`, or
-`loose-files` for a folder that matches nothing. Those are the only three a
-directory can produce — `marinara-archive` and `marinara-envelope` are members of
-the same vocabulary but are reached on the upload path, never by pointing at a
-folder.
+`verdict` is what the probes decided: `sillytavern`, `marinara`, `charx` (an
+unpacked CHARX card), `storyengine-backup` (an unpacked backup, whose library is
+imported and whose sessions, tags and settings are listed and left), `aventuras`
+(a folder holding `aventura.db` — Aventuras' config directory, or an unzipped
+backup of it), or `loose-files` for a folder that matches nothing. Those are the
+six a directory can produce. ~~`marinara-archive` and `marinara-envelope` are
+members of the same vocabulary but are never produced by pointing at a folder.~~
+*Corrected 2026-10-01: they were never produced by anything, and are gone from
+the vocabulary.*
+
+**`aventuras` is decided by the name alone**, and so is every verdict here: the
+database is not opened to answer this. Whether this build can read it is the
+sweep's question, answered from a copy — so a folder this calls `aventuras` can
+still be refused by the sweep as `unknown-format`.
 
 **It never lists a directory.** Every answer is a yes/no probe at a path this
 build already names in its own source. [10 §4.2.2](design/10-ui-surfaces.md)
@@ -566,7 +938,7 @@ an endpoint that enumerated children would hand back exactly the map that clause
 refuses.
 
 `suggestions` is an array of near misses — the folder is recognisably part of a
-real SillyTavern or Marinara install, but is not the one to point at:
+real SillyTavern, Marinara or Aventuras install, but is not the one to point at:
 
 ```json
 {
@@ -588,13 +960,29 @@ real answer rather than a failure to have one: a SillyTavern data folder holding
 several people's libraries has no handle to guess, and a Marinara install from
 before 1.5.7 has no newer folder to point at.
 
+**Aventuras is found where the platforms put it** —
+[P13.7](design/workplan/30-p13-aventuras-import.md). Its config directory is
+`com.karelian.aventura` under `~/.config`, `~/Library/Application Support` or
+`%APPDATA%` ([01 §2](design/01-source-survey.md)), so a folder that is one of
+those, a home folder above one, `~/Library` or `AppData` is answered with the
+path down to it: `leadsTo: "aventuras"`, `verified`, and the note
+`import.root.aventurasBelow` with that `path`. Six fixed places, each asked one
+question — is `aventura.db` there — and never a search; a folder with the
+bundle id's name and no database in it is not suggested, and neither is one
+reached through a link that leaves the folder named, since a sweep would not
+follow that link either. A folder *inside* an Aventuras root — the `stories/`
+an older backup carries — is pointed back up with `import.root.aventurasAbove`.
+The sweep of the folder that was named still sweeps that folder; it never
+sweeps the suggestion.
+
 **A suggestion is advice, not a gate.** Acting on one sends a fresh absolute path
 back through this route or the sweep, which re-validate from scratch — the
 carve-out included.
 
 ### `POST /api/import/directory/plan`
 
-`{ entries: [{ path, bytes }] }` → `200 { verdict, suggestions, wanted, declared, wantedBytes }`.
+`{ entries: [{ path, bytes }], chats? }` →
+`200 { verdict, suggestions, wanted, declared, wantedBytes, limitBytes, chats, overLimit }`.
 The first half of a browser folder upload: what the folder is, and which of its
 files the importer will actually open.
 
@@ -614,6 +1002,67 @@ path to point anywhere with, so acting on the advice means picking again.
 `wanted` is the paths to upload; `declared` is the rest. `422` for the same
 classification refusals as the sweep.
 
+**Chats are opt-in** —
+[P14.8](design/workplan/31-p14-scene-and-session-import.md). They are most of a
+SillyTavern tree's bytes, and a person who picked their data folder to bring in
+their cards has not thereby asked to send years of conversation. So `wanted`
+leaves them out unless the body says `chats: true`, and `chats` says what
+choosing them would add — reported whether or not they were chosen, because the
+point is to say it before the choice:
+
+- `count` — the `.jsonl` files under `chats/` and `group chats/`, or anywhere in
+  a loose folder;
+- `bytes` — everything the choice would send, `groups/*.json` included, since
+  that is what the limit counts;
+- `fit: { count, bytes }` — the same two numbers for what would actually go.
+
+`chats: true` makes the plan again with chats in `wanted`, **the library budgeted
+first**: chats spend only what the library leaves of `limits.maxUploadMb`, so one
+long conversation that sorts early can never push a card out, and `fit` is how
+much of the choice survives that. `limitBytes` is the limit the plan spent, so a
+client can name the number. A Marinara root reports zeros: its chats are in the
+store it already sends.
+
+***`overLimit` is what the budget left out of the library*** (2026-09-28): the
+wanted paths, chats aside, that `limits.maxUploadMb` ran out before — a subset of
+`declared`, which also holds everything never wanted. An Aventuras database and
+its log are cut together. The panel says the count before anything is sent,
+while sweeping the folder from the server, which has no such limit, is still the
+way round it, and hands the list back with the upload.
+
+***The library's pass spends the limit on what the reader needs first***
+(2026-10-02, at the merge of origin's main with
+[P4 §7.18](design/workplan/16-p4-implementation.md)'s ranking): by rank, and
+within a rank in manifest order, so a file that does not fit is passed over for
+a later one that does — never the browser's first-come prefix. A SillyTavern
+tree ranks `settings.json` ahead of the directories the registry converts. A
+Marinara root ranks the store's manifest, then the library's tables (each shard
+or single file, and its `.bak`), then ~~the pictures under `avatars/`,
+`sprites/`, `lorebooks/images/` and `prompts/images/`~~ the portraits under
+`avatars/`, then the library's pre-migration backups, and last the five tables
+its chats are read from
+([P14.10](design/workplan/31-p14-scene-and-session-import.md)) — `chats`,
+`messages`, `message_swipes`, `game_state_snapshots` and `agent_memory` — with
+those tables' own pre-migration backups after them. Everything else under
+`storage/` is declared and never sent, the `api_connections` credential table
+included. Nobody is asked about a Marinara store's chats, so a chat table the
+limit cut is in `overLimit` like any library file; *chats aside* above means the
+chats a person is asked about, a SillyTavern tree's or a loose folder's.
+
+*Corrected later on 2026-10-02, at a review of that merge.* **`sprites/`,
+`lorebooks/images/` and `prompts/images/` are declared, not ranked**: the reader
+attaches `avatars/` alone and reports the other three `recorded` by name, so
+their row is the same whether their bytes came or not — and ranked ahead of the
+chats, a tree of expressions spent the limit and cut the message shards. They
+are never in `overLimit`. **A backup is never sent without the file it stands
+in for**: within a rank every primary is decided before any `.bak`, and a
+`.bak` — a table file's, or the manifest's — whose primary is in the folder and
+was cut is cut with it and named in `overLimit`, because the store reads a
+backup in place of a primary that has no bytes, and the session would arrive
+one save old under a review that said only *over the limit*. A `.bak` whose
+primary the folder does not hold at all is the table's only copy and is
+ranked like any other file.
+
 ### `POST /api/import/directory`
 
 `multipart/form-data` → `200 { report }`. The folder itself.
@@ -621,25 +1070,84 @@ classification refusals as the sweep.
 Each file's **relative path travels as its field name** — a multipart filename
 cannot carry a directory and survive sanitising — and is rebuilt segment-wise
 with `.` and `..` dropped. A `manifest` field carries the full path list as JSON;
-an `onConflict` field is optional and means what it does on the sweep.
+an `onConflict` field is optional and means what it does on the sweep, and so
+is a `stories` field — `true` brings an Aventuras folder's stories across as
+sessions, exactly as the sweep's `stories` does.
 
 **Named and not sent is not the same as absent.** Paths in the manifest without
 bytes are *declared*: listed, reported, and never read. That is what keeps
 *nothing is silently dropped* true across a transport that deliberately does not
 carry everything.
 
+**An optional `chats` field says what the person chose**, when the plan offered
+chats. `skip`: they declined, and each chat named in the manifest and not sent is
+a `skipped` row with `import.chat.notChosen` — not declared, not unreadable.
+`include`: they chose them, so a chat named and not sent is one the plan's budget
+left out, and is `skipped` with `import.chat.overLimit` carrying the limit. No
+field takes whatever arrived. Chat files that did arrive become sessions in a
+pass after the library's, so each resolves against the cards that came in beside
+it, and each is one row as on [`POST /api/import/file`](#post-apiimportfile).
+
+***An optional `folder` field names the picked folder*** (2026-09-28), and the
+upload is recorded under it — as an upload, like the single-file door's — with
+the report's `jobId` its address; a refused one is recorded as refused.
+
+***An optional `overLimit` field names what the plan's budget left out*** — its
+`overLimit`, as JSON (2026-09-28). A path in it that the manifest names and the
+upload did not carry is a `skipped` row with `import.file.overLimit`, carrying
+the limit, where it read as *not recognised* or *could not be read*; a path that
+did arrive is left alone, so the field can describe only a file that was in fact
+not sent. *(2026-10-02)* The row keeps one note from before the rewrite,
+`import.marinara.backupUsed`, ahead of the limit's: a cut Marinara file whose
+`.bak` was sent was read from that backup instead, which is the one thing the
+review must still say about it — and the reason the plan never sends a backup
+without its primary. And a root the limit left nothing readable of — an
+Aventuras folder whose database did not fit — is `413 too-large` naming the
+limit, where it was `422` *there is nothing readable at that path*.
+
 - `400 {"error":"no-manifest"}` — a folder upload without its manifest.
 - `413 {"error":"too-large"}` — **the whole folder** past `limits.maxUploadMb`,
   not each file in it. The limit is a running total; a thousand files each just
   under it is still a thousand times it.
 - `415 {"error":"not-multipart"}`.
+- `507 {"error":"no-space"}` — as on the sweep: an Aventuras folder's database
+  is copied before it is read, and there is no room for the copy.
+
+For an `aventuras` verdict the plan wants exactly `aventura.db`, its
+`aventura.db-wal` if there is one, and `metadata.json`. **The database and its
+log are wanted together or not at all**: the log holds commits the file does not
+have yet, so a budget that carried one without the other would hand the sweep an
+older database that looks whole. An upload that names a `-wal` and does not
+send it is refused `422 unreadable-root` for the same reason. Everything else in
+the folder — an older backup's `stories/*.avt` among it — is declared, and
+reported `skipped`, except `aventura.db-shm` and `aventura.db-journal`, which
+belong to the database and are never rows of their own.
 
 No `suggestions` here — the plan step is where advice can still be acted on.
 
 ### `GET /api/library/:kind/:id/download`
 
-**The object as stored, byte for byte** → `200`, `application/json`, with a
-`content-disposition` naming an ASCII-slugged file. Works for every kind.
+**The object as stored, byte for byte** → `200`, with a `content-disposition`
+naming an ASCII-slugged file. Works for every kind. ~~`application/json`~~ —
+**an actor is its card** (2026-09-28): `image/png` and `.png`, the file the
+actor is stored as. The route served the index's JSON of it, which is not what
+is stored for an actor: the portrait is the card's pixels and every expression
+rides inside it as a chunk the JSON only names, so the download had every
+picture missing and said nothing. Every other kind is `application/json`, the
+file as stored; a folder kind's pictures — a lorebook's gallery and its
+entries' strips, a treatment's cover — live in `assets/` beside it and stay
+behind.
+
+**A card of ours comes back as ours.** `POST /api/import/file`, and a sweep
+that meets one in `characters/`, read a card carrying our envelope as the
+object it carries — under its own id, pictures and all. Before 2026-09-28 a
+card with no SillyTavern chunk in it was *a picture without a card*, so the
+card this route now hands over could not have come back.
+
+**`?source=&slug=` downloads one specific copy of a duplicated id**, exactly as
+it reads one on [`GET /api/library/:kind/:id`](#get-apilibrarykindid). Without
+it, the winner. Before 2026-09-27 the route ignored the address, so a shadowed
+copy's page offered the winner's bytes under the loser's name.
 
 **The primitive, and it converts nothing.** Everything under `/export/` below is
 a *writer*, and a writer loses something by definition; this loses nothing
@@ -669,6 +1177,11 @@ that decides which of those you have built, and adding a third is a table row.
   *this file is not a treatment any more* is a real answer and a better one than
   a cheerfully empty download.
 
+**`?source=&slug=` writes out one specific copy of a duplicated id**, as the
+download does. It narrows the object being exported and nothing else: the
+objects *it* names — a treatment's cast, a scenario's lorebooks — resolve by id
+to their winners, as every reference does.
+
 **What the file does not carry travels in `x-storyengine-export-notes`**, base64
 of a JSON `ImportNote[]`. In a header on `.sepack`'s reasoning — *the body is the
 file*, and a note to the recipient's importer about the exporter's library does
@@ -676,7 +1189,10 @@ not belong inside the document. Base64 because a header is latin-1 and a note's
 params carry whatever an object is called. Every writer loses something and each
 one names what: a treatment's cast narrowed to a card's one character, a
 lorebook's folder gates flattened, a linked lorebook a scenario has nowhere to
-hold.
+hold. **The detail page reads it** (2026-09-28): its links used to hand the
+answer to the browser, so no note had ever been shown, and a refusal's JSON
+body was saved as the file. A plain click now fetches the same address, saves
+what came back, and says each note, or the refusal, under the link.
 
 Formats at this stage: `aventuras.scenario` and `sillytavern.card` from a
 Treatment, `aventuras.character` from an Actor, `aventuras.lorebook` from a
@@ -687,6 +1203,22 @@ archival while the card is the one that travels. It round-trips into *this*
 build, which is what `export/writers.test.ts` asserts and the first real exercise
 [00 §2.4](design/00-stance.md)'s *nothing is lost and re-export is possible* has
 had.
+
+### `GET /api/library/packages/:id/export`
+
+**A package with the objects it names, as a `.sepack`** → `200`,
+`application/json`, as `<package name>.sepack.json`. The contents are resolved
+and carried whole, so the file works on an install that has none of them.
+
+**What it could not include is counted in `x-storyengine-missing`**: an id the
+package names and the library no longer has is left out of the file, and the
+header says how many — *reported, not dropped*, in a header for the notes'
+reason above. The detail page says the count under its *Export this package*
+link; before 2026-09-28 nothing read it.
+
+The id alone: no `?source=&slug=`, so the page offers this only on the copy
+an id resolves to. `404 {"error":"not-found"}` for a package that is not
+there.
 
 ### `GET /api/library/:kind/:id/avatar`
 
@@ -739,6 +1271,14 @@ put the set and the choice on two cache entries that expire independently — th
 reader would then watch a picture they did not choose for as long as the stale
 half survived.
 
+**A `ready` record whose file is gone is listed with `asset: null`** (2026-09-30)
+— [25 E3](design/25-open-questions.md)'s evicted picture, *"a picture that can
+be made again"*, which a client renders as a placeholder with a retry. It went
+out as stored, so a page drew a broken image. **A read, not a reconcile**: this
+route, the asset and the attachment routes and `GET …/turns/:turnId` read the
+session as the preview does, since they are asked whenever something is looked
+at and a reconcile could append a turn under the page that asked.
+
 ### `GET /sessions/:sessionId/renditions/:renditionId/asset`
 
 The pixels, in the shape `/library/:kind/:id/media/:mediaId` above already uses:
@@ -748,9 +1288,12 @@ buffer. The client cache-busts with `?v=<digest>` as it does for media.
 **`404` for a rendition with no `asset`**, which is three different states and
 one answer: still pending, failed, or **evicted**. That last one is
 [25 E3](design/25-open-questions.md)'s whole point — *"deleting one leaves
-`asset: null` and a picture that can be made again"* — so a 404 here is what the
+`asset: null` and a picture that can be made again"* — ~~so a 404 here is what the
 client renders a regenerable placeholder from, rather than an `<img>` quietly
-failing.
+failing~~. *Corrected 2026-09-30:* the client drew the `<img>` and it failed
+quietly. The list says `asset: null` for an evicted picture since, and the
+placeholder renders from that; a 404 here is for a page that read the list
+before the file went.
 
 ### `POST /sessions/:sessionId/turns/:turnId/illustrate`
 
@@ -769,9 +1312,19 @@ stalls on either is unusable"* — moved from the turn to a button.
 
 **A refusal is a `200` with a class, not a `4xx`.** `{ held: "no-binding" }` when
 nothing is bound to the `image` role, which is the ordinary state of every
-install ([19 §5.1](design/19-tech-stack.md)), and `{ held: "no-moment" }` when
-the turn has no prose or the moment call declined. Both are answers to *can you
-make a picture*, not failed requests. A turn that does not exist is a `404`.
+install ([19 §5.1](design/19-tech-stack.md)), `{ held: "no-moment" }` when
+the turn has no prose or the moment call declined, and — since 2026-09-30 —
+`{ held: "no-place" }` for **Set the scene** where the story has named no place:
+a backdrop's recipe is the place and the tone, and without the place it was a
+picture of a mood. All three are answers to *can you make a picture*, not
+failed requests. A turn that does not exist is a `404`. The same classes name
+why a turn's own render step asked for nothing, on the turn record's
+`renditions.held`.
+
+**A client that disconnects before the answer is written cancels the moment
+call**, and nothing is recorded, because the `pending` record is written only
+once the moment has been chosen. A picture nobody is waiting for is a model call
+nobody reads.
 
 **It assembles from the turn's recorded state**, not from the head —
 [06 §10.6]'s standing `[OPEN]`, decided at [P9.4] and disclosed through the
@@ -802,6 +1355,19 @@ answer.
 **`202` with the record set back to `pending`**, like the illustrate route above
 and for the same reason: the pixels arrive on the stream, and a `200` would read
 as *here is your picture*.
+
+**The pending record carries no `provenance.seedSent`** (written 2026-09-26,
+merged 2026-10-03, [21 §7](design/21-internal-contracts.md)). Whether the seed was sent is the last
+run's fact rather than the recipe's — the next run may go out on a connection
+whose `supportsImageSeed` has changed since — so the field is dropped here and
+written afresh by the run that lands. The seed itself is kept, which is what
+makes this a replay.
+
+**`409 has-pixels` when the picture is there** (2026-09-30) — `ready` with its
+file on disk. A retry runs the record again under the same file name, so from a
+stale view it overwrote a finished picture ([06 §10.7]: regeneration is *"never
+a destructive act on something the user liked"*). Another picture of the turn is
+the illustrate route, which makes a sibling.
 
 ---
 
@@ -892,6 +1458,18 @@ decide.
 
 `409` when the new name is another tag: merging is a different operation with a
 different answer about what happens to the objects.
+
+***`dryRun` asks first*** (2026-09-28). With `dryRun: true` nothing moves — not
+the registry, not a book — and the answer carries `gatesFound` and
+`actorsRenamed`: how many of the account's actors carry the tag by its id
+(adopted, `tagIds` aligned with `tags`), the only carriers a rename renames. The
+clash is checked before a dry run answers, so it is a `409` too. The panel asks
+first because the question has to be answered **before** the rename: afterwards
+the old name is nowhere left to scan for, which is why its old second press —
+a rename with `rewriteGates` after the first — rewrote nothing. It asks only
+when there are gates **and** a renamed actor: an actor read from its own names
+keeps the old one, so a gate on it goes on matching, and rewriting that gate
+would break it. The real rename answers `booksRewritten` and `skipped` as well.
 
 ### `POST /api/tags/adopt`
 
@@ -1042,12 +1620,20 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
       "inputs": ["do"],
       "presetIds": [],
       "setup": { "kind": "none" },
-      "surfaces": []
+      "surfaces": [],
+      "openingTurn": false
     }
   ],
   "defaultModeId": "storyengine.scene"
 }
 ```
+
+`openingTurn` (added at [P14.5](design/workplan/31-p14-scene-and-session-import.md))
+says whether a new session opens on its cast's written greetings, so a creation
+form offers each member's opening only for a mode that writes one — the
+creation body's `openings` is read by no other. *Unless the session starts from
+a Setup that carries a written opening, which opens on that instead (2026-10-03,
+[25 B18](design/25-open-questions.md)).*
 
 **What this install can play.** Added at P7.4, and until then nothing could tell
 a client which modes exist — the session form offered *the mode's own preset* and
@@ -1086,7 +1672,7 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, opening?, hooks? }`
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, opening?, openings?, hooks? }`
 → `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
@@ -1150,21 +1736,70 @@ unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
 is a session missing a book and is accepted, but a dangling Setup is a session
 that would be created as something other than what was asked for.
 
-**A Setup's opening is the session's first turn**, since P13.3
-([03 §6](design/03-data-model.md)). `opening` chooses which: absent is the
-Setup's primary written opening, a string names one of its written openings, and
-`null` starts cold. The turn carries the opening's text as `output`, no `input`,
-`opening: { id }`, and the effects that seed what the Setup carries — its
-`cast.partyDefault` made `companion` on `se.party` (and seated in `cast.actors`),
-and each of its `spentHooks` that the pool holds marked `fired` on `se.hook`. A
-Setup with no opening and nothing to seed writes no turn. `422 unknown-opening`
-for an id the Setup does not hold, or for any `opening` sent without a `setup`.
-A generating mode's setup turn is the opening's child. The session in the `201`
-is the one **after** the append, so its `headTurnId` already names the opening.
+**A Setup's opening is the session's first turn**, since P15.3
+([03 §6](design/03-data-model.md),
+[P15](design/workplan/33-p15-setup-from-a-turn.md)). `opening` chooses which:
+absent is the Setup's primary written opening, a string names one of its written
+openings, and `null` starts cold. *A written opening is one with words*: an
+opening an editor left blank is not one, and a primary that names nothing
+playable falls back to the first that is. The turn carries the opening's text as
+`output`, no `input` and no `request`, and the effects that seed what the Setup
+carries — its `cast.partyDefault` made `companion` on `se.party` (and seated in
+`cast.actors`), and each of its `spentHooks` that the pool holds marked `fired`
+on `se.hook`. A Setup that seeds something with no opening chosen writes the
+same turn without the `output`; a Setup with no opening and nothing to seed
+writes no turn. The session in the `201` is the one **after** the write, so its
+`headTurnId` already names where play begins — the opening, or a greeting below
+the seeding (see the greetings below) — and a generating mode's setup turn is
+that turn's child. *No field on the turn says it was an opening*: the branch
+that built this added `opening: { id }`, and it was dropped at its merge
+(2026-10-03, [P15 §1.8](design/workplan/33-p15-setup-from-a-turn.md)) — a turn
+with no `input` and no `request` is already how the record says nothing made
+it.
 
-A redo or rewrite naming an opening (`redoOf` / `rewriteOf` on the turn route)
-is `422 opening-turn`: nothing generated it, so there is nothing to generate
-again.
+**`422 unknown-setup-opening`** for an id the Setup does not hold, or holds with
+no words, and for a string `opening` sent without a `setup`. An `opening: null`
+with no `setup` asks for no opening and gets none. *(Written as `unknown-opening`
+until 2026-10-03, when the branch merged into a `main` whose `openings` below
+already used that code for an actor's greeting; the causes differ, so the codes
+do — [P15 §1.9](design/workplan/33-p15-setup-from-a-turn.md), recommended answer,
+owner deferred. This paragraph also said any `opening` without a `setup` was
+refused; the code never refused `null`.)*
+
+**`openings` chooses each cast member's greeting** — actor id to opening id, at
+most 32, added at [P14.4](design/workplan/31-p14-scene-and-session-import.md)
+and read only by a mode that declares `openingTurn` (`GET /api/modes`), and only
+when somebody is cast besides the persona — a Setup's party counts when no
+`cast` is sent. Anywhere else the map is read by nothing, its refusals below
+included. Such a session opens on an output-only turn holding one message per cast member with a
+written opening, rendered once with the session's names for `{{user}}` and
+`{{char}}`. With one member besides the persona, the primary is written first and
+every alternate as a root beside it, and `openings` picks which the head starts
+on; in a group each member's chosen opening, else the primary, is one message in
+cast order. `422 unknown-opening`, carrying `actorId`, for a member not in the
+cast or an opening that member does not have written — checked before the
+session exists. *(Accepted since P14.4, and not written here until 2026-10-03.)*
+
+**A Setup's opening wins over the cast's greetings, always** — the owner's
+decision, 2026-10-03 ([25 B18](design/25-open-questions.md)). When the Setup
+carries a written opening, the session starts on the Setup's turn — or on no
+turn at all, started cold with nothing to seed — and **no greeting is written**,
+whichever of its openings is chosen, and with `opening: null` too. Two edges, each the recommended answer with the owner's
+decision deferred ([P15 §1.7](design/workplan/33-p15-setup-from-a-turn.md)):
+
+- Where `openings` is read — a mode that declares `openingTurn`, with somebody
+  cast — a non-empty map beside a Setup that carries an opening is **`422
+  conflicting-openings`** rather than ignored: the session would not start on
+  the greeting it names, and only the client knows which first turn it meant.
+  Anywhere else the map is ignored, as P14.4 has it, and an empty map asks for
+  nothing and passes.
+- A Setup with **no** written opening, in a mode that writes greetings, gets them
+  as P14.4 writes them; when that Setup seeds a party or spent hooks, its
+  seeding turn is written first and **the greetings are its children**, so the
+  head's path runs through the seeding rather than beside it.
+
+A redo or rewrite of a turn nothing made — an opening, a greeting — is refused
+on the turn route, `422 opening-turn`; see `redoOf` there.
 
 **`hooks` are the session's own plot hooks**, added at P7.4's successor stage —
 [03 §4.1](design/03-data-model.md)'s fourth source, which that section calls the
@@ -1242,6 +1877,28 @@ would have decided it. An `id` is minted when the goal arrives without one, for
 the reason the hook route mints one: `se.goal` is scoped by it and `Goal.next`
 names it.
 
+***The goal is checked before it is kept*** (2026-09-27): against the shared
+`Goal` schema with `id` optional, so one missing a field is `400 invalid` naming
+it and nothing is written. The body was open, and a goal without a `completion`
+made every read of the session a `500` and every turn a failure, with no route
+to remove it. A goal already in the file that is not one (a hand edit, an import,
+an older build) is read past: it is not a row and play does not start on it, and
+the file keeps it.
+
+### `PUT /api/sessions/:sessionId/preset`
+
+`{ presetId }` or `{ preset }` → `{ session }`. Which pack this session is
+assembled from ([P7B.2](design/workplan/24-p7b-presets-and-prompts.md)). `presetId`
+names a library preset, which is copied rather than linked, or `default` for
+whatever the mode ships; `preset` is the session's own pack, sent whole after an
+edit. One or the other, never both: `422 one-of`. An unknown `presetId` is
+`422 unknown-preset`.
+
+***A `preset` is checked as a preset*** (2026-09-27), against the schema the
+library checks one against, so one it refuses is `400 invalid` and the session
+keeps the pack it had. It took any object, and a pack with no `blocks` was a
+session whose every turn failed.
+
 ### `POST /api/sessions/:sessionId/hooks` · `DELETE /api/sessions/:sessionId/hooks/:hookId`
 
 `{ hook }` → `{ session }`, and the delete answers the same. A hook added to a
@@ -1255,20 +1912,37 @@ So the pool is session-wide — a hook added at turn forty is in the pool at tur
 one — while everything about what has *happened to* a hook stays per-node in
 `se.hook`. The turn list is untouched: nothing happened in the story.
 
-The body is open beyond `{ hook }` itself, like the creation route's `hooks`
+~~The body is open beyond `{ hook }` itself, like the creation route's `hooks`
 array: a hook the schema would refuse is an authoring mistake to **show** rather
 than a request to reject, and the selector's filter is where a broken one stops
-being eligible with a class the panel turns into a sentence. **An `id` is minted
+being eligible with a class the panel turns into a sentence.~~ ***The hook is
+checked as a hook*** (2026-09-27), here and in the creation route's `hooks`: the
+shared `PlotHook` with `id` optional, so a mistake is `400 invalid` naming the
+field and nothing is kept. The open body showed nothing: one hook without
+`involves` made every read of the session a `500` and every turn a failure,
+because the actor lookup iterates `involves` on every gather. A hook that
+reaches the pool another way (a hand edit, an import) is never read by the
+engine, and the panel lists it with the refusal `malformed`. **An `id` is minted
 when the hook arrives without one** — every other hook in a pool was copied from
 an object that had one and [15 §5](design/15-world.md) requires the copy to keep
 it, but a session's own hook has no upstream, and without an id it could never be
-committed, blocked, or recorded as fired.
+committed, blocked, or recorded as fired. *Since 2026-09-27 the creation route
+mints them too; it did not, and those hooks could never be removed.*
 
 The delete takes **any** hook, whichever source put it there: the pool was copied
 at creation, so a treatment-borne entry is this session's copy and refusing to
 remove it would make the copy a binding ([00 §3.1](design/00-stance.md)). It does
 not reach the treatment. Removing one that is already gone succeeds — it is the
 state the caller asked for — while a missing **session** is still a `404`.
+
+***`?from=&fromId=` names one row*** (2026-09-28). A pool can hold one hook
+through two carriers, and the panel draws each as its own row; without the query
+the delete takes every row under the id, as it always has. `from` is the row's
+source kind — `session`, `treatment`, `setup` or `lore` — and `fromId` the
+carrier's id, required for the three carriers and refused for `session` (`400
+invalid`). A source is read as the panel shows it, so a row whose stored source
+is unreadable is `from=session`. A named row the pool does not hold removes
+nothing and succeeds.
 
 ### `POST /api/sessions/:sessionId/hooks/:hookId/promote`
 
@@ -1374,14 +2048,25 @@ and *try again* is the whole of the recovery.
 
 `{ parts: ('storySoFar' | 'opening' | 'title' | 'facts')[], guidance?, openingFrom? }`
 → `200 { draft: { carry, warnings, parts } }`. **The draft of *make a setup from
-here*, and it writes nothing** — P13.6,
-[04 §7.2](design/04-schemas.md). `404 no-such-turn` for a turn not in the
-session.
+here*, and it writes nothing** to the library or the session — P15.6,
+[04 §7.2](design/04-schemas.md), [P15](design/workplan/33-p15-setup-from-a-turn.md).
+`404 no-such-turn` for a turn not in the session.
 
 **Each part is its own call with its own outcome** — `{ ok: true, value, model }`
 or `{ ok: false, reason }`, where `reason` is `role-unbound`, `role-dangling`,
-`call-failed` or `no-answer` — so a failed part is a `200` beside the parts that
-succeeded rather than an error that loses them. `title`'s value is
+`window-too-small`, `call-failed`, `truncated`, `no-answer`, `summary-truncated`
+or `summary-no-answer` — so a failed part
+is a `200` beside the parts that succeeded rather than an error that loses them.
+A `call-failed` also carries the provider failure's `class` and a `remedy`, the
+same diagnosis impersonation's refusals carry, and may carry `detail`, the
+endpoint's own words, for a log rather than a sentence on screen. **A part cut
+off at its length limit is `truncated` and not offered**: a story so far or an
+opening that lost its end is missing exactly the part a session would begin
+from. A reply that was refused, empty, or still the wrong shape is `no-answer`.
+*(`window-too-small`, `truncated`, `class`, `remedy` and `detail` were added on
+2026-10-03, at the [P15](design/workplan/33-p15-setup-from-a-turn.md) merge:
+the first was a 500 before, and a cut-off reply was offered as if whole.)*
+`title`'s value is
 `{ name, blurb }`; `facts`' is `{ text, keys }[]`, drafted with the memory
 extractor's own prompt and minus anything a linked book already says. The parts
 run one after another in that fixed order. `guidance` is a person's steer,
@@ -1390,10 +2075,42 @@ names. `openingFrom: 'verbatim'` answers `opening` with the narrator's last word
 at the turn and makes no call.
 
 **What the model is shown is what the player saw**: the transcript up to the
-turn, and the session's own summary chain built from it — extended under the
-session's own summariser key, so links already on disk are read rather than
-re-derived and a link this writes is one the runner would have written. No
-hidden channel, unfired hook or hidden goal reaches these prompts.
+turn, and the session's own summary chain built from it — its root, when the
+session was itself started from a Setup with a story so far, and its links,
+read together — extended under the session's own summariser key, so links
+already on disk are read rather than re-derived and a link this writes is one
+the runner would have written. *Since the merge (2026-10-03) that is true of a
+session whose moves carried pictures too, and of a summary cut off at its
+length limit, which is not kept, as the runner keeps none.* No hidden channel,
+unfired hook or hidden goal reaches these prompts.
+
+**A link the draft cannot derive fails every part still wanted, and no part is
+asked** (2026-10-03). Each part answers with that link's own outcome — a
+`call-failed` with its `class` and `remedy`, `summary-truncated` or
+`summary-no-answer` for a summary that was not kept, `window-too-small`, or a
+role refusal — so *Try again* asks for the link again. *(The two `summary-`
+reasons since review, 2026-10-03: a link refused under a part's own
+`truncated` or `no-answer` read as the part's reply being cut off, with a note
+as the fix, and guidance never reaches the summariser.)* A story so far drafted from a chain that stops
+short would read as the whole story with its middle missing, and nothing on
+the wizard could show the gap. A part already answered without a call (a
+verbatim opening) keeps its answer.
+
+**What it costs is written down** — one line in the account's `usage.jsonl`
+per call, as every call that writes no turn is: purpose `setup-draft:<part>`
+for a part (`storySoFar`, `opening`, `title`, `facts`), and
+`setup-draft:summarise` for each link of the chain the draft had to derive —
+filed under the wizard rather than the summariser, because what a spend view
+asks first is what pressing the button cost. A call that failed or was stopped
+after it reached the provider is written too: it was paid for. A warm chain
+costs no `setup-draft:summarise` line at all.
+
+**A client that leaves cancels the draft.** The route reads the disconnect off
+the response, as Illustrate's does (`disconnectSignal`), so a part in flight is
+aborted, nothing further is asked for, and nothing is sent back to a socket
+nobody holds — the cancellation it caused ends there, rather than as an error
+logged for every closed tab. A failure that merely coincides with the client
+leaving is still a failure. Usage lines already written stay written.
 
 **`carry` is redacted**: the configuration and the party by name, the goal play
 would begin on as `{ statement }` only when a player may read it (else
@@ -1409,9 +2126,10 @@ The step every part dispatches as is `se.condense`, `prose`-role, so a session's
 
 `{ texts: { name, blurb, storySoFar, opening: { label, text } }, include: { party, goals, hooks }, facts: { text, keys }[], generated? }`
 → `201 { setup: { id, name }, lorebook: { id, name } | null }`. **The commit of
-*make a setup from here*** — P13.7, [04 §7.2](design/04-schemas.md). `404
+*make a setup from here*** — P15.7, [04 §7.2](design/04-schemas.md). `404
 no-such-turn` for a turn not in the session; library refusals as every library
-write's.
+write's. **It makes no model call**, so it records no usage line and has nothing
+for a disconnect to cancel: the texts were drafted, and edited, before it.
 
 **The carry is recomputed from the turn, never read from the request.** The body
 holds what a person decided — the texts, the facts they kept, and which of the
@@ -1497,6 +2215,12 @@ The write lands as a turn with no model call and no tape, the same shape an undo
 and a divergence turn take, because [03 §8.1](design/03-data-model.md) promises a
 change of state is visible in the turn record.
 
+**`409 busy`, carrying the active `job`, while a turn is in flight**
+(2026-09-27), the answer head moves and undo already gave. A turn's commit sets
+the head to its own turn, so a write landing while it ran became a sibling of
+that turn, on a line nobody would see again: the setting silently reverted when
+the turn landed. Write it again once the turn has finished.
+
 **It is how the three offers at a goal completion are taken** —
 [06 §7.3.4](design/06-modes-and-turn-pipeline.md), and why none of them needed a
 route: *continue open* writes `se.goal.current` to `null` (the achievement is
@@ -1537,10 +2261,17 @@ decision and a selector able to widen its own gate is not a dial.
 
 ### `GET /api/sessions/:sessionId`
 
-`{ session, activeJob | null, health, hud, surfaces, cast, hooks, goals, dials,
-inputs, suggesting }`. The job travels with the
+`{ session, activeJob | null, health, hud, surfaces, actions, cast, chat?, hooks,
+goals, dials, inputs, suggesting }`. The job travels with the
 session because a client reloading mid-turn needs to know there *is* one before
 it decides whether to open a stream or offer an input box.
+
+***`session` is not the file*** (2026-09-27), here or on any route that answers
+with one. It leaves out the hook pool, carries the Setup as `{ id, name }`, and
+carries each goal without its `detail`. Every reply used to send `session.json`
+whole, so the pool's unfired premises, the Setup copy's goals and hooks, and
+the detail this page says *does not travel* all travelled beside the panels that
+redact them. The export route is the file on purpose.
 
 `hooks` is the hook panel's surface ([10 §10.1]): `{ pacing, rows }`, where
 `pacing` is [04 §6.1b]'s three rungs already resolved — the session's own value,
@@ -1580,6 +2311,26 @@ this is every placement a mode asked for. A `kind` or a `region` a client does
 not know is **skipped**, which is what keeps both vocabularies additive — and
 there is deliberately no `html` anywhere in either ([10 §8]).
 
+*Since P14.5a* ([P14 §1.9.2](design/workplan/31-p14-scene-and-session-import.md)):
+a fifth region, `settings` (the session's settings, where Scene's tracker
+switches go), and an optional `group` — the heading a contribution is drawn
+under. Two more arms: `meter: { value, min, max }`, a stat bar, and
+`record: { value, fields, locks, hidden }` — **the value itself**, raw JSON,
+because a record is edited field by field and the edit is the whole value
+written back through `PUT …/channels/:key`. `fields` is `[{ key, label, show }]`
+from a closed set (`line`, `number`, `flag`, `lines`, `pairs`, `map`, `items`,
+`meters`, `checklists`; `key: ''` is the value itself); `locks` and `hidden` are
+`{ key, paths }` — the set channel and its field paths, each
+`<channel key>/<JSON Pointer>` with a list row named by its `name` — or `null`.
+A channel whose `state.enabledBy` switch is off has no surface; an
+actor-scoped record is one per **present member but the persona**, whether or
+not the channel holds a value for them yet.
+
+`actions` is what a person may run between turns — `[{ stepId, label }]`, the
+mode's declared on-demand steps, each listed only while a channel it writes is
+switched on (Scene's *Update trackers*). Each is run by
+`POST …/steps/:stepId/run` below.
+
 `inputs` is the kinds this session's mode accepts ([06 §1], [06 §9]) — Scene
 sends `['do']`, Freeform `['do','say','think','story']`. It is the same list
 `POST /turns` refuses against, so a client that renders a selector from it cannot
@@ -1617,6 +2368,16 @@ prompt is assembled around. All three are reconstructed at the
 session's head, so they are the state a panel should be showing rather than a
 summary of the file.
 
+`chat` is how the session plays as a chat
+([P14 §1.2](design/workplan/31-p14-scene-and-session-import.md), added at
+[P14.5]): `{ voice, dispatch, speakers: { policy, allowSelfResponses,
+namesInHistory, maxPerRound }, note | null, hidden, prompts: { instruction,
+cards } }`, **the effective settings** as the server's one reader resolves them
+— so a Scene session written before P14 shows the narrated, merged, `fixed`
+values its turns actually get, not Scene's declared ones. **Absent for a mode
+that does not play as a chat** (one that does not declare `castIsPresent`),
+which is `dials`' rule.
+
 A session that is not there and one that is not yours are the **same 404**. The
 path is the owner ([09 §4.3](design/09-server-multiuser-deployment.md)), and
 confirming an id exists elsewhere would leak the one fact that separation keeps.
@@ -1643,11 +2404,55 @@ renames a branch ref through `PATCH …/refs/:refId`.
 
 `DELETE` answers `204` and **moves the folder to the user's trash** rather than
 erasing it ([03 §10.3](design/03-data-model.md)); a session's turns are its history, and
-deletion is a move.
+deletion is a move. **`409 busy` while a turn is in flight** (2026-09-27): its
+commit would write `sessions/<id>/` back beside the trashed one. A picture still
+being made when the session goes writes nothing, and a restore that finds a
+folder without a `session.json` in its place moves that aside into the trash.
+A restore (`POST /api/me/trash/restore`) indexes what it puts back before it
+answers, so a restored session is found by search again and a restored object
+reads at once. `{ id }` names an entry as `GET /api/me/trash` lists it; one that
+is not an address is `400 invalid`, one no longer there is `404 not-found`, and
+one whose place is taken is `409 occupied`. ***Anything else is a `500` and is
+logged*** (2026-09-27): every failure used to be *not an address in the trash*,
+including a rename the disk refused. The second of two restores of one entry at
+once is the `404` or `409` a moment's later look would give.
+
+### `PUT /api/sessions/:sessionId/chat`
+
+`{ voice?, dispatch?, speakers?: { policy?, allowSelfResponses?, namesInHistory?,
+maxPerRound? }, note?: { text, depth, every } | null, prompts?: { instruction?,
+cards?: { [actorId]: boolean | parts[] } } }` → `200 { session, chat }`, the
+second being the effective settings after the write. Added at
+[P14.5](design/workplan/31-p14-scene-and-session-import.md); at least one member
+is required, and the vocabularies are closed (`400` otherwise).
+
+***Writing any of voice, dispatch and speakers writes all three.*** A session
+carrying none of them was written before P14 and reads as its mode's legacy
+values; writing `dispatch` alone would make it modern and let its absent
+`voice` fall to the mode's declared one, re-voicing a saved game. So the route
+reads the effective three first and puts all of them on the file, the request
+laid over. `speakers` merges member by member. `note: null` — or a note with no
+text — removes it, and `every: 0` switches it off with its text kept.
+`prompts.cards` merges per card: `true` or `[]` is *send everything* (no entry),
+`false` skips every part, and a list of `system`, `post-history`, `depth` skips
+those. `instruction: true` sends the pack's instruction (no entry).
+
+`422 not-a-chat` for a session whose mode does not play as one — the same test
+the read uses to send `chat`. Not refused while a turn runs, as a hide is not:
+the running turn read its settings before it started.
+
+### `PUT /api/sessions/:sessionId/turns/:turnId/hidden`
+
+`{ hidden: true | false | number[] }` → `200 { session }` —
+[P14 §1.6](design/workplan/31-p14-scene-and-session-import.md)'s hide, built at
+[P14.4]. **A set, not a toggle**: `true` hides the turn whole, input included;
+a list hides those message indices; `false` or `[]` unhides. `404 no-such-turn`
+for a turn this session does not have, `422 no-such-message` for an index past
+its messages. History skips what is hidden, and the transcript ghosts it.
 
 ### `GET /api/sessions/:sessionId/turns?limit=`
 
-`{ turns, siblings }` — the path from the head, **oldest first**, not every turn
+`{ turns, siblings, swipes }` — the path from the head, **oldest first**, not every turn
 in the file. A session is a tree, and a transcript is one walk of it.
 
 `siblings` maps a turn on that path to every child of its parent, in creation
@@ -1657,12 +2462,72 @@ alternative is reachable at all — a swipe is a sibling nobody named, and witho
 this it would be on disk and invisible. A map of every turn to its lone self
 would grow with the transcript and say nothing.
 
+`swipes` (added at [P14.5](design/workplan/31-p14-scene-and-session-import.md))
+says, for each of those nodes, **where its siblings are drawn**:
+`{ messages, turn }`. `messages[k]` is the ordered alternatives on message *k*'s
+counter — [P14 §1.6]'s *"swipes surface on the message, not the turn"* — the
+turn itself among them, or `[]` when there is only one. The counter is built
+from the siblings that answer the same move and say the same messages `0..k-1`,
+one alternative per distinct message *k* (by speaker and text), ordered by the
+first-created sibling saying it and named by the viewing turn where it says that
+line, so it reads the same from whichever member is on screen. `messages` has
+one more entry than the turn has messages: the alternatives that say everything
+this turn says and then go on, drawn on its last message. `turn` is the turn and
+the siblings that answer a different move (an edited input, another thing typed
+from the same place), which a client keeps on the turn; `[]` when there are none.
+
+### `POST /api/sessions/:sessionId/attachments` · `GET /api/sessions/:sessionId/attachments/:digest`
+
+A picture for a player's move, uploaded before the move is sent —
+[25 E15](design/25-open-questions.md), R1. Upload is `multipart/form-data` with
+one file part, the library import's two-step shape
+([10 §11.2b](design/10-ui-surfaces.md)): the bytes first, then the turn names
+them by digest in its ordinary JSON body.
+
+→ **201** `{ attachment: { digest: "sha256:…", mime, bytes, width?, height? } }`
+— the pixel size read from the file's header, absent if it could not be read;
+**413 `too-large`** past 8 MB; **415 `not-an-image`** unless the bytes are a
+PNG, JPEG or WebP **by their own signature** — never by the file name or the
+part's declared type; **404 `not-found`** when the session was deleted while the
+picture was on its way — the store is written under the session's lock and only
+while the session is there, so a late upload never recreates a deleted
+session's folder; **422 `refused-path`** when the session's folder leads
+somewhere else on disk.
+
+**Never re-encoded here.** The client scales a picture down and re-encodes it
+before upload, and **fails closed**: a browser that cannot re-encode refuses
+rather than sending the original, because a phone photograph records where it
+was taken. The server keeps its position of having no raster encoder, so this
+route stores exactly the bytes it was given, under their own content address in
+`sessions/<id>/attachments/` ([03 §5.5](design/03-data-model.md)). The same
+picture uploaded twice is one file, and **uploading it again renews it**: the
+sweep below counts a day from the last time anybody wanted a picture, not from
+the first time it was written.
+
+**The upload also sweeps**: pictures no turn in the session names — every turn a
+reader sees, siblings included, never only the head path — and nobody has
+wanted for a day are removed. On age rather than on commit, because the composer
+holds uploads no turn names yet while the session goes on committing; a
+submitted move renews its pictures too, so one is safe while its turn is still
+running. Only names this store writes are ever removed, and the turns are read
+only when something is old enough to go. *A tombstoned turn is not a
+reference* — the reader skips it, and nothing writes tombstones at 1.0.
+
+`GET` serves the bytes in the rendition asset route's shape: `content-type`
+from the store, the digest as the `etag`, and cached as immutable, since the
+address is the content. **`404 no-picture`** when the bytes are not here, which
+after an import from an export is the ordinary state rather than an error — the
+record says a picture was there and carries its caption, and the client renders
+that caption with a placeholder where the picture would be.
+
 ### `POST /api/sessions/:sessionId/turns`
 
 ```
 { idempotencyKey, headTurnId: string|null, parentTurnId?: string|null,
-  rewriteOf?: string, redoOf?: string, input: { text, actorId?, kind? },
-  guidance? }
+  rewriteOf?: string, redoOf?: string,
+  input: { text, actorId?, kind?, attachments?: [{ digest, caption? }],
+           attachmentsOf?: string },
+  guidance?, speakers?: string[], push?: "natural"|"random" }
 ```
 
 → **202** `{ jobId, turnId, parentTurnId, status, cursor, stream }` when the turn
@@ -1712,6 +2577,93 @@ The named turn is not required to be a sibling of the one being written; the
 client always sends one, and the record carries the id either way. Usually sent
 with `guidance`; the schema does not couple them.
 
+**A turn nothing made is not redone: `422 opening-turn`.** A `redoOf` or
+`rewriteOf` naming a turn with no `input` and no `request` — a Setup's opening
+or its effects-only seeding turn, a cast's greeting, a hand edit's divergence
+turn, a turn written by hand with no move, an import's reply to nothing — is
+refused, because there is no tape to replay and no call to repeat, and a reply
+to nothing in its place is *let them talk* sent from the parent. A swipe of one
+message (`fromMessage`) is not refused by this: it is the gesture's own reading
+of the record. *Since 2026-10-03, at the
+[P15](design/workplan/33-p15-setup-from-a-turn.md) merge, and wider than
+either side had it*: the branch refused only turns marked `Turn.opening`, a
+field dropped at that merge, and `main` refused none of them — a redo of a
+greeting answered nothing at the root. The play surface withholds **Redo** from
+the same turns, by the same rule (`redoable` in `shared` names it).
+
+**`input.attachments` names pictures already uploaded to this session** —
+at most four, each by digest with an optional caption
+([25 E15](design/25-open-questions.md)). **Digests and captions are all a client
+says**: the type, size and dimensions on the turn are read from this server's
+store, on `rewriteOf`'s reasoning. A digest the store does not hold is **`422
+unknown-attachment`**, carrying the `digest`.
+
+**`input.attachmentsOf` is a redo's pictures**: a turn in this session whose
+`input.attachments` this move carries, **copied as recorded** — every id, kind
+and caption, and a picture whose bytes never reached this server, which is the
+ordinary state of an imported turn and goes to every model as its words.
+Type, size and dimensions are re-read for any picture whose bytes are here now.
+A turn that is not in this session is **`404 no-such-turn`**, and naming both
+`attachments` and `attachmentsOf` is **`400`**. *Why a turn rather than a
+re-sent list*: the client can only re-send what it can name, so a rebuilt list
+lost every picture without a digest and turned a kind this build does not know
+into `image` — which, bytes present, a model that sees would then have been
+sent.
+
+**The caption is the picture for every model that cannot see it**, and it is
+never folded into `input.text`, which stays the player's words. Whether the
+pixels go is decided **per call**, from the model the call resolved to: only a
+picture on the move being taken, in a user message, to a model its connection
+lists in `imageModels` (below), with its bytes present. Otherwise the caption
+goes, or an honest placeholder when there is none — and the assembled block's
+`image` says which and why (`unknown-kind`, `outside-window`, `not-user-role`,
+`missing-bytes`, `model-text-only`, in the order the record prefers when several
+hold: the model last, since it is the one reason another binding fixes; and
+`budget` when the budgeter dropped the block — a picture in history, or a
+step's own — so neither went). Nothing records a session as
+able to see pictures, which is what keeps one used with a model that sees
+continuable on a model that does not.
+
+**`input` is closed** since the same change, 2026-09-27. It was open, so a
+field this server did not know got a `200` and was silently dropped from the
+turn; a closed object answers `400`, which a client can act on.
+
+**`speakers` is force-talk**
+([P14 §1.3](design/workplan/31-p14-scene-and-session-import.md), P14.1):
+actor ids, in the order they should reply, and **it overrides the session's
+speaker policy** — SillyTavern's member *speak* button and `/trigger`,
+Marinara's `forCharacterId`. It reaches a **muted** member, which is what it is
+for, and nobody else the policy would not: the persona is **`422
+speaker-is-persona`**, an id outside the session's cast **`422
+speaker-not-in-cast`**, and somebody dead or departed **`422
+speaker-written-out`**, each carrying the refused `speaker`. Status is checked
+at the node the turn attaches to — `parentTurnId` when sent, else the head — so
+a branch from before a character died may still name them. At least one id and
+no repeats (`400` otherwise), at most 32.
+
+**A forced turn records who was named, and a rewrite keeps them.** The list is
+on the turn as `input.speakers` — the request, in the order asked, not who
+replied, which the output's messages say. A `rewriteOf` submission without
+`speakers` is forced to the redone turn's `input.speakers`, read from this
+server's record for the reason the tape is; a name that no longer passes the
+checks above when the turn runs is dropped rather than refused. `speakers`
+sent beside `rewriteOf` wins over the record. A reroll keeps nothing and plays
+the session's policy; a client that wants the same member again sends
+`speakers` again.
+
+**`push` is Push story**
+([P14 §1.9.3](design/workplan/31-p14-scene-and-session-import.md), P14.5b):
+the narrative director armed for this one turn — `natural` moves the story on
+through what it already has, `random` brings in something plausible nobody saw
+coming. It runs `se.scene.direct` before the reply, one small call whose
+direction reaches the guidance slot (as `se.guidance.direction`, a `step`
+producer); when that call fails, the session's pack's own push text for the
+flavour stands in. Any other value is `400`, and beside `authored` it is `422
+conflicting-gesture`. **A rewrite or a guided redo keeps it**: a `rewriteOf`
+or `redoOf` submission without `push` is pushed as the redone turn was, read
+off that turn's director outcome; `push` sent beside either wins. A plain
+reroll names no turn, so a client redoing a pushed turn sends `push` itself.
+
 **`guidance` is its own field and is never concatenated into `input.text`.**
 That is the entire point of the guidance slot
 ([06 §5.1](design/06-modes-and-turn-pipeline.md)): typed into the action it lands in history
@@ -1744,6 +2696,47 @@ none* are deliberately different answers: a record that merged them would make a
 correctly-quiet session indistinguishable from a broken one. **Absent means the
 selector did not run**, which is every session with no pool — never *it ran and
 had nothing to say*.
+
+**A `se.speakers.smart` outcome in `turn.steps` says who smart order picked and
+why** ([P14 §1.3a](design/workplan/31-p14-scene-and-session-import.md), P14.1).
+The step runs only on a turn of a `smart` session that no rule settled — nobody
+forced, nobody named, more than one member who may reply — so most turns of such
+a session have no such outcome. When it is there it carries `speakers: { by,
+picked }`: `picked` is `[{ id, name, because? }]` in the order they reply, and
+`by` is `model` (the call answered usably), `fallback` (it did not, and the
+rule-based pick drawn on the turn's tape played instead) or `rewrite` (a
+`rewriteOf` submission, which keeps the redone turn's speakers and makes no
+call). **A fallback is a `failed` outcome under `failure: "warn"`**, whose
+`error` says why and whose `speakers` says who spoke instead; the turn itself
+completes. `because` is the model's one line for that member and is absent on a
+fallback or a rewrite, where nobody was asked.
+
+**A `se.scene.direct` outcome in `turn.steps` says what a push directed**
+([P14 §1.9.3](design/workplan/31-p14-scene-and-session-import.md), P14.5b),
+present only on a pushed turn. It carries `direction: { push, by, text? }`:
+`by` is `model` when the director answered and `fallback` when the pack's fixed
+text stood in — a `failed` outcome under `failure: "warn"`, whose `error` says
+why; the turn completes. `text` is the words the guidance slot carried, absent
+only when the call failed and the pack ships no push text, so the turn ran
+undirected.
+
+**An outcome with `revisions` says what an editor did to the turn's messages**
+([P14 §1.9.4](design/workplan/31-p14-scene-and-session-import.md), P14.5c) —
+Scene's `se.scene.edit`, or any step whose mode declares `revises`. It is
+`[{ index, edited?, changes?, notices? }]`, one row per message the editor had
+something to say about, by the message's index in `output.messages` (a turn with
+no `messages` is one message, index `0`). `edited: true` means the message's
+text was replaced **before the turn was written**: `output.text` and the
+message's `text` are the edited words, and the message's `original` is what the
+model wrote (or what cleanup kept of it, when cleanup had already written one).
+`changes` is the editor's account of what it changed. `notices` is what it found
+and left alone — continuity findings, `{ issue, quote?, fix? }` — and one with
+both `quote` and `fix` is applied by the edit gesture (`editOf` with the
+message's text, `quote` replaced by `fix`), which writes a sibling. **Absent**
+when the editor is off, needed no edit and found nothing, or failed; a failed
+editor is a `failed` outcome under `failure: "warn"` and the turn keeps the
+unedited reply. While the editor runs with its hold on, the round's `delta`
+frames arrive only once the edit is in.
 
 `turn.spans` is what the engine understood about the turn's text — [06 §8.2],
 [03 §8](design/03-data-model.md), [10 §13.1](design/10-ui-surfaces.md). Each span
@@ -1852,7 +2845,7 @@ a walk from anything below them. Several refs may name one node.
 ### `POST /api/sessions/:sessionId/preview`
 
 ```
-{ input?: { text, actorId?, kind? }, guidance? }
+{ input?: { text, actorId?, kind?, attachments?: [{ digest, caption? }] }, guidance? }
 ```
 
 What this turn **would** assemble to, if it were taken now — the stateless
@@ -1904,6 +2897,21 @@ against the session's current head and echoes back which one that was.
 `pendingInput` says whether an action or guidance was supplied, which is how the
 workbench decides between showing the composed turn and the last committed one.
 
+`input.attachments` previews the pictures in the composer, and each picture's
+block carries the same `image` disclosure a turn's does — so *will this model
+see the picture* is answerable before sending, and the composer says it under
+each picture. **A digest the store does not hold is left out here rather than
+refused, and only that one**: the preview runs every time somebody pauses
+typing, and a picture swept a moment ago is not a request worth a `422` — nor a
+reason to hide the pictures that are fine. The rest keep the ids they will have
+when the move is sent. And **`input` without a `kind` previews the kind a
+submission defaults to** (`do`), so a pack whose input slots are all per-kind —
+Freeform's — previews the move's words and pictures rather than neither. And since 2026-09-27 the preview resolves its model
+through the same session and step layers, and the same actor hint, as the turn
+does; before, it read the account's binding alone, and could name a different
+model from the one that answered — which the send rule would have made a
+preview promising pixels the turn then sent as words.
+
 When no model resolves for the prose role the answer is still `200`, in its
 other arm — because *nothing is bound* is a true answer to *how full is the
 context*, not a refused request:
@@ -1947,6 +2955,64 @@ text **is** an input.
 Nothing here is truncated. A surface may cap what it shows; a report that
 arrived pre-trimmed could not offer *and 40 more* honestly.
 
+### `POST /api/sessions/:sessionId/impersonate`
+
+```
+{ actorId? }
+```
+
+A draft of your own character's next message — [06 §3.1](design/06-modes-and-turn-pipeline.md),
+[P11.4](design/workplan/28-p11-implementation.md). → `200 { text }`. The persona
+speaks by default; `actorId` names another member you play. **Nothing is
+committed**: no job, no turn, no head moved, which is also why it is not refused
+while a turn is in flight. The client leaving cancels the call.
+
+Refusals, each a class the client words:
+
+- `409 not-a-player` — that member is not one you author.
+- `422 no-prose-step` — the session's mode writes no prose, so there is no voice
+  to borrow.
+- `422 role-unbound` · `422 role-dangling` — no connection for the model this
+  needs, or a binding to one that is gone.
+- `502 provider-failed` — the endpoint failed after the server asked it
+  (added 2026-09-27; it was a bare `500`). The body carries `class`
+  (`transient`, `retryable` or `terminal`) and `remedy`, the same
+  `FailureRemedy` a failed turn gets, so a wrong key, a model server that is
+  down and a stall read as three different things. The log line is
+  `impersonate.failed`, with the class, the call and the endpoint's own words,
+  and never the prompt.
+- `503 cancelled` — the server stopped the call before it answered.
+
+### `POST /api/sessions/:sessionId/steps/:stepId/run`
+
+No body. Runs one of the session's mode's **on-demand steps** between turns —
+Scene's is `se.scene.track`, *Update trackers*
+([P14 §1.9.2](design/workplan/31-p14-scene-and-session-import.md), P14.5a). →
+`200 { session, turn, health, hud, surfaces }` when it changed something, or
+`200 { turn: null, callId }` when it had nothing to change (no tracker on, or a
+call that found the scene as it was).
+
+**What it writes is an engine turn**, the shape a channel write takes: a child
+of the head, no tape, no `steps`, carrying the step's call in `request` and its
+effects. So it is on the current branch only, undone by the ordinary undo, and
+not a story turn: it moves no cadence and is no transcript row. The step sees
+the last story turn's move and reply, and the channels at the head, so edits
+made since then are what it starts from.
+
+Refusals:
+
+- `404 no-such-step` — the session's mode declares no on-demand step by that id.
+  Only a `post` step that writes effects can be one.
+- `409 busy`, carrying the active `job` — a turn is in flight.
+- `409 moved` — the head moved while the call ran; nothing was written. The
+  call's spend is in the usage log.
+- `422 role-unbound` · `422 role-dangling` · `422 window-too-small`.
+- `502 provider-failed` — with `class` and `remedy`, as impersonation's; the log
+  line is `on-demand.failed`.
+- `502 step-failed` — the endpoint answered and the step could not use the
+  answer (a shape it did not ask for). The log line is `on-demand.step-failed`.
+- `503 cancelled` — the server stopped the call. The client leaving cancels it.
+
 ### `POST /api/sessions/:sessionId/jobs/:jobId/cancel`
 
 `202`, or `409 finished` if the turn is already over. Cancelling **commits a
@@ -1962,7 +3028,9 @@ make it silently never have happened.
 event: snapshot     { sessionId, job, turn, text, cursor }   once, at open
 id: <jobId>.<seq>
 event: progress     { jobId, seq, key, params, at }          durable, sequenced
-event: delta        { jobId, text }                          ephemeral — no id
+event: delta        { jobId, text, message? }                ephemeral — no id
+event: rendition    { …the rendition record }                ephemeral — no id
+event: summaries    { sessionId, state, links, missing, derived }   ephemeral — no id
 event: overflow     { cursor }                               then the stream ends
 event: error        { error }                                a class, never a message
 : keepalive
@@ -1976,7 +3044,7 @@ bad `Last-Event-ID` cannot brick a reconnect.
 `progress` keys are [09 §3.3](design/09-server-multiuser-deployment.md)'s vocabulary:
 `turn.started`, `step.started`, `step.skipped`, `step.failed`, `step.finished`,
 `call.started`, `call.streaming`, `call.finished`, `effect.applied`,
-`turn.finished`. They are **structural** — the client renders them — and carry a
+`speakers.picked`, `turn.finished`. They are **structural** — the client renders them — and carry a
 failure *class*, never a provider's words.
 
 `effect.applied` carries `{ channelId, accepted, reason }`, where `reason` names
@@ -1988,6 +3056,46 @@ the record cannot disagree about *why* something was refused.
 **Deltas are not durable and carry no id.** A reattach may see coalesced text
 rather than every delta that painted it live, which [P2 §2.10](design/workplan/08-p2-implementation.md)
 states as the trade; the snapshot's `text` is what makes that lossless.
+
+**`rendition` carries a picture's whole record** whenever its state moves —
+`pending`, then `ready` or `failed` —
+[P9.2](design/workplan/26-p9-implementation.md). It has no id and takes no part
+in the backlog; a client applies it by upsert on the record's `id` and reads
+`GET /sessions/:id/renditions` again after a reconnect, since a frame sent while
+the stream was down reached nobody. **A `ready` background means the backdrop
+moved** (2026-09-30): the worker selects it before the frame goes, so the
+session's head and its `stage` surface have changed, and a client reads the
+session again. One that lands while a turn is being written is held and
+selected on top of that turn once it commits — after `turn.finished` — and its
+frame is sent a second time then, so count them rather than dedupe by id.
+**`summaries`** is the summary warm's whole state
+([P14.11](design/workplan/31-p14-scene-and-session-import.md)); a client may
+ignore it and lose only a progress line.
+
+**`message` is which of the turn's messages a delta belongs to** — added at
+[P14.2](design/workplan/31-p14-scene-and-session-import.md), for a round under
+`per-actor` dispatch, where each speaker's call streams into a message of its
+own. It is the index into the turn's `output.messages`, and `call.started` and
+`call.streaming` carry the same `message` in their `params` — and since
+[P14.5], `call.started` carries the message's `speaker` too, `{ id, name }`, so
+a client can name the bubble as it opens. It is **absent**
+on a narrator's text and on the blank line the server sends between two
+speakers, so a client that appends every delta's `text` to one string — every
+client written before it — still ends with the turn's `output.text`, and a
+client that paints messages separately skips the deltas without one while a
+round is streaming. A reply is cleaned when its call completes, so the
+committed message can be shorter than what streamed; the draft and the turn
+say what was kept.
+
+**`speakers.picked` is the round's order** — `{ speakers: [{ id, name }], by }`,
+added at [P14.5] for [P14 §1.3a](design/workplan/31-p14-scene-and-session-import.md)'s
+*"while a round streams, the who-speaks-next control shows the picked order"*
+(Marinara's `response_queue`). Sent once per turn, when the selection is final:
+`by` is `rules` when the policy drew it, `forced` when the submission named
+the speaker (force-talk), `rewrite` for a swipe, a continue or a rewrite that
+kept the redone turn's speakers, and `model`, `fallback` or `rewrite` from the
+smart order's step. Not sent for a narrator's
+turn or a room nobody is cast in, because an empty queue is not an order.
 
 The stream authenticates by cookie and requires no CSRF header, because that is
 what `EventSource` can do — it sends cookies and cannot set headers. Nothing may
@@ -2076,7 +3184,7 @@ size cap. Those exist because an unvalidated store is otherwise an unbounded
 write surface for any signed-in account. A bad key is `400 invalid`; too large is
 `413 too-large`.
 
-### `GET /api/me/roles` · `PUT /api/me/bindings`
+### `GET /api/me/roles` · `PUT /api/me/bindings` · `PUT /api/me/task-roles`
 
 ```json
 {
@@ -2087,7 +3195,8 @@ write surface for any signed-in account. A bad key is `400 invalid`; too large i
     { "id": "0199…", "label": "The house key", "provider": "openai-compatible",
       "scope": "system", "models": ["gpt-hi", "gpt-lo"] }
   ],
-  "disabled": []
+  "disabled": [],
+  "tasks": { "assist": "prose" }
 }
 ```
 
@@ -2120,6 +3229,64 @@ naming a connection you may not use can never be access — it falls through to 
 layer below. A role this build does not know is dropped rather than refused, so
 a newer client is not an error; **anything else inside a binding is `400`**, which
 is what lets this route live outside `/api/admin`.
+
+**`tasks` says which of those rows the calls outside a session use** — today
+only field assist, which asks for `prose` unless you chose otherwise.
+`PUT /api/me/task-roles` takes `{ "assist": "prose" | "fast" | "reasoning" }` and
+answers `{ tasks }`; any other role is `400`, and there is no hash, because the
+file is one value and the request carries all of it. It is a stopgap for
+[25 C15](design/25-open-questions.md): [10 §11.4](design/10-ui-surfaces.md) says
+assists want `fast`, and until role fallback is decided for everyone, the person
+who knows whether their `fast` model is bound chooses. A server older than this
+omits `tasks`, which means `prose`.
+
+### `GET · POST /api/me/connections` · `PUT · DELETE /api/me/connections/:id` · `POST /api/me/connections/models`
+
+***Your own connections*** — [10 §15.1](design/10-ui-surfaces.md)'s *your
+connections*, built at [P10.3](design/workplan/27-p10-implementation.md)
+(`15043532`, 2026-09-16) and **documented here only from 2026-10-03**: until then
+this file's administration section said no route reached a user's own
+`connections/`, and nothing here said otherwise.
+
+**The administration routes below, with one substitution** — your
+`users/<handle>/connections/` for the system scope — so the bodies, the answers
+and the errors are [`POST /api/admin/connections`](#post-apiadminconnections--put-apiadminconnectionsid)'s,
+[`DELETE`](#delete-apiadminconnectionsid)'s and
+[`POST /api/admin/connections/models`](#post-apiadminconnectionsmodels)'s:
+`GET` answers `{ connections }` in the admin row shape, `POST` mints the id and
+answers `201 { connection }`, `PUT` requires `contentHash` and answers
+`412 stale` the same way, and `DELETE` is `204` and removes every file in your
+scope claiming the id. What differs:
+
+- **`privateConnections` is checked on every request**, re-read rather than
+  remembered from sign-in, and its absence is **`403 forbidden`** — not `404`,
+  because the route exists and what is missing is permission. It is the same
+  check the resolver makes at every turn ([09 §4.5](design/09-server-multiuser-deployment.md));
+  this route being refused is not what keeps a hand-written file from resolving.
+- **`PUT` and `DELETE` reach your scope only.** An id that exists only in the
+  system scope is `404`, never a way into the install's file.
+- **`DELETE` carries no binding count.** The admin warning exists because a
+  system connection is other people's; deleting your own breaks only your own.
+- **`shadowed` is computed over your scope alone**, so it marks the loser of two
+  of *your* files claiming one id. A file of yours claiming a **system**
+  connection's id reads `shadowed: false` — true, since it wins for you — and
+  nothing on this route says what it hides; the runner's `connections.shadowing`
+  log line is the only report, a known follow-up tracked at
+  [manual testing §10](design/workplan/05-manual-testing.md). It wins for your
+  account only: the provider memo has rebuilt per connection rather than per id
+  since 2026-09-27 ([P2B §1.5](design/workplan/10-p2b-provider-configuration.md)).
+- **`POST /api/me/connections/models` makes the server fetch a URL you typed**,
+  which the admin twin's note calls administrator-only. It adds the timing and
+  not the reach: an account with `privateConnections` can already store that URL
+  as a connection and have every turn call it.
+- **`POST /api/me/connections/:id/test` tries one of your own saved
+  connections** (since 2026-10-03), and is documented with its admin twin at
+  [`POST /api/admin/connections/:id/test`](#post-apiadminconnectionsidtest--post-apimeconnectionsidtest).
+  It resolves ids among your own connections only, so a system or another
+  account's id is `404`; it is `403 forbidden` without `privateConnections`,
+  before anything is read; its usage line goes to your own
+  `users/<handle>/usage.jsonl`; and like the models assist it adds the timing
+  and not the reach, because it can only call a URL you already saved.
 
 ---
 
@@ -2182,7 +3349,9 @@ connection*.
 `{ handle, password, role, displayName?, locale?, capabilities? }` →
 `201 { account }`. A duplicate handle is `409 exists`. Unknown fields are refused,
 the same way `/api/me` refuses them. A password shorter than
-`auth.minPasswordLength` is `400 invalid`, naming `/password`.
+`auth.minPasswordLength` is `400 invalid`, naming `/password`. A handle the rule
+under [setup](#post-apiauthsetup) refuses is `400 invalid` with that rule as
+the message (2026-09-27; it was a `500`).
 
 The library directory is created with the account, so `ls data/users/<handle>/`
 works immediately rather than after their first write.
@@ -2236,7 +3405,7 @@ refuses it is the state of the install.
   "config": { "…the running config": true },
   "path": "/data/config.json",
   "tiers": { "server.port": "restart", "log.level": "live" },
-  "appliers": { "log.level": "applied", "limits.maxUploadMb": "unread" },
+  "appliers": { "log.level": "applied", "limits.extensionStorageQuotaMb": "unread" },
   "bounds": { "server.port": { "minimum": 1, "maximum": 65535 } },
   "pendingRestart": []
 }
@@ -2267,6 +3436,24 @@ rather than present-and-empty.
 - A value the schema refuses is `400 invalid` and **nothing is written**: the
   document is validated by the same function the server boots on, so a save
   cannot leave a file the process will not start on.
+- ***And resolved and checked as the next start would meet it*** (2026-09-27).
+  The environment's `SE_*` values sit under the file, as they do at boot, so
+  `pendingRestart` names what a restart would actually change. A deployment key
+  that differs from what this process started with is asked of the machine:
+  `server.host` must be the wildcard, loopback, or an address this machine has
+  (a name must resolve to one here); a changed `server.port` must be one a
+  listen here could take; `server.clientRoot` must hold an `index.html`, and
+  cannot be emptied while this server serves the app; `server.cookieSecure`
+  can be turned on only from a page reached over HTTPS, or through a proxy
+  named in `x-forwarded-proto` when the same save trusts proxies. Each refusal
+  is `400 invalid` with an `issues` line naming the key, and nothing is written.
+  The schema alone had passed each of these, and each was a start that failed,
+  or one nobody could reach or sign in to.
+- ***A save writes what somebody chose*** (2026-09-27). The form sends the whole
+  running config back; a key the file does not already set is written only
+  when its value differs from what the environment or the default would give
+  it. An unedited save used to copy `SE_HOST`, `SE_PORT` and `SE_CLIENT_ROOT`
+  into the file, where they outranked the environment from then on.
 
 ### The stale check
 
@@ -2297,6 +3484,7 @@ will not.
       "provider": "openai-compatible",
       "scope": "system",
       "models": ["gpt-hi", "gpt-lo"],
+      "imageModels": ["gpt-hi"],
       "baseUrl": "https://api.openai.com/v1",
       "hasKey": true,
       "shadowed": false,
@@ -2308,8 +3496,12 @@ will not.
 
 **The system scope, and only the system scope.** A user's own `connections/` is
 read by the resolver, counted by the delete warning, hand-written by anyone who
-wants one, and reachable from no route here
-([P2B §2.7](design/workplan/10-p2b-provider-configuration.md)).
+wants one, and ~~reachable from no route here~~ reachable from no route under
+`/api/admin` ([P2B §2.7](design/workplan/10-p2b-provider-configuration.md)).
+*(2026-10-03: its owner's own routes have reached it since `15043532`, P10.3,
+2026-09-16 —
+[`/api/me/connections`](#get--post-apimeconnections--put--delete-apimeconnectionsid--post-apimeconnectionsmodels),
+which this file did not document until today.)*
 
 **Two shapes exist and the boundary between them is the key alone.** What a
 non-admin can reach carries a label, a provider and its models
@@ -2338,7 +3530,13 @@ change do nothing.
   "apiKey": "sk-…",
   "baseUrl": "https://api.openai.com/v1",
   "models": ["gpt-hi", "gpt-lo"],
-  "capabilities": { "maxContextTokens": 32768, "reportsUsage": true }
+  "imageModels": ["gpt-hi"],
+  "capabilities": {
+    "maxContextTokens": 32768,
+    "reportsUsage": true,
+    "rendersImages": false,
+    "supportsImageSeed": false
+  }
 }
 ```
 
@@ -2354,12 +3552,36 @@ honours it — otherwise editing a label would silently delete the credential.
 stored, and it is merged rather than replaced, so an override written by hand for
 a capability the form has no control for survives a save. It was undocumented
 here until P2C, which meant the only way to find it was to read the route — and
-the settings form now offers the two an operator has a reason to set.
+the settings form now offers the four an operator has a reason to set — the two
+below, and since 2026-10-03 `rendersImages` and `supportsImageSeed`.
 
-Those two are `maxContextTokens` and `reportsUsage`, and they are the two only
-the operator can know: **this build assumes a conservative context window**, and
-an endpoint that does not count tokens will make every figure in a turn record
-null. The rest of the capability shape travels untouched.
+Those two are `maxContextTokens` and `reportsUsage`, ~~and they are the two only
+the operator can know~~ the two an operator most often has to set *(2026-10-03:
+not the only ones only the operator can know. `rendersImages` (P9) and
+`supportsImageSeed` are facts about the endpoint too, declared per connection
+~~with no form control yet and written by hand — the guide's [Editing connection
+files by hand](guide/connections-and-models.md#editing-connection-files-by-hand)
+says how, and the merge above keeps them through a save; the missing
+`supportsImageSeed` control is carried as a debt at
+[P9 §3.2](design/workplan/26-p9-implementation.md)~~ — and, from later the same
+day, set on the form beside the other two: **Makes pictures** and **Sends a seed
+with a picture**, under
+[polish §25](design/workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn).
+A hand edit still works, and the merge above keeps either through a save)*:
+**this build assumes a conservative context window**, and an endpoint that does
+not count tokens will make every figure in a turn record null. The rest of the
+capability shape travels untouched.
+
+**`imageModels` names which of `models` can see pictures** on a player's move
+([25 E15](design/25-open-questions.md)), and it is **per model, not a
+capability**, which is the point of it: one endpoint serves a vision model and a
+text one, so a connection-wide flag would send pixels to the text model the
+first time a binding or an actor hint picked it. Absent keeps what is stored;
+anything not in `models` is dropped on save, so removing a model removes it here
+too. Empty, the default, means no model on this connection is sent pictures —
+their captions go instead, which is always a working answer. It is absent from
+a connection that never set it, and rides on the non-admin shape too, beside
+`models`.
 
 **A provider this build cannot construct is refused at save**, `400 unbuildable`,
 naming it. `KNOWN_PROVIDERS` carries capability defaults for five names and one
@@ -2408,6 +3630,13 @@ one case where that is exactly wrong is the endpoint answering perfectly well
 that the key is bad. Either way the body carries a class and never the
 endpoint's own words — those can echo the key being refused.
 
+**Nothing answering splits in two since [P11.6](design/workplan/28-p11-implementation.md)**:
+`502 offline` when the endpoint is remote *and* the update check has
+established this machine has no route out, `502 unreachable` otherwise — a
+local model server that does not answer is simply not running, and *nothing has
+looked yet* claims nothing about the network. The connection test below uses the
+same pair, from the same function.
+
 **An assist, not the path.** Typing a model id from memory is where *paste in one
 API key and take a turn* falls down, so this fills a picker from the endpoint's
 own `GET {baseUrl}/models`. A failed fetch is a notice rather than a blocked
@@ -2425,10 +3654,143 @@ not refused.** On a box whose whole purpose is pointing at `localhost:8080` and
 the machine next door, refusing them would break the primary use case. The
 mitigation is that the action is administrator-only, explicit, never automatic,
 and its response only populates a picker. That is a smaller claim than *this is
-safe*, and it is the true one.
+safe*, and it is the true one. *(2026-10-03: administrator-only no longer — an
+account with `privateConnections` has the same fetch at
+[`POST /api/me/connections/models`](#get--post-apimeconnections--put--delete-apimeconnectionsid--post-apimeconnectionsmodels)
+since P10.3, which says why that adds timing rather than reach.)*
 
 A `POST` that writes nothing, because it carries a key — and a key does not
 belong in a URL.
+
+### `POST /api/admin/connections/:id/test` · `POST /api/me/connections/:id/test`
+
+```json
+{ "kind": "text", "modelId": "gpt-hi", "prompt": "Say hello in one short sentence." }
+```
+
+One call to a **saved** connection, on demand —
+[polish §25](design/workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn), and the health check
+[P2B §5](design/workplan/10-p2b-provider-configuration.md) deferred until the
+connectivity work existed. `kind` is `text` or `image`; `modelId` is not checked
+against the connection's `models`, because that list may be empty and *try this
+model before adding it* is one of the things a test is for; `prompt` is at most
+2,000 characters.
+
+```json
+{
+  "kind": "text",
+  "text": "Hello there.",
+  "modelId": "gpt-hi",
+  "finishReason": "stop",
+  "usage": { "promptTokens": 12, "completionTokens": 3 },
+  "cost": null,
+  "elapsedMs": 840
+}
+```
+
+```json
+{
+  "kind": "image",
+  "mime": "image/png",
+  "base64": "iVBORw0…",
+  "modelId": "gpt-image-1",
+  "seed": 1737849,
+  "cost": null,
+  "elapsedMs": 14300
+}
+```
+
+`modelId` is what the endpoint says answered, which may not be what was asked
+for. A picture comes back as base64 so a page can show it without the picture
+being written anywhere; nothing here stores it (the usage line below records
+the call, not the picture).
+
+**What is tested is what is saved.** The connection is looked up by id and the
+provider comes from the same memoised factory a turn uses, so the stored key and
+address are used without the key ever reaching the client — and the body is
+**closed**: one carrying `apiKey` or `baseUrl` is `400 invalid`, not honoured. A
+pass means a turn will work. Under `--capture` the exchange is a cassette like
+any other, because it goes through the same transport.
+
+**The smallest question, asked as a turn asks it.** A message is asked with a
+completion ceiling of 256 and no sampler settings at all — a preset's are the
+preset's — through the non-streaming call, so it proves the key, the address and
+the model, not the streaming path or a preset. The ceiling is not smaller
+because a model that thinks before it answers spends its first tokens where
+nobody sees them: at 32 it returns empty text finished by `length`, a working
+connection that reads as a broken one. **An empty `length` reply is a `200`**,
+and the client says why. **It goes through the same call path as every model
+call that is not a turn** (`performCall`): the connection's context window is
+planned against, so a window too small to hold the test beside its reply is
+`422 window-too-small` before anything is sent, and a busy or unreachable
+endpoint is asked again on a turn's ladder — twice more, after a quarter of a
+second and a second — so a 429 that clears on the second ask passes, as it would
+for a turn, and `busy` means it did not clear.
+
+**A picture only where the connection says so** — `rendersImages` on its
+capabilities — checked before anything is sent. The request is a rendition's:
+a clock seed and an empty `workflow`, the seed sent only where
+`supportsImageSeed` says the endpoint takes one. **A picture is asked once**:
+it does not go through that call path, which has no picture arm, and picture
+requests are never retried (a 429 is `busy` at the first answer).
+
+**The timeout is `limits.providerTimeoutMs`**, the one a turn obeys, and `0`
+means none — for a message as each attempt's bound, for a picture as a wall
+clock on its one attempt (unlike a rendition, which no clock stops: nobody is
+watching a rendition, and somebody is watching this). A local runtime's first
+request loads the model, which is why this is not the model list's ten seconds.
+A reverse proxy's own read timeout (nginx defaults to sixty seconds) can cut a
+slow picture off first; that surfaces as whatever the proxy answers, which the
+client reads as *did not come back with an answer this page understands*.
+
+**A client that leaves ends it.** The call is aborted when the request's
+connection closes before the answer is written — `disconnectSignal`, as
+Illustrate and the field assist use it — on either arm, and nothing is
+answered or logged as an error. A hosted endpoint may already have billed a
+picture it accepted; aborting does not un-spend it.
+
+| Status | `error` | When |
+|---|---|---|
+| `400` | `unbuildable` | a hand-written file names a provider this build has no adapter for |
+| `401` | `unauthorized` | the endpoint refused the key (`401` or `403` from it) |
+| `403` | `forbidden` | personal route, and the account lacks `privateConnections` |
+| `404` | `not-found` | no connection with that id **in this scope** |
+| `422` | `not-an-image-endpoint` | a picture, on a connection that does not say it makes them |
+| `422` | `window-too-small` | a message, on a connection whose context window cannot hold it beside its reply |
+| `502` | `busy` | the endpoint rate-limited or failed on its side (a `retryable` class) — for a message, through every retry |
+| `502` | `offline` | nothing answered, the endpoint is remote, and this machine has no route out |
+| `502` | `unreachable` | nothing answered, otherwise |
+| `502` | `refused` | the endpoint answered and refused the request — most often a model it does not serve |
+| `504` | `timeout` | `providerTimeoutMs` passed without an answer, or the transport gave up on a quiet endpoint first |
+
+**The timeout is decided first**, because an aborted request looks `transient`
+from its message alone and would otherwise read as *unreachable* about an
+endpoint that was merely slow — and it is decided from the stall, whoever
+noticed it: this server's clock, or the HTTP client's own header and body
+limits, which give up beneath it. Then the endpoint's status, because a refused key
+and a refused request are both `terminal` and point at opposite fields of the
+form. Every refusal is a class and a fixed sentence and **never the endpoint's
+own words**; those go to the log, as a `connection.tested` event, with the key
+redacted out of them. The log line never carries the prompt, the reply or the
+address.
+
+**It costs money, so it is a button and never automatic**
+([10 §11.5](design/10-ui-surfaces.md)). **And a test that returns is recorded**,
+as [10 §11.4](design/10-ui-surfaces.md) asks of every model call that is not a
+turn: one line in the usage log of the account that pressed it
+(`users/<handle>/usage.jsonl`, [21 §1.4](design/21-internal-contracts.md)) —
+an admin's own for the install's connections — with the purpose
+`connection-test:text` or `connection-test:image` and the role
+`connection-test`, which no binding can have, because a test resolves no role.
+A picture's line has `usage: null`. A test that failed or was cancelled writes
+nothing.
+
+**The personal twin** is the same route with one substitution: it resolves ids
+among the caller's own connections only, so an id that exists in the system
+scope or in somebody else's directory is `404`, and without `privateConnections`
+it is `403 forbidden` before anything is read. It can only reach a URL the
+caller already saved, so what it adds is the timing, not the reach. Both resolve
+a duplicated id to the file that wins, which is the one a turn would use.
 
 ### `GET /api/admin/bindings` · `PUT /api/admin/bindings`
 
@@ -2618,6 +3980,12 @@ manifest's `omitted` at `warn`**, because all-or-nothing is the right failure
 for a *restore* and the wrong one for a backup: it would leave an install with
 no archive at all, discovered on the day somebody needed one.
 
+**`507 {"error":"no-space"}` when the disk has no room for it**, whether the
+free-space check refused it before writing or the disk filled while it was
+written (`ENOSPC`). A state of the disk rather than a fault of the server, and a
+class the client has a sentence for — it used to be the error handler's bare
+`500`. The admin half (`POST /api/admin/backups`) answers the same.
+
 ### `GET /api/me/backups`
 
 **Everything this account has** → `200 {"backups": […], "totalBytes": n}`,
@@ -2768,8 +4136,32 @@ groups produced:
 ```
 
 `403` for a `handle` that is not this account's — a person may only read their
-own subtree. `422` for an archive that will not read, or that does not hold the
-handle asked for.
+own subtree — and for `options.config` on an account's archive, before anything
+is read or written. `422` for an archive that will not read, that does not hold
+the handle asked for, or (`too-large`) that holds more of that account than an
+import reads in one go. ***Only the members an import reads count against those
+bounds*** (2026-09-27): the account's library objects and their `assets/`, its
+tags, prefs and connections, and each session's file, turns, rendition records
+and pictures. Another account's work, the operational store and every object's
+history used to count as well, and an ordinary account was refused as unreadable.
+
+***What "already here" means for a session*** (2026-09-27). A session is skipped,
+under every `onConflict`, when this account has it under its own id, when it is
+in this account's trash, or when its turns are already on this install, which is
+what an earlier import of the same archive leaves. Before, nothing was asked,
+and each import of a person's own backup added another copy of every session. An
+imported session's turns name the session they landed in, it is indexed and
+searchable, and its pictures arrive with their records: pixels and all, since a
+backup holds them, and a picture that was still being made as `interrupted`,
+with a retry. The pictures a player attached to moves come too, each stored
+under the digest of the bytes the archive holds
+([25 E15](design/25-open-questions.md)).
+
+**A tag whose name is already here under another id keeps the one here.** An
+object brought in with the archive's id for it still reads that name, because a
+dangling id falls back to the name beside it ([05 §3](design/05-tagging.md)),
+and adopting tags again points it at this registry's. The merge used to throw at
+that clash after the library had been written, so the sessions never came.
 
 ***The archive is named by id rather than uploaded***, which is a scoping
 decision rather than an omission: a person's backups are already on this server,
@@ -2809,6 +4201,14 @@ filesystem paths on the machine the archive came from: one would point a running
 server at a directory that may be somebody else's, the other would make it serve
 a 404 where the built client used to be. Ticking it on an *account* archive is
 `403 not-install-scope`.
+
+***And `server.host`, `server.port`, `server.cookieSecure` and
+`server.trustProxy`*** (2026-09-27): where the other machine listened and what
+stood in front of it. A laptop's loopback address imported into a container
+outranked `SE_HOST` at the next start and bound the container's own loopback.
+The keys the archive carried and this install kept are named in an
+`import.backup.configWithheld` note, which is what *by name* promised and did
+not do before.
 
 ### `POST /api/admin/restore`
 
@@ -2866,23 +4266,37 @@ operator has a shell, and `docs/deploy.md`'s household one has a web page and
 nothing else.
 
 **What happens on the next boot**, for an accepted restore: before anything
-opens a handle on the data directory, the archive is unpacked to a **sibling**
-directory, the live directory is renamed to `<dataRoot>.replaced-<uuidv7>`, and
-the new one is renamed into place. Two renames on one filesystem; the window
-between them is the only unsafe moment and it is microseconds wide.
+opens a handle on the data directory, the archive is unpacked to
+`<dataRoot>/.restore/<id>/staging`, a journal is written to
+`<dataRoot>/.restore/swap.json`, and the swap moves the install's entries into
+`.restore/<id>/replaced` and the archive's into their places, one at a time.
+`backups/` never moves, and each person's own archives are carried across.
+~~The archive is unpacked to a **sibling** directory and the live directory
+renamed aside~~ (corrected 2026-09-27): that needs to write in the data
+directory's parent, which no shipped deployment allows. See
+`packages/server/src/backup/swap.ts`.
 
-***The replaced directory is kept and never deleted***, on `removed/`'s
+***The replaced install is kept and never deleted***, on `removed/`'s
 precedent — *StoryEngine will not delete this; remove it yourself when you are
 sure*. That is the undo, and the only property that covers *the restore worked
 and was the wrong archive*. A `system.notice` names it on that boot, which is
 the one place in this build where a filesystem path is deliberately put in
 front of a person.
 
-**A failed unpack leaves the install untouched** — everything is written before
-anything is renamed — rewrites the marker with `attempts: 1`, and boots
-normally. **A second attempt is refused rather than made**: a supervisor
-restarts a process that exits, so an unpack that kept failing would take the
-install down rather than one boot.
+**A failed restore leaves the install as it was.** Everything is written before
+anything moves; a move that fails part way is moved back; a boot that died part
+way finishes the swap from the journal. The marker is rewritten with
+`attempts: 1`, and the server boots normally. **A second attempt is refused
+rather than made**: a supervisor restarts a process that exits, so an unpack
+that kept failing would take the install down rather than one boot. *If a move
+fails and moving it back fails too*, the server refuses to start, naming both
+halves, and tries to finish again on each start.
+
+**One restore at a time.** A request while another is being prepared, or while
+the server is draining for one, is refused with `409 already-restarting` before
+anything is written, and so is `POST /api/admin/restart` while a restore is
+being prepared. A second request used to overwrite the first one's marker and
+then delete it.
 
 ***And the archive carries no index***, so the restored install rebuilds it on
 that same boot — which is [P11.11](design/workplan/28-p11-implementation.md)'s
@@ -2907,14 +4321,15 @@ proof obligation arriving for free.
 | 409 | `conflict` / `already-setup` | That id already exists; setup already ran |
 | 409 | `exists` | An account with that handle already exists |
 | 409 | `last-admin` | The change would leave the install with no administrator who can sign in |
-| 413 | `too-large` | The preference document would exceed its size cap, or an upload exceeds `limits.maxUploadMb` |
+| 413 | `too-large` | The preference document would exceed its size cap, an upload exceeds `limits.maxUploadMb`, or it exceeds a route's own fixed cap — an avatar's, or a picture on a move's (8 MB) |
 | 415 | `not-multipart` | An upload that was not `multipart/form-data` |
 | 403 | `no-file-access` | A sweep from an account without the `fileAccess` capability |
 | 422 | `inside-data-root` / `not-absolute` / `unreadable-root` | A sweep root this build will not read |
 | 422 | `live-install` / `unknown-format` / `ambiguous-root` | A source folder refused before anything was written |
+| 507 | `no-space` | An import that reads from a private copy of somebody's database — an Aventuras folder, by path, upload or archive — with no room on the disk for the copy. The message carries the numbers |
 | 400 | `no-file` | A multipart upload with no file part |
 | 412 | `stale` | Hash mismatch — `current` holds the object as it is now. **A 412 always carries a hash different from the one you sent**; if it did not, reload-and-reapply could not terminate, which is exactly what `diverged` below exists to stop happening |
-| 409 | `diverged` | The file on disk cannot be read, and the index still holds the last good version — a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
+| 409 | `diverged` | The file on disk cannot be read as an object of its kind — it will not parse, names another kind or no id, or fails its schema — and the index still holds the last good version: a hand edit that broke the file. **Not a retry**: nothing about the request is wrong, so reloading returns the same hash. Repair the file, or `DELETE` the object, which works in this state on purpose |
 | 422 | `refused-path` | The object's folder name is one this build will not open — `con`, a trailing space. The message names the reason and the segment, never a filesystem path |
 | 428 | `hash-required` | A write with no content hash |
 | 404 | `no-such-parent` | A turn submission named a `parentTurnId` that is not a turn of this session. The request is well formed and names something that is not there, which is why it is a 404 rather than a 422 |
@@ -2957,10 +4372,15 @@ changed. What changed is the audience: `400 invalid` with `issues`,
 rather than `curl` output, which is the first real test of whether they say
 anything useful.*
 
-**One half of it is still deferred, deliberately**, so it is named here rather
+~~**One half of it is still deferred, deliberately**, so it is named here rather
 than left to be discovered: there is **no route that writes a user's own
-connection or their own `bindings.json`.** P2B writes the system scope and only
+connection or their own `bindings.json`.**~~ P2B writes the system scope and only
 the system scope ([P2B §2.7](design/workplan/10-p2b-provider-configuration.md)),
-and [10 §15.1](design/10-ui-surfaces.md)'s *your connections* half waits with the
-rest of the user surface. Both files are read by the resolver and hand-written
-by anyone who wants one, exactly as before.
+and [10 §15.1](design/10-ui-surfaces.md)'s *your connections* half ~~waits with the
+rest of the user surface~~ is the user surface's. Both files are read by the
+resolver and hand-written by anyone who wants one, exactly as before. *(2026-10-03:
+the deferral ended in two halves — [`PUT /api/me/bindings`](#get-apimeroles--put-apimebindings--put-apimetask-roles)
+has written your own `bindings.json` since `201cef3b`, P7.3, 2026-09-12, and since
+`15043532`, P10.3, 2026-09-16,
+[`/api/me/connections`](#get--post-apimeconnections--put--delete-apimeconnectionsid--post-apimeconnectionsmodels)
+writes your own connections. This paragraph went on saying neither existed.)*

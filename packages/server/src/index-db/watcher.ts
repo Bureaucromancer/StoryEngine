@@ -10,11 +10,10 @@ import { type FSWatcher, watch } from 'chokidar';
 
 import { selfWrites, type SelfWriteRegistry } from '../storage/atomic.js';
 import { appendLine, statFile, unlinkFile } from '../storage/files.js';
-import { snapshotReplaced } from '../storage/history.js';
 import type { Layout } from '../storage/layout.js';
 import { isContained, PathEscapeError } from '../storage/paths.js';
-import { ingestFile, matureTombstones, recordUnusableName, removeFile } from './ingest.js';
-import { findByPath } from './query.js';
+import { takeInForeignEdit } from './foreign-edit.js';
+import { clearFileError, matureTombstones, recordUnusableName, removeFile } from './ingest.js';
 
 /**
  * The watcher — **foreign writes only**.
@@ -105,6 +104,8 @@ export class LibraryWatcher {
    * prevent. Ordering is not an optimisation here; it is the mechanism.
    */
   #queue: Promise<void> = Promise.resolve();
+  /** Set by `stop()`, after which no event is queued. */
+  #stopped = false;
 
   /** Post-construction subscribers — see {@link LibraryWatcher.observe}. */
   readonly #observers = new Set<(event: WatchEvent) => void>();
@@ -166,11 +167,25 @@ export class LibraryWatcher {
   }
 
   async start(): Promise<void> {
+    // A watcher stopped and started again is watching again.
+    this.#stopped = false;
+    // ***chokidar is patched*** (2026-09-27, `patches/chokidar@5.0.0.patch`).
+    // It met a new directory by reading it and only then watching it, so a
+    // folder made inside one in between was never watched, and nothing written
+    // under it was seen until a restart — gate step 16's intermittent timeout,
+    // and `cp -r` into the library for real. The patch watches first; the test
+    // `a folder made while its parent is still being read` holds it there.
     const watcher = watch(this.#layout.dataRoot, {
       ignoreInitial: true,
       // A rebuild is the startup path ([03 §5.1]); the watcher is for what
       // happens after. Reporting every existing file as an add would duplicate
       // that scan and slow start-up on a large library.
+      //
+      // ***And on every other start, the check*** (2026-09-27). A start that
+      // did not rebuild looked at nothing, so an edit made while the server
+      // was stopped was never seen until the file changed again.
+      // `reconcileIndex` is that look, by the recorded size and time, and it
+      // runs before this starts.
       awaitWriteFinish: {
         stabilityThreshold: this.#stabilityThresholdMs,
         pollInterval: 20,
@@ -207,14 +222,19 @@ export class LibraryWatcher {
     });
 
     watcher.on('add', (path) => {
-      this.#enqueue(() => this.#onUpsert(path));
+      this.#enqueue(path, () => this.#onUpsert(path));
     });
     watcher.on('change', (path) => {
-      this.#enqueue(() => this.#onUpsert(path));
+      this.#enqueue(path, () => this.#onUpsert(path));
     });
     watcher.on('unlink', (path) => {
-      this.#enqueue(() => {
+      this.#enqueue(path, () => {
         this.#onUnlink(path);
+      });
+    });
+    watcher.on('unlinkDir', (path) => {
+      this.#enqueue(path, () => {
+        this.#onUnlinkDir(path);
       });
     });
 
@@ -287,14 +307,55 @@ export class LibraryWatcher {
     await this.#queue;
   }
 
+  /**
+   * ***Closes the watcher, then finishes what it had already queued***
+   * (2026-09-27). The other way round, an event arriving between the drain and
+   * the close was queued after the drain and ran once the caller had closed the
+   * index under it.
+   */
   async stop(): Promise<void> {
-    await this.#queue;
+    this.#stopped = true;
     await this.#watcher?.close();
     this.#watcher = null;
+    await this.#queue;
   }
 
-  #enqueue(work: () => void | Promise<void>): void {
-    this.#queue = this.#queue.then(work, work).then(() => undefined);
+  /**
+   * ***A total queue: one event's failure is that event's, and is said***
+   * (2026-09-27).
+   *
+   * `then(work, work)` ran the next event whether or not the last one failed,
+   * and left the failure itself as a rejected promise that nothing handled
+   * until the next event arrived. Node's default for that is to end the
+   * process. So a card saved as a link to a file outside the data directory
+   * (the real-path check refuses it, which is the check working), a file a
+   * scanner holds locked on Windows, or a full disk during the snapshot took
+   * the whole server down, and after the restart the edit was never looked at
+   * again, because the watcher does not replay what it has already seen.
+   *
+   * Now a refused path is a `warn` and a `refused` event, what the name check
+   * above already says for a name, and anything else is an `error` and an
+   * `ignored` event. Both carry the path, so anything waiting on this file
+   * hears an answer rather than a silence. The shape and not the error object,
+   * for [21 §4.1]'s reason: a log is not a place for whatever an error carries.
+   */
+  #enqueue(path: string, work: () => void | Promise<void>): void {
+    if (this.#stopped) return;
+    this.#queue = this.#queue.then(work).catch((error: unknown) => {
+      const refused = error instanceof PathEscapeError;
+      const fields = {
+        event: refused ? 'library.refused' : 'watcher.failed',
+        path: this.#layout.portablePath(path) ?? basename(path),
+        message: error instanceof Error ? error.message : String(error),
+      };
+      if (refused) this.#log?.warn(fields, 'A library file was refused');
+      else this.#log?.error(fields, 'A watched change could not be indexed');
+      try {
+        this.#emit({ type: refused ? 'refused' : 'ignored', path });
+      } catch {
+        // An observer that throws must not be what breaks the queue again.
+      }
+    });
   }
 
   async #onUpsert(path: string): Promise<void> {
@@ -344,30 +405,27 @@ export class LibraryWatcher {
       return;
     }
 
-    // The state a foreign edit is replacing, read *before* the index moves on.
-    const previous = findByPath(this.#db, path);
-
     matureTombstones(this.#db, this.#layout);
-    const outcome = await ingestFile(this.#db, this.#layout, path);
+    // The ingest and the history a hand edit earns, shared with the start-up
+    // check so an edit made while the server was stopped is kept the same way
+    // (2026-09-27).
+    const outcome = await takeInForeignEdit({
+      db: this.#db,
+      layout: this.#layout,
+      parsed,
+      keepPerObject: this.#options.keepHistoryPerObject ?? 50,
+    });
 
-    // **Hand-edits get history for free** ([03 §11.2]) — the strongest argument
-    // for building the mechanism now, while the watcher exists and no editor
-    // does. Snapshot when the content genuinely changed, and also when the new
-    // content failed to parse at all: someone breaking a file in a text editor
-    // is exactly the person the last good state is being kept for. A move is
-    // neither — same content, new path — and records nothing.
-    const changed =
-      outcome.kind === 'indexed'
-        ? outcome.row.contentHash !== previous?.contentHash
-        : outcome.reason === 'invalid';
-    if (previous && changed) {
-      await snapshotReplaced({
-        objectRoot: this.#layout.objectRoot(parsed.owner, parsed.schemaId, parsed.slug),
-        payload: previous.body,
-        source: { kind: 'external' },
-        reason: '',
-        keepPerObject: this.#options.keepHistoryPerObject ?? 50,
-      });
+    // A link out of the data directory, refused and recorded by the ingest.
+    // What the queue's catch says for a refusal it meets anywhere else, and
+    // for the same reason: the check working is a `warn`, not an `error`.
+    if (outcome.kind === 'skipped' && outcome.reason === 'refused') {
+      this.#log?.warn(
+        { event: 'library.refused', path: this.#layout.portablePath(path) ?? basename(path) },
+        'A library file was refused',
+      );
+      this.#emit({ type: 'refused', path });
+      return;
     }
 
     /**
@@ -413,6 +471,22 @@ export class LibraryWatcher {
     // object path is somebody deleting it.
     const removed = removeFile(this.#db, this.#layout, path);
     this.#emit({ type: removed ? 'removed' : 'ignored', path });
+  }
+
+  /**
+   * ***A folder that went away takes its name's complaint with it***
+   * (2026-09-27).
+   *
+   * An `unusable-name` row is keyed by the object *folder* (`recordUnusableName`
+   * says why), and every clear was keyed by a file path, so renaming `con` to
+   * `con-city` indexed the book and left the quarantine panel reporting a
+   * folder that no longer existed, until a rebuild — which by default never
+   * runs. chokidar reports the folder by the same absolute path the row was
+   * written under, since both are built from the data root.
+   */
+  #onUnlinkDir(path: string): void {
+    if (clearFileError(this.#db, path)) this.#emit({ type: 'removed', path });
+    else this.#emit({ type: 'ignored', path });
   }
 
   async #isOwnWrite(path: string): Promise<boolean> {

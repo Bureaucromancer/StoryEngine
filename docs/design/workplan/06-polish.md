@@ -626,6 +626,15 @@ the editor, and it should still be proved.
 *Routed here 2026-09-09 by [P6B.3](20-p6b-playable.md), from
 [F-02](21-playable-log.md) and graded at [R10](22-walkthrough-refinements.md).*
 
+**Landed 2026-09-17, whole, at polish 2 (`a0e4313`)** — [§14](#14-the-composer-is-a-box-for-prose-and-send-says-it-heard-you)
+below. One polite live region for the whole wait, from Send to the first word,
+and a busy Send whose label is the reason it is greyed; acknowledgement and not
+progress, which is this item's own bar. It took two things this item did not
+describe, both found in building it: the composer stopped being a one-line
+`<input>`, and the button stopped being live for the length of the POST, which
+had let a second press start a second turn. Everything below is kept as the
+argument it was.
+
 **The condition is not a regression and was written down before anybody hit
 it.** [P2C brief §3.4](13-p2c-brief.md) says it nearly word for word: *"There is
 no progress, no step display and no spinner."* It was accepted deliberately,
@@ -682,3 +691,344 @@ component over a static list of control labels rather than over an index.
 **No schema change, no new contract, nothing hidden** — which is exactly this
 file's house rule, and is why the other two thirds of R3 are at
 [25 E10](../25-open-questions.md) instead.
+
+---
+
+# The 2026-09-17 review, and the pass that answered it
+
+**A read of the client on 2026-09-17 found what follows**, and it was approved as
+twelve commits, titled *Polish 1* to *Polish 12*. The first four landed the same
+day. The rest waited behind the audit of `main` approved on 2026-09-25 — the
+decision was *audit tiers first* — and landed on 2026-10-01; this record is the
+twelfth. **An entry's number is not its commit's**: entries 13 to 23 are commits
+1 to 11, in order, and each says what was found, struck, then what shipped.
+Entry 24 is what the pass found and left, unstruck, because it has not shipped.
+
+Where a finding turned out to be the same as an audit fix, it went with the audit
+and is said here only by reference: the reading view's title for an unnamed
+session, and refusals read by their class rather than by their English, both
+landed in the audit's Q tier.
+
+---
+
+## 13. The story prints
+
+**Landed 2026-09-17 at polish 1 (`b2926fc`).** ~~*A printed story is its first
+page.*~~ [10 §12.2](../10-ui-surfaces.md) makes the browser's print-to-PDF the
+whole PDF story, and since [P3.−1](15-p3-implementation.md) `<main>` has been the
+scroll container — a box with a definite height and `overflow: auto`, which
+Chrome and Firefox print as one page. The print block now releases the
+scrollport, and `Shell.tsx` releases its two height-managed ancestors at the
+call site. The docks, the restart banner and the toast stay off the paper, and an
+illustration is bounded by the column rather than stretched to it.
+`theme.test.ts` holds that the release is present; whether it prints well is
+still [manual testing](05-manual-testing.md)'s row R2.
+
+## 14. The composer is a box for prose, and Send says it heard you
+
+**Landed 2026-09-17 at polish 2 (`a0e4313`)**, and with it all of
+[§11](#11-something-happens-between-send-and-the-first-token). ~~*A turn is typed
+into one line that scrolls sideways; Send stays live while the turn is posted, so
+a second press starts a second turn; and nothing says anything until the first
+word.*~~ A textarea that starts at one line and grows — at three rows the
+transcript collapsed to nothing at 720px, which is a measured finding rather than
+a caution — with Enter to send, Shift+Enter for a paragraph, and an input
+method's Enter left alone. One live region for the wait, focus given back to the
+box when a turn ends, and Stop as a mutation that can say it failed.
+
+## 15. The per-turn controls exist on a touch screen
+
+**Landed 2026-09-17 at polish 3 (`783fe9d`).** ~~*Every per-turn gesture —
+Redo, Reroll, Continue from here, Illustrate, Remember this, Undo — is invisible
+on a device with no pointer.*~~ Tailwind's `hover:` is `@media (hover: hover)`,
+so a row held at `opacity-0` until hover never showed on a phone, while staying in
+the tab order and taking taps. `ui/classes.ts` gained `reveal` with the
+`(hover: none)` arm, and `theme.test.ts` refuses `opacity-0` anywhere else. With
+it: the header folds; every dialog takes the height cap only `large` had; below
+`sm` an open dock is the view rather than a neighbour of it; the shelf scrolls in
+its own wrapper. It named the two nested `<main>`s and left them for
+[§23](#23-the-keyboard-and-the-screen-reader-get-there-too).
+
+## 16. The appearance layer, which had grown back most of what it removed
+
+**Landed 2026-09-17 at polish 4 (`78c4cf5`)** — [§6](#6-the-styling-layer-and-the-second-theme-it-exists-to-allow)'s
+conditions, returned. ~~*`control` spelled four ways, three without the
+disabled half; `Note` re-typed at 58 sites; three button variants without a
+disabled state of their own; nothing you press drawing the focus ring that
+everything you type into does; fourteen `<summary>`s in seven spellings.*~~ Each
+fix is argued by a docstring already in the tree. It also gave Sessions, Search
+and Reading the page-title step — the *h2 start* the accessibility entry was
+later approved with — and the reading view one title element for screen and
+print.
+
+## 17. The story has a face of its own
+
+**Landed 2026-10-01 at polish 5 (`04e45a5`).** ~~*The story is set in the
+browser's default sans, the same as every label around it.*~~
+[10 §1.2](../10-ui-surfaces.md) separates the quiet surfaces by type, measure and
+chrome, and type was only a size. Two system stacks, no webfont: an interface
+face on `body`, a book face — Charter, Sitka Text, Cambria and their kin — on
+every `text-story`, held together by `theme.test.ts`.
+
+## 18. The action colour is a colour
+
+**Landed 2026-10-01 at polish 6 (`8bea85f`).** ~~*The accent is slate-800, so a
+primary button reads as a heavier paragraph, and the selected chip and the focus
+ring are grey on grey.*~~ Indigo in all three theme blocks, at the lightness the
+slate steps had where it mattered, so a disabled button looks exactly as disabled.
+`contrast.test.ts` measures a button's label at rest and under the pointer
+against 4.5:1 and the ring and the accent against 3:1, both themes.
+
+## 19. Finding your way back
+
+**Landed 2026-10-01 at polish 7 (`8a9cd32`).** ~~*A notification names its
+story and does not link to it; the reading view has no way back to the session;
+the header lights every surface but Settings.*~~ The notification's title is a
+link that marks it read and closes the list; the reading view has Compare's
+*Back to the session*, under a failure too; Settings is drawn as the surfaces
+are. A fourth finding, search hits on an unnamed session as zero-width links,
+had gone with the audit.
+
+## 20. Destructive actions ask once, the same way everywhere
+
+**Landed 2026-10-01 at polish 8 (`8ae68e4`).** ~~*One removal asks and loses
+the keyboard doing it; the rest go at the first click, a tag's under a button
+called Remove in a column of them, a story's hook from the server.*~~
+`ui/TwoStep.tsx` is the one way: the keyboard to Cancel and back, the question
+announced by describing the answers rather than by a live region, a slow answer
+held. Spent on every editor removal, a tag's Remove and Prune, the play surface's
+hook, and Restore over unsaved edits. Not on the three that cannot be undone from
+inside the app, which ask for more than a click.
+
+## 21. The play surface answers
+
+**Landed 2026-10-01 at polish 9 (`2a3b4b2`).** ~~*A dozen play-surface writes
+say nothing when refused, and the few that speak have one sentence, so `busy` —
+a turn in flight — reads like a fault.*~~ `play/WriteFailed.tsx` reads a refusal
+by class: `busy` says to wait, anything else is the panel's own sentence.
+Illustrate is answered where it was pressed; a fresh install says no model is
+bound before the first Send; the sessions list says when it is loading, unreadable
+or empty; the hook form marks its premise required.
+
+## 22. The library and settings answer
+
+**Landed 2026-10-01 at polish 10 (`5cd0838`).** ~~*Import's Cancel is live while
+the import runs and stops nothing; an unreadable trash says nothing was deleted;
+a first Save lands on a page that says there is nothing to save; the empty
+library points at the API; two copy buttons say different things; Search and
+Rename reveal a box the keyboard is not in; History shows nothing where it was
+pressed; Priority drops a stored number on a typo.*~~ Each now says what
+happened. One the review did not have: `docs/deploy.md` called notifications
+*the one thing plain HTTP costs you*, and the clipboard is the second.
+
+## 23. The keyboard and the screen reader get there too
+
+**Landed 2026-10-01 at polish 11 (`73be6b6`).** ~~*Nine header controls before
+every page's own; a second `<main>` on Search and Reading; a radio group the
+arrows do nothing in; a filled composer and a returned search that nobody hears;
+an illustration read as its sentence twice; lists of buttons all called
+Remove.*~~ A skip link; one `<main>`, which `shell-layout.test.tsx` now counts on
+both pages; the radio group's arrows; focus into a filled box and a status line
+for search; the empty alt the play surface already gave; buttons named for what
+they act on. Two more in the same rows: committing a hook past a refusal now keeps
+the keyboard, and a move with no persona reads *You did* rather than *DID*.
+
+## 24. What the pass found and left
+
+Unstruck, because none of it has shipped.
+
+- **The history panel's per-version buttons are unnamed.** Five versions are five
+  *Restore*s, *Diff*s, *Rename*s and *Pin*s, the list §23 fixed elsewhere.
+  *Restore revision 3* is the fix; it was left out of §23 to keep that commit to
+  the removals it was approved for.
+- **A route change is silent to a screen reader.** Nothing announces the new
+  page or moves focus to its title, which a single-page app owes and the router
+  does not do. Bigger than a polish commit: it wants one decision for every
+  route.
+- **Renaming a session shows the server's English** where every other refusal in
+  the client is read by its class.
+- **The context meter in the dark theme** fills `accent-muted` on a slate-800
+  track at about 1.45:1, as faint as before §18. The figure beside it carries
+  the number, so it is not a WCAG 1.4.11 failure; it is a meter that barely
+  reads as one.
+
+---
+
+# Filed after the pass
+
+***Numbering carries on from the pass, and an entry here is not one of its
+commits.*** §25 was built on 2026-09-26 on a branch cut when this file ended at
+§12, and was §13 there; the review's entries took §13 to §24 on `main` on
+2026-10-01, and when the two met at the merge (2026-10-03) the later filing took
+the next free number. Every citation of it moved with it — thirty-three in
+fourteen files — and nothing outside the branch had cited it.
+
+## 25. A connection can be tried without taking a turn
+
+*Built 2026-09-26, routed here from
+[P2B §5](10-p2b-provider-configuration.md), which put it out of scope in so
+many words: "a connection health check beyond the model fetch — *is this key
+still good* is a live call with a cost, and it belongs with the connectivity
+work P10 does once P11's producer exists." Both have landed, and
+[P11.6](28-p11-implementation.md) gave `/models` the `offline` code this
+answers in. Merged to `main` 2026-10-03, adapted to what `main` had become in
+the week between — see* Merged a week later *below.*
+
+**The condition it fixes.** The connections surface had one way to touch an
+endpoint — *ask it what it offers*, a `GET /models` — and that one sends only
+what is typed in the form, so it cannot use a stored key, and it never calls
+`/chat/completions` or `/images/generations`, which are the two calls a turn
+makes. So the first real evidence that a connection works was a failed turn.
+For pictures it was worse: `rendersImages` could only be set by editing the
+file, and [manual testing R10](05-manual-testing.md) — *an endpoint that serves
+the `image` role* — had no cheap way to be confirmed before P9's gate.
+
+**What shipped.**
+
+- A **Test** button on every connection row, admin and personal, opening a
+  panel with a model picker, an editable prompt that starts filled, and the
+  answer: the reply or the picture, how long it took, which model answered when
+  that is not the one asked for, and what it used. Not on a row nothing
+  resolves to, under the same guard as that row's Edit and Remove.
+- A ***Makes pictures*** control in *What this endpoint can do*, merged over
+  what is stored the way *reports token counts* is, in a group headed *Drawing
+  pictures* so it cannot be read as [25 E15](../25-open-questions.md)'s *Models
+  that can see pictures* beside it. **Try a picture** is offered only where it
+  says yes, and the server refuses a picture anywhere else before sending
+  anything.
+- ***Sends a seed with a picture*** beside it, shown once *Makes pictures* says
+  yes — `supportsImageSeed`, which the youthful-keller merge made the seed's
+  gate on 2026-10-03 and left a hand edit (see *Merged a week later*).
+- `POST /api/admin/connections/:id/test` and its personal twin
+  ([`api.md`](../../api.md)), and a `status` on `ProviderError` — carried on
+  through `CallFailed` — so a refused key and a refused request, both
+  `terminal`, can be told apart, which is finding 5 in the
+  [P2C log](14-p2c-log.md) arriving at its second route.
+
+**Why it is polish and not a phase stage.** It changes what a person sees and
+does, it is bounded, and it needs no schema change — `rendersImages` has been a
+stored capability since [21 §3](../21-internal-contracts.md), and
+`supportsImageSeed` since the merge before this one — and no new contract: two
+routes in the model fetch's family, an optional field on two internal classes
+nothing in 21 specifies, and one more value in a field 21 does specify, the
+usage line's `role` ([21 §1.4](../21-internal-contracts.md), recorded there),
+which is additive inside `storyengine.usage/1` and read by nothing yet.
+[Item 8](#8-five-sampler-settings-the-adapter-drops) is the precedent for
+server work in this file. P10 and P11 are both merged, so a stage heading there
+would have claimed more than this is.
+
+**What it deliberately is not:**
+
+- **Not automatic.** It costs money, and a picture can cost more than a turn, so
+  it is a button a person presses and nothing else —
+  [10 §11.5](../10-ui-surfaces.md)'s first trap.
+- **Not a test of a turn.** It sends one user message, a completion ceiling of
+  256 and no sampler settings, through the non-streaming call. It proves the
+  key, the address and the model; it says nothing about a preset or about
+  streaming.
+- **Not a test of the form.** It tries what is *saved* — the stored key through
+  the same memoised provider a turn gets — and refuses a body carrying a key.
+  Unsaved edits have to be saved first. That keeps the key on the server and
+  means a pass is a promise about turns.
+- ~~**Not recorded.** [10 §11.4](../10-ui-surfaces.md) says a model call that is
+  not a turn must still be recorded; nothing in this build records one, field
+  assists included, and a test button is not where a ledger should start. The
+  log line's token counts are the only trace, and that gap is §11.4's, not this
+  item's.~~ ***Recorded*** *(2026-10-03, at the merge: the struck sentence was
+  true of the build it was written against and false of `main` from 2026-09-27,
+  when c814f3ed gave the calls that write no turn a usage log — field assists
+  first)*. A test that returns writes one line to the presser's `usage.jsonl`;
+  see *Merged a week later* for the role it carries and why.
+
+**The model that thinks first.** The ceiling is 256 rather than something
+smaller because a reasoning model spends its first tokens where nobody sees
+them, and at a tiny cap it returns *no text, finished by length* — the exact
+shape of a broken endpoint. That answer is a `200`, and the panel says so in a
+sentence: the key, the address and the model all worked, and a turn gives it
+far more room.
+
+**Merged a week later, and what that changed.** The branch was written against
+a `main` that had no usage log, no rule about how a model call is made, no
+`disconnectSignal` and no per-model vision list, and it met all four at the
+merge. Four questions that raised were put to the owner, who deferred each to
+its recommended answer; they are recorded here as decisions, **2026-10-03,
+recommended answer, owner deferred**:
+
+1. ***The message goes through `performCall`***, like every call that is not a
+   turn since 8c34a7f7 (2026-09-27), which moved the field assist — the last
+   direct caller — because it was the one call with no idle bound, no retry
+   ladder and no classification. So a test message is planned, timed, retried
+   and classed as a turn's call is, and the branch's *one attempt* goes: a 429
+   that clears on the second ask clears for a turn too, so answering `busy` to
+   it reported a fault no turn would meet. A 429 that lasts the ladder is still
+   `busy`. It also earns one refusal the branch had no way to give:
+   `window-too-small`, when the connection's own context window cannot hold the
+   test beside its reply — which every turn would meet too. **The picture does
+   not, and cannot**: `performCall` has no picture arm, `renditions/worker.ts`
+   calls `renderImage` directly for the same reason, and a picture is asked
+   once by the owner's other decision of the day
+   ([25 E7](../25-open-questions.md)), so it keeps the branch's one bounded
+   attempt. Argued at the route as well as here.
+2. ***It is recorded***, in the usage log of whoever pressed it, admin or not,
+   with the purpose `connection-test:text` or `connection-test:image` and the
+   role **`connection-test`** — a value no binding can have, because a test
+   resolves no role, and any real role written there would fold a person's
+   tests into a spend view's figures for that role. A failed or cancelled test
+   writes nothing, as the field assist, impersonation and Illustrate's moment
+   call do — which is not `main`'s one rule, because there is none yet: the
+   on-demand step behind *Update trackers* and background summaries, both since
+   P14, write a line for a failed or cancelled call that reached the provider,
+   with null figures. The picture's line is the one image call the log
+   carries: a rendition's cost has no field
+   ([25 E16](../25-open-questions.md)), and a test picture leaves no record of
+   its own.
+3. ***It stops when the person leaves*** — `disconnectSignal`, as Illustrate
+   and the field assist take it, on both arms. The branch had argued that
+   aborting a picture does not un-spend what a hosted endpoint has already
+   accepted; that is still true, and nobody is left to see the answer, the
+   server stops holding a socket for it, and an endpoint that notices a closed
+   request stops working. A request ended so answers nothing and logs nothing
+   at error level.
+4. ***A control for `supportsImageSeed`, beside* Makes pictures**. The
+   youthful-keller merge made the seed travel only where that capability says
+   so, left it settable only by hand, and recorded the control as owed at
+   [P9 §3.2](26-p9-implementation.md) — [work plan §2.3](01-work-plan.md)'s
+   *no configuration without a surface*. It is shown only once *Makes pictures*
+   says yes, and hiding it never clears a value written by hand.
+
+Three smaller things the merge took on without asking, because the code would
+otherwise have been wrong on `main`: a stall the transport reports from below
+(undici's header and body limits, `ProviderError.stalled`, 2026-09-27) answers
+`timeout` rather than falling through to `refused`; *Load what is on disk*
+after a refusal reloads the two picture overrides, which it was written before
+the form held; and the Test button sits under `main`'s guard on a shadowed
+row, which had grown to cover Edit and Remove while the branch was out.
+
+**A code/doc disagreement this found and does not fix.**
+`ProviderCapabilities.rendersImages`' docstring in `providers/types.ts`, and
+[21 §3](../21-internal-contracts.md) beside it, say the binding surface reads the
+flag. Nothing in the client does: the role table offers every connection for
+the `image` role. Filtering it is a role-table change with its own argument
+about what an unset `image` role should look like, and is left for that. *Still
+so at the merge (2026-10-03)*: the form now sets the flag, and the role table
+still does not read it.
+
+**Proved against doubles only.** Every test of the button, the routes and the
+form runs against `FakeProvider` or a stub transport — the real adapter over a
+stubbed `fetch` for the image arm's rate limit and its first adapter-level
+picture test — and none against a live endpoint: the machine this was merged on
+has none configured. Which sentence a real 401, a real 404 and a real stall
+produce is sitting V's to say.
+
+**What the changelog will say**, parked here because
+`changelog.test.ts` refuses an `## Unreleased` section:
+
+- **A connection can be tried.** *Test* on any connection sends one short
+  message — or, where the connection makes pictures, one picture — using what
+  is saved, and says what came back or, in plain words, which field to go and
+  fix. *Makes pictures* and *Sends a seed with a picture* are settings on the
+  connection at last.
+
+**What needs a person:** [sitting V](05-manual-testing.md#v--a-connection-tried--twenty-minutes-and-it-wants-r2-and-r3)
+— a real hosted endpoint and a real local one, a wrong key, a model the
+endpoint does not serve, and R10 if one is to hand.

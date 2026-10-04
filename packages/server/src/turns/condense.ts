@@ -7,8 +7,12 @@ import {
   LOREBOOK_SCHEMA,
   newLoreEntry,
   newLorebook,
+  remedyFor,
   SETUP_SCHEMA,
+  type ErrorClass,
+  type FailureRemedy,
   type Lorebook,
+  type ModelCall,
   type Setup,
 } from '@storyengine/shared';
 
@@ -29,21 +33,31 @@ import {
 } from '../sessions/setup-from-turn.js';
 import type { SessionContext } from '../sessions/store.js';
 import { ensureChain, type Summariser } from '../sessions/summaries.js';
+import { unitWordsOf } from '../sessions/summary-chain.js';
+import { fromModelCall, recordUsage } from '../usage/log.js';
 import {
-  DEFAULT_SUMMARY_POLICY,
-  summariserKey,
-  type SummarisableTurn,
-  type SummaryLink,
-} from '../sessions/summary-chain.js';
-import { CallFailed, performCall, resolveStepRole, RoleUnresolved } from './calls.js';
-import { gatherAssemblyInputs, type AssemblyInputs } from './gather.js';
-import { SUMMARISE_PROMPT, SUMMARISE_STEP, summaryCandidates, renderUnits } from './summarise.js';
+  CallFailed,
+  Cancelled,
+  performCall,
+  RoleUnresolved,
+  WindowTooSmall,
+  type CallOutcome,
+} from './calls.js';
+import { gatherAssemblyInputs, roleLayersOf, type AssemblyInputs } from './gather.js';
+import {
+  chainPlanFor,
+  keptSummary,
+  renderUnits,
+  SUMMARISE_STEP,
+  summarisablePath,
+  summaryCandidates,
+} from './summarise.js';
 import { transcriptOf } from './steps.js';
 
 /**
  * ***Make a setup from here: the draft*** —
  * [04 §7.2](../../../../docs/design/04-schemas.md),
- * [P13.6](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **What a person reviews before anything is written** — [16 §3]'s *offered,
  * never automatic, and reviewed before it lands*. Nothing here writes to the
@@ -69,14 +83,40 @@ import { transcriptOf } from './steps.js';
  * runner has already written is read by its content address and only the
  * missing ones cost a call — and a link this derives is one the runner would
  * have derived, byte for byte, because the key, the prompt and the candidates
- * are the runner's own (`summaryCandidates`). The chain's last link is the
- * whole story up to the window; the turns after it go in verbatim.
+ * are the runner's own (`summaryCandidates`). ~~The chain's last link is the
+ * whole story up to the window; the turns after it go in verbatim.~~ *The root
+ * and every link are the story up to the window* — a link is its own stretch
+ * since `main`'s `e9d1a142` — and the turns after it go in verbatim.
+ *
+ * ***Rewritten onto `main`'s chain at the merge*** (2026-10-03). The branch
+ * built its own path (`{ input: { text } }`), so a move's pictures were not in
+ * its unit keys and a pictured session got a chain the runner never reads; it
+ * kept every reply, so a summary cut off at its length limit was written under
+ * the runner's key and read as the story from then on — the defect
+ * `keptSummary` fixed on `main` the day after the branch was written; it re-derived
+ * the key and policy by hand; and it caught a throw `ensureChain` no longer
+ * makes, so a failed link quietly drafted from a short chain. Now: the
+ * runner's path (`summarisablePath`), its plan (`chainPlanFor`, root included),
+ * its keep rule, its role layers (`roleLayersOf`), and the chain's `failure`
+ * read as an answer.
  *
  * ***What the model is shown is what the player saw.*** `transcriptOf` is the
  * sanctioned narrow payload — what was said and what came back, and nothing
  * about how either was produced — and the chain is built from it. Hidden
  * channels, unfired hooks and hidden goals never reach these prompts, so they
  * cannot leak into a story so far that a person is about to read.
+ *
+ * ***What it costs is written down*** — [10 §11.4], through the usage log every
+ * call that writes no turn uses (`usage/log.ts`). One line per call, the
+ * `role` the call resolved as for every such line, and a purpose that names
+ * the wizard first: `setup-draft:<part>` for a part (`storySoFar`, `opening`,
+ * `title`, `facts`) and `setup-draft:summarise` for a link of the chain the
+ * draft had to derive. *The link under the wizard's name rather than the
+ * warm's `summarise`*, because the question a spend view asks first is what
+ * pressing a button cost, and the links a draft derives are part of that
+ * answer even though the next turn reads them too. A call that failed or was
+ * stopped after it reached the provider is written too, as the warm and the
+ * on-demand steps write theirs: it was paid for.
  */
 
 export const SE_CONDENSE = 'se.condense';
@@ -119,11 +159,64 @@ export const CONDENSE_STEP: StepDefinition = {
 export const SETUP_PARTS = ['storySoFar', 'opening', 'title', 'facts'] as const;
 export type SetupPart = (typeof SETUP_PARTS)[number];
 
-/** Why a part came back empty-handed. Classes, never prose — [01 §2]. */
-export type PartRefusal = 'role-unbound' | 'role-dangling' | 'call-failed' | 'no-answer';
+/**
+ * Why a part came back empty-handed. Classes, never prose — [01 §2].
+ *
+ * *Two added at the merge* (2026-10-03). `window-too-small` is
+ * `performCall`'s own refusal, which was rethrown here and so answered a
+ * wizard with a 500 — impersonation's mapping, for impersonation's reason.
+ * `truncated` is a reply that ran into its length limit — {@link finished}
+ * says why that is not offered.
+ *
+ * ***And two for the chain, at review the same day.*** A link of the summary
+ * chain that `keptSummary` refused fails every part (the chain's note in
+ * {@link draftSetupFromTurn}), and it used to fail them as `truncated` or
+ * `no-answer` — the words for a part's own reply. The wizard reads those as
+ * *the draft ran past the reply length … try again with a note asking for it
+ * shorter*, and a note reaches only the part it names, never the summariser:
+ * for the one failure that shows on every part at once, the sentence named
+ * the wrong reply and offered a fix that could not work. So a link's refusal
+ * is `summary-truncated` or `summary-no-answer`, and the client says *a
+ * summary of the earlier story* and the fix that reaches it.
+ */
+export type PartRefusal =
+  | 'role-unbound'
+  | 'role-dangling'
+  | 'window-too-small'
+  | 'call-failed'
+  | 'truncated'
+  | 'no-answer'
+  | 'summary-truncated'
+  | 'summary-no-answer';
 
-export type PartOutcome<T> =
-  { ok: true; value: T; model: string | null } | { ok: false; reason: PartRefusal };
+/**
+ * A part that could not be drafted.
+ *
+ * ***A provider failure carries its class and a remedy*** (2026-10-03, at the
+ * merge), as impersonation's, the field assist's and the on-demand steps' do:
+ * a bare `call-failed` told a person *the model did not answer* for a wrong
+ * key, a model server that was down and a 429 alike, when each has its own
+ * fix. `remedyFor` is the one diagnosis every surface shares; `detail` is the
+ * endpoint's own words, on `CallFailed.detail`'s terms — for the log, never UI
+ * copy — and carried as impersonation carries it.
+ */
+export type PartFailure =
+  | { ok: false; reason: Exclude<PartRefusal, 'call-failed'> }
+  | {
+      ok: false;
+      reason: 'call-failed';
+      class: ErrorClass;
+      remedy: FailureRemedy;
+      detail?: string;
+    };
+
+export type PartOutcome<T> = { ok: true; value: T; model: string | null } | PartFailure;
+
+/**
+ * What every usage line the draft writes is filed under, before the colon —
+ * see the module docstring for the scheme and why a link is filed here too.
+ */
+export const DRAFT_PURPOSE = 'setup-draft';
 
 export interface DraftFact {
   text: string;
@@ -151,6 +244,12 @@ export interface CondenseContext {
   accounts: Accounts;
   providers: ProviderFactory;
   config: Config;
+  /**
+   * Whether the server's last check reached the internet — what `remedyFor`
+   * needs to tell an endpoint that is down from a network that is. Read at
+   * failure time, as impersonation reads it; absent is *not known*.
+   */
+  online?: () => boolean | null;
 }
 
 export interface DraftRequest {
@@ -202,38 +301,58 @@ export async function draftSetupFromTurn(
     ? []
     : ['no-summary-slot'];
 
-  const roles = {
-    bindings: inputs.bindings,
-    defaults: inputs.defaults,
-    usable: inputs.usable,
-    ...(inputs.session?.roles === undefined ? {} : { sessionRoles: inputs.session.roles }),
-    ...(inputs.session?.stepRoles === undefined ? {} : { stepRoles: inputs.session.stepRoles }),
-    cast: inputs.cast,
-  };
-  const call = (definition: StepDefinition, candidates: Candidate[], schema?: object) =>
-    performCall(
-      {
-        definition,
-        ...roles,
-        providers: context.providers,
-        config: context.config,
-        preset: { params: inputs.preset.params, budget: inputs.preset.budget },
-        signal: request.signal,
-        notFilled: [],
-        onCallAssembled: () => {
-          /* No draft to checkpoint: nothing is written until the commit. */
-        },
-        onProgress: () => {
-          /* No event stream: the wizard waits for the answer. */
-        },
-      },
-      { candidates, ...(schema === undefined ? {} : { schema }) },
-      [],
+  /** One usage line — see the module docstring for the purpose scheme. */
+  const spent = (made: ModelCall, purpose: string): Promise<void> =>
+    recordUsage(
+      context.sessions.layout,
+      request.account,
+      fromModelCall(made, `${DRAFT_PURPOSE}:${purpose}`, { sessionId: request.sessionId }),
     );
+
+  const call = async (
+    definition: StepDefinition,
+    candidates: Candidate[],
+    purpose: string,
+    schema?: object,
+  ): Promise<CallOutcome> => {
+    try {
+      const outcome = await performCall(
+        {
+          definition,
+          // The session's own overrides and the cast among them — the one
+          // answer to *which model is this* the runner, the preview and the
+          // warm share. The branch built this object by hand; a copy is how
+          // the preview once came to meter a session against the wrong model.
+          ...roleLayersOf(inputs),
+          providers: context.providers,
+          config: context.config,
+          preset: { params: inputs.preset.params, budget: inputs.preset.budget },
+          signal: request.signal,
+          notFilled: [],
+          onCallAssembled: () => {
+            /* No draft to checkpoint: nothing is written until the commit. */
+          },
+          onProgress: () => {
+            /* No event stream: the wizard waits for the answer. */
+          },
+        },
+        { candidates, ...(schema === undefined ? {} : { schema }) },
+        [],
+      );
+      await spent(outcome.call, purpose);
+      return outcome;
+    } catch (error) {
+      // A call that got as far as the provider was paid for, even if nothing
+      // it said is kept — the warm's rule and the on-demand steps'.
+      if ((error instanceof CallFailed || error instanceof Cancelled) && error.call !== undefined) {
+        await spent(error.call, purpose);
+      }
+      throw error;
+    }
+  };
 
   const wanted = new Set(request.parts);
   const parts: Draft['parts'] = {};
-  const path = inputs.history;
   const turn = inputs.turnsById.get(request.turnId);
 
   // The one part that needs no model at all, answered before anything can fail.
@@ -248,79 +367,96 @@ export async function draftSetupFromTurn(
   if (wanted.size === 0) return { carry: previewOf(carry), warnings, parts };
 
   /**
-   * ***The chain, under the runner's key.*** Resolved the way the runner
-   * resolves it, so a key here is a key there; an unresolvable role fails every
-   * part that would have needed it, with the class a person can act on.
+   * ***The chain, as the runner keys it.*** `chainPlanFor` is the resolution
+   * `summaryPlanFor` makes for the turn, the warm and the preview — whose
+   * summariser, how the path is cut, and the story so far it starts from —
+   * without the two gates that decide whether a *turn* builds one: the draft
+   * needs the story above the window whatever the pack positions. So a key here
+   * is a key there; an unresolvable role fails every part that would have
+   * needed it, with the class a person can act on.
    */
-  const summariser = resolveStepRole(
-    roles,
-    SUMMARISE_STEP,
-    SUMMARISE_STEP.role ?? 'prose',
-    undefined,
-  );
-  if (!summariser.ok) {
-    const reason: PartRefusal = summariser.reason === 'dangling' ? 'role-dangling' : 'role-unbound';
+  const chainPlan = chainPlanFor(inputs);
+  if (!chainPlan.ok) {
+    const reason = chainPlan.reason === 'dangling' ? 'role-dangling' : 'role-unbound';
     for (const part of wanted) parts[part] = { ok: false, reason };
     return { carry: previewOf(carry), warnings, parts };
   }
+  const { plan } = chainPlan;
 
-  const transcript = transcriptOf(path);
-  const summarisable: SummarisableTurn[] = transcript.map((one) => ({
-    id: one.turnId,
-    ...(one.input === undefined ? {} : { input: { text: one.input.text } }),
-    ...(one.output === undefined ? {} : { output: { text: one.output.text } }),
-  }));
-  const policy = {
-    ...DEFAULT_SUMMARY_POLICY,
-    window: inputs.mode.definition.assembly.historyWindow,
-  };
-  const chainer: Summariser = {
-    key: summariserKey(
-      { connectionId: summariser.connection.id, modelId: summariser.modelId },
-      SUMMARISE_PROMPT,
-      inputs.preset.params,
-    ),
-    run: async ({ previous, units }) =>
-      (await call(SUMMARISE_STEP, summaryCandidates(previous, units))).text.trim(),
+  /**
+   * *The runner's path, by the runner's function* — `summarisablePath` over the
+   * same transcript the summariser step is handed, so a move's pictures and
+   * their captions are in the unit keys as they are in the turn's
+   * ([25 E15]). *The runner's keep rule*, so a link cut off at its length
+   * limit, refused or empty is never written under the runner's key: the
+   * runner would read it as held and carry the cut for the rest of the session.
+   * And `signal`, so a draft that joined the warm's derivation of a link stops
+   * waiting when the person leaves.
+   */
+  const path = summarisablePath(transcriptOf(inputs.history));
+  const summariser: Summariser = {
+    key: plan.key,
+    signal: request.signal,
+    run: async ({ previous, units }) => {
+      const outcome = await call(SUMMARISE_STEP, summaryCandidates(previous, units), 'summarise');
+      try {
+        return keptSummary({ text: outcome.text, outcome: outcome.call.outcome });
+      } catch (refused) {
+        // A link's own reasons, not a part's — see `PartRefusal`.
+        throw new NotKept(
+          outcome.call.outcome === 'truncated' ? 'summary-truncated' : 'summary-no-answer',
+          refused,
+        );
+      }
+    },
   };
 
-  let links: readonly SummaryLink[];
-  try {
-    links = (
-      await ensureChain(
-        context.sessions.layout,
-        request.account,
-        request.sessionId,
-        summarisable,
-        chainer,
-        policy,
-        inputs.summaryRoot,
-      )
-    ).links;
-  } catch (error) {
-    if (!(error instanceof CallFailed)) throw error;
-    for (const part of wanted) parts[part] = { ok: false, reason: 'call-failed' };
+  const chain = await ensureChain(
+    context.sessions.layout,
+    request.account,
+    request.sessionId,
+    path,
+    summariser,
+    plan.policy,
+    plan.root,
+  );
+  /**
+   * ***A link that could not be derived fails the parts that read it***
+   * (2026-10-03). `ensureChain` no longer throws: since `main`'s `e9d1a142` it
+   * returns the held prefix beside the failure, for the turn, which is better
+   * off with part of the story than none. A draft is not: a story so far
+   * written from a chain that stops short reads as the whole story and is
+   * missing its middle, and a person reviewing it has no way to see the gap.
+   * So every part still wanted fails with the link's own class, and *Try again*
+   * asks for that link again. A stop is still a stop — {@link failureOf}
+   * rethrows it, and the route ends a request nobody is waiting for.
+   */
+  if (chain.failure !== undefined) {
+    const failed = failureOf(chain.failure, context.online?.() ?? null);
+    for (const part of wanted) parts[part] = failed;
     return { carry: previewOf(carry), warnings, parts };
   }
 
   /**
-   * ***The material every part reads.*** The chain's last link is the story up
+   * ***The material every part reads.*** ~~The chain's last link is the story up
    * to the window — the summariser is asked for one continuous summary, so the
    * last link covers what every earlier one did — or the root alone when the
-   * chain is empty; the turns after the chain go in verbatim, rendered the way
-   * the summariser renders them.
+   * chain is empty~~ — *the root and every link, oldest first* (2026-10-03):
+   * each link is its own stretch since `e9d1a142`, so the last one alone was
+   * the latest twenty turns presented as everything before the window. The
+   * turns after the chain go in verbatim, in the summariser's own rendering
+   * (`renderUnits` over `unitWordsOf`), so a picture move reads as its
+   * stand-ins here as it does to the summariser.
    */
-  const covered = links.at(-1)?.to ?? -1;
-  const before = links.at(-1)?.text ?? inputs.summaryRoot?.text ?? null;
-  const recent = renderUnits(
-    summarisable
-      .slice(covered + 1)
-      .map((one) => ({ said: one.input?.text ?? '', replied: one.output?.text ?? '' })),
+  const covered = chain.links.at(-1)?.to ?? -1;
+  const before = [plan.root?.text, ...chain.links.map((link) => link.text)].filter(
+    (text): text is string => text !== undefined && text.trim() !== '',
   );
+  const recent = renderUnits(path.slice(covered + 1).map(unitWordsOf));
   const material: Candidate[] = [
-    ...(before === null
+    ...(before.length === 0
       ? []
-      : [block('se.condense.before', 'user', `The story before this:\n\n${before}`)]),
+      : [block('se.condense.before', 'user', `The story before this:\n\n${before.join('\n\n')}`)]),
     ...(recent === ''
       ? []
       : [block('se.condense.recent', 'user', `What happened most recently:\n\n${recent}`)]),
@@ -339,23 +475,18 @@ export async function draftSetupFromTurn(
       const { value, model } = await run();
       return value === null ? { ok: false, reason: 'no-answer' } : { ok: true, value, model };
     } catch (error) {
-      if (error instanceof RoleUnresolved) {
-        return {
-          ok: false,
-          reason: error.reason === 'dangling' ? 'role-dangling' : 'role-unbound',
-        };
-      }
-      if (error instanceof CallFailed) return { ok: false, reason: 'call-failed' };
-      throw error;
+      return failureOf(error, context.online?.() ?? null);
     }
   };
 
   const text = async (prompt: string, part: SetupPart) => {
-    const outcome = await call(CONDENSE_STEP, [
-      block('se.condense.task', 'system', prompt),
-      ...material,
-      ...steer(part),
-    ]);
+    const outcome = finished(
+      await call(
+        CONDENSE_STEP,
+        [block('se.condense.task', 'system', prompt), ...material, ...steer(part)],
+        part,
+      ),
+    );
     const words = outcome.text.trim();
     return { value: words === '' ? null : words, model: outcome.call.resolved.modelId };
   };
@@ -377,20 +508,26 @@ export async function draftSetupFromTurn(
         break;
       case 'title':
         parts.title = await attempt(async () => {
-          const outcome = await call(
-            CONDENSE_STEP,
-            [block('se.condense.task', 'system', TITLE_PROMPT), ...material, ...steer('title')],
-            TITLE_SCHEMA,
+          const outcome = finished(
+            await call(
+              CONDENSE_STEP,
+              [block('se.condense.task', 'system', TITLE_PROMPT), ...material, ...steer('title')],
+              'title',
+              TITLE_SCHEMA,
+            ),
           );
           return { value: readTitle(outcome.object), model: outcome.call.resolved.modelId };
         });
         break;
       case 'facts':
         parts.facts = await attempt(async () => {
-          const outcome = await call(
-            CONDENSE_STEP,
-            [block('se.condense.task', 'system', EXTRACT_PROMPT), ...material, ...steer('facts')],
-            EXTRACT_SCHEMA,
+          const outcome = finished(
+            await call(
+              CONDENSE_STEP,
+              [block('se.condense.task', 'system', EXTRACT_PROMPT), ...material, ...steer('facts')],
+              'facts',
+              EXTRACT_SCHEMA,
+            ),
           );
           /**
            * **What a linked book already says is not offered again** — the
@@ -464,6 +601,92 @@ function readTitle(value: unknown): { name: string; blurb: string } | null {
   return { name, blurb: typeof shape.blurb === 'string' ? shape.blurb.trim() : '' };
 }
 
+/**
+ * A reply that came back and is not offered — cut off, refused, empty, or the
+ * wrong shape. Its own class so {@link failureOf} can tell it from a failure
+ * the provider raised, and keep the one distinction a person acts on.
+ */
+type NotKeptReason = 'truncated' | 'no-answer' | 'summary-truncated' | 'summary-no-answer';
+
+class NotKept extends Error {
+  readonly reason: NotKeptReason;
+
+  constructor(reason: NotKeptReason, cause?: unknown) {
+    super(
+      reason === 'truncated' || reason === 'summary-truncated'
+        ? 'The reply was cut off at its length limit, so it was not offered.'
+        : 'The reply held nothing usable, so it was not offered.',
+      cause === undefined ? undefined : { cause },
+    );
+    this.name = 'NotKept';
+    this.reason = reason;
+  }
+}
+
+/**
+ * ***A part's reply, if it finished*** (2026-10-03, at the merge — the
+ * recommended answer to what a cut-off part answers, which the owner deferred
+ * to).
+ *
+ * **A story so far or an opening cut off at its length limit is refused, as
+ * `truncated`, not offered.** The wizard is a review, and a person reading a
+ * long story so far reads it for whether it is right, not for whether its last
+ * sentence ended — and the end is what a cut removes: *say where things stand
+ * at the end* is the story so far's last instruction, and *end at a moment that
+ * invites the player to act* is the opening's. A session started from either
+ * begins from the part that is missing. Refusing costs one more call, with a
+ * reason that names the fix (ask for it shorter, or raise the reply length),
+ * and it is the summariser's own rule for the same failure (`keptSummary`).
+ * *`incomplete` is offered* when it has words, for `keptSummary`'s reason:
+ * some local endpoints never say why they stopped.
+ *
+ * *The structured parts too*: a name or a fact list cut off mid-object, or
+ * refused, or still the wrong shape after `performCall`'s own retries
+ * (`error`), is not an answer — and an empty fact list read off one would say
+ * *nothing was established*, which nobody found out.
+ */
+function finished(outcome: CallOutcome): CallOutcome {
+  if (outcome.call.outcome === 'truncated') throw new NotKept('truncated');
+  if (outcome.call.outcome === 'refused' || outcome.call.outcome === 'error') {
+    throw new NotKept('no-answer');
+  }
+  return outcome;
+}
+
+/**
+ * What a failure inside a part — or inside the chain every part reads — comes
+ * to: impersonation's mapping, for its reasons, plus the two refusals only a
+ * draft has.
+ *
+ * ***Rethrows what is not an answer.*** A `Cancelled` is a stop, and a stop is
+ * still a stop: the route ends a request whose client left, and anything else
+ * that stops a draft is the server stopping. Anything this has no class for —
+ * an advisory block reaching an effects call, a store that would not read — is
+ * a fault, and a fault is not something to file under a part.
+ */
+function failureOf(error: unknown, online: boolean | null): PartFailure {
+  if (error instanceof RoleUnresolved) {
+    return { ok: false, reason: error.reason === 'dangling' ? 'role-dangling' : 'role-unbound' };
+  }
+  if (error instanceof WindowTooSmall) return { ok: false, reason: 'window-too-small' };
+  if (error instanceof NotKept) return { ok: false, reason: error.reason };
+  if (error instanceof CallFailed) {
+    return {
+      ok: false,
+      reason: 'call-failed',
+      class: error.class,
+      remedy: remedyFor({
+        reason: error.class,
+        endpoint: error.endpoint,
+        stalled: error.stalled,
+        online,
+      }),
+      ...(error.detail === undefined ? {} : { detail: error.detail }),
+    };
+  }
+  throw error;
+}
+
 /** A local helper, like every engine-owned step's — its `reason` is about this one. */
 function block(id: string, role: 'system' | 'user', text: string): Candidate {
   return {
@@ -506,7 +729,7 @@ export type CommitOutcome =
   | { kind: 'no-turn' };
 
 /**
- * ***The commit: the companion book, then the Setup*** — [P13.7].
+ * ***The commit: the companion book, then the Setup*** — [P15.7].
  *
  * **The carry is recomputed here, from the turn**, never read off the request:
  * the preview a browser was shown is a redaction, and a Setup assembled from
@@ -550,7 +773,7 @@ export async function commitSetupFromTurn(
         'What play had established by the point this setup was made from. Written by a ' +
         'model, kept by a person, and meant to be corrected.',
       /**
-       * ***`generated`, and never `session`*** — [P13 §0.3]. A lorebook marked
+       * ***`generated`, and never `session`*** — [P15 §0.3]. A lorebook marked
        * `session` is a memory book to the retriever, and every block from one
        * is advisory — barred from every effect and verdict call. These are the
        * world's facts, not a character's memories.

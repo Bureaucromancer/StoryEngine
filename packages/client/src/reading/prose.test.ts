@@ -47,8 +47,44 @@ describe('turns become passages', () => {
       kind: 'say',
       text: 'Where is the lighthouse?',
       who: 'Vera',
+      yours: false,
+      pictures: [],
     });
     expect(read[0]?.prose).toBe('The keeper points north.');
+  });
+
+  /**
+   * ***A move that was only a picture is a move*** — [25 E15]. Blank words used
+   * to mean *no input*, and a picture with no words would have vanished from
+   * the reading view; and the two text copies, which cannot hold a picture, say
+   * it in words rather than dropping it.
+   */
+  it('keeps a move that was only a picture, and says it in the text copies', () => {
+    const read = passages(
+      [
+        turn({
+          id: 't1',
+          input: {
+            actorId: null,
+            kind: 'do',
+            text: '',
+            raw: '',
+            attachments: [
+              { id: '0', kind: 'image', caption: 'the harbour at dusk' },
+              { id: '1', kind: 'image' },
+            ],
+          },
+          output: { text: 'Gulls, and the smell of tar.' },
+        }),
+      ],
+      nameOf,
+    );
+
+    expect(read[0]?.said?.pictures).toHaveLength(2);
+    const markdown = toMarkdown(read, { title: 'The harbour' });
+    expect(markdown).toContain('(Picture: the harbour at dusk)');
+    expect(markdown).toContain('(A picture)');
+    expect(toPlainText(read, { title: 'The harbour' })).toContain('(Picture: the harbour at dusk)');
   });
 
   /**
@@ -75,6 +111,29 @@ describe('turns become passages', () => {
     );
     expect(read[0]?.said?.who).toBeNull();
     expect(attribution(read[0]!.said!)).toBe('did');
+  });
+
+  /**
+   * ***A move with no persona is the player's*** (2026-10-01, polish 11). It
+   * has no actor, and it reached the bare verb kept for an actor the library
+   * has lost: the player's own *Look around.* was headed *DID*, where the chat
+   * heads the same move *You*. In both copies, too, which share the line.
+   */
+  it('heads a move nobody was playing as with the player, in the view and the copies', () => {
+    const read = passages(
+      [
+        turn({
+          id: 't1',
+          input: { actorId: null, kind: 'do', text: 'Look around.', raw: '' },
+          output: { text: 'Fog, and a bell somewhere.' },
+        }),
+      ],
+      nameOf,
+    );
+
+    expect(attribution(read[0]!.said!)).toBe('You did');
+    expect(toMarkdown(read, { title: 'The harbour' })).toContain('> **You did**');
+    expect(toPlainText(read, { title: 'The harbour' })).toContain('You did:\nLook around.');
   });
 
   it('marks a failed turn rather than leaving a gap', () => {
@@ -129,5 +188,47 @@ describe('the three formats agree', () => {
       expect(rendered).not.toContain('t1');
       expect(rendered).not.toContain('actor-vera');
     }
+  });
+});
+
+/**
+ * ***The reading view names speakers from the same field*** — [P14 §1.8],
+ * [P14.5]. A chat turn's messages carry who said each one, and all three
+ * renderings must name them alike; a turn with no attributed message reads as
+ * it always did.
+ */
+describe('a chat turn, by who said what', () => {
+  const round = turn({
+    id: 't1',
+    output: {
+      text: 'Rain on the glass.\n\n"You came."',
+      messages: [
+        { speaker: null, text: 'Rain on the glass.' },
+        { speaker: { id: 'actor-vera', name: 'Vera' }, text: '"You came."' },
+        { speaker: { id: 'actor-lund', name: 'Lund' }, text: '' },
+      ],
+    },
+  });
+
+  it('keeps one line per message said, the narrator’s unnamed', () => {
+    expect(passages([round], nameOf)[0]?.lines).toEqual([
+      { who: null, text: 'Rain on the glass.' },
+      { who: 'Vera', text: '"You came."' },
+    ]);
+  });
+
+  it('names the speaker in both text copies', () => {
+    const read = passages([round], nameOf);
+    expect(toMarkdown(read, { title: 'T' })).toContain('**Vera:** "You came."');
+    expect(toPlainText(read, { title: 'T' })).toContain('Vera: "You came."');
+    expect(toPlainText(read, { title: 'T' })).toContain('\nRain on the glass.\n');
+  });
+
+  it('leaves a narrated turn as prose', () => {
+    const narrated = turn({
+      id: 't2',
+      output: { text: 'Rain.', messages: [{ speaker: null, text: 'Rain.' }] },
+    });
+    expect(passages([narrated], nameOf)[0]?.lines).toBeNull();
   });
 });

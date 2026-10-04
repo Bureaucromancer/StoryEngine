@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TurnRecord } from '../api.js';
 import { contextFor, sameContext } from './context.js';
-import { latestProposal, valueAt, withValueAt } from './Proposal.js';
+import { heldText, latestProposal, withValueAt } from './Proposal.js';
 import { assistantSessionIn, ASSISTANT_MODE_ID } from './session.js';
 
 /**
@@ -131,24 +131,56 @@ describe('a proposal read off the record', () => {
     ).toBeNull();
     expect(latestProposal([turn([effect(null)])])).toBeNull();
   });
+
+  /**
+   * ***A withdrawn offer is the newest word*** (2026-09-30): the step writes
+   * `null` when an answer proposes nothing, and the walk stops there rather
+   * than reaching back to an offer made questions ago.
+   */
+  it('is nothing once a later answer withdrew it', () => {
+    expect(
+      latestProposal([
+        turn([effect({ kind: 'actors', id: 'a', changes: { name: 'First' } })]),
+        turn([effect(null)]),
+      ]),
+    ).toBeNull();
+  });
 });
 
 describe('the diff’s two halves', () => {
   const actor = { name: 'Vera', profile: { traits: ['quiet'], sections: { a: { body: 'x' } } } };
 
-  it('reads a dotted path, and says nothing for one that is not there', () => {
-    expect(valueAt(actor, 'name')).toBe('Vera');
-    expect(valueAt(actor, 'profile.sections.a.body')).toBe('x');
-    expect(valueAt(actor, 'profile.nowhere')).toBe('');
+  /**
+   * ***Text, or nothing*** (2026-09-30): a path the object does not have, one
+   * that holds something other than text, and one through the prototype are
+   * all no text — where this answered `''` and JSON, and a missing field
+   * rendered as an empty one waiting to be filled.
+   */
+  it('reads the text at a dotted path, and nothing where there is none', () => {
+    expect(heldText(actor, 'name')).toBe('Vera');
+    expect(heldText(actor, 'profile.sections.a.body')).toBe('x');
+    expect(heldText(actor, 'profile.nowhere')).toBeNull();
+    expect(heldText(actor, 'profile.traits')).toBeNull();
+    expect(heldText(actor, 'constructor')).toBeNull();
   });
 
   it('writes a dotted path without touching the rest', () => {
     const next = withValueAt(actor, 'profile.sections.a.body', 'y');
-    expect(valueAt(next, 'profile.sections.a.body')).toBe('y');
-    expect(valueAt(next, 'name')).toBe('Vera');
+    expect(heldText(next, 'profile.sections.a.body')).toBe('y');
+    expect(heldText(next, 'name')).toBe('Vera');
     // The original is untouched: the editor's own rule, and the reason this is
     // a clone rather than a mutation.
-    expect(valueAt(actor, 'profile.sections.a.body')).toBe('x');
+    expect(heldText(actor, 'profile.sections.a.body')).toBe('x');
+  });
+
+  /**
+   * ***Not the last step either*** (2026-09-30). The walk refused a missing
+   * intermediate and then set the leaf regardless, so `summary` on an actor —
+   * whose summary is a section — was created at the top level, and *Apply*
+   * said it had worked.
+   */
+  it('creates no field the object does not hold, at the top level either', () => {
+    expect(withValueAt(actor, 'summary', 'y')).toEqual(actor);
   });
 
   /**
@@ -159,7 +191,7 @@ describe('the diff’s two halves', () => {
    */
   it('creates nothing for a path into nowhere', () => {
     const next = withValueAt(actor, 'profile.invented.deeply.body', 'y');
-    expect(valueAt(next, 'profile.invented.deeply.body')).toBe('');
+    expect(heldText(next, 'profile.invented.deeply.body')).toBeNull();
     expect(next).toEqual(actor);
   });
 });

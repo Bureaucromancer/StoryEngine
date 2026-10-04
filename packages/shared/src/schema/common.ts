@@ -355,9 +355,20 @@ export const MediaRole = Type.Union(
      * what it is. Filing one as `gallery` would have made it unfindable by
      * anything that wanted the backdrops.
      *
-     * *Additive, which is what [04 §2]'s door is for* — an older build reading a
-     * newer file gets a role it has not heard of and keeps the media, and
-     * [04 §8.2] already refuses to emit this union as a hard enum.
+     * ~~*Additive, which is what [04 §2]'s door is for* — an older build reading
+     * a newer file gets a role it has not heard of and keeps the media, and
+     * [04 §8.2] already refuses to emit this union as a hard enum.~~
+     * ***It widened a closed union inside `/1`, and an older build refuses
+     * it*** (corrected 2026-10-01). [04 §3] makes `role` closed — *"the engine
+     * reads it and acts on it"* — and the emitted schema says so: an `anyOf`
+     * of literals, which a build without this arm fails a file on, whole.
+     * `media.test.ts`'s *rejects a role nobody defined* pins the same
+     * closedness from this side. **No released build can meet one**: alpha.1
+     * to alpha.4 export and import no native object, so nothing written by
+     * this build reaches them. The next release is the first that does, and
+     * from then on every arm added here is a file an older build refuses —
+     * whether to open the union before that release is a question for the
+     * owner, recorded in [25](../../../../docs/design/25-open-questions.md).
      *
      * **Distinct from `Rendition.purpose`, which is the other half of the same
      * pair.** That field says a *generated* image is a backdrop ([06 §10.1a]:

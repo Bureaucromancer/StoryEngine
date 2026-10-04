@@ -2,9 +2,11 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { markSessionEnded } from './auth/session-ended.js';
 
 /**
  * The restart banner — [09 §6.3](../../../docs/design/09-server-multiuser-deployment.md),
@@ -21,6 +23,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authState = vi.fn();
 const notices = vi.fn();
+const restart = vi.fn();
 const readPrefs = vi.fn();
 const patchPrefs = vi.fn();
 
@@ -34,7 +37,10 @@ vi.mock('./api.js', async (importOriginal) => ({
     // context argument, and the tests assert on what would go over the wire.
     patchPrefs: (patch: Record<string, unknown>) => patchPrefs(patch) as unknown,
   },
-  adminApi: { notices: (...a: unknown[]) => notices(...a) as unknown },
+  adminApi: {
+    notices: (...a: unknown[]) => notices(...a) as unknown,
+    restart: (...a: unknown[]) => restart(...a) as unknown,
+  },
 }));
 
 // The stub keeps `to` as `href` so a navigation test can assert *where* an
@@ -101,7 +107,10 @@ const ALPHA = { version: '1.0.0-alpha.2', commit: '7573e8a0' };
  * older tests mock is *the state before the server has said what it is*, and
  * the footer's answer to that is nothing.
  */
-function renderShell(role: 'admin' | 'user', build?: { version: string; commit: string } | null) {
+function renderShell(
+  role: 'admin' | 'user',
+  build?: { version: string; commit: string } | null,
+): QueryClient {
   authState.mockResolvedValue({
     setupRequired: false,
     account: account(role),
@@ -113,7 +122,35 @@ function renderShell(role: 'admin' | 'user', build?: { version: string; commit: 
       <Shell />
     </QueryClientProvider>,
   );
+  return client;
 }
+
+/**
+ * ***A sign-in that ended under an open page*** (2026-09-27) — see
+ * `auth/session-ended.ts`. The flag is raised by any request refused as signed
+ * out; what is asserted here is what the page does with it: it says so, keeps
+ * the page, and sends nobody anywhere until they ask.
+ */
+describe('a sign-in that ended', () => {
+  it('says so over the page, and asks who is signed in only when told to', async () => {
+    const client = renderShell('user');
+    await screen.findByText('Ned');
+    expect(screen.queryByText(/Your sign-in has ended/)).toBeNull();
+
+    act(() => {
+      markSessionEnded(client);
+    });
+    expect(await screen.findByText(/Your sign-in has ended/)).toBeTruthy();
+    // Nothing was torn down by the refusal itself: the page is still the page.
+    expect(screen.getByText('Ned')).toBeTruthy();
+
+    const asked = authState.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in again' }));
+    await waitFor(() => {
+      expect(authState.mock.calls.length).toBeGreaterThan(asked);
+    });
+  });
+});
 
 describe('the restart banner', () => {
   it('names the specific keys, because "restart required" invites hoping', async () => {
@@ -141,6 +178,40 @@ describe('the restart banner', () => {
     expect(screen.queryByRole('button', { name: /restart/i })).toBeNull();
   });
 
+  /**
+   * ***A restart that came back*** (2026-09-28). The press's success belonged
+   * to the page, which the restart never reloaded, so the banner went on
+   * reading it: a restart key saved afterwards brought back *Restarting…* with
+   * no button. The server's own answer, once there is one since the press, is
+   * what it reads now.
+   */
+  it('offers Restart now again once the server has answered since the last one', async () => {
+    const supervised = {
+      pendingRestart: ['log.format'],
+      canRestart: true,
+      draining: false,
+      interrupts: { mine: 0, others: 0 },
+    };
+    notices.mockResolvedValue(supervised);
+    restart.mockResolvedValue({ draining: true });
+    const client = renderShell('admin');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Restart now' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Restart now' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Restart now' })).toBeNull();
+    });
+
+    // The new process: another key saved since, and nothing draining. A few
+    // milliseconds on, so the answer is plainly later than the press.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['admin', 'notices'] });
+    });
+    expect(await screen.findByRole('button', { name: 'Restart now' })).toBeTruthy();
+  });
+
   it('is not there when nothing is pending', async () => {
     renderShell('admin');
     await screen.findByText('Ned');
@@ -161,6 +232,26 @@ describe('the restart banner', () => {
 
     expect(notices).not.toHaveBeenCalled();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+/**
+ * ***A way past the header*** (2026-10-01, polish 11). Nine controls stood
+ * between the top of every page and the page, for every keyboard on every
+ * page. The link is the first stop, and what it does is the claim: the
+ * keyboard lands in `<main>`, not merely the scroll.
+ */
+describe('the skip link', () => {
+  it('is the first stop for the keyboard, and hands the keyboard to the page', async () => {
+    renderShell('user');
+    await screen.findByRole('button', { name: 'Sign out' });
+
+    await userEvent.tab();
+    const skip = screen.getByRole('link', { name: 'Skip to the page' });
+    expect(document.activeElement).toBe(skip);
+
+    await userEvent.keyboard('{Enter}');
+    expect(document.activeElement).toBe(screen.getByRole('main'));
   });
 });
 

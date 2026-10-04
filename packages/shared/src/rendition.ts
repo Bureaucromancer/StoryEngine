@@ -96,7 +96,9 @@ export type RenditionState = 'pending' | 'ready' | 'failed';
  * something the client can render and the provider's own words go to the log.
  *
  * `interrupted` is the one this subsystem adds and it is not a provider
- * outcome: it is what a job found `running` at boot becomes. `state/commit.ts`
+ * outcome: it is what a job found live at boot becomes — its record as well as
+ * its row, which `recoverRenditions` in the server has done since 2026-09-26
+ * and nothing did before. `state/commit.ts`
  * says why that is the honest answer rather than a gap — *"recovery resumes
  * finalisation, never generation"* — and a provider call is not resumable while
  * a placeholder with a retry is pressable.
@@ -266,6 +268,33 @@ export interface RenditionProvenance {
    * are not the same promise.
    */
   seed: number | null;
+  /**
+   * ***Whether that seed left the process*** — which is not the same fact as
+   * which seed it was, and the difference was invisible until 2026-10-03
+   * (written 2026-09-26 on a branch, merged then).
+   *
+   * `seed` is the recipe's and is known before the call; this is what the
+   * call did with it, known only after. The two came apart in practice: the
+   * OpenAI-compatible adapter never put the seed on the wire at all, while
+   * every record went on stating one — and the workbench showed it as the
+   * answer to *why did this one come out different*. An endpoint is now sent
+   * the seed only where its connection declares it takes one
+   * (`supportsImageSeed`), so on most installs the answer to this is `false`,
+   * and a record that could not say so would be making a claim.
+   *
+   * - `true` — sent. **Never *honoured***: no images response says whether
+   *   the endpoint used it, and an ignored seed is the honest failure, because
+   *   the record still says what was sent ([06 §10.7] is why the seed is kept
+   *   at all).
+   * - `false` — not sent. The endpoint drew its own, which nothing reports, so
+   *   re-creating the picture will not reproduce it.
+   * - absent — **not recorded**: a pending or failed record, one written
+   *   before this field existed, or one re-created and not yet run again.
+   *   Absent rather than `null` because an older record simply lacks the key,
+   *   and a type that said otherwise would be describing bytes that are not on
+   *   anyone's disk.
+   */
+  seedSent?: boolean;
   /** Everything else the endpoint was asked for. Never discarded (§10.7). */
   workflow: Readonly<Record<string, string | number | boolean>>;
 }
@@ -396,6 +425,20 @@ export interface Rendition {
    * second way to say what absence already says, and the two would drift.
    */
   anchorResolved?: false;
+  /**
+   * ***Where this record came from, when it came from somewhere else*** —
+   * `Turn.foreign`'s shape and rule, added 2026-09-27 when session import
+   * started writing renditions rather than counting them.
+   *
+   * **Optional, so after the freeze it is an addition rather than a
+   * migration** — [P11.10]'s *"a promise not to tighten"*. `source` is the
+   * session the record was exported from and `id` its id there, which import
+   * keeps unchanged because turn ids are kept and a rendition's id is its turn's
+   * plus an ordinal. A record that already carries one keeps it: the first
+   * install it came from is the one that matters, which is `foreignise`'s rule
+   * for turns.
+   */
+  foreign?: { source: string; id: string };
 }
 
 /**
@@ -473,7 +516,7 @@ export interface RenditionReport {
    * are different facts, and the hook selector's `nothing-eligible` draws the
    * same line for the same reason.
    */
-  held?: 'place-unchanged' | 'no-moment' | 'no-binding';
+  held?: 'place-unchanged' | 'no-moment' | 'no-binding' | 'no-place';
 }
 
 /**

@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import { classifyRoot } from '../detect.js';
 import { MemoryFileSource } from '../memory-source.js';
+import { parseSillyTavernChat } from '../sillytavern/chat.js';
 import { MARINARA_DISPOSITIONS } from '../registries/marinara.js';
 import { SILLYTAVERN_DISPOSITIONS } from '../registries/sillytavern.js';
-import { marinaraFixture } from './test-marinara.js';
+import { classifyTablePath } from '../marinara/store-format.js';
+import { marinaraFixture, marinaraShardedFixture } from './test-marinara.js';
 import { sillyTavernFixture } from './test-sillytavern.js';
 
 /**
@@ -61,6 +63,32 @@ describe('the SillyTavern fixture', () => {
     expect(paths).toContain('characters/broken.png');
   });
 
+  it('holds a chat that reads as one, with a greeting, a swipe and both sides speaking', () => {
+    // [P14.8]: the sweep turns this into a session, and a session test is only
+    // as good as the chat under it. A prop that no longer parsed — or that lost
+    // its player's line, or its swipes — would leave the end-to-end sweep test
+    // passing over a session with nothing in it worth checking.
+    const path = 'chats/Vera Solano/2026-01-01.jsonl';
+    const bytes = tree[path];
+    const outcome = parseSillyTavernChat(
+      typeof bytes === 'string' ? bytes : (bytes ?? new Uint8Array()),
+      path,
+    );
+    if (!outcome.ok) throw new Error(`the fixture chat is refused: ${outcome.refusal}`);
+
+    const { chat, meta } = outcome.value;
+    expect(chat.messages.map((message) => message.role)).toEqual([
+      'character',
+      'user',
+      'character',
+    ]);
+    expect(chat.messages.every((message) => message.role !== 'character' || message.swipes)).toBe(
+      true,
+    );
+    expect(meta.persona).toBe('User Avatars/inspector.png');
+    expect(meta.worldInfo).toBe('Rain City');
+  });
+
   it('contains a credential, because the gate tests for its absence afterwards', () => {
     // A corpus with no secret in it cannot fail a test that looks for one, and
     // a passing test over an empty premise is the failure mode gate step 3 is
@@ -75,6 +103,36 @@ describe('the SillyTavern fixture', () => {
   });
 });
 
+describe('the sharded Marinara fixture', () => {
+  const tree = marinaraShardedFixture();
+
+  it('is recognised as a Marinara data root', async () => {
+    expect(await classifyRoot(new MemoryFileSource(tree))).toEqual({ ok: true, kind: 'marinara' });
+  });
+
+  /**
+   * **The encoded names, spelled out.** The fixture builds them with the
+   * production encoder, so a test that only asked the encoder would agree with
+   * it by construction; these literals are what upstream writes for these ids,
+   * and they pin the fixture to that rather than to our port of it.
+   */
+  it('names its shards the way Marinara names them', () => {
+    const paths = Object.keys(tree);
+
+    expect(paths).toContain('storage/tables/characters/char%5Fvera.json');
+    expect(paths).toContain('storage/tables/lorebooks/book%5Frain%5Fcity.json.bak');
+    expect(paths).not.toContain('storage/tables/lorebooks/book%5Frain%5Fcity.json');
+  });
+
+  it('holds nothing under storage/tables that the classifier does not recognise', () => {
+    const unknown = Object.keys(tree)
+      .filter((path) => path.startsWith('storage/tables/'))
+      .filter((path) => classifyTablePath(path).role === 'unknown');
+
+    expect(unknown).toEqual([]);
+  });
+});
+
 describe('the Marinara fixture', () => {
   const tree = marinaraFixture();
 
@@ -83,16 +141,17 @@ describe('the Marinara fixture', () => {
   });
 
   it('names only tables the registry has a disposition for', () => {
+    // Asked of the same classifier the reader uses, rather than a second copy of
+    // its rules — this file used to carry its own, which is how two answers to
+    // "what table is this path" come to disagree.
     const tables = Object.keys(tree)
-      .filter((path) => path.startsWith('storage/tables/') && !path.endsWith('.bak'))
-      .map((path) => {
-        const rest = path.slice('storage/tables/'.length);
-        // A sharded table is a directory, so the table name is the first
-        // segment rather than the filename.
-        return rest.includes('/') ? (rest.split('/')[0] ?? rest) : rest.replace(/\.json$/, '');
-      });
+      .filter((path) => path.startsWith('storage/tables/'))
+      .map((path) => classifyTablePath(path))
+      .filter((found) => found.role === 'data')
+      .map((found) => found.table ?? '');
 
-    const unknown = tables.filter((table) => MARINARA_DISPOSITIONS[table] === undefined);
+    // `Object.hasOwn`, because a bare lookup answers `constructor` with a function.
+    const unknown = tables.filter((table) => !Object.hasOwn(MARINARA_DISPOSITIONS, table));
 
     expect(unknown, `no disposition covers: ${[...new Set(unknown)].join(', ')}`).toEqual([]);
   });
@@ -108,8 +167,16 @@ describe('the Marinara fixture', () => {
   it('declares a manifest version that disagrees with its own layout, on purpose', () => {
     // Marinara's own comment records that a crash between the shard migration
     // and its first flush leaves sharded data under a version-2 manifest. A
-    // reader that trusts the manifest for the layout reads this install wrong,
-    // and this fixture is the case that catches it.
+    // reader that trusts the manifest for the layout reads this install wrong.
+    // ~~This fixture is the case that catches it.~~ *Corrected 2026-09-22
+    // ([P4 §7.18]).* It never was: `messages` is recorded, not read, so no
+    // reader ever opened the sharded table here. The case that catches it is
+    // `marinaraShardedFixture({ version: 2 })`, swept in `marinara.test.ts`.
+    // *And corrected again 2026-10-02, by the merge of origin's main, where
+    // [P14.10] had made `messages` read*: this fixture is now a second case
+    // that catches it. `chat-sessions.test.ts` sweeps it and asserts the
+    // messages of `chat_1` arrive as turns, which a reader that took the
+    // layout from this manifest's version would never have opened.
     const manifest = JSON.parse(String(tree['storage/manifest.json'])) as { version: number };
 
     expect(manifest.version).toBe(2);

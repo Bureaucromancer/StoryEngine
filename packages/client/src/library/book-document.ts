@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Lorebook } from '@storyengine/shared';
+import { resolvedFolderId, type Lorebook } from '@storyengine/shared';
 
 /**
  * ***A lorebook as a document*** —
@@ -65,18 +65,35 @@ function firingNotes(entry: Lorebook['entries'][number]): string[] {
  * about an ordering the author already expressed.
  */
 function grouped(book: Lorebook): { folder: string | null; entries: Lorebook['entries'] }[] {
-  const names = new Map(book.folders.map((folder) => [folder.id, folder.name]));
+  /**
+   * ***By the folder the entry actually sits in*** (2026-09-28) —
+   * `resolvedFolderId`, the book page's own reading. Keyed on the raw
+   * `folderId`, an entry naming a folder the book does not hold made a group of
+   * its own with no heading, and so did every unfiled entry that came after a
+   * folder — a *New entry* is appended unfiled — so each read as the last
+   * folder's. [10 §5.3] asks for *a real **Ungrouped** node, because a nullable
+   * field that renders as nothing hides entries*, and this was that.
+   */
   const seen = new Map<string | null, Lorebook['entries']>();
   for (const entry of book.entries) {
-    const key = entry.folderId ?? null;
+    const key = resolvedFolderId(book, entry);
     const into = seen.get(key) ?? [];
     into.push(entry);
     seen.set(key, into);
   }
-  return [...seen.entries()].map(([key, entries]) => ({
-    folder: key === null ? null : (names.get(key) ?? null),
-    entries,
-  }));
+  return [...seen.entries()].map(([key, entries]) => ({ folder: key, entries }));
+}
+
+/**
+ * ***A folder's name as the page and the copy both say it*** — the word the
+ * Ungrouped node goes by, or a folder's own name, or *Untitled folder* for one
+ * with none. Moved here from the book page (2026-09-28), which imports it, so
+ * the two surfaces cannot drift apart on three words.
+ */
+export function folderName(book: Lorebook, id: string | null): string {
+  if (id === null) return 'Ungrouped';
+  const found = book.folders.find((candidate) => candidate.id === id);
+  return found === undefined || found.name === '' ? 'Untitled folder' : found.name;
 }
 
 /**
@@ -89,8 +106,12 @@ export function bookToMarkdown(book: Lorebook): string {
   const parts: string[] = [`# ${book.name}`];
   if (book.description.trim() !== '') parts.push(book.description);
 
-  for (const group of grouped(book)) {
-    if (group.folder !== null) parts.push(`## ${group.folder}`);
+  const groups = grouped(book);
+  // A flat book stays flat: the Ungrouped heading is only a heading beside
+  // others, where leaving it off would file its entries under the last one.
+  const foldered = groups.some((group) => group.folder !== null);
+  for (const group of groups) {
+    if (foldered) parts.push(`## ${folderName(book, group.folder)}`);
     for (const entry of group.entries) {
       parts.push(`### ${entry.name}`);
       if (entry.keys.length > 0) parts.push(`*Keys: ${entry.keys.join(', ')}*`);

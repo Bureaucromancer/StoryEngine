@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
 import {
@@ -12,9 +13,12 @@ import {
 } from '../api.js';
 import { useLibrary, useRenditions, useSession, type RenditionSet } from '../queries.js';
 import { Button } from '../ui/Button.js';
-import { page } from '../ui/classes.js';
+import { link, page } from '../ui/classes.js';
+import { COPY_WORDS, copyText } from '../ui/copy.js';
 import { Note, PageTitle } from '../ui/Text.js';
+import { MovePictures } from '../play/Pictures.js';
 import { anchorOffset } from '../play/Rendition.js';
+import { sessionLabel } from '../play/session-label.js';
 import { attribution, passages, toMarkdown, toPlainText } from './prose.js';
 
 /**
@@ -52,24 +56,41 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
       }),
   });
 
-  const title = session.data?.session.name ?? 'Untitled';
+  /**
+   * ***The app's own name for an unnamed session*** (2026-09-27). An empty name
+   * is a stored, ordinary state, and `?? 'Untitled'` only caught a missing one:
+   * a session never named read as a blank heading, and *Copy as Markdown*
+   * began with an empty title. `sessionLabel` is the one answer the play page
+   * and the list already give; the loading placeholder is the play page's too.
+   */
+  const title = session.data === undefined ? 'Session' : sessionLabel(session.data.session.name);
   const nameOf = (actorId: string): string | null =>
     (actors.data?.objects ?? []).find((one) => one.id === actorId)?.name ?? null;
   const turns: TurnRecord[] = transcript.data?.turns ?? [];
   const read = passages(turns, nameOf);
 
+  // ***`div`s, not landmarks*** (2026-10-01, polish 11) — the shell owns the
+  // routed app's one `<main>`, and both of these were a second one inside it.
+  // `shell-layout.test.tsx` counts this page now; it never visited it before.
+  //
+  // *And the column releases its own width and padding for print*, which the
+  // print stylesheet's `main` rule did while this was a `main`: on paper the
+  // page's margins are the measure, and the screen's column inside them would
+  // be a narrower page inside the page.
+  const column = `${page.reading} print:max-w-none print:p-0`;
   if (transcript.isError) {
     return (
-      <main className={page.reading}>
+      <div className={column}>
         <p role="alert" className="text-danger-ink">
           That part of the story could not be read. The link may name a turn that is not there.
         </p>
-      </main>
+        <BackToSession sessionId={props.sessionId} />
+      </div>
     );
   }
 
   return (
-    <main className={page.reading}>
+    <div className={column}>
       {/* ***One heading, for the screen and the page.*** It used to be two — a
           `SectionTitle` inside the controls row, and a second `<h1>` spelled
           `hidden text-title print:block` underneath it, because the row it sat
@@ -84,6 +105,7 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
           for: a page of controls is not part of the story, and the browser's
           own print-to-PDF is the whole of §12.2's PDF story. */}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <BackToSession sessionId={props.sessionId} />
         <div className="ms-auto flex flex-wrap gap-2">
           <CopyButton label="Copy as Markdown" text={() => toMarkdown(read, { title })} />
           <CopyButton label="Copy as text" text={() => toPlainText(read, { title })} />
@@ -110,16 +132,40 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
         <Note>Nothing has been written in this session yet.</Note>
       ) : null}
 
-      <article className="flex flex-col gap-6 text-story text-ink">
+      <article className="flex flex-col gap-6 text-story font-story text-ink">
         {read.map((passage) => (
           <section key={passage.turnId} className="flex flex-col gap-2">
             {passage.said === null ? null : (
               <blockquote className="border-s-2 border-line ps-3 text-ink-muted">
                 <p className="text-sm uppercase tracking-wide">{attribution(passage.said)}</p>
-                <p className="whitespace-pre-wrap">{passage.said.text}</p>
+                {passage.said.text === '' ? null : (
+                  <p className="whitespace-pre-wrap">{passage.said.text}</p>
+                )}
+                <MovePictures sessionId={props.sessionId} pictures={passage.said.pictures} />
               </blockquote>
             )}
-            {passage.prose === null ? null : (
+            {/* ***Named lines, when the record names them*** — [P14.5]. The
+                speaker's name above each message, as a script sets it; the
+                pictures then fall to the end of the turn, §10.4a's rule for an
+                anchor that does not resolve. */}
+            {passage.lines === null
+              ? null
+              : passage.lines.map((line, index) => (
+                  <div key={index} className="flex flex-col gap-1">
+                    {line.who === null ? null : (
+                      <p className="text-sm uppercase tracking-wide text-ink-muted">{line.who}</p>
+                    )}
+                    <p className="whitespace-pre-wrap">{line.text}</p>
+                  </div>
+                ))}
+            {passage.lines !== null ? (
+              <Illustrated
+                sessionId={props.sessionId}
+                turnId={passage.turnId}
+                text=""
+                renditions={renditions.data}
+              />
+            ) : passage.prose === null ? null : (
               <Illustrated
                 sessionId={props.sessionId}
                 turnId={passage.turnId}
@@ -131,7 +177,7 @@ export function ReadingPage(props: { sessionId: string; from?: string }): JSX.El
           </section>
         ))}
       </article>
-    </main>
+    </div>
   );
 }
 
@@ -170,12 +216,24 @@ function Illustrated(props: {
   const chosenId = props.renditions?.selection[props.turnId];
   const shown = all.find((one) => one.id === chosenId) ?? all[all.length - 1];
 
-  if (shown === undefined) return <p className="whitespace-pre-wrap">{props.text}</p>;
+  // No words is a named chat turn's pictures alone ([P14.5]): nothing to set
+  // an empty paragraph for.
+  if (shown === undefined) {
+    return props.text === '' ? <></> : <p className="whitespace-pre-wrap">{props.text}</p>;
+  }
 
   const picture = (
     <img
       src={renditionAssetUrl(props.sessionId, shown.id, shown.asset?.digest ?? '')}
-      alt={shown.scope?.anchor ?? ''}
+      /**
+       * ***Empty, as the play surface's is*** (2026-10-01, polish 11). It was
+       * the anchor — the sentence the picture is of, which the picture sits
+       * directly after — so a screen reader read that sentence and then read
+       * it again as the picture. `RenditionView` says why empty is the honest
+       * alt for a generated picture: the record holds what was asked for, not
+       * what came back, and the moment it shows is in the words beside it.
+       */
+      alt=""
       /**
        * **Bounded by the measure, not stretched to it.** `w-full` set every
        * illustration to the reading column's 48rem whatever its own size, so a
@@ -187,6 +245,7 @@ function Illustrated(props: {
     />
   );
 
+  if (props.text === '') return picture;
   const at = anchorOffset(props.text, shown.scope?.anchor);
   if (at === null) {
     return (
@@ -206,13 +265,33 @@ function Illustrated(props: {
 }
 
 /**
+ * ***The way back*** (2026-10-01). The reading view is opened from a story's
+ * session panel, and offered no way back to it: the header's Play goes to the
+ * list of sessions, so returning to *this* story meant the browser's Back, or
+ * finding it again in the list — and a reading view opened from a pasted link
+ * had no Back at all. Compare had the same need and already answers it this
+ * way, so this is that link, in the same words.
+ *
+ * In the controls row, so printing drops it with them; and under the failure
+ * too, where a link naming a turn that is not there leaves a person most in
+ * need of somewhere to go.
+ */
+function BackToSession(props: { sessionId: string }): JSX.Element {
+  return (
+    <Link to="/play/$sessionId" params={{ sessionId: props.sessionId }} className={link.back}>
+      Back to the session
+    </Link>
+  );
+}
+
+/**
  * ***Copy, with the failure said out loud.***
  *
  * `navigator.clipboard` needs a secure context, which a LAN install served over
- * plain HTTP does not have — the caveat `docs/deploy.md` already carries a table
- * about. So this reports rather than silently doing nothing, which is what an
- * unchecked `void writeText()` would do on exactly the deployment this project
- * is for.
+ * plain HTTP does not have — the cost `docs/deploy.md` names beside the
+ * notifications one. So this reports rather than silently doing nothing, which
+ * is what an unchecked `void writeText()` would do on exactly the deployment
+ * this project is for.
  */
 function CopyButton(props: { label: string; text: () => string }): JSX.Element {
   const [said, setSaid] = useState<string | null>(null);
@@ -221,26 +300,10 @@ function CopyButton(props: { label: string; text: () => string }): JSX.Element {
       <Button
         type="button"
         onClick={() => {
-          /**
-           * **Read off `navigator` rather than assumed**, because the types say
-           * it is always there and a browser on a plain-HTTP LAN install says
-           * otherwise: `clipboard` is a secure-context API, and this project's
-           * own `docs/deploy.md` carries a table about exactly that deployment.
-           * An optional chain would typecheck and still throw.
-           */
-          const clipboard = navigator.clipboard as Clipboard | undefined;
-          if (clipboard === undefined) {
-            setSaid(NO_CLIPBOARD);
-            return;
-          }
-          void clipboard
-            .writeText(props.text())
-            .then(() => {
-              setSaid('Copied.');
-            })
-            .catch(() => {
-              setSaid(NO_CLIPBOARD);
-            });
+          // `ui/copy.ts` says why the clipboard is asked rather than assumed.
+          void copyText(props.text()).then((copied) => {
+            setSaid(copied ? COPY_WORDS.copied : COPY_WORDS.refused);
+          });
         }}
       >
         {props.label}
@@ -253,5 +316,3 @@ function CopyButton(props: { label: string; text: () => string }): JSX.Element {
     </span>
   );
 }
-
-const NO_CLIPBOARD = 'This browser would not copy. Select the text and copy it yourself.';

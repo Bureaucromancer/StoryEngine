@@ -137,6 +137,43 @@ describe('what runs before the admin guard', () => {
       await fresh.dispose();
     }
   });
+
+  /**
+   * ***`/%61pi` is `/api` to the router, and now to both checks*** (2026-09-27).
+   * They read the raw URL, so an escaped prefix reached every route with no
+   * CSRF token: a page on another port of the same box could remove an account
+   * through a signed-in admin's browser. Removal is the call used because its
+   * consequence can be looked for afterwards, not just its status.
+   */
+  it('answers csrf to an admin call whose prefix is spelled in escapes', async () => {
+    await server.services.accounts.create({
+      handle: 'mara',
+      password: 'another long password',
+      role: 'user',
+    });
+
+    const response = await server.request({
+      method: 'DELETE',
+      url: '/%61pi/admin/accounts/mara',
+      skipCsrf: true,
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('csrf');
+    expect(await server.services.accounts.find('mara')).not.toBeNull();
+  });
+
+  it('answers setup-required to an escaped address on a fresh install', async () => {
+    const fresh = await makeTestServer();
+    try {
+      const response = await fresh.request({ method: 'GET', url: '/%61pi/admin/accounts' });
+
+      expect(response.status).toBe(503);
+      expect(response.body.error).toBe('setup-required');
+    } finally {
+      await fresh.dispose();
+    }
+  });
 });
 
 describe('the account list', () => {
@@ -500,6 +537,25 @@ describe('creating, patching and removing', () => {
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('exists');
+  });
+
+  /**
+   * ***A handle the rules refuse is a 400 with the rule in it*** (2026-09-27).
+   * It was a 500: the check threw the path guard's own error, which nothing
+   * mapped, and *Add someone* said *The request failed*.
+   */
+  it('refuses a handle it cannot use with 400 and says what a handle is', async () => {
+    for (const handle of ['Sam', 'sam.smith', '-sam', 'aux']) {
+      const response = await server.request({
+        method: 'POST',
+        url: '/api/admin/accounts',
+        payload: { handle, password: 'another long password', role: 'user' },
+      });
+
+      expect(response.status, handle).toBe(400);
+      expect(response.body.error, handle).toBe('invalid');
+      expect(response.body.message, handle).toMatch(/lowercase letters, digits and hyphens/);
+    }
   });
 
   it('grants and revokes a capability without touching the others', async () => {

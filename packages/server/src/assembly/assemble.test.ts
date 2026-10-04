@@ -546,3 +546,78 @@ describe('what a producer refused before the cut', () => {
     expect(verdict.decisions.every((one) => one.blockId !== 'lore.a.1')).toBe(true);
   });
 });
+
+/**
+ * ***A message that carries a picture keeps its words whole*** — [25 E15].
+ *
+ * The property `RenderedMessage.parts` promises and every reader of `content`
+ * relies on: **the text parts joined are exactly `content`**. A message only
+ * grows parts at its first sent picture, so a block merged in before the
+ * picture must survive into the parts, and one merged in after must follow the
+ * picture rather than land before it.
+ */
+describe('render, with a picture in the message', () => {
+  const DIGEST = `sha256:${'d'.repeat(64)}`;
+  const capabilities = { mergeSameRole: 'preferred' as const };
+
+  function text(id: string, value: string) {
+    return {
+      id,
+      source: { kind: 'input' as const },
+      reason: 'test',
+      role: 'user' as const,
+      text: value,
+      tokens: 1,
+      included: true,
+    };
+  }
+
+  it('orders the parts as the blocks were, and their words join to the content', () => {
+    const messages = render(
+      [
+        text('b1', 'Look.'),
+        {
+          ...text('b2', '[Picture: a lantern]'),
+          image: { attachmentId: '0', digest: DIGEST, mime: 'image/png', sent: true },
+        },
+        text('b3', 'What is it?'),
+      ],
+      { capabilities },
+    );
+
+    expect(messages).toHaveLength(1);
+    const [message] = messages;
+    expect(message?.content).toBe('Look.\n\n[Picture: a lantern]\n\nWhat is it?');
+    expect(message?.parts).toEqual([
+      { kind: 'text', text: 'Look.\n\n[Picture: a lantern]' },
+      { kind: 'image', blockId: 'b2', digest: DIGEST, mime: 'image/png' },
+      { kind: 'text', text: '\n\nWhat is it?' },
+    ]);
+    const joined = (message?.parts ?? [])
+      .map((part) => (part.kind === 'text' ? part.text : ''))
+      .join('');
+    expect(joined).toBe(message?.content);
+  });
+
+  it('gives a message with a withheld picture no parts at all', () => {
+    const messages = render(
+      [
+        text('b1', 'Look.'),
+        {
+          ...text('b2', '[Picture — not shown: a lantern]'),
+          image: {
+            attachmentId: '0',
+            digest: DIGEST,
+            mime: 'image/png',
+            sent: false,
+            withheld: 'model-text-only' as const,
+          },
+        },
+      ],
+      { capabilities },
+    );
+
+    expect(messages[0]?.parts).toBeUndefined();
+    expect(messages[0]?.content).toBe('Look.\n\n[Picture — not shown: a lantern]');
+  });
+});

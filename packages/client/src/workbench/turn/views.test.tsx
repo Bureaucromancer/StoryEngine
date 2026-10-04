@@ -373,6 +373,104 @@ describe('the pictures a turn was the subject of', () => {
     const pictures = screen.getByRole('region', { name: 'Pictures' });
     expect(within(pictures).getByText('481,516')).toBeTruthy();
     expect(within(pictures).getByText('2,342')).toBeTruthy();
+    // Both were sent, so neither needs saying: *sent* is the claim the number
+    // already makes.
+    expect(within(pictures).queryByText(/Not sent|Not recorded whether/)).toBeNull();
+  });
+
+  /**
+   * ***A seed the endpoint never received says so*** — which is every install's
+   * default, since a connection has to declare `supportsImageSeed` before one
+   * is sent. The number stays, because it is the recipe's and what a
+   * re-creation replays; what goes is its standing as an explanation.
+   */
+  it('says when a seed was never sent, and keeps the number', () => {
+    const [sent, withheld] = renditionPair();
+    if (sent === undefined || withheld === undefined) throw new Error('fixture');
+    render(
+      <TurnSubject
+        turn={richTurn()}
+        locale="en"
+        renditions={[
+          sent,
+          { ...withheld, provenance: { ...withheld.provenance, seedSent: false } },
+        ]}
+      />,
+    );
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText('2,342')).toBeTruthy();
+    // Once, for the withheld one — not for its sent sibling.
+    expect(within(pictures).getAllByText(/^Not sent:/)).toHaveLength(1);
+  });
+
+  /**
+   * **A record from before the field existed is *not recorded*, never either
+   * answer.** Every picture made before 2026-10-03 was in fact made without its
+   * seed, but the record cannot say that about itself, and a panel that
+   * guessed on its behalf would be making the claim this field exists to stop.
+   */
+  it('calls a made picture with no answer on record not recorded', () => {
+    const [sent] = renditionPair();
+    if (sent === undefined) throw new Error('fixture');
+    const older = { ...sent.provenance };
+    delete older.seedSent;
+    render(
+      <TurnSubject turn={richTurn()} locale="en" renditions={[{ ...sent, provenance: older }]} />,
+    );
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText('481,516')).toBeTruthy();
+    expect(within(pictures).getByText(/^Not recorded whether/)).toBeTruthy();
+  });
+
+  /**
+   * ***A record that has not run yet has nothing to report, and says
+   * nothing.*** The *not recorded* note above is for a picture that was made
+   * and whose record is silent; the same absence on a pending or failed record
+   * means something else entirely — the run that would write it has not landed,
+   * or did not. And it is not a rare shape: `recreateRendition` deletes
+   * `seedSent` on purpose when it sets a record back to `pending`, because the
+   * next run may go out on a connection whose `supportsImageSeed` has changed,
+   * so every picture waiting to be re-created, and every failed placeholder,
+   * carries exactly this provenance. Without the ready-only guard in
+   * `seedNote`, each of them would wear *Not recorded whether this reached the
+   * endpoint* — a claim about a call that has not happened.
+   *
+   * The fixtures are shaped like the real ones rather than like the ready pair
+   * with a state swapped: no asset on either, and the failed one carrying the
+   * class a restart writes.
+   */
+  it('says nothing about the seed on a record that has not been made', () => {
+    const [sent] = renditionPair();
+    if (sent === undefined) throw new Error('fixture');
+    // The provenance `recreateRendition` leaves: the seed kept, `seedSent` gone.
+    const older = { ...sent.provenance };
+    delete older.seedSent;
+    render(
+      <TurnSubject
+        turn={richTurn()}
+        locale="en"
+        renditions={[
+          { ...sent, state: 'pending', asset: null, provenance: older },
+          {
+            ...sent,
+            id: 't-10.1',
+            ordering: 1,
+            state: 'failed',
+            asset: null,
+            error: 'interrupted',
+            provenance: older,
+          },
+        ]}
+      />,
+    );
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    // The seed is still shown on both — it is the recipe's, and what the next
+    // run will replay — so the silence below is about the note, not the row.
+    expect(within(pictures).getAllByText('481,516')).toHaveLength(2);
+    expect(within(pictures).queryByText(/Not recorded whether|Not sent/)).toBeNull();
   });
 
   /**
@@ -424,5 +522,17 @@ describe('the pictures a turn was the subject of', () => {
 
     const pictures = screen.getByRole('region', { name: 'Pictures' });
     expect(within(pictures).getByText(/no moment worth a picture/)).toBeTruthy();
+  });
+
+  /**
+   * ***A backdrop held for want of a place*** (2026-09-30) — the class the step
+   * reports instead of paying for a picture of a mood, in words.
+   */
+  it('says when a backdrop was held because the story named no place', () => {
+    const turn = { ...richTurn(), renditions: { requested: [], held: 'no-place' as const } };
+    render(<TurnSubject turn={turn} locale="en" />);
+
+    const pictures = screen.getByRole('region', { name: 'Pictures' });
+    expect(within(pictures).getByText(/has not said where this is yet/)).toBeTruthy();
   });
 });

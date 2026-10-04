@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { RENDITION_SCHEMA, type Rendition, type RenditionPurpose } from '@storyengine/shared';
+import {
+  RENDITION_SCHEMA,
+  type Rendition,
+  type RenditionProvenance,
+  type RenditionPurpose,
+} from '@storyengine/shared';
 
-import type { CastEntry } from '@storyengine/sdk';
+import type { StepCastMember } from '@storyengine/sdk';
 
 import { assemblePrompt, fragmentsFor } from './assemble.js';
 import { recipeDigest } from './digest.js';
@@ -60,7 +65,7 @@ export interface ManualRequest {
   purpose: RenditionPurpose;
   /** The turn's own prose, for an illustration. Empty for a backdrop. */
   moment: string;
-  cast: readonly CastEntry[];
+  cast: readonly StepCastMember[];
   channels: readonly { id: string; text: string }[];
   tone: string | null;
   image: { binding: Binding; capabilities: ProviderCapabilities };
@@ -72,7 +77,10 @@ export interface ManualRequest {
 }
 
 /**
- * Writes a pending rendition for a turn and returns it, for the caller to queue.
+ * Builds a pending rendition for a turn and returns it, for the caller to
+ * dispatch. ~~Writes~~ *Corrected 2026-09-27:* the dispatch writes it, after
+ * claiming its job, so that no `pending` record is on disk without a job row
+ * recovery can find (`dispatchRenditions`).
  *
  * ***The ordinal is the next free one***, which is what makes one id scheme
  * serve both producers. The step names its requests `<turnId>.0`, `<turnId>.1`;
@@ -134,7 +142,6 @@ export async function requestRendition(request: ManualRequest): Promise<Renditio
     ordering: 0,
   };
 
-  await writeRendition(request.layout, request.handle, request.sessionId, rendition);
   return rendition;
 }
 
@@ -165,12 +172,22 @@ export async function recreateRendition(
   sessionId: string,
   rendition: Rendition,
 ): Promise<Rendition> {
+  const provenance: RenditionProvenance = { ...rendition.provenance, at: null, answeredAs: null };
+  /**
+   * ***Whether the last run's seed was sent is the last run's fact, not the
+   * recipe's.*** The next one may go out on a connection whose capability has
+   * changed since, so a pending record carrying the old answer would state a
+   * claim about a call that has not happened. Deleted from a copy rather than
+   * the fields enumerated, so a recipe field added later survives re-creation
+   * by default — which is the direction [06 §10.7] needs the default to point.
+   */
+  delete provenance.seedSent;
   const again: Rendition = {
     ...rendition,
     state: 'pending',
     asset: null,
     error: null,
-    provenance: { ...rendition.provenance, at: null, answeredAs: null },
+    provenance,
   };
   await writeRendition(layout, handle, sessionId, again);
   return again;

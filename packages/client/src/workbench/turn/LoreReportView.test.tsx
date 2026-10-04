@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { NO_LORE_REPORT, type LoreReport, type LoreSkipRow } from '@storyengine/shared';
 
+import { formatCount } from '../../format.js';
 import { LoreReportView } from './LoreReportView.js';
 
 /**
@@ -44,6 +45,7 @@ describe('what the retriever refused', () => {
   it('names each entry and what to do about it', () => {
     render(
       <LoreReportView
+        locale="en-US"
         lore={report({
           skipped: [
             skip({ entryId: 'e1', entryName: 'No keys', reason: 'no-keys' }),
@@ -64,7 +66,12 @@ describe('what the retriever refused', () => {
    * the entry somebody was asking about. Ugly and true beats absent.
    */
   it('falls back to the class itself for a reason it does not know', () => {
-    render(<LoreReportView lore={report({ skipped: [skip({ reason: 'semantic-miss' })] })} />);
+    render(
+      <LoreReportView
+        locale="en-US"
+        lore={report({ skipped: [skip({ reason: 'semantic-miss' })] })}
+      />,
+    );
 
     expect(screen.getByText('semantic-miss')).toBeTruthy();
   });
@@ -77,6 +84,7 @@ describe('what the retriever refused', () => {
   it('names the folder when a folder is what shut the entry out', () => {
     render(
       <LoreReportView
+        locale="en-US"
         lore={report({
           skipped: [skip({ reason: 'folder-disabled', folder: { id: 'f1', name: 'Act Two' } })],
         })}
@@ -95,7 +103,7 @@ describe('what the retriever refused', () => {
     const many = Array.from({ length: 20 }, (_, at) =>
       skip({ entryId: `e${String(at)}`, entryName: `Entry ${String(at)}` }),
     );
-    render(<LoreReportView lore={report({ skipped: many })} />);
+    render(<LoreReportView locale="en-US" lore={report({ skipped: many })} />);
 
     expect(screen.queryByText('Entry 19')).toBeNull();
     expect(screen.getByText('Did not fire — 20')).toBeTruthy();
@@ -115,6 +123,7 @@ describe('the books in play', () => {
   it('lists a book that contributed nothing, with why it is being scanned', () => {
     render(
       <LoreReportView
+        locale="en-US"
         lore={report({
           books: [
             {
@@ -137,7 +146,7 @@ describe('the books in play', () => {
 
   /** Spent of allowed: a number alone cannot say whether the limit was in the way. */
   it('shows what each book spent against what it was allowed', () => {
-    render(<LoreReportView lore={report()} />);
+    render(<LoreReportView locale="en-US" lore={report()} />);
 
     const row = screen.getByRole('cell', { name: 'Rain City' }).closest('tr');
     expect(row?.textContent).toContain('1 / 100');
@@ -150,13 +159,13 @@ describe('the books in play', () => {
    * moment a book *is* in play the section appears, even with nothing skipped.
    */
   it('renders nothing at all when no book is in play', () => {
-    const { container } = render(<LoreReportView lore={NO_LORE_REPORT} />);
+    const { container } = render(<LoreReportView locale="en-US" lore={NO_LORE_REPORT} />);
 
     expect(container.textContent).toBe('');
   });
 
   it('appears for a book in play even when nothing was refused', () => {
-    render(<LoreReportView lore={report({ skipped: [] })} />);
+    render(<LoreReportView locale="en-US" lore={report({ skipped: [] })} />);
 
     expect(screen.getByText('Rain City')).toBeTruthy();
     expect(screen.queryByText(/Did not fire/)).toBeNull();
@@ -172,6 +181,7 @@ describe('the patterns that could not be run', () => {
   it('prints the key and says which way it failed', () => {
     render(
       <LoreReportView
+        locale="en-US"
         lore={report({
           refused: [
             { entryId: 'e1', entryName: 'Broken', key: '(', reason: 'invalid' },
@@ -193,7 +203,7 @@ describe('the sources nothing supplied', () => {
    * them.
    */
   it('names a source no one supplied', () => {
-    render(<LoreReportView lore={report({ unknownSources: ['the-moon'] })} />);
+    render(<LoreReportView locale="en-US" lore={report({ unknownSources: ['the-moon'] })} />);
 
     expect(screen.getByText('the-moon')).toBeTruthy();
   });
@@ -209,14 +219,50 @@ describe('the sources nothing supplied', () => {
  */
 describe('a book with no token limit', () => {
   it('says so, rather than dividing by a limit of nothing', () => {
-    render(<LoreReportView lore={report({ books: [bookRow({ tokenBudget: 0 })] })} />);
+    render(
+      <LoreReportView locale="en-US" lore={report({ books: [bookRow({ tokenBudget: 0 })] })} />,
+    );
 
     expect(screen.getByText('41 / no limit')).toBeTruthy();
   });
 
   it('still shows the allowance where there is one', () => {
-    render(<LoreReportView lore={report()} />);
+    render(<LoreReportView locale="en-US" lore={report()} />);
 
     expect(screen.getByText('41 / 2,048')).toBeTruthy();
+  });
+});
+
+/**
+ * ***The counts in the account's format*** (2026-09-28). The panel was handed no
+ * locale, so every count in it was the browser's: *2,048* under an account set
+ * to German, whose grouping is *2.048*.
+ */
+describe('the counts', () => {
+  it('are written in the account’s format', () => {
+    render(<LoreReportView locale="de-DE" lore={report()} />);
+    const german = `${formatCount(41, 'de-DE')} / ${formatCount(2048, 'de-DE')}`;
+    expect(german).not.toBe('41 / 2,048');
+    expect(screen.getByText(german)).toBeTruthy();
+  });
+
+  /**
+   * The smaller counts, in Arabic-Indic digits through a `-u-nu-arab` tag no
+   * account is offered: the regions an account can choose write the same digits
+   * below a thousand, and what is under test is that the locale reaches each
+   * count, which any tag whose small numbers differ proves.
+   */
+  it('writes the smaller counts in it as well', () => {
+    const locale = 'en-US-u-nu-arab';
+    const count = (n: number): string => formatCount(n, locale);
+    const many = Array.from({ length: 20 }, (_, at) =>
+      skip({ entryId: `e${String(at)}`, entryName: `Entry ${String(at)}` }),
+    );
+    render(<LoreReportView locale={locale} lore={report({ skipped: many })} />);
+
+    expect(count(20)).not.toBe('20');
+    expect(screen.getByText(`${count(1)} / ${count(100)}`)).toBeTruthy();
+    expect(screen.getByText(`Did not fire — ${count(20)}`)).toBeTruthy();
+    expect(screen.getByRole('button', { name: `Show ${count(8)} more` })).toBeTruthy();
   });
 });

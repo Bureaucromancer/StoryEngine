@@ -11,7 +11,7 @@ import { Button } from '../ui/Button.js';
 
 /**
  * ***Start a session from this Setup*** — [04 §7](../../../../docs/design/04-schemas.md),
- * [P13.4](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.4](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **The browser could not do this until now.** `POST /api/sessions` has taken a
  * Setup since [P7.4], and nothing in the client sent one — so a Setup was a

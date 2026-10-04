@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { stableId } from '../identity.js';
 import { readUpload } from '../upload.js';
 import { malformedInputs } from '../parse.js';
 import {
@@ -269,5 +270,157 @@ describe('an Aventuras lorebook', () => {
     for (const input of [null, undefined, 'a string', 7, {}, [], [{ name: 'x' }]]) {
       expect(convertAventurasLorebook(input, 'book').ok).toBe(false);
     }
+  });
+
+  it('skips a row that is not an entry, and names its place', () => {
+    /**
+     * ***The shape is judged by the first row*** (2026-09-27), so the rest of
+     * the array is whatever the file says. A `null` further down threw out of
+     * the sweep, after the files before it were already written: half an
+     * import and a 500, with no ledger row to say so.
+     */
+    const [harbour, ines] = aventurasLorebook();
+    const converted = convertAventurasLorebook([harbour, null, 7, ines], 'Harbour lore');
+
+    expect(converted.ok).toBe(true);
+    if (!converted.ok) return;
+    expect(converted.value.lorebook.entries.map((entry) => entry.name)).toEqual([
+      'Ash Harbour',
+      'Ines Vaur',
+    ]);
+    const unreadable = converted.value.notes.filter((note) => note.key === 'import.row.unreadable');
+    expect(unreadable.map((note) => note.params['row'])).toEqual([2, 3]);
+    expect(unreadable.every((note) => note.level === 'warn')).toBe(true);
+  });
+
+  it('gives two entries of one name ids of their own, and moves neither original', () => {
+    /**
+     * Its ids come from the entry's name, and a location and a faction can
+     * share one. They shared an id, so the editor opened the first for either
+     * and the two had one cooldown. The third row is the trap in the fix:
+     * `stableId` joins its parts with a space, so the second *Ravenholm*'s
+     * ordinal would hash the same text as an entry named *Ravenholm 2*.
+     */
+    const row = (name: string, type: string): Record<string, unknown> => ({
+      name,
+      type,
+      description: `The ${type} called ${name}.`,
+      injection: { mode: 'keyword', keywords: [name], priority: 500 },
+    });
+    const book = [
+      row('Ravenholm', 'location'),
+      row('Ravenholm', 'faction'),
+      row('Ravenholm 2', 'location'),
+    ];
+    const idsOf = (rows: unknown[]): string[] => {
+      const converted = convertAventurasLorebook(rows, 'The Marches');
+      return converted.ok ? converted.value.lorebook.entries.map((entry) => entry.id) : [];
+    };
+
+    const ids = idsOf(book);
+    expect(new Set(ids).size).toBe(3);
+    // An id that was unique before stays exactly what it was, so nothing
+    // already imported is moved by a re-import.
+    expect(ids[0]).toBe(idsOf([book[0]])[0]);
+    expect(ids[2]).toBe(idsOf([book[2]])[0]);
+    // And the same file converts to the same ids, which is what re-import
+    // identity compares.
+    expect(idsOf(book)).toEqual(ids);
+  });
+});
+
+describe('a scenario, as a lorebook, with an NPC called setting', () => {
+  it('keeps the NPC apart from the setting entry', () => {
+    // The setting's id is derived from the word *setting*, and an NPC's from
+    // their name, so this NPC and the setting were one entry to everything
+    // that keys on an id.
+    const scenario = aventurasScenario();
+    scenario['npcs'] = [
+      { name: 'setting', role: 'A ghost', description: 'Haunts the word.', traits: [] },
+    ];
+    const converted = convertScenario(scenario, 'fallback', 'lorebook');
+    const entries = converted.ok ? (converted.value.lorebook?.entries ?? []) : [];
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.id).not.toBe(entries[1]?.id);
+  });
+});
+
+/**
+ * ***A name said twice*** —
+ * [P13.0](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ *
+ * Aventuras keys an entry by its uuid and never by its name, so a book can hold
+ * two entries called *The Harbour* — and an id derived from the book and the
+ * name alone gave both the same one. Nothing downstream catches it: validation
+ * does not walk the array, the index keys entries by position, and the editor
+ * resolves an id to its first match — so the second could not be opened, and
+ * deleting or dragging either one deleted the other.
+ */
+describe('an Aventuras lorebook that repeats a name', () => {
+  const harbour = (description: string): Record<string, unknown> => ({
+    name: 'The Harbour',
+    type: 'location',
+    description,
+    injection: { mode: 'keyword', keywords: ['harbour'], priority: 500 },
+  });
+  const repeats = (): Record<string, unknown>[] => [
+    harbour('The old quay.'),
+    harbour('The new quay.'),
+    // Named the way a careless suffix would name the second, so the fix has to
+    // be a claim on what is taken rather than a string appended.
+    { ...harbour('A different place.'), name: 'The Harbour 2' },
+    harbour('The quay nobody admits to.'),
+  ];
+  const idsOf = (input: unknown): string[] => {
+    const converted = convertAventurasLorebook(input, 'Harbour lore');
+    expect(converted.ok).toBe(true);
+    return converted.ok ? converted.value.lorebook.entries.map((entry) => entry.id) : [];
+  };
+
+  it('gives every entry an id of its own', () => {
+    expect(new Set(idsOf(repeats())).size).toBe(4);
+  });
+
+  it('leaves a book with no repeats exactly the ids it had', () => {
+    // Re-import identity is a byte comparison ([P4 §1.3]): moving an id a
+    // repeat-free book already had would replace every earlier import for nothing.
+    expect(idsOf(aventurasLorebook())).toEqual(
+      ['Ash Harbour', 'Ines Vaur', 'The Night Shift'].map((name) =>
+        stableId('aventuras-entry', 'Harbour lore', name),
+      ),
+    );
+  });
+
+  it('lets the first of a repeated name, and a lookalike, keep the ids they always had', () => {
+    // So a link or a timing counter that resolved to the first match still lands
+    // on the same entry after the re-import that fixes the book.
+    const [first, , lookalike] = idsOf(repeats());
+    expect(first).toBe(stableId('aventuras-entry', 'Harbour lore', 'The Harbour'));
+    expect(lookalike).toBe(stableId('aventuras-entry', 'Harbour lore', 'The Harbour 2'));
+  });
+
+  it('converts the same bytes to the same ids twice', () => {
+    expect(idsOf(repeats())).toEqual(idsOf(repeats()));
+  });
+
+  it('keeps a scenario’s setting apart from a character named for it, and twins apart', () => {
+    const npc = (name: string): Record<string, unknown> => ({
+      name,
+      role: '',
+      description: '',
+      relationship: '',
+      traits: [],
+    });
+    const scenario = {
+      ...aventurasScenario(),
+      npcs: [npc('setting'), npc('Ines Vaur'), npc('Ines Vaur')],
+    };
+    const converted = convertScenario(scenario, 'fallback', 'lorebook');
+    expect(converted.ok).toBe(true);
+    if (!converted.ok || converted.value.lorebook === null) return;
+    const ids = converted.value.lorebook.entries.map((entry) => entry.id);
+    expect(ids).toHaveLength(4);
+    expect(new Set(ids).size).toBe(4);
   });
 });

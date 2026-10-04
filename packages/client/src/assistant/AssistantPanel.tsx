@@ -7,6 +7,7 @@ import { useRouterState } from '@tanstack/react-router';
 import { writeSessionChannel } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 import { PlayPage } from '../play/PlayPage.js';
+import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { Note } from '../ui/Text.js';
 import { contextFor, sameContext, type AmbientContext } from './context.js';
@@ -55,6 +56,7 @@ const WORDS = labels('assistant.panel', {
   starting: 'Starting…',
   loading: 'Looking for your assistant…',
   failed: 'Your sessions could not be read, so the assistant cannot open.',
+  startFailed: 'The assistant could not be started.',
   blurb:
     'Ask about the app or about your own library — what a setting does, why a lorebook entry never fires, what to put in a character.',
   seeing: 'It can see:',
@@ -62,7 +64,7 @@ const WORDS = labels('assistant.panel', {
 });
 
 export function AssistantPanel(props: { onClose: () => void }): JSX.Element {
-  const { sessionId, pending, failed, start, starting } = useAssistantSession(true);
+  const { sessionId, pending, failed, start, starting, startError } = useAssistantSession(true);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const seen = contextFor(pathname);
   useDisclosedContext(sessionId, seen);
@@ -111,6 +113,9 @@ export function AssistantPanel(props: { onClose: () => void }): JSX.Element {
             <Button type="button" variant="primary" disabled={starting} onClick={start}>
               {starting ? WORDS.starting : WORDS.start}
             </Button>
+            {startError === null ? null : (
+              <AlertNote role="alert">{`${WORDS.startFailed} ${startError.message}`}</AlertNote>
+            )}
           </div>
         )}
       </div>

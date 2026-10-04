@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { ParseOutcome } from './parse.js';
+import { refused, type ParseOutcome } from './parse.js';
 import type { ConvertedPreset } from './sillytavern/preset.js';
 import { convertChatCompletionPreset } from './sillytavern/preset.js';
 import { convertSyspromptPreset } from './sillytavern/sysprompt.js';
@@ -28,10 +28,35 @@ import { convertTextCompletionPreset } from './sillytavern/text-completion.js';
 export type PresetConverter = (input: unknown, name: string) => ParseOutcome<ConvertedPreset>;
 
 export const PRESET_CONVERTERS: Readonly<Record<string, PresetConverter>> = {
-  'sillytavern.preset.chat': convertChatCompletionPreset,
-  'sillytavern.preset.sysprompt': convertSyspromptPreset,
-  'sillytavern.preset.text': convertTextCompletionPreset,
+  'sillytavern.preset.chat': total(convertChatCompletionPreset),
+  'sillytavern.preset.sysprompt': total(convertSyspromptPreset),
+  'sillytavern.preset.text': total(convertTextCompletionPreset),
 };
+
+/**
+ * ***A converter answers, whatever it was handed*** (2026-09-27).
+ *
+ * `parse.ts`'s rule is *a status, never a throw*, because a sweep reads files it
+ * did not write and has no catch per file: one throw takes the folder import
+ * with it, after the files before it were written and with no job row to say
+ * so. The converters are written to that rule, and a prompt whose `content`
+ * was a number showed the rule is kept by care, which one missed field breaks.
+ * So the table the sweep and the preview both reach them through keeps it
+ * too: whatever escapes is this file refused, and the review says so.
+ *
+ * Here and not around the sweep's whole write, because a store that fails is a
+ * fault of ours with its own handling, and is not somebody else's file being
+ * the wrong shape.
+ */
+function total(convert: PresetConverter): PresetConverter {
+  return (input, name) => {
+    try {
+      return convert(input, name);
+    } catch {
+      return refused('wrong-shape');
+    }
+  };
+}
 
 /**
  * The name a converted object takes: the file's own stem.

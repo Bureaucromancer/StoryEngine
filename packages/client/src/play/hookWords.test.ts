@@ -25,6 +25,7 @@ const EVERY: HookRefusal[] = [
   'subject-gone',
   'subject-met',
   'subject-unavailable',
+  'malformed',
 ];
 
 describe('saying why a hook is held back', () => {
@@ -38,15 +39,17 @@ describe('saying why a hook is held back', () => {
   });
 
   /**
-   * **The one arm that is an authoring error rather than a state** — [04 §6.1a]
+   * **The arms that are authoring errors rather than states** — [04 §6.1a]
    * makes a dangling `introduces.actor` *"a broken hook, not a retired one…
-   * ineligible with a visible reason, and the author is told"*. So its sentence
-   * says *broken*, where every other one says some form of *waiting*: the remedy
-   * is to fix the hook, not to play on.
+   * ineligible with a visible reason, and the author is told"*, and since
+   * 2026-09-27 a hook the schema refuses is the second. So their sentences say
+   * *broken*, where every other one says some form of *waiting*: the remedy is
+   * to fix the hook, not to play on.
    */
-  it('says broken for the one that is an authoring error', () => {
-    expect(hookWords('subject-gone')).toMatch(/^Broken/);
-    for (const refusal of EVERY.filter((one) => one !== 'subject-gone')) {
+  it('says broken for the two that are authoring errors, and only those', () => {
+    const broken: HookRefusal[] = ['subject-gone', 'malformed'];
+    for (const refusal of broken) expect(hookWords(refusal), refusal).toMatch(/^Broken/);
+    for (const refusal of EVERY.filter((one) => !broken.includes(one))) {
       expect(hookWords(refusal), refusal).not.toMatch(/^Broken/);
     }
   });

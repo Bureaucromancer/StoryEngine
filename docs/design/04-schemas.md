@@ -204,6 +204,12 @@ type MediaRole =
 // same thing about a *generated* image ([06 §10.1a]: "two fields because there
 // are two questions"). Corrected 2026-09-13.
 //
+// And it widened a closed union inside `actor/1` — which §2's round-trip rule
+// cannot survive for any closed portable union: a build without the arm fails
+// a file that uses it, whole. No released build can meet one (alpha.1–4 export
+// and import no native object), so the cost starts with the first release that
+// does; whether to open this union before then is in 25. Corrected 2026-10-01.
+//
 // `expression` and `pose` are the two arms a *set* is chosen from rather than
 // a single canonical image, which is why `label` matters on them and on almost
 // nothing else: Scene's stager matches a model's answer against those labels
@@ -722,6 +728,10 @@ work: a Treatment of Rain City does not describe Rain City.
 > library folder was `settings/` while the app's config screen was Settings.
 > **`World` is now reserved** for the 4.0 continuity container over sessions
 > ([15](15-world.md)) and is deliberately not spent on a library label.
+> *(2026-10-03: it will be spent on one —
+> [25 B17](25-open-questions.md) makes World the named set that replaces
+> Package, so Package's library label is the one it takes, when the design
+> step lands it. The reservation did its job: the word is free for that.)*
 
 ```ts
 interface Treatment {
@@ -1226,7 +1236,7 @@ not reach pacing at all.
 
 ### 7.2 A Setup made from a turn
 
-***Added 2026-09-26 at [P13](workplan/30-p13-implementation.md)***, which is
+***Added 2026-09-26 at [P15](workplan/33-p15-setup-from-a-turn.md)***, which is
 where the *"running session can emit a Setup"* promised above was first built.
 
 **Made from a turn, not from a session**, because a session is a tree and a
@@ -1241,11 +1251,30 @@ change (§2):
 
 - **`storySoFar`** is the condensed history. A session started from the Setup
   gets it as the **root of its rolling summary chain** — emitted by the preset's
-  `summary` slot as the oldest link, and folded in as `previous` by the first
-  link the summariser derives. That is [07 §5.1](07-branching.md)'s
+  `summary` slot as the oldest link (*recorded as its own `story-so-far` arm,
+  not a `summary` — [21 §1.1](21-internal-contracts.md), 2026-10-03*), and
+  ~~folded in as `previous` by the first link the summariser derives~~ *handed to the first link the summariser derives
+  as `previous`*. That is [07 §5.1](07-branching.md)'s
   `summary(n) = f(summary(n-1), turns)` with a seeded start rather than a second
   mechanism, and it costs one condition: a preset with no enabled `summary` slot
   never shows the model the root, which the wizard says out loud.
+
+  *Corrected 2026-10-03, at the merge that brought this into `main`.* `main`
+  had put the chain into **stretches** the day after this was written
+  (`e9d1a142`): a link summarises its own turns and is handed the one before as
+  context only, told not to repeat it. So `previous` no longer means *fold this
+  in*, and the root is the stretch before the first turn rather than something
+  the first link retells — **every reader of the story so far reads the root
+  and the links together**, and the root stays in the prompt as its own block
+  for as long as the slot has room. When it does not, the root is the **first
+  part of the summary given up**, by the rule every link already follows: it is
+  the oldest stretch, and as a rule the largest. What must outlast it has
+  another carrier — the facts kept when the Setup was made are its companion
+  lorebook's entries, which reach the prompt on their keys whatever the summary
+  slot lost. The root keys the first link, so a different root is a different
+  chain, and every caller that plans or derives a chain — the turn, the warm
+  derivation, the preview, the draft — takes it from one plan
+  ([P15 §1.1](workplan/33-p15-setup-from-a-turn.md)).
 - **`spentHooks`** lists the ids of hooks that had already fired. The pool is
   rebuilt from the treatment and the lorebooks at session start, so a
   treatment's hook that fired before the chosen turn would otherwise be in the
@@ -1259,13 +1288,20 @@ the achieved ones are dropped; the unfired hooks this Setup or the session
 authored are `hooks`, ids kept; and established facts, when kept, are a
 companion lorebook in `lore`. An opening the wizard writes is a written opening,
 and a session started from a Setup plays its primary one as an engine-written
-first turn ([03 §6](03-data-model.md)).
+first turn ([03 §6](03-data-model.md)). *(2026-10-03, at the merge that brought
+this into `main`:)* **and plays it instead of the cast's greetings** in a mode
+that would otherwise open on them — the owner's decision, recorded at
+[03 §6](03-data-model.md) and [25 B18](25-open-questions.md). No field on the
+turn says it was an opening: the branch added `Turn.opening` for that, and it
+was dropped at the merge, because a turn with no `input` and no `request` is
+already how the record says *nothing generated this*
+([P15 §1.8](workplan/33-p15-setup-from-a-turn.md)).
 
 **Channel state is not copied, and that is the rule.** Channel state is §1's
 *free to move* tier and this object is its *stable* one, so a Setup carrying raw
 channel values would freeze every engine channel's shape into a portable format
 by accident. Only what has a host-owned meaning on a Setup crosses. Presence,
-status and a dial's live value do not, and [P13 §1.2](workplan/30-p13-implementation.md)
+status and a dial's live value do not, and [P15 §1.2](workplan/33-p15-setup-from-a-turn.md)
 names each.
 
 **Distinct from a prologue package** ([25 B10](25-open-questions.md)), which is
@@ -1418,23 +1454,59 @@ interface SlotBlock extends BlockCommon {
 
 type SlotSource =
   | { of: "persona" }
-  | { of: "actor"; sectionId: string }     // "se.summary", "se.appearance", …
+  | { of: "actor"; sectionId: string; scope?: "speaker" | "others" | "voiced" }     // "se.summary", "se.appearance", …
   /** Non-prose actor fields. `traits` is a real field rather than a Section
    *  ([§4](#4-actor)), so a slot cannot reach it through `sectionId` — and
    *  card import puts a legacy `personality` here ([03 §2.7](03-data-model.md)),
    *  which makes this the slot ST's `charPersonality` converts to. §8.4.1. */
-  | { of: "actor"; field: "traits" | "visual" }
-  | { of: "lore"; phase: "before" | "after" }
+  | { of: "actor"; field: "traits" | "visual"; scope?: "speaker" | "others" | "voiced" }
+  /** `scope` on both actor arms and on `samples` — *added 2026-09-29, at
+   *  [P14.2](workplan/31-p14-scene-and-session-import.md)*: on a call that
+   *  speaks as a member, `speaker` narrows to them and `others` to the rest;
+   *  the two partition the cast on every call, so on a call that speaks for
+   *  nobody `speaker` is nobody and `others` everyone. A scope that matches
+   *  nobody is recorded as `not-applicable`. On `samples` it narrows the actor
+   *  carrier only — a Treatment or a Lorebook has no cast to scope.
+   *  *`voiced` added 2026-09-29, at [P14.3](workplan/31-p14-scene-and-session-import.md)*:
+   *  whoever the call writes as — the speaker under `per-actor` dispatch,
+   *  everyone present under `merged` or on a narrator's call. It is what a
+   *  card's own prompts and example dialogue need ([P14 §1.5]), and it is not
+   *  a partition with the other two. */
+  /** `outlet` since [P5.6](workplan/17-p5-implementation.md) (written in
+   *  2026-10-01): an outlet a lore entry names, positioned by this slot —
+   *  matched exactly; absent is the ordinary entries for the phase. */
+  | { of: "lore"; phase: "before" | "after"; outlet?: string }
   | { of: "history" }
   /** Writing samples — §3.1, [14 §4](14-writing-samples.md). **Renamed from
    *  `examples`**, which named ST's `mes_example` rather than the thing it
    *  fills; free to rename because this schema is `/0` and no shipped preset
    *  positioned the old arm. `from` absent = every carrier, in the order
    *  treatment → lore → actor. */
-  | { of: "samples"; from?: "actor" | "treatment" | "lore" }
+  | { of: "samples"; from?: "actor" | "treatment" | "lore"; scope?: "speaker" | "others" | "voiced" }
   | { of: "channel"; channelId: ChannelId }
+  /** ([P14.5a](workplan/31-p14-scene-and-session-import.md); written in
+   *  2026-10-01.) What the story has established: every channel that declares
+   *  itself established state, scoped values included, as one block — not one
+   *  `channel` slot each, because a character tracker is a value per
+   *  character. Added rather than substituted; an older build skips it. */
+  | { of: "state" }
   | { of: "treatment"; part: "framing" | "tone" }
+  /** *Added 2026-09-30.* A text answer the session was set up with —
+   *  `mode.config[field]`, from the mode's wizard or the Setup it began from —
+   *  named by the wizard field's id and read by the gather (§7's record field
+   *  is opened for the pack that asks, never interpreted). Freeform slots its
+   *  required premise here; before, no slot could name it and it reached no
+   *  prompt. A widening of this closed union, recorded as one. */
+  | { of: "setup"; field: string }
   | { of: "goal" }                          // [06 §7.3.3]
+  /** ([P7.8](workplan/23-p7-implementation.md); written in 2026-10-01.) The two
+   *  dials' prose: the engine resolves which level, and the slot says where
+   *  its fragments go — one candidate per fragment, so a cap drops the
+   *  lowest-ranked rather than cutting one. Two arms because the two are
+   *  separable ([06 §7.3.2]); a preset with no levels fills them with nothing,
+   *  and says why. */
+  | { of: "difficulty" }
+  | { of: "directedness" }
   /** The guidance slot. [06 §5.1] positions this one by preset explicitly; the
    *  producer is recorded on the block, not chosen by the slot. */
   | { of: "guidance" }
@@ -1447,13 +1519,36 @@ type SlotSource =
   /** The player's current action — not `history`, which is turns that already
    *  happened. Every preset decides where it sits relative to the lore. */
   | { of: "input" }
+  /** ([P8.1](workplan/25-p8-implementation.md); written in 2026-10-01.) The
+   *  story above the history window, as a chain of summaries, one candidate
+   *  per link — not a bigger `history`, which is the window's verbatim turns;
+   *  the two never overlap. *(2026-10-03, at the
+   *  [P15](workplan/33-p15-setup-from-a-turn.md) merge.)* Plus one more ahead
+   *  of the links when the session started from a Setup that carried a story
+   *  so far (§7.2): that root is emitted as its own candidate, recorded as
+   *  `story-so-far` rather than `summary`, and is the first the slot gives up. */
+  | { of: "summary" }
+  // ~~(2026-09-30) Behind the schema: `summary`, `difficulty`, `directedness`
+  // and `state` are arms of the shipped `SlotSource` this list never gained.~~
+  // Written in 2026-10-01 (the audit's record, [main audit §4](workplan/32-main-audit.md)),
+  // with lore's `outlet`, which it had not gained either.
 
-// SlotSource is BlockSource ([21 §1.1](21-internal-contracts.md)) minus its two
-// assembler-only origins — `preset`, because a preset's own prose *is* a
+// SlotSource is BlockSource ([21 §1.1](21-internal-contracts.md)) minus its ~~two~~
+// three assembler-only origins — `preset`, because a preset's own prose *is* a
 // TextBlock rather than a reference to one, and `step`, because a step's
-// contribution did not exist when the preset was authored. One vocabulary, used
+// contribution did not exist when the preset was authored; and (corrected
+// 2026-09-29, at P14.2) `round`, this turn's earlier speakers' replies, which
+// the collector places after the input and no pack positions. One vocabulary, used
 // from both ends: a slot names a source, the assembler fills it, and the block
-// it produces records the same source back.
+// it produces records the same source back. *(2026-10-01)* **Five**, by the
+// server's own derivation (`assembly/types.ts`): `note` (P14.3) and `continue`
+// (P14.4) joined `preset`, `step` and `round`. And the correspondence is by
+// meaning rather than by shape — a slot's `{ of }` is what its block records as
+// `{ kind }`, except that both dial arms record one `difficulty` source whose
+// `axis` says which, and `schema`, the engine's own JSON instruction, is
+// recorded by no slot at all. *(2026-10-03, at the P15 merge)* And the other way
+// round, one slot records two kinds: `summary` records the chain's root as
+// `story-so-far` and its links as `summary` ([21 §1.1](21-internal-contracts.md)).
 
 /** Prose the preset author wrote. */
 interface TextBlock extends BlockCommon {
@@ -1540,7 +1635,7 @@ prompt manager is a block assembler. Most of the conversion is renaming.
 | `injection_position: RELATIVE` | `placement: { at: "sequence" }` |
 | `injection_position: ABSOLUTE` + `injection_depth` | `placement: { at: "in-history", fromEnd }` — §8.3 |
 | `injection_order` | `placement.tiebreak` |
-| `injection_trigger[]` | `appliesTo` |
+| `injection_trigger[]` | `appliesTo` — ~~verbatim~~ *translated where there is a call (2026-09-27): `normal` → `narrate`, `continue` and `impersonate` as they are; `swipe`, `regenerate` and `quiet` ride through and never apply, which the review says* |
 | `temperature`, `top_p`, `top_k`, `top_a`, `min_p`, `frequency_penalty`, `presence_penalty`, `repetition_penalty`, `seed`, `n`, `openai_max_tokens` | `params` |
 | `openai_max_context` | `budget`, as a ceiling with a note that it was absolute |
 | `openai_model` / `claude_model` / … | `modelHint.preferredModelIds` — a wish, never a binding ([§3](#3-shared-substructures)) |
@@ -1589,7 +1684,15 @@ named consequence, never as a silent drop.
   covers the common set; **an unrecognised macro is preserved verbatim and
   flagged**, because a mangled prompt that looks fine is worse than one that
   visibly needs a look. `{{charIfNotGroup}}` and similar conditionals become
-  Liquid conditionals rather than being dropped.
+  Liquid conditionals rather than being dropped. *Three corrections to the table
+  as built, 2026-09-27, each read off SillyTavern's own source:* `{{persona}}`
+  is the persona's **description** there, not its name, so it is refused as a
+  body a slot supplies rather than mapped to `{{ user }}`; the legacy
+  `<USER>`, `<BOT>`, `<CHAR>` and `<CHARIFNOTGROUP>` spellings, which it still
+  resolves everywhere, convert as their curly forms in its files; and a format
+  string's own placeholder (`{0}`, `{{scenario}}`, `{{personality}}`) is the
+  content while its other macros convert like any template's, where every
+  `{{…}}` had been taken for the content.
 - **`system_prompt: true`** means *"came from the built-in set"*, not *"has the
   system role"* — a genuinely misleading field name. It carries no meaning here
   and drops.
@@ -1597,10 +1700,16 @@ named consequence, never as a silent drop.
   Cards cannot override prompts at all ([00 §2.4](00-stance.md)), so it is moot
   and drops.
 - **Per-character `prompt_order` entries.** ST keys orderings by
-  `character_id`, with `100000` and `100001` as dummy ids for the global and
-  group defaults. Only the global order converts; a preset carrying genuinely
-  per-character orders gets **one preset plus a warning naming the characters**,
-  rather than a silent choice among them.
+  `character_id`, with ~~`100000` and `100001` as dummy ids for the global and
+  group defaults. Only the global order converts~~ ***`100001` as the order it
+  sends and `100000` as the one before 1.10.0*** *(corrected 2026-09-27: the
+  chat-completion prompt manager is configured with `dummyId: 100001`, so that
+  is the order a generation reads and the toggles write; `100000` is the class
+  default it overrides. `100001` converts, `100000` only for a file that has
+  nothing else, and SillyTavern's own `Default.json` — which carries both, and
+  no persona slot in `100000` — converts as SillyTavern sends it)*; a preset
+  carrying genuinely per-character orders gets **one preset plus a warning
+  naming the characters**, rather than a silent choice among them.
 - **Instruct and context templates** are not converted at all
   ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
   completion, which is unsupported ([19 §5.5](19-tech-stack.md)).
@@ -1790,6 +1899,14 @@ dislikes how "hard" behaves can read the fragment that caused it and change it.
 ---
 
 ## 9. Package — a bundle, and nothing else
+
+***Decided against 2026-10-03, and still the shipped design until a design step
+replaces it*** — [25 B17](25-open-questions.md). The owner chose a World as the
+durable named set that **replaces Package**: membership, transport, and
+contribution to a session's lore through a `world` arm on `LoreScope`. This
+section, the code and the frozen `storyengine.package-export/1` still say
+Package, and nothing here changes until that step; B17 records why the rename
+has [25 B16](25-open-questions.md)'s release as its deadline.
 
 With Setup carrying the game definition, a Package is reduced to what it always
 should have been: **an arbitrary bundle of portable objects, for moving them

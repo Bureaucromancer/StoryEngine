@@ -71,7 +71,7 @@ function context(over: Partial<RenderContext> = {}): RenderContext {
       capabilities: CAPS,
     },
     tone: 'cold and salt-bitten',
-    channels: [
+    channels: () => [
       { id: 'se.location', text: 'the harbour steps' },
       { id: 'se.clock', text: 'just before dawn' },
     ],
@@ -156,6 +156,86 @@ describe('the illustration branch', () => {
 
     expect(reported?.requests[0]?.prompt.text).toContain('cropped grey hair');
     expect(reported?.requests[0]?.prompt.text).not.toContain('Elena');
+  });
+
+  /**
+   * ***Nor by a name the model or a tracker wrote*** (2026-09-30). The test above
+   * could not fail: its moment named nobody. The moment call is asked not to,
+   * and a model describing a picture names the person in it anyway — so every
+   * name in the cast becomes *someone*, in the moment and in the channels.
+   */
+  it('never sends a name the model or a tracker wrote', async () => {
+    const { host } = recordingHost({ subject: 'Elena on the quay, watching ELENA’s boat' });
+    const step = render(
+      context({
+        report: capture(),
+        channels: () => [
+          { id: 'se.location', text: 'the harbour steps' },
+          { id: 'se.track.character', text: 'Elena is waiting for news' },
+        ],
+      }),
+    );
+
+    await step.run(payload(), host);
+
+    const text = reported?.requests[0]?.prompt.text ?? '';
+    expect(text).not.toMatch(/elena/i);
+    expect(text).toContain('someone on the quay, watching someone’s boat');
+    expect(text).toContain('someone is waiting for news');
+  });
+
+  /**
+   * ***Only who is in the room*** (2026-09-30) — [06 §8.1]. The host marks a
+   * member muted, dead or departed as out of it (`StepCastMember.present`); the
+   * whole cast was drawn.
+   */
+  it('does not draw somebody who is out of the room', async () => {
+    const { host } = recordingHost({ subject: 'a figure on the quay' });
+    const step = render(context({ report: capture() }));
+
+    await step.run(
+      payload({
+        cast: [
+          {
+            actorId: 'a-1',
+            name: 'Elena',
+            kind: 'actors',
+            media: [],
+            visual: { hair: 'cropped grey hair' },
+          },
+          {
+            actorId: 'a-2',
+            name: 'Marlow',
+            kind: 'actors',
+            media: [],
+            visual: { hair: 'a shaved head' },
+            present: false,
+          },
+        ],
+      }),
+      host,
+    );
+
+    const text = reported?.requests[0]?.prompt.text ?? '';
+    expect(text).toContain('cropped grey hair');
+    expect(text).not.toContain('a shaved head');
+  });
+
+  /**
+   * ***The moment is told the room the rest leaves it*** (2026-09-30). Told the
+   * whole budget, a moment that used it was all the capper could keep: it is
+   * required, and everything else went. Here the budget is 250, and the
+   * descriptor, the tone, the place and the clock take 78 of it with their
+   * separators.
+   */
+  it('leaves room for the rest of the recipe', async () => {
+    const { host, calls } = recordingHost({ subject: 'a figure on the quay' });
+    const step = render(context({ report: capture() }));
+
+    await step.run(payload(), host);
+
+    const told = (calls[0]?.candidates ?? []).find((one) => one.id === 'se.render.task')?.text;
+    expect(told).toContain('Keep it under 172 characters');
   });
 
   it('carries no anchor rather than an empty one when the model gave none', async () => {
@@ -275,6 +355,85 @@ describe('the backdrop branch', () => {
     expect(reported?.requests).toEqual([]);
     expect(reported?.reused?.renditionId).toMatch(/^already-/);
     expect(reported?.held).toBe('place-unchanged');
+  });
+
+  /**
+   * ***Nor while the place's backdrop is being made*** (2026-09-30). Only a
+   * ready one answered, so a turn taken while the first was being drawn asked
+   * for a second of the same place — and that one made the first give way.
+   */
+  it('asks for nothing while the place’s backdrop is still being made', async () => {
+    const { host } = recordingHost({ subject: 'never asked for' });
+    const step = render(
+      context({
+        illustration: 'off',
+        backdrop: true,
+        reusable: () => 'in-flight',
+        report: capture(),
+      }),
+    );
+
+    await step.run(payload(), host);
+
+    expect(reported?.requests).toEqual([]);
+    // Nothing to show yet: the worker selects it when it lands.
+    expect(reported?.reused).toBeUndefined();
+    expect(reported?.held).toBe('place-unchanged');
+  });
+
+  /**
+   * ***A backdrop with no place is held rather than paid for*** (2026-09-30).
+   * Its recipe is the place and the tone, and with no place it was the tone
+   * alone: a picture of a mood, which every later turn then reused, since the
+   * recipe never changed.
+   */
+  it('holds a backdrop with no place rather than paying for a mood', async () => {
+    const asked: string[] = [];
+    const { host } = recordingHost({ subject: 'never asked for' });
+    const step = render(
+      context({
+        illustration: 'off',
+        backdrop: true,
+        channels: () => [{ id: 'se.clock', text: 'just before dawn' }],
+        reusable: (digest) => {
+          asked.push(digest);
+          return null;
+        },
+        report: capture(),
+      }),
+    );
+
+    await step.run(payload(), host);
+
+    expect(reported?.requests).toEqual([]);
+    expect(reported?.held).toBe('no-place');
+    // Not even looked up: there is no recipe worth keying.
+    expect(asked).toEqual([]);
+  });
+
+  /**
+   * ***The place this turn moved to, not the one it left*** (2026-09-30). The
+   * channels were rendered when the plan was built, before the stager wrote
+   * the place, so every move reached the backdrop a turn late. Read when the
+   * step runs.
+   */
+  it('reads the channels when it runs, not when it was planned', async () => {
+    let place = 'the office';
+    const { host } = recordingHost({ subject: 'never asked for' });
+    const step = render(
+      context({
+        illustration: 'off',
+        backdrop: true,
+        channels: () => [{ id: 'se.location', text: place }],
+        report: capture(),
+      }),
+    );
+
+    // The stager moves the scene after the plan was built, before this runs.
+    place = 'the quay';
+    await step.run(payload(), host);
+
+    expect(reported?.requests[0]?.prompt.text).toContain('the quay');
   });
 
   it('asks the reuse question with the digest it would have dispatched', async () => {

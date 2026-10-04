@@ -61,8 +61,11 @@ const CONSUMED = new Set([
  * for the reason a copy needs one: it is what stops a *future* key on either
  * side from being carried silently into a field of a shape it does not have.
  * An unlisted key falls through to `compat` with everything else.
+ *
+ * *Exported at P13.3* for `vault-character.ts`, whose repair of the legacy
+ * string-array form has to land on exactly these keys and no others.
  */
-const VISUAL_KEYS = [
+export const VISUAL_KEYS = [
   'face',
   'hair',
   'eyes',
@@ -71,6 +74,9 @@ const VISUAL_KEYS = [
   'accessories',
   'distinguishing',
 ] as const;
+
+/** One of {@link VISUAL_KEYS}. */
+export type VisualKey = (typeof VISUAL_KEYS)[number];
 
 export function convertCharacter(
   input: unknown,
@@ -133,6 +139,12 @@ function applyVisual(value: unknown, actor: Actor, notes: ImportNote[]): void {
  * pure function and handing the result to `store()` would route an untrusted
  * image around the one place that checks it. `import.card.portraitUnreadable`
  * is the neighbouring sentence for the same shape of loss.
+ *
+ * ***A file only*** — [P13 §1.6](../../../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * The same portrait in a `character_vault` row *is* carried: the database
+ * reader decodes it, leaves it out of the payload, and hands the bytes to the
+ * Writer beside the candidate (`ImportCandidate.inline`), which sniffs them as
+ * it sniffs any file. So this fires for a vault JSON file and never for a row.
  */
 function portraitWarning(value: unknown, notes: ImportNote[]): void {
   if (typeof value !== 'string' || value.length === 0) return;

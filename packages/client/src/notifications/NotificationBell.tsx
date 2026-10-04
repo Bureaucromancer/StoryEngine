@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { Link } from '@tanstack/react-router';
 import { useState, type JSX } from 'react';
 
 import { formatEpochMs } from '../format.js';
 import { Button } from '../ui/Button.js';
+import { link } from '../ui/classes.js';
 import { Dialog } from '../ui/Dialog.js';
 import { askForBrowserNotifications, browserChannel, type BrowserChannelState } from './browser.js';
 import { foldedSuffix, summary } from './labels.js';
@@ -27,7 +29,11 @@ import type { NotificationsState } from './useNotifications.js';
  * the role is `dialog` rather than `alertdialog`.
  */
 
-export function NotificationBell(props: { state: NotificationsState }): JSX.Element {
+export function NotificationBell(props: {
+  state: NotificationsState;
+  /** The reader's, for each row's date. */
+  locale: string | undefined;
+}): JSX.Element {
   const [open, setOpen] = useState(false);
   const { list, markRead } = props.state;
 
@@ -136,7 +142,29 @@ export function NotificationBell(props: { state: NotificationsState }): JSX.Elem
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-medium">
-                          {said.title}
+                          {/* ***The row goes where it is about*** (2026-10-01).
+                              Every class but `system.notice` names a session,
+                              and the row named it in words and nowhere else —
+                              *a turn failed in The harbour* and no way to get
+                              to The harbour from here. The title is the link
+                              because it is the thing the row is about. Following
+                              it reads the row, and closes the list, which
+                              would otherwise stand over the page it opened. */}
+                          {one.sessionId === null ? (
+                            said.title
+                          ) : (
+                            <Link
+                              to="/play/$sessionId"
+                              params={{ sessionId: one.sessionId }}
+                              className={link.object}
+                              onClick={() => {
+                                if (one.readAt === null) markRead([one.id]);
+                                setOpen(false);
+                              }}
+                            >
+                              {said.title}
+                            </Link>
+                          )}
                           {/* The fold, rendered — see `foldedSuffix`. A row that
                               stood for five arrivals and said so once is the
                               whole of [09 §3.4]. */}
@@ -145,7 +173,9 @@ export function NotificationBell(props: { state: NotificationsState }): JSX.Elem
                         {said.body === '' ? null : (
                           <p className="text-sm text-ink-muted">{said.body}</p>
                         )}
-                        <p className="text-xs text-ink-subtle">{formatEpochMs(one.updatedAt)}</p>
+                        <p className="text-xs text-ink-subtle">
+                          {formatEpochMs(one.updatedAt, props.locale)}
+                        </p>
                       </div>
                       {one.readAt === null ? (
                         <Button

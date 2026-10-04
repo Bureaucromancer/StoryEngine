@@ -96,6 +96,18 @@ export const stylelintRules = {
   // Widened rather than switched off, and only by that one construct: a name is
   // still kebab-case, optionally followed by a single `--` and one more
   // kebab-case name. A genuine typo like `--Text-Section` still fails.
+  // A font token is a list of family names, and the standard config's
+  // keyword-case rule cannot tell a name from a keyword inside a custom
+  // property. It already leaves `font-family` alone for exactly this reason —
+  // `Charter` is a name, and `charter` is the same name spelled worse — so the
+  // tokens that hold a stack get the same exemption (2026-10-01). Narrowed to
+  // `--font-*` rather than switched off: an upper-case keyword anywhere else,
+  // a token included, still fails. And not answered by quoting every name,
+  // because two of them cannot be quoted: `-apple-system` and
+  // `BlinkMacSystemFont` are keywords to the browsers that know them, and a
+  // quoted one is a family nobody has installed.
+  'value-keyword-case': ['lower', { ignoreProperties: [/^--font-/] }],
+
   'custom-property-pattern': [
     '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:--[a-z0-9]+(?:-[a-z0-9]+)*)?$',
     {

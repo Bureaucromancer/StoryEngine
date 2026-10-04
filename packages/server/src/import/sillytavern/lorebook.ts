@@ -3,7 +3,7 @@
 
 import { newLorebook, type ImportNote, type LoreEntry, type Lorebook } from '@storyengine/shared';
 
-import { stableId } from '../identity.js';
+import { distinctIds, stableId } from '../identity.js';
 import { parsed, refused, type ParseOutcome } from '../parse.js';
 
 /**
@@ -26,7 +26,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * `world_info_logic`, from `SillyTavern/public/scripts/world-info.js:33` at
- * `8172dcd0` — and note that the numbers are **not** in the order our union
+ * `06bde939` (1.19.0, unchanged since `8172dcd0`) — and note that the numbers are **not** in the order our union
  * lists them. Writing this as an array indexed by the integer would have been
  * shorter and wrong.
  */
@@ -135,6 +135,9 @@ export function convertLorebook(input: unknown, name: string): ParseOutcome<Conv
   const lorebook = newLorebook(typeof input['name'] === 'string' ? input['name'] : name);
 
   lorebook.entries = rows.filter(isRecord).map((row) => convertEntry(row, notes));
+  // Two rows of one name and content (blank drafts, most often) would derive
+  // one id twice; `distinctIds` says what that cost.
+  distinctIds(lorebook.entries, 'entry', lorebook.name);
 
   applyBookFields(input, lorebook, notes);
   applyScope(input, lorebook, notes);

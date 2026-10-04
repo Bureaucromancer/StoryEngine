@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { createElement, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 
 import { activeLocale, applyCatalogue, watchCatalogue } from './catalogue.js';
 import { translationFor } from './locales.js';
@@ -26,8 +26,11 @@ import { translationFor } from './locales.js';
  * re-renders, its children re-render, and every table read during that render
  * sees the new locale. **The known limit, stated rather than discovered**: a
  * memoised subtree that does not re-render keeps its old words until something
- * else moves it. Nothing in this build memoises across the shell today, and a
- * component that starts to will need to think about this.
+ * else moves it. ~~Nothing in this build memoises across the shell today~~ —
+ * the router does, and did (corrected 2026-09-28): TanStack's `Outlet`, `Match`
+ * and `MatchInner` are `React.memo`, so the shell's re-render stops at the
+ * routed page. So every route's component subscribes as well
+ * ({@link useActiveLocale}, `localised` in `router.tsx`).
  *
  * *No flash-prevention mirror, unlike the theme.* A locale arriving one
  * round-trip late shows English for a moment; a theme arriving late shows white
@@ -36,7 +39,7 @@ import { translationFor } from './locales.js';
  * people stop using a setting. So `localStorage` stays the theme's one use.
  */
 export function useLocale(locale: string | null | undefined): string {
-  const active = useSyncExternalStore(watchCatalogue, activeLocale, activeLocale);
+  const active = useActiveLocale();
 
   useEffect(() => {
     const wanted = translationFor(locale);
@@ -70,4 +73,36 @@ export function useLocale(locale: string | null | undefined): string {
   }, [locale]);
 
   return active;
+}
+
+/**
+ * ***The language, as something a page re-renders on*** (2026-09-28).
+ *
+ * The shell re-renders when a catalogue lands, and a routed page is below the
+ * router's memoised `Outlet`, so it did not: it went on showing the tables it
+ * last read. The settings page's role table stayed English after a switch to
+ * French made on that page, and French after a switch back — the case a
+ * person cannot work around, since the setting says one language and the page
+ * speaks the other. Each route's component calls this (`localised` in
+ * `router.tsx`), so the page and everything under it re-render with the new
+ * tables, and keep their state: a draft half-typed survives a language change.
+ */
+export function useActiveLocale(): string {
+  return useSyncExternalStore(watchCatalogue, activeLocale, activeLocale);
+}
+
+/**
+ * ***A page that follows the language*** (2026-09-28) — `useActiveLocale`'s
+ * reason, as a wrapper for a route's component. The subscription is the page's
+ * own, and re-rendering the page is what reaches every table read below it. No
+ * element of its own, because the page column has to be `<main>`'s direct
+ * child, and no `key`, because a draft half-typed should survive a change of
+ * language. `router.tsx` wraps every page it names; the routes that render
+ * their page inline call `useActiveLocale` themselves.
+ */
+export function localised(Page: () => ReactNode): () => ReactNode {
+  return function Localised(): ReactNode {
+    useActiveLocale();
+    return createElement(Page);
+  };
 }

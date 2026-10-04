@@ -13,7 +13,13 @@ import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
 import { walkPath } from './segments.js';
 import { appendTurnOnly, createSession, readTurns, type SessionContext } from './store.js';
-import { ensureChain, listSummaries, readSummary, type Summariser } from './summaries.js';
+import {
+  ensureChain,
+  listSummaries,
+  readHeldChain,
+  readSummary,
+  type Summariser,
+} from './summaries.js';
 import {
   linkKeyOf,
   planChain,
@@ -334,12 +340,12 @@ describe('the chain shares a prefix by construction', () => {
 
 /**
  * ***A chain with a root*** — [04 §7.2](../../../../docs/design/04-schemas.md),
- * [P13.2](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * A session started from a Setup made from a turn carries the story so far, and
  * the chain takes it as link zero. **Three claims, and the first is the one that
  * protects everybody who is not using the feature**: a session with no root keys
- * its chain byte-for-byte as it did before P13, so no summary on anybody's disk
+ * its chain byte-for-byte as it did before P15, so no summary on anybody's disk
  * is orphaned by the change.
  */
 describe('a chain with a root', () => {
@@ -347,7 +353,7 @@ describe('a chain with a root', () => {
    * ***A golden key, which is the only honest form of "unchanged".*** Comparing
    * `planChain(path, S, policy)` with `planChain(path, S, policy, null)` would be
    * comparing the code with itself. This value was computed from the build at
-   * P13.1 — before the parameter existed — and again after it, and the two
+   * P15.1 — before the parameter existed — and again after it, and the two
    * agreed; a change that moved the no-root key would strand every chain
    * already written, which is what this pins.
    */
@@ -466,6 +472,52 @@ describe('a chain with a root', () => {
     );
     expect(again.derived).toBe(0);
     expect(summariser.calls).toBe(2);
+  });
+
+  /**
+   * ***The preview's reader keys the same rooted chain*** (2026-10-03, at the
+   * merge). `readHeldChain` planned without a root, so it looked for a first
+   * link naming no predecessor — a chain `ensureChain` never writes for a
+   * rooted session — and a preview read nothing held on a session whose every
+   * link was on disk. Asked with the root it reads the whole chain; asked
+   * without, the root's absence is visible as an empty one, which is the pair:
+   * a reader that ignored its root would pass the first line and fail the
+   * second.
+   */
+  it('reads back the rooted chain only when asked with its root', async () => {
+    const session = await createSession(context, ACCOUNT, { name: 'rooted, read back' });
+    let parent: string | null = null;
+    for (let at = 0; at < 60; at += 1) {
+      const turn = turnOf(session.id, parent, at);
+      await appendTurnOnly(context, ACCOUNT, session.id, turn);
+      parent = turn.id;
+    }
+    const path = walkPath(await readTurns(context, ACCOUNT, session.id), parent);
+    const root = summaryRootOf({ storySoFar: 'Before any of this, the ledger was lost.' });
+    const derived = await ensureChain(
+      context.layout,
+      ACCOUNT,
+      session.id,
+      path,
+      scriptedSummariser('S'),
+      POLICY,
+      root,
+    );
+
+    const rooted = await readHeldChain(
+      context.layout,
+      ACCOUNT,
+      session.id,
+      path,
+      'S',
+      POLICY,
+      root,
+    );
+    expect(rooted.map((link) => link.key)).toEqual(derived.links.map((link) => link.key));
+    expect(rooted).toHaveLength(2);
+    expect(
+      await readHeldChain(context.layout, ACCOUNT, session.id, path, 'S', POLICY, null),
+    ).toEqual([]);
   });
 });
 

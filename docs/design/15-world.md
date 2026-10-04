@@ -6,7 +6,24 @@ a shared treatment baseline, with the stylistic particulars still varying per
 session. *"The Rain City campaign"*, holding six sessions that know about each
 other.
 
-**Scheduled for 4.0** ([work plan §0](workplan/01-work-plan.md)). Like [12](12-account-gallery.md) and
+***Decided 2026-10-03, and not yet written here — read [25 B17](25-open-questions.md)
+first.*** The owner took the `worlds` branch's argument in part: a World
+becomes **the durable named set, and replaces Package** — membership, transport,
+and contribution to a session's lore through a `world` arm on `LoreScope`.
+**Accrual and §4's story bible wait for real play**, which is §2's reason for
+4.0 applied to the half it still fits. This note still describes the design that
+decision overrides until a design step rewrites it, so its 4.0 schedule and
+§3's *not a portable kind* and *out of the export surface* are marked below as
+superseded pending that step; the rest of the note has not been reread against
+it. The branch's rewrite of this note and its new *16 — Publish* are in
+`162b4a61` (whose subject says *renames only*), and its P8A plan in `d8656c68`;
+both are reachable through the second parent of `main`'s merge of `worlds`, and
+neither is adopted as written.
+
+~~**Scheduled for 4.0** ([work plan §0](workplan/01-work-plan.md)).~~ *Superseded
+2026-10-03, pending the design step: when World lands is that step's to say, and
+[25 B16](25-open-questions.md) gives the rename a deadline ([25 B17](25-open-questions.md)).*
+Like [12](12-account-gallery.md) and
 [13](13-write-mode.md) it is a design note that arrived after the original run
 rather than a new tier of document, and it reads after
 [03](03-data-model.md) and [08](08-cross-session-memory.md), whose session model
@@ -59,6 +76,13 @@ guess would be the shape of the feature.
 
 ## 3. It is a play-side object, not a portable kind
 
+*(Superseded in part 2026-10-03, pending the design step —
+[25 B17](25-open-questions.md). A World that replaces Package is a portable kind:
+Package's place, so the sixth rather than a seventh, and the thing that travels.
+The first bullet's count survives that; the second bullet does not, and is
+struck; the third, that World is not a surface, the decision does not touch. The
+heading and the argument are kept as what was decided against.)*
+
 Per [10 §2.1](10-ui-surfaces.md), the library represents objects as they are and
 Play carries the conveniences. Grouping your own sessions is a convenience over
 sessions, not a seventh portable kind.
@@ -68,12 +92,14 @@ Three things follow, and each is a constraint worth holding:
 - **No new library panel, and no seventh kind in [04](04-schemas.md).** The
   release check in [work plan §0.2](workplan/01-work-plan.md) states this as a
   commitment: *World at 4.0 must add no portable kind at all.*
-- **It stays out of the export surface**, which is right — a continuity is about
+- ~~**It stays out of the export surface**, which is right — a continuity is about
   *your* play, and the material underneath it already travels as a Package
   ([04 §9.1](04-schemas.md)). Someone who wants to share "the Rain City setting"
   is asking for the Package; someone who wants to share "my six Rain City
   sessions" is asking for session export ([25 B12](25-open-questions.md)), which
-  is a different feature that already exists by then.
+  is a different feature that already exists by then.~~ *Superseded 2026-10-03
+  ([25 B17](25-open-questions.md)): the World is what a set travels as, because
+  there is no Package left for it to travel beside.*
 - **World is not a surface.** The name reads like one and it is not: it adds no
   top-level place to the application ([10 §2](10-ui-surfaces.md)). It is a
   grouping *within* Play, in the same sense that a folder is not a new

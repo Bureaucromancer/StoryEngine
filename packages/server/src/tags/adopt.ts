@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  findTag,
   normaliseTagName,
   sameTag,
   uuidv7,
@@ -85,7 +86,16 @@ export async function adoptLibraryTags(
     return [...current.tags, ...minted];
   });
 
-  const byName = new Map(registry.tags.map((tag) => [tag.name.toLowerCase(), tag.id]));
+  /**
+   * ***Looked up with the rule the mint used*** (2026-09-27). This keyed on
+   * `toLowerCase()`, and the mint above skips a name `sameTag` already finds,
+   * which is a locale comparison at accent sensitivity: it also calls
+   * hiragana and katakana the same, and full-width letters and ASCII. A name
+   * the mint skipped and this missed could never adopt, on every run,
+   * reported as having no registry entry. `findTag` is `sameTag`'s lookup,
+   * asked once per name.
+   */
+  const idFor = new Map([...wanted].map((name) => [name, findTag(registry, name)?.id ?? '']));
 
   for (const row of rows) {
     if (row.owner === 'system') {
@@ -104,7 +114,7 @@ export async function adoptLibraryTags(
     }
 
     const names = tagNamesOf(row.body);
-    const ids = names.map((name) => byName.get(name.toLowerCase()) ?? '');
+    const ids = names.map((name) => idFor.get(name) ?? '');
     if (ids.some((id) => id === '')) {
       // Unreachable unless the mint above missed a name, which would be a bug
       // rather than a state. Reported instead of written, because writing a

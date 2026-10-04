@@ -11,6 +11,8 @@ import tseslint from 'typescript-eslint';
 import {
   bannedPackagesFor,
   boundariesGraph,
+  DERIVED_FILES,
+  derivedHeaderRule,
   headerRule,
   restrictedImports,
   restrictedProperties,
@@ -100,6 +102,16 @@ export default tseslint.config(
       'no-restricted-syntax': restrictedSyntax(),
       'no-restricted-imports': restrictedImports(),
     },
+  },
+
+  // The one exception to the header above, and it is not an exemption: these
+  // files must carry a *different* exact header — version 3 only, because they
+  // hold code from upstream projects licensed that way (`eslint.rules.js`,
+  // `THIRD_PARTY_NOTICES.md`). Later in the array, so it replaces the rule
+  // for exactly these paths.
+  {
+    files: DERIVED_FILES,
+    rules: derivedHeaderRule,
   },
 
   // ---------------------------------------------------------------------
@@ -251,6 +263,18 @@ export default tseslint.config(
     },
   },
 
+  // **The end-to-end harness's config**, on the test files' terms below
+  // (2026-10-01). It makes the run's scratch data directory and removes it when
+  // the run ends, which is test setup; the shell's `$(mktemp -d)` that did it
+  // before could not run on Windows and never removed anything. One file, so
+  // the journeys themselves keep the rule.
+  {
+    files: ['e2e/playwright.config.ts'],
+    rules: {
+      'no-restricted-imports': restrictedImports({ allowFs: true }),
+    },
+  },
+
   // Tests may touch the filesystem directly, and it is the point rather than a
   // concession. The rule keeps *production* code behind one audited resolver;
   // a storage test is playing the part of the user with a file manager —
@@ -365,10 +389,20 @@ export default tseslint.config(
   // The syntax rule is relaxed alongside the import rule because this file
   // draws through the *Web Crypto* global — `shared` runs in the browser too
   // (the client → shared edge), and `node:crypto` would break that bundle.
+  //
+  // ***The package bans restated*** (2026-10-01). This block *replaces*
+  // `packageOverride('shared', …)`'s import rule for this file rather than
+  // merging into it — F25's trap, which the test-file blocks below explain at
+  // length — and it used to say `restrictedImports({ allowRandomness: true })`
+  // alone, so `ids.ts` was the one file in `shared` free to import the server.
+  // `tools/repo-shape.test.ts` now holds every exemption to its package's bans.
   {
     files: ['packages/shared/src/ids.ts'],
     rules: {
-      'no-restricted-imports': restrictedImports({ allowRandomness: true }),
+      'no-restricted-imports': restrictedImports({
+        allowRandomness: true,
+        bannedPackages: bannedPackagesFor('shared'),
+      }),
       'no-restricted-syntax': restrictedSyntax({ allowRandomness: true }),
     },
   },
@@ -434,6 +468,40 @@ export default tseslint.config(
         userFacing: true,
         classList: true,
         tokensOnly: true,
+      }),
+    },
+  },
+  /**
+   * **A test reads the screen; the program must not** (2026-09-27).
+   *
+   * The string-method half of *branching on displayed text* is for code that
+   * decides something by a sentence. A test that finds a row by its
+   * `'Prompt tokens'` is doing what a test is for, so client tests keep every
+   * other rule and lose that selector alone — restated for `ui/`, whose block
+   * above a flat config would otherwise let this one replace (F25).
+   */
+  {
+    files: ['packages/client/src/**/*.test.{ts,tsx}', 'packages/client/src/**/test-*.{ts,tsx}'],
+    ignores: ['packages/client/src/ui/**'],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        tokensOnly: true,
+        readsTheScreen: true,
+      }),
+    },
+  },
+  {
+    files: [
+      'packages/client/src/ui/**/*.test.{ts,tsx}',
+      'packages/client/src/ui/**/test-*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userFacing: true,
+        classList: true,
+        tokensOnly: true,
+        readsTheScreen: true,
       }),
     },
   },

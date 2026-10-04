@@ -255,7 +255,7 @@ The assignment rule, stated once so it is not renegotiated per finding:
 
 | # | Finding | Disposition | Where |
 |---|---|---|---|
-| F1 | Symlink resolver has no production callers | **P2.0** | Wire `resolveWithinReal` into the real read/write path; the corpus already exists *Reshaped: what was wired is `assertRealContained`/`Layout.assertReal`, at ten call sites, rather than `resolveWithinReal` — which is gone. A verifier grepping the named function finds no caller and would conclude the finding is unfixed; the coverage is `routes/escape.test.ts`.* |
+| F1 | Symlink resolver has no production callers | **P2.0** | Wire `resolveWithinReal` into the real read/write path; the corpus already exists *Reshaped: what was wired is `assertRealContained`/`Layout.assertReal`, at ten call sites, rather than `resolveWithinReal` — which is gone. A verifier grepping the named function finds no caller and would conclude the finding is unfixed; the coverage is `routes/escape.test.ts`.* *Corrected 2026-09-27: ~~which is gone~~ — it never went, and nor did `resolveAssetPath` above it, and neither had a caller. The folder asset container read, stored and swept through any link it met. `library/assets.ts` now calls `resolveAssetPath` for all three, rooted at the object folder.* |
 | F2 | No body validation; `:kind` decorative | **P2.0** | Named P1.5 deliverable; the pattern must exist before session/turn routes multiply it. *The null-body 500 was guard-fixed at P1 closeout; the schemas remain.* |
 | F3 | Stale-hash TOCTOU | **Fixed at P1 closeout** | Per-object write queue (`KeyedQueue`) + a disk re-hash inside the critical section, with the verified bytes threaded into the encode. P2.3 clones the *fixed* pattern |
 | F4 | Watcher `ignored` broken on Windows | **Fixed at P1 closeout** | `isContained` over index/state/accounts/config, with a watcher test. The F17 Windows CI job still lands at P2.0 |
@@ -574,6 +574,17 @@ uncommitted draft can be lost — the explicit cost of deleting authoritative
 operational state — but a terminal turn already appended to JSONL is reconciled
 into the session rather than duplicated or discarded.
 
+*Corrected 2026-09-27.* ~~a job interrupted in steps 2–4 completes those steps
+idempotently~~ was true of a restart and not of a failure the process lived
+through. The runner's catch for a turn that could not be set up also caught
+the commit, so a disk that refused step 2 or 3 got a stand-in with no prose and
+no effects written over the terminal draft, and the stand-in was committed in
+the finished turn's place. Where step 2 had landed, the segment held the real
+turn and the head was built from the stand-in's effects. Startup then completed
+the stand-in, idempotently. The runner now commits a finished turn inside its
+own `try`, retries once with the same draft, and otherwise leaves the job for
+startup, which completes the real turn's steps as this paragraph says.
+
 Progress events receive a monotonically increasing per-job sequence in the same
 operational transaction as the draft change they describe. **Streaming deltas
 coalesce into those checkpoints rather than each being one** — a durable
@@ -585,6 +596,14 @@ delta that painted it live. Reattach reads
 closes the snapshot/subscribe race. Event rows are ephemeral and may be pruned
 after the terminal record exists, because the turn record is their durable
 meaning ([09 §3.2](../09-server-multiuser-deployment.md)).
+
+*Added 2026-09-27.* Nothing collected the draft or pruned an event until now,
+so every turn stayed in `state.sqlite` twice over, at forty to a hundred and
+thirty kilobytes a turn, and outlived the purge of its session in every
+archive taken after. `state/prune.ts` now runs shortly after a start and then
+daily. A finished job's draft and events go a day after it finished, except a
+session's latest job while the session is there, which an attach between turns
+is sent. Idempotency keys of finished jobs go after a week. Job rows stay.
 
 ### 2.11 What stays broken on purpose
 
@@ -728,7 +747,16 @@ arriving a layer earlier than [21 §2](../21-internal-contracts.md) expected —
 the engine above the adapter still thinks in `RenderedMessage` including its
 system blocks, because that is what the record shows, and the translation stops
 at the adapter. No doc change: the contract is unaffected, only where it is
-honoured. **[19 §5.1](../19-tech-stack.md)'s `[OPEN]` is closed** as the
+honoured.
+
+*Corrected 2026-09-27.* ~~refuses~~ **Refuses by default**: `allowSystemInMessages`
+lifts it, and the premise cost more than a doc change. The adapter joined
+**every** system message into `instructions`, so each one a preset places after
+the history (guidance, the goal, a redo's attempt, depth-injected text, the
+schema and impersonation instructions) reached the model at the top while the
+record showed it in place, and [06 §5](../06-modes-and-turn-pipeline.md)'s
+splicing bought nothing on the wire. Only the leading run is the system prompt
+now; a later system message is sent where it sits, as user text. **[19 §5.1](../19-tech-stack.md)'s `[OPEN]` is closed** as the
 convenience reading — `hi`/`lo` are the first-run question, not tiers in the
 data model; `roles.ts` records the argument.
 

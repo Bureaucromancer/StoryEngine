@@ -43,9 +43,19 @@ const readMyRoles = vi.fn();
 const setAccountPassword = vi.fn();
 
 const listMyConnections = vi.fn();
+const testMyConnection = vi.fn();
+const testConnection = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  /**
+   * ***The trash*** — mocked for `listMyConnections`' reason, which it met on
+   * 2026-10-01: until then a trash that could not be read claimed to be empty
+   * and rendered no alert, so this file never had to answer the query (polish
+   * 10). An unmocked read rejects now, `Trash` says so in a `role=alert`, and
+   * every `findByRole('alert')` on this page finds two.
+   */
+  readTrash: () => Promise.resolve({ entries: [], retentionDays: 30 }),
   api: {
     authState: (...a: unknown[]) => authState(...a) as unknown,
     readMe: (...a: unknown[]) => readMe(...a) as unknown,
@@ -64,6 +74,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     updateMyConnection: vi.fn(),
     deleteMyConnection: vi.fn(),
     fetchMyModels: vi.fn(),
+    testMyConnection: (...a: unknown[]) => testMyConnection(...a) as unknown,
   },
   /**
    * ***The backup panels*** — [P12.6]. Mocked for `listMyConnections`' reason,
@@ -103,6 +114,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     fetchModels: vi.fn(),
     writeBindings: vi.fn(),
     writeDefaultBindings: vi.fn(),
+    testConnection: (...a: unknown[]) => testConnection(...a) as unknown,
   },
 }));
 
@@ -779,6 +791,49 @@ describe('your own connections', () => {
     // browser issues no request there is nothing to refuse.
     expect(listMyConnections).not.toHaveBeenCalled();
   });
+
+  /**
+   * **Your own route, never the admin's** — [polish §25]. The scope mix-up the
+   * panel's docstring names as the failure worth designing against: a personal
+   * panel whose test went through `/api/admin` would 403 for a user and, for an
+   * admin, quietly try an install connection that happens to share the id.
+   */
+  it('tries your own connection through your own route', async () => {
+    listMyConnections.mockResolvedValue({
+      connections: [
+        {
+          id: 'mine',
+          label: 'My own key',
+          provider: 'openai-compatible',
+          scope: 'user',
+          models: ['local-hi'],
+          hasKey: true,
+          shadowed: false,
+          contentHash: 'h1',
+        },
+      ],
+    });
+    testMyConnection.mockResolvedValue({
+      kind: 'text',
+      text: 'Hello from yours.',
+      modelId: 'local-hi',
+      finishReason: 'stop',
+      usage: null,
+      cost: null,
+      elapsedMs: 200,
+    });
+
+    renderPage('user');
+    await userEvent.click(await screen.findByRole('button', { name: 'Test' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send a test message' }));
+
+    expect(await screen.findByText('Hello from yours.')).toBeTruthy();
+    expect(testMyConnection).toHaveBeenCalledWith(
+      'mine',
+      expect.objectContaining({ kind: 'text', modelId: 'local-hi' }),
+    );
+    expect(testConnection).not.toHaveBeenCalled();
+  });
 });
 
 describe('a config save the file has moved under', () => {
@@ -859,6 +914,43 @@ describe('a config save the file has moved under', () => {
     // whole difference between this offer and the other one.
     expect(contentHash).toBe('the-hash-the-file-has-now');
     expect(config.log.level).toBe('info');
+  });
+
+  /**
+   * ***Save, pressed again with neither offer chosen*** (2026-09-27). The
+   * refusal's hash used to ride on the very next Save, so this overwrote the
+   * file on disk — the silent overwrite the refusal exists for, and what gate
+   * step 15's *neither by accident* rules out. It is refused again now.
+   */
+  it('sends no acknowledgement on a Save pressed straight after a refusal', async () => {
+    const { ApiError } = await import('../api.js');
+    writeConfig.mockRejectedValueOnce(
+      new ApiError(
+        412,
+        'stale',
+        'The config file has changed on disk.',
+        {
+          dataDir: './data',
+          log: { level: 'warn' },
+          server: { host: '127.0.0.1', port: 8080 },
+        },
+        'the-hash-the-file-has-now',
+      ),
+    );
+    writeConfig.mockResolvedValue({ config: {}, pendingRestart: [] });
+
+    renderPage('admin');
+    await screen.findByLabelText('log.level');
+    const install = within(screen.getByRole('region', { name: 'This install' }));
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+
+    await userEvent.click(install.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(writeConfig).toHaveBeenCalledTimes(2);
+    });
+    expect(writeConfig.mock.calls[1]?.[1]).toBeUndefined();
   });
 
   it('sends no acknowledgement on an ordinary save, so neither offer fires by accident', async () => {

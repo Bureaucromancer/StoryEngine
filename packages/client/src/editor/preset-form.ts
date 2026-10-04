@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { Draft } from './book-form.js';
+import { inOrderOf, mergeKeyed, reorderedIn, type Draft } from './book-form.js';
 
 /**
  * The preset editor's form, which is the object — [P7B.1].
@@ -113,29 +113,36 @@ export function presetChanges(base: Record<string, unknown>, draft: Draft): bool
  *
  * **Not a whole-draft overwrite.** The 412's first offer means *my edits*, and
  * a block the user never touched must take the newer version's value or the
- * reload eats the concurrent change it refused to overwrite. Blocks the newer
+ * reload eats the concurrent change it refused to overwrite. ~~Blocks the newer
  * version does not have are dropped: it deleted them, and reinstating one is a
- * change nobody made.
+ * change nobody made.~~
+ *
+ * ***The lorebook's three-way walk, not a walk over theirs alone*** (2026-09-27).
+ * This merge walked the newer version's blocks and asked only *did I edit this
+ * one*, which could not tell a block I had deleted from one I had never
+ * touched: every deletion came back on reload-and-reapply. And it kept their
+ * order whatever I had done, so rearranging a pack and losing the race put the
+ * arrangement back without a word. `mergeKeyed` is the lorebook's answer to the
+ * first — `pristine` says whether a block missing from mine was deleted by me
+ * or added by them — and `reorderedIn`/`inOrderOf` its answer to the second.
+ *
+ * *One behaviour this changes on purpose*: a block I edited and they deleted is
+ * now kept, where it was dropped — at the end, or in my place if I reordered.
+ * Dropping it discarded my work to honour theirs; keeping it keeps both, and the
+ * deletion is one click to make again.
  */
 export function reapplyPresetEdits(pristine: Draft, draft: Draft, fresh: Draft): Draft {
   const merged = structuredClone(fresh);
-  const was = new Map(blocksOf(pristine).map((block) => [block.id, JSON.stringify(block)]));
-  const mine = new Map(blocksOf(draft).map((block) => [block.id, block]));
-
-  merged['blocks'] = blocksOf(merged).map((block) => {
-    const edited = mine.get(block.id);
-    if (edited === undefined) return block;
-    // Untouched by me: take theirs.
-    return was.get(block.id) === JSON.stringify(edited) ? block : edited;
-  });
-
-  // A block I added is not in theirs at all, and is mine to keep.
-  const theirs = new Set(blocksOf(fresh).map((block) => block.id));
-  for (const block of blocksOf(draft)) {
-    if (!theirs.has(block.id) && !was.has(block.id)) {
-      (merged['blocks'] as Block[]).push(block);
-    }
-  }
+  const blocks = mergeKeyed(
+    blocksOf(pristine),
+    blocksOf(draft),
+    blocksOf(fresh),
+    (was, held, theirs) =>
+      was !== undefined && JSON.stringify(was) === JSON.stringify(held) ? theirs : held,
+  );
+  merged['blocks'] = reorderedIn(blocksOf(pristine), blocksOf(draft))
+    ? inOrderOf(blocks, blocksOf(draft))
+    : blocks;
 
   // Top-level fields follow the same rule, one level up.
   for (const key of Object.keys(draft)) {

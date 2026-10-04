@@ -4,13 +4,16 @@
 declare const count: number;
 declare const name: string;
 declare const label: string;
+declare const message: string;
 
-// Sentences that only exist in pieces. Four reports: two joins, one JSX split,
-// one comparison against displayed text.
+// Sentences that only exist in pieces, and text branched on. Six reports: two
+// joins (one reported twice), one JSX split, and two branches on displayed
+// text — a comparison, and a search of a server's message.
 export function Bad() {
   const joined = 'You have ' + String(count) + ' unread messages';
   const suffixed = name + ' (copy)';
   const behaviour = label === 'All kinds' ? 1 : 2;
+  const refused = message.includes('already there') ? 1 : 2;
 
   return (
     <div>
@@ -18,6 +21,7 @@ export function Bad() {
         {joined}
         {suffixed}
         {behaviour}
+        {refused}
       </span>
       <span>Revision {count}</span>
     </div>

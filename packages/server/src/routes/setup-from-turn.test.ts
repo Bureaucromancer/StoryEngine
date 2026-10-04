@@ -2,7 +2,10 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { mkdir, writeFile } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
+import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -16,19 +19,24 @@ import {
   type Turn,
 } from '@storyengine/shared';
 
-import { FakeProvider, type ScriptedReply } from '../providers/fake.js';
+import { FakeProvider, type FakeProviderOptions, type ScriptedReply } from '../providers/fake.js';
+import {
+  ProviderError,
+  type GenerationRequest,
+  type GenerationResult,
+} from '../providers/types.js';
 import { SE_PARTY } from '../sessions/cast.js';
 import { SE_GOAL, SE_GOAL_CURRENT } from '../sessions/goals.js';
 import { SE_HOOK } from '../sessions/hooks.js';
 import { appendTurnToSession } from '../sessions/store.js';
 import { acceptEffect } from '../turns/effects.js';
 import { Layout } from '../storage/layout.js';
-import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * ***Make a setup from here, through the routes*** —
  * [04 §7.2](../../../../docs/design/04-schemas.md),
- * [P13.6](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **What the model is shown, and what the browser is sent, are the two things
  * held to account.** Every assertion about hidden content reads the provider's
@@ -54,8 +62,11 @@ async function standUp(script: ScriptedReply[], bind = true): Promise<void> {
   provider = new FakeProvider({ script });
   server = await makeTestServer({ providers: () => provider });
   await setUpAdmin(server, 'ned');
-  if (!bind) return;
+  if (bind) await bindProse();
+}
 
+/** The account's prose role, on the double. */
+async function bindProse(): Promise<void> {
   const root = new Layout(server.dataDir).userConnectionsRoot('ned');
   await mkdir(root, { recursive: true });
   await writeFile(
@@ -209,7 +220,45 @@ describe('drafting a setup from a turn', () => {
     const response = await draft(id, turnIds[2] ?? '', { parts: ['storySoFar', 'opening'] });
 
     expect(response.body.draft.parts.storySoFar).toMatchObject({ ok: true });
-    expect(response.body.draft.parts.opening).toEqual({ ok: false, reason: 'call-failed' });
+    // With the class and the remedy since the merge (2026-10-03), as
+    // impersonation's failures carry them: *the endpoint refused* is a different
+    // fix from *the endpoint is busy*.
+    expect(response.body.draft.parts.opening).toEqual({
+      ok: false,
+      reason: 'call-failed',
+      class: 'terminal',
+      remedy: 'endpoint-refused',
+    });
+  });
+
+  /**
+   * ***[09 §6.5]'s sentence, reaching the draft*** (2026-10-03, at the merge).
+   * `remedy.test.ts` owns the decision table; what this holds is the wiring —
+   * that the route hands the draft the server's connectivity, read when a part
+   * fails. *Nothing answered at a remote endpoint, on a server whose last check
+   * found no internet* is the arm that probe decides: without it the part could
+   * only ever say *check that it is running*, and the person would be sent to
+   * look at an endpoint that is fine.
+   *
+   * The connection names no address, so its endpoint is `remote` —
+   * `isLocalEndpoint`'s answer that hides nothing.
+   */
+  it('says the server has no internet when a remote endpoint never answered', async () => {
+    // Three, because the ladder asks again twice before it believes a silence.
+    const silent: ScriptedReply = { error: { class: 'transient', message: 'fetch failed' } };
+    await standUp([silent, silent, silent]);
+    server.services.updates = { ...server.services.updates, online: false };
+    const { id, turnIds } = await aSession(3);
+
+    const response = await draft(id, turnIds[2] ?? '', { parts: ['opening'] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.draft.parts.opening).toEqual({
+      ok: false,
+      reason: 'call-failed',
+      class: 'transient',
+      remedy: 'endpoint-silent-offline',
+    });
   });
 
   it('takes the narrator’s last words as the opening without a call', async () => {
@@ -294,7 +343,191 @@ describe('drafting a setup from a turn', () => {
 });
 
 /**
- * ***The round trip*** — [P13.7](../../../../docs/design/workplan/30-p13-implementation.md)'s
+ * ***A draft nobody is waiting for*** — the route's half of the merge
+ * (2026-10-03), proved over a listening socket the way `disconnect.test.ts`
+ * presses Illustrate and impersonation.
+ *
+ * **On a socket, because the defect is only there.** `inject`'s request
+ * ignores a destroy once its body has been read and its response never closes
+ * early, so under `inject` a route that never aborts and one that does are
+ * indistinguishable. The helpers below are that file's, cut to what this one
+ * needs: a test file's helpers are not exported, and importing a test module
+ * would register its tests here too.
+ *
+ * Two claims. The draft's model call is **aborted when the client leaves** —
+ * `disconnectSignal`, which the branch's own helper was dropped for — and the
+ * `Cancelled` it causes **ends at the route, silently**, rather than reaching
+ * `setErrorHandler` as an *Unhandled error* for every wizard closed mid-draft.
+ */
+describe('a draft nobody is waiting for', () => {
+  let logLines: string[] = [];
+
+  /** Resolves after `ms`, rejects as an adapter would the moment `signal` aborts. */
+  function held(signal: AbortSignal, ms: number): Promise<void> {
+    return new Promise((settle, fail) => {
+      const timer = setTimeout(settle, ms);
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          fail(new ProviderError('transient', 'The request was aborted.'));
+        },
+        { once: true },
+      );
+    });
+  }
+
+  /** The fake, holding every call until it is aborted, with each call's signal kept. */
+  class Watched extends FakeProvider {
+    readonly signals: AbortSignal[] = [];
+    readonly #holds: boolean;
+
+    constructor(options: FakeProviderOptions & { holds: boolean }) {
+      super(options);
+      this.#holds = options.holds;
+    }
+
+    override async generate(request: GenerationRequest): Promise<GenerationResult> {
+      if (request.signal !== undefined && this.#holds) {
+        this.signals.push(request.signal);
+        await held(request.signal, 10_000);
+      }
+      return await super.generate(request);
+    }
+  }
+
+  async function standUpListening(watched: Watched): Promise<number> {
+    logLines = [];
+    provider = watched;
+    server = await makeTestServer({
+      providers: () => provider,
+      logStream: new Writable({
+        write(chunk: Buffer, _encoding, done) {
+          logLines.push(chunk.toString());
+          done();
+        },
+      }),
+      config: { log: { level: 'info', format: 'json' } },
+    });
+    await setUpAdmin(server, 'ned');
+    await bindProse();
+    if (!server.app.server.listening) await server.app.listen({ port: 0, host: '127.0.0.1' });
+    return (server.app.server.address() as AddressInfo).port;
+  }
+
+  /** One POST over loopback on its own connection, with the browser's cookie and CSRF header. */
+  function send(
+    port: number,
+    path: string,
+    payload: unknown,
+  ): { leave: () => void; answered: Promise<{ status: number; body: string } | null> } {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      cookie: [...server.cookies].map(([name, value]) => `${name}=${value}`).join('; '),
+    };
+    const csrf = server.cookies.get('se_csrf');
+    if (csrf !== undefined) headers['x-csrf-token'] = csrf;
+
+    let leave = (): void => undefined;
+    const answered = new Promise<{ status: number; body: string } | null>((settle) => {
+      const outgoing = httpRequest(
+        { host: '127.0.0.1', port, method: 'POST', path, agent: false, headers },
+        (incoming) => {
+          let body = '';
+          incoming.setEncoding('utf8');
+          incoming.on('data', (chunk: string) => {
+            body += chunk;
+          });
+          incoming.on('end', () => {
+            settle({ status: incoming.statusCode ?? 0, body });
+          });
+        },
+      );
+      outgoing.on('error', () => {
+        settle(null);
+      });
+      outgoing.end(JSON.stringify(payload));
+      leave = () => {
+        outgoing.destroy();
+        settle(null);
+      };
+    });
+    return {
+      leave: () => {
+        leave();
+      },
+      answered,
+    };
+  }
+
+  /** Error-level log lines: where a `Cancelled` that escaped the route would land. */
+  function errorLines(): Record<string, unknown>[] {
+    return logLines
+      .join('')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((line) => typeof line['level'] === 'number' && line['level'] >= 50);
+  }
+
+  /** Past every microtask the abort set off — the route's catch, or the error handler. */
+  function settledLoop(): Promise<void> {
+    return new Promise((done) => {
+      setImmediate(done);
+    });
+  }
+
+  /**
+   * The route end to end over the socket, so the cancellation below is known
+   * to be the client leaving rather than a request that was never accepted.
+   */
+  it('is drafted for a client that waits', async () => {
+    const port = await standUpListening(
+      new Watched({ script: [{ text: 'Marlow lost the ledger.' }], holds: false }),
+    );
+    const { id, turnIds } = await aSession(3);
+
+    const answer = await send(port, `/api/sessions/${id}/turns/${turnIds[2] ?? ''}/setup-draft`, {
+      parts: ['storySoFar'],
+    }).answered;
+
+    expect(answer?.status).toBe(200);
+    expect(JSON.parse(answer?.body ?? '{}').draft.parts.storySoFar).toMatchObject({
+      ok: true,
+      value: 'Marlow lost the ledger.',
+    });
+  });
+
+  /**
+   * ***Falsified by taking the signal from anywhere but the response*** — a
+   * signal that never aborts leaves the call running after the client has
+   * gone, and the first `eventually` times out. ***And by dropping the
+   * route's catch*** — the stop reaches `setErrorHandler`, which logs it at
+   * error level.
+   */
+  it('is cancelled when the client leaves, and says nothing about it', async () => {
+    const watched = new Watched({ script: [{ text: 'Marlow lost the ledger.' }], holds: true });
+    const port = await standUpListening(watched);
+    const { id, turnIds } = await aSession(3);
+
+    const call = send(port, `/api/sessions/${id}/turns/${turnIds[2] ?? ''}/setup-draft`, {
+      parts: ['storySoFar', 'opening'],
+    });
+    await eventually(() => Promise.resolve(watched.signals.length === 1), { timeoutMs: 3_000 });
+    call.leave();
+
+    await eventually(() => Promise.resolve(watched.signals[0]?.aborted === true), {
+      timeoutMs: 3_000,
+    });
+    await settledLoop();
+    expect(errorLines()).toEqual([]);
+    // The stop ended the draft: the second part was never asked for.
+    expect(watched.signals).toHaveLength(1);
+  });
+});
+
+/**
+ * ***The round trip*** — [P15.7](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)'s
  * proof obligation, and the phase's.
  *
  * Play a session to a turn at which a companion has joined, one goal has been

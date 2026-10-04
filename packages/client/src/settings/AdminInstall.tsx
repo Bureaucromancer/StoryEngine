@@ -79,6 +79,16 @@ export function AdminInstall(): JSX.Element {
     document: Record<string, unknown>;
     contentHash: string;
   } | null>(null);
+  /**
+   * ***Which offer was taken, as the hash it acknowledges*** (2026-09-27).
+   *
+   * The refusal's hash used to travel with the next Save whatever happened in
+   * between, so a Save pressed straight after the 412 — neither offer chosen —
+   * wrote over the file on disk: the silent overwrite the refusal exists to
+   * prevent, and P2A step 15 says is refused again. Only the two offers set
+   * this, and every new refusal and every success clears it.
+   */
+  const [acknowledged, setAcknowledged] = useState<string | null>(null);
 
   if (view.isPending) return <Note>Loading…</Note>;
   if (view.isError) return <p role="alert">The configuration could not be read.</p>;
@@ -122,13 +132,16 @@ export function AdminInstall(): JSX.Element {
             {
               config,
               // Present only after a refusal the admin has answered. A plain
-              // Save sends none, so neither recovery can happen by accident.
-              ...(conflict === null ? {} : { contentHash: conflict.contentHash }),
+              // Save sends none, so neither recovery can happen by accident —
+              // which is what this comment claimed while the refusal's own hash
+              // was being sent (see `acknowledged`).
+              ...(acknowledged === null ? {} : { contentHash: acknowledged }),
             },
             {
               onSuccess: () => {
                 setDraft(null);
                 setConflict(null);
+                setAcknowledged(null);
               },
               onError: (error) => {
                 /**
@@ -144,6 +157,8 @@ export function AdminInstall(): JSX.Element {
                  * `response.body.current.history.keepPerObject` and stops there.
                  */
                 if (error instanceof ApiError && error.status === 412 && error.current) {
+                  // A new refusal is answered afresh.
+                  setAcknowledged(null);
                   setConflict({
                     document: error.current as unknown as Record<string, unknown>,
                     contentHash: error.contentHash ?? '',
@@ -213,8 +228,12 @@ export function AdminInstall(): JSX.Element {
                 <Button
                   type="button"
                   size="compact"
+                  aria-pressed={
+                    acknowledged === conflict.contentHash && draft === conflict.document
+                  }
                   onClick={() => {
                     setDraft(conflict.document);
+                    setAcknowledged(conflict.contentHash);
                   }}
                 >
                   Load what is on disk
@@ -222,8 +241,11 @@ export function AdminInstall(): JSX.Element {
                 <Button
                   type="button"
                   size="compact"
+                  aria-pressed={
+                    acknowledged === conflict.contentHash && draft !== conflict.document
+                  }
                   onClick={() => {
-                    setDraft(config);
+                    setAcknowledged(conflict.contentHash);
                   }}
                 >
                   Overwrite with mine

@@ -15,6 +15,7 @@ import {
   bookDifferences,
   foldersFor,
   mergeEntries,
+  picturesLeftBehind,
   readableAsEntries,
   selectionAsLorebook,
 } from './entry-travel.js';
@@ -153,7 +154,9 @@ describe('what goes out with a selection', () => {
     expect(out.hooks).toEqual([]);
   });
 
-  it('carries an entry whole, so its stateSchema travels and no state can', () => {
+  // ~~*Carries an entry whole*~~ — all of it but its pictures, since
+  // 2026-09-27; see the test below.
+  it('carries an entry’s fields, so its stateSchema travels and no state can', () => {
     const source = book();
     const first = must(source.entries[0]);
     const withSchema: Lorebook = {
@@ -168,7 +171,39 @@ describe('what goes out with a selection', () => {
     // session channel ([03 §3.3]) and was never a field on the entry.
     expect(Object.keys(out.entries[0] ?? {})).not.toContain('state');
   });
+
+  /**
+   * ***The pictures stay behind, and the export says how many*** (2026-09-27).
+   * A lorebook file carries a picture's row and never its bytes, so the rows
+   * went out naming pictures the receiving book would never have.
+   */
+  it('leaves an entry’s pictures behind and counts them', () => {
+    const source = book();
+    const first = must(source.entries[0]);
+    const pictured: Lorebook = {
+      ...source,
+      entries: [{ ...first, media: [picture('a'), picture('b')] }, ...source.entries.slice(1)],
+    };
+    const chosen = new Set([first.id]);
+
+    expect(selectionAsLorebook(pictured, chosen).entries[0]?.media).toEqual([]);
+    expect(picturesLeftBehind(pictured, chosen)).toBe(2);
+    // Only the entries chosen are counted.
+    expect(picturesLeftBehind(pictured, new Set([must(source.entries[1]).id]))).toBe(0);
+  });
 });
+
+function picture(id: string): LoreEntry['media'][number] {
+  return {
+    id,
+    role: 'gallery',
+    tags: [],
+    ref: `assets/${id}.png`,
+    digest: `sha256:${id}`,
+    bytes: 4,
+    mime: 'image/png',
+  };
+}
 
 describe('what a merge does on the way in', () => {
   const NOBODY = new Set<string>();
@@ -233,6 +268,27 @@ describe('what a merge does on the way in', () => {
     expect(report.entries[0]?.collidesWith?.id).toBe(mine.id);
   });
 
+  /**
+   * *Twins in the file* (2026-09-27): the clash was looked for only among the
+   * destination's entries, never among the ones this merge had just added, so
+   * a file carrying two entries with one id brought both in on it.
+   */
+  it('gives each of two entries sharing an id in the file an id of its own', () => {
+    const from: Lorebook = {
+      ...newLorebook('A gift'),
+      entries: [
+        { ...newLoreEntry('The lock keeper'), id: 'twin' },
+        { ...newLoreEntry('The lock keeper’s daughter'), id: 'twin' },
+      ],
+    };
+
+    const { book: after } = mergeEntries(book(), from, NOBODY);
+    const arrived = after.entries.slice(-2).map((one) => one.id);
+
+    expect(new Set(arrived).size).toBe(2);
+    expect(arrived[0]).toBe('twin');
+  });
+
   it('suffixes a name that is taken, and reports what it was called', () => {
     const into = book();
     const from: Lorebook = {
@@ -258,6 +314,27 @@ describe('what a merge does on the way in', () => {
 
     expect(report.dangling).toHaveLength(1);
     expect(report.dangling[0]?.actorIds).toEqual(['ilse']);
+  });
+
+  /**
+   * ***What arrives naming pictures arrives without them, and is said***
+   * (2026-09-27): a file exported before the export learned to leave them
+   * behind, or written by hand, names bytes this book does not have.
+   */
+  it('drops the picture rows an incoming entry names, and reports whose', () => {
+    const into = book();
+    const pictured = { ...entry('The lighthouse', null), media: [picture('c')] };
+    const from: Lorebook = {
+      ...newLorebook('Elsewhere'),
+      entries: [pictured, entry('The fog', null)],
+    };
+
+    const { book: merged, report } = mergeEntries(into, from, new Set());
+
+    expect(merged.entries.every((one) => one.media.length === 0)).toBe(true);
+    expect(report.withoutPictures.map((one) => [one.entry.name, one.count])).toEqual([
+      ['The lighthouse', 1],
+    ]);
   });
 
   it('names the book-level settings the destination reads differently', () => {

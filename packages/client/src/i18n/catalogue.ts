@@ -56,9 +56,6 @@
  * to decide is when a real locale and a real plural exist, not before.
  */
 
-/** Every namespace's English, registered as its module loads. */
-const ENGLISH = new Map<string, Readonly<Record<string, string>>>();
-
 /**
  * The active locale's catalogues, or empty for English.
  *
@@ -91,7 +88,6 @@ export function labels<T extends Record<string, string>>(
   namespace: string,
   english: T,
 ): Readonly<T> {
-  ENGLISH.set(namespace, english);
   return new Proxy(english, {
     get: (target, key) => {
       if (typeof key !== 'string') return Reflect.get(target, key) as unknown;
@@ -107,11 +103,6 @@ export function labels<T extends Record<string, string>>(
   });
 }
 
-/** Every namespace declared so far, with its English. For the tooling. */
-export function englishCatalogue(): Record<string, Record<string, string>> {
-  return Object.fromEntries([...ENGLISH.entries()].map(([ns, map]) => [ns, { ...map }]));
-}
-
 /**
  * Who to tell when the locale changes.
  *
@@ -119,7 +110,9 @@ export function englishCatalogue(): Record<string, Record<string, string>> {
  * same argument `active` is a module-level value for: the tables are read from
  * places that are not components, so the *authority* cannot live in the tree.
  * What React needs is not the value but a nudge, which is what this is —
- * `useSyncExternalStore` over `activeLocale`, once, at the root.
+ * `useSyncExternalStore` over `activeLocale`, once, at the root. *Corrected
+ * 2026-09-28:* ~~once, at the root~~ — at the root and in every routed page,
+ * because the router memoises between them (`useActiveLocale`).
  */
 const WATCHERS = new Set<() => void>();
 

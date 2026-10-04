@@ -25,12 +25,16 @@ export function Good() {
   const copy = `${name} (copy)`;
   // A code, not a sentence.
   const branch = code === 'not-found' ? 1 : 2;
+  // A string method over values that are not prose: a file extension, a
+  // prefix of an id, one word.
+  const searched = name.endsWith('.json') || code.startsWith('import.') || name.includes('draft');
 
   return (
     <div className={PANEL_CLASS}>
       <span>{message}</span>
       <span>{copy}</span>
       <span>{branch}</span>
+      <span>{String(searched)}</span>
       {/* A value on its own is not a sentence. */}
       <span>{name}</span>
       {/* A path is not a sentence either, which is why the text has to hold

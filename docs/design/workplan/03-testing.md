@@ -202,7 +202,12 @@ it:
   second send continues the line from the head, which is precisely the thing a
   branch is not. **The difference does not appear in a request count** — both
   shapes post one turn — so a test written the wrong way passes, and what it
-  then protects is the wrong claim.
+  then protects is the wrong claim. *(2026-10-01, `d66ad2b`: still Redo, and
+  since P14 the alternatives are counted on the message they differ at, so the
+  step reads the message's* Previous reply *rather than the turn strip's*
+  Previous version*. The journeys were red on `main` from P14 until then —
+  that, and the transcript collapsing under P14's controls at 1280×720 — and
+  nobody saw, because CI had not run since K.)*
 - ***Open the workbench* needs an assertion about what is in it.** The dock's
   landmark role is a claim an empty panel satisfies, and an empty workbench over
   a turn that happened is exactly the wiring failure this tier exists to catch.
@@ -357,6 +362,27 @@ and F4 is the proof of what that costs. And **the rebuild-equals-incremental
 property test as a named step**, rather than folded anonymously into the suite:
 a gate that can be retired by a `test.skip` nobody notices is not a gate.
 
+*Both platforms, on every change — **for one day not, and why it came back***
+*(2026-10-02, 2026-10-03). While the repository was private, Actions minutes
+were a 2000-minute month with Windows billed double, and a push cost about 110
+of them: Windows ~45 wall minutes, ubuntu ~19, the journeys ~2. September's ran
+out on the 27th and October's six hours into the 1st, after which every job was
+refused before it started and main was red for a reason no commit could fix.
+For a day the Windows leg ran weekly instead of per change. Then the repository
+went public ([releases §0.1a](04-repo-and-releases.md)) — CI access was one of
+the two reasons — public repositories' standard runners are not metered, and
+both legs run on every change again, as this section has always said.
+`tools/lint-fixtures/ci-shape.test.ts` now refuses any `exclude:` in the
+matrix, which was the one way to retire a leg its other assertions could not
+see.* *Three things from that day stayed, none of them only about money.
+**A change confined to `docs/` runs `docs.yml`** — the link checks and every
+test that opens a document, found by a scan in the same test file rather than
+kept as a list — instead of the full tier; nothing under `docs/` is built or
+served (`CHANGELOG.md`, which the client imports, is not under it). **Every job
+has a timeout**, because the default is six hours. And **the suite runs in at
+least two workers**: vitest's default is one fewer than the cores, which on a
+two-core machine is one — a no-op on a public runner's four.*
+
 **Nightly** — provider conformance (live), the full wild-corpus import run, and
 longer property-test budgets, including a rebuild-from-disk consistency run over
 a large generated library. *The rebuild property test itself moved to the per-PR
@@ -367,7 +393,14 @@ make the per-PR tier slow. Small budget every PR, large budget nightly.*
 ([releases §4](04-repo-and-releases.md)). *Built at [P6A.4](19-p6a-alpha-1.md) as
 `release.yml`, filtered to `v*`: the image to a private package, the tag checked
 against the root `package.json`, the CHANGELOG checked for the entry. Unrun
-until the first tag, which is Alpha 1's.*
+until the first tag, which is Alpha 1's.* ***And the per-PR tier first***
+*(2026-10-01): a `verify` job replays this tier's Linux leg and the changelog
+check on the tagged commit, and nothing publishes until it passes. The tag was
+the only gate, and the changelog was checked after the image had moved
+`testing`. Two alpha cuts were made while CI was red
+([manual testing §9](05-manual-testing.md)) — on failures only the Windows runner saw, which
+a Linux gate would not have stopped; it is for the Linux failure nothing
+stopped at all.*
 
 Two project-specific automations worth having beyond the usual:
 

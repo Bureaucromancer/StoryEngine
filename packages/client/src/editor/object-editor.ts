@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useNavigate } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { uuidv7, type GeneratedFieldProvenance } from '@storyengine/shared';
 
@@ -95,7 +95,20 @@ export interface ObjectEditor<F> {
   /** What is on disk, as far as this page knows. */
   base: LibraryObject;
   form: F;
-  /** Patch the form and clear the notice and refusal, which is always wanted together. */
+  /**
+   * Patch the form and clear the notice and refusal, which is always wanted
+   * together.
+   *
+   * ***Give it an updater*** (2026-09-27). A value is accepted and replaces the
+   * whole form, which is only right for a write that *means* the whole form.
+   * Every edit is an updater over the form as it is when the write lands,
+   * because some writes land late: an assist resolves ten to sixty seconds after
+   * its click, a picture after its upload. [10 §11.5] promises that *"every
+   * field stays directly typeable while an assist is running"*, and a completion
+   * that wrote back the form as it was at the click reverted everything typed
+   * in the meantime — silently, and in whichever entry or fold was out of sight.
+   * A value closed over by the render is that bug, however the write is spelled.
+   */
   patch: (next: F | ((previous: F) => F)) => void;
   /** Never written, so there is nothing on disk for any of this to be about. */
   unsaved: boolean;
@@ -122,6 +135,11 @@ export interface ObjectEditor<F> {
    * when the body carried `current`, so a 412 without one vanished entirely.
    * Computed here rather than in the frame so the frame cannot get it wrong for
    * five kinds.
+   *
+   * ***On a draft, the create's*** (2026-09-27). A page that has never been
+   * saved writes with a create, not an update, and this read only the update:
+   * a first Save the server refused — a name it would not take, a field it
+   * could not validate — left the page as it was and said nothing at all.
    */
   saveError: string | null;
   /** The 412's first offer: take theirs, reapply mine. */
@@ -133,6 +151,23 @@ export interface ObjectEditor<F> {
   dismissConflict: () => void;
   /** After a restore, so the page can re-seed without knowing how. */
   adopt: (object: Record<string, unknown>, contentHash: string, notice: string) => void;
+  /**
+   * ***How many times the form has been replaced wholesale*** (2026-09-27) — a
+   * count that `adopt` moves and nothing else does.
+   *
+   * An assist started before a restore was written for the form the person
+   * restored *away from*; its answer landing on the restored version would put
+   * text into a document it was never about, and clear the notice saying the
+   * restore happened. So an assist reads this when it starts and again when it
+   * lands, and a difference means it is not applied (`useAssistFor`).
+   *
+   * *The 412's reapply does not move it*, and that is the distinction: a reapply
+   * keeps the person's edits over the newer version, and an assist still running
+   * is one of those edits in progress. *A function rather than a value*, because
+   * the reader is a promise callback holding the render it started in, and it
+   * has to ask the count as it is now.
+   */
+  replacements: () => number;
   /**
    * ***The next save is an import, and this is where it came from*** —
    * [10 §11.2c](../../../../docs/design/10-ui-surfaces.md), [P11].
@@ -178,6 +213,23 @@ export interface ObjectEditor<F> {
   markReviewed: (path: string) => void;
 }
 
+/**
+ * ***The first Save's answer, carried across the page it causes*** (2026-10-01,
+ * polish 10).
+ *
+ * Every Save after the first says *Saved.* where Save is. The first is a create
+ * on a *New …* page, and it navigates to the new object's own editor — a
+ * different page, mounted fresh, whose notice starts empty. So the one Save a
+ * person is least sure of was the one that said nothing, and the page it
+ * landed on said *No changes to save.*, which is true and is not an answer.
+ *
+ * The id goes in here before the navigation and the editor it lands on reads
+ * it as its first notice. Read in the state initialiser and cleared in an
+ * effect, not deleted in the initialiser, because StrictMode runs initialisers
+ * twice and the second would find nothing.
+ */
+const createdJustNow = new Set<string>();
+
 export function useObjectEditor<F>(
   descriptor: EditorKind<F>,
   initial: LibraryObject,
@@ -192,7 +244,12 @@ export function useObjectEditor<F>(
    */
   const [pristineForm, setPristineForm] = useState<F>(() => descriptor.formOf(initial.object));
   const [conflict, setConflict] = useState<LibraryObject | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(() =>
+    createdJustNow.has(initial.id) ? 'Saved.' : null,
+  );
+  useEffect(() => {
+    createdJustNow.delete(initial.id);
+  }, [initial.id]);
   const [historyOpen, setHistoryOpen] = useState(false);
   /**
    * Why the last Save did not write — [10 §11.1a].
@@ -203,8 +260,12 @@ export function useObjectEditor<F>(
   const [refusal, setRefusal] = useState<string | null>(null);
   /**
    * The provenance map as the form has it — seeded from the loaded object and
-   * re-seeded wherever `base` is, so a restore and a reload-and-reapply both
-   * carry the right one rather than the one from before.
+   * ~~re-seeded wherever `base` is, so a restore and a reload-and-reapply both
+   * carry the right one rather than the one from before~~ ***replaced by a
+   * restore, and merged path by path by a reload-and-reapply*** (2026-09-27).
+   * The reapply kept this map untouched, so the other writer's provenance — the
+   * record that *their* field was model-written — was erased by the next save,
+   * which is the one thing the map exists to keep. See `mergeGenerated`.
    */
   const [generated, setGenerated] = useState<Record<string, GeneratedFieldProvenance>>(() =>
     generatedOf(initial.object),
@@ -218,6 +279,9 @@ export function useObjectEditor<F>(
    * shows.
    */
   const importedFrom = useRef<string | null>(null);
+
+  /** See `replacements`. A ref, for the reason `importedFrom` is one: nothing renders from it. */
+  const replaced = useRef(0);
 
   const saveMutation = useSaveObject();
   const create = useCreateObject();
@@ -241,6 +305,7 @@ export function useObjectEditor<F>(
   }
 
   function adopt(object: Record<string, unknown>, contentHash: string, message: string): void {
+    replaced.current += 1;
     setBase((previous) => ({ ...previous, object, contentHash }));
     setForm(descriptor.formOf(object));
     setPristineForm(descriptor.formOf(object));
@@ -248,6 +313,10 @@ export function useObjectEditor<F>(
     // map would attribute this form's fields to generations that produced
     // different words.
     setGenerated(generatedOf(object));
+    // And the import the next save was going to be recorded as is gone with
+    // the form it was merged into: a save after a restore would otherwise
+    // write *imported from gift.json* on a version that carries none of it.
+    importedFrom.current = null;
     setNotice(message);
   }
 
@@ -273,6 +342,7 @@ export function useObjectEditor<F>(
         { kind: descriptor.kind, object: withGenerated(descriptor.apply(base.object, form)) },
         {
           onSuccess: (result) => {
+            createdJustNow.add(result.id);
             // `ignoreBlocker`: the edits have just been written, and the guard
             // is measuring them against a base this route never had.
             void navigate({
@@ -350,7 +420,17 @@ export function useObjectEditor<F>(
       return;
     }
     const fresh = descriptor.formOf(conflict.object);
-    setForm(descriptor.reapply(pristineForm, form, fresh));
+    // Over the form as it is when this runs, not as the render had it — the
+    // rule `patch` states, and the reapply helpers are pure, so they can run
+    // inside the updater. An assist or an upload landing between the render and
+    // the click is one of *my* edits, and the reapply's whole job is to keep
+    // those.
+    setForm((current) => descriptor.reapply(pristineForm, current, fresh));
+    // `base.object` is the version this form was opened on, which is what the
+    // map is measured against: the server stores `generated` exactly as sent.
+    setGenerated((current) =>
+      mergeGenerated(generatedOf(base.object), current, generatedOf(conflict.object)),
+    );
     setPristineForm(fresh);
     setBase(conflict);
     setConflict(null);
@@ -373,7 +453,9 @@ export function useObjectEditor<F>(
     object['id'] = uuidv7();
     object['name'] = `${descriptor.nameOf(form)} (copy)`;
     create.mutate(
-      { kind: descriptor.kind, object },
+      // Naming the original, so the copy is made with its pictures rather than
+      // rows naming files its own folder does not have (2026-09-27).
+      { kind: descriptor.kind, object, copyOf: base.id },
       {
         onSuccess: (result) => {
           setConflict(null);
@@ -431,6 +513,7 @@ export function useObjectEditor<F>(
     noteImport: (from: string) => {
       importedFrom.current = from;
     },
+    replacements: () => replaced.current,
     generatedAt: (path) => generated[path] ?? null,
     recordGenerated: (path, record) => {
       setGenerated((was) => ({ ...was, [path]: record }));
@@ -451,13 +534,16 @@ export function useObjectEditor<F>(
       });
     },
     savePending: saveMutation.isPending,
-    saveError:
-      saveMutation.isError &&
-      !(
-        saveMutation.error instanceof ApiError &&
-        saveMutation.error.status === 412 &&
-        saveMutation.error.current
-      )
+    saveError: unsaved
+      ? create.isError
+        ? create.error.message
+        : null
+      : saveMutation.isError &&
+          !(
+            saveMutation.error instanceof ApiError &&
+            saveMutation.error.status === 412 &&
+            saveMutation.error.current
+          )
         ? saveMutation.error.message
         : null,
     reloadAndReapply,
@@ -479,6 +565,36 @@ export function useObjectEditor<F>(
  * array of nothing in particular, and a form that threw on one would make a
  * typo in a file somebody else edited into a page that will not open.
  */
+/**
+ * ***Provenance merged the way the 412 merges fields*** (2026-09-27) — path by
+ * path, against the map this form was opened with.
+ *
+ * A path whose record I changed — an assist I accepted, a hand edit that marked
+ * one reviewed — keeps mine; every other path takes theirs, so their accepted
+ * assists arrive with the fields they wrote. *Not theirs wholesale*, which
+ * would drop the assists this tab accepted before losing the race; and not mine
+ * wholesale, which is what the reapply did and what erased theirs. The records
+ * are built with one key order by `generatedOf`, `useAssistFor` and
+ * `markReviewed` alike, so comparing them as strings is stable.
+ */
+function mergeGenerated(
+  pristine: Record<string, GeneratedFieldProvenance>,
+  mine: Record<string, GeneratedFieldProvenance>,
+  theirs: Record<string, GeneratedFieldProvenance>,
+): Record<string, GeneratedFieldProvenance> {
+  const out: Record<string, GeneratedFieldProvenance> = {};
+  for (const path of new Set([
+    ...Object.keys(pristine),
+    ...Object.keys(mine),
+    ...Object.keys(theirs),
+  ])) {
+    const kept =
+      JSON.stringify(mine[path]) !== JSON.stringify(pristine[path]) ? mine[path] : theirs[path];
+    if (kept !== undefined) out[path] = kept;
+  }
+  return out;
+}
+
 function generatedOf(object: Record<string, unknown>): Record<string, GeneratedFieldProvenance> {
   const held = object['generated'];
   if (typeof held !== 'object' || held === null || Array.isArray(held)) return {};

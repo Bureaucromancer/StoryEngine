@@ -10,6 +10,7 @@ import {
   type ZipRefusal,
 } from '../storage/zip.js';
 
+import { scope } from './memory-source.js';
 import type { FileSource } from './source.js';
 
 /**
@@ -62,8 +63,11 @@ export class ZipFileSource implements FileSource {
   // Async to satisfy the interface, which a directory walk and a real archive
   // both need; this one has its directory already.
   // eslint-disable-next-line @typescript-eslint/require-await
-  async *list(): AsyncIterable<string> {
-    for (const name of this.#entries.keys()) yield name;
+  async *list(under?: string): AsyncIterable<string> {
+    const within = scope(under);
+    for (const name of this.#entries.keys()) {
+      if (within(name)) yield name;
+    }
   }
 
   read(path: string): Promise<Uint8Array | null> {

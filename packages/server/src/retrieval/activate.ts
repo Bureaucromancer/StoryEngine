@@ -5,7 +5,14 @@ import { entryGate, type GateReason, type Lorebook, type LoreEntry } from '@stor
 
 import type { Rng } from '../rng/rng.js';
 import type { LoreSource } from '../turns/lore.js';
-import { matchEntry, type KeyHit, type PatternRefusal, type ScanInput } from './match.js';
+import {
+  matchEntry,
+  newRegexLedger,
+  type KeyHit,
+  type PatternRefusal,
+  type RegexLedger,
+  type ScanInput,
+} from './match.js';
 import { feedsRecursion, mayRecurse, recursionVerdict } from './recursion.js';
 import { advanceTiming, timingVerdict, type EntryTiming, NO_TIMING } from './timing.js';
 
@@ -222,6 +229,13 @@ export function activate(context: ScanContext): ScanResult {
    */
   const wonGroups = new Set<string>();
 
+  /**
+   * One regex ledger for the whole scan, across every book and every
+   * recursive pass: a pattern refused once is not run again anywhere in this
+   * scan, and the scan's pattern time is bounded — see `RegexLedger`.
+   */
+  const ledger = newRegexLedger();
+
   for (const source of context.books) {
     const book = source.book;
     if (!book.enabled) {
@@ -257,7 +271,7 @@ export function activate(context: ScanContext): ScanResult {
       const stillPending: LoreEntry[] = [];
 
       for (const entry of pending) {
-        const outcome = considerAt(entry, book, haystack, depth, context);
+        const outcome = considerAt(entry, book, haystack, depth, context, ledger);
         for (const pattern of outcome.refused) refused.push(pattern);
         for (const name of outcome.unknownSources) unknown.add(name);
 
@@ -462,6 +476,7 @@ function considerAt(
   haystack: ScanInput,
   depth: number,
   context: ScanContext,
+  ledger: RegexLedger,
 ): Outcome {
   const nothing = { refused: [], unknownSources: [] };
 
@@ -514,7 +529,7 @@ function considerAt(
       : { kind: 'skip', reason: 'lost-the-roll', ...nothing };
   }
 
-  const match = matchEntry(book, entry, haystack);
+  const match = matchEntry(book, entry, haystack, ledger);
   const carried = { refused: match.refused, unknownSources: match.unknownSources };
   if (match.outcome !== 'matched') {
     /**

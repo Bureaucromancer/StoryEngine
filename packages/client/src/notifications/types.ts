@@ -33,4 +33,9 @@ export interface NotificationView {
 export interface NotificationList {
   notifications: NotificationView[];
   unread: number;
+  /**
+   * The server's clock when a stream's snapshot was read — absent on the list
+   * route, which nothing announces from. See `useNotifications`' `onSnapshot`.
+   */
+  at?: number;
 }

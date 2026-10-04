@@ -267,3 +267,66 @@ describe('the appearance layer is spelled once', () => {
     );
   });
 });
+
+/**
+ * ***Two faces, and the story's travels with its step*** (2026-10-01) — [10 §1.2].
+ *
+ * §1.2 says what separates the quiet surfaces from the tooling ones: **type**,
+ * **measure** and **chrome**. *Type* was a size and a leading, which at body
+ * size reads as the same page set a little looser. It is a face now as well —
+ * `--font-story`, a book serif, against `--font-ui` — and the risk that brings
+ * is the one this file keeps finding: a paragraph that takes the story's step
+ * and not its face, which looks like a typo in the theme rather than a choice.
+ * So the pairing is checked rather than remembered, in every class string in
+ * the client, and so is the promise that neither face is a download.
+ */
+describe('the two faces', () => {
+  const ROOT = fileURLToPath(new URL('.', import.meta.url));
+  const theme = blockAt(CSS.indexOf('@theme'));
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return sources(path);
+      if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) return [];
+      return [path];
+    });
+  }
+
+  /** The families in a stack, unquoted, in order. */
+  function families(token: string): string[] {
+    const value = tokensIn(theme).get(token) ?? '';
+    return value.split(',').map((family) => family.trim().replace(/^['"]|['"]$/g, ''));
+  }
+
+  it('names both as system stacks, each with its generic family to fall back on', () => {
+    // A machine with none of the named faces still gets a sans interface and a
+    // serif story, rather than the browser's default for both.
+    expect(families('--font-ui')).toContain('sans-serif');
+    expect(families('--font-story')).toContain('serif');
+    // No webfont: a downloaded face is a request on every cold load and a flash
+    // of the fallback while it arrives, for a server meant to need nothing
+    // from outside the house.
+    expect(CSS).not.toMatch(/@font-face/);
+  });
+
+  it('sets the interface in the interface face', () => {
+    expect(blockAt(CSS.indexOf('\nbody {'))).toMatch(/font-family:\s*var\(--font-ui\)/);
+  });
+
+  it('never sets the story step without the story face', () => {
+    const strip = (text: string): string =>
+      text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^[ \t]*\/\/.*$/gm, ' ');
+    const classStrings = sources(ROOT).flatMap((path) =>
+      [...strip(readFileSync(path, 'utf8')).matchAll(/(["'`])([^"'`]*)\1/g)]
+        .map((match) => match[2] ?? '')
+        .filter((value) => /(?:^|\s)text-story(?:\s|$)/.test(value))
+        .map((value) => ({ path: path.slice(ROOT.length), value })),
+    );
+    // Calibrated, so a pattern that stopped matching anything cannot pass: the
+    // reading view, the transcript, the chat and home are all story type.
+    expect(classStrings.length).toBeGreaterThanOrEqual(10);
+    const unpaired = classStrings.filter(({ value }) => !/(?:^|\s)font-story(?:\s|$)/.test(value));
+    expect(unpaired).toEqual([]);
+  });
+});

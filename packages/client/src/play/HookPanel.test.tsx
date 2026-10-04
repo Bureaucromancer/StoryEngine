@@ -233,7 +233,9 @@ describe('the hook panel', () => {
     answerWith([WAR]);
     await renderPanel();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Commit' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Commit War with the Flower Kingdom' }),
+    );
 
     await waitFor(() => {
       expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.hook#hook-war', 'committed');
@@ -251,7 +253,9 @@ describe('the hook panel', () => {
     answerWith([{ ...WAR, refusal: 'cast-gone' }]);
     await renderPanel();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Commit' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Commit War with the Flower Kingdom' }),
+    );
     // Asked, not done.
     expect(writeSessionChannel).not.toHaveBeenCalled();
     expect(screen.getByText('Someone it is about is not here. Commit it anyway?')).toBeTruthy();
@@ -262,6 +266,33 @@ describe('the hook panel', () => {
     });
   });
 
+  /**
+   * ***The question keeps the keyboard*** (2026-10-01, polish 11). Commit is
+   * replaced by the question it asks, so the keyboard fell to the page; and the
+   * question was a live region inserted already holding its words. It goes to
+   * Cancel now, which the question describes, and comes back to Commit.
+   */
+  it('takes the keyboard to the question, and gives it back to Commit', async () => {
+    answerWith([{ ...WAR, refusal: 'cast-gone' }]);
+    await renderPanel();
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Commit War with the Flower Kingdom' }),
+    );
+
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(document.activeElement).toBe(cancel);
+    const described = document.getElementById(cancel.getAttribute('aria-describedby') ?? '');
+    expect(described?.textContent).toBe('Someone it is about is not here. Commit it anyway?');
+
+    await userEvent.keyboard('{Enter}');
+
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Commit War with the Flower Kingdom' }),
+    );
+    expect(writeSessionChannel).not.toHaveBeenCalled();
+  });
+
   it('lets a commitment be released, and says what it was carrying it past', async () => {
     answerWith([
       { ...WAR, state: 'committed', refusal: null, committed: { overrode: 'too-early' } },
@@ -270,7 +301,9 @@ describe('the hook panel', () => {
 
     expect(await screen.findByText('Committed past: waiting for a later turn.')).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Release' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Release War with the Flower Kingdom' }),
+    );
     await waitFor(() => {
       expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.hook#hook-war', null);
     });
@@ -303,8 +336,8 @@ describe('the hook panel', () => {
     await renderPanel();
 
     expect(await screen.findByText('Fired')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Commit' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Commit/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Remove War with the Flower Kingdom' })).toBeTruthy();
   });
 
   /**
@@ -363,11 +396,63 @@ describe('the hook panel', () => {
     answerWith([WAR]);
     await renderPanel();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Remove War with the Flower Kingdom' }),
+    );
+    // It leaves the story's pool on the server, so it asks first (polish 8).
+    expect(removeSessionHook).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: 'Remove',
+        description: 'Remove this hook from the story?',
+      }),
+    );
 
     await waitFor(() => {
-      expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war');
+      expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war', {
+        kind: 'treatment',
+        id: 't1',
+      });
     });
+  });
+
+  /**
+   * ***The row pressed, and only it*** (2026-09-28). One hook can reach the
+   * pool through two carriers and is drawn as two rows; by id alone, Remove on
+   * either took both, and the two rows shared a React key. The row's source
+   * goes with the request, as it does for `Save this to…`.
+   */
+  it('names the row it removes when two rows share an id', async () => {
+    // React says so on the console when two siblings share a key, and says
+    // nothing else: the rows render, and it is their identity across a
+    // re-render that is lost.
+    const warned = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    answerWith([WAR, { ...WAR, source: { kind: 'lore', id: 'book-rain' } }]);
+    await renderPanel();
+
+    // Both rows are the one hook, so both carry its title (polish 11).
+    const removes = await screen.findAllByRole('button', {
+      name: 'Remove War with the Flower Kingdom',
+    });
+    expect(removes).toHaveLength(2);
+    await userEvent.click(removes[1]!);
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: 'Remove',
+        description: 'Remove this hook from the story?',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(removeSessionHook).toHaveBeenCalledWith(SESSION_ID, 'hook-war', {
+        kind: 'lore',
+        id: 'book-rain',
+      });
+    });
+    expect(
+      warned.mock.calls.some((call) => call.some((part) => String(part).includes('same key'))),
+    ).toBe(false);
+    warned.mockRestore();
   });
 
   /**
@@ -583,8 +668,53 @@ describe('the hook panel', () => {
       });
       await renderPanel();
 
-      expect(await screen.findByRole('button', { name: 'Remove' })).toBeTruthy();
+      expect(
+        await screen.findByRole('button', { name: 'Remove War with the Flower Kingdom' }),
+      ).toBeTruthy();
       expect(screen.queryByRole('combobox', { name: /^Save/ })).toBeNull();
     });
+  });
+});
+
+/**
+ * ***The panel answers*** — polish 9 (2026-10-01). A commit, a release, a
+ * removal or an add the server refused said nothing; and the premise Add waits
+ * for was not marked as needed, so the button looked broken.
+ */
+describe('what the hook panel says', () => {
+  it('marks the premise required, because Add waits for it', async () => {
+    answerWith([WAR]);
+    await renderPanel();
+
+    const premise = await screen.findByRole('textbox', { name: 'What happens' });
+    expect(premise.getAttribute('aria-required')).toBe('true');
+  });
+
+  it('says why a commit was refused', async () => {
+    writeSessionChannel.mockRejectedValue(new ApiError(409, 'busy', 'In flight.'));
+    answerWith([WAR]);
+    await renderPanel();
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Commit War with the Flower Kingdom' }),
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'A turn is running. Try again when it has finished.',
+    );
+  });
+
+  it('says why a hook could not be added', async () => {
+    addSessionHook.mockRejectedValue(new ApiError(400, 'invalid', 'body/title must be string'));
+    answerWith([WAR]);
+    await renderPanel();
+
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: 'What happens' }),
+      'The old bridge gives way in the storm.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('That could not be saved.');
   });
 });

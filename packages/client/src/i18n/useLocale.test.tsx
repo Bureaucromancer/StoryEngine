@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { JSX } from 'react';
+import { memo, type JSX } from 'react';
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { roleLabel } from '../settings/roleWords.js';
 import { activeLocale, applyCatalogue } from './catalogue.js';
-import { useLocale } from './useLocale.js';
+import { MACHINE_FRENCH } from './fr-x-machine.js';
+import { localised, useLocale } from './useLocale.js';
 
 /**
  * ***The stage's *Ends at*, as far as a test can carry it*** —
@@ -21,7 +22,10 @@ import { useLocale } from './useLocale.js';
  * manager's three long folder labels — and it is recorded as a sitting rather
  * than pretended at here. What a test can hold is the **path**: an account's
  * locale reaches a chunk, the chunk reaches the module-level tables, and a
- * component that never heard of any of it re-renders in French.
+ * component that never heard of any of it re-renders in French. *Its own
+ * subscription is what re-renders it here*, so this cannot see a page below the
+ * router's memoised `Outlet` (corrected 2026-09-28); `shell-layout.test.tsx`
+ * holds that, on the real router.
  *
  * ***`roleWords.ts` is the probe on purpose.*** It is an ordinary table in an
  * ordinary file that knows nothing about locales, imported here by the same
@@ -83,5 +87,46 @@ describe('the account’s locale', () => {
       expect(screen.getByTestId('role').textContent).toBe('Writing the story');
     });
     expect(activeLocale()).toBe('en');
+  });
+});
+
+/**
+ * ***A page below a memoised boundary*** (2026-09-28). The router's `Outlet` is
+ * `React.memo`, so a shell that re-renders when a catalogue lands does not
+ * re-render the page under it; `Frozen` here is that boundary, never given a
+ * reason to render again. A page that subscribes itself (`localised`) follows
+ * the language through it, and one that does not keeps the words it had.
+ */
+describe('a page below a memoised boundary', () => {
+  function Page(): JSX.Element {
+    return <p data-testid="page">{roleLabel('prose')}</p>;
+  }
+
+  it('follows the language when the route subscribes it', async () => {
+    const Wrapped = localised(Page);
+    const Frozen = memo(function Frozen() {
+      return <Wrapped />;
+    });
+    render(<Frozen />);
+    expect(screen.getByTestId('page').textContent).toBe('Writing the story');
+
+    act(() => {
+      applyCatalogue('fr-x-machine', MACHINE_FRENCH);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('page').textContent).toBe('Rédaction de l’histoire');
+    });
+  });
+
+  it('keeps the words it had when nothing subscribes it, which is the boundary’s effect', () => {
+    const Frozen = memo(function Frozen() {
+      return <Page />;
+    });
+    render(<Frozen />);
+
+    act(() => {
+      applyCatalogue('fr-x-machine', MACHINE_FRENCH);
+    });
+    expect(screen.getByTestId('page').textContent).toBe('Writing the story');
   });
 });

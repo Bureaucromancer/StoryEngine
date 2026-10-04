@@ -186,6 +186,24 @@
                       },
                       "sectionId": {
                         "type": "string"
+                      },
+                      "scope": {
+                        "title": "ActorScope",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, everyone but the speaker, or whoever the call writes as (the speaker under per-actor dispatch, everyone present under merged). Absent is everyone.",
+                        "anyOf": [
+                          {
+                            "const": "speaker",
+                            "type": "string"
+                          },
+                          {
+                            "const": "others",
+                            "type": "string"
+                          },
+                          {
+                            "const": "voiced",
+                            "type": "string"
+                          }
+                        ]
                       }
                     }
                   },
@@ -208,6 +226,24 @@
                           },
                           {
                             "const": "visual",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "scope": {
+                        "title": "ActorScope",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, everyone but the speaker, or whoever the call writes as (the speaker under per-actor dispatch, everyone present under merged). Absent is everyone.",
+                        "anyOf": [
+                          {
+                            "const": "speaker",
+                            "type": "string"
+                          },
+                          {
+                            "const": "others",
+                            "type": "string"
+                          },
+                          {
+                            "const": "voiced",
                             "type": "string"
                           }
                         ]
@@ -279,6 +315,24 @@
                             "type": "string"
                           }
                         ]
+                      },
+                      "scope": {
+                        "title": "ActorScope",
+                        "description": "Whose cards the block takes on a speaking call: the speaker's only, everyone but the speaker, or whoever the call writes as (the speaker under per-actor dispatch, everyone present under merged). Absent is everyone.",
+                        "anyOf": [
+                          {
+                            "const": "speaker",
+                            "type": "string"
+                          },
+                          {
+                            "const": "others",
+                            "type": "string"
+                          },
+                          {
+                            "const": "voiced",
+                            "type": "string"
+                          }
+                        ]
                       }
                     }
                   },
@@ -294,6 +348,18 @@
                         "type": "string"
                       },
                       "channelId": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "state",
                         "type": "string"
                       }
                     }
@@ -320,6 +386,22 @@
                             "type": "string"
                           }
                         ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "of",
+                      "field"
+                    ],
+                    "properties": {
+                      "of": {
+                        "const": "setup",
+                        "type": "string"
+                      },
+                      "field": {
+                        "type": "string"
                       }
                     }
                   },
@@ -839,6 +921,23 @@
               "^(.*)$": {}
             }
           }
+        }
+      }
+    },
+    "pushDirections": {
+      "type": "object",
+      "required": [
+        "natural",
+        "random"
+      ],
+      "properties": {
+        "natural": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "random": {
+          "minLength": 1,
+          "type": "string"
         }
       }
     },

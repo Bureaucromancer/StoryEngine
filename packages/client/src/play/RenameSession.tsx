@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useRenameSession } from '../queries.js';
 import { AlertNote } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { Field } from '../ui/Field.js';
 import { sessionLabel } from './session-label.js';
+import { useFocusOnReveal } from '../ui/useFocusOnReveal.js';
 
 /**
  * Naming a session, wherever one is shown — [03 §8](../../../../docs/design/03-data-model.md).
@@ -34,10 +35,29 @@ import { sessionLabel } from './session-label.js';
 export function RenameSession(props: { sessionId: string; name: string }): React.JSX.Element {
   const [draft, setDraft] = useState<string | null>(null);
   const rename = useRenameSession(props.sessionId);
+  /**
+   * ***The keyboard goes with the prompt, and comes back*** (2026-10-01,
+   * polish 10). *Rename* is replaced by the prompt it opens, so focus fell to
+   * the page twice: when the prompt opened, and when Save or Cancel closed it
+   * and took the focused button with it.
+   */
+  const form = useFocusOnReveal<HTMLFormElement>(draft !== null);
+  const button = useRef<HTMLButtonElement>(null);
+  const returning = useRef(false);
+  useEffect(() => {
+    if (draft !== null || !returning.current) return;
+    returning.current = false;
+    button.current?.focus();
+  }, [draft]);
+  const close = (): void => {
+    returning.current = true;
+    setDraft(null);
+  };
 
   if (draft === null) {
     return (
       <Button
+        ref={button}
         type="button"
         variant="quiet"
         size="tiny"
@@ -53,13 +73,12 @@ export function RenameSession(props: { sessionId: string; name: string }): React
 
   return (
     <form
+      ref={form}
       className="flex items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         rename.mutate(draft.trim(), {
-          onSuccess: () => {
-            setDraft(null);
-          },
+          onSuccess: close,
         });
       }}
     >
@@ -67,14 +86,7 @@ export function RenameSession(props: { sessionId: string; name: string }): React
       <Button type="submit" variant="primary" size="tiny" disabled={rename.isPending}>
         Save
       </Button>
-      <Button
-        type="button"
-        variant="quiet"
-        size="tiny"
-        onClick={() => {
-          setDraft(null);
-        }}
-      >
+      <Button type="button" variant="quiet" size="tiny" onClick={close}>
         Cancel
       </Button>
       {rename.isError ? <AlertNote role="alert">{rename.error.message}</AlertNote> : null}

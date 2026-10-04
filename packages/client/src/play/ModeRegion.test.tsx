@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,16 +24,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const writeSessionChannel = vi.fn();
+const runSessionStep = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
   return {
     ...actual,
     writeSessionChannel: (...a: unknown[]) => writeSessionChannel(...a) as unknown,
+    runSessionStep: (...a: unknown[]) => runSessionStep(...a) as unknown,
   };
 });
 
-const { ModeRegion } = await import('./ModeRegion.js');
+const { ModeActions, ModeRegion } = await import('./ModeRegion.js');
 type ModeSurface = import('../api.js').ModeSurface;
 
 const SESSION_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
@@ -62,8 +64,9 @@ function surface(over: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 async function renderRegion(
-  region: 'hud' | 'panel' | 'message' | 'stage',
+  region: 'hud' | 'panel' | 'message' | 'stage' | 'settings',
   scopeKey?: string | null,
+  nameOf?: (scopeKey: string) => string,
 ): Promise<{ container: HTMLElement }> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { container } = render(
@@ -73,6 +76,7 @@ async function renderRegion(
         surfaces={given as ModeSurface[]}
         region={region}
         {...(scopeKey === undefined ? {} : { scopeKey })}
+        {...(nameOf === undefined ? {} : { nameOf })}
       />
     </QueryClientProvider>,
   );
@@ -87,6 +91,8 @@ beforeEach(() => {
   given = [];
   writeSessionChannel.mockReset();
   writeSessionChannel.mockResolvedValue({});
+  runSessionStep.mockReset();
+  runSessionStep.mockResolvedValue({ turn: { id: 't-1' } });
 });
 
 describe('a mode’s contributed surface', () => {
@@ -120,7 +126,7 @@ describe('a mode’s contributed surface', () => {
    * from the future.
    */
   it('skips a widget kind it does not know', async () => {
-    answerWith([surface({ kind: 'meter', label: 'Health' })]);
+    answerWith([surface({ kind: 'gauge', label: 'Health' })]);
     const { container } = await renderRegion('stage');
 
     expect(screen.queryByText('Health')).toBeNull();
@@ -217,5 +223,258 @@ describe('a mode’s contributed surface', () => {
     const box = await screen.findByRole('checkbox');
     expect((box as HTMLInputElement).checked).toBe(false);
     expect(screen.getByText('Show the scene')).toBeTruthy();
+  });
+});
+
+/**
+ * ***The two arms [P14.5a] added, and the grouping*** — a stat bar, and a
+ * structured value read and edited field by field. Still knowing no channel:
+ * every label, field and path below comes from the payload, and the writes
+ * are the ordinary channel write — the whole value for an edit, the whole set
+ * for a lock or a hide.
+ */
+describe('a record, a meter and a group', () => {
+  const WORLD = {
+    date: 'the third of Frost',
+    time: '',
+    location: 'the docks',
+    weather: 'fog',
+    temperature: '',
+    fields: [],
+    recent: [],
+  };
+
+  function world(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return surface({
+      region: 'panel',
+      key: 'se.track.world',
+      channelId: 'se.track.world',
+      kind: 'record',
+      label: 'The world',
+      group: 'Tracked',
+      image: undefined,
+      record: {
+        value: WORLD,
+        fields: [
+          { key: 'date', label: 'Date', show: 'line' },
+          { key: 'location', label: 'Location', show: 'line' },
+          { key: 'weather', label: 'Weather', show: 'line' },
+          { key: 'fields', label: 'Also', show: 'pairs' },
+          { key: 'secret', label: 'Secret', show: 'hologram' },
+        ],
+        locks: { key: 'se.track.locks', paths: ['se.track.world/location'] },
+        hidden: { key: 'se.track.hidden', paths: ['se.track.world/weather'] },
+      },
+      ...over,
+    });
+  }
+
+  it('reads a record under its group, marks a lock, and leaves a hidden field off until asked', async () => {
+    answerWith([world()]);
+    await renderRegion('panel');
+
+    expect(screen.getByRole('heading', { name: 'Tracked' })).toBeTruthy();
+    expect(screen.getByText('The world')).toBeTruthy();
+    expect(screen.getByText('the docks')).toBeTruthy();
+    expect(screen.getByText('locked')).toBeTruthy();
+    // Hidden from the reader, not from the story — and said, so it is findable.
+    expect(screen.queryByText('fog')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Show 1 hidden' }));
+    expect(screen.getByText('fog')).toBeTruthy();
+    // A `show` this build has not heard of is skipped, as an arm is.
+    expect(screen.queryByText('Secret')).toBeNull();
+  });
+
+  it('writes the whole value on Save, changed at the one field', async () => {
+    answerWith([world()]);
+    await renderRegion('panel');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const location = screen.getByRole('textbox', { name: 'Location' });
+    await userEvent.clear(location);
+    await userEvent.type(location, 'the chapel');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a row' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Tide');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Value' }), 'rising');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.track.world', {
+        ...WORLD,
+        location: 'the chapel',
+        fields: [{ name: 'Tide', value: 'rising' }],
+      });
+    });
+  });
+
+  it('locks and hides a field by writing the set the widget names', async () => {
+    answerWith([world()]);
+    await renderRegion('panel');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const date = screen.getByRole('group', { name: 'Date' });
+    await userEvent.click(within(date).getByRole('checkbox', { name: 'Lock' }));
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.track.locks', [
+        'se.track.world/location',
+        'se.track.world/date',
+      ]);
+    });
+    const weather = screen.getByRole('group', { name: 'Weather' });
+    await userEvent.click(within(weather).getByRole('checkbox', { name: 'Hide' }));
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.track.hidden', []);
+    });
+  });
+
+  it('ticks a quest objective straight from the card', async () => {
+    const quests = [
+      {
+        name: 'The key',
+        objectives: [
+          { text: 'Find the vault', completed: false },
+          { text: 'Open it', completed: false },
+        ],
+        completed: false,
+      },
+    ];
+    answerWith([
+      world({
+        key: 'se.track.quests',
+        channelId: 'se.track.quests',
+        label: 'Quests',
+        record: {
+          value: quests,
+          fields: [{ key: '', label: 'Quests', show: 'checklists' }],
+          locks: null,
+          hidden: null,
+        },
+      }),
+    ]);
+    await renderRegion('panel');
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Find the vault' }));
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.track.quests', [
+        {
+          ...quests[0],
+          objectives: [
+            { text: 'Find the vault', completed: true },
+            { text: 'Open it', completed: false },
+          ],
+        },
+      ]);
+    });
+  });
+
+  it('heads a per-character card with who it is about, and draws stats as bars', async () => {
+    answerWith([
+      world({
+        key: 'se.track.character#a-vera',
+        channelId: 'se.track.character',
+        scopeKey: 'a-vera',
+        label: 'Character',
+        record: {
+          value: { mood: 'wary', stats: [{ name: 'Patience', value: 3, max: 10 }] },
+          fields: [
+            { key: 'mood', label: 'Mood', show: 'line' },
+            { key: 'stats', label: 'Stats', show: 'meters' },
+          ],
+          locks: null,
+          hidden: null,
+        },
+      }),
+      surface({
+        region: 'panel',
+        key: 'x.health',
+        kind: 'meter',
+        label: 'Health',
+        image: undefined,
+        meter: { value: 7, min: 0, max: 10 },
+      }),
+    ]);
+    await renderRegion('panel', undefined, (actorId) => (actorId === 'a-vera' ? 'Vera' : actorId));
+
+    expect(screen.getByText('Character: Vera')).toBeTruthy();
+    const bars = screen.getAllByRole('meter');
+    expect(bars.map((bar) => bar.getAttribute('aria-label'))).toEqual(['Health', 'Patience']);
+    expect(screen.getByText('3/10')).toBeTruthy();
+  });
+
+  /**
+   * ***A row lock is shown and cleared*** (2026-09-29, the review) — the grain
+   * the step writes back and the Marinara import writes, and a path the card
+   * cannot place is listed with a way to clear it rather than held invisibly.
+   */
+  it('marks a locked row, clears it from the editor, and lists a lock it cannot place', async () => {
+    const rowLock = 'se.track.character#a-vera/stats/Patience';
+    const stray = 'se.track.character#a-vera/fields/gone';
+    const card = (): Record<string, unknown> =>
+      world({
+        key: 'se.track.character#a-vera',
+        channelId: 'se.track.character',
+        scopeKey: 'a-vera',
+        label: 'Character',
+        record: {
+          value: { mood: 'wary', stats: [{ name: 'Patience', value: 3, max: 10 }] },
+          fields: [
+            { key: 'mood', label: 'Mood', show: 'line' },
+            { key: 'stats', label: 'Stats', show: 'meters' },
+          ],
+          locks: { key: 'se.track.locks', paths: [rowLock, stray] },
+          hidden: { key: 'se.track.hidden', paths: [] },
+        },
+      });
+
+    answerWith([card()]);
+    await renderRegion('panel');
+    expect(screen.getByRole('meter').getAttribute('aria-label')).toBe('Patience (locked)');
+
+    // The lock the card has no row for, listed and cleared.
+    expect(screen.getByText('fields › gone — locked')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.track.locks', [rowLock]);
+    });
+
+    // The row's own lock, on the row in the editor.
+    writeSessionChannel.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const stats = screen.getByRole('group', { name: 'Stats' });
+    const locks = within(stats).getAllByRole('checkbox', { name: 'Lock' });
+    // The Patience row's, under its row, then the field's own.
+    expect(locks.map((one) => (one as HTMLInputElement).checked)).toEqual([true, false]);
+    const [rowLocked] = locks;
+    if (rowLocked === undefined) throw new Error('no row lock');
+    await userEvent.click(rowLocked);
+    await waitFor(() => {
+      expect(writeSessionChannel).toHaveBeenCalledWith(SESSION_ID, 'se.track.locks', [stray]);
+    });
+  });
+
+  it('offers a declared action, and runs its step', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ModeActions
+          sessionId={SESSION_ID}
+          actions={[{ stepId: 'se.scene.track', label: 'Update trackers' }]}
+        />
+      </QueryClientProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Update trackers' }));
+    await waitFor(() => {
+      expect(runSessionStep).toHaveBeenCalledWith(SESSION_ID, 'se.scene.track');
+    });
+  });
+
+  it('offers nothing when the server lists no action', () => {
+    const client = new QueryClient();
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <ModeActions sessionId={SESSION_ID} actions={[]} />
+      </QueryClientProvider>,
+    );
+    expect(container.textContent).toBe('');
   });
 });

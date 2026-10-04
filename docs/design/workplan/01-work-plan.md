@@ -23,6 +23,13 @@ reusable visual identity ([17](../17-character-studio.md)).**
 **6.0 adds the authoring tier — authored rules, and the surfaces that make
 authoring what you played a first-class activity.**
 
+*(2026-10-03: [25 B17](../25-open-questions.md) splits 4.0's World in two. The
+durable named set replaces Package, and lands before
+[25 B16](../25-open-questions.md)'s release or ships as a migration; the
+continuity half — accrual and the story bible — waits for real play, and
+whether that is still 4.0 is for the design step to say. The line above is not
+re-cut until then.)*
+
 **Surfaces own modes, and the two words are not interchangeable.** A surface is
 a top-level place in the application; a mode configures the pipeline inside one.
 Play holds Scene and Freeform, and later Campaign; Write holds Outline and
@@ -127,7 +134,13 @@ A World is a play-side grouping of sessions rather than a seventh portable kind,
 and sessions are the free-to-move tier ([04 §1](../04-schemas.md)). This is the
 easiest of the five to pass and the easiest to fail by accident, because the
 pressure to make a World exportable will be real the first time somebody wants
-to share one.
+to share one. *(2026-10-03: that pressure won, on purpose.
+[25 B17](../25-open-questions.md) makes World the durable named set that
+**replaces Package** — exportable, and Package's kind rather than a seventh, so
+the commitment's letter holds and its reasoning does not, and "at 4.0" no longer
+says when. The release line is not re-cut here; the design step that rewrites
+[15](../15-world.md) does that, and B17 gives the rename
+[25 B16](../25-open-questions.md)'s release as its deadline.)*
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**
@@ -1226,7 +1239,9 @@ routes whose only callers are their own tests, green in CI the whole time
 [P8](25-p8-implementation.md)***~~ ~~***Built on §5's fallback cut***~~
 ***Merged into `main` 2026-09-16 at `4a6e377`, and open*** — six stages, each
 with a *Done* block naming its commit, and **§3.2** as the gate's results table.
-*`main` as it stood immediately before the merge is the `pre-p8` branch.*
+*`main` as it stood immediately before the merge is* ~~*the `pre-p8` branch*~~
+*`af23e8d`, the merge commit's first parent* (***corrected 2026-10-01***: merged
+branches are closed rather than kept, so the hash is the marker).
 
 ***The cut was taken deliberately rather than under pressure***, which is why §5
 named one: the chain, the pipeline, the books, **manual capture** and the
@@ -1560,6 +1575,56 @@ nothing did.
 browser ([25 D3](../25-open-questions.md)) and Tailscale ([25 D1](../25-open-questions.md)),
 both moved to the roadmap.
 
+### P12A — The look
+
+***Written 2026-09-22 at the same sitting as [10 §1.3](../10-ui-surfaces.md), and
+it is the phase between P12 and the beta declaration.*** Skeleton:
+[P12A](34-p12a-the-look.md). *Written as P11A, on a branch cut before
+[P12](29-p12-implementation.md) existed, and renamed when P12 — backups, which
+has no row in this section — merged first on 2026-09-23. Filed at 33
+~~since~~ *from* 2026-10-02, after [P13](30-p13-aventuras-import.md),
+[P14](31-p14-scene-and-session-import.md) and the
+[main audit](32-main-audit.md), which have no rows here either and all ran
+before it; it is still the last phase before beta is said.* *(2026-10-03: and
+at 34 since then, behind [P15](33-p15-setup-from-a-turn.md) — make a setup from
+here — which has no row here either, was built while this phase had not opened,
+and merged first; the same reasoning, one more phase.)*
+
+**Why there is a phase after the beta-hardening phase**, since that reads as a
+contradiction and the answer is mechanical. A directive to push the client
+toward Marinara Engine's sensibilities produced
+[10 §1.3](../10-ui-surfaces.md) — a written direction with a list of what is
+taken, what is rejected and why, and, crucially, **an owner for every item that
+is 1.0's**. [releases §0](04-repo-and-releases.md) makes beta a *completeness*
+gate against the design corpus, and [P11 §3](28-p11-implementation.md)'s **R4**
+is a person reading that corpus capability by capability. So the note moved the
+gate the moment it was written, and P12A is the phase that puts it back.
+**R1, R2, R3 and R5 are unaffected and should be walked now; only R4 waits.**
+
+**Nine stages, three of which are the phase**: the backdrop behaving as
+[10 §2.3](../10-ui-surfaces.md) specifies rather than as a picture in the
+column, faces wherever the engine claims an identity
+([00 §3.6](../00-stance.md)), and the play column that has grown seven
+disclosures above the prose. Around them: the tokens the appearance layer never
+got ([polish §6](06-polish.md) stopped at colour, radius and type step, which was
+right then), a reading face — *built on `main` first, 2026-10-01, at
+[polish §17](06-polish.md), so what P12A keeps of it is a measure check* — five
+named motions with the
+`prefers-reduced-motion` story the client does not have, section jumps in the
+editors, and two phone rules that were written and never enforced.
+
+**What it is not** is a second theme, a density setting
+([25 E10](../25-open-questions.md)), or a pass over the tooling surfaces —
+[10 §1.3](../10-ui-surfaces.md) leaves the dense half of
+[10 §1.1](../10-ui-surfaces.md)'s table exactly as it was, and the library still
+shows the model. Three items of the direction are explicitly **not 1.0** and are
+on [24](../24-roadmap.md) rather than in a stage, which is the same discipline
+[P11 §0.1](28-p11-implementation.md)'s register exists to enforce.
+
+**Its gate is [sitting T](05-manual-testing.md)** — six rows, registered before
+the phase opened, and the first list here that could be written that early
+because the claims were written before the code.
+
 ---
 
 ## 5. After 1.0: the committed series
@@ -1697,7 +1762,7 @@ bar nobody owns is a wish.
 
 | | What | Where it stands, 2026-09-17 |
 |---|---|---|
-| 1 | **CI that builds, tests and produces artifacts on every merge** | `ci.yml` builds and tests on every push; the on-tag tier produces the artifacts. *Merge-time artifacts are deliberately not built* — a private alpha has nobody to hand them to, and an artifact nobody fetches is a cache with a retention policy. |
+| 1 | **CI that builds, tests and produces artifacts on every merge** | `ci.yml` builds and tests on every push; the on-tag tier produces the artifacts — *and, since 2026-10-01, replays the Linux check and the changelog check on the tagged commit before it publishes either.* *Merge-time artifacts are deliberately not built* — a private alpha has nobody to hand them to, and an artifact nobody fetches is a cache with a retention policy. |
 | 2 | **Reproducible builds of the container and the tarball, from a tag** | The tarball is reproducible **and checked**: packed twice in the workflow and compared, with `tools/pack-tarball.test.ts` making the same claim over a fixture. The container's half is [P11 §3](28-p11-implementation.md)'s row 9 — it wants a daemon and two runs. |
 | 3 | **The release cut automated: tag → build → publish → changelog** | Done for the image at [P6A](19-p6a-alpha-1.md) and for the tarball at [P11.9](28-p11-implementation.md). ~~one artifact's chain, built once for real; five to go~~ **Two, and one tag cuts both.** |
 | 4 | **Channels wired and *boring*** | `testing` moves with every `v*` tag and the unraid template follows it; `latest` moves nowhere, deliberately, because unraid's auto-update and watchtower both track that alias and an alpha is not something to hand an auto-updater. **`nightly` does not exist and should not until somebody is reading it** — [releases §4](04-repo-and-releases.md): a nightly that is often broken is worse than none. |

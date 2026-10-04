@@ -71,9 +71,20 @@ export function setupFromForm(form: SessionForm): Setup {
        */
       personaOptions: form.persona === '' ? [] : [refOf(form.persona, form.names)],
       // Not written, because the party is `se.party` since [P7.3] and seeding it
-      // means writing effects — which the session-creation path does not do
+      // means writing effects ~~— which the session-creation path does not do
       // either. Empty here and unread there is one honest gap rather than two
-      // halves that disagree.
+      // halves that disagree.~~
+      //
+      // *Corrected 2026-10-03, at the P15 merge*: the creation path has read
+      // `partyDefault` since P15.3 — it seats each member and makes them
+      // `companion` on `se.party`, on a turn of its own when there is no
+      // opening — so this is no longer a gap both halves share. It stays empty
+      // because the form's *Characters* are a cast, which Start seats without
+      // making anyone a companion: writing them here would make a saved Setup
+      // start a different session from the one the form starts. A Setup saved
+      // from a form that picked characters therefore starts with nobody
+      // seated — recorded at [P7.4](../../../../docs/design/workplan/23-p7-implementation.md),
+      // with what closing it would take (a cast on a Setup that is not a party).
       partyDefault: [],
       narrator: null,
     },

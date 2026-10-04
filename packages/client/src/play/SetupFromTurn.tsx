@@ -13,8 +13,10 @@ import {
   type SetupDraft,
   type SetupFromTurn as SetupFromTurnBody,
   type SetupPart,
+  type SetupPartOutcome,
   type SetupPartRefusal,
 } from '../api.js';
+import { remedySentence } from '../failures.js';
 import { labels } from '../i18n/catalogue.js';
 import { StartSession } from '../library/StartSession.js';
 import { Alert } from '../ui/Alert.js';
@@ -27,7 +29,7 @@ import { Fine, SectionTitle, SubsectionTitle } from '../ui/Text.js';
 /**
  * ***Make a setup from here*** — [04 §7.2](../../../../docs/design/04-schemas.md),
  * [16 §3](../../../../docs/design/16-authoring.md),
- * [P13.8](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.8](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **Beside *Continue from here*, and the other answer to the same wish.**
  * Continuing from a turn keeps the whole history behind it; this condenses that
@@ -85,13 +87,54 @@ export function SetupFromTurn(props: {
   );
 }
 
-/** What a part that did not land says — the route sends a class, never prose. */
+/**
+ * What a part that did not land says — the route sends a class, never prose.
+ *
+ * *`window-too-small` and `truncated` added at the merge* (2026-10-03), when
+ * the server's draft learned them. A cut-off reply names both fixes, because
+ * either works and only the person knows which they want: a shorter part asks
+ * the same model for less, and a longer reply length lets it finish. The first
+ * says what the failure catalogue's `window-too-small` says, *written out
+ * rather than read from it*: `catalogue.test.ts` sweeps only tables of plain
+ * literals, and one borrowed value would take this whole table out of its
+ * sight.
+ *
+ * *The two `summary-` reasons since review the same day*: a link of the
+ * session's summary chain that was cut off, or came back with nothing, fails
+ * every part at once. The part's own sentences named the wrong reply and
+ * offered a note, which reaches only the part it names and never the
+ * summariser — so these say *a summary of the earlier story*, and the fix
+ * that reaches it.
+ */
 const REFUSAL: Record<SetupPartRefusal, string> = labels('play.setup-part-refusal', {
   'role-unbound': 'No model is set up for writing. Choose one in Settings, then try again.',
   'role-dangling': 'The model for writing points at a connection that is gone.',
+  'window-too-small':
+    'The model’s context window is too small to hold the story beside its reply. Raise the context window in the connection’s settings, or lower the reply length.',
   'call-failed': 'The model did not answer. Try again.',
+  truncated:
+    'The draft ran past the reply length and was cut off, so it is not shown. Try again with a note asking for it shorter, or raise the reply length.',
   'no-answer': 'The model answered with nothing usable. Try again, perhaps with a note.',
+  'summary-truncated':
+    'A summary of the earlier story ran past the reply length and was cut off, so nothing was drafted from it. Raise the reply length, then try again.',
+  'summary-no-answer':
+    'The model wrote no usable summary of the earlier story, so nothing was drafted from it. Try again.',
 });
+
+/**
+ * ***The sentence for a part that failed***, and for a provider failure the
+ * remedy's — impersonation's rule (`impersonateLine`), since 2026-10-03, when
+ * the route began sending one. *The model did not answer* was right for an
+ * endpoint that was down and wrong for a wrong key or a busy one, and each has
+ * its own fix. The generic line stays for a remedy this build has never heard
+ * of, which `remedySentence` answers with nothing rather than a guess.
+ */
+function refusalOf(outcome: Extract<SetupPartOutcome<unknown>, { ok: false }>): string {
+  if (outcome.reason === 'call-failed') {
+    return remedySentence(outcome.remedy) ?? REFUSAL['call-failed'];
+  }
+  return REFUSAL[outcome.reason];
+}
 
 type PartState = { kind: 'idle' } | { kind: 'drafting' } | { kind: 'failed'; reason: string };
 
@@ -158,7 +201,7 @@ function SetupWizard(props: {
         const outcome = drafted.parts[part];
         if (outcome === undefined) continue;
         if (!outcome.ok) {
-          next[part] = { kind: 'failed', reason: REFUSAL[outcome.reason] };
+          next[part] = { kind: 'failed', reason: refusalOf(outcome) };
           continue;
         }
         next[part] = { kind: 'idle' };

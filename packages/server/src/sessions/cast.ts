@@ -101,6 +101,16 @@ export const PRESENCE_CHANNEL: ChannelDefinition = {
    * **Absent is not present**, and the default matters more than it looks: a
    * cast member nobody has mentioned is not in the scene, and an init of `true`
    * would put the whole cast in every room until something said otherwise.
+   *
+   * ***Under a mode's `castIsPresent` this literal is not the default*** —
+   * [P14.3]. There absent reads as present and `false` as *muted*
+   * ({@link readPresence}), so the one place that writes `init` as a value —
+   * the quarantine, which resets a malformed value to it
+   * (`quarantineEffects`) — would have muted a member where it meant to put
+   * them back to nobody-said-anything. `readPresence` reads a quarantined
+   * value as absent instead (2026-09-29, the [P14.3] review); the literal
+   * stays `false` because the channel is the engine's, and the other reading
+   * is still the one every mode without `castIsPresent` has.
    */
   init: { kind: 'literal', value: false },
   /**
@@ -298,12 +308,43 @@ export function readStatus(
   return typeof held === 'string' ? held : 'alive';
 }
 
-/** Whether an actor is in the scene at a node. Absent is absent. */
+/**
+ * Whether an actor is in the scene at a node. ~~Absent is absent.~~
+ *
+ * ***Under the mode's reading of presence since [P14.3]*** —
+ * `ParticipantPolicy.castIsPresent`, [P14 §1.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ * Without it, absent is absent: the channel's own `init: false`, and what a
+ * story whose cast walks in and out of rooms wants. With it, **only an explicit
+ * `false` is not present**, and it means *muted* — a cast nobody has said
+ * anything about is a cast that is all here, which is what a group chat is.
+ *
+ * *One reader for the three places that ask* — the speaker policy, the
+ * collector's cards and the cast panel. [P14.1] flagged that the panel read
+ * presence as `true`-only while the selector read it through the mode, so a
+ * Scene member nobody had muted spoke every turn and showed on the panel as
+ * absent. The default stays the old reading, so a caller that says nothing
+ * about the mode reads what it always read.
+ */
 export function readPresence(
-  channels: Readonly<Record<string, { value: unknown }>>,
+  channels: Readonly<Record<string, { value: unknown; degraded?: unknown }>>,
   actorId: string,
+  castIsPresent = false,
 ): boolean {
-  return channels[channelKey(SE_PRESENCE, actorId)]?.value === true;
+  const state = channels[channelKey(SE_PRESENCE, actorId)];
+  /**
+   * ***A quarantined value is absent, under `castIsPresent`*** (2026-09-29,
+   * the [P14.3] review). The quarantine resets a malformed value to the
+   * channel's `init: false` and marks the state `degraded`; read as written,
+   * that ~~is the default~~ is **muted** under this reading, so a member whose
+   * presence a hand edit had mangled left every call and the round — a
+   * decision nobody made. The marker is how to tell the engine's reset from a
+   * person's mute: the next write of the channel clears it (`store.ts`), so a
+   * member muted afterwards reads as muted. Without `castIsPresent` the reset
+   * already is the default, and nothing changes.
+   */
+  if (castIsPresent && state?.degraded !== undefined) return true;
+  const held = state?.value;
+  return castIsPresent ? held !== false : held === true;
 }
 
 /**
@@ -434,6 +475,12 @@ export function castRows(
   cast: { persona?: string | null; actors?: string[] } | undefined,
   channels: Readonly<Record<string, { value: unknown }>>,
   path: readonly Turn[],
+  /**
+   * The mode's `participants.castIsPresent` — [P14.3]. See {@link readPresence}:
+   * under it a declared member with no presence value is present, so the panel
+   * shows present who the speaker policy treats as present.
+   */
+  castIsPresent = false,
 ): CastRow[] {
   const introduced = introducedOn(path);
   const pending = pendingStatuses(path);
@@ -446,7 +493,7 @@ export function castRows(
 
   return [...ids].sort().map((actorId) => ({
     actorId,
-    presence: readPresence(channels, actorId),
+    presence: readPresence(channels, actorId, castIsPresent),
     status: readStatus(channels, actorId),
     pending: pending.get(actorId) ?? null,
     introduced: introduced.has(actorId),
@@ -493,4 +540,18 @@ function pendingStatuses(path: readonly Turn[]): Map<string, string> {
   }
 
   return pending;
+}
+
+/**
+ * ***Who a per-character card is about*** — the present members of the cast
+ * but the persona, [P14.5a]'s *"each present character"*.
+ *
+ * *The persona is left out* because the player has a tracker of their own, a
+ * different shape (`StepCastMember.persona`); a character card for them would be
+ * the same person described twice, which the character tracker's step already
+ * refuses to do. *Present*, read off the rows, so it is presence as the mode
+ * reads it — a member nobody muted in an embodied chat is in the room.
+ */
+export function presentMembers(rows: readonly CastRow[], persona: string | null): string[] {
+  return rows.filter((row) => row.presence && row.actorId !== persona).map((row) => row.actorId);
 }

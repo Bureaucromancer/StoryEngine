@@ -432,6 +432,10 @@ export function renditionPair(): Rendition[] {
       binding: { connectionId: 'c-1', modelId: 'a-picture-model' },
       answeredAs: 'a-picture-model',
       seed: 481_516,
+      // Sent, which is the case the gate row is about: two pictures that differ
+      // by a seed the endpoint actually received. The withheld and unrecorded
+      // cases override this where they are asserted.
+      seedSent: true,
       workflow: {},
     },
     error: null,

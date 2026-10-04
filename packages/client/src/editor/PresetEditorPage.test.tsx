@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -86,11 +86,14 @@ const updateObject = vi.fn();
 const createObject = vi.fn();
 const authState = vi.fn();
 const navigate = vi.fn();
+const assistField = vi.fn();
 
 let params: { id: string } = { id: PRESET_ID };
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  // Top level, because `FieldAssist` imports it by name rather than off `api`.
+  assistField: (...a: unknown[]) => assistField(...a) as unknown,
   api: {
     readObject: (...a: unknown[]) => readObject(...a) as unknown,
     listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
@@ -225,12 +228,87 @@ describe('editing the sentence that makes a mode a narrator', () => {
     ]);
   });
 
+  /**
+   * ***A block goes when asked twice*** (2026-10-01, polish 8). It went at
+   * the first click — a block can hold a long template — where a lorebook's
+   * entry had always asked; the four editors ask the same way now.
+   */
+  it('removes a block only once asked, and the file then lacks it', async () => {
+    renderEditor();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Remove se.lore' }));
+    expect(screen.getByRole('button', { name: 'Move se.lore up' })).toBeTruthy();
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Remove',
+        description: 'Remove this block from the pack? Nothing is written until you save.',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    const [, , object] = updateObject.mock.calls[0] as [string, string, Record<string, unknown>];
+    expect((object['blocks'] as { id: string }[]).map((b) => b.id)).toEqual(['se.instruction']);
+  });
+
   it('refuses to open a shipped pack, and says what to do instead', async () => {
     readObject.mockResolvedValue(stored(pack(SYSTEM_ID, 'Scene'), 'system'));
     renderEditor();
 
     expect(await screen.findByText(/read-only/)).toBeTruthy();
     expect(screen.queryByLabelText('Template')).toBeNull();
+  });
+});
+
+/**
+ * ***An assist on a block lands on the pack as it is*** (2026-09-27) — [10
+ * §11.5]'s *"every field stays directly typeable while an assist is running"*.
+ * A block's template carries an assist, and its result used to write back the
+ * whole pack as the render had it when *Write it* was pressed — the name typed
+ * meanwhile went with it.
+ */
+describe('an assist that lands after other edits', () => {
+  it('keeps the name typed while a block was being written', async () => {
+    let arrive: (text: string) => void = () => undefined;
+    assistField.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          arrive = (text) => {
+            resolve({ text, model: 'fake-hi', seed: 'the prompt that ran' });
+          };
+        }),
+    );
+    renderEditor();
+    const user = userEvent.setup();
+
+    const template = await screen.findByLabelText('Template');
+    const field = template.parentElement;
+    if (field === null) throw new Error('a template outside any field');
+    await user.click(within(field).getByRole('button', { name: 'Assist' }));
+    await user.click(within(field).getByRole('button', { name: 'Write it' }));
+    await waitFor(() => {
+      expect(assistField).toHaveBeenCalledTimes(1);
+    });
+
+    await user.type(screen.getByLabelText(/^Name/), ' Nights');
+    await act(async () => {
+      arrive('You are the rain on the harbour.');
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Template')).toHaveProperty(
+        'value',
+        'You are the rain on the harbour.',
+      );
+    });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    const [, , object] = updateObject.mock.calls[0] as [string, string, Record<string, unknown>];
+    expect(object['name']).toBe('Harbour Nights');
+    const blocks = object['blocks'] as { id: string; template?: string }[];
+    expect(blocks.find((b) => b.id === 'se.instruction')?.template).toBe(
+      'You are the rain on the harbour.',
+    );
   });
 });
 

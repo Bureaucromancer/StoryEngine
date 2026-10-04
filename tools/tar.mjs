@@ -39,7 +39,8 @@ import { TextDecoder } from 'node:util';
  * `pack-tarball.mjs` says zero.
  *
  * Only the fields a directory tree needs: name, mode, size, mtime, type, the
- * prefix and the checksum. **Ownership is deliberately zero** — an install runs
+ * prefix and the checksum — and, since 2026-10-01, a link's target, because a
+ * deployed tree is not a tree of files (`linkMember`). **Ownership is deliberately zero** — an install runs
  * as whoever it runs as, and carrying uids from the machine that packed the
  * archive is how an unpack produces files its own service cannot read.
  */
@@ -97,8 +98,24 @@ export function splitName(name) {
   );
 }
 
+/**
+ * One header block.
+ *
+ * `type` and `linkname` are **this copy's alone** (2026-10-01): a release tree is
+ * full of symbolic links and a backup has none, so `storage/tar.ts` does not take
+ * them and `tar-seam.test.ts` holds the two to the same bytes over the regular
+ * files both write. Their defaults are what every header carried before, so a
+ * caller that passes neither gets the bytes it always got.
+ */
 export function tarHeader(name, size, options = {}) {
-  const { mtime = 0, mode = 0o644 } = options;
+  const { mtime = 0, mode = 0o644, type = '0', linkname = '' } = options;
+  // **Refused rather than cut**, for `splitName`'s reason: `Buffer.write` stops
+  // at the field's end without a word, and a link that points at the first 100
+  // bytes of its target is a plausible archive with a wrong tree in it. A longer
+  // target travels in a PAX record — `linkMember` below.
+  if (Buffer.byteLength(linkname, 'utf8') > NAME_MAX) {
+    throw new Error(`This link target is too long for a tar header: ${linkname}`);
+  }
   const split = splitName(name);
   const block = Buffer.alloc(BLOCK);
   block.write(split.name, 0, NAME_MAX, 'utf8');
@@ -110,7 +127,8 @@ export function tarHeader(name, size, options = {}) {
   // Spaces while the sum is taken, then the sum written over them. That is the
   // format's own rule and the reason the two writes below look redundant.
   block.write('        ', 148, 8, 'ascii');
-  block.write('0', 156, 1, 'ascii');
+  block.write(type, 156, 1, 'ascii');
+  if (linkname !== '') block.write(linkname, 157, NAME_MAX, 'utf8');
   block.write('ustar\0', 257, 6, 'ascii');
   block.write('00', 263, 2, 'ascii');
   // **Before the checksum**, which is the whole of what makes adding a field to
@@ -123,6 +141,64 @@ export function tarHeader(name, size, options = {}) {
   for (const byte of block) sum += byte;
   block.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148, 8, 'ascii');
   return block;
+}
+
+/**
+ * ***A symbolic link, as the bytes that stand for one*** — added 2026-10-01.
+ *
+ * **A release tree is links all the way down**, which is why this exists and why
+ * it is not optional. pnpm resolves every package by linking
+ * `node_modules/<name>` to `node_modules/.pnpm/<name>@<version>/node_modules/<name>`,
+ * so a writer that knew only regular files packed the store and dropped every
+ * name anything imports: the unpacked server died on its first `import` with
+ * `ERR_MODULE_NOT_FOUND`, in a restart loop, while `install.sh` printed success.
+ *
+ * ***A target past ustar's 100 bytes travels in a PAX record*** (POSIX.1-2001's
+ * `linkpath`), because ustar gives `linkname` no prefix field the way it gives
+ * the name one — and pnpm's targets pass 100 in ordinary use:
+ * `../.pnpm/@storyengine+mode-assistant@file+packages+modes+assistant/node_modules/@storyengine/mode-assistant`
+ * is 107. The ustar field is then left **empty rather than cut**: a reader that
+ * does not know PAX makes a link to nothing, which fails where it happens,
+ * rather than a link to the first 100 bytes, which resolves somewhere wrong.
+ *
+ * *Mode `0777`*, which is what a link has on Linux and what GNU tar records; it
+ * is ignored on extraction and fixed here only so that it is not a fact about
+ * the packing machine.
+ */
+export function linkMember(name, target, options = {}) {
+  const { mtime = 0 } = options;
+  if (Buffer.byteLength(target, 'utf8') <= NAME_MAX) {
+    return tarHeader(name, 0, { mtime, mode: 0o777, type: '2', linkname: target });
+  }
+  const records = paxRecord('linkpath', target);
+  return Buffer.concat([
+    tarHeader(paxName(name), records.length, { mtime, mode: 0o644, type: 'x' }),
+    records,
+    Buffer.alloc(padding(records.length)),
+    tarHeader(name, 0, { mtime, mode: 0o777, type: '2' }),
+  ]);
+}
+
+/**
+ * One PAX record: `<length> <key>=<value>\n`, where the length counts **every
+ * byte of the record, its own digits included** — so it is found rather than
+ * computed, since the digit that makes it 100 makes it 101.
+ */
+export function paxRecord(key, value) {
+  const rest = Buffer.byteLength(` ${key}=${value}\n`, 'utf8');
+  let length = rest + 1;
+  while (String(length).length + rest !== length) length = String(length).length + rest;
+  return Buffer.from(`${String(length)} ${key}=${value}\n`, 'utf8');
+}
+
+/**
+ * The name a PAX header goes under, which no reader that knows PAX acts on — it
+ * describes the member after it. GNU tar's `<dir>/PaxHeaders.<pid>/<base>`
+ * without the pid, which would be a fact about the packing process.
+ */
+function paxName(name) {
+  const at = name.lastIndexOf('/');
+  return at === -1 ? `PaxHeaders/${name}` : `${name.slice(0, at)}/PaxHeaders/${name.slice(at + 1)}`;
 }
 
 /**

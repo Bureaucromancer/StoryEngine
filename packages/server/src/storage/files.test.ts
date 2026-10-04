@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  appendLine,
   describeUnusableDataDirectory,
   ensureWritableDirectory,
   fileExists,
   unlinkFile,
 } from './files.js';
+import { listVersions, snapshotReplaced } from './history.js';
 
 /**
  * `unlinkFile` versus `removeTree` — the blast radius, asserted.
@@ -32,6 +34,70 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
+});
+
+/**
+ * ***A torn last line costs itself and nothing more*** (2026-09-27). A crash
+ * or a full disk mid-append leaves a line with no newline, and the next append
+ * used to land on the end of it: two records in one line that parses as
+ * neither. `appendLine` now closes such a line off first.
+ */
+describe('appendLine', () => {
+  it('starts a new line after one a crash left unterminated', async () => {
+    const path = join(dir, 'segment.jsonl');
+    await writeFile(path, '{"id":"a"}\n{"id":"b","out');
+
+    await appendLine(path, '{"id":"c"}\n');
+
+    expect(await readFile(path, 'utf8')).toBe('{"id":"a"}\n{"id":"b","out\n{"id":"c"}\n');
+  });
+
+  it('adds nothing to a file that ends as it should, or is empty, or is not there', async () => {
+    const whole = join(dir, 'whole.jsonl');
+    await writeFile(whole, '{"id":"a"}\n');
+    await appendLine(whole, '{"id":"b"}\n');
+    expect(await readFile(whole, 'utf8')).toBe('{"id":"a"}\n{"id":"b"}\n');
+
+    const empty = join(dir, 'empty.jsonl');
+    await writeFile(empty, '');
+    await appendLine(empty, '{"id":"a"}\n');
+    expect(await readFile(empty, 'utf8')).toBe('{"id":"a"}\n');
+
+    const absent = join(dir, 'nested', 'absent.jsonl');
+    await appendLine(absent, '{"id":"a"}\n');
+    expect(await readFile(absent, 'utf8')).toBe('{"id":"a"}\n');
+  });
+
+  /**
+   * History's index is the other append-only file, and it appended with
+   * `appendFile` directly: the version recorded after a torn line vanished
+   * from the list with the one it was cut short by.
+   */
+  it('keeps the version recorded after a torn history line', async () => {
+    const objectRoot = join(dir, 'actors', 'vera');
+    await snapshotReplaced({
+      objectRoot,
+      payload: { schema: 'storyengine.actor/1', state: 'one' },
+      source: { kind: 'manual' },
+      reason: 'one',
+      keepPerObject: 10,
+    });
+    const index = join(objectRoot, 'history', 'index.jsonl');
+    await writeFile(index, `${await readFile(index, 'utf8')}{"id":"torn","dig`);
+
+    await snapshotReplaced({
+      objectRoot,
+      payload: { schema: 'storyengine.actor/1', state: 'two' },
+      source: { kind: 'manual' },
+      reason: 'two',
+      keepPerObject: 10,
+    });
+
+    expect((await listVersions(objectRoot)).map((version) => version.reason)).toEqual([
+      'one',
+      'two',
+    ]);
+  });
 });
 
 describe('unlinkFile', () => {

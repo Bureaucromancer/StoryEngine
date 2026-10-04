@@ -46,3 +46,29 @@ describe('the seeded session', () => {
     expect(seed).toContain('lore: [{ ref: { id: lorebook');
   });
 });
+
+/**
+ * ***The seeded actor says something*** — 2026-10-01.
+ *
+ * The seed wrote Mara as a SillyTavern card — `description`, `personality`,
+ * `greeting` — and an actor keeps none of those: the schema preserves unknown
+ * keys rather than refusing them, so the request succeeded and every section
+ * she has was empty. A text assertion, for this file's reason: what it catches
+ * is the card fields coming back.
+ */
+describe('the seeded actor', () => {
+  const block = /const actor = await ensure\('actors'[\s\S]*?\n {2}\}\);/.exec(seed)?.[0] ?? '';
+
+  it('is found, or the two below agree about nothing', () => {
+    expect(block).toContain("'mara-vance'");
+  });
+
+  it('writes no SillyTavern card field an actor does not have', () => {
+    expect(block).not.toMatch(/^\s+(description|personality|greeting|first_mes|scenario):/m);
+  });
+
+  it('fills the summary section and a written opening instead', () => {
+    expect(block).toContain('section.id === CONVENTIONAL_SECTION_IDS.summary');
+    expect(block).toContain('primaryWrittenId: greeting');
+  });
+});

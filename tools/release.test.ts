@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -34,6 +36,69 @@ const read = (path: string): string => readFileSync(join(root, path), 'utf8');
 
 const { version } = JSON.parse(read('package.json')) as { version: string };
 
+/**
+ * One job of a workflow, from its key to the next job's — the block, so an
+ * assertion about `verify` cannot be satisfied by a line in `image`. Jobs sit at
+ * two spaces under `jobs:`, and a comment before the next one belongs to it.
+ */
+function jobBlock(workflow: string, job: string): string {
+  const start = workflow.search(new RegExp(`^ {2}${job}:$`, 'm'));
+  if (start === -1) return '';
+  const rest = workflow.slice(start + 1);
+  const next = rest.search(/^(?: {2}#.*\n)*(?: {2}[\w-]+:$)/m);
+  return next === -1 ? workflow.slice(start) : workflow.slice(start, start + 1 + next);
+}
+
+/**
+ * The body of a named step's `run: |`, dedented — the script the runner would
+ * execute, for the tests that run it rather than read it.
+ */
+function stepScript(workflow: string, name: string): string {
+  const lines = workflow.split('\n');
+  const at = lines.findIndex((line) => line.trim() === `- name: ${name}`);
+  if (at === -1) return '';
+  const run = lines.findIndex((line, index) => index > at && /^\s+run: \|$/.test(line));
+  if (run === -1) return '';
+  const pad = (lines[run] ?? '').length - (lines[run] ?? '').trimStart().length;
+  const body: string[] = [];
+  for (const line of lines.slice(run + 1)) {
+    if (line.trim() !== '' && line.length - line.trimStart().length <= pad) break;
+    body.push(line);
+  }
+  const indent = Math.min(
+    ...body
+      .filter((line) => line.trim() !== '')
+      .map((line) => line.length - line.trimStart().length),
+  );
+  return body.map((line) => line.slice(indent)).join('\n');
+}
+
+/**
+ * Every command a block runs, one per line: single-line `run:` values and the
+ * lines of `run: |` bodies, trimmed, with comments and continuations left as
+ * they are — the commands compared here are one line each.
+ */
+function runCommandsOf(block: string): string[] {
+  const commands: string[] = [];
+  const lines = block.split('\n');
+  for (let at = 0; at < lines.length; at += 1) {
+    const match = /^(\s*)(?:- )?run: ?(.*)$/.exec(lines[at] ?? '');
+    if (match === null) continue;
+    const [, pad = '', value = ''] = match;
+    if (value !== '|') {
+      commands.push(value.trim());
+      continue;
+    }
+    for (at += 1; at < lines.length; at += 1) {
+      const line = lines[at] ?? '';
+      if (line.trim() !== '' && line.length - line.trimStart().length <= pad.length) break;
+      if (line.trim() !== '') commands.push(line.trim());
+    }
+    at -= 1;
+  }
+  return commands;
+}
+
 describe('the version this build claims', () => {
   it('is a release, not the workspace default', () => {
     // `write-build-info.mjs` refuses `0.0.0`, and this is the same claim one
@@ -45,7 +110,12 @@ describe('the version this build claims', () => {
   it('has a changelog entry', () => {
     // [releases §7]: every release tag needs one, because
     // [09 §7] makes *what am I running* a user-facing question.
-    expect(read('CHANGELOG.md')).toContain(`## ${version}`);
+    //
+    // ~~`toContain`~~ **The heading whole** (2026-10-01): a substring match let
+    // `1.0.0` pass on `## 1.0.0-alpha.4 — …`, so the first real release could
+    // have shipped with no entry. The version, then a space or the line's end.
+    const heading = new RegExp(`^## ${version.replaceAll('.', '\\.')}(?: |$)`, 'm');
+    expect(read('CHANGELOG.md')).toMatch(heading);
   });
 
   it('is the image tag the compose file pulls', () => {
@@ -128,6 +198,58 @@ describe('the release workflow', () => {
     expect(workflow).not.toMatch(/storyengine:\$\{\{ github\.ref_name \}\}/);
   });
 
+  /**
+   * ***Nothing publishes until the tagged commit has passed*** (2026-10-01).
+   *
+   * No job here ran a test and none had a `needs:`, so a tag on a red `main`
+   * published and moved `testing` — which the unraid template then offered as
+   * an update. The tag stays the human gate [releases §4] makes it; this is
+   * the backstop for the human being wrong.
+   */
+  it('publishes nothing, image or tarball, until a verify job has passed', () => {
+    expect(workflow).toMatch(/^ {2}verify:$/m);
+    for (const job of ['image', 'tarball']) {
+      expect(jobBlock(workflow, job), `${job} waits for verify`).toMatch(/^ {4}needs: verify$/m);
+    }
+  });
+
+  /**
+   * ***And passing means what CI means by it.*** The job replays `ci.yml`'s
+   * Linux check rather than waiting on CI's own run, so the two could drift
+   * into different ideas of green; every command CI's check runs is held to
+   * appear here, as a whole command — `pnpm test:gate` contains `pnpm test`.
+   */
+  it('runs every command ci.yml’s check runs', () => {
+    const verify = runCommandsOf(jobBlock(workflow, 'verify'));
+    const check = runCommandsOf(jobBlock(read('.github/workflows/ci.yml'), 'check')).filter(
+      (command) => /^(pnpm (install|format:check|typecheck|lint|build|test)\b|git )/.test(command),
+    );
+    expect(check.length, 'no commands matched in ci.yml').toBeGreaterThan(5);
+    for (const command of check.filter((one) => !/^pnpm test:/.test(one))) {
+      expect(verify, `verify runs ${command}`).toContain(command);
+    }
+  });
+
+  /**
+   * ***A job that runs the commit's code holds no token that writes.*** The
+   * workflow grants `packages: write` for the image's push, and a job inherits
+   * it unless it says otherwise; the suite is the commit's own code, so this
+   * one says otherwise.
+   */
+  it('runs the suite with a read-only token', () => {
+    const verify = jobBlock(workflow, 'verify');
+    expect(verify).toMatch(/^ {4}permissions:\n {6}contents: read\n(?! {6})/m);
+  });
+
+  /**
+   * ***The changelog before anything moves*** — it ran after the image push,
+   * when `testing` already pointed at the build it was about to refuse.
+   */
+  it('checks the changelog in the verify job, not after a push', () => {
+    expect(jobBlock(workflow, 'verify')).toContain('- name: The tag has a dated changelog entry');
+    expect(jobBlock(workflow, 'image')).not.toMatch(/CHANGELOG\.md/);
+  });
+
   it('lowercases the owner, because a registry path must be', () => {
     // `github.repository_owner` keeps the owner's case, and this one is not
     // lowercase. A comment saying "lowercased" beside it was the whole of the
@@ -184,6 +306,101 @@ describe("the image's build stage", () => {
   it('does not ask for corepack, which the base image no longer has', () => {
     // Comments stripped first: the one above the install line says why not.
     expect(dockerfile.replace(/^#.*$/gm, '')).not.toMatch(/corepack/);
+  });
+
+  /**
+   * ***And the tarball job installs the same one***, which its own comment said
+   * this file checked and it did not (2026-10-01): only the Dockerfile's line
+   * was held to `packageManager`.
+   */
+  it('and so does the tarball job', () => {
+    const tarball = jobBlock(read('.github/workflows/release.yml'), 'tarball');
+    expect(tarball).toContain(`npm install -g ${packageManager}`);
+  });
+});
+
+/**
+ * ***The image says where its source is*** — [09 §7], [P10.5], corrected
+ * 2026-10-01.
+ *
+ * AGPL §13's offer is a link to the source of *the build that is running*, and
+ * `write-build-info.mjs` writes it from the `origin` remote — which an image
+ * build cannot ask, because `.dockerignore` keeps `.git` out of the context.
+ * `--source` exists for exactly that caller, and neither the Dockerfile nor the
+ * workflow passed it: the image carried no link while the tarball, built from a
+ * checkout, carried one — a difference between the artifacts nobody wrote down.
+ * Both now take it from the repository the tag was pushed to, by one
+ * expression.
+ */
+describe('the source link, in both artifacts', () => {
+  const dockerfile = read('Dockerfile');
+  const workflow = read('.github/workflows/release.yml');
+  const REPOSITORY = '${{ github.server_url }}/${{ github.repository }}';
+
+  it('is a build argument the image forwards, and only when it is given', () => {
+    expect(dockerfile).toMatch(/^ARG SOURCE$/m);
+    // Optional, like `VERSION`: a hand build with no source honestly carries no
+    // link, which docs/deploy.md already says.
+    expect(dockerfile).toContain('${SOURCE:+--source "$SOURCE"}');
+  });
+
+  it('is passed to the image by the release, from the repository it runs in', () => {
+    expect(jobBlock(workflow, 'image')).toContain(`SOURCE=${REPOSITORY}`);
+  });
+
+  it('is passed to the tarball by the same expression', () => {
+    expect(jobBlock(workflow, 'tarball')).toContain(`--source "${REPOSITORY}"`);
+  });
+});
+
+/**
+ * ***The changelog check, run*** — the step's own script under `bash`, against
+ * changelogs written to show where the old one was wrong (2026-10-01).
+ *
+ * Asserting its text would agree with whatever it says; running it is the only
+ * way to know that `1.0.0` no longer passes on `## 1.0.0-alpha.4`. Not on
+ * Windows, which has no `bash` to run it with — and the job runs on ubuntu.
+ */
+describe.skipIf(process.platform === 'win32')('the changelog check, run', () => {
+  const script = stepScript(
+    read('.github/workflows/release.yml'),
+    'The tag has a dated changelog entry',
+  );
+
+  function check(tag: string, changelog: string): number | null {
+    const scratch = mkdtempSync(join(tmpdir(), 'se-changelog-'));
+    try {
+      writeFileSync(join(scratch, 'CHANGELOG.md'), changelog);
+      return spawnSync('bash', ['-e', '-c', script], {
+        cwd: scratch,
+        env: { ...process.env, GITHUB_REF_NAME: tag },
+      }).status;
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
+  const ALPHA = '# Changelog\n\n## 1.0.0-alpha.4 — 1.0-alpha 4 — 2026-09-09\n\nThings.\n';
+
+  it('finds the script, or every case below passes on nothing', () => {
+    expect(script).toContain('CHANGELOG.md');
+  });
+
+  it('passes a tag whose heading is there and dated', () => {
+    expect(check('v1.0.0-alpha.4', ALPHA)).toBe(0);
+  });
+
+  it('refuses a version that is only the start of another heading', () => {
+    expect(check('v1.0.0', ALPHA)).toBe(1);
+  });
+
+  it('refuses a heading with no date, which is step 2 of cutting a release not done', () => {
+    expect(check('v1.0.0', '## 1.0.0 — 1.0 — unreleased\n')).toBe(1);
+    expect(check('v1.0.0', '## 1.0.0\n')).toBe(1);
+  });
+
+  it('refuses a tag with no heading at all', () => {
+    expect(check('v1.0.0-beta.1', ALPHA)).toBe(1);
   });
 });
 
@@ -306,5 +523,204 @@ describe('the tarball tier', () => {
     expect(unit).toMatch(/Environment=SE_DATA_DIR=\/var\/lib\/storyengine/);
     expect(unit).toMatch(/ReadWritePaths=\/var\/lib\/storyengine/);
     expect(script).toMatch(/DATA="\$\{DATA:-\/var\/lib\/storyengine\}"/);
+  });
+
+  /**
+   * ***The archive is started before it is uploaded*** (2026-10-01). Every check
+   * above held while the packer dropped all of `node_modules`' links and the
+   * server in the archive could not import its first dependency; the one that
+   * would have failed is a boot, so the job does one, and does it **outside the
+   * checkout** — Node looks in every `node_modules` above the importing file,
+   * and the checkout's would lend an archive under `build/` whatever it lacked.
+   */
+  it('boots the unpacked archive, outside the checkout, before uploading it', () => {
+    const boot = workflow.indexOf('- name: The archive boots');
+    expect(boot).toBeGreaterThan(-1);
+    expect(boot).toBeLessThan(workflow.indexOf('actions/upload-artifact'));
+
+    const step = workflow.slice(boot, workflow.indexOf('\n      - ', boot + 1));
+    expect(step).toMatch(/unpacked="\$RUNNER_TEMP\/unpacked"/);
+    expect(step).toMatch(/tar -xzf "\$ARCHIVE" -C "\$unpacked"/);
+    expect(step).toMatch(/node dist\/main\.js/);
+    expect(step).toMatch(/curl --fail [^\n]*\/api\/auth\/state/);
+    // Asked as the unit runs it, so a difference between the two is a
+    // difference in this file rather than in somebody's install.
+    expect(step).toMatch(/SE_DATA_DIR=/);
+    expect(step).toMatch(/SE_CLIENT_ROOT=/);
+  });
+
+  /**
+   * ***pnpm's one link out of the tree goes before the packer sees it***, because
+   * the packer refuses every link that leaves the tree, and refusing is right
+   * for every one of them but this: the deployed package's own name, hoisted as
+   * a link back into the checkout it was deployed from.
+   */
+  it('removes the link pnpm points back at the checkout, before packing', () => {
+    const removal = workflow.indexOf(
+      'rm -f build/app/node_modules/.pnpm/node_modules/@storyengine/server',
+    );
+    expect(removal).toBeGreaterThan(-1);
+    expect(removal).toBeLessThan(workflow.indexOf('node tools/pack-tarball.mjs'));
+  });
+});
+
+/**
+ * ***The install script says what happened*** — 2026-10-01.
+ *
+ * It printed *"StoryEngine is installed"* after `systemctl restart`, which under
+ * `Type=simple` returns the moment node is forked, so an install whose server
+ * died on its first import a second later was reported a success while systemd
+ * restarted it every five seconds. The script now waits out a start-up and asks
+ * again, and this runs it to see that it does — **the script itself, under
+ * `sh`, with `systemctl` and the other root-only commands stood in for** by
+ * stubs on `PATH`, so the branch under test is the real one and nothing touches
+ * this machine's services.
+ *
+ * *Not on Windows*, which has no `sh` to run it with — and the script is for
+ * Linux.
+ */
+describe.skipIf(process.platform === 'win32')('the install script, run', () => {
+  /**
+   * Runs `install.sh` against a temporary prefix, with `systemctl` answering
+   * `MainPID` from `pids` in turn and `is-active` with `active`.
+   */
+  function install(pids: string[], active: boolean): { status: number | null; out: string } {
+    const scratch = mkdtempSync(join(tmpdir(), 'se-install-'));
+    try {
+      const bin = join(scratch, 'bin');
+      const stub = (name: string, body: string): void => {
+        writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+        chmodSync(join(bin, name), 0o755);
+      };
+      spawnSync('mkdir', ['-p', bin]);
+      writeFileSync(join(scratch, 'pids'), `${pids.join('\n')}\n`);
+      writeFileSync(join(scratch, 'calls'), '0\n');
+      stub('id', 'echo 0');
+      stub('node', 'echo v26.4.0');
+      stub('useradd', 'exit 0');
+      stub('chown', 'exit 0');
+      stub('sleep', 'exit 0');
+      stub('journalctl', 'echo "the end of the journal"');
+      stub(
+        'systemctl',
+        [
+          'case "$1" in',
+          // One answer per call, in order — counted rather than consumed with
+          // `sed -i`, which BSD sed spells differently.
+          `  show) n=$(($(cat "${join(scratch, 'calls')}") + 1)); echo "$n" > "${join(scratch, 'calls')}"; sed -n "\${n}p" "${join(scratch, 'pids')}" ;;`,
+          `  is-active) exit ${active ? '0' : '3'} ;;`,
+          '  *) exit 0 ;;',
+          'esac',
+        ].join('\n'),
+      );
+
+      const result = spawnSync('sh', [join(root, 'deploy', 'tarball', 'install.sh')], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${bin}${delimiter}${process.env['PATH'] ?? ''}`,
+          PREFIX: join(scratch, 'opt'),
+          DATA: join(scratch, 'data'),
+          UNIT: join(scratch, 'storyengine.service'),
+        },
+      });
+      return { status: result.status, out: `${result.stdout}${result.stderr}` };
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
+  it('reports success when the server it started is still the one running', () => {
+    const run = install(['4242', '4242'], true);
+
+    expect(run.out).toMatch(/StoryEngine is installed in .* and its data lives in/);
+    expect(run.status).toBe(0);
+  });
+
+  /**
+   * The last three each trip exactly one of the script's three conditions, so
+   * none of them can be dropped without a case here going red; the first is the
+   * one the script was written for, which trips two.
+   */
+  it.each([
+    ['dead and waiting out RestartSec', ['4242', '0'], false],
+    ['never started at all', ['0', '0'], true],
+    ['restarted under another PID', ['4242', '4243'], true],
+    ['the same process, no longer active', ['4242', '4242'], false],
+  ])('reports failure, with the log, when the server is %s', (_why, pids, active) => {
+    const run = install(pids, active);
+
+    expect(run.out).toMatch(/is installed in .*, but it is not running/);
+    expect(run.out).toContain('the end of the journal');
+    expect(run.out).not.toMatch(/and its data lives in/);
+    expect(run.status).toBe(1);
+  });
+});
+
+/**
+ * ***What brings the server back, in each of the three wrappers*** — [09 §6.4],
+ * corrected 2026-09-27.
+ *
+ * *Restart now* and a restore both end the process and count on something to
+ * start it again, and the settings page offers them only where
+ * `SE_SUPERVISED` (or systemd) says something will. So a wrapper that declares
+ * supervision and has no policy that restarts a *clean* exit is the trap §6.4
+ * refuses, and it shipped twice: the unit restarted only on failure while the
+ * restart exited 0, and the unraid template declared supervision with no
+ * restart policy at all. Each wrapper is held to its own half here, because
+ * none of it runs anywhere this repository can reach.
+ */
+describe('what restarts the server, in each wrapper', () => {
+  const unit = read('deploy/tarball/storyengine.service');
+  const compose = read('compose.yaml');
+  const template = read('deploy/unraid/storyengine.xml');
+
+  /** `RESTART_EXIT_CODE`, read out of the source so the two cannot drift. */
+  const code = /export const RESTART_EXIT_CODE = (\d+);/.exec(
+    read('packages/server/src/restart.ts'),
+  )?.[1];
+
+  it('restarts the unit on the status a requested restart exits with', () => {
+    expect(code, 'RESTART_EXIT_CODE was not found in restart.ts').toBeDefined();
+    expect(code).not.toBe('0');
+    expect(unit).toMatch(new RegExp(`^RestartForceExitStatus=${code ?? ''}$`, 'm'));
+    expect(unit).toMatch(new RegExp(`^SuccessExitStatus=${code ?? ''}$`, 'm'));
+  });
+
+  /**
+   * *Every wrapper that says supervised has a policy that brings a requested
+   * restart back.* The unraid template is the one that shipped with none.
+   * `unless-stopped` there, as in compose, rather than `on-failure`: the
+   * restart's own status would satisfy either, but `unless-stopped` also
+   * covers an exit this build does not know it makes, and a stop from the
+   * Docker tab stays a stop under both.
+   */
+  it('declares supervision only beside a restart policy', () => {
+    expect(unit).toMatch(/^Environment=SE_SUPERVISED=1$/m);
+    expect(unit).toMatch(/^Restart=on-failure$/m);
+
+    expect(compose).toMatch(/SE_SUPERVISED: '1'/);
+    expect(compose).toMatch(/^ {4}restart: unless-stopped$/m);
+
+    expect(template).toMatch(/Target="SE_SUPERVISED"\s+Default="1"/);
+    expect(template).toMatch(/<ExtraParams>[^<]*--restart=unless-stopped[^<]*<\/ExtraParams>/);
+  });
+
+  /**
+   * ***One stop timeout in three places.*** The server bounds its own
+   * shutdown (`CLOSE_BACKSTOP_MS`, then `RENDITION_DRAIN_MS` and
+   * `RENDITION_ABORT_SETTLE_MS`, about twenty seconds at worst), and Docker's
+   * own default of ten seconds is shorter than that. So each wrapper gives it
+   * the same thirty, and a change to one is a change to all three.
+   */
+  it('gives shutdown the same time in all three', () => {
+    const seconds = {
+      unit: /^TimeoutStopSec=(\d+)$/m.exec(unit)?.[1],
+      compose: /^ {4}stop_grace_period: (\d+)s$/m.exec(compose)?.[1],
+      template: /<ExtraParams>[^<]*--stop-timeout=(\d+)[^<]*<\/ExtraParams>/.exec(template)?.[1],
+    };
+    expect(seconds.unit, 'no TimeoutStopSec in the unit').toBeDefined();
+    expect(seconds).toEqual({ unit: seconds.unit, compose: seconds.unit, template: seconds.unit });
+    expect(Number(seconds.unit)).toBeGreaterThanOrEqual(30);
   });
 });

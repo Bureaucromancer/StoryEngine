@@ -5,10 +5,24 @@ import { describe, expect, it } from 'vitest';
 
 import { IMPORT_DISPOSITIONS } from '@storyengine/shared';
 
+import { CONVERTED_TABLES, STORY_COUNTS } from '../aventuras/reader.js';
+import { AVENTURAS_REQUIRED } from '../aventuras/schema.js';
 import { NOT_CONVERTIBLE } from '../upload.js';
 
+import {
+  AVENTURAS_DISPOSITIONS,
+  AVENTURAS_STORY_TABLES,
+  AVENTURAS_TABLES,
+  AVT_FIELD_TABLES,
+  AVT_FIELDS,
+} from './aventuras.js';
 import { MARINARA_DISPOSITIONS, MARINARA_TABLES } from './marinara.js';
-import { SILLYTAVERN_DIRECTORIES, SILLYTAVERN_DISPOSITIONS } from './sillytavern.js';
+import {
+  SILLYTAVERN_DIRECTORIES,
+  SILLYTAVERN_DISPOSITIONS,
+  SILLYTAVERN_ROOT_DISPOSITIONS,
+  SILLYTAVERN_ROOT_FILES,
+} from './sillytavern.js';
 
 /**
  * **This is what makes *nothing is silently dropped* checkable**
@@ -38,7 +52,28 @@ const SOURCES = [
     name: 'Marinara',
     names: [...MARINARA_TABLES],
     dispositions: MARINARA_DISPOSITIONS,
-    expected: 81,
+    expected: 83,
+  },
+  /**
+   * The files beside SillyTavern's thirty directories, which the template does
+   * not name and which therefore reached a real review as `unrecognised` rows
+   * saying nothing ([P4 §7.19]). A third source here rather than a test of its
+   * own, so the list inherits every check the other two already get — coverage,
+   * the reverse direction, the vocabulary, the size, and that none of them
+   * claims `unrecognised`.
+   */
+  {
+    name: 'SillyTavern root files',
+    names: [...SILLYTAVERN_ROOT_FILES],
+    dispositions: SILLYTAVERN_ROOT_DISPOSITIONS,
+    expected: 5,
+  },
+  {
+    name: 'Aventuras',
+    /** Twenty-seven of the app's own at migration 039, and the runner's bookkeeping table. */
+    names: [...AVENTURAS_TABLES],
+    dispositions: AVENTURAS_DISPOSITIONS,
+    expected: 28,
   },
 ] as const;
 
@@ -102,6 +137,99 @@ describe('the registries are honest about what they do not convert', () => {
   });
 });
 
+/**
+ * ***The Aventuras registry, one converted table per stage*** —
+ * [P13.2](../../../../../docs/design/workplan/30-p13-aventuras-import.md)
+ * converted nothing; P13.3 converts `character_vault`.
+ *
+ * Claims the generic checks above cannot make, because they are about what
+ * each stage promised rather than about coverage.
+ */
+describe('the Aventuras registry', () => {
+  it('calls converted exactly the tables the reader converts', () => {
+    /**
+     * *Was "converts nothing yet" at P13.2*, which is what the stages after it
+     * were told to change one table at a time. Both directions now: a
+     * `converted` row the reader never emits a candidate for is a review
+     * describing an import that did not happen, and a table the reader
+     * converts while the registry still says `recorded` would be listed twice
+     * — once by its rows and once as waiting.
+     */
+    const converted = Object.entries(AVENTURAS_DISPOSITIONS)
+      .filter(([, disposition]) => disposition === 'converted')
+      .map(([table]) => table);
+
+    expect(new Set(converted)).toEqual(new Set(CONVERTED_TABLES));
+    // *Since P13.11* the three a story's tree is made of, converted into one
+    // session per story when a sweep asks for stories — and each story still
+    // a row of its own when it does not, so none has a table row either way.
+    // *Since P13.12* the five of its world, on the same terms: the head
+    // branch's cast and lorebook, named on the story's row. *Since P13.13*
+    // the two of its pictures, as renditions beside the turns.
+    expect(converted).toEqual([
+      'character_vault',
+      'lorebook_vault',
+      'scenario_vault',
+      'vault_tags',
+      'stories',
+      'story_entries',
+      'branches',
+      'characters',
+      'locations',
+      'items',
+      'story_beats',
+      'entries',
+      'embedded_images',
+      'background_images',
+    ]);
+  });
+
+  it('drops the settings table as a credential, and nothing else', () => {
+    // [P4 §1.1]: provider keys in plain text, dropped and never quarantined.
+    const credential = Object.entries(AVENTURAS_DISPOSITIONS)
+      .filter(([, disposition]) => disposition === 'credential')
+      .map(([table]) => table);
+
+    expect(credential).toEqual(['settings']);
+  });
+
+  it('knows every per-story table and every gated table as a table of the pin', () => {
+    // The reader counts the one and the gate checks the other; a name in
+    // either that the registry lacks would be counted or refused under a
+    // name the review then called unrecognised.
+    const known = new Set<string>(AVENTURAS_TABLES);
+    const stray = [...AVENTURAS_STORY_TABLES, ...Object.keys(AVENTURAS_REQUIRED)].filter(
+      (table) => !known.has(table),
+    );
+
+    expect(stray).toEqual([]);
+  });
+
+  it('gates on `story_id` exactly the tables the reader counts per story', () => {
+    /**
+     * *Found at the P13.2 review*, which found this asserting the premise
+     * *"every story table is counted"* when three are counted per table only,
+     * and nothing tying the reader's own list to the gate. Both directions now:
+     * a table the reader groups by `story_id` is gated on it, or a database
+     * without the column passes the survey and throws out of `items()`; and a
+     * table gated on it is one the reader groups by, or the gate refuses a
+     * database over a column nothing selects (`schema.ts`: *not one more*).
+     */
+    const counted = AVENTURAS_STORY_TABLES.filter((table) => STORY_COUNTS[table] !== null);
+    const gated = Object.entries(AVENTURAS_REQUIRED)
+      .filter(([, need]) => need.columns.includes('story_id'))
+      .map(([table]) => table);
+
+    expect(new Set(gated)).toEqual(new Set(counted));
+    // And the three counted per table only are the derived ones the reader names.
+    expect(AVENTURAS_STORY_TABLES.filter((table) => STORY_COUNTS[table] === null).sort()).toEqual([
+      'kept_separate',
+      'time_anchors',
+      'world_state_snapshots',
+    ]);
+  });
+});
+
 describe('the file and the folder say the same thing', () => {
   /**
    * **One kind, two ways in, and they must not disagree.**
@@ -139,5 +267,30 @@ describe('the file and the folder say the same thing', () => {
       .filter((directory) => !known.has(directory));
 
     expect(unknown).toEqual([]);
+  });
+});
+
+/**
+ * ***A `.avt`'s fields are its tables*** — [P13.15]. A story from its file
+ * becomes what the same story from the database becomes, so a field that is a
+ * table must say what that table says: a table that stops being converted
+ * would otherwise go on being converted from every file.
+ */
+describe('the .avt fields', () => {
+  it('names a table for every field, or says it is the file’s own', () => {
+    expect(Object.keys(AVT_FIELD_TABLES).sort()).toEqual(Object.keys(AVT_FIELDS).sort());
+  });
+
+  it('gives each field its table’s disposition', () => {
+    const disagreements = Object.entries(AVT_FIELD_TABLES)
+      .filter(([, table]) => table !== null)
+      .filter(([field, table]) => AVT_FIELDS[field] !== AVENTURAS_DISPOSITIONS[table ?? ''])
+      .map(([field, table]) => `${field} ≠ ${String(table)}`);
+    expect(disagreements).toEqual([]);
+  });
+
+  it('has a disposition in the vocabulary for every field', () => {
+    const known = new Set<string>(IMPORT_DISPOSITIONS);
+    expect(Object.values(AVT_FIELDS).filter((disposition) => !known.has(disposition))).toEqual([]);
   });
 });

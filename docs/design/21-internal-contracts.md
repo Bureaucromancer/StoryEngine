@@ -49,18 +49,38 @@ type BlockSource =
   /** contentHash since P3.0 — the cast is a link read fresh each turn, so the
    *  id resolves to the actor as it is now; the hash to the actor as sent. */
   | { kind: "actor"; actorId: ActorId; contentHash: string; sectionId?: string; field?: "traits" | "visual" }
-  | { kind: "lore"; entryId: string; phase: "before" | "after" }
+  /** `bookId` since [P8.4] (written in 2026-10-01): the book an entry came
+   *  from, so a memory book's entry names its origin; absent before then. */
+  | { kind: "lore"; entryId: string; phase: "before" | "after"; bookId?: string }
   /** turnId is the identity (P3.0); the window-relative range stays as display
-   *  information — where in this prompt the turn sat. */
-  | { kind: "history"; turnId: TurnId; range: [number, number] }
+   *  information — where in this prompt the turn sat. `part` is which half of
+   *  the turn, and `attachment` (2026-09-27, [25 E15]) is one picture on its
+   *  input, named by `attachmentId`. */
+  | { kind: "history"; turnId: TurnId; range: [number, number];
+      part: "input" | "output" | "attachment"; attachmentId?: string; message?: number }
   /** One writing sample, from whichever kind carried it — [04 §3.1],
    *  [14](14-writing-samples.md). `owner` rather than a bare `actorId` because
    *  the slot outgrew the actor; `contentHash` for the reason the `actor` arm
    *  carries one — the carrier is a link read fresh every turn. */
   | { kind: "samples"; owner: { kind: "actor" | "treatment" | "lore"; id: string; contentHash: string }; sampleId: string }
   | { kind: "channel"; channelId: ChannelId }
+  /** ([P14.5a](workplan/31-p14-scene-and-session-import.md); written in
+   *  2026-10-01.) What the story has established: every channel declaring
+   *  itself established state, scoped values included, as one block; `keys`
+   *  names the channels it read. */
+  | { kind: "state"; keys: string[] }
   | { kind: "treatment"; part: "framing" | "tone" }
+  /** *Added 2026-09-30*, with the slot of the same name ([04 §8.2]): a text
+   *  answer the session was set up with; `field` is the wizard field's id. */
+  | { kind: "setup"; field: string }
   | { kind: "goal"; goalId: string }
+  /** ([P7.8](workplan/23-p7-implementation.md); written in 2026-10-01.) One
+   *  fragment of a dial's level — the `difficulty` and `directedness` slots
+   *  both record here, `axis` saying which; `fragmentIndex` is its place in
+   *  the level, which has no ids. Each fragment is budgeted at its block's
+   *  priority and ranked within it by its order — deliberate, and recorded as
+   *  a decision by [main audit §2](workplan/32-main-audit.md). */
+  | { kind: "difficulty"; axis: "difficulty" | "directedness"; levelId: string; fragmentIndex: number }
   /** The guidance slot ([06 §5.1](06-modes-and-turn-pipeline.md)). `producer` because that
    *  section is explicit that one slot has several — the user's box, a rule's
    *  `giveGuidance`, a Narrative Director push — and the workbench should be
@@ -72,19 +92,80 @@ type BlockSource =
    *  nothing, the claim `persona`'s nulls make. */
   | { kind: "attempt"; turnId: TurnId | null }
   /** What the player just did. Not `history`: history is turns that happened,
-   *  and this is the one that is happening. */
-  | { kind: "input" }
-  // ── The two a slot can never name, because no preset positions them ──
-  | { kind: "preset"; blockId: string }   // a TextBlock: authored prose
+   *  and this is the one that is happening. With `part: "attachment"`, one
+   *  picture on it ([25 E15]); absent is the words. */
+  | { kind: "input"; part?: "attachment"; attachmentId?: string }
+  /** ([P8.1](workplan/25-p8-implementation.md); written in 2026-10-01.) One
+   *  link of the summary chain: `linkKey` is its content address, `range` the
+   *  stretch of story it covers. One candidate per link, so the budgeter drops
+   *  the oldest stretch first — *and since [P15.2] (2026-10-03) the root ahead
+   *  of them, when the session has one: the arm below.* */
+  | { kind: "summary"; linkKey: string; range: [number, number] }
+  /** ([P15.1](workplan/33-p15-setup-from-a-turn.md) added it at `f8affa5`,
+   *  [P15.2](workplan/33-p15-setup-from-a-turn.md) emits it at `393f04b`;
+   *  written in here 2026-10-03, at the merge into `main`.) The root of the
+   *  summary chain — the story so far a Setup
+   *  carried ([04 §7.2](04-schemas.md)), authored prose copied into the session
+   *  with the Setup rather than a link anybody's summariser wrote, so a block
+   *  table answers *the Setup* and not a range of turns that does not exist.
+   *  `setupId` is for the click-through `presetId` gives a preset block; the
+   *  session holds a copy, so it can dangle, and that is the ordinary reading. */
+  | { kind: "story-so-far"; setupId: string | null }
+  /** ([P7.4](workplan/23-p7-implementation.md); written in 2026-10-01.) The
+   *  engine's own JSON instruction, for an endpoint that cannot be handed a
+   *  schema — protocol rather than content, and named by no slot. */
+  | { kind: "schema" }
+  // ── ~~The two~~ ~~The three~~ ~~The four~~ The five a slot can never name, because no preset positions them ──
+  /** `presetId` since P4.4 (written in 2026-10-01): the preset the block was
+   *  authored in, which a session's copy keeps. */
+  | { kind: "preset"; blockId: string; presetId?: string }   // a TextBlock: authored prose
   | { kind: "step"; stepId: StepId }      // contributed at runtime
+  /** ([P14.2](workplan/31-p14-scene-and-session-import.md), corrected
+   *  2026-09-29.) One reply of a round that has not been committed yet — an
+   *  earlier speaking call of this turn — placed by the collector after the
+   *  input and never by a pack. `message` is its index into the turn's
+   *  `output.messages`; `actorId` who said it, null for a narrator's. */
+  | { kind: "round"; message: number; actorId: ActorId | null }
+  /** ([P14.3](workplan/31-p14-scene-and-session-import.md), 2026-09-29.) The
+   *  session's author's note, placed by the collector at its own depth on
+   *  every `every`-th input — never by a pack. */
+  | { kind: "note" }
+  /** ([P14.4](workplan/31-p14-scene-and-session-import.md), 2026-09-29;
+   *  written in 2026-10-01.) The continue nudge, which the engine puts last. */
+  | { kind: "continue" }
+  // ~~(2026-09-30) Behind the shipped type: `summary`, `schema`, `difficulty`,
+  // `state` and `continue` are arms of `BlockSource` this list never gained.~~
+  // Written in 2026-10-01 (the audit's record, [main audit §4](workplan/32-main-audit.md)),
+  // with lore's `bookId` and preset's `presetId`, which it had not gained either.
 ```
 
 **`preset` and `step` are the asymmetry**, and naming it is the point. A slot
 positions content the engine produces, so it can never point at "the preset's own
 prose" — that is a `TextBlock`, which *is* a block rather than a reference to
 one. Likewise a step's contribution has no slot because it did not exist when the
-preset was authored. `SlotSource` is therefore **`BlockSource` minus those two**,
-which is a derivation rather than a second list.
+preset was authored. `SlotSource` is therefore **`BlockSource` minus those
+~~two~~ three**, which is a derivation rather than a second list. *Corrected
+2026-09-29, at [P14.2](workplan/31-p14-scene-and-session-import.md)*: `round`
+is the third, and cannot be slot-named for the reason a step's contribution
+cannot — the replies do not exist when the pack is authored — and for one more:
+every pack written before P14.2 positions no such slot, and a round a pack had
+to opt into would be a round in which each member answered the player alone.
+*And again at [P14.3](workplan/31-p14-scene-and-session-import.md), 2026-09-29*:
+`note`, the author's note, is the fourth, for the round's second reason — a
+note a pack had to position would be a setting that did nothing in every pack
+written before it. The `history` arm gained an optional `message` index at the
+same stage, for a turn's `output.messages` entries. *And at
+[P14.4](workplan/31-p14-scene-and-session-import.md), 2026-09-29* (written in
+here 2026-10-01): `continue`, the nudge the engine puts last, is the fifth —
+which is what `assembly/types.ts` excludes. `schema`, the engine's own JSON
+instruction, is named by no slot either, and the derivation leaves it in: no
+pack arm can produce it, so excluding it would guard nothing. *So is
+`story-so-far` (2026-10-03, at the [P15](workplan/33-p15-setup-from-a-turn.md)
+merge)*, for the same reason and with one difference: it has no slot of its
+own, but a slot does record it — the `summary` slot emits the chain's root as
+`story-so-far` and its links as `summary`, so that slot records two kinds
+([04 §8.2](04-schemas.md)). No pack arm names it, and excluding it from the
+derivation would guard nothing.
 
 **`guidance` and `input` were added at P2.5, and their absence was a real
 gap rather than an omission.** [06 §5.1](06-modes-and-turn-pipeline.md) says the guidance
@@ -102,6 +183,15 @@ to say which attempt the instruction was about, and a producer field cannot
 name a turn. The same route as guidance in every other respect — the runner
 collects it, no step is handed it, and the firewall refuses it from anything
 that is not prose.
+
+**A picture is a `part`, not a source — added 2026-09-27, with R1 of
+[25 E15](25-open-questions.md).** A picture on a player's move is emitted as its
+own block from inside the `input` and `history` expansions, because a
+top-level arm would, by the derivation above, be a slot any preset could
+position — and a picture belongs where its turn is, not wherever a preset puts
+it. Its own block rather than more text in the move's block because the
+budgeter, the block table and the send rule all need to name it separately: it
+is the unit that goes as pixels or as words.
 
 The identifiers (`actorId`, `entryId`, `stepId`) are what make a block's
 provenance clickable in the workbench — *which* lore entry, not just "a lore
@@ -139,7 +229,11 @@ interface ChannelEffect {
                | { kind: "engine" }
   applied: boolean
   /** Present when `applied` is false. Validation failure, an engine-computed
-   *  rule overriding a model proposal, or a policy refusal. */
+   *  rule overriding a model proposal, or a policy refusal — *and (2026-09-30)
+   *  a step's proposal its declaration does not cover*: a channel outside its
+   *  `writes` (`undeclared-write`), or a proposer it is not
+   *  (`not-its-proposer`, recorded under the step's own stamp). The engine's
+   *  classes are `EffectRefusal` in `shared`; the field stays open. */
   rejectedReason: string | null
 
   /** Schema version of the channel this was written against. [06 §4.2] */
@@ -389,6 +483,59 @@ wanted.** Steps name roles, so nothing in the pipeline knows the model — which
 means without this the record cannot answer *what actually ran*, and that is the
 first question anyone asks about a turn that came out wrong.
 
+**A call that makes no turn keeps the same three measured fields, elsewhere**
+(2026-09-27). A field assist, an impersonation and the moment call behind
+**Illustrate** each reach a model without a turn to carry a `ModelCall`, and
+until this date each dropped the provider's figures —
+[10 §11.4](10-ui-surfaces.md)'s *"must be recorded even though nothing displays
+it"* unkept. They now append one line each to `users/<handle>/usage.jsonl`:
+
+```ts
+interface UsageRecord {
+  schema: "storyengine.usage/1"
+  at: string                                       // when the call returned
+  purpose: string                                  // "impersonate", "assist:<field path>", "illustrate", "setup-draft:<part>" — open
+  role: ModelRole | "connection-test"              // the second only for a connection test (2026-10-03)
+  resolved: { connectionId: string; modelId: string }  // the model that answered, as above
+  usage: { promptTokens: number; completionTokens: number } | null
+  cost: { amount: number; currency: string } | null
+  wallMs: number
+  sessionId?: string                               // when the call was made from one
+  subject?: string                                 // the library kind an assist wrote for
+}
+```
+
+`usage` and `cost` follow this section's rule exactly: copied from the provider,
+never estimated, and null when it said nothing. A file in the account's
+directory rather than the index or `state.sqlite`, by §5.1's test — it is not
+derived, and an account archive carries files but holds none of the install's
+state.
+
+***A connection test is a line too, under a role no binding has***
+(2026-10-03 — the recommended answer, which the owner deferred to;
+[polish §25](workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)).
+The Test button on a saved connection is a model call that writes no turn, so
+a test that returns writes one line to the presser's log, purpose
+`connection-test:text` or `connection-test:image`. Its `role` is the literal
+`"connection-test"` rather than a `ModelRole`, because a test resolves no role:
+a person picked one model on one connection, and any role written there would
+be a claim about a binding nobody consulted, folding their tests into a spend
+view's figures for that role. The widening is this field's alone — `ModelRole`,
+the bindings files and the role tables are untouched — and additive inside
+`storyengine.usage/1`, which nothing reads yet. A test picture's line has
+`usage: null` and is the one image call the log carries; a rendition's own cost
+still has no field ([25 E16](25-open-questions.md)).
+
+***And so is every call a setup's draft makes*** (2026-10-03, at the
+[P15](workplan/33-p15-setup-from-a-turn.md) merge). The draft's parts are
+calls that write no turn, so each writes a line, purpose `setup-draft:<part>`
+(`storySoFar`, `opening`, `title`, `facts`), with the role it resolved and the
+session it was made from; a link of the summary chain the draft had to derive
+is `setup-draft:summarise` rather than the warm's `summarise`, because what a
+spend view asks first is what pressing the button cost. A call that failed or
+was stopped after it reached the provider writes its line too, as the warm's
+do: it was paid for.
+
 ### 1.5 `BudgetVerdict`
 
 ```ts
@@ -420,6 +567,15 @@ interface BudgetVerdict {
   nextToDrop: string[]
 }
 ```
+
+*(2026-09-27)* **A verdict needs `limit.tokens > reserved`, and a call without it
+is refused rather than recorded.** Assembly spends `limit.tokens − reserved`; at
+zero or below, every block that was not required was dropped and the call went
+out anyway, so the model continued a story none of which was in front of it, and
+the verdict was the only trace. `planCall` now throws `WindowTooSmall` first: the
+step fails with `window-too-small` and its own remedy (the connection's window or
+the reply length is the setting to change), and the preview and a draft answer
+with the same class rather than a context meter over an empty prompt.
 
 ### 1.6 `VersionRecord`
 
@@ -498,8 +654,24 @@ interface RenderedMessage {
   content: string
   /** Which blocks produced this message, in order. Non-empty always. */
   fromBlocks: string[]
+  /** Only on a message carrying a picture whose pixels are sent — 2026-09-27,
+   *  [25 E15]. The text parts, joined, are exactly `content`. */
+  parts?: ({ kind: "text"; text: string }
+         | { kind: "image"; blockId: string; digest: string; mime: string })[]
 }
 ```
+
+***`content` stays the whole text rendering, and `parts` rides beside it*** —
+the restraint [25 E15](25-open-questions.md) asked of 1.0, kept when R1 landed
+on 2026-09-27. Every reader of this record that predates pictures reads
+`content` and still reads everything the model was told in words, the picture's
+caption included; `parts` only says *where among those words a picture went*.
+**It names the picture by digest and never carries it**: the bytes are loaded
+from the session's store for the wire and never persisted, so a call record
+with a picture in it is the size of one without. The adapter sends array
+content only for a message that carries an admitted picture, and a string
+otherwise — some text-only endpoints reject an array outright, and a
+picture-less message has no reason to risk it.
 
 **`fromBlocks` is the requirement that merging must not break.** The workbench
 maps every sent byte back to the block that produced it
@@ -540,12 +712,15 @@ interface ProviderCapabilities {
   reportsUsage: boolean
   /** Whether this endpoint makes pictures. §7, [P9.2]. */
   rendersImages: boolean
+  /** Whether it takes a sampling seed for one. Off unless a connection says so. */
+  supportsImageSeed: boolean
   /** How many named subjects one picture can hold. [06 §10.3] */
   maxNamedSubjects?: number
 }
 ```
 
-***The last two are the record answering a second endpoint*** — added
+***`rendersImages` and `maxNamedSubjects` are the record answering a second
+endpoint*** — added
 2026-09-16 at [P9.2](workplan/26-p9-implementation.md), and they are also the
 evidence [P9 §1.2](workplan/26-p9-implementation.md) weighed when it decided that
 image providers go behind the **same** `Provider` interface as a second verb
@@ -567,9 +742,34 @@ many words — *"a number that varies per endpoint is the definition of a
 capability"* — and notes that Aventuras caps at one while Marinara derives a
 limit that runs from one to sixteen depending on the backend.
 
+**`supportsImageSeed` is false in the baseline and false for every known
+provider**, written 2026-09-26 and merged 2026-10-03.
+[06 §10.7](06-modes-and-turn-pipeline.md) makes the seed the load-bearing field
+of a recipe, and until this merged to main (2026-10-03) it never reached the
+wire: the AI SDK's OpenAI-compatible image model marks a top-level `seed`
+unsupported and builds the request without it, while every record went on
+stating one. It now travels in the provider options — **but only where a
+connection says so**, because `seed` is not part of the OpenAI images request and
+an endpoint that holds to that schema refuses a field it does not know with a
+400. The pessimistic default costs a less reproducible picture; the optimistic
+one costs the picture. Whichever happened, the record says so —
+`RenditionProvenance.seedSent`, below.
+
 Defaults ship per known provider and are overridable **per connection**, because
 a limit is a property of that endpoint and connections are private production
 config ([00 §3.2](00-stance.md)).
+
+***Seeing pictures is not here, and it is the first capability that could not
+be*** — 2026-09-27, [25 E15](25-open-questions.md) R1. Everything in this
+record is a property of the endpoint, and whether a model can read an image is
+a property of the *model*: one Ollama URL, or one OpenRouter key, serves a
+vision model and a text one. A connection-wide flag would send pixels to the
+text model the first time a binding or an actor hint resolved to it, on every
+redo of that turn. So a connection carries **`imageModels`**, beside `models`
+and a subset of it, empty by default — and outside `capabilities`, because the
+connection editor keeps stored capability overrides across model edits, which
+would leave the list naming models that are gone. It departs from this
+section's premise, and says so here where the premise is.
 
 ---
 
@@ -604,6 +804,7 @@ interface Config {
   }
   limits: {
     maxUploadMb: number
+    maxImportUploadMb: number                // [P13.8]
     extensionStorageQuotaMb: number
     contextTokens: number                    // [25 E5]
     reservedCompletionTokens: number
@@ -638,7 +839,8 @@ interface Config {
 | `sessions.snapshotEveryNTurns` | `live` | `10` | Generous during alpha ([25 C8](25-open-questions.md)) |
 | `sessions.streamKeepaliveMs` | `reconnect` | `15000` | A keepalive is a property of a connection, so an open stream keeps the interval it opened with |
 | `sessions.streamCoalesceMs` | `live` | `250` | How long streamed text accumulates before a durable checkpoint. `0` checkpoints every chunk |
-| `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3) |
+| `limits.maxUploadMb` | `live` | `64` | The tier says what the key is *for*; ~~there is no upload route yet and Fastify fixes `bodyLimit` at construction, so it is `unread` today (§4.3)~~ *corrected 2026-09-27:* read on every upload since [P4.1](workplan/16-p4-implementation.md), a file or a folder's total, so `applied`; the only bound on an upload, since Fastify's `bodyLimit` never sees a multipart body |
+| `limits.maxImportUploadMb` | `live` | `1024` | The largest archive or SQLite database `POST /api/import/file` takes, added at [P13.8](workplan/30-p13-aventuras-import.md). Those two are landed on disk as they arrive rather than buffered, and this bounds that landing alone; everything else stays under `maxUploadMb`. **A cap of its own rather than a `max()` against `maxUploadMb`**, so it can be *lowered* — below `maxUploadMb` too — and tighten the one upload written to the data volume at any size, which every signed-in account may send. `applied`: read per request, before the body and as it lands |
 | `limits.extensionStorageQuotaMb` | `live` | `32` | |
 | `limits.contextTokens` | `live` | `8192` | The window a turn may assemble into when the endpoint does not say. A connection may override it, which is the better place ([25 E5](25-open-questions.md)) |
 | `limits.reservedCompletionTokens` | `live` | `1024` | Held back for the reply when a call does not say how long it may be |
@@ -647,10 +849,27 @@ interface Config {
 | `backup.frequency` | `live` | `off` | The **install's** backup, not anybody's own — a person's schedule is theirs, gated by `scheduledBackups` ([P12.4](workplan/29-p12-implementation.md)) |
 | `backup.onStart` | `live` | `false` | Independent of the frequency rather than a value in it: a machine that is usually up but occasionally rebooted wants both, and a single list cannot say so. `unread` in [§4.3](#43-what-a-live-key-actually-does-which-is-not-always-what-its-tier-says) by construction — the boot pass is over before anybody can change it |
 | `backup.contents` | `live` | `full` | `redacted` leaves out `accounts.json`, the connections and the session key, and restores to an install nobody can sign into |
-| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](03-data-model.md)) |
+| `history.keepPerObject` | `live` | `50` | Pinned versions are exempt ([03 §11.3](03-data-model.md)). `0` keeps every version (2026-09-27; it pruned every unpinned one on each save) |
 | `updates.checkEnabled` | `live` | `true` | Disableable in one obvious place ([09 §6.5](09-server-multiuser-deployment.md)) |
 | `updates.channel` | `live` | `latest` | |
 | `dev.enabled` | `restart` | `false` | |
+
+***Every millisecond key stops at `2147483647`*** (2026-09-27), the longest
+delay a Node timer holds. A larger one is not refused: Node warns once and uses
+one millisecond, so `streamKeepaliveMs` meant as *effectively never* sent a
+comment frame every millisecond and `providerTimeoutMs` abandoned every call at
+once. The bound is `TIMER_MAX_MS` in the schema, and it reaches the form with
+the others.
+
+***And `providerTimeoutMs` is the only clock a provider call runs under***
+(2026-09-27). Every call went through Node's global `fetch`, whose undici
+dispatcher gives up on headers after 300 seconds and on a quiet body after 300
+more — beneath this key, so a slow local model could not be given longer, and
+`0` switched off only the engine's bound. When it fired, *Headers Timeout Error*
+read as a connection that did not work and was retried twice. Provider calls now
+go through a dispatcher with neither limit (`providers/patient-fetch.ts`), and a
+transport timeout from a `fetch` handed in elsewhere is classified as the stall
+it is: terminal, and remedied as `endpoint-stalled`.
 
 **The tier annotation is the source, not documentation of it.** The
 restart-required notice ([09 §6](09-server-multiuser-deployment.md)) is derived
@@ -704,6 +923,14 @@ deployment §6.4 is warning about. So it is set **beside the restart policy**, i
 read as the one honest detection. Default-deny: a wrong *no* costs a manual
 restart, a wrong *yes* costs the server.
 
+*Amended 2026-09-27.* It is set beside the restart policy in **three** files
+now: the tarball's unit declares it too, because detection needs systemd 248.
+`INVOCATION_ID` is inherited by everything a unit's process starts, so it counts
+only when `SYSTEMD_EXEC_PID` names this process, and **`SE_SUPERVISED=0` is an
+answer that outranks the detection**, where it used to be read as unset. The
+reasoning is [09 §6.4](09-server-multiuser-deployment.md)'s correction of the
+same date.
+
 **Precedence is defaults, then the environment, then the file** — and `--data`
 above all three. The file outranking a variable is the part worth stating: the
 file is what the settings page writes, so an operator who changed a value in the
@@ -719,6 +946,19 @@ validation is the same `validateConfigDocument` a file goes through — one answ
 to *would this start?* — but its issues are translated from JSON pointers back
 to the variable that was typed, so `SE_PORT=99999` reports `SE_PORT`, not
 `/server/port`, which is in a file the operator never edited.
+
+***Two amendments, 2026-09-27.*** **The settings write had no environment
+layer**: it resolved the next config as defaults then file, so on a container
+the config it said would run was not the one a restart ran, and its unedited
+Save copied every `SE_*` value it had been shown into the file, where the file's
+precedence then held them against the environment for good. It resolves as a
+boot does now (`resolveConfigDocument`), and writes a key the file does not set
+only when its value differs from what lies under the file. **And the schema is
+one answer to *would this start?*, not the whole of it.** A port somebody else
+holds, an address this machine lacks, a client root with no build and `Secure`
+cookies over plain HTTP all pass it; the write asks the machine too
+(`startable.ts`), for the deployment keys that differ from what this process
+started with.
 
 ### 4.1 The log record
 
@@ -787,7 +1027,11 @@ pressure:
   unknown storage format is a correct refusal, not a fault.
 - **One poisoned file never aborts a sweep**, and one poisoned row never aborts
   a table. F22's original sin was one bad folder aborting a whole scan; that was
-  paid for once and is not repeated on the import side.
+  paid for once and is not repeated on the import side. *(2026-09-27: it was, by
+  a SillyTavern chat preset whose prompt had a `content` that was not a string,
+  which threw out of the converter and out of the sweep. The converters are now
+  held to it at the table the sweep and the preview reach them through, and a
+  prompt's fields are read as the types they have to be.)*
 
 ### 4.2 What a reload does, including when it cannot
 
@@ -852,9 +1096,12 @@ changes.**
 This exists because a settings surface that shows a control doing nothing is the
 placeholder [work plan §2.2](workplan/01-work-plan.md) forbids, and remembering
 which keys are which is not a mechanism. ~~Of the eleven keys tiered `live` at
-P2A, five are applied and six are honestly declared unread.~~ **Thirteen are
+P2A, five are applied and six are honestly declared unread.~~ ~~**Thirteen are
 tiered `live` today; nine are applied and four are honestly declared unread**
-(counted 2026-09-13). *The direction of travel is the point rather than the
+(counted 2026-09-13).~~ **Eighteen are tiered `live` today; sixteen are applied
+and two are honestly declared unread** (counted 2026-09-29, when
+[P13.8](workplan/30-p13-aventuras-import.md) added `limits.maxImportUploadMb`,
+applied from the start). *The direction of travel is the point rather than the
 figures* — the table was designed so that a key acquiring a reader is a one-word
 edit and a visible one, and two phases of ordinary work moved four keys across
 it without anybody re-tiering anything.
@@ -889,6 +1136,20 @@ what must be true of it.
   and rows off the current path stay indexed but carry their branch
   ([10 §14.2](10-ui-surfaces.md)).
 - **Deleting `index.sqlite` is a non-event.** Startup notices and rebuilds.
+  *Added 2026-09-27:* and so are the two ways of losing it without deleting it.
+  A file that is not a database any more is set aside as `index.sqlite.damaged`
+  and a fresh one opened, where it used to stop the start; and the schema
+  version is written when a rebuild **finishes**, not when the empty tables are
+  made, so a first start killed partway through its scan rebuilds again rather
+  than serving the fraction it reached for good.
+- **A start that does not rebuild checks.** *Added 2026-09-27.*
+  [03 §5.1](03-data-model.md)'s start-up consistency check, which no start
+  ran until then: an object is read again when its size or time differs from
+  its row's, or when it has an error on record, and a row whose file is gone is
+  forgotten; a session is derived again when a stamp over `session.json` and its
+  segments differs from the one the last look recorded. Its answer is held to a
+  rebuild's, as the watcher's is, over randomised changes made with nothing
+  watching (`index-db/reconcile.test.ts`).
 
 ### 5.1 Operational state is not derived, and must not live in the index
 
@@ -907,6 +1168,12 @@ been put there or implied into it:
 `/data/state/state.sqlite`. It is authoritative, it is backed up, and it is *not*
 rebuildable — which is exactly why keeping it out of the index matters. Both are
 SQLite; the distinction is what happens when you delete them.
+
+*Small because it is pruned, which it was not until 2026-09-27.* The draft and
+event rows the table above calls prunable are collected a day after their job
+finished, and idempotency keys a week after, by `state/prune.ts`; a session's
+latest job is kept while the session is there. [P2 §2.10](workplan/08-p2-implementation.md)
+has the rule.
 
 **Auth may not need it at all.** Signed stateless cookies with a short lifetime
 and a server-side revocation list ([19 §9](19-tech-stack.md)) reduce this to a
@@ -973,8 +1240,29 @@ interface Rendition {
   ordering: number
   /** The anchor did not occur in the message. Absent means it did. */
   anchorResolved?: false
+  /** Where this record came from, when an import brought it. Turn.foreign's shape. */
+  foreign?: { source: string; id: string }
 }
 ```
+
+**`foreign` is ~~the one field~~ one of two fields added after the freeze**
+*(2026-10-03: `provenance.seedSent`, below, is the other — written 2026-09-26 on
+a branch and merged on this date)*, and it is an addition rather than a
+migration for [P11.10](workplan/28-p11-implementation.md)'s
+reason — *a promise not to tighten*. It arrived 2026-09-27, when session import
+started writing the rendition records an export carries instead of counting
+them and dropping them. §7.1's *"the recipe travels and the pixels do not"* was
+always a rule about the file; the recipe was never meant to stop at the
+importer. An imported record keeps its id (a rendition id is its turn's, and turn
+ids are kept), takes the new session as its `sessionId`, arrives with
+`asset: null` — or, from a backup archive, with the bytes the archive holds for
+it, as a bare file name in the session's `assets/`, under an image type, and
+described by their own digest — and a `pending` one arrives `failed` with
+`error: "interrupted"`, since no job anywhere will finish it. Because the same
+id can exist in two sessions of one install — copies imports made before a
+session already here was refused, or a session deleted and imported back while
+its job rows stayed — the rendition job table is keyed by session and id
+together (`STEPS[7]`).
 
 **Three fields of [06 §10.1]'s sketch are typed differently here, and each is a
 correction rather than a preference.**
@@ -999,10 +1287,24 @@ interface RenditionProvenance {
   answeredAs: string | null
   /** The sampling seed. A **number**, which is what makes it unmixable with the other reading. */
   seed: number | null
+  /** Whether that seed left the process — never whether it was honoured. Absent: not recorded. */
+  seedSent?: boolean
   /** Scalars only: these are re-sent verbatim and hashed, and a nested object needs canonicalising. */
   workflow: Readonly<Record<string, string | number | boolean>>
 }
 ```
+
+***`seedSent` is a second fact about the seed, not a second seed.*** `seed` is
+the recipe's and is known before the call; `seedSent` is what the call did with
+it, written by the worker when a picture lands and cleared when one is
+re-created, since the next run may go out on a connection whose
+`supportsImageSeed` (§3) has changed. It means *sent*, never *honoured* — no
+images response says which. It is optional because it came after the freeze,
+and [P11.10](workplan/28-p11-implementation.md)'s freeze is *a promise not to
+tighten*: a record written before this merged to main (2026-10-03) simply lacks
+the key, and absent reads as *not recorded* rather than as either answer — even
+though every such picture was in fact made without its seed. A record cannot
+vouch for what it did not write down.
 
 ***`asset` is not an `AssetRef`.*** Three things are wrong with that type here,
 and the first is the one that would have been lived with: `MediaRole` has eight

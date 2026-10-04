@@ -211,6 +211,34 @@ describe('step 8 — deleting the index costs a rescan and nothing else', () => 
     // cannot fake: it is replayed from the effect log on disk.
     expect(back.body.session.channels['se.clock']).toBeDefined();
   });
+
+  /**
+   * ***And a head parked on a turn with one child*** (2026-09-27). The case
+   * above parks the head on a leaf, which is the one place the start-up walk
+   * over unlinked turns cannot move it, so it passed while every other parked
+   * head went back to the tip at each restart: *Continue from here* along a
+   * line, and an undo, both leave the head on a turn with one child.
+   */
+  it('keeps a head moved back along a line across a restart', async () => {
+    const sessionId = await createSession();
+    const first = await takeTurn(sessionId, 'k1', null, 'She opened the door.');
+    const second = await takeTurn(sessionId, 'k2', first, 'She stepped out.');
+    await takeTurn(sessionId, 'k3', second, 'She walked on.');
+
+    const moved = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/head`,
+      payload: { turnId: first },
+    });
+    expect(moved.status).toBe(200);
+
+    await server.dispose();
+    server = await start();
+    await signIn();
+
+    const session = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
+    expect(session.body.session.headTurnId).toBe(first);
+  });
 });
 
 describe('step 2 — swipes are siblings, and nothing is destroyed', () => {

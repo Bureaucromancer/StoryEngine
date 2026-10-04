@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
-import { backupApi, type BackupManifest, type BackupRecord } from '../api.js';
+import { backupApi, errorCode, type BackupManifest, type BackupRecord } from '../api.js';
 import { formatTimestamp } from '../format.js';
 import { useNotices } from '../queries.js';
 import { Button } from '../ui/Button.js';
@@ -12,7 +12,7 @@ import { Dialog } from '../ui/Dialog.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
 import { Fine, Note } from '../ui/Text.js';
-import { megabytes } from './Backups.js';
+import { megabytes, takeFailure } from './Backups.js';
 import { ImportBackup } from './ImportBackup.js';
 
 /**
@@ -36,8 +36,8 @@ import { ImportBackup } from './ImportBackup.js';
  * everybody's password hashes and the key that validates every session.
  */
 
-function whenLine(record: BackupRecord): string {
-  return `Taken ${formatTimestamp(new Date(record.takenAt).toISOString())}.`;
+function whenLine(record: BackupRecord, locale: string | undefined): string {
+  return `Taken ${formatTimestamp(new Date(record.takenAt).toISOString(), locale)}.`;
 }
 
 /**
@@ -58,7 +58,10 @@ function storedLine(count: number, bytes: number): string {
   return `${String(count)} archives, taking ${megabytes(bytes)} between them.`;
 }
 
-export function AdminBackups(): JSX.Element {
+export function AdminBackups(props: {
+  /** The reader's, for every date the panel writes. */
+  locale: string | undefined;
+}): JSX.Element {
   const client = useQueryClient();
   const listing = useQuery({ queryKey: ['admin', 'backups'], queryFn: backupApi.readInstall });
   const [contents, setContents] = useState<'full' | 'redacted'>('full');
@@ -121,9 +124,12 @@ export function AdminBackups(): JSX.Element {
         lose its last, incomplete turn.
       </Fine>
 
+      {/* The same line as the account half, full disk included (2026-09-27):
+          the admin take reaches the same route code and had no sentence for
+          it at all. */}
       {take.isError ? (
         <p role="alert" className="text-danger-ink">
-          That backup could not be taken.
+          {takeFailure(take.error)}
         </p>
       ) : null}
       {remove.isError ? (
@@ -147,7 +153,7 @@ export function AdminBackups(): JSX.Element {
                 key={row.id}
                 className="flex flex-wrap items-center gap-3 rounded-panel border border-line p-3"
               >
-                <span className="text-ink">{whenLine(row)}</span>
+                <span className="text-ink">{whenLine(row, props.locale)}</span>
                 <Fine>{contentsLine(row.contents)}</Fine>
                 <Fine>{megabytes(row.bytes)}</Fine>
                 <a
@@ -209,7 +215,7 @@ export function AdminBackups(): JSX.Element {
        * has no password** — who may sign in is not a thing an archive gets to
        * decide.
        */}
-      <ImportBackup scope="install" rows={rows} />
+      <ImportBackup scope="install" rows={rows} locale={props.locale} />
 
       {/**
        * ***Last, and inside its own border.*** Import is above because it is
@@ -217,7 +223,7 @@ export function AdminBackups(): JSX.Element {
        * everything, and the order on the page is the order of how much they
        * cost to get wrong.
        */}
-      <Restore rows={rows} />
+      <Restore rows={rows} locale={props.locale} />
     </section>
   );
 }
@@ -245,7 +251,10 @@ export function AdminBackups(): JSX.Element {
  * is the most destructive control in the build, so it takes the strongest
  * confirmation the build has.
  */
-function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
+function Restore(props: {
+  rows: readonly BackupRecord[];
+  locale: string | undefined;
+}): JSX.Element | null {
   const notices = useNotices(true);
   const [chosen, setChosen] = useState<string>('');
   const [confirming, setConfirming] = useState(false);
@@ -271,6 +280,20 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
     },
   });
 
+  /**
+   * ***Stopping, until a new process answers*** (2026-09-28). `restore.isSuccess`
+   * outlived the restart it reported, so on the tab that asked, a restore that
+   * failed as it started kept saying *The server is stopping* and hid *Call it
+   * off* — the one control that state needs, on an install whose premise is
+   * that nobody has a shell. It holds until the server has answered since the
+   * press, and while that answer says it is still draining: the old process
+   * wrote the marker before it began to drain, so it reports the restore as
+   * pending too, and that is not yet a failure to call off.
+   */
+  const stopping =
+    restore.isSuccess &&
+    (notices.dataUpdatedAt <= restore.submittedAt || notices.data?.draining === true);
+
   if (props.rows.length === 0) return null;
 
   const held = manifest.data?.manifest;
@@ -289,8 +312,9 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
         now is set aside rather than blended with what arrives.
       </Fine>
       <Fine>
-        The server stops, and restores as it starts again. What is here now is kept beside the new
-        directory and never deleted, which is how a restore is undone.
+        The server stops, and restores as it starts again. What is here now is kept in the data
+        directory’s <code>.restore</code> folder and never deleted, which is how a restore is
+        undone. The stored backups stay where they are.
       </Fine>
 
       {/**
@@ -304,7 +328,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
        * cannot leave, on an install whose whole premise is that nobody has a
        * shell.
        */}
-      {notices.data?.restorePending === true && !restore.isSuccess ? (
+      {notices.data?.restorePending === true && !stopping ? (
         <div className="flex flex-wrap items-center gap-3 rounded-panel bg-warn-surface p-3">
           <p className="text-sm text-warn-ink">
             A restore is waiting for the next start. If it has already been tried and failed, it
@@ -339,7 +363,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
             value={chosen}
             options={[
               ['', 'Choose one…'],
-              ...props.rows.map((row) => [row.id, restoreLabel(row)] as const),
+              ...props.rows.map((row) => [row.id, restoreLabel(row, props.locale)] as const),
             ]}
             onChange={(value) => {
               setChosen(value);
@@ -347,7 +371,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
               restore.reset();
             }}
           />
-          {held === undefined ? null : <Fine>{archiveLine(held)}</Fine>}
+          {held === undefined ? null : <Fine>{archiveLine(held, props.locale)}</Fine>}
           {held?.contents === 'redacted' ? (
             <p className="text-sm text-warn-ink">
               This archive carries no accounts, no connections and no session key. Restoring it
@@ -358,7 +382,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
             <Button
               type="button"
               variant="dangerOutline"
-              disabled={chosen === '' || held === undefined || restore.isPending}
+              disabled={chosen === '' || held === undefined || restore.isPending || stopping}
               onClick={() => {
                 setConfirming(true);
               }}
@@ -374,7 +398,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
           {restoreFailure(restore.error)}
         </p>
       ) : null}
-      {restore.isSuccess ? (
+      {stopping ? (
         <p role="status" className="text-warn-ink">
           The server is stopping. It will restore this archive as it starts again, and the page will
           come back on its own.
@@ -393,7 +417,7 @@ function Restore(props: { rows: readonly BackupRecord[] }): JSX.Element | null {
           <h4 id="confirm-restore" className="text-subsection text-ink">
             Replace everything with this archive?
           </h4>
-          <p className="text-sm text-ink-muted">{replacesLine(held)}</p>
+          <p className="text-sm text-ink-muted">{replacesLine(held, props.locale)}</p>
           <p className="text-sm text-ink-muted">
             What is here now is moved aside on the server and kept. StoryEngine will not delete it —
             remove that folder yourself when you are sure.
@@ -452,37 +476,44 @@ function unsupervisedLine(supervision: 'systemd' | 'declared' | 'none'): string 
   return 'Nothing would start this server again if it stopped, so it will not restore itself. Stop it, run `pnpm backup restore <archive> <data directory>`, and start it again.';
 }
 
-function restoreLabel(record: BackupRecord): string {
-  const when = formatTimestamp(new Date(record.takenAt).toISOString());
+function restoreLabel(record: BackupRecord, locale: string | undefined): string {
+  const when = formatTimestamp(new Date(record.takenAt).toISOString(), locale);
   return record.contents === 'full'
     ? `${when} — everything, ${megabytes(record.bytes)}`
     : `${when} — work only, ${megabytes(record.bytes)}`;
 }
 
-function archiveLine(manifest: BackupManifest): string {
+function archiveLine(manifest: BackupManifest, locale: string | undefined): string {
   const by =
     manifest.takenBy.version === null
       ? 'a build that did not record its version'
       : `version ${manifest.takenBy.version}`;
-  return `Taken ${formatTimestamp(manifest.takenBy.at)} by ${by}, holding ${String(manifest.files)} files.`;
+  return `Taken ${formatTimestamp(manifest.takenBy.at, locale)} by ${by}, holding ${String(manifest.files)} files.`;
 }
 
-function replacesLine(manifest: BackupManifest): string {
+function replacesLine(manifest: BackupManifest, locale: string | undefined): string {
   const people =
     manifest.handles.length === 1 ? 'one account' : `${String(manifest.handles.length)} accounts`;
-  return `Everything on this server is replaced by ${String(manifest.files)} files belonging to ${people}, taken ${formatTimestamp(manifest.takenBy.at)}.`;
+  return `Everything on this server is replaced by ${String(manifest.files)} files belonging to ${people}, taken ${formatTimestamp(manifest.takenBy.at, locale)}.`;
 }
 
+/**
+ * Why a restore did not start.
+ *
+ * ***By class*** (2026-09-27). This searched the server's English for
+ * `free space`, `end to end` and `start this server again`: right today, and
+ * wrong the first time any of those sentences is reworded, with nothing to say
+ * so. The classes are `RestoreRefusal`'s and `RestartRefusal`'s.
+ */
 function restoreFailure(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
-  if (message.includes('free space')) {
-    return 'There is not enough free space to unpack that archive. Delete some archives and try again.';
+  switch (errorCode(error)) {
+    case 'no-space':
+      return 'There is not enough free space to unpack that archive. Delete some archives and try again.';
+    case 'unreadable':
+      return 'That archive could not be read from end to end, so nothing was changed.';
+    case 'unsupervised':
+      return 'Nothing would start this server again, so it will not stop itself.';
+    default:
+      return 'That restore could not be started, and nothing was changed.';
   }
-  if (message.includes('end to end')) {
-    return 'That archive could not be read from end to end, so nothing was changed.';
-  }
-  if (message.includes('start this server again')) {
-    return 'Nothing would start this server again, so it will not stop itself.';
-  }
-  return 'That restore could not be started, and nothing was changed.';
 }

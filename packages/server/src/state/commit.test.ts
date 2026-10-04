@@ -11,7 +11,9 @@ import { uuidv7 } from '@storyengine/shared';
 import { readAllTurns } from '../sessions/segments.js';
 import {
   appendTurnOnly,
+  appendTurnToSession,
   createSession,
+  moveHead,
   readSession,
   readTurns,
   sessionRoot,
@@ -360,5 +362,56 @@ describe('a turn on disk with no job is reconciled into the session', () => {
 
     expect(await reconcileSession(context.sessions, ACCOUNT, sessionId)).toBe(0);
     expect((await stateOnDisk()).head).toBeNull();
+  });
+
+  /**
+   * ***A head somebody parked stays parked*** (2026-09-27). *Continue from
+   * here* leaves the head on a turn with one child, which is exactly the shape
+   * this walk advances over, and the walk ran at every start: every restart put
+   * the story back at its tip.
+   */
+  describe('with the operational store intact', () => {
+    /** A line of three turns, played, with the head moved back to the first. */
+    async function parkedOnFirstOfThree(): Promise<string[]> {
+      const played: string[] = [];
+      for (const hour of [9, 10, 11]) {
+        const turn = { ...orphanTurn(played.at(-1) ?? null, hour) };
+        await appendTurnToSession(context.sessions, ACCOUNT, sessionId, turn);
+        played.push(turn.id);
+      }
+      const moved = await moveHead(context.sessions, ACCOUNT, sessionId, played[0] ?? '');
+      expect(moved.kind).toBe('moved');
+      return played;
+    }
+
+    it('leaves a parked head where it was put', async () => {
+      const [first] = await parkedOnFirstOfThree();
+
+      const advanced = await reconcileSession(context.sessions, ACCOUNT, sessionId, {
+        sinceLastWrite: true,
+      });
+
+      expect(advanced).toBe(0);
+      expect((await stateOnDisk()).head).toBe(first);
+    });
+
+    it('still links a turn appended after the last write', async () => {
+      // The crash case the walk is still for: an append whose head never
+      // caught up, after the head was parked. It is a sibling of the old
+      // child, and the only one the last write did not already know about.
+      const [first] = await parkedOnFirstOfThree();
+      const orphan: Turn = {
+        ...orphanTurn(first ?? null, 12),
+        createdAt: new Date(Date.now() + 1000).toISOString(),
+      };
+      await appendTurnOnly(context.sessions, ACCOUNT, sessionId, orphan);
+
+      const advanced = await reconcileSession(context.sessions, ACCOUNT, sessionId, {
+        sinceLastWrite: true,
+      });
+
+      expect(advanced).toBe(1);
+      expect((await stateOnDisk()).head).toBe(orphan.id);
+    });
   });
 });

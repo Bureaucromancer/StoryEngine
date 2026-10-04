@@ -159,6 +159,56 @@ export const LORE_TIMING_CHANNEL: ChannelDefinition = {
 const registered = new Map<string, ChannelDefinition>();
 
 /**
+ * ***Whether a channel's switch is on*** — `EstablishedState.enabledBy`,
+ * [P14 §1.9.2](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+ * [P14.5a].
+ *
+ * **`true` and nothing else**: a switch nobody has touched reads its declared
+ * `init`, and every tracker's is `false` — [00 §4]'s *"RPG systems are opt-in
+ * channels"*. A channel with no switch is always on, which is every channel
+ * that is not a tracker.
+ *
+ * ***Either switch*** since [P14.5b]: `ChannelDefinition.enabledBy`, the same
+ * switch said for a channel that is not established state (the secret plot),
+ * or the tracker's own on `state`. A channel declaring both waits on both.
+ */
+export function stateEnabled(
+  definition: ChannelDefinition,
+  channels: Readonly<Record<string, ChannelState>>,
+): boolean {
+  return [definition.enabledBy, definition.state?.enabledBy].every(
+    (toggle) => toggle === undefined || switchOn(toggle, channels),
+  );
+}
+
+/**
+ * ***Whether a hidden channel has been shown to the player*** —
+ * `ChannelDefinition.reveal`, [06 §7.3], [P14.5b]. A `player` channel is always
+ * shown; a hidden one only while its reveal switch reads `true`, and never
+ * when it declares none.
+ */
+export function revealed(
+  definition: ChannelDefinition,
+  channels: Readonly<Record<string, ChannelState>>,
+): boolean {
+  if (definition.visibility !== 'hidden') return true;
+  return definition.reveal !== undefined && switchOn(definition.reveal, channels);
+}
+
+/**
+ * ***Whether a boolean switch channel reads `true`*** — its value, or its
+ * declared `init` when nobody has touched it. Exported at [P14.5c] for the
+ * runner's *hold for rewrite* (`StepDefinition.revises`), whose switches are
+ * named by a step rather than by a channel's `enabledBy`.
+ */
+export function switchOn(
+  toggle: string,
+  channels: Readonly<Record<string, ChannelState>>,
+): boolean {
+  return (channels[toggle]?.value ?? initialValue(toggle)) === true;
+}
+
+/**
  * Adds a channel to this build's registry.
  *
  * **Last registration wins**, for the reason `registerMode` gives: an install
@@ -805,14 +855,38 @@ export function channelSurfaces(
  *
  * Ordered by channel id so the list is stable, because a prompt built from it is
  * hashed and an order that varied would make one place look like two.
+ *
+ * ***Only the channels in play for the session*** (2026-09-30) — `inPlay` is
+ * `mode-registry.ts`'s `inPlayFor`, the rule the HUD and the channel write
+ * already kept ([06 §4.1]). This walked the registry, which holds every mode's
+ * declarations, so a Freeform session's picture was told Scene's clock — a
+ * *"Day 3, 09:05"* the engine advanced on every Freeform turn, for a mode with
+ * no clock. *Required, and a predicate rather than a mode id*: required so the
+ * next caller cannot walk the whole build by leaving it out, and a predicate
+ * because this file cannot import the registry that owns the rule (the cycle
+ * that file's note describes).
  */
 export function renderedChannels(
   channels: Readonly<Record<string, ChannelState>>,
+  inPlay: (channelId: string) => boolean,
 ): { id: string; text: string }[] {
   const out: { id: string; text: string }[] = [];
 
   for (const definition of registeredChannels()) {
-    if (definition.render === undefined) continue;
+    if (definition.render === undefined || !inPlay(definition.id)) continue;
+    // A tracker switched off says nothing here either ([P14.5a]) — this digest
+    // feeds an illustration's prompt, and a character's thoughts from before
+    // the switch went off are not the picture's to draw.
+    if (!stateEnabled(definition, channels)) continue;
+    /**
+     * ***A secret is not a picture's to draw until it is shown*** — [P14.5b].
+     * The paragraph above holds for hidden *bookkeeping*, which is what every
+     * hidden channel was until then; a channel that declares a `reveal` is a
+     * secret the player has not been shown, and a picture is shown. So it is
+     * left out until revealed — and a hidden channel with no `reveal` is still
+     * in, as before.
+     */
+    if (definition.reveal !== undefined && !revealed(definition, channels)) continue;
 
     // Every key the channel owns, for `channelSurfaces`' reason: a per-actor
     // channel has one value per actor, and a prompt built from the unscoped key
@@ -832,6 +906,42 @@ export function renderedChannels(
   }
 
   return out.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/**
+ * ***The session's secrets, as their channels render them*** — [P14 §1.9.3],
+ * [P14.5b]: what the director is told about where the story is secretly
+ * heading.
+ *
+ * **Declared rather than named**: a secret is a hidden channel that declares a
+ * `reveal`, switched on, with a template — so the engine reads Scene's secret
+ * plot without spelling its id, as the state block reads the trackers. Every
+ * key it holds, rendered and trimmed; blank is nothing. Revealed or not, since
+ * the director is not the player.
+ *
+ * *Only the channels in play for the session* — {@link renderedChannels}'
+ * `inPlay`, for its reason (2026-09-30): another mode's secret is not this
+ * session's to steer by.
+ */
+export function secretChannels(
+  channels: Readonly<Record<string, ChannelState>>,
+  inPlay: (channelId: string) => boolean,
+): string[] {
+  const out: string[] = [];
+  for (const definition of registeredChannels()) {
+    if (definition.visibility !== 'hidden' || definition.reveal === undefined) continue;
+    if (!inPlay(definition.id)) continue;
+    if (definition.render === undefined || !stateEnabled(definition, channels)) continue;
+    const keys = Object.keys(channels).filter((key) => keyBelongsTo(key, definition.id));
+    for (const key of keys.length === 0 ? [definition.id] : keys.sort()) {
+      const rendered = renderChannelValue(
+        definition.render,
+        channels[key]?.value ?? initialValue(definition.id),
+      );
+      if (rendered.ok && rendered.text.trim() !== '') out.push(rendered.text.trim());
+    }
+  }
+  return out;
 }
 
 export function divergenceTurn(

@@ -15,7 +15,7 @@ import {
   sessionJobsFrom,
 } from '../state/jobs.js';
 import type { JobContext } from '../state/jobs.js';
-import type { TurnStream } from './bus.js';
+import type { SummaryWarm, TurnStream } from './bus.js';
 
 /**
  * Snapshot plus cursor, with no gap between them —
@@ -67,7 +67,12 @@ export interface Snapshot {
 export type StreamFrame =
   | { kind: 'snapshot'; snapshot: Snapshot }
   | { kind: 'progress'; jobId: string; event: ProgressEvent }
-  | { kind: 'delta'; jobId: string; text: string }
+  /**
+   * `message` — the turn's message a speaking call's text belongs to, [P14.2].
+   * Absent on a narrator's text and on the separator between two messages; see
+   * `TurnStream.delta`.
+   */
+  | { kind: 'delta'; jobId: string; text: string; message?: number }
   /**
    * A picture arrived, failed, or changed — [P9.2].
    *
@@ -84,8 +89,22 @@ export type StreamFrame =
    * read arrives a second time as a live frame and lands on the same value.
    * That is the property `progress` cannot have — an event is a delta against a
    * draft — and it is why this kind needs neither a sequence nor a cursor.
+   *
+   * *Corrected 2026-09-28.* ~~So the current set is delivered as frames
+   * instead, right after attaching~~ — nothing delivered it, and it could not
+   * be done as written: a set read after attaching and delivered after a live
+   * frame for the same id would put that id back, so *order does not matter*
+   * holds among live frames only. A reattach is made whole on the client: each
+   * snapshot starts its map afresh and a re-attach refetches the set
+   * (`client/play/reducer.ts`), so the set covers what was missed and a frame
+   * after the snapshot is the newest word.
    */
-  | { kind: 'rendition'; rendition: Rendition };
+  | { kind: 'rendition'; rendition: Rendition }
+  /**
+   * The summary chain's warm moved — [P14.11]. Whole state, applied by
+   * replacement, so it needs no cursor either; see `SummaryWarm`.
+   */
+  | { kind: 'summaries'; warm: SummaryWarm };
 
 export interface Attachment {
   snapshot: Snapshot;
@@ -136,13 +155,23 @@ export function attachToSession(
         else buffered.push(frame);
       }
     },
-    onDelta: (jobId, text) => {
-      const frame: StreamFrame = { kind: 'delta', jobId, text };
+    onDelta: (jobId, text, message) => {
+      const frame: StreamFrame = {
+        kind: 'delta',
+        jobId,
+        text,
+        ...(message === undefined ? {} : { message }),
+      };
       if (live) deliver(frame);
       else buffered.push(frame);
     },
     onRendition: (rendition) => {
       const frame: StreamFrame = { kind: 'rendition', rendition };
+      if (live) deliver(frame);
+      else buffered.push(frame);
+    },
+    onSummaries: (warm) => {
+      const frame: StreamFrame = { kind: 'summaries', warm };
       if (live) deliver(frame);
       else buffered.push(frame);
     },
@@ -207,9 +236,13 @@ export function attachToSession(
  * Which jobs this attachment covers.
  *
  * A cursor names where the client left off; without one, whatever is happening
- * now, or the last thing that did. Between turns everything resolves empty and
+ * now, or the last thing that did. ~~Between turns everything resolves empty and
  * the stream opens with a null job and waits — the ordinary state of a session
- * somebody is reading.
+ * somebody is reading.~~ *Corrected 2026-09-27:* between turns this resolves to
+ * the session's **latest** job, finished, and the snapshot carries its draft and
+ * the backlog its events; only a session that has never had a turn opens with a
+ * null job. The operational store's prune (`state/prune.ts`) keeps each
+ * session's latest job for exactly that reason, while the session is there.
  *
  * **The cursor's job is ownership-checked**, because `readJob` applies no owner
  * filter and a job id in a URL is user input. A cursor naming another session's

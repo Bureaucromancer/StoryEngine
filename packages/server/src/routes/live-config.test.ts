@@ -60,6 +60,7 @@ async function standUp(stallMs: number, providerTimeoutMs: number): Promise<void
     config: {
       limits: {
         maxUploadMb: 64,
+        maxImportUploadMb: 1024,
         extensionStorageQuotaMb: 32,
         contextTokens: 8192,
         reservedCompletionTokens: 1024,

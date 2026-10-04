@@ -57,6 +57,24 @@ export interface Connection {
   /** Which models this endpoint offers. Safe to show: it is what a binding picks. */
   models: string[];
   /**
+   * ***Which of those models can see a picture*** — [25 E15], R1. A subset of
+   * `models`, empty or absent by default.
+   *
+   * **Per model, and the first capability here that is.** Every other one is a
+   * property of the endpoint, which is why [21 §3] makes them overridable per
+   * connection; seeing images is a property of the *model* — one Ollama URL
+   * serves a vision model and a text one, and so does OpenRouter. A
+   * connection-wide flag would be a lock-in bug: mark the connection for the
+   * model that sees, rebind the narrator to one that does not on the same
+   * connection, and every redo of a turn with a picture on it would send pixels
+   * to a model that refuses them.
+   *
+   * **Beside `models` rather than inside `capabilities`**, because the form
+   * writes `models` fresh on every save and keeps `capabilities` as stored — a
+   * list inside the second would go on naming models the first no longer has.
+   */
+  imageModels?: string[];
+  /**
    * Per-connection capability overrides, because a limit is a property of *this
    * endpoint* ([19 §5.3](../../../../docs/design/19-tech-stack.md)).
    */
@@ -70,7 +88,10 @@ export interface Connection {
  * The type is a `Pick` on purpose rather than a hand-written interface — a
  * field added to `Connection` cannot appear here by being forgotten about.
  */
-export type PublicConnection = Pick<Connection, 'id' | 'label' | 'provider' | 'scope' | 'models'>;
+export type PublicConnection = Pick<
+  Connection,
+  'id' | 'label' | 'provider' | 'scope' | 'models' | 'imageModels'
+>;
 
 export function presentConnection(connection: Connection): PublicConnection {
   return {
@@ -79,7 +100,19 @@ export function presentConnection(connection: Connection): PublicConnection {
     provider: connection.provider,
     scope: connection.scope,
     models: connection.models,
+    // Safe to show for `models`' reason: it says which of them see pictures,
+    // which is what a person choosing a binding wants to know.
+    ...(connection.imageModels === undefined ? {} : { imageModels: connection.imageModels }),
   };
+}
+
+/**
+ * Whether this model on this connection may be sent a picture — the one
+ * question the send rule asks of a connection ([25 E15]). **Absent means no**,
+ * which is the conservative answer every other capability starts from.
+ */
+export function seesImages(connection: Connection, modelId: string): boolean {
+  return connection.imageModels?.includes(modelId) ?? false;
 }
 
 export interface ConnectionResolution {
@@ -93,6 +126,41 @@ export interface ConnectionResolution {
    * wondering why a model call started failing ([09 §4.5]).
    */
   disabled: Connection[];
+  /**
+   * Personal connections whose id a **system** connection also claims — so,
+   * resolution being personal first, the ones that shadow it for this account.
+   * One per id: where two personal files claim it, only the one `resolveRole`
+   * reaches is here (`resolveConnections` says why).
+   *
+   * ***Reported, not refused*** — [P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)'s
+   * *nothing blocks*, which [P2B §2.3] adopts for a duplicate id found on disk
+   * as *reported, not repaired*. Refusing would be the wrong fix twice over. Since the provider
+   * memo began checking what each slot was built from (`factory.ts`,
+   * 2026-09-27), a collision like this reaches nobody but its author: their
+   * bindings that name the id reach their own endpoint on their own key, which
+   * is P2B §1.5's *"at least the safe direction"*, and every other account
+   * bound to the system connection reaches the system connection. Before that
+   * the memo was keyed on the id alone and shared by every account, so
+   * whichever claimant was built first was served to both — and that, not
+   * this resolver, was where the cross-account half of the collision lived.
+   * And dropping the file would move the author onto the install's key without
+   * a word, which is the silent half of the very bug that fix closed.
+   *
+   * What it still is, is *"not a thing anyone chose"* (§1.5) — a
+   * `writeConnection` create mints a uuidv7, so an id matching a system one
+   * got there by a hand edit or an archive (`backup/import.ts` copies ids
+   * verbatim) — and so it is returned the way `disabled` is, for the caller to
+   * say so. Empty when `privateConnections` is off: nothing personal resolves
+   * then, so nothing shadows.
+   *
+   * ***Said in the log, and not yet on screen.*** The runner logs a count as
+   * `connections.shadowing`; the *Your connections* list presents the personal
+   * scope alone, so the file reads `shadowed: false` there — true, since it is
+   * the one that wins, and silent about what it hides. Showing it is a known
+   * follow-up, recorded under P2B §1.5 and tracked, unowned, as a row of
+   * [manual testing §10](../../../../docs/design/workplan/05-manual-testing.md).
+   */
+  shadowing: Connection[];
 }
 
 /**
@@ -118,11 +186,30 @@ export async function resolveConnections(
   const system = await readConnectionsIn(layout, layout.systemConnectionsRoot, 'system');
 
   if (!capabilities.privateConnections) {
-    return { usable: system, disabled: personal };
+    return { usable: system, disabled: personal, shadowing: [] };
   }
+  const systemIds = new Set(system.map((connection) => connection.id));
   // Personal first: a personal binding wins over a system default, visibly and
   // switchably.
-  return { usable: [...personal, ...system], disabled: [] };
+  return {
+    usable: [...personal, ...system],
+    disabled: [],
+    /**
+     * **Only the claimant that wins**, which is the first personal file per id
+     * in this scope's own label order — the order `usable` hands `resolveRole`,
+     * whose `usable.find(…)` is what makes it the winner. A second personal
+     * file claiming the same system id shadows nothing: it is itself shadowed,
+     * inside its own scope, and *Your connections* already marks it
+     * `shadowed: true` through `presentConnectionsForAdmin`. Counting it here
+     * would have the runner say two files win for this account when one does
+     * (found in review of the loving-bardeen merge, 2026-10-03).
+     */
+    shadowing: personal.filter(
+      (connection, index) =>
+        systemIds.has(connection.id) &&
+        personal.findIndex((other) => other.id === connection.id) === index,
+    ),
+  };
 }
 
 /**
@@ -258,6 +345,13 @@ function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connect
   const models = Array.isArray(record['models'])
     ? record['models'].filter((model): model is string => typeof model === 'string')
     : [];
+  // A subset of `models`, by construction: a name the endpoint no longer offers
+  // cannot be a model anything resolves to, so it is not a claim worth keeping.
+  const imageModels = Array.isArray(record['imageModels'])
+    ? record['imageModels'].filter(
+        (model): model is string => typeof model === 'string' && models.includes(model),
+      )
+    : undefined;
 
   return {
     id,
@@ -265,6 +359,7 @@ function parseConnection(bytes: Uint8Array, scope: Connection['scope']): Connect
     provider,
     scope,
     models,
+    ...(imageModels === undefined ? {} : { imageModels }),
     ...(typeof record['apiKey'] === 'string' ? { apiKey: record['apiKey'] } : {}),
     ...(typeof record['baseUrl'] === 'string' ? { baseUrl: record['baseUrl'] } : {}),
     // Taken as written rather than validated field by field. A capability
@@ -308,6 +403,8 @@ export interface AdminConnection {
   provider: string;
   scope: Connection['scope'];
   models: string[];
+  /** Which of `models` see pictures — {@link Connection.imageModels}. */
+  imageModels?: string[];
   baseUrl?: string;
   capabilities?: Partial<ProviderCapabilities>;
   /** Whether a key is stored. Never the key. */
@@ -342,6 +439,7 @@ export function presentForAdmin(connection: Connection, contentHash: string): Ad
     provider: connection.provider,
     scope: connection.scope,
     models: connection.models,
+    ...(connection.imageModels === undefined ? {} : { imageModels: connection.imageModels }),
     ...(connection.baseUrl === undefined ? {} : { baseUrl: connection.baseUrl }),
     ...(connection.capabilities === undefined ? {} : { capabilities: connection.capabilities }),
     hasKey: typeof connection.apiKey === 'string' && connection.apiKey.length > 0,
@@ -406,7 +504,10 @@ export function connectionFile(root: string, id: string): string {
  * **Ids are minted server-side as uuidv7, never accepted from the body**, which
  * closes the shadowing hole [P2B §1.5] found — a personal file reusing a system
  * connection's id silently shadows it — for anything created through the UI,
- * without outlawing the hand-written file that already works.
+ * without outlawing the hand-written file that already works. *(2026-10-03: no
+ * longer silent in the log — `resolveConnections` reports it as `shadowing`
+ * and the runner logs a count as `connections.shadowing`; it is still shown by
+ * nothing on screen, a known follow-up under P2B §1.5.)*
  *
  * **Buildability is checked here rather than at the next turn.** `KNOWN_PROVIDERS`
  * carries capability defaults for five names and this build constructs exactly
@@ -425,6 +526,8 @@ export async function writeConnection(
     apiKey?: string | undefined;
     baseUrl?: string | undefined;
     models: string[];
+    /** Absent means *keep what is stored*, as for `capabilities`. */
+    imageModels?: string[] | undefined;
     capabilities?: Partial<ProviderCapabilities> | undefined;
   },
 ): Promise<ConnectionEntry> {
@@ -484,12 +587,21 @@ export async function writeConnection(
    * visible cause.
    */
   const capabilities = input.capabilities ?? existing?.capabilities;
+  /**
+   * **Kept on the same terms, and narrowed to the models being written.** A form
+   * that predates the field sends none and must not clear it; a model removed
+   * from the list cannot stay marked as one that sees.
+   */
+  const imageModels = (input.imageModels ?? existing?.imageModels)?.filter((model) =>
+    input.models.includes(model),
+  );
 
   const file = {
     id,
     label: input.label,
     provider: input.provider,
     models: input.models,
+    ...(imageModels === undefined ? {} : { imageModels }),
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(input.baseUrl === undefined || input.baseUrl.length === 0
       ? {}

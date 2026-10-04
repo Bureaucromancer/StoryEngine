@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * ***Make a setup from here*** — [P13.8](../../../../docs/design/workplan/30-p13-implementation.md).
+ * ***Make a setup from here*** — [P15.8](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **What reaches the API is what is held to account**, as the session form's
  * tests hold it: the wizard drafts every part on open, redrafts one part on its
@@ -157,6 +157,12 @@ describe('making a setup from a turn', () => {
     });
   });
 
+  /**
+   * *With the remedy the route sends since the merge* (2026-10-03): a provider
+   * failure says what to do about that failure — here a refusal, whose fix is
+   * the key or the model — rather than *the model did not answer* for every
+   * failure alike, which is impersonation's sentence for the same class.
+   */
   it('says why a part did not land, and keeps the ones that did', async () => {
     draftSetupFromTurn.mockImplementationOnce(() =>
       Promise.resolve({
@@ -164,7 +170,12 @@ describe('making a setup from a turn', () => {
           ...drafted(['storySoFar', 'title', 'facts']).draft,
           parts: {
             ...drafted(['storySoFar', 'title', 'facts']).draft.parts,
-            opening: { ok: false, reason: 'call-failed' },
+            opening: {
+              ok: false,
+              reason: 'call-failed',
+              class: 'terminal',
+              remedy: 'endpoint-refused',
+            },
           },
         },
       }),
@@ -173,10 +184,84 @@ describe('making a setup from a turn', () => {
 
     const openingSection = screen.getByRole('region', { name: 'Opening' });
     expect(within(openingSection).getByRole('alert').textContent).toBe(
-      'The model did not answer. Try again.',
+      'The model endpoint refused the request. Check the key, the model name and the permissions in Settings.',
     );
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Name' }).value).toBe(
       'The Ledger, Lost',
+    );
+  });
+
+  /**
+   * ***The two refusals the draft learned at the merge, and a remedy from the
+   * future*** (2026-10-03). A cut-off part and a window too small each have a
+   * sentence of their own rather than an `undefined` in the alert; and a remedy
+   * this build has never heard of falls back to the generic line, which is
+   * `remedySentence`'s *nothing rather than a guess* reaching the wizard.
+   */
+  it('says a part was cut off, or the window is too small, and never guesses a remedy', async () => {
+    draftSetupFromTurn.mockImplementationOnce(() =>
+      Promise.resolve({
+        draft: {
+          ...drafted(['storySoFar']).draft,
+          parts: {
+            ...drafted(['storySoFar']).draft.parts,
+            opening: { ok: false, reason: 'truncated' },
+            title: { ok: false, reason: 'window-too-small' },
+            facts: {
+              ok: false,
+              reason: 'call-failed',
+              class: 'transient',
+              remedy: 'a-remedy-from-next-year',
+            },
+          },
+        },
+      }),
+    );
+    await openWizard();
+
+    const alertIn = (name: string) =>
+      within(screen.getByRole('region', { name })).getByRole('alert').textContent;
+    expect(alertIn('Opening')).toBe(
+      'The draft ran past the reply length and was cut off, so it is not shown. Try again with a note asking for it shorter, or raise the reply length.',
+    );
+    expect(alertIn('Name and blurb')).toBe(
+      'The model’s context window is too small to hold the story beside its reply. Raise the context window in the connection’s settings, or lower the reply length.',
+    );
+    expect(alertIn('Established facts')).toBe('The model did not answer. Try again.');
+  });
+
+  /**
+   * ***A summary link that was not kept says so*** (2026-10-03, at review).
+   * The server fails every part with `summary-truncated` or
+   * `summary-no-answer` when a link of the chain was cut off or empty, and the
+   * sentence names the summary and the fix that reaches it — never *a note*,
+   * which reaches only the part it names. (The server fails every part at
+   * once; the story so far is left standing here only because the wizard
+   * opens on it.) Mutation: drop either entry from `REFUSAL` and its alert is
+   * empty.
+   */
+  it('says when it was a summary of the earlier story that was not kept', async () => {
+    draftSetupFromTurn.mockImplementationOnce(() =>
+      Promise.resolve({
+        draft: {
+          ...drafted(['storySoFar']).draft,
+          parts: {
+            ...drafted(['storySoFar']).draft.parts,
+            opening: { ok: false, reason: 'summary-truncated' },
+            title: { ok: false, reason: 'summary-no-answer' },
+          },
+        },
+      }),
+    );
+    await openWizard();
+
+    const alertIn = (name: string) =>
+      within(screen.getByRole('region', { name })).getByRole('alert').textContent;
+    expect(alertIn('Opening')).toBe(
+      'A summary of the earlier story ran past the reply length and was cut off, so nothing was drafted from it. Raise the reply length, then try again.',
+    );
+    expect(alertIn('Name and blurb')).toBe(
+      'The model wrote no usable summary of the earlier story, so nothing was drafted from it. Try again.',
     );
   });
 

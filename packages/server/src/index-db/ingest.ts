@@ -17,7 +17,7 @@ import {
 import { requireCodecFor } from '../storage/card/index.js';
 import { fileExists, readFileBytes, statFile } from '../storage/files.js';
 import type { Layout, LibraryOwner, ParsedObjectPath } from '../storage/layout.js';
-import type { PathEscapeError } from '../storage/paths.js';
+import { PathEscapeError } from '../storage/paths.js';
 import { inTransaction } from '../storage/transaction.js';
 import { clearLinks, referencesIn, writeLinks } from './links.js';
 
@@ -72,7 +72,17 @@ export interface ObjectRow {
 
 export type IngestOutcome =
   | { kind: 'indexed'; row: ObjectRow; moved: boolean }
-  | { kind: 'skipped'; reason: 'not-an-object' | 'unreadable' | 'invalid'; path: string };
+  | {
+      kind: 'skipped';
+      /**
+       * `refused` is a path the real-path check will not open — a link out of
+       * the data directory. `unreadable` is a file that went away before it
+       * could be read, which is the unlink's to deal with. A file that is there
+       * and cannot be read is `invalid`, like one that will not parse.
+       */
+      reason: 'not-an-object' | 'unreadable' | 'invalid' | 'refused';
+      path: string;
+    };
 
 /**
  * Why a file that *is* in an object's place could not be read as one — F20.
@@ -84,7 +94,8 @@ export type IngestOutcome =
  * it a row, because an object that is absent for a reason is not the same thing
  * as an object that is absent.
  */
-export type FileErrorReason = 'unparsable' | 'wrong-kind' | 'schema' | 'unusable-name';
+export type FileErrorReason =
+  'unparsable' | 'wrong-kind' | 'schema' | 'unusable-name' | 'unreadable' | 'refused-path';
 
 export interface FileError {
   path: string;
@@ -131,6 +142,56 @@ export function decodeObject(parsed: ParsedObjectPath, bytes: Uint8Array): unkno
  * the two writers share the loader, the schema and the index, which is what
  * makes hand-editing safe rather than merely tolerated.
  */
+/**
+ * ***Whether the index takes these bytes as the object their place names***
+ * (2026-09-28) — the three checks {@link ingestFile} makes, as one answer: it
+ * parses, it names its own kind and an id, and it validates.
+ *
+ * Lifted for the write paths, which ask the same question from the other side.
+ * `update` and `remove` in `library.ts` meet a file whose hash is not the
+ * index's and must tell *somebody's edit* from *damage*, and they asked
+ * `decodeObject` alone — *does it parse*. So a file that is JSON and not a
+ * lorebook fell between the two: the index quarantined it and kept the last
+ * good row, and the writes called it an edit, so Save was a 412 whose reload
+ * offered the refused file and Delete a 412 every time — P2C finding 8 again,
+ * one step further in (gap round A5.8). One function is what keeps *indexed*
+ * and *writable over* from drawing the line in two places.
+ */
+export type Acceptance =
+  | { ok: true; payload: unknown; id: string }
+  | { ok: false; reason: 'unparsable' | 'wrong-kind' | 'schema'; detail: string };
+
+export function acceptObject(parsed: ParsedObjectPath, bytes: Uint8Array): Acceptance {
+  let payload: unknown;
+  try {
+    payload = decodeObject(parsed, bytes);
+  } catch (error) {
+    return { ok: false, reason: 'unparsable', detail: messageOf(error) };
+  }
+
+  const id = readId(payload);
+  if (id === null || schemaIdOf(payload) !== parsed.schemaId) {
+    // A file in `actors/` that does not describe an actor, or one with no id.
+    // Left out of the index rather than guessed at; it is still on disk and
+    // still the user's.
+    return {
+      ok: false,
+      reason: 'wrong-kind',
+      detail: id === null ? 'no id' : `declares ${String(schemaIdOf(payload))}`,
+    };
+  }
+
+  const result = validate(payload);
+  if (!result.valid) {
+    return {
+      ok: false,
+      reason: 'schema',
+      detail: result.issues.map((issue) => `${issue.path} ${issue.message}`).join('; '),
+    };
+  }
+  return { ok: true, payload, id };
+}
+
 export async function ingestFile(
   db: DatabaseSync,
   layout: Layout,
@@ -146,47 +207,40 @@ export async function ingestFile(
   // otherwise be indexed as an object, and the row's path is what later reads
   // open. The watcher itself no longer follows links — this is the second lock
   // on the same door, and it also covers a rebuild's scan.
-  await layout.assertReal(path);
+  //
+  // ***Refused, recorded, and not thrown*** (2026-09-27). The refusal threw,
+  // and a throw here is not one file's problem: it ended a rebuild, so a card
+  // linked in from somebody's downloads folder stopped a start that needed
+  // one. It is a row in the same table as a file that will not parse, which is
+  // where a person looks for why an object is not in their library.
+  try {
+    await layout.assertReal(path);
+  } catch (error) {
+    if (!(error instanceof PathEscapeError)) throw error;
+    recordFileError(db, parsed, 'refused-path', error.message, now);
+    return { kind: 'skipped', reason: 'refused', path };
+  }
 
   // Gone between the event and the read is normal, not exceptional: the
-  // unlink handler will deal with it, or a rebuild will.
-  const bytes = await readFileBytes(path);
-  const stats = bytes === null ? null : await statFile(path);
+  // unlink handler will deal with it, or a rebuild will. **A file that is
+  // there and cannot be read is recorded** (2026-09-27), for the same reason
+  // as the refusal above: a card copied in by root with mode 0600, or one a
+  // scanner holds locked, threw out of a rebuild the same way.
+  let bytes: Uint8Array | null;
+  let stats: Awaited<ReturnType<typeof statFile>>;
+  try {
+    bytes = await readFileBytes(path);
+    stats = bytes === null ? null : await statFile(path);
+  } catch (error) {
+    return recordInvalid(db, parsed, 'unreadable', messageOf(error), now);
+  }
   if (bytes === null || stats === null) {
     return { kind: 'skipped', reason: 'unreadable', path };
   }
 
-  let payload: unknown;
-  try {
-    payload = decodeObject(parsed, bytes);
-  } catch (error) {
-    return recordInvalid(db, parsed, 'unparsable', messageOf(error), now);
-  }
-
-  const id = readId(payload);
-  if (id === null || schemaIdOf(payload) !== parsed.schemaId) {
-    // A file in `actors/` that does not describe an actor, or one with no id.
-    // Left out of the index rather than guessed at; it is still on disk and
-    // still the user's.
-    return recordInvalid(
-      db,
-      parsed,
-      'wrong-kind',
-      id === null ? 'no id' : `declares ${String(schemaIdOf(payload))}`,
-      now,
-    );
-  }
-
-  const result = validate(payload);
-  if (!result.valid) {
-    return recordInvalid(
-      db,
-      parsed,
-      'schema',
-      result.issues.map((issue) => `${issue.path} ${issue.message}`).join('; '),
-      now,
-    );
-  }
+  const accepted = acceptObject(parsed, bytes);
+  if (!accepted.ok) return recordInvalid(db, parsed, accepted.reason, accepted.detail, now);
+  const { payload, id } = accepted;
 
   const row: ObjectRow = {
     path,
@@ -234,24 +288,6 @@ export async function ingestFile(
     // Unlink-first ordering: the tombstone is already waiting for us.
     const claimed = claimTombstone(db, id, path, now);
     upsert(db, row, payload);
-    /**
-     * ***What this file points at*** — [03 §10.1], [10 §5.2], [P11.7].
-     *
-     * **Inside the same transaction as the row**, because the two describe one
-     * file: an index that had the object and not its links, or the reverse,
-     * would answer *used by* against a state that never existed on disk. It is
-     * also what makes the rebuild-equals-incremental gate cover this table for
-     * free — both producers go through here.
-     *
-     * *Keyed by the file's id and not by its path*, so a file that moves keeps
-     * its links; `dropRows` and `removeFile` are what clear them, for the same
-     * reason they clear the row.
-     */
-    writeLinks(
-      db,
-      { kind: row.schemaId, id: row.id, name: row.name, owner: row.owner },
-      referencesIn(row.schemaId, payload),
-    );
     // Add-first ordering: the row we are replacing is still live, and its file
     // is already gone.
     dropRows(db, vanished);
@@ -261,6 +297,22 @@ export async function ingestFile(
     // in one while still counted in the other.
     if (previousId !== undefined && previousId !== id) {
       resolveDuplicates(db, layout, previousId);
+    }
+    /**
+     * ***What this file points at*** — [03 §10.1], [10 §5.2], [P11.7].
+     *
+     * **Inside the same transaction as the row**, because the two describe one
+     * file: an index that had the object and not its links, or the reverse,
+     * would answer *used by* against a state that never existed on disk.
+     *
+     * *Keyed by the id and not by the path*, so a file that moves keeps its
+     * links — and so **the links are the id's winner's**, decided after the
+     * duplicates are (see {@link relinkId}). The id a path used to hold is
+     * asked again too: it may have lost its only file.
+     */
+    relinkId(db, layout, row.schemaId, id, { path, payload });
+    if (previousId !== undefined && previousId !== id) {
+      relinkId(db, layout, row.schemaId, previousId);
     }
     return claimed;
   });
@@ -289,6 +341,17 @@ function recordInvalid(
   detail: string,
   now: number,
 ): IngestOutcome {
+  recordFileError(db, parsed, reason, detail, now);
+  return { kind: 'skipped', reason: 'invalid', path: parsed.path };
+}
+
+function recordFileError(
+  db: DatabaseSync,
+  parsed: ParsedObjectPath,
+  reason: FileErrorReason,
+  detail: string,
+  now: number,
+): void {
   db.prepare(
     `insert into file_error (path, owner, schema_id, slug, reason, detail, seen_at)
        values (?, ?, ?, ?, ?, ?, ?)
@@ -304,13 +367,14 @@ function recordInvalid(
     detail.slice(0, 2000),
     now,
   );
-
-  return { kind: 'skipped', reason: 'invalid', path: parsed.path };
 }
 
-/** Clears the error for a path — the file was fixed, or it is gone. */
-export function clearFileError(db: DatabaseSync, path: string): void {
-  db.prepare('delete from file_error where path = ?').run(path);
+/**
+ * Clears the error for a path — the file was fixed, or it is gone. Says whether
+ * there was one, which only the watcher's folder handler asks.
+ */
+export function clearFileError(db: DatabaseSync, path: string): boolean {
+  return db.prepare('delete from file_error where path = ?').run(path).changes > 0;
 }
 
 /**
@@ -599,18 +663,54 @@ export function removeFile(
       /**
        * ***A deleted file stops pointing at things*** — [P11.7].
        *
-       * Cleared at the **tombstone** rather than at maturation, because the
+       * Settled at the **tombstone** rather than at maturation, because the
        * tombstone is the moment the file stopped existing and *used by* is a
        * question about now: a setup somebody deleted this morning must not keep
        * an actor's count at twelve. **A rename restores them for free** —
-       * `claimTombstone` re-ingests the same id at the new path, and
-       * `writeLinks` writes what the file says there.
+       * `claimTombstone` re-ingests the same id at the new path, and the links
+       * are written from what the file says there.
+       *
+       * ***Settled, not cleared*** (2026-09-27): a copied folder is a second
+       * file holding the same id, and links are keyed by the id. Deleting one
+       * copy cleared the links the other still makes, so an actor the
+       * surviving setup names showed *referenced by 0* in the confirmation
+       * that exists to stop that delete.
        */
-      clearLinks(db, row.schema_id, row.id);
+      relinkId(db, layout, row.schema_id, row.id);
     }
   }
 
   return result.changes > 0;
+}
+
+/**
+ * ***A path that went while nothing was watching*** (2026-09-27) — the start-up
+ * check's delete ([03 §5.1]).
+ *
+ * {@link removeFile} tombstones, because an unlink the watcher sees may be the
+ * first half of a rename whose add is moments away. A file the start-up check
+ * finds gone has no second half coming: the process that could have seen the
+ * pair was not running, and any rename's other half is on disk now and has
+ * already been read, taking this row with it as a vanished duplicate. So the
+ * rows go outright, and the id's winner and links are settled at once, which is
+ * what the tombstone and its maturing would have done between them. A
+ * tombstone left from before the stop goes the same way.
+ *
+ * Returns whether there was anything to forget. The error row goes too, since
+ * a file that is not there is not a file that cannot be read.
+ */
+export function forgetFile(db: DatabaseSync, layout: Layout, path: string): boolean {
+  return inTransaction(db, () => {
+    const hadError = clearFileError(db, path);
+    const row = db.prepare('select id, schema_id from object where path = ?').get(path) as
+      { id: string; schema_id: string } | undefined;
+    if (row === undefined) return hadError;
+
+    dropObjectRows(db, path);
+    resolveDuplicates(db, layout, row.id);
+    relinkId(db, layout, row.schema_id, row.id);
+    return true;
+  });
 }
 
 /**
@@ -672,6 +772,53 @@ export function matureTombstones(
   }
 
   return doomed.length;
+}
+
+/**
+ * ***An id's links are its winner's*** (2026-09-27).
+ *
+ * `object_link` is keyed by the id, because *used by* is a question about an
+ * object and not about a file — and two files can hold one id, since a folder
+ * is copy-pasteable ([P1 §1.2]). The links were whatever the file ingested
+ * **last** said: which depends on the order things happened in, so the watcher
+ * and a rebuild disagreed about the same disk, and the gate that holds them to
+ * one answer did not read this table. Now they are the live file's that wins
+ * the id, by the same path order `resolveDuplicates` uses, and none when no
+ * live file holds it.
+ *
+ * `known` saves re-reading the body the caller has just parsed, which is the
+ * ordinary case: one file, winning its own id.
+ */
+function relinkId(
+  db: DatabaseSync,
+  layout: Layout,
+  schemaId: string,
+  id: string,
+  known?: { path: string; payload: unknown },
+): void {
+  const live = (
+    db
+      .prepare(
+        `select path, name, owner, body from object
+          where id = ? and schema_id = ? and tombstoned_at is null`,
+      )
+      .all(id, schemaId) as { path: string; name: string; owner: string; body: string }[]
+  )
+    .map((row) => ({ ...row, order: layout.portablePath(row.path) ?? row.path }))
+    .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0));
+
+  const winner = live[0];
+  if (winner === undefined) {
+    clearLinks(db, schemaId, id);
+    return;
+  }
+  const payload =
+    known?.path === winner.path ? known.payload : (JSON.parse(winner.body) as unknown);
+  writeLinks(
+    db,
+    { kind: schemaId, id, name: winner.name, owner: winner.owner },
+    referencesIn(schemaId, payload),
+  );
 }
 
 /**

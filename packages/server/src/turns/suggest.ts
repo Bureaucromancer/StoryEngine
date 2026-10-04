@@ -188,7 +188,16 @@ export interface SuggestContext {
 const TASK = [
   'Suggest what the player could do next.',
   '',
-  `Answer with exactly ${String(SUGGEST_COUNT)} short actions, one per line, no numbering.`,
+  /**
+   * ***As the list the schema reads*** (2026-09-27). This line asked for
+   * *one per line, no numbering* while the same call's schema asks for an
+   * object, and on an endpoint that ignores `response_format` — the ordinary
+   * self-hosted case, where the schema is asked for in words after this — a
+   * model followed the first format it was given: three plain lines, a reply
+   * that does not parse, and two identical retries. Three calls a turn, and no
+   * suggestions.
+   */
+  `Give exactly ${String(SUGGEST_COUNT)} short actions, as the "actions" list.`,
   'Each must be something the player could do right now, phrased as an instruction they would type.',
   'Write them in the second person and keep each under twelve words.',
   'Do not narrate an outcome, and do not suggest anything the story has not shown them.',

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import type { TurnAttachment } from '@storyengine/shared';
+
 import type { TurnRecord } from '../api.js';
 import { labels } from '../i18n/catalogue.js';
 
@@ -42,9 +44,38 @@ export interface Passage {
    * setup turn, a continuation, an undo's divergence marker — has no input, and
    * a reading view that printed a heading for it would invent a speaker.
    */
-  said: { kind: string; text: string; who: string | null } | null;
+  said: {
+    kind: string;
+    text: string;
+    who: string | null;
+    /**
+     * ***The move was nobody's but the player's*** — no actor on it, which is
+     * a move made with no persona (2026-10-01, polish 11). Kept apart from
+     * `who: null`, which is also an actor the library no longer has: the first
+     * is *you*, and the second is somebody this view cannot name.
+     */
+    yours: boolean;
+    /**
+     * The pictures on the move — [25 E15]. A move that was only a picture is a
+     * move, so a blank `text` with pictures is kept rather than read as *no
+     * input*; the HTML shows them, and the two text copies say them in words.
+     */
+    pictures: readonly TurnAttachment[];
+  } | null;
   /** The story's own words, absent on a turn that never produced any. */
   prose: string | null;
+  /**
+   * ***The same words, by who said them*** — [P14 §1.8]'s *"the reading view
+   * names speakers from the same field"*, added at [P14.5].
+   *
+   * One line per message of `output.messages`, each with its speaker's name as
+   * the record holds it (the `Ref` carries it, so a card since deleted is still
+   * named) and null for a narrator's line. **Null for a turn with no
+   * attributed message** — one written before P14, or narrated — which reads
+   * as `prose` did, because giving a paragraph by nobody a speaker would be
+   * inventing one. An empty message is left out, as `output.text` leaves it.
+   */
+  lines: { who: string | null; text: string }[] | null;
   /**
    * ***A turn on the record that produced nothing*** — [§12.1]'s *any node*
    * includes the ones that failed.
@@ -75,17 +106,47 @@ export function passages(
     return {
       turnId: turn.id,
       said:
-        input === undefined || input.text.trim() === ''
+        input === undefined || (input.text.trim() === '' && (input.attachments?.length ?? 0) === 0)
           ? null
           : {
               kind: input.kind,
               text: input.text,
               who: input.actorId === null ? null : nameOf(input.actorId),
+              yours: input.actorId === null,
+              pictures: input.attachments ?? [],
             },
       prose: text.trim() === '' ? null : text,
+      lines: linesOf(turn),
       unfinished: turn.status === 'failed',
     };
   });
+}
+
+function linesOf(turn: TurnRecord): Passage['lines'] {
+  const messages = turn.output?.messages;
+  if (messages === undefined || messages.every((message) => message.speaker === null)) return null;
+  return messages
+    .filter((message) => message.text.trim() !== '')
+    .map((message) => ({ who: message.speaker?.name ?? null, text: message.text }));
+}
+
+/**
+ * ***One attributed line, in a copy that cannot set a name apart*** — the name
+ * and the words, joined as a script would. A narrator's line is its words
+ * alone. Through the catalogue, because *"Vera: …"* is a sentence shape a
+ * language may want differently.
+ */
+const LINE_WORDS: Record<string, string> = labels('reading.line', {
+  said: '{who}: {text}',
+  saidMarkdown: '**{who}:** {text}',
+});
+
+export function lineText(line: { who: string | null; text: string }, markdown = false): string {
+  if (line.who === null) return line.text;
+  const who = line.who;
+  return (LINE_WORDS[markdown ? 'saidMarkdown' : 'said'] ?? '')
+    .replace('{who}', () => who)
+    .replace('{text}', () => line.text);
 }
 
 /**
@@ -112,7 +173,26 @@ const MOVES: Record<string, string> = labels('reading.move', {
 });
 
 /**
+ * ***The player's own moves, as whole sentences*** (2026-10-01, polish 11).
+ * Whole rather than *You* and a verb, because *you* is the word a translation
+ * conjugates for: French says *vous dites* where it says *Vera dit*.
+ */
+const YOURS: Record<string, string> = labels('reading.move-yours', {
+  do: 'You did',
+  say: 'You said',
+  think: 'You thought',
+  story: 'You wrote',
+  choice: 'You chose',
+});
+
+/**
  * The line above a player's words — *Vera said*, *You did*, or just *said*.
+ *
+ * ~~*You did*~~ was promised here and never made (2026-10-01, polish 11): a
+ * move with no persona has no actor, so it reached the bare verb meant for an
+ * actor the library has lost, and the reading view headed the player's own
+ * *Look around.* with *DID* — where the chat heads the same move *You*. The
+ * bare verb is that lost actor's alone now.
  *
  * **Assembled here rather than in JSX**, which the sentence-assembly lint rule
  * requires and which is right anyway: a name and a verb joined by a space is a
@@ -121,7 +201,30 @@ const MOVES: Record<string, string> = labels('reading.move', {
  */
 export function attribution(said: NonNullable<Passage['said']>): string {
   const verb = MOVES[said.kind] ?? said.kind;
+  if (said.yours) return YOURS[said.kind] ?? verb;
   return said.who === null ? verb : `${said.who} ${verb}`;
+}
+
+/**
+ * A picture, in a copy that cannot hold one — the caption in the player's own
+ * words, or a plain mark that a picture was there. A client's words, so they go
+ * through the catalogue as every other sentence here does.
+ */
+const PICTURE_WORDS: Record<string, string> = labels('reading.picture', {
+  captioned: 'Picture: {caption}',
+  bare: 'A picture',
+});
+
+export function pictureLine(picture: Pick<TurnAttachment, 'caption'>): string {
+  const caption = picture.caption?.trim() ?? '';
+  return caption === ''
+    ? `(${PICTURE_WORDS['bare'] ?? ''})`
+    : `(${(PICTURE_WORDS['captioned'] ?? '').replace('{caption}', () => caption)})`;
+}
+
+/** A move's words with its pictures said after them, for the text copies. */
+function saidText(said: NonNullable<Passage['said']>): string {
+  return [said.text, ...said.pictures.map(pictureLine)].filter((line) => line !== '').join('\n');
 }
 
 export interface RenderOptions {
@@ -142,9 +245,10 @@ export function toMarkdown(read: readonly Passage[], options: RenderOptions): st
   const parts: string[] = [`# ${options.title}`];
   for (const passage of read) {
     if (passage.said !== null) {
-      parts.push(`> **${attribution(passage.said)}**\n>\n${quote(passage.said.text)}`);
+      parts.push(`> **${attribution(passage.said)}**\n>\n${quote(saidText(passage.said))}`);
     }
-    if (passage.prose !== null) parts.push(passage.prose);
+    if (passage.lines !== null) parts.push(...passage.lines.map((line) => lineText(line, true)));
+    else if (passage.prose !== null) parts.push(passage.prose);
     if (passage.unfinished) parts.push('*This turn did not finish.*');
   }
   return `${parts.join('\n\n')}\n`;
@@ -169,8 +273,10 @@ function quote(text: string): string {
 export function toPlainText(read: readonly Passage[], options: RenderOptions): string {
   const parts: string[] = [options.title, '='.repeat(options.title.length)];
   for (const passage of read) {
-    if (passage.said !== null) parts.push(`${attribution(passage.said)}:\n${passage.said.text}`);
-    if (passage.prose !== null) parts.push(passage.prose);
+    if (passage.said !== null)
+      parts.push(`${attribution(passage.said)}:\n${saidText(passage.said)}`);
+    if (passage.lines !== null) parts.push(...passage.lines.map((line) => lineText(line)));
+    else if (passage.prose !== null) parts.push(passage.prose);
     if (passage.unfinished) parts.push('(This turn did not finish.)');
   }
   return `${parts.join('\n\n')}\n`;

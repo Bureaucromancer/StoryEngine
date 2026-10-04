@@ -43,7 +43,11 @@ function renderPage(query: string): void {
 
 beforeEach(() => {
   results = {
-    objects: [{ id: 'o1', schema: 'actor', name: 'Vera', slug: 'vera', source: 'user' }],
+    // The schema id the server sends. `'actor'` stood here, a value no server
+    // has ever sent, and nothing read the link it made (2026-09-27).
+    objects: [
+      { id: 'o1', schema: 'storyengine.actor/1', name: 'Vera', slug: 'vera', source: 'user' },
+    ],
     turns: [
       {
         turnId: 't-on',
@@ -77,6 +81,26 @@ beforeEach(() => {
 });
 
 describe('one surface, three kinds of hit', () => {
+  /**
+   * ***A library hit opens the file it found*** (2026-09-27). Every one of
+   * these linked to `/library/storyengine.actor/1s/<id>`, which no route
+   * matches: the schema with an `s` on it, where the kind belonged.
+   */
+  it('links a library hit to its kind, and to the copy that matched', async () => {
+    renderPage('vera');
+    const hit = await screen.findByRole('link', { name: 'Vera' });
+    expect(hit.getAttribute('href')).toBe('/library/actors/o1?source=user&slug=vera');
+  });
+
+  it('calls a hit in an unnamed session by the name the app gives it', async () => {
+    results = {
+      ...results,
+      turns: [{ ...results.turns[0]!, sessionName: '' }],
+    };
+    renderPage('lighthouse');
+    expect(await screen.findByRole('link', { name: 'Untitled session' })).toBeTruthy();
+  });
+
   it('returns objects, turns and lore entries from one query', async () => {
     renderPage('lighthouse');
     expect(await screen.findByText('the lighthouse keeper')).toBeTruthy();
@@ -120,5 +144,71 @@ describe('one surface, three kinds of hit', () => {
     results = { objects: [], turns: [], entries: [] };
     renderPage('nothing');
     expect(await screen.findByText('Nothing matched.')).toBeTruthy();
+  });
+});
+
+/**
+ * ***Said, as well as shown*** — polish 11 (2026-10-01). *Searching…* and then
+ * the hits appeared and neither reached a screen reader. The line is a live
+ * region kept mounted from the first render, because one inserted already
+ * holding its words is one most screen readers never read — so the claims are
+ * that it is there before it has anything to say, and that it then says it.
+ */
+describe('what a search says', () => {
+  it('is a status line before the first search, and says what the search found', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <SearchPage query="" />
+      </QueryClientProvider>,
+    );
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('');
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <SearchPage query="lighthouse" />
+      </QueryClientProvider>,
+    );
+
+    // The same element, which is what makes it heard: first the search's own
+    // loading line, then one on-path turn, one object and one entry — the
+    // branch hit is held back by the filter.
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status.textContent).toBe('Searching…');
+    await screen.findByText('3 matches.');
+    expect(status.textContent).toBe('3 matches.');
+  });
+
+  it('counts what the branch filter shows, and says so when it changes', async () => {
+    const user = userEvent.setup();
+    renderPage('lighthouse');
+    await screen.findByText('3 matches.');
+
+    await user.click(screen.getByRole('checkbox'));
+
+    expect(screen.getByRole('status').textContent).toBe('4 matches.');
+  });
+
+  it('says when the only hits are on lines you left', async () => {
+    results = { objects: [], entries: [], turns: results.turns.filter((hit) => !hit.onPath) };
+    renderPage('lighthouse');
+
+    expect(await screen.findByText('Nothing matched on the line you are on.')).toBeTruthy();
+    expect(screen.getByText(/1 hit on a branch you left/)).toBeTruthy();
+  });
+
+  /**
+   * The sections are the page's second level, under its `h1` (2026-10-01,
+   * polish 11): they were `h3`s, so a list of the page's headings had no second
+   * level at all.
+   */
+  it('heads its three sections at the level under the page title', async () => {
+    renderPage('lighthouse');
+    await screen.findByText('3 matches.');
+
+    expect(
+      screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent),
+    ).toEqual(['In your stories', 'In your library', 'In your lorebooks']);
   });
 });

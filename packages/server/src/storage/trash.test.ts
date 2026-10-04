@@ -9,8 +9,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { uuidv7 } from '@storyengine/shared';
 
+import type { Logger } from '../state/commit.js';
+import { eventually } from '../test-server.js';
 import { Layout } from './layout.js';
-import { deletedAtFrom, listTrash, restoreFromTrash, sweepTrash } from './trash.js';
+import {
+  deletedAtFrom,
+  listTrash,
+  restoreFromTrash,
+  startTrashSweep,
+  sweepTrash,
+  TrashAddressError,
+} from './trash.js';
 
 /**
  * ***Gone after the window, and a clock the test controls*** —
@@ -116,6 +125,73 @@ describe('the retention sweep', () => {
   });
 });
 
+/**
+ * ***The sweep's own timer*** (2026-09-27). Its docstring said *once at
+ * startup and then daily*, and there was only the daily interval, so a server
+ * that never stayed up a day never swept.
+ */
+describe('the sweep on its timer', () => {
+  function listening(): { log: Logger; events: string[] } {
+    const events: string[] = [];
+    const note = (fields: Record<string, unknown>) => {
+      events.push(String(fields['event']));
+    };
+    const log: Logger = {
+      child: () => log,
+      info: note,
+      warn: note,
+      error: note,
+    };
+    return { log, events };
+  }
+
+  it('makes its first pass shortly after a start, not a day later', async () => {
+    const stale = await deleted('actors', 'keeper', Date.now() - 31 * DAY);
+    const { log, events } = listening();
+
+    const sweep = startTrashSweep(
+      layout,
+      () => Promise.resolve(['ned']),
+      () => 30,
+      {
+        startDelayMs: 10,
+        clock: { jumped: () => false },
+      },
+    );
+    sweep.setLogger(log);
+    try {
+      await eventually(async () => (await listTrash(layout, 'ned', 30)).length === 0);
+      expect(events).toEqual(['trash.swept']);
+    } finally {
+      sweep.stop();
+    }
+    expect(stale).toContain('keeper');
+  });
+
+  it('skips a pass when the wall clock has jumped, and says so', async () => {
+    await deleted('actors', 'keeper', Date.now() - 31 * DAY);
+    const { log, events } = listening();
+
+    const sweep = startTrashSweep(
+      layout,
+      () => Promise.resolve(['ned']),
+      () => 30,
+      {
+        startDelayMs: 10,
+        clock: { jumped: () => true },
+      },
+    );
+    sweep.setLogger(log);
+    try {
+      await eventually(() => Promise.resolve(events.length > 0));
+      expect(events).toEqual(['trash.clockJumped']);
+      expect(await listTrash(layout, 'ned', 30)).toHaveLength(1);
+    } finally {
+      sweep.stop();
+    }
+  });
+});
+
 describe('restoring', () => {
   it('puts the folder back under the name it had, with the suffix gone', async () => {
     const id = await deleted('actors', 'vera', 1_757_000_000_000);
@@ -149,7 +225,58 @@ describe('restoring', () => {
   });
 
   it('refuses an address that is not one', async () => {
-    await expect(restoreFromTrash(layout, 'ned', '../../etc')).rejects.toThrow();
-    await expect(restoreFromTrash(layout, 'ned', 'actors/..')).rejects.toThrow();
+    // As its own error, which is what lets the route tell a malformed address
+    // from a rename the disk refused (2026-09-27).
+    await expect(restoreFromTrash(layout, 'ned', '../../etc')).rejects.toBeInstanceOf(
+      TrashAddressError,
+    );
+    await expect(restoreFromTrash(layout, 'ned', 'actors/..')).rejects.toBeInstanceOf(
+      TrashAddressError,
+    );
+  });
+
+  /**
+   * ***Two restores of one entry at once*** (2026-09-27) — two tabs, or a
+   * double press. Both find the entry and its place free, and the second
+   * rename finds nothing left to move. That was a throw, which the route then
+   * turned into *not an address in the trash*; it is the refusal a moment's
+   * later look would have given.
+   */
+  it('answers the second of two restores at once with a refusal, not a throw', async () => {
+    const id = await deleted('actors', 'vera', 1_757_000_000_000);
+
+    const both = await Promise.allSettled([
+      restoreFromTrash(layout, 'ned', id),
+      restoreFromTrash(layout, 'ned', id),
+    ]);
+
+    expect(both.map((outcome) => outcome.status)).toEqual(['fulfilled', 'fulfilled']);
+    const answers = both.map((outcome) => (outcome.status === 'fulfilled' ? outcome.value : null));
+    expect(answers.filter((answer) => answer?.ok)).toHaveLength(1);
+    const refused = answers.find((answer) => answer?.ok === false);
+    expect(['not-found', 'occupied']).toContain(refused?.ok === false ? refused.reason : null);
+  });
+
+  /**
+   * ***A sweep and a restore of one entry, one after the other*** (2026-10-01).
+   * The sweep's recursive delete and a restore at the very end of an entry's
+   * window could interleave — and a rename halfway through a delete brings
+   * back a folder missing whatever had already gone. They queue now: what was
+   * asked first happens first, whole.
+   */
+  it('does not let a restore run through the middle of a sweep', async () => {
+    const id = await deleted('actors', 'vera', 1_757_000_000_000);
+    const folder = join(layout.trashRoot('ned'), id);
+    for (let index = 0; index < 50; index += 1) {
+      await writeFile(join(folder, `asset-${String(index)}.bin`), 'x');
+    }
+
+    const [taken, restored] = await Promise.all([
+      sweepTrash(layout, 'ned', 30, 1_757_000_000_000 + 31 * DAY),
+      restoreFromTrash(layout, 'ned', id),
+    ]);
+
+    expect(taken).toEqual([id]);
+    expect(restored).toEqual({ ok: false, reason: 'not-found' });
   });
 });

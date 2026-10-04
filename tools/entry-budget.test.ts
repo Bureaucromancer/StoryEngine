@@ -59,7 +59,91 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * a reason beside it** rather than by deciding the failure is noise. That is
  * the difference between a budget and a warning.
  */
-const JS_CEILING_KB = 310;
+/*
+ * ***Raised to 320 on 2026-09-29, at [P14.5]*** (the chat surface,
+ * [P14 §1.8](../docs/design/workplan/31-p14-scene-and-session-import.md)). The
+ * entry measured **306.91** before the stage and **314.69** after it: +7.78 kB
+ * of the play page's own code — the transcript drawn as a chat, the chat
+ * settings, the cast panel's four controls, the creation form's characters and
+ * auto-mode — and **no new dependency**, which is the [20 §7] trigger this
+ * ceiling exists to make loud. The play page is on the common entry, as every
+ * route is, so its growth lands here; splitting one page's code into a lazy
+ * chunk would be the first `React.lazy` in the client and a loading decision
+ * of its own, which a feature stage should not make in passing. The new
+ * number leaves about five kB, a little more than the three the stage found.
+ */
+/*
+ * ***Raised to 325 on 2026-09-30, at [P14.5c]*** (the editor and the echo
+ * chamber, [P14 §1.9.4–§1.9.5](../docs/design/workplan/31-p14-scene-and-session-import.md)).
+ * P14.5a's and P14.5b's as-built notes recorded the entry closing in on 320 —
+ * **318.7**, **319.65**, **319.85** — each saying the next addition would have
+ * to argue for the ceiling. This is that argument. The stage measured
+ * **320.43** and, with its four new import notes' sentences shortened (and the
+ * old `agentsNotCarried` one with them), **320.25**: the transcript's *Edited:
+ * show the original* disclosure and the continuity checklist with its *Apply*
+ * (`ChatMessages.tsx`), and the notes, which are on the entry because
+ * `note-labels.ts` is. **No new dependency**, which is the [20 §7] trigger.
+ * Five kB is P14.5's own margin again, a little under two stages at this
+ * phase's rate; what would buy room instead is the first `React.lazy`
+ * (P14.5's note above), or moving the note sentences off the entry with the
+ * library surface that is their only reader — a loading decision, which a
+ * feature stage should not make in passing.
+ */
+/*
+ * ***Raised to 331 on 2026-09-30, at the merge of P13 after P14*** — no stage
+ * of either grew it; the two branches did, each inside its own ceiling.
+ * [P13](../docs/design/workplan/30-p13-aventuras-import.md) was built against
+ * 310 and never reached it, and P14 raised to 325 for itself without P13's
+ * client on the entry. Merged, the entry measured **326.03**: P14's **320.25**
+ * and about **5.8 kB** of P13's own code — the Aventuras review sentences in
+ * `note-labels.ts` (on the entry for P14.5c's reason above), the import
+ * panel's *stories* choice, the landed-upload meter and its preview, and the
+ * `.avt` sniff. **No new dependency** — neither side touched a manifest —
+ * which is the [20 §7] trigger. The same five kB of margin again, and the
+ * same remedy named twice above and still not taken: the note sentences off
+ * the entry with the library surface that is their only reader, which is a
+ * loading decision and not a merge's to make.
+ */
+/*
+ * ***Raised to 336 on 2026-10-01, for the audit and the polish pass that
+ * followed it.*** The entry measured **326.03** at the P13–P14 merge above;
+ * **329.00** before polish 5 (`d7ac703`), the difference being the audit's
+ * client fixes — a refusal read by its class rather than by its English, a
+ * draft kept through a late assist, a live frame that no longer freezes; then
+ * **330.13** after polish 9, **330.42** after polish 10, and **331.24** with
+ * polish 11, which crossed. About five kB in thirty-odd commits, all the
+ * client's own code and **no new dependency**, which is the [20 §7] trigger;
+ * most of the polish half is the words and the wiring by which a control says
+ * what happened — `TwoStep`, `WriteFailed`, `copyText`, a skip link, a radio
+ * group's arrows, search's status line. Every route is on the common entry, so
+ * a pass over every route lands here. Five kB of margin again, and the remedy
+ * named three times above is still the one and still not a polish commit's to
+ * take: the first `React.lazy`, or the note sentences off the entry with the
+ * library surface that is their only reader.
+ */
+/*
+ * ***Raised to 342 on 2026-10-03, at the merge of main into P15*** —
+ * [P15](../docs/design/workplan/33-p15-setup-from-a-turn.md), *make a setup
+ * from here*, built against 310 on a branch cut on 2026-09-26, before any of
+ * the four raises above, and so never weighed against them. Main's side of
+ * the merge (`21d8048a`) measured **333.76**; merged, the entry measured
+ * **337.05**, and **337.58** once the merge's own client work was in — the
+ * session form's greetings for a Setup's party and the sentence for 25 B18's
+ * rule, the refusals for an opening a Setup no longer holds and for a greeting
+ * beside one that gained an opening, the workbench's link from the story so
+ * far to its Setup — and **337.79** after review's two sentences for a
+ * summary link the draft could not keep. **+4.03 kB** in all, nearly all of
+ * it P15's own code: the wizard (`SetupFromTurn.tsx`), the *Start a session*
+ * button a Setup's page and the wizard share (`StartSession.tsx`), and the
+ * session form's Setup picker. **No new dependency** — the branch touched no
+ * manifest — which is the [20 §7] trigger. The wizard is the plainest
+ * candidate yet for the first `React.lazy`: a dialog nobody sees until they
+ * press a button on one turn, and every byte of it on the common entry. It is
+ * still a loading decision and not a merge's, so the remedy named four times
+ * above is named a fifth, with a candidate this time. About four kB of
+ * margin, roughly what each raise above has left.
+ */
+const JS_CEILING_KB = 342;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

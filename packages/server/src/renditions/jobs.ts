@@ -26,9 +26,23 @@ import { inTransaction } from '../storage/transaction.js';
  * *So what is reused is the store, the status vocabulary and the event stream;
  * what is not is the reservation.* There is no idempotency table either: a
  * turn's renditions are enqueued once, by the runner, after the commit, and the
- * unique index on `rendition_id` is what stops a double dispatch — a constraint
- * rather than a check-then-insert, for the reason `job_one_active_per_session`
- * is an index rather than a query.
+ * partial unique index on `(session_id, rendition_id)` — **one live job per rendition** — is
+ * what stops a double dispatch: a constraint rather than a check-then-insert,
+ * for the reason `job_one_active_per_session` is an index rather than a query.
+ *
+ * ***Live, not ever, and the difference is the retry button.*** Until
+ * 2026-09-26 the index was unconditional, so a retry was handed the first try's
+ * finished row and re-ran it with its old `finished_at` still set — invisible
+ * to {@link pendingRenditionJobs} and to boot recovery, which both ask
+ * `finished_at is null`. `STEPS[6]` in `state/migrations.ts` has the whole
+ * account and the reason the fix is a new row per try rather than a reset.
+ *
+ * ***A rendition is named by its session and its id, together*** — `STEPS[7]`,
+ * 2026-09-27. Rendition ids are `<turnId>.<n>` and session import keeps turn
+ * ids, so two sessions on one install can hold the same ids — copies an earlier
+ * import made, or a session deleted and imported back while its job rows stayed
+ * here. Every lookup is by the pair, or Try again in one would find the other's
+ * live job and render into it.
  */
 
 export type RenditionJobStatus = 'queued' | 'running' | 'done' | 'abandoned';
@@ -41,7 +55,12 @@ export interface RenditionJob {
   turnId: string;
   purpose: RenditionPurpose;
   status: RenditionJobStatus;
-  /** Which try this is. A retry is a new job with a higher number, never a reset. */
+  /**
+   * Which try this is. A retry is a new job with a higher number, never a reset.
+   *
+   * *Assigned by {@link enqueueRendition}, never by a caller*, and unique per
+   * rendition in the store — see that function for why.
+   */
   attempt: number;
   createdAt: number;
   updatedAt: number;
@@ -95,18 +114,40 @@ export interface EnqueueRequest {
   renditionId: string;
   turnId: string;
   purpose: RenditionPurpose;
-  /** Which try. Defaults to the first; a retry passes the previous plus one. */
-  attempt?: number;
+}
+
+/** What an enqueue did: the job, and whether it is the one this call made. */
+export interface Enqueued {
+  job: RenditionJob;
+  /**
+   * **False when a job was already live for this record**, and then the caller
+   * must not run it. That job already has a runner in this process — boot
+   * abandons every live job before the listener accepts anything — so running it
+   * again is a second image call on one job, which is the double dispatch the
+   * constraint exists to stop, arriving by the other door.
+   */
+  created: boolean;
 }
 
 /**
- * Queues one picture, or returns the job already queued for it.
+ * Queues one try at a picture, or returns the try already in flight.
  *
- * **Idempotent by constraint rather than by query.** The unique index on
- * `rendition_id` means a second enqueue for one record cannot insert, and this
- * reads the existing row rather than raising — which is what makes the runner's
- * dispatch safe to call from a commit path that may itself be retried by
- * `reconcile`.
+ * **Idempotent by constraint rather than by query, and over live jobs only.**
+ * The partial unique index means a second enqueue while one is queued or
+ * running cannot insert, and this reads that row rather than raising — so a
+ * dispatch repeated by a double-pressed button, or by anything else, finds the
+ * job it already made. A **finished** job does not answer: once it is done or
+ * abandoned, the next enqueue is the next try, which is what a retry is.
+ *
+ * ***The attempt number is assigned here, inside the transaction***, as one more
+ * than the highest this rendition has had — abandoned tries included, because a
+ * provider may have been paid for one before the process died. The earlier shape
+ * let a caller pass *"the previous plus one"*, and nothing ever did; it was also
+ * the wrong owner. A caller reading the previous number and then enqueuing is a
+ * read-then-insert across a module boundary, the shape this file's header
+ * refuses, and it lets a caller pass `1` for a retry. Assigned here, *never a
+ * reset* is true by construction — and the `(session_id, rendition_id, attempt)`
+ * constraint makes it true of the store as well as of this function.
  *
  * *No session lock.* The whole point of the second job shape is that a rendition
  * does not advance a head, so there is no head to be deciding against — and
@@ -117,12 +158,22 @@ export function enqueueRendition(
   db: DatabaseSync,
   request: EnqueueRequest,
   now: number = Date.now(),
-): RenditionJob {
+): Enqueued {
   return inTransaction(db, () => {
-    const held = db
-      .prepare(`select ${COLUMNS} from rendition_job where rendition_id = ?`)
-      .get(request.renditionId) as JobRow | undefined;
-    if (held) return toJob(held);
+    const live = db
+      .prepare(
+        `select ${COLUMNS} from rendition_job
+         where session_id = ? and rendition_id = ? and finished_at is null`,
+      )
+      .get(request.sessionId, request.renditionId) as JobRow | undefined;
+    if (live) return { job: toJob(live), created: false };
+
+    const last = db
+      .prepare(
+        `select max(attempt) as attempt from rendition_job
+         where session_id = ? and rendition_id = ?`,
+      )
+      .get(request.sessionId, request.renditionId) as { attempt: number | null } | undefined;
 
     const job: RenditionJob = {
       id: uuidv7(),
@@ -132,7 +183,7 @@ export function enqueueRendition(
       turnId: request.turnId,
       purpose: request.purpose,
       status: 'queued',
-      attempt: request.attempt ?? 1,
+      attempt: (last?.attempt ?? 0) + 1,
       createdAt: now,
       updatedAt: now,
       finishedAt: null,
@@ -156,7 +207,7 @@ export function enqueueRendition(
       null,
       null,
     );
-    return job;
+    return { job, created: true };
   });
 }
 
@@ -190,11 +241,27 @@ export function readRenditionJob(db: DatabaseSync, id: string): RenditionJob | n
   return row ? toJob(row) : null;
 }
 
-/** The job for one record, whatever state it is in. At most one, by constraint. */
-export function jobForRendition(db: DatabaseSync, renditionId: string): RenditionJob | null {
+/**
+ * The latest try for one record, whatever state it is in.
+ *
+ * *The latest rather than the only*: a record has one row per try, and at most
+ * one of them live, so the newest is the one that says what is happening to the
+ * picture now. Ordered by `attempt` rather than by `created_at`, because the
+ * number is the store's own count and a clock can repeat a millisecond.
+ */
+export function jobForRendition(
+  db: DatabaseSync,
+  sessionId: string,
+  renditionId: string,
+): RenditionJob | null {
   const row = db
-    .prepare(`select ${COLUMNS} from rendition_job where rendition_id = ?`)
-    .get(renditionId) as JobRow | undefined;
+    .prepare(
+      `select ${COLUMNS} from rendition_job
+       where session_id = ? and rendition_id = ?
+       order by attempt desc
+       limit 1`,
+    )
+    .get(sessionId, renditionId) as JobRow | undefined;
   return row ? toJob(row) : null;
 }
 
@@ -233,8 +300,11 @@ export function pendingRenditionJobs(db: DatabaseSync, sessionId: string): Rendi
  * answer to every other way this goes wrong, and the reason §1.4's *the hook
  * ships, the policy does not* is enough.
  *
- * Returns the rendition ids, so the caller can mark the records as well as the
- * jobs: a job row nobody can see is not what a person is looking at.
+ * Returns the jobs, so the caller can mark the records as well as the jobs: a
+ * job row nobody can see is not what a person is looking at. `recoverRenditions`
+ * in `worker.ts` is that caller — until 2026-09-26 nothing was, and a picture
+ * the process died making stayed `pending` on disk, which the client renders
+ * with no retry button at all.
  */
 export function reconcileRenditionJobs(
   db: DatabaseSync,

@@ -52,7 +52,7 @@ export function AboutBuild(props: { build: BuildInfo | null | undefined }): JSX.
           </MetadataRow>
         </dl>
       )}
-      <Licence />
+      <Licence source={props.build?.source} />
     </section>
   );
 }
@@ -70,15 +70,41 @@ export function AboutBuild(props: { build: BuildInfo | null | undefined }): JSX.
  *
  * *For every account rather than for admins.* The person who needs this
  * sentence is the one who authored something, which is everybody.
+ *
+ * ***The offer is described only where it is made*** (2026-10-01). This said
+ * *"the Source link at the foot of every page"* whatever the build carried, and
+ * the footer shows that link only when the build knows its source — which no
+ * development run does, and which no image did until the release passed one.
+ * A sentence pointing at a link that is not there is the one place on this
+ * page that could be wrong, so it now says which case this is.
  */
-function Licence(): JSX.Element {
+function Licence(props: { source: string | undefined }): JSX.Element {
   return (
     <div className="flex flex-col gap-2 text-sm text-ink-muted">
+      {/*
+       * ***Version 3, and "or later" only file by file*** (2026-10-03). Three
+       * files hold code from SillyTavern and Marinara Engine, which are
+       * licensed under version 3 alone, so the program as a whole is offered
+       * under version 3 and the later-version permission applies to every
+       * other file. Saying "version 3 or later" of the whole was a permission
+       * this project could not give. `THIRD_PARTY_NOTICES.md` is the list.
+       */}
       <p>
-        StoryEngine is free software under the GNU Affero General Public License, version 3 or
-        later. The <strong>Source</strong> link at the foot of every page leads to the source for
-        the exact build this install is running.
+        StoryEngine is free software under the GNU Affero General Public License, version 3. Most of
+        it may also be used under any later version; the few files that hold code from projects
+        licensed under version 3 alone may not, and the notices file with the source lists them.
       </p>
+      {props.source === undefined ? (
+        <p>
+          This build does not say where its source is, so there is no <strong>Source</strong> link
+          at the foot of the page; a release build carries one.
+        </p>
+      ) : (
+        <p>
+          The <strong>Source</strong> link at the foot of every page leads to the source for the
+          exact build this install is running.
+        </p>
+      )}
       <p>
         <strong>Code extensions and modes are AGPL-3.0 too</strong>, because they import the SDK and
         run inside this process.

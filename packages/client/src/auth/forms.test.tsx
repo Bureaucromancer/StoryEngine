@@ -65,6 +65,25 @@ describe('the setup form states this install’s rule', () => {
 
     expect(screen.getByLabelText('Password').hasAttribute('required')).toBe(true);
   });
+
+  /**
+   * ***The handle box holds the server's shape*** (2026-09-27). It let `-ned`
+   * through, which the server refuses. Compiled here the way a browser
+   * compiles a `pattern`, whole and with the `v` flag, rather than trusting
+   * jsdom's constraint validation to agree with one.
+   */
+  it('refuses a handle the server would, and passes the ones it takes', () => {
+    renderForm(<SetupForm minPasswordLength={8} tokenRequired={false} />);
+
+    const pattern = screen.getByLabelText('Handle').getAttribute('pattern') ?? '';
+    const browser = new RegExp(`^(?:${pattern})$`, 'v');
+    for (const refused of ['-ned', 'ned-', 'Ned', 'ned.smith', '', 'n'.repeat(64)]) {
+      expect(browser.test(refused), refused).toBe(false);
+    }
+    for (const taken of ['n', '7', 'ned', 'ned-2', 'n'.repeat(63)]) {
+      expect(browser.test(taken), taken).toBe(true);
+    }
+  });
 });
 
 /**

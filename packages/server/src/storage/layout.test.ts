@@ -45,6 +45,15 @@ describe('the data directory', () => {
     expect(layout.stateFile).toBe(join(DATA, 'state', 'state.sqlite'));
     expect(layout.stateFile).not.toBe(layout.indexFile);
   });
+
+  it('keeps import scratch in state/, and out of every place something reads', () => {
+    // [P13 §1.3](../../../../docs/design/workplan/30-p13-aventuras-import.md):
+    // beside P12's own snapshot, never under `users/` where the watcher and the
+    // library would see a half-written copy of somebody's install.
+    expect(layout.importScratchRoot).toBe(join(DATA, 'state', 'import-scratch'));
+    expect(layout.importScratchRoot.startsWith(layout.usersRoot)).toBe(false);
+    expect(layout.importScratchRoot.startsWith(layout.indexRoot)).toBe(false);
+  });
 });
 
 describe('library owners', () => {
@@ -179,11 +188,13 @@ describe('the layout never produces a path outside the data root', () => {
       layout.accountsFile,
       layout.indexFile,
       layout.stateFile,
+      layout.importScratchRoot,
       layout.systemRoot,
       layout.systemConnectionsRoot,
       layout.usersRoot,
       layout.userRoot('ned'),
       layout.userConnectionsRoot('ned'),
+      layout.usageLogFile('ned'),
       layout.sessionsRoot('ned'),
       layout.sessionRoot('ned', '01234567-89ab-7cde-8f01-23456789abcd'),
       layout.trashRoot('ned'),

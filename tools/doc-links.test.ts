@@ -37,13 +37,29 @@ import { describe, expect, it } from 'vitest';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Tracked text files. Binaries and the lockfile carry no citations. */
+/**
+ * Tracked text files. Binaries and the lockfile carry no citations.
+ *
+ * ***By name as well as by extension*** (2026-10-01). Rule (e) below says it
+ * reads the bare paths in `Dockerfile` and `.gitignore`, and the filter here
+ * admitted neither — an extension list cannot name a file with no extension —
+ * so the renumbering left twelve dead `docs/design/` paths in `Dockerfile`,
+ * `.dockerignore`, `.gitignore` and `.gitattributes` under a rule that said it
+ * was watching them. The deploy scripts and the unit are named for the same
+ * reason.
+ */
 function trackedFiles(): string[] {
   const out = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
   return out
     .split('\0')
     .filter(Boolean)
-    .filter((path) => /\.(md|ts|tsx|mjs|cjs|js|json|yml|yaml|css|html|xml)$/.test(path))
+    .filter(
+      (path) =>
+        /\.(md|ts|tsx|mjs|cjs|js|json|yml|yaml|css|html|xml|sh|service)$/.test(path) ||
+        /(?:^|\/)(?:Dockerfile|\.dockerignore|\.gitignore|\.gitattributes|\.prettierignore|\.npmrc)$/.test(
+          path,
+        ),
+    )
     .filter((path) => path !== 'pnpm-lock.yaml');
 }
 
@@ -231,6 +247,52 @@ describe('every citation says which document it means', () => {
       `${String(numeric.length)} work-plan citation(s) labelled with a number`,
     ).toEqual([]);
   });
+
+  /**
+   * **(i)** A label that is a filename is the filename it links to.
+   *
+   * (c) exempts such a label on the ground that it *"names its target
+   * exactly"*, and until 2026-10-03 nothing checked the "exactly". The
+   * 2026-09-14 renumber run (`378cbea9`) relabelled every filename label in the
+   * work-plan index by splicing — `labelFor(next)` + `label.slice(2)` — so the
+   * polish row read `polish-polish.md` over a link to `06-polish.md`, thirty
+   * of them in the index and one in P11. Every href was right, so (a) passed;
+   * the labels no longer open with two digits, so (b) and (c) never looked at
+   * them. Five rows written afterwards copied the broken pattern, because the
+   * index is what a new row is copied from, and the whole thing stood for
+   * nineteen days with every run green. It was the second time: the first run
+   * (`8008e8af`) spliced thirty labels the same way, `c375f68b` repaired them
+   * by hand — which is when (c)'s exemption was written — and the script kept
+   * the order that made them. Its half of the fix is in
+   * [`renumber-docs.mjs`](./renumber-docs.mjs), at the label rewrite.
+   *
+   * **Filename-shaped** means the two forms that script's filename branch
+   * writes: anything ending in `.md` — which is what catches the splice, whose
+   * output no longer starts with a number — and a bare `NN-slug`. One pair of
+   * backticks is looked through, and a path label compares its last segment,
+   * because `docs/design/README.md` writes `workplan/02-triage.md` as both
+   * label and href. When it landed this read 108 labels, every one of them
+   * right once the 36 were restored.
+   */
+  it('labels a link with its own filename, where the label is a filename', () => {
+    const basename = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
+    let read = 0;
+    const wrong = LINKS.flatMap((link) => {
+      const label = link.label.replace(/^`(.*)`$/, '$1');
+      const file = basename(link.href.split('#')[0] ?? '');
+      let want: string;
+      if (label.endsWith('.md')) want = file;
+      else if (/^\d{2}-[a-z0-9-]+$/.test(label)) want = file.replace(/\.md$/, '');
+      else return [];
+      read += 1;
+      return basename(label) === want
+        ? []
+        : [`${link.file}:${String(link.line)} — label "${link.label}" → ${link.href}`];
+    });
+
+    expect(wrong, `${String(wrong.length)} filename label(s) name a different file`).toEqual([]);
+    expect(read, 'the filename-label pattern matched almost nothing').toBeGreaterThan(80);
+  });
 });
 describe('every bare documentation path resolves', () => {
   /**
@@ -285,6 +347,148 @@ describe('every bare documentation path resolves', () => {
       bare,
       `${String(bare.length)} reference(s) name a number with no filename, which nothing can verify`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * **(j)** The citations nobody linked still say what they were written to say.
+ *
+ * Every rule above reads a link or a path, and the renumbering script also
+ * rewrites *unlinked* atoms — a bare `[03 §5]` — choosing the document from the
+ * evidence of the links around it. That choice can be confidently wrong, and
+ * nothing here would see it: the work-plan index's sentence about design
+ * documents keeping their numbers quotes two of them as examples, and the run
+ * of 2026-09-14 (`378cbea9`) rewrote them as `[testing §5]` and
+ * `[playable log §1]`, work-plan names, which is the opposite of what the
+ * sentence says. It stood for nineteen days with every rule green, and the
+ * first run (`8008e8af`) had done the same to the examples then written. The
+ * script's cause is fixed — it no longer reads a filename label as evidence of
+ * what a number means — and `tools/renumber-docs.overrides.json` pins the two
+ * atoms besides. This is what notices if either stops holding.
+ *
+ * **Narrow on purpose.** Whether an arbitrary unlinked atom means the right
+ * document is the question a checker cannot answer (rule (f) forbids the one
+ * form it could not even ask about). The index's examples are the case where
+ * the answer is in the sentence: they illustrate *design* citations, so they
+ * are written as a design note's number, whatever that number becomes.
+ */
+describe('the citations nothing links still say what they were written to say', () => {
+  const designNumbers = new Set(
+    FILES.map((file) => file.path)
+      .filter((path) => /^docs\/design\/\d{2}-[a-z0-9-]+\.md$/.test(path))
+      .map((path) => numberOf(path)),
+  );
+
+  it('quotes a design citation as a design number, where the work-plan index explains them', () => {
+    const readme = FILES.find((file) => file.path === 'docs/design/workplan/README.md')?.text ?? '';
+    const start = readme.indexOf('Design documents keep their numbers');
+    const sentence = start < 0 ? '' : readme.slice(start, readme.indexOf('\n\n', start));
+    const atoms = [...sentence.matchAll(/`\[([^\]\n]+)\]`/g)].map((match) => match[1] ?? '');
+    const wrong = atoms.filter((atom) => !designNumbers.has(/^(\d{2}) §/.exec(atom)?.[1] ?? null));
+
+    expect(wrong, `${String(wrong.length)} example(s) no longer cite a design note`).toEqual([]);
+    expect(atoms.length, 'the sentence, or its examples, were not found').toBeGreaterThanOrEqual(2);
+  });
+
+  /**
+   * An override is keyed by the literal atom it pins — `README.md::03 §5` —
+   * and a run that moves design 03 rewrites that atom to its new number, so
+   * the key stops matching anything and the pin is gone with every rule
+   * green. (e) already turns red on the two *paths* in an override, the
+   * key's file and the value, when either document moves, since both are
+   * bare `docs/design/` paths in a tracked file; the atom is the part no rule
+   * read, and this makes a stale one red rather than silent. A key with no
+   * `file::` part pins an atom anywhere.
+   */
+  it('keys every renumbering override to an atom that is still written', () => {
+    const path = join(root, 'tools/renumber-docs.overrides.json');
+    const overrides = existsSync(path)
+      ? (JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>)
+      : {};
+    const keys = Object.keys(overrides).filter((key) => key !== '_comment');
+    const stale = keys.filter((key) => {
+      const split = key.indexOf('::');
+      const file = split < 0 ? null : key.slice(0, split);
+      const atom = `[${split < 0 ? key : key.slice(split + 2)}]`;
+      return !FILES.some(
+        (candidate) => (file === null || candidate.path === file) && candidate.text.includes(atom),
+      );
+    });
+
+    expect(stale, `${String(stale.length)} override(s) pin an atom no longer written`).toEqual([]);
+    expect(existsSync(path) && keys.length === 0, 'the overrides file was read as empty').toBe(
+      false,
+    );
+  });
+});
+
+/**
+ * **(h)** The renumbering registry names every numbered document, at the
+ * number it is filed under.
+ *
+ * The work-plan README said from 2026-09-09 that this file *"refuses a
+ * work-plan file that has no name in the registry"*, and nothing here read
+ * the registry until 2026-10-02. Four documents were filed in the meantime
+ * with no line in `PLAN_ORDER` — P12, P13, P14 and the main audit — and every
+ * run was green; `tools/renumber-docs.mjs --rewrite` would have cited each of
+ * them as `undefined §x`, which is the defect that script's P7B comment says it
+ * fixed once already. The merge that found them also filed two documents
+ * under one number (30, P12A's and P13's), which the script's `--plan` does
+ * not notice: it maps registry entries to files, never files to entries.
+ *
+ * **Read as text, not imported**, because the script runs `buildMap()` and
+ * `git` the moment it loads, and the lists are not exported. The floors below
+ * are what stop a pattern that stopped matching from agreeing with nothing.
+ */
+describe('the renumbering registry names every document where it is filed', () => {
+  const script = readFileSync(join(root, 'tools/renumber-docs.mjs'), 'utf8');
+  const body = (name: string): string =>
+    new RegExp(`const ${name} = \\[\\n([\\s\\S]*?)\\n\\];`).exec(script)?.[1] ?? '';
+  const DESIGN = [...body('DESIGN_ORDER').matchAll(/^\s*'([a-z0-9-]+)',$/gm)].map(
+    (match) => match[1] ?? '',
+  );
+  const PLAN = [...body('PLAN_ORDER').matchAll(/^\s*\['([a-z0-9-]+)', '[^']+'\],$/gm)].map(
+    (match) => match[1] ?? '',
+  );
+
+  /** Every tracked `NN-slug.md` directly in `folder`, as its number and slug. */
+  const filed = (folder: RegExp): { path: string; number: number; slug: string }[] =>
+    FILES.map((file) => file.path).flatMap((path) => {
+      const found = folder.exec(path);
+      return found === null ? [] : [{ path, number: Number(found[1]), slug: found[2] ?? '' }];
+    });
+
+  it('names every work-plan document at its number', () => {
+    const files = filed(/^docs\/design\/workplan\/(\d{2})-([a-z0-9-]+)\.md$/);
+    const wrong = files
+      .filter(({ number, slug }) => PLAN[number - 1] !== slug)
+      .map(
+        ({ path, number }) =>
+          `${path} — the registry has ${PLAN[number - 1] ?? 'nothing'} at ${String(number)}`,
+      );
+
+    expect(wrong, `${String(wrong.length)} work-plan document(s) the registry misplaces`).toEqual(
+      [],
+    );
+    expect(files.length, 'a registry line with no document, or a document twice').toBe(PLAN.length);
+  });
+
+  it('names every design note at its number', () => {
+    const files = filed(/^docs\/design\/(\d{2})-([a-z0-9-]+)\.md$/);
+    const wrong = files
+      .filter(({ number, slug }) => DESIGN[number] !== slug)
+      .map(
+        ({ path, number }) =>
+          `${path} — the registry has ${DESIGN[number] ?? 'nothing'} at ${String(number)}`,
+      );
+
+    expect(wrong, `${String(wrong.length)} design note(s) the registry misplaces`).toEqual([]);
+    expect(files.length, 'a registry line with no note, or a note twice').toBe(DESIGN.length);
+  });
+
+  it('read both lists', () => {
+    expect(PLAN.length, 'PLAN_ORDER').toBeGreaterThan(30);
+    expect(DESIGN.length, 'DESIGN_ORDER').toBeGreaterThan(20);
   });
 });
 

@@ -16,7 +16,8 @@ endpoint that serves the `image` role, which is
 a judgement*, and the errand is one endpoint.
 
 *`main` as it stood immediately before the merge is `c9336b0`*, which is the
-merge commit's own first parent and is also where the `p8` branch points — so
+merge commit's own first parent ~~and is also where the `p8` branch points~~
+(***corrected 2026-10-01***: merged branches are closed rather than kept) — so
 the tree without any of this is one checkout away and needed no marker of its
 own.
 
@@ -1255,6 +1256,12 @@ shape. This is the stage where [06 §10.2](../06-modes-and-turn-pipeline.md)'s
 *not an optimisation, the only workable design* is either true in the code or
 quietly false.
 
+*Added 2026-09-27:* the placeholder while pending reached an open page only if
+it happened to refetch, because the stream carried a `rendition` frame when a
+picture landed or failed and none while it was pending; the client's reducer
+already accepted one. `dispatchRenditions` now sends it, after the record is
+written and before the job starts.
+
 ***A second job shape beside the first, not a reuse of it*** — §0.1's finding 9,
 which corrects §5. `state/jobs.ts`'s `Job` is turn-shaped and exists to enforce
 [P2 §2.10](08-p2-implementation.md)'s *only one turn may advance a session*;
@@ -1327,6 +1334,78 @@ about pictures, and shutdown has a thing to await rather than a component to own
 `renditions/shutdown.test.ts` asserts it, and its falsifying mutation is removing
 that one line.
 
+***And the retry was never a second job — found 2026-09-26, by reading.*** The
+index this stage wrote to stop a double dispatch was `unique (rendition_id)` with
+no condition, and the comment above it said *"one live job per rendition"*. The
+two agree for a rendition that is run once, which is every rendition the gate
+walks by hand. The retry button is the second run. `enqueueRendition` handed a
+retry the first try's **finished** row, and `runRendition` set it back to
+`running` with the old `finished_at` still on it. `pendingRenditionJobs` and boot
+recovery both ask `finished_at is null`, so a running retry was invisible to
+both, and a process that died holding one left it `running` for good. The attempt
+number never passed 1, although the migration's own column comment says *"a retry
+is a **new job** with a higher number rather than a reset, so the store can say
+how many times a picture has been paid for"*. **Every gate row that retries stayed
+green**, because each one waits for the picture, and the picture did arrive.
+
+**The code was brought to the notes rather than the other way round.** The other
+repair — keep one row, and have the retry clear it — would have reversed a decision
+the schema already wrote down. It also overwrites the first try's failure class,
+and it makes *not a reset* something every future writer has to remember.
+`STEPS[6]` replaces the index with the partial one the comment described
+(`job_one_active_per_session`'s shape). It adds `unique (rendition_id, attempt)`
+and heals the rows the defect had already written. `enqueueRendition` now assigns
+the attempt number itself, inside its transaction, and says whether it created the
+job. Nothing ever passed the caller-supplied *"previous plus one"*, and that shape
+could not have kept its own promise. Two things the index alone would not have
+fixed:
+
+- **The dispatcher ran whatever came back**, including a job already running, so a
+  double-pressed retry was two image calls on one job.
+- **Skipping a live job opens a window of its own.** A record is written by
+  `writeAtomic`, which awaits a `stat` after its rename, and the job is marked
+  finished only after that. So a record can say `failed` while its job is still
+  live. The retry therefore claims the job **before** rewriting the record:
+  `retryRendition` in `renditions/worker.ts`.
+
+*Keyed by session as well, 2026-09-27.* Both of `STEPS[6]`'s indexes named a
+rendition by its id alone, and a rendition id is its turn's, which session
+import keeps — so two sessions on one install can hold the same ids.
+`STEPS[7]` adds `session_id` to each index and every lookup takes the pair
+([21 §7](../21-internal-contracts.md)). *A data directory opened by the picture
+branch before it merged* numbered its own steps 6 and 7 differently and must be
+reset (`pnpm reset-data`, or `tools/reset-data.mjs`); only that branch's own
+builds could have made one, and no release did.
+
+***And the half this stage's own notes described, which nothing did.*** Boot
+recovery abandoned live job rows and logged a count, and the record stayed
+`pending`. `Rendition.tsx` renders `pending` as *"Making a picture of this…"* with
+**no retry button**, so every picture a restart interrupted became a placeholder
+nobody could press. Three comments said otherwise, and the client has had a
+sentence for `interrupted` since P9.4 that nothing could reach.
+`recoverRenditions` now marks each interrupted job's still-`pending` record
+`failed` / `interrupted` with its recipe intact. It tells the person through
+`artifact.ready` with `outcome: 'failed'`, as any failed picture does.
+`renditions/retry.test.ts` stages the crash: a rendition has no `halt()`, and
+`dispose` drains. It asserts the record, the job and the notification after a
+second boot, and that the placeholder's button then runs attempt 3.
+
+**One gap this does not close, recorded rather than fixed.** The runner and the
+illustrate route write a `pending` record *before* its job row exists, so a
+process that dies between the two leaves a record no job names, and recovery,
+which reads job rows, cannot find it. The window is one file write, and it
+predates all of the above. The fix is either a job row first or a scan of pending
+records at boot, and either is a decision rather than a repair.
+
+*Closed 2026-09-27, with the job row first.* A scan at boot would read every
+rendition record of every session at every start to find a window one write
+wide. `dispatchRenditions` now claims each job, then writes the record, then
+starts the job, and the runner and the Illustrate route hand it records rather
+than writing them. So every record on disk has a row recovery reads, and a job
+whose record never landed has nothing to strand. A write that lands and still
+throws is dispatched like any other, and one that does not land gives its
+claim up.
+
 ### P9.3 — Accumulation, selection, and the permanent recipe
 
 Many renditions per turn with the user choosing which is shown — structurally
@@ -1353,6 +1432,16 @@ through `acceptEffect` — *"which is `writeChannel`'s shape and `undoTurn`'s an
 warning stands: **a stage that discovers the policy by failing a proposal will
 want to widen the channel, and widening it is the one repair that undoes the
 argument.**
+
+*Corrected 2026-09-27: the shape was copied with a race in it.* `recordEscape`
+and `selectBackdrop` read the head and built their turn outside the session's
+lock, then appended under it, so a turn committing in between left the selection
+on a dead line. And a backdrop finishing while the *next* turn was being written
+selected itself as that turn's sibling, which its commit abandoned: the picture
+never showed on the line being played. The shape is now one helper,
+`appendEngineTurn`, that reads, builds and appends under the lock. A backdrop
+that lands during a turn is held and shown once that turn commits, unless the
+turn asked for, or reused, a backdrop of its own.
 
 ***And the empty diff has a new way to be false.*** `ChannelDefinition` gained
 `escapes?: boolean` at [P8.2](25-p8-implementation.md), and an effect whose
@@ -1501,24 +1590,26 @@ so every record's `provenance.binding` was null while its digest named a model.
 The binding rides on the step's report now, so the record and the reuse key
 cannot name different models.
 
-***And a cancellation that never fired — corrected 2026-09-26, found at
-[P13 §0.5](30-p13-implementation.md).*** The route's comment read *"the client's
-disconnect cancels the moment call"*, and it listened to the **request's**
-`close` to do it. Since Node 16 that event is emitted once the body has been
-read — for a `POST`, as the handler starts — and emitted once, so a listener put
-on after the route's two awaited reads had always already missed it. **The
-button worked and the cancellation was dead**: a person who pressed Illustrate
-and left still had the moment call run to the end, and the picture asked for and
-paid for. Nothing in the suite could see it, because every test here drives the
-app through `inject`, which has no socket and so no early `close`.
-`routes/disconnect.ts`'s `abortOnDisconnect` reads the response instead — its
-`close` with `writableFinished` false is the disconnect — and
-`p9-gate-controls.test.ts` now presses the button over a listening socket twice:
-once leaving at 150 ms into a 600 ms stall, which **failed against the route as
-shipped** with the picture requested, and once waiting, which guards the other
-way the old listener could have gone. *No gate row is edited*: this stage's
-proof obligation was component tests and the route-callers check, and neither
-was wrong — the fault was in a claim a comment made.
+***And a cancellation that never fired — fixed 2026-09-26 in `af5811a0`,
+recorded here 2026-10-03.*** The illustrate route's comment said *"the client's
+disconnect cancels the moment call"* and wired it as `request.raw.on('close')`.
+On a `POST` with a body that event is emitted once Fastify has read the body,
+before the handler runs, and emitted once — so a listener attached after the
+route's two awaited reads never ran, and every moment call ran to the end for a
+page nobody had open, the picture asked for and paid for. Nothing in the suite
+could see it, because `inject` cannot express a client leaving a `POST`.
+`routes/disconnect.ts`'s `disconnectSignal` reads the **response** instead — a
+response that closes without having finished is the client leaving — with a
+`destroyed` check for a client that left during one of the route's own awaits,
+and its tests go over a real socket. *Recorded here late, and on purpose*: until
+this date the fix lived only in [the API reference](../../api.md)'s illustrate
+section and in the helper's own comment, so this stage's record still read as
+if the comment had been true. The same bug was found independently the same
+day on the branch that became [P15](33-p15-setup-from-a-turn.md), whose §0.5
+says why its own fix was dropped at the merge for this one. *No gate row is
+edited*: this stage's proof obligation was component tests and the
+route-callers check, and neither was wrong — the fault was in a claim a comment
+made.
 
 ### P9.5 — The workbench over renditions
 
@@ -1700,7 +1791,7 @@ condition and the whole reason there are two.*
 | **7** A prompt over the cap drops its lowest-ranked fragment and says which | `renditions/assemble.test.ts`, `workbench/turn/views.test.tsx` | ✅ — and the dropped fragment is **struck rather than hidden** in the panel, which is the half that makes a capped prompt legible |
 | **8** With no `image` binding, the controls say so plainly | `routes/p9-gate-controls.test.ts` | ✅ — both halves: the turn is untouched and no `fast` call is made either, because the step is kept **out of the plan** rather than idled |
 | **9** Branch a turn with renditions: inherited, nothing replayed | `routes/p9-gate-selection.test.ts` | ✅ — the assertion is a **diff**, over four named reconstruction modules, with `store.ts`'s exclusion argued rather than listed |
-| **10** Walk back into a place: first backdrop returns, **no job dispatched** | `routes/p9-gate-selection.test.ts` | ✅ — the money row, asserted on a **count** rather than an absence |
+| **10** Walk back into a place: first backdrop returns, **no job dispatched** | `routes/p9-gate-selection.test.ts` | ✅ — the money row, asserted on a **count** rather than an absence. *Underneath, 2026-09-30*: ~~✅~~ **✅ for the count, not for the step** until `75f88d0` — no job was dispatched, and nothing returned: a generated backdrop was never drawn on the stage, and nothing selected the one reused, so the room you left stayed. The test now asserts the selection beside the count |
 | **11** Rewind past the doorway; branch and both in their own room | `routes/p9-gate-selection.test.ts`, `modes/scene/src/mode.test.ts` | ✅ — and the `escapes` trap that was not there when §1.7 was written is asserted on the mode side, where the declaration lives |
 | **12** Backdrop off: pixel-identical to text-only, no `image` call | `routes/p9-gate-controls.test.ts` | ✅ **in part** — the call-log half is discharged. *Pixel-identical* is what a person checks and is carried by C2 |
 | **13** An illustration renders **at its anchor**, inside the prose | `play/Rendition.test.tsx` **in part** | **C2, blocked on R10. Never walked.** The offset, the split and the fallback are asserted; *the picture is where the sentence is* is not a thing an assertion says |
@@ -1724,6 +1815,52 @@ empty, a call that is not made. What is unproven is every claim about *what it
 looks like* — that a picture arrives in a browser, and that it lands beside the
 sentence it is of. A phase whose gate proved every mechanism and looked at no
 picture is exactly what §3.1 warned this would be, and it is what it is.
+
+***Rows 5 and 6 were green over a seed that never left the process — found
+2026-09-26.*** ~~Both were discharged against the `FakeProvider`, which echoes the
+seed it is handed.~~ Row 5 was discharged against the `FakeProvider`, which
+echoes the seed it is handed, and row 6 against a literal fixture that states one
+(`workbench/turn/views.test.tsx`; corrected 2026-10-03, when this note merged to
+main). The real adapter passed it to a parameter
+`@ai-sdk/openai-compatible` marks unsupported and drops, so no endpoint was ever
+sent one while the record and the workbench went on stating it — [manual gate
+§4.1](11-p2-manual-gate.md)'s *"a stub agrees with whatever understanding wrote
+it"*, in the
+field [06 §10.7](../06-modes-and-turn-pipeline.md) calls load-bearing, and the
+same promise §1.2 found the Pollinations path breaking on purpose. **The steps and
+the results above stand as recorded.** What changed is the adapter, which now
+sends the seed where a connection declares `supportsImageSeed`
+([21 §3](../21-internal-contracts.md)), and the record, which says whether it
+did (`seedSent`). ~~*Sitting O's endpoint needs that capability declared for row 6
+to hold at the wire*; without it, the workbench now says — correctly — that the
+seed was not sent.~~ *Sitting O never walks row 6*: row 6 is **AUTO**, discharged
+by `workbench/turn/views.test.tsx` above, and O1–O3 clear rows 1, 2, 4, 12, 13 and
+14 ([manual testing §4, sitting O](05-manual-testing.md)). Declaring the capability
+on sitting O's endpoint is a courtesy, so the person walking it is not shown *Not
+sent* beside every seed and file it as a finding — O0 now says so — and without
+it the workbench says, correctly, that the seed was not sent (corrected
+2026-10-03, when this note merged to main: it claimed a dependency the sitting
+does not have).
+
+***`supportsImageSeed` has no control, and is owed one — recorded 2026-10-03.***
+It was written 2026-09-26 and merged on this date, and like `rendersImages` it is
+declared per connection and set only by hand-editing the connection file or
+through the admin connections route — the Connections form has no control for
+either ([the guide](../../guide/connections-and-models.md#editing-connection-files-by-hand)
+tells a person how, as a fact rather than a debt). Seed sending cannot be used at
+all without someone setting it, which is exactly [work plan
+§2.3](01-work-plan.md)'s test, so **the standing line's ✅ above does not cover
+it**: the row stands as recorded for what it named, and this is a debt beside it,
+carried here so it does not live only in a merge message. The natural place for
+the control is beside the *Makes pictures* control the `practical-wozniak` branch
+brings to the same form. ***Paid later the same day*** (2026-10-03, the
+recommended answer, which the owner deferred to): that branch merged with
+[polish §25](06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn),
+and the form now has **Sends a seed with a picture** beside *Makes pictures*,
+in a group headed *Drawing pictures*, shown once the connection says it makes
+pictures. Both flags are a control now and a hand edit still works; the
+standing line's ✅ above covers seed sending from this date, and sitting O's O0
+names the control.
 
 ---
 

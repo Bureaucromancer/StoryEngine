@@ -35,6 +35,33 @@ import type { Preset } from '@storyengine/sdk';
  * It goes through `validate()` in a test — the same validator a user's write
  * goes through — which is the assertion that caught `SlotSource` missing the
  * `guidance` arm that [06 §5.1] requires a preset to be able to position.
+ *
+ * ***One pack, two voices — [P14.3]***
+ * ([P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md)).
+ * Scene became an embodied chat and kept narration one control away
+ * ([P14 §1.2]), so this pack has to write both, and it does it with the one
+ * mechanism a pack already had for *"a different instruction per kind"*:
+ * `appliesTo`. The collector matches a block against the call's **voice** as
+ * well as its call kind and input kind — `narrator` on a call that speaks for
+ * nobody, `embodied` on a speaking call, and neither on any call that does not
+ * write the turn's messages (`CollectContext.voice`). So:
+ *
+ * - `se.instruction` is the narrator's, `se.instruction.embodied` the chat's;
+ * - the card's own prompts (`se.card.system`, `se.card.depth`,
+ *   `se.card.post-history`) are the chat's only — a narrated scene is never
+ *   told *"you are Vera"*;
+ * - everything else — the persona, the cards' sections, the lore, the samples,
+ *   the history, the goal and guidance — is both voices', and the card blocks
+ *   come **speaker first** on a speaking call ([P14.2]'s `castFor`).
+ *
+ * ***The pre-P14 narrator pack is not lost, and needs no second constant.***
+ * Every session carries its own copy of the pack it was created with
+ * (`SessionFile.preset`), so a pre-P14 session's copy still says
+ * `appliesTo: ['narrate']` on its one instruction, and `presetOf` adds only the
+ * blocks it lacks — each of which applies to `embodied` alone, or to both
+ * voices as its existing siblings do. The narrator's words themselves are
+ * unchanged here, so a *new* session set to `narrator` is narrated in exactly
+ * the words an old one is.
  */
 
 /** Fixed, so a golden snapshot over this object is reproducible. */
@@ -47,6 +74,30 @@ export const SCENE_PRESET: Preset = {
   blurb: '',
   modes: ['storyengine.scene'],
   blocks: [
+    /**
+     * *The narrator's, and a narration's only* (2026-09-27): `appliesTo` was
+     * every kind of call, and an impersonation is collected as `impersonate`
+     * and asks for exactly what this forbids — the player's own words. A
+     * session keeps the pack it was created with, so older sessions still
+     * carry the wide one; the impersonation instruction answers for those.
+     *
+     * ***The narrated voice's, since [P14.3]*** — `appliesTo: ['narrator']`,
+     * ~~`['narrate']`~~. Scene's pack serves both voices, and says which block
+     * is whose through the collector's third match key, the call's voice
+     * (`CollectContext.voice`): `narrator` on a call that speaks for nobody,
+     * `embodied` on one that speaks as a member. `narrate` is the call kind of
+     * **both**, so keyed to it this block would tell an embodied Vera she is
+     * the narrator of a scene. A voice is set only on a call that writes the
+     * turn's messages, so an impersonation still gets neither instruction.
+     *
+     * ***Sessions made before this keep `['narrate']`*** — the pack is a copy,
+     * and a copy follows the shipped pack in what it adds, not in what it
+     * changes (`presetOf`). Those sessions are narrated (`legacy`, or the
+     * narrator values P14.0 wrote at creation), and there the two keys pick the
+     * same calls. One of them switched to `embodied` by hand would get this
+     * instruction beside the embodied one, and *Switch to the mode's own* is
+     * the repair — said here because it is the one way the old key shows.
+     */
     {
       id: 'se.instruction',
       label: 'instruction',
@@ -56,12 +107,109 @@ export const SCENE_PRESET: Preset = {
         at: 'sequence',
       },
       priority: 90,
-      appliesTo: [],
+      appliesTo: ['narrator'],
       advisory: false,
       omitWhenEmpty: true,
       kind: 'text',
       template:
         "You are the narrator of a scene. Write what happens next in third person, past tense. Describe only what the player could perceive. Never write the player's own dialogue, thoughts or decisions, and never end by asking what they do.",
+    },
+    /**
+     * ***The embodied chat's instruction*** — [P14 §1.5](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * [P14.3].
+     *
+     * **The sense of SillyTavern's default main prompt, in our words**:
+     * *"Write {{char}}'s next reply in a fictional chat between
+     * {{charIfNotGroup}} and {{user}}"* (`openai.js:101`). It **names the
+     * speaker as the one to write** — `{{ char }}` is the speaker on a speaking
+     * call ([P14.2]), so under `per-actor` each call names its own member.
+     *
+     * ***And in a group, the group nudge*** — ST's *"[Write the next reply only
+     * as {{char}}.]"* (`openai.js:114`) and Marinara's *"Respond ONLY as"*
+     * (`generate.routes.ts:7332`). *A group* is `charIfNotGroup` differing from
+     * `char`, which is exactly ST's own test: in a cast of one the alias is the
+     * character's name, and the sentence would tell a solo chat it is a group.
+     * `{{ notChar }}` names who the reply must leave alone — the player first,
+     * then every other member, muted ones included, because a muted member is
+     * still somebody the reply must not speak as (`assembly/template.ts`).
+     *
+     * ***Under `per-actor` dispatch only*** (2026-09-29, the [P14.3] review).
+     * ~~In a group~~ — a `merged` call is one reply that may voice every member
+     * ([P14 §1.4], `mode.ts`), and telling it to write only as its first
+     * speaker and leave the rest to speak for themselves asked for the one
+     * thing merged dispatch is not. The names cannot tell the two calls apart,
+     * so the template reads the session's `dispatch`, the one setting in its
+     * namespace (`RenderContext.dispatch`). Absent outside a session, which
+     * sends no nudge: a call nobody said was one member's reply is not told
+     * it is.
+     *
+     * *The player's words are refused in both voices*, which is the one rule
+     * the narrator's instruction and this one share: a reply that writes the
+     * player's lines has taken the player's turn.
+     */
+    {
+      id: 'se.instruction.embodied',
+      label: 'instruction (embodied)',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 90,
+      appliesTo: ['embodied'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'text',
+      template:
+        "Write {{ char }}'s next reply in a fictional chat between {{ charIfNotGroup }} and {{ user }}. Write as {{ char }}: what they say and do, in their own voice. Never write {{ user }}'s dialogue, thoughts or decisions.{% if charIfNotGroup != char and dispatch == 'per-actor' %} This is a group chat: write only as {{ char }}, and leave {{ notChar }} to speak for themselves.{% endif %}",
+    },
+    /**
+     * ***The card's own system prompt, stacked after the instruction*** —
+     * [P14 §1.5]'s table: *"directly after the pack's instruction: the more
+     * specific voice speaks last among the system blocks"*.
+     *
+     * **Stacked rather than replacing**, which is §1.5's decision against ST's
+     * `prefer_character_prompt`: a card's one-line *"You are {{char}}"* would
+     * otherwise throw away the names, the group nudge and the refusal to write
+     * the player. A chat that wants ST's behaviour switches the instruction off
+     * (`prompts.instruction: false`), and a chat that wants neither switches
+     * this card's part off (`prompts.cards`).
+     *
+     * ***`voiced`***, so whose prompt it is follows the dispatch: under
+     * `per-actor` the speaker's only — another member's system prompt is an
+     * instruction to write *as them*, and sent to somebody else's call it would
+     * tell the model to be two people — and under `merged` every present card's,
+     * each its own block, because the one call writes for all of them. *Each
+     * rendered with its own `{{char}}`*: the importer writes the card's own name
+     * where its prompt said `{{char}}` (`import/sillytavern/card.ts`), which is
+     * the only reading a card's placeholder for itself can have.
+     *
+     * **Embodied only.** A narrator's call speaks for nobody, and a card prompt
+     * telling it *"you are Vera"* is the one thing a narrated scene must not
+     * be told; the narrated setting still produces narrator prose.
+     *
+     * *Bare, no wrapper*: the card's words as its author wrote them, which is
+     * what ST sends. Priority just under the instruction's, so under pressure
+     * the card's prompt goes before the pack's framing does.
+     */
+    {
+      id: 'se.card.system',
+      label: 'card system prompt',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 85,
+      appliesTo: ['embodied'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'actor',
+        sectionId: 'se.card.system',
+        scope: 'voiced',
+      },
     },
     {
       id: 'se.treatment',
@@ -81,6 +229,22 @@ export const SCENE_PRESET: Preset = {
         part: 'framing',
       },
     },
+    /**
+     * ***Whose block is whose*** (2026-09-27) — the persona's and the five
+     * actor blocks' wrappers name who each one is about.
+     *
+     * Bare, they reached the model as bodies with no names on them: the
+     * persona's sections with nothing to say they were the player's
+     * character, and — with two characters in a scene — two descriptions, then
+     * two appearances, then two voices, and nothing to say which was which.
+     * The persona's name was in no prompt at all. A wrapper renders `char` as
+     * the actor its candidate is about and `user` as the persona, and never the
+     * content, so a `{{` in somebody's card is still prose.
+     *
+     * *Sessions copied before this keep their bare blocks* — a pack follows
+     * the shipped one in what it adds, not in what it changes — and *Switch to
+     * the mode's own* brings these.
+     */
     {
       id: 'se.persona',
       label: 'persona',
@@ -97,6 +261,7 @@ export const SCENE_PRESET: Preset = {
       source: {
         of: 'persona',
       },
+      wrapper: "The player's character, {{ user }}:\n{{content}}",
     },
     {
       id: 'se.actor.summary',
@@ -115,6 +280,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.summary',
       },
+      wrapper: '{{ char }}:\n{{content}}',
     },
     {
       id: 'se.actor.appearance',
@@ -133,6 +299,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.appearance',
       },
+      wrapper: 'What {{ char }} looks like:\n{{content}}',
     },
     {
       id: 'se.actor.voice',
@@ -151,6 +318,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.voice',
       },
+      wrapper: 'How {{ char }} speaks:\n{{content}}',
     },
     {
       id: 'se.actor.traits',
@@ -169,6 +337,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         field: 'traits',
       },
+      wrapper: "{{ char }}'s traits: {{content}}",
     },
     {
       id: 'se.actor.background',
@@ -187,6 +356,7 @@ export const SCENE_PRESET: Preset = {
         of: 'actor',
         sectionId: 'se.background',
       },
+      wrapper: "{{ char }}'s background:\n{{content}}",
     },
     {
       id: 'se.lore',
@@ -285,8 +455,111 @@ export const SCENE_PRESET: Preset = {
       advisory: false,
       omitWhenEmpty: true,
       kind: 'slot',
+      /**
+       * ***`voiced`, since [P14.3]*** — [P14 §1.5]'s *"example dialogue… scoped
+       * to the speaker"*. Under `per-actor` an example of how Lund talks is no
+       * help writing Vera; under `merged`, and to a narrator, every present
+       * member's examples are, as before. `speaker` would have starved the
+       * narrator of every sample, which is why the scope is not that one. The
+       * scope narrows the actor carrier only; a Treatment's or a book's samples
+       * are the room's.
+       */
       source: {
         of: 'samples',
+        scope: 'voiced',
+      },
+    },
+    /**
+     * ***The secret plot*** — [P14 §1.9.3](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
+     * added at [P14.5b]: *"it reaches the narrator through a channel slot
+     * placed with the system blocks"*. Marinara puts its *Secret plot* system
+     * message just before the first chat message
+     * (`appendSecretPlotSystemMessage`); here that is the last of the system
+     * blocks, after the samples and before the story so far.
+     *
+     * ***`narrate` only***, and that is what keeps a secret one: the suggester's
+     * offers, a drafted move in the player's own voice and a judge's verdict
+     * all reach the player, and none of them may be written knowing where the
+     * story is secretly heading. The narrator is the one reader it steers.
+     * *Empty until the plot is switched on and a pass has written one*, so
+     * `omitWhenEmpty` keeps every session without it byte-identical.
+     */
+    {
+      id: 'se.plot.secret',
+      label: 'secret plot',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 55,
+      appliesTo: ['narrate'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      wrapper:
+        '[A hidden arc this story is building toward. The player does not know it: let it shape what happens, and never announce it.]\n\n{{content}}',
+      source: {
+        of: 'channel',
+        channelId: 'se.plot.secret',
+      },
+    },
+    /**
+     * ***When and where the scene is*** — [06 §7.2], added 2026-09-30.
+     *
+     * *The K hold rested on a belief that was false*: that a channel's `render`
+     * puts its value in the prompt by itself ([P7.12]'s *"the feature works and
+     * the pack is untouched"*). Nothing positions a channel but a slot, so the
+     * clock the engine advances every turn and the place the stager reads from
+     * the prose reached no call at all, and a narrator that had been told
+     * neither could not keep a scene where or when it was. [P14.5b] shipped
+     * channel slots since, which is the hold's own condition met.
+     *
+     * **For the narration, a suggestion and a drafted move** — the three calls
+     * that write the story or a line of it; a secret plot is `narrate`-only
+     * for secrecy, and neither of these is secret. *Standing aside while the
+     * world tracker is on* (`EstablishedState.supersedes`), whose own date,
+     * time and place the state block already carries: two clocks that
+     * disagree would be worse than either. `omitWhenEmpty`, so a session with
+     * no place yet says nothing about one. Sessions on this pack gain both
+     * through `presetOf`; one on a library preset gets them by resetting to
+     * the mode's own.
+     */
+    {
+      id: 'se.clock',
+      label: 'the time',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 50,
+      appliesTo: ['narrate', 'suggest', 'impersonate'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      wrapper: 'When this is happening: {{content}}',
+      source: {
+        of: 'channel',
+        channelId: 'se.clock',
+      },
+    },
+    {
+      id: 'se.location',
+      label: 'the place',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 50,
+      appliesTo: ['narrate', 'suggest', 'impersonate'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'channel',
+        channelId: 'se.location',
       },
     },
     /**
@@ -345,6 +618,82 @@ export const SCENE_PRESET: Preset = {
       kind: 'slot',
       source: {
         of: 'history',
+      },
+    },
+    /**
+     * ***What the story has established, once*** — [P14 §1.9.2], added at
+     * [P14.5a]: every tracker a person switched on, each present character's
+     * included, as one block.
+     *
+     * **Before the history's last message, as Marinara counts it** —
+     * `findTrackerContextInsertIndex` puts its committed tracker context
+     * before the newest history message, which in Marinara is the player's
+     * move being answered — with its wording's intent, *"established state as
+     * of the last message. Do not re-describe — advance from here"*
+     * (`committed-tracker-context.ts:299`), in this pack's own words. *This
+     * build's history run ends where the input begins*, so the same place is
+     * `in-history` depth **0**: after the last reply, straight before the
+     * move. Depth 1 would have put it before the last reply, which the block
+     * then contradicts by saying *as of the last message*.
+     *
+     * `user`, as Marinara sends it: a system message this deep in the history
+     * reads to several chat templates as a second system prompt — and next to
+     * the move it is one user message, context then action. Priority 45,
+     * under the attempt and over the actor detail sections — a squeezed prompt
+     * loses a character's backstory before it loses where everyone is standing.
+     * *Empty until a tracker is on*, and `omitWhenEmpty` keeps the pack's
+     * prompt byte-identical to what it was for every session that has none.
+     */
+    {
+      id: 'se.state',
+      label: 'established state',
+      role: 'user',
+      enabled: true,
+      placement: {
+        at: 'in-history',
+        fromEnd: 0,
+      },
+      priority: 45,
+      appliesTo: [],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      wrapper:
+        '[What the story has established as of the last message. Carry on from here; do not describe it again.]\n\n{{content}}',
+      source: {
+        of: 'state',
+      },
+    },
+    /**
+     * ***The card's depth prompt, at its own depth*** — [P14 §1.5]'s table: a
+     * card's `extensions.depth_prompt`, *"at its declared depth and role
+     * (default 4, `system`)"*.
+     *
+     * **The placement here is the default, and the section's own wins.** The
+     * depth and role are the card author's and travel on the section
+     * (`Section.placement`), so two cards asking for two depths land at two
+     * depths through this one block — the collector moves each, as it moves a
+     * lore entry by its own position. `voiced` and embodied-only for the system
+     * prompt's reasons above.
+     */
+    {
+      id: 'se.card.depth',
+      label: 'card depth prompt',
+      role: 'system',
+      enabled: true,
+      placement: {
+        at: 'in-history',
+        fromEnd: 4,
+      },
+      priority: 60,
+      appliesTo: ['embodied'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'actor',
+        sectionId: 'se.card.depth',
+        scope: 'voiced',
       },
     },
     /**
@@ -472,6 +821,39 @@ export const SCENE_PRESET: Preset = {
         of: 'input',
       },
     },
+    /**
+     * ***The card's post-history instructions, last*** — [P14 §1.5]'s table:
+     * *"in history at depth 0, user role, after the last message"*. ST sends
+     * them after the chat; Marinara at depth 0 as the user
+     * (`macro-context.ts:806`).
+     *
+     * **After the input in sequence, which is after everything said** — the
+     * player's move and, under `per-actor`, the round so far, which the
+     * collector places straight after the input slot. An `in-history` depth 0
+     * would put them before the move the reply answers, because this build's
+     * history run ends where the input begins. `voiced` and embodied-only for
+     * the system prompt's reasons; a high priority, because a card's author
+     * put these last to be the last thing obeyed.
+     */
+    {
+      id: 'se.card.post-history',
+      label: 'card post-history instructions',
+      role: 'user',
+      enabled: true,
+      placement: {
+        at: 'sequence',
+      },
+      priority: 95,
+      appliesTo: ['embodied'],
+      advisory: false,
+      omitWhenEmpty: true,
+      kind: 'slot',
+      source: {
+        of: 'actor',
+        sectionId: 'se.card.post-history',
+        scope: 'voiced',
+      },
+    },
   ],
   budget: {
     contextShare: 0.75,
@@ -581,6 +963,19 @@ export const SCENE_PRESET: Preset = {
       ],
     },
   ],
+  /**
+   * ***What a push says when the director could not be asked*** — [P14.5b],
+   * `Preset.pushDirections`. Marinara's two fixed directives
+   * (`generate.routes.ts:5754-5763`), in this pack's words: the scene has
+   * stalled, so move it on — through what it already has, or through
+   * something nobody saw coming.
+   */
+  pushDirections: {
+    natural:
+      'The scene has been standing still. In your next reply, move the story on: take it into a new scene, or push it forward through the tensions, goals and loose threads it already has.',
+    random:
+      'The scene has been standing still. In your next reply, bring in something unexpected — one event that is plausible, fits the scene and everything established so far, and that nobody saw coming.',
+  },
   variables: [],
   tags: [],
   provenance: {

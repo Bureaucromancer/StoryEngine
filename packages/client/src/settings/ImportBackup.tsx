@@ -6,6 +6,7 @@ import { useState, type JSX } from 'react';
 
 import {
   backupApi,
+  errorCode,
   type BackupImportOptions,
   type BackupImportResult,
   type BackupManifest,
@@ -49,18 +50,18 @@ import { Fine, Note, SubsectionTitle } from '../ui/Text.js';
  */
 
 /** Whole sentences, one per state, as the sentence-assembly rule requires. */
-function archiveLabel(record: BackupRecord): string {
-  const when = formatTimestamp(new Date(record.takenAt).toISOString());
+function archiveLabel(record: BackupRecord, locale: string | undefined): string {
+  const when = formatTimestamp(new Date(record.takenAt).toISOString(), locale);
   const what = record.contents === 'full' ? 'everything' : 'work only';
   return record.handle === null ? `${when} — the install, ${what}` : `${when} — ${what}`;
 }
 
-function takenLine(manifest: BackupManifest): string {
+function takenLine(manifest: BackupManifest, locale: string | undefined): string {
   const by =
     manifest.takenBy.version === null
       ? 'a build that did not record its version'
       : `version ${manifest.takenBy.version}`;
-  return `Taken ${formatTimestamp(manifest.takenBy.at)} by ${by}.`;
+  return `Taken ${formatTimestamp(manifest.takenBy.at, locale)} by ${by}.`;
 }
 
 function holdsLine(manifest: BackupManifest): string {
@@ -105,20 +106,42 @@ function resultLine(result: BackupImportResult): string {
   return `${String(objects)} library objects and ${String(sessions)} sessions were read.`;
 }
 
+/**
+ * Why an import did not run.
+ *
+ * ***By class*** (2026-09-27). This searched the server's English, and two
+ * refusals the route sends with their own reason fell through to *could not
+ * be run*: an archive that does not hold the account asked for
+ * (`unreadable-root`), and one past what an import reads at once
+ * (`too-large`), which was reported as unreadable when it is only big. The
+ * sweep's refusals of the tree inside (`live-install`, `unknown-format`,
+ * `ambiguous-root`) read as the archive not being readable, which is what the
+ * route says of them too.
+ */
 function failureLine(error: unknown): string {
-  const message = error instanceof Error ? error.message : '';
-  if (message.includes('no account with that handle')) {
-    return 'This install has no account with that handle, and an import does not create one.';
+  switch (errorCode(error)) {
+    case 'no-such-account':
+      return 'This install has no account with that handle, and an import does not create one.';
+    case 'unreadable-root':
+      return 'That archive does not hold the account you asked for.';
+    case 'too-large':
+      return 'That archive holds more than an import reads in one go.';
+    case 'unreadable':
+    case 'unsafe-path':
+    case 'live-install':
+    case 'unknown-format':
+    case 'ambiguous-root':
+      return 'That archive could not be read.';
+    default:
+      return 'That import could not be run.';
   }
-  if (message.includes('could not be read')) {
-    return 'That archive could not be read.';
-  }
-  return 'That import could not be run.';
 }
 
 export function ImportBackup(props: {
   scope: 'account' | 'install';
   rows: readonly BackupRecord[];
+  /** The reader's, for when each archive was taken. */
+  locale: string | undefined;
 }): JSX.Element | null {
   const client = useQueryClient();
   const install = props.scope === 'install';
@@ -187,7 +210,7 @@ export function ImportBackup(props: {
         value={chosen}
         options={[
           ['', 'Choose one…'],
-          ...props.rows.map((row) => [row.id, archiveLabel(row)] as const),
+          ...props.rows.map((row) => [row.id, archiveLabel(row, props.locale)] as const),
         ]}
         onChange={(value) => {
           setChosen(value);
@@ -206,7 +229,7 @@ export function ImportBackup(props: {
       ) : (
         <Panel variant="inset">
           <div className="flex flex-col gap-1">
-            <Fine>{takenLine(held)}</Fine>
+            <Fine>{takenLine(held, props.locale)}</Fine>
             <Fine>{holdsLine(held)}</Fine>
             <Fine>{credentialsLine(held)}</Fine>
             {/*

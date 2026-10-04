@@ -84,6 +84,26 @@ describe('the declaration', () => {
     expect(ASSISTANT_CONTEXT.update).toBe('user-only');
     const slot = ASSISTANT_PRESET.blocks.find((block) => block.id === ASSISTANT_CONTEXT.id);
     expect(slot, 'the pack positions the context').toBeDefined();
+    // ***And words for it*** (2026-09-30): a budget with no template renders
+    // the same nothing as no budget, which is how this test stayed green over
+    // a block that was empty on every turn. What the words say is asserted
+    // where they are rendered (the server's `collect.test.ts`).
+    expect(ASSISTANT_CONTEXT.render, 'the context has words').toEqual(expect.any(String));
+  });
+
+  /**
+   * ***A guided redo is shown the answer it replaces*** (2026-09-30) —
+   * Scene's `se.attempt`, and the same two claims its test pins: straight
+   * after the guidance, so the wrapper is the seam between the instruction and
+   * the prose it is about; and advisory, as the collector will force anyway.
+   */
+  it('shows a guided redo the answer it is replacing, after the guidance', () => {
+    const ids = ASSISTANT_PRESET.blocks.map((block) => block.id);
+    const attempt = ASSISTANT_PRESET.blocks.find((block) => block.id === 'se.attempt');
+
+    expect(ids.indexOf('se.attempt')).toBe(ids.indexOf('se.guidance') + 1);
+    expect(attempt?.advisory).toBe(true);
+    expect(attempt?.kind === 'slot' ? attempt.source : null).toEqual({ of: 'attempt' });
   });
 
   /** The card carries the voice, so nothing here may — §7.4's own split. */
@@ -163,6 +183,66 @@ describe('a change the assistant proposes', () => {
       );
       expect(result.effects, JSON.stringify(object)).toBeUndefined();
     }
+  });
+
+  /**
+   * ***An answer that proposes nothing withdraws the last offer*** (2026-09-30)
+   * — so the panel, which shows the newest proposal on the path, is not still
+   * offering one made three questions ago. Nothing stood, nothing is written.
+   */
+  it('withdraws a standing offer when the answer proposes nothing', async () => {
+    const standing = {
+      ...CONTEXT,
+      'se.assistant.proposal': {
+        version: 1,
+        value: { kind: 'actors', id: 'actor-1', changes: { name: 'Vera K' } },
+      },
+    };
+
+    const withdrawn = await propose(
+      input({ output: { text: 'Here is why.' }, channels: standing }),
+      host({ object: { change: null } }),
+    );
+    const quiet = await propose(
+      input({ output: { text: 'Here is why.' }, channels: CONTEXT }),
+      host({ object: { change: null } }),
+    );
+
+    expect(withdrawn.effects).toEqual([
+      {
+        channelId: 'se.assistant.proposal',
+        op: { type: 'set', path: '/' },
+        after: null,
+        proposedBy: { kind: 'model', callId: 'c1' },
+      },
+    ]);
+    expect(quiet.effects).toBeUndefined();
+    // And it may read what stands, which is what lets it know.
+    expect(PROPOSE_STEP.reads).toContain('se.assistant.proposal');
+  });
+
+  /**
+   * ***A session on screen is no target*** (2026-09-30). Open over a play
+   * session, the panel discloses the session, and a proposal addressed to it
+   * is one no library route writes and the panel never shows. Anything but a
+   * library object is no context, as a session that disclosed nothing is.
+   */
+  it('takes a session on screen as no object, never as the target', async () => {
+    const inSession = {
+      'se.assistant.context': { version: 1, value: { kind: 'session', id: 's-1' } },
+    };
+
+    const named = await propose(
+      input({ output: { text: 'Change her name.' }, channels: inSession }),
+      host({ object: { change: { kind: 'actors', id: 'actor-1', changes: { name: 'Vera K' } } } }),
+    );
+    const unnamed = await propose(
+      input({ output: { text: 'Change it.' }, channels: inSession }),
+      host({ object: { change: { kind: 'session', id: 's-1', changes: { name: 'No' } } } }),
+    );
+
+    expect(named.effects?.[0]?.after).toMatchObject({ kind: 'actors', id: 'actor-1' });
+    expect(unnamed.effects).toBeUndefined();
   });
 
   /** No answer, no call — the same gate `staging.ts` puts in front of its own. */

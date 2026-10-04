@@ -30,6 +30,7 @@ vi.mock('../api.js', async (importOriginal) => {
 });
 
 const { DialPanel } = await import('./DialPanel.js');
+const { ApiError } = await import('../api.js');
 
 const SESSION_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
 
@@ -155,5 +156,24 @@ describe('the dial panel', () => {
 
     expect(await screen.findByLabelText(/resists you/)).toBeTruthy();
     expect(screen.queryByLabelText(/narrator steers/)).toBeNull();
+  });
+});
+
+/**
+ * ***A dial the server refused says so*** — polish 9 (2026-10-01). It sprang
+ * back without a word, and the commonest refusal is a turn in flight, which is
+ * a reason to wait rather than a fault.
+ */
+describe('a refused dial', () => {
+  it('says that a turn is running, where the dial is', async () => {
+    writeSessionChannel.mockRejectedValue(new ApiError(409, 'busy', 'In flight.'));
+    answerWith({ difficulty: { levelId: 'even', levels: LEVELS } });
+    await renderPanel();
+
+    await userEvent.selectOptions(await screen.findByLabelText(/resists you/), 'harsh');
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'A turn is running. Try again when it has finished.',
+    );
   });
 });

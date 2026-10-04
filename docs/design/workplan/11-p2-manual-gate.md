@@ -245,6 +245,14 @@ exposes `GET /api/library/errors`. **No client code calls it.** Break an actor
 by hand and the app is silent: stale content presented as current, edited, then
 refused by a conflict dialog blaming a concurrent editor.
 
+*Built underneath, in two halves.* P7B.8 called the route from a panel over the
+library list. The object's own page stayed silent — stale content as current,
+editable, a save over a file that was JSON but not a valid object refused as a
+conflict for ever — until `3f97526` (2026-09-30), which says on the page why the
+file will not read and where it is, withholds Edit, keeps Delete, and refuses a
+save over it as needing repair. **The step itself has still not been walked**
+([manual testing](05-manual-testing.md)'s M6).
+
 ### 3.6 Smaller ones, all still open
 
 - **~~A killed turn names no model call~~ — half closed at

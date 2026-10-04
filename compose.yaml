@@ -26,6 +26,11 @@ services:
     # both track exactly that alias, and an alpha is not something to hand an
     # auto-updater (§1.6).
     restart: unless-stopped
+    # Docker's default is ten seconds, then SIGKILL. The server's own shutdown
+    # is bounded at about twenty (open requests, then pictures still being
+    # made), and this is the same thirty the unraid template and the tarball's
+    # unit give it.
+    stop_grace_period: 30s
     ports:
       # The mapping is your explicit act. The container binds 0.0.0.0 because a
       # container's own loopback is unreachable however you map it; changing the

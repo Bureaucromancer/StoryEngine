@@ -3,6 +3,7 @@
 
 import type {
   AssembledBlock,
+  BlockImage,
   BudgetLimit,
   BudgetVerdict,
   CallPurpose,
@@ -67,6 +68,20 @@ export interface AssembleOptions {
    * sentence from *the turn was too long* and has a different repair.
    */
   refused?: readonly RefusedBlock[];
+  /**
+   * What the plan decided for each picture candidate, by candidate id —
+   * [25 E15]. Carried onto the block as its disclosure; a candidate the map
+   * does not name carries none.
+   */
+  pictures?: ReadonlyMap<string, BlockImage>;
+}
+
+function pictureOf(
+  pictures: ReadonlyMap<string, BlockImage> | undefined,
+  id: string,
+): { image?: BlockImage } {
+  const image = pictures?.get(id);
+  return image === undefined ? {} : { image };
 }
 
 /** A block a producer decided against, with the rule that decided. */
@@ -139,6 +154,7 @@ export function assemble(options: AssembleOptions): Assembly {
       // The flag survives onto the record — [P3.0]. Dropping it here is what
       // reduced [testing §1]'s invariant to a source-kind proxy.
       ...(candidate.advisory === true ? { advisory: true as const } : {}),
+      ...pictureOf(options.pictures, candidate.id),
     };
   });
 

@@ -11,7 +11,13 @@ import type { Rendition } from '@storyengine/shared';
 import { FakeProvider } from '../providers/fake.js';
 import { readRenditions } from '../renditions/store.js';
 import { Layout } from '../storage/layout.js';
-import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import {
+  eventually,
+  makeTestServer,
+  settled,
+  setUpAdmin,
+  type TestServer,
+} from '../test-server.js';
 
 /**
  * ***Gate steps 1 and 3*** —
@@ -65,7 +71,10 @@ function makeFake(images: FakeProvider['images'] extends never ? never : object[
   return new FakeProvider({
     script: [{ text: MOMENT, object: JSON.parse(MOMENT) as unknown }],
     images,
-    capabilities: { rendersImages: true, supportsStructuredOutput: true },
+    // `supportsImageSeed` declared, so the end-to-end row below describes an
+    // endpoint that takes a seed. The withheld case — every install's default —
+    // is the controls suite's double, which declares nothing.
+    capabilities: { rendersImages: true, supportsStructuredOutput: true, supportsImageSeed: true },
   });
 }
 
@@ -171,6 +180,14 @@ async function takeATurn(): Promise<{ turnId: string; status: string }> {
     const now = (read.body as { session: { headTurnId: string | null } }).session.headTurnId;
     return now !== null && now !== before;
   });
+  /**
+   * The turn's own body — its renditions recorded and dispatched, the person
+   * told — and **not** the pictures themselves. This file's image provider
+   * stalls on purpose, because gate row 1 is that a turn does not wait for its
+   * picture; draining here would make every picture ready before the row could
+   * see it pending. The negative rows drain it themselves, with `settled`.
+   */
+  await server.services.runner.settle();
 
   const transcript = await server.request({
     method: 'GET',
@@ -285,11 +302,17 @@ describe('a turn completes on text while its picture is still being made', () =>
     const [ready] = await renditionsOf();
     expect(ready?.asset?.mime).toBe('image/png');
     expect(ready?.asset?.digest).toMatch(/^sha256:/);
-    // The seed the step drew on the turn, echoed by the endpoint and recorded —
-    // [06 §10.7]'s load-bearing field, end to end. A *number* rather than a
-    // fixed value, because the draw is the engine's RNG and the point is that it
-    // survives to the record rather than what it happened to be.
+    // The seed the step drew on the turn, sent and recorded — [06 §10.7]'s
+    // load-bearing field, end to end. A *number* rather than a fixed value,
+    // because the draw is the engine's RNG and the point is that it survives to
+    // the record rather than what it happened to be.
     expect(ready?.provenance.seed).toBeTypeOf('number');
+    // And the record says it left the process. This comment used to say *echoed
+    // by the endpoint*, which was true of the double and never of the real
+    // adapter: the seed did not reach the wire until 2026-10-03 (written
+    // 2026-09-26, merged then), and a row that asserted only the number stayed
+    // green over that.
+    expect(ready?.provenance.seedSent).toBe(true);
     expect(ready?.provenance.at).not.toBeNull();
   });
 
@@ -356,10 +379,11 @@ describe('a failed rendition is a placeholder, never a failed turn', () => {
       url: `/api/sessions/${sessionId}/renditions/${encodeURIComponent(failed?.id ?? '')}/asset`,
     });
 
-    // Which is what the placeholder renders from. [10 §2.3]: *"the temptation
-    // this feature brings is a placeholder where the picture would go"* — and a
-    // 404 is how the client knows to render one deliberately rather than by an
-    // `<img>` failing.
+    // ~~Which is what the placeholder renders from.~~ It was not (2026-09-30):
+    // the placeholder renders from the list's `asset: null`, which says so of
+    // an evicted picture too since then. [10 §2.3]: *"the temptation this
+    // feature brings is a placeholder where the picture would go"* — and this
+    // 404 is for a page that read the list before the file went.
     expect(asset.status).toBe(404);
   });
 });
@@ -389,6 +413,10 @@ describe('with nothing bound to the image role', () => {
      * only the second one is about a bill.
      */
     const turn = await takeATurn();
+    // Everything it could have set off has finished, so *nothing was asked
+    // for* is a claim about the whole turn rather than about the moment it
+    // returned.
+    await settled(server);
 
     expect(turn.status).toBe('complete');
     expect(await renditionsOf()).toEqual([]);

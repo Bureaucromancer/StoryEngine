@@ -452,6 +452,29 @@ describe('retention', () => {
     expect(versions.map((v) => v.reason)).toEqual(['two', 'four']);
     expect(versions[0]!.pinned).toBe(true);
   });
+
+  /**
+   * ***A cap of zero keeps everything*** (2026-09-27), as a zero does for every
+   * other limit here. Read as a count, it pruned every unpinned version on each
+   * save, the one just recorded included.
+   */
+  it('keeps every version at a cap of zero, rather than none', async () => {
+    const { snapshotReplaced, listVersions } = await import('../storage/history.js');
+    const created = await createActor();
+    const objectRoot = join(server.dataDir, 'users', 'ned', 'library', 'actors', created.slug);
+
+    for (const summary of ['one', 'two', 'three']) {
+      await snapshotReplaced({
+        objectRoot,
+        payload: { schema: 'storyengine.actor/1', state: summary },
+        source: { kind: 'manual' },
+        reason: summary,
+        keepPerObject: 0,
+      });
+    }
+
+    expect((await listVersions(objectRoot)).map((v) => v.reason)).toEqual(['one', 'two', 'three']);
+  });
 });
 
 /**

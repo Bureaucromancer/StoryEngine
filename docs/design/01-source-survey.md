@@ -34,9 +34,23 @@ one. What was actually examined:
   in-repo copies, read via `git show f1e688c12^:…`, and the shipped package's may
   have moved on.
 
-Not examined in any depth: client component trees, extension/plugin runtimes in
-detail, TTS and video subsystems, tokenizers, Marinara's tactical combat engine,
-Aventuras' retrieval implementation. Assertions about those areas are inference
+- **Marinara's client, read for its UI, 2026-09-22** — `packages/client/src`
+  (the shell, the three chat surfaces, the resource panels, the editors, the
+  settings panel and `styles/globals.css`), plus `PRODUCT.md` and `DESIGN.md`,
+  which state Marinara's intended taste as named rules and are the only place
+  either source project writes its design position down. SillyTavern's
+  `public/index.html` was read beside it — the top settings drawers, `#sheld`,
+  the message template's swipe and button rows, and `#send_form` — for the one
+  question that read existed to answer: which of Marinara's conventions are its
+  own and which are inherited. The findings are
+  [10 §1.3](10-ui-surfaces.md), not here, because they are a direction rather
+  than a survey; what belongs here is that the read happened and how far it
+  went. Not covered by it: Marinara's game-mode surface beyond its structure,
+  and its Android build.
+
+Not examined in any depth: **client component trees other than the read above**,
+extension/plugin runtimes in detail, TTS and video subsystems, tokenizers,
+Marinara's tactical combat engine, Aventuras' retrieval implementation. Assertions about those areas are inference
 and should be read as such — a promise this document previously made in the form
 *"and marked as such"*, which it never kept: no claim anywhere below carries an
 inference marker. Stating the caveat once here is honest; the per-claim version
@@ -285,6 +299,121 @@ A SvelteKit + Tauri app (Svelte 5 runes), Vercel AI SDK across ~8 providers,
 local database, single-user desktop-shaped. Version 0.7.8. The smallest and most
 coherent of the three.
 
+### The library on disk — surveyed 2026-09-26, at `c43da108`
+
+*Added 2026-09-26, for [P13](workplan/30-p13-aventuras-import.md).* "Local
+database" was the whole of what this corpus recorded about where an Aventuras
+install lives, and the three export paths [P4 §1.5](workplan/16-p4-implementation.md)
+found were found in the source rather than here. Everything below is
+`AventurasTeam/Aventuras` v0.7.11 at
+`c43da108f6b3679950e76afe020f6b26abf0c9ce` (2026-09-25), pinned for the reason
+Marinara's survey above gives.
+
+**One SQLite file holds the install, settings included.** `aventura.db`, opened
+by `tauri-plugin-sql` from the WebView and by `sqlx` from Rust
+(`src-tauri/src/db.rs`). It resolves against Tauri's **app config directory**,
+not its data directory — `docs/architecture/persistence.md` says so because
+their own native code once opened a database that did not exist — under the
+bundle id `com.karelian.aventura`:
+
+| Platform | Path |
+|---|---|
+| Linux | `~/.config/com.karelian.aventura/aventura.db` |
+| macOS | `~/Library/Application Support/com.karelian.aventura/aventura.db` |
+| Windows | `%APPDATA%\com.karelian.aventura\aventura.db` |
+| Android | app-private storage; reachable only through the in-app backup |
+
+Settings are rows in a `settings` key/value table in the same file, provider
+keys among them in plain text (`api_profiles`, `openai_api_key`). There is no
+second store.
+
+**WAL mode, and no lease.** A running install has `aventura.db-wal` and
+`-shm` beside the database, and the bare `.db` can be missing committed writes
+— Aventuras' own backup refuses to archive it for exactly that reason
+(`backupService.ts`). Nothing marks a live install the way Marinara's
+`.writer-lease` does; a `-wal` is equally the residue of a crash.
+
+**The schema is versioned by sqlx.** Thirty-nine files in
+`src-tauri/migrations/`, applied at startup and recorded in
+`_sqlx_migrations(version, …)`, so `max(version)` is the schema version. They are
+additive throughout — columns added, never renamed — and checksummed, so a
+shipped migration is never edited. **A restored backup is not migrated until the
+app next starts**, so a backup in the wild carries whatever version wrote it.
+
+**The tables divide into the install and the stories.**
+
+- *The install:* `character_vault`, `lorebook_vault`, `scenario_vault`,
+  `vault_tags`; `preset_packs` with `pack_templates` (Liquid, each with the
+  `content_hash`/`baseline_hash` pair §2's pack paragraph praises),
+  `pack_variables` and `pack_runtime_variables`; `settings`; the legacy
+  `templates`; `vault_assistant_conversations`; `model_health_cache`.
+- *Each story* (`story_id`, cascading): `stories`, `story_entries` (the
+  transcript), `branches`, `characters`, `locations`, `items`, `story_beats`,
+  `entries` (the story's lorebook — the unified `Entry` above), `chapters`,
+  `checkpoints` and `world_state_snapshots` (both whole world states as JSON),
+  `time_anchors`, `kept_separate`, `embedded_images`, `background_images`.
+
+**Images are base64 text inside the database** — generated illustrations,
+backgrounds, and every character and vault portrait. This is why an install with
+a gallery is hundreds of megabytes, and why Aventuras moved its backup and
+export into Rust: the WebView ran out of heap on Android.
+
+**What leaves the app.** Four things, one of which carries everything:
+
+- the **full backup**, a zip of a `VACUUM INTO` snapshot named `aventura.db`
+  plus `metadata.json` — `{ version: 1, createdAt, appVersion, storyCount,
+  hasDatabaseSnapshot, databaseSizeBytes }` — written by
+  `src-tauri/src/backup.rs`. Older backups also carry `stories/*.avt`, which
+  Aventuras' own restore ignores. *The archive itself*, for a reader that has to
+  open one without holding it in memory
+  ([P13.8](workplan/30-p13-aventuras-import.md)): the `zip` crate v8 with only
+  its `deflate` feature, `aventura.db` deflated at level 1 and `metadata.json`
+  stored, through `ZipWriter::new` over a seekable file — so sizes are written
+  back into each local header rather than into data descriptors — and without
+  `large_file`, so there is no zip64 below 4 GiB (the crate refuses a larger
+  entry outright). To be confirmed on a real backup's bytes at the gate;
+- **`.avt`**, one story as versioned JSON, now at 1.10.0
+  (`services/import/types.ts`), which is `gatherStoryData()` — every row the
+  story owns, all branches, images inlined — through the row mappers;
+- the **vault's single-record JSON**, which [P4 §1.5](workplan/16-p4-implementation.md)
+  reads;
+- **LAN sync** (`src-tauri/src/sync/`), a token-checked `POST /sync` serving
+  `.avt` for stories the person selects. A phone-to-desktop feature, not an
+  export.
+
+**The objects are the rows run through mappers, and the mappers do work.**
+`src/lib/services/database.ts` holds one per table — `mapVaultCharacter`
+`:3042`, `mapVaultLorebook` `:3154`, `mapVaultScenario` `:4347`, the pack
+mappers from `:4368`, the story mappers from `:2687` — and they are not
+renames. `mapVaultCharacter` repairs the legacy string-array form of
+`visual_descriptors` through `migrateVisualDescriptors` (`:105`), so a reader
+that selected the column raw would meet a shape the file exports never show.
+
+**A vault lorebook is not `Entry[]`.** `lorebook_vault.entries` holds
+`VaultLorebookEntry[]` — `{ name, type, description, keywords, aliases,
+injectionMode, priority }` (`types/index.ts:305`) — and the `Entry[]` the file
+export writes is produced from it by `vaultEntryToEntryLike`
+(`lorebookImportExport/export/vault.ts:18`). The unified `Entry` above is a
+**story** lorebook's shape; the vault keeps a flatter one.
+
+**`linkedLorebookId` is a row reference, on characters as well as scenarios.**
+Importing a card with an embedded book splits the book into its own
+`lorebook_vault` row and stores the link in the new object's `metadata` —
+`scenarioVault.svelte.ts:345`, `characterVault.svelte.ts:429`. From a file the
+link names nothing; from the database it resolves.
+
+**A story's history is a list, and the tree is in the branches.**
+`story_entries` is `{ type: user_action | narration | system, content,
+position, branch_id, … }`, append-only per branch; `branch_id` null is main.
+`parent_id` exists and **is written `null` at every site that creates an entry**
+(`stores/story.svelte.ts:864`, `:947`, `:5408`). A branch owns only the rows it
+wrote, forks at `fork_entry_id` under `parent_branch_id`, and continues its
+parent's positions from the fork. The world-state tables are copy-on-write on
+top of that: `overrides_id` names the inherited row a branch's row shadows, and
+`deleted` is a tombstone. Regeneration replaces rather than keeping siblings,
+and the `retry` entry type was removed at `c43da108` itself (#535) as never
+written — so the only siblings in an Aventuras story are branches.
+
 ### What it gets right and we should take
 
 **The generation pipeline is a real pipeline.** `GenerationPhase = 'pre' |
@@ -434,6 +563,67 @@ besides.
 Node/Express server, jQuery-ish browser client, per-user directory tree on disk.
 The oldest and most widely deployed; the ecosystem reference for card and
 lorebook formats.
+
+### The library on disk — surveyed 2026-09-22, at `06bde939` (1.19.0)
+
+**Written from SillyTavern's write paths rather than from its files**, which is
+the difference that matters: every claim below is what some function in its
+source *emits*, and the reader had been built from what its files *looked
+like*. [P4 §7.19] records what that cost.
+
+**The tree is stable and the files inside it are not.**
+`USER_DIRECTORY_TEMPLATE` has changed seven times ever, and not once in the
+year before this survey; nothing we parse moved between 1.18.0 and 1.19.0.
+Format change happens *inside* files, is recognised by shape rather than by a
+version, and is migrated on load. There is no storage format number, no lock
+file and no migration marker a reader could wait on: `settings.json`'s
+`currentVersion` is the version of the app that last saved *settings*, it is
+absent until the first save, and it says nothing about the worlds and cards
+beside it.
+
+**Five files sit at the root** that the template does not name:
+`settings.json`, `secrets.json` (a credential; its own backup writer excludes
+it), `stats.json`, `image-metadata.json`, and `content.log`, which lists the
+default content a fresh install seeded and is therefore how *shipped* is told
+from *the person's own*. `write-file-atomic` can leave `<file>.<digits>`
+behind, and `sysprompt/` carries an empty `.migrated` marker.
+
+**A card is written twice into the same PNG.** `chara` holds the V2 JSON and
+`ccv3` the same JSON with its `spec` switched to v3; both are `tEXt`, keywords
+are compared lowercased, and `ccv3` wins on read. `characters/<name>/` beside
+the cards holds expression sprites, whose label is the lowercased name up to
+the first `-` or `.`, so `joy-1.png` and `joy.png` are both *joy*. Only
+top-level `.png` is listed as a character.
+
+**A linked lorebook is stored twice, in two different shapes.** The world lives
+in `worlds/<name>.json` keyed by uid, and a *copy* of it is embedded in the
+card as `character_book` in the V2 spec's shape — `keys`, `secondary_keys`,
+`insertion_order`, `enabled`, a string `position`, and everything else under
+`extensions`. The embedded copy is dormant in SillyTavern: it is read on import
+and never again.
+
+**Null means *ask the install*.** `scanDepth`, `caseSensitive`,
+`matchWholeWords` and `useGroupScoring` are declared nullable by SillyTavern
+itself, and null on any of them means take the global setting — which lives
+under `world_info_settings`, or at the top level in an older file, and falls
+back *per missing key* to module defaults that disagree with what a fresh
+install ships. A key is a regex when it is written `/pattern/flags`; inclusion
+groups are comma-separated; `delayUntilRecursion` is a recursion *level*, not a
+flag; and depth 0 means scan nothing.
+
+**A persona is a row in `settings.json`, not a file.** `power_user.personas`
+maps an avatar filename to a name, `persona_descriptions` holds the
+description, position, depth, role, title, lorebook link and connections, and
+an image with no name is called `[Unnamed Persona]`. The library's own
+organisation — `tags` and `tag_map`, and the `charLore` extra-book links — is
+in the same file, keyed by avatar filename.
+
+**The prompt order a chat-completion preset carries twice.** `100001` is the
+one the prompt manager has written since 2023-08; `100000` is the class default
+it overrides, so a file carrying both carries one order nobody has edited in
+two years. SillyTavern restores missing default prompts rather than dropping
+the order entries that name them. In text-completion presets `genamt` is the
+response length and `max_length` is the *context* size.
 
 ### What it gets right and we should take
 

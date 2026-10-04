@@ -1101,6 +1101,11 @@ Two items — 3 and 8 — were discharged earlier, in the stage that needed them
    `collect.ts` resolves `{{user}}` to `context.persona?.actor.name ?? 'the
    player'`. **Every session started in a browser had `persona: null`** — the
    slot emitted nothing and the narrator was instructed to address *the player*.
+   *(Correction, 2026-09-27: `{{user}}` was resolved in text-block templates
+   only, and no shipped block's template said it, so **with** a persona the
+   narrator still never read its name — the persona slot sent the sections'
+   bodies bare. The persona and actor wrappers name who each block is about
+   since then; see `wrap` in `collect.ts`.)*
    That is not a missing panel, it is the model being told nothing about who it
    is narrating for, on every turn of every browser-made session, and sitting K
    is walked against browser-made sessions.
@@ -1912,9 +1917,17 @@ the entry export, and `SE_CLOCK` against the id Scene declares — were proven b
 mutating the built package.
 
 **§0.1a's item 6 resolved toward the loader.** The root `package.json` declares
-the shipped modes, because the root is the distribution; the Dockerfile deploys
+the shipped modes, because the root is the distribution; ~~the Dockerfile deploys
 each into `/app/node_modules/` beside the server, because `pnpm deploy` walks one
-package's closure and the server's deliberately excludes them. A manifest edge in
+package's closure and the server's deliberately excludes them.~~ ***the server's
+own deploy carries them*** *(corrected 2026-10-01). The pinned pnpm's legacy
+deploy brings the root's dependencies into the deployed tree, so the per-mode
+deploys written here — in the Dockerfile and, from P11.9, in the release job's
+tarball — met a path that was not empty and failed with
+`ERR_PNPM_DEPLOY_DIR_NOT_EMPTY`. Only a `v*` tag runs either, and none has been
+pushed since this stage, so neither failure was ever seen. Both now import each
+mode from the deployed tree instead, and `tools/repo-shape.test.ts` holds those
+lines to `BUILT_IN_MODE_PACKAGES`.* A manifest edge in
 `packages/server/package.json` would have worked and would have put a mode in the
 server's dependencies, which is the one direction eslint cannot see.
 
@@ -2015,7 +2028,9 @@ the manner this paragraph asked for and in `tools/` rather than in
 the lint rules. It also covers three drifts this paragraph did not name and
 neither `pnpm lint` nor `pnpm typecheck` can: a mode in the server's *manifest*
 (eslint reads imports, not manifests), a mode in the server's tsconfig
-references, and a built-in in the loader's list that the image does not deploy.
+references, and a built-in in the loader's list that the image does not ~~deploy~~
+carry *(2026-10-01: the builds import each mode from the deployed tree rather
+than deploying it — see the correction above)*.
 
 ### P7.1 — Channels as a general mechanism
 
@@ -2963,11 +2978,13 @@ for.
 dropped: the party is `se.party` since [P7.3], so seeding it means writing
 effects, which needs a turn — it belongs with the setup turn's parts.*
 
-***Answered 2026-09-26 at [P13.3](30-p13-implementation.md), by a different
+***Answered 2026-09-26 at [P15.3](33-p15-setup-from-a-turn.md), by a different
 turn than the one named.*** A Setup's written opening is the session's first
 turn, written by the engine at creation, and the party rides on it as effects —
 its members seated in the cast and made `companion`. The setup turn's parts
 were never the only turn available; they were the only one that existed.
+*(Answered on a branch, as P13.3, and on `main` from 2026-10-03, when that
+branch merged and its phase was renamed P15 because `main` had spent P13.)*
 
 **Done: the making surface, and it is not a third hand-written editor**
 (2026-09-12). The obvious next move was a `SetupEditorPage` beside the actor's
@@ -2986,10 +3003,23 @@ thing you create with is the thing you configure with.
 `setup-from-form.ts` writes what `POST /api/sessions` reads back out, and both
 sides are tested against the same field list. A field one wrote that the other
 did not read would be a promise the library keeps and the game does not — and two
-are deliberately absent on both sides for the same reason, `partyDefault`
-(seeding it means writing effects, which needs a turn) and `required` on a lore
+are deliberately absent on both sides for the same reason, ~~`partyDefault`
+(seeding it means writing effects, which needs a turn) and~~ `required` on a lore
 link (the form has no control for the distinction and inventing one would be a
 claim the person did not make).
+
+*Corrected 2026-10-03, at the [P15](33-p15-setup-from-a-turn.md) merge:* one
+now, not two. The reading side has read `partyDefault` since P15.3 (P13.3 on
+its branch) — it seats the members and makes each `companion` on `se.party`,
+on the opening turn or a seeding turn of its own — and `setup-from-form.ts`
+still writes none. **So the asymmetry is real, and it is not closed by writing
+the form's *Characters* into `partyDefault`**: those are a cast, which Start
+seats without making anyone a companion, and a party is the other thing, so a
+saved Setup would start a different session — a seeding turn, and companions
+— from the one the form starts. What stands is plain: a Setup saved from a
+form that picked characters starts with nobody seated. Closing it needs a
+Setup to carry a cast that is not a party, which the schema has no field for;
+that is the owner's to decide, and nothing here guesses it.
 
 *`setups` stays out of `EDITOR_ROUTES` and `NEW_ROUTES`, and `fields.ts` now says
 why:* [10 §5]'s rule is about the **library's** New button, which opens a form
@@ -3399,10 +3429,13 @@ relaxed: the value arrived the day something could produce it.*
   without the first.
 - ***Patience is bounded and the deadline is a lapse.*** Three turns, a constant
   rather than a setting because *"a number nobody has played against is a guess,
-  not a tunable"*. The count is written out as `chances = path.length - made`
-  with the off-by-one argued in place: the commitment's own turn is the channel
-  write, which runs no selector, so the first chance is the turn after it. A
-  fourth would be due at `chances > 3`, and that is where it lapses — *"one that
+  not a tunable"*. The count is written out as ~~`chances = path.length - made`~~
+  `chances = storyDepth(path.slice(made + 1)) + 1` (2026-09-27: the path's
+  length counted every channel write after the commitment as a chance, and none
+  of them ran the selector — [06 §6.1]'s dated note) with the off-by-one argued
+  in place: the commitment's own turn is the channel write, which runs no
+  selector, so the first chance is the turn after it. A fourth would be due at
+  `chances > 3`, and that is where it lapses — *"one that
   fires anyway at the deadline delivers the twist at the exact moment the
   selector has already rejected three times"*.
 - ***Counted on the path.*** `committedAt` walks the path for the effect rather
@@ -4024,7 +4057,9 @@ and `packages/server/src/modes/` gone, with a check that fails if it returns.
 `@storyengine/sdk` from its first line by something that could not reach past it.
 The five-place workspace edit is done — the workspace glob already admitted
 `packages/modes/*`, and the root dependency, both tsconfig references,
-`BUILT_IN_MODE_PACKAGES` and the `Dockerfile` deploy step are new — and
+`BUILT_IN_MODE_PACKAGES` and the `Dockerfile` deploy step are new *(the deploy
+step failed every build from here on and was replaced by an import check,
+2026-10-01, `c79926d`)* — and
 `tools/repo-shape.test.ts` runs its boundary probes against both packages now,
 which is the *"an import from a mode package to `server` fails the build rather
 than a review"* half of gate step 1 covering a package nobody wrote it for.
@@ -4164,6 +4199,12 @@ generate.
 CHARX already collected every non-`card.json` entry; what was missing was the
 conversion, not the bytes.
 
+*Corrected 2026-09-27.* ~~Marinara's reader already carried `sprites/`~~: it
+carried the avatar alone, and reported `sprites/` as converted with nothing
+carrying them, so no Marinara actor ever arrived with an expression. They are
+reported as recorded now, until a reader turns them into expressions. CHARX's
+half was true, and its expressions now keep their ids across re-imports.
+
 *Label, not `tags`, and `common.ts` is explicit about why*: **role** is a closed
 union the engine reads and acts on, **tags** are open and *"nothing in the engine
 branches on them"*. Selection matches on `label`; `tags` stay untouched. The
@@ -4297,9 +4338,13 @@ visible rather than hidden, and the fix is a question rather than a stage.*
 
 - ***`se.location` has no preset slot***, and that is the hold rather than an
   omission — §0.2 holds Scene's growth behind PLAYABLE because `SCENE_PRESET` is
-  the artefact sitting K interrogates. The channel's own `render` puts the place
+  the artefact sitting K interrogates. ~~The channel's own `render` puts the place
   in the prompt through the channel mechanism, so **the feature works and the
-  pack is untouched**. A block for it is the first thing to add after K.
+  pack is untouched**.~~ A block for it is the first thing to add after K.
+  *Corrected 2026-09-30:* a `render` says how a value reads, and nothing puts a
+  channel in a prompt but a slot a pack positions — so the place, and the clock
+  with it, reached no call until Scene's pack slotted both (audit S4). The hold
+  itself had lapsed by then: [P14.5b] shipped channel slots in this pack.
 - ***Nothing generates a backdrop***, which is [P9]'s by name.
 - ***An expression cannot be authored, only imported*** — [P11]'s image slots.
 - ***Freeform contributes no surfaces***, and its `surfaces: []` is now a fact

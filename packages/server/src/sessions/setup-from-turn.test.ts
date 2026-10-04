@@ -21,7 +21,7 @@ import type { PooledHook } from './types.js';
 
 /**
  * ***The carry*** — [04 §7.2](../../../../docs/design/04-schemas.md),
- * [P13.5](../../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.5](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * Over values, because every rule here is a statement about a channel map and a
  * pool. **The property at the bottom is the one the phase exists to keep**: no

@@ -33,8 +33,12 @@ import { useEffect } from 'react';
  * always-available path.
  *
  * The caller owes a stable callback (`useCallback`), because the effect
- * re-subscribes when it changes — the same contract `useFocusTrap` states for
- * `onEscape`.
+ * re-subscribes when it changes ~~— the same contract `useFocusTrap` states for
+ * `onEscape`~~. *(2026-09-28: `useFocusTrap` stated no such contract and its
+ * callers never kept one; since its cleanup hands focus back to the opener, a
+ * re-subscription pulled focus out of every open dialog, and it reads its
+ * callback through `useEffectEvent` now. Here a re-subscription only swaps a
+ * listener, so the contract is a nicety rather than a fix.)*
  */
 export function useToggleChord(onToggle: () => void): void {
   useEffect(() => {

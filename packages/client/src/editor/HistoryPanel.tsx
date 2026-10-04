@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { ApiError, type LibraryKind, type ObjectVersion } from '../api.js';
 import { diffObjects, type FieldChange } from '../diff.js';
 import { RevisionList } from '../library/RevisionList.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
+import { TwoStep } from '../ui/TwoStep.js';
 import {
   useAmendVersion,
   useObjectHistory,
@@ -33,6 +34,12 @@ export interface HistoryPanelProps {
   contentHash: string;
   locale: string | undefined;
   onRestored: (result: { object: Record<string, unknown>; contentHash: string }) => void;
+  /**
+   * Whether the form holds edits nothing has written. A restore replaces the
+   * form with the version, so those edits go — said before the click, not
+   * discovered after it.
+   */
+  unsaved?: boolean;
 }
 
 export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
@@ -45,6 +52,16 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const diffQuery = useVersionPayload(props.kind, props.id, diffVersionId);
+
+  /**
+   * Mounted only when opened, so mounting is opening: the heading takes the
+   * keyboard, and focusing it scrolls the panel into view — it opens a screen
+   * or more below the button that opened it (2026-10-01, polish 10).
+   */
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
 
   function handleRestore(version: ObjectVersion): void {
     setError(null);
@@ -92,7 +109,9 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
 
   return (
     <section aria-label="Version history" className="rounded-md border border-line bg-surface p-4">
-      <h2 className="mb-3 text-section text-ink">History</h2>
+      <h2 ref={heading} tabIndex={-1} className="mb-3 text-section text-ink">
+        History
+      </h2>
 
       {error !== null ? (
         <Alert tone="error" role="alert" className="mb-3">
@@ -150,16 +169,34 @@ export function HistoryPanel(props: HistoryPanelProps): JSX.Element {
               )}
 
               <div className="mt-2 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="tiny"
-                  disabled={restore.isPending}
-                  onClick={() => {
-                    handleRestore(version);
-                  }}
-                >
-                  Restore
-                </Button>
+                {/* ***Guarded when it would cost something*** (2026-10-01,
+                    polish 8). A restore replaces the form, so over unsaved
+                    edits it threw them away at the first click — the saved
+                    state goes into history, the typing goes nowhere. It asks
+                    then, and only then: a restore over a clean form loses
+                    nothing, and the state it leaves is the newest entry here. */}
+                {props.unsaved === true ? (
+                  <TwoStep
+                    label="Restore"
+                    question="Restore this version? Your unsaved edits are lost."
+                    size="tiny"
+                    disabled={restore.isPending}
+                    onConfirm={() => {
+                      handleRestore(version);
+                    }}
+                  />
+                ) : (
+                  <Button
+                    type="button"
+                    size="tiny"
+                    disabled={restore.isPending}
+                    onClick={() => {
+                      handleRestore(version);
+                    }}
+                  >
+                    Restore
+                  </Button>
+                )}
                 <Button
                   type="button"
                   size="tiny"

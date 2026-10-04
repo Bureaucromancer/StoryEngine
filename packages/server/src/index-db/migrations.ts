@@ -66,8 +66,41 @@ import type { DatabaseSync } from 'node:sqlite';
  * — as **zero** for an actor a hook names, indefinitely, until somebody happened
  * to save the object for an unrelated reason. The index is derived and
  * disposable by design, so one rescan is the whole cost.
+ *
+ * **10 adds `session_stamp`** (2026-09-27), which the start-up consistency
+ * check reads ([03 §5.1]). A new table, and 6's argument applies to it: an
+ * index left at 9 would have no such table, and the check's first query would
+ * fail every start. It also means 9's paragraph above is now half true — a file
+ * that changed while the server was stopped *is* re-read at the next start —
+ * and still true of what it was about: a change in what is derived from files
+ * that have not changed needs a bump, because nothing re-reads an unchanged
+ * file.
+ *
+ * **11 is 9's shape again** (2026-09-27): no table changed, and what a turn's
+ * search text holds did. A move's pictures were indexed as the stand-ins a model
+ * reads (*[Picture, not described]*) and are now indexed as their captions
+ * only ([25 E15]), because search is read by a person. Turns written before
+ * pictures index exactly as they did; the bump is for the ones written since.
+ *
+ * **12 adds `session.origin_filename`** (2026-09-29, [P13.10] and [P14.10a])
+ * — `origin.originalFilename`, the key an imported session is found by again,
+ * as the library's is an object's `provenance.originalFilename`. **Two
+ * branches added it at once, at this one version, with the same column and the
+ * same index**, and the merge kept one: a producer's re-import (an Aventuras
+ * story, `aventura.db/stories/<id>`) is refused `already-here` by it, and a
+ * chat's (its family's root path, [P14 §2.7]) extends the session it finds.
+ * 6's shape and 9's argument, both: a new column, so an index left at 11 would
+ * fail the first `indexSession` on an insert naming a column the table does
+ * not have — every session write on the install, not only an import — and a
+ * column over files that have not changed, so without the rebuild every
+ * session imported before the upgrade would have it empty, and its source
+ * would come in a second time instead of being found. *Why a column when the
+ * library's own key is read out of `body` with `json_extract`*
+ * (`findPriorImport`): a session row caches no body, so there is nothing to
+ * extract from, and the alternative — opening every `session.json` an account
+ * holds to answer *is this here* — is the walk this index exists to replace.
  */
-export const INDEX_SCHEMA_VERSION = 9;
+export const INDEX_SCHEMA_VERSION = 12;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
@@ -207,10 +240,44 @@ create table session (
   -- gone ([03 §10.3](../../../../docs/design/03-data-model.md)) — and a search that could not
   -- find them would make archiving a way to lose things.
   archived      integer not null default 0,
-  updated_at    text not null
+  updated_at    text not null,
+  -- Where an imported session came from, in its source's own terms —
+  -- \`origin.originalFilename\`: a producer's key, e.g.
+  -- \`aventura.db/stories/<id>\` ([P13.10]), or a chat family's root path
+  -- ([P14 §2.7]). Null for every session made here, and for an import that
+  -- named no source. A re-import is found by it, per owner, as a library
+  -- object's is by its provenance ([P4 §1.3]); derived from \`session.json\`
+  -- like every other column here, so a rebuild writes it back.
+  origin_filename text
 ) strict;
 
 create index session_by_owner on session(owner, updated_at);
+create index session_by_origin on session(owner, origin_filename);
+
+-- ── What the last look at a session saw ──────────────────────────────────────
+--
+-- [03 §5.1]'s start-up consistency check compares *mtime/size against recorded
+-- values*, and an object row has always carried both. A session had nothing to
+-- compare: its rows are derived from \`session.json\` and every segment, and none
+-- of them recorded what those files looked like. This is that record — one
+-- digest over the files' sizes and times, and the account whose folder held
+-- them — written by the rebuild and by the check, and **deliberately not by the
+-- writes the server makes while it runs**. So it says *what the files were when
+-- the rows were last derived whole*, and any change since, the server's own
+-- included, is a session the next start derives again. A crash between a write
+-- and its index update is one such change, and the case the check exists for.
+-- The cost is a derivation in proportion to what was played since the last
+-- start; keeping the stamp current instead would have put a stat beside every
+-- index write the store makes, to save work only at start-up.
+--
+-- Bookkeeping about the files rather than a fact derived from them, so the
+-- rebuild-equals-incremental gate does not compare it: a running server's
+-- writes leave it behind by design.
+create table session_stamp (
+  session_id  text primary key,
+  owner       text not null,
+  stamp       text not null
+) strict;
 
 -- ── Turn text ────────────────────────────────────────────────────────────────
 --
@@ -326,6 +393,7 @@ function dropAll(db: DatabaseSync): void {
     'drop table if exists turn_fts',
     'drop table if exists turn',
     'drop table if exists session',
+    'drop table if exists session_stamp',
     'drop table if exists file_error',
     'drop table if exists object_link',
   ]) {
@@ -334,7 +402,10 @@ function dropAll(db: DatabaseSync): void {
 }
 
 export interface MigrationResult {
-  /** The version found on disk before anything was done. 0 for a fresh file. */
+  /**
+   * The version found on disk before anything was done. 0 for a fresh file, and
+   * for one whose rebuild never finished ({@link PENDING_VERSION}).
+   */
   from: number;
   to: number;
   /**
@@ -355,7 +426,44 @@ export function migrate(db: DatabaseSync): MigrationResult {
 
   dropAll(db);
   db.exec(SCHEMA);
-  writeVersion(db, INDEX_SCHEMA_VERSION);
+  /**
+   * ***Created, and not yet derived*** (2026-09-27).
+   *
+   * This wrote the current version here, before a single row existed, and the
+   * rebuild that fills the tables runs later and elsewhere. So a first start
+   * that died partway through its scan — killed by the stop timeout during a
+   * long first scan, or one unreadable file throwing out of it — came back
+   * with a version that said *current* over a fraction of the library. Nothing
+   * rebuilds a current index, so it stayed that way: objects missing from
+   * lists, search and retrieval, until somebody deleted the file by hand.
+   *
+   * The version now says what the file holds. {@link PENDING_VERSION} until a
+   * rebuild has run to the end ({@link markRebuilt}), and a file opened at
+   * that version is dropped and rebuilt again, which is exactly the retry the
+   * interrupted scan needed.
+   */
+  writeVersion(db, PENDING_VERSION);
 
   return { from, to: INDEX_SCHEMA_VERSION, rebuildRequired: true };
+}
+
+/**
+ * The version a file holds while its tables exist and their contents have not
+ * been derived: a fresh file's own `user_version`, so that a file nobody ever
+ * finished and a file nobody ever made are the same case.
+ */
+export const PENDING_VERSION = 0;
+
+/**
+ * Marks the contents as not derived, before anything is emptied — `rebuild`'s
+ * first act, so a rebuild asked for by `index.rebuildOnStart` and killed
+ * halfway is retried too, rather than leaving the half it got through.
+ */
+export function markRebuildPending(db: DatabaseSync): void {
+  writeVersion(db, PENDING_VERSION);
+}
+
+/** Marks the contents as derived from the disk — `rebuild`'s last act. */
+export function markRebuilt(db: DatabaseSync): void {
+  writeVersion(db, INDEX_SCHEMA_VERSION);
 }

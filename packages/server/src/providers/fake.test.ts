@@ -97,6 +97,40 @@ describe('the failures that are hard to arrange for real', () => {
     await expect(provider.generate(ask())).rejects.toMatchObject({ class: 'retryable' });
   });
 
+  /**
+   * ***A stall on the picture arm too*** (merged 2026-10-03). It was an inline
+   * field on the chat arm's error until the scripted refusal became one type
+   * for both arms, and the connection test answers a picture's stall as a
+   * timeout, which a double that could stall only a message would leave untried.
+   */
+  it('carries a scripted stall on every arm, as a real adapter does', async () => {
+    const quiet = { class: 'terminal', message: 'Went quiet.', stalled: true } as const;
+    const provider = new FakeProvider({
+      script: [{ error: quiet }],
+      images: [{ error: quiet }],
+    });
+
+    await expect(provider.generate(ask())).rejects.toMatchObject({ stalled: true });
+    await expect(drain(provider.stream(ask()))).rejects.toMatchObject({ stalled: true });
+    await expect(
+      provider.renderImage({ modelId: 'fake-image', prompt: 'A lamp.', seed: 1, workflow: {} }),
+    ).rejects.toMatchObject({ stalled: true });
+  });
+
+  it('carries a scripted status on every arm, as a real adapter does', async () => {
+    const refused = { class: 'terminal', message: 'Refused.', status: 401 } as const;
+    const provider = new FakeProvider({
+      script: [{ error: refused }],
+      images: [{ error: refused }],
+    });
+
+    await expect(provider.generate(ask())).rejects.toMatchObject({ status: 401 });
+    await expect(drain(provider.stream(ask()))).rejects.toMatchObject({ status: 401 });
+    await expect(
+      provider.renderImage({ modelId: 'fake-image', prompt: 'A lamp.', seed: 1, workflow: {} }),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
   it('disconnects mid-stream, after the caller already has text', async () => {
     // The one that matters most for P2.5: a partial answer plus a failure, not
     // a failure instead of an answer. Everything downstream has to cope with

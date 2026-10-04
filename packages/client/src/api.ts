@@ -2,12 +2,15 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  type FinishReason,
   type TagEntry,
+  type TokenUsage,
   LIBRARY_DIRECTORIES,
   LOREBOOK_SCHEMA,
   SETUP_SCHEMA,
   TREATMENT_SCHEMA,
   type ImportDestination,
+  type ImportNote,
   type ImportPreview,
   type NearMissOffer,
   type Turn as TurnRecord,
@@ -36,8 +39,16 @@ export function isLibraryKind(value: unknown): value is LibraryKind {
   return typeof value === 'string' && (LIBRARY_KINDS as readonly string[]).includes(value);
 }
 
-/** The folder a schema id's objects live in, or null for a kind this build does not know. */
+/**
+ * The folder a schema id's objects live in, or null for a kind this build does
+ * not know.
+ *
+ * *Own keys only* (2026-09-27): the id is a string the server sent, and read
+ * through the prototype `constructor` named a function rather than nothing. The
+ * search links and the Used-by words both take it from a response.
+ */
 export function kindOfSchema(schemaId: string): LibraryKind | null {
+  if (!Object.hasOwn(LIBRARY_DIRECTORIES, schemaId)) return null;
   return (LIBRARY_DIRECTORIES as Record<string, LibraryKind>)[schemaId] ?? null;
 }
 
@@ -215,6 +226,15 @@ export class ApiError extends Error {
    * leaves somebody guessing which field on a form they did not design.
    */
   readonly issues?: string[];
+  /**
+   * What a person could do about a provider failure — a `FailureRemedy`, from
+   * a route that says (2026-09-27).
+   *
+   * **A string rather than the union**, because a newer server may send a
+   * remedy this build has never heard of, and `remedySentence` already answers
+   * that with nothing rather than a guess. Lifted here for `issues`' reason.
+   */
+  readonly remedy?: string;
 
   constructor(
     status: number,
@@ -223,6 +243,7 @@ export class ApiError extends Error {
     current?: unknown,
     contentHash?: string,
     issues?: string[],
+    remedy?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -231,7 +252,23 @@ export class ApiError extends Error {
     if (current !== undefined) this.current = current;
     if (contentHash !== undefined) this.contentHash = contentHash;
     if (issues !== undefined) this.issues = issues;
+    if (remedy !== undefined) this.remedy = remedy;
   }
+}
+
+/**
+ * ***The class a refusal carries, or `null`*** (2026-09-27).
+ *
+ * The one spelling of the read every refusal sentence starts from. Two others
+ * were in use and both were wrong: a cast to `{ body: { error } }` — the shape
+ * a *server* test reads off an injected response, which `ApiError` has never
+ * had, so three components' sentences had never rendered — and matching the
+ * English of `message`, which four settings panels did, so rewording a server
+ * sentence would quietly change which one of theirs a person saw. The class is
+ * the contract ([21 §1.4]); the prose is the server's own fallback.
+ */
+export function errorCode(failure: unknown): string | null {
+  return failure instanceof ApiError ? failure.code : null;
 }
 
 export const CSRF_COOKIE = 'se_csrf';
@@ -280,30 +317,38 @@ async function request<T>(
 
   const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
-  if (!response.ok) {
-    const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
-    const message =
-      typeof payload?.['message'] === 'string'
-        ? payload['message']
-        : `The server answered with status ${String(response.status)}.`;
-    const current =
-      code === 'stale' && typeof payload?.['current'] === 'object' && payload['current'] !== null
-        ? payload['current']
-        : undefined;
-    const contentHash =
-      typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
-    // Every element checked, not just the array: this reaches the screen, and a
-    // body carrying `issues: [{...}]` would render `[object Object]` at somebody
-    // who is already being told they got something wrong.
-    const issues =
-      Array.isArray(payload?.['issues']) &&
-      payload['issues'].every((one) => typeof one === 'string')
-        ? payload['issues']
-        : undefined;
-    throw new ApiError(response.status, code, message, current, contentHash, issues);
-  }
+  if (!response.ok) throw refusalFrom(response.status, payload);
 
   return payload as T;
+}
+
+/**
+ * ***A refusal's body, read once*** (2026-09-28): what `request` always did,
+ * lifted out when a third reader arrived (`api.takeFile`) — the form upload had
+ * already copied the first two lines of it, and a copy is where the next field
+ * gets read by one of them and not the others.
+ */
+function refusalFrom(status: number, payload: Record<string, unknown> | null): ApiError {
+  const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
+  const message =
+    typeof payload?.['message'] === 'string'
+      ? payload['message']
+      : `The server answered with status ${String(status)}.`;
+  const current =
+    code === 'stale' && typeof payload?.['current'] === 'object' && payload['current'] !== null
+      ? payload['current']
+      : undefined;
+  const contentHash =
+    typeof payload?.['contentHash'] === 'string' ? payload['contentHash'] : undefined;
+  // Every element checked, not just the array: this reaches the screen, and a
+  // body carrying `issues: [{...}]` would render `[object Object]` at somebody
+  // who is already being told they got something wrong.
+  const issues =
+    Array.isArray(payload?.['issues']) && payload['issues'].every((one) => typeof one === 'string')
+      ? payload['issues']
+      : undefined;
+  const remedy = typeof payload?.['remedy'] === 'string' ? payload['remedy'] : undefined;
+  return new ApiError(status, code, message, current, contentHash, issues, remedy);
 }
 
 /**
@@ -322,15 +367,106 @@ async function requestForm<T>(url: string, body: FormData): Promise<T> {
   const response = await fetch(url, { method: 'POST', headers, body });
   const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
-  if (!response.ok) {
-    const code = typeof payload?.['error'] === 'string' ? payload['error'] : 'unknown';
-    const message =
-      typeof payload?.['message'] === 'string'
-        ? payload['message']
-        : `The server answered with status ${String(response.status)}.`;
-    throw new ApiError(response.status, code, message);
-  }
+  if (!response.ok) throw refusalFrom(response.status, payload);
   return payload as T;
+}
+
+/**
+ * ***How far an upload has got*** — [P13.8](../../../docs/design/workplan/30-p13-aventuras-import.md).
+ * `sent` of `total` bytes of the request body, as the browser reports them.
+ */
+export interface UploadProgress {
+  sent: number;
+  total: number;
+}
+
+/**
+ * ***A failed upload, as a sentence a person can act on*** — [P13.8]'s *maps a
+ * dropped connection or a proxy's 413 to a sentence*.
+ *
+ * Two failures reach the browser without a word from StoryEngine in them, and
+ * both are the ordinary way a large upload fails:
+ *
+ * - **The connection dropped** (`status` 0). A browser sending a large body
+ *   does not read the answer until it has sent all of it, so a refusal —
+ *   ours, which closes the connection, or a proxy's, which may not answer at
+ *   all — can reach it as a reset. So can a network that gave out. Neither is
+ *   *the file is bad*, and the sentence says what it might be instead.
+ * - **A `413` that is not ours**: StoryEngine's own carries `too-large` and a
+ *   message naming the limit, which is used as it is. One with no JSON body
+ *   came from something in front of the server — nginx's default body limit
+ *   is one megabyte — and the person who can fix it needs to be told that
+ *   the limit is not the one in Settings.
+ *
+ * Anything else with no JSON is the server's status, as `requestForm` has
+ * always said it. Exported for its test.
+ */
+export function uploadFailure(status: number, payload: Record<string, unknown> | null): ApiError {
+  const code = typeof payload?.['error'] === 'string' ? payload['error'] : null;
+  const message = typeof payload?.['message'] === 'string' ? payload['message'] : null;
+  if (code !== null && message !== null) return new ApiError(status, code, message);
+  if (status === 0) {
+    return new ApiError(
+      0,
+      'connection-lost',
+      'The connection was lost before the upload finished. If the file is large, the server — or a proxy in front of it — may have refused it part way; otherwise, try again.',
+    );
+  }
+  if (status === 413) {
+    return new ApiError(
+      413,
+      'proxy-too-large',
+      'Something between you and StoryEngine refused this file as too large — usually a reverse proxy’s upload limit, which is set apart from StoryEngine’s own. Whoever runs the server can raise it.',
+    );
+  }
+  return new ApiError(
+    status,
+    code ?? 'unknown',
+    message ?? `The server answered with status ${String(status)}.`,
+  );
+}
+
+/**
+ * `requestForm`, with the upload's progress — **an `XMLHttpRequest`, not
+ * `fetch`**, because `fetch` still reports nothing about a request body while
+ * it is being sent, and a gigabyte with no progress reads as a page that has
+ * hung. Everything else is `requestForm`'s: the CSRF header, the cookies (the
+ * same origin, so an XHR sends them), and the error's code and message from
+ * the body — through {@link uploadFailure} for the two failures that carry
+ * none.
+ */
+function requestFormWithProgress<T>(
+  url: string,
+  body: FormData,
+  onProgress: (progress: UploadProgress) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    const token = cookieValue(document.cookie, CSRF_COOKIE);
+    if (token !== null) xhr.setRequestHeader(CSRF_HEADER, token);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress({ sent: event.loaded, total: event.total });
+    };
+    xhr.onload = () => {
+      let payload: Record<string, unknown> | null = null;
+      try {
+        payload = JSON.parse(xhr.responseText) as Record<string, unknown>;
+      } catch {
+        // Not JSON: a proxy's page, or nothing. `uploadFailure` says which.
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(payload as T);
+      else reject(uploadFailure(xhr.status, payload));
+    };
+    // A reset, a refusal the browser never read, a network that gave out.
+    xhr.onerror = () => {
+      reject(uploadFailure(0, null));
+    };
+    xhr.onabort = () => {
+      reject(uploadFailure(0, null));
+    };
+    xhr.send(body);
+  });
 }
 
 /** One row of the import review — the shared vocabulary, as the client sees it. */
@@ -386,6 +522,13 @@ export interface ImportJob {
 export interface ImportFileResult {
   item: ImportItem;
   notes: ImportItem['notes'];
+  /**
+   * The whole review, when the file was a root — an archive or a database
+   * ([P13.7]). Absent for a single file, whose one row is the review.
+   */
+  report?: ImportReport;
+  /** The recorded upload (2026-09-28), which *Earlier imports* can open again. */
+  jobId: string;
 }
 
 export interface Credentials {
@@ -430,6 +573,60 @@ function objectUrl(kind: LibraryKind, id: string): string {
 
 function versionUrl(kind: LibraryKind, id: string, versionId: string): string {
   return `${objectUrl(kind, id)}/history/${encodeURIComponent(versionId)}`;
+}
+
+/** What `api.takeFile` hands back: the file, and what its answer said about it. */
+export interface TakenFile {
+  blob: Blob;
+  /** The name `content-disposition` gave it, or null when it gave none. */
+  fileName: string | null;
+  /** What an export left out — empty for a download, which converts nothing. */
+  notes: Pick<ImportNote, 'key' | 'params'>[];
+  /** How many objects a package names and its file does not carry. */
+  missing: number;
+}
+
+/**
+ * The name in a `content-disposition`, which the server writes as
+ * `attachment; filename="…"` from an ASCII slug (`downloadName`), so the quoted
+ * form is the only one it needs to read.
+ */
+function fileNameOf(disposition: string | null): string | null {
+  return /filename="([^"]+)"/.exec(disposition ?? '')?.[1] ?? null;
+}
+
+/**
+ * `x-storyengine-export-notes`: base64 of the UTF-8 JSON of the notes — base64
+ * because a header is latin-1 and a note's params carry whatever an object is
+ * called (`encodeNotes` on the server says so). `atob` alone would hand back
+ * the UTF-8 bytes as latin-1 characters, so *Café* would arrive as *CafÃ©*.
+ *
+ * A header that will not read is no notes rather than a failure: the file has
+ * arrived by then, and it is the file somebody asked for.
+ */
+function exportNotesOf(header: string | null): Pick<ImportNote, 'key' | 'params'>[] {
+  if (header === null || header === '') return [];
+  try {
+    const bytes = Uint8Array.from(atob(header), (char) => char.charCodeAt(0));
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (note: unknown): note is Pick<ImportNote, 'key' | 'params'> =>
+        typeof note === 'object' &&
+        note !== null &&
+        typeof (note as { key?: unknown }).key === 'string' &&
+        typeof (note as { params?: unknown }).params === 'object' &&
+        (note as { params?: unknown }).params !== null,
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** `x-storyengine-missing`, a count; anything that is not one is none. */
+function missingCountOf(header: string | null): number {
+  const count = Number(header ?? '0');
+  return Number.isInteger(count) && count > 0 ? count : 0;
 }
 
 export const api = {
@@ -492,11 +689,21 @@ export const api = {
    * spelling — [05 §1](../../../docs/design/05-tagging.md). `rewriteGates` is
    * off unless asked, because both answers are defensible.
    */
+  /**
+   * A rename, or with `dryRun` the question before one (2026-09-28): the gates
+   * the name holds and how many actors the rename would rename, with nothing
+   * moved. `booksRewritten` and `skipped` answer the real one.
+   */
   renameTag: (
     id: string,
-    body: { to: string; rewriteGates?: boolean },
-  ): Promise<{ tags: TagEntry[]; gatesFound: { book: string; entry: string }[] }> =>
-    request('POST', `/api/tags/${encodeURIComponent(id)}/rename`, body),
+    body: { to: string; rewriteGates?: boolean; dryRun?: boolean },
+  ): Promise<{
+    tags: TagEntry[];
+    gatesFound: { book: string; entry: string }[];
+    actorsRenamed: number;
+    booksRewritten: string[];
+    skipped: { id: string; name: string; reason: string }[];
+  }> => request('POST', `/api/tags/${encodeURIComponent(id)}/rename`, body),
 
   /** The one deliberate write across the library, after which renaming is free. */
   adoptTags: (): Promise<{
@@ -572,6 +779,10 @@ export const api = {
   fetchMyModels: (body: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
     request('POST', '/api/me/connections/models', body),
 
+  /** Tries one of your own saved connections — the admin route's twin ([polish §25]). */
+  testMyConnection: (id: string, input: ConnectionTestInput): Promise<ConnectionTestResult> =>
+    request('POST', `/api/me/connections/${encodeURIComponent(id)}/test`, input),
+
   readPrefs: (): Promise<{ prefs: Record<string, unknown> }> => request('GET', '/api/me/prefs'),
 
   /** A shallow merge; `null` deletes. The response is the whole document. */
@@ -603,6 +814,13 @@ export const api = {
   ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
 
   /**
+   * Which of your roles field assist asks for — a stopgap until [25 C15]
+   * decides role fallback for everyone. One value, written whole.
+   */
+  writeMyTaskRoles: (tasks: TaskRoles): Promise<{ tasks: TaskRoles }> =>
+    request('PUT', '/api/me/task-roles', tasks),
+
+  /**
    * ***Bytes beside an object*** — [10 §11.2b], [P11].
    *
    * **Multipart rather than a JSON body with base64 in it**, which is the same
@@ -622,7 +840,7 @@ export const api = {
   ): Promise<{ asset: { ref: string; digest: string; bytes: number; mime: string } }> => {
     const form = new FormData();
     form.append('file', blob, filename);
-    return requestForm(`/api/library/${kind}/${id}/assets`, form);
+    return requestForm(`${objectUrl(kind, id)}/assets`, form);
   },
 
   listLibrary: (kind?: LibraryKind): Promise<{ objects: LibraryObject[] }> =>
@@ -668,11 +886,16 @@ export const api = {
   indexRows: (kind: LibraryKind, id: string): Promise<{ rows: IndexRow[] }> =>
     request('GET', `${objectUrl(kind, id)}/rows`),
 
+  /**
+   * `copyOf` names the object this is a copy of, so the create brings its
+   * pictures — an actor's card, any other kind's files (2026-09-27).
+   */
   createObject: (
     kind: LibraryKind,
     object: Record<string, unknown>,
+    copyOf?: string,
   ): Promise<{ id: string; slug: string; contentHash: string }> =>
-    request('POST', `/api/library/${kind}`, { object }),
+    request('POST', `/api/library/${kind}`, copyOf === undefined ? { object } : { object, copyOf }),
 
   /** The hash rides in the body — the second spelling docs/api.md allows. */
   /**
@@ -711,6 +934,37 @@ export const api = {
     request('DELETE', objectUrl(kind, id), undefined, { 'if-match': contentHash }),
 
   /**
+   * ***A file from a download or export route, and what its answer said***
+   * (2026-09-28) — gap round A5.4.
+   *
+   * The detail page's links were plain anchors, on the reasoning the backups
+   * give below — a `fetch` rebuilds what the browser already does — and for
+   * these routes it does not hold, because the answer says things the page
+   * has to read. An export names what it left out in
+   * `x-storyengine-export-notes`; a package counts the objects it could not
+   * include in `x-storyengine-missing`; and a refusal is a JSON body, which a
+   * browser following a link saves as the file. None of the three reached
+   * anybody.
+   *
+   * The caller names the address, so the literal stays at the link it
+   * belongs to — `route-callers.test.ts` reads it there. A GET, so no CSRF
+   * token; same-origin, so the cookie rides as on every other read.
+   */
+  takeFile: async (url: string): Promise<TakenFile> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      throw refusalFrom(response.status, payload);
+    }
+    return {
+      blob: await response.blob(),
+      fileName: fileNameOf(response.headers.get('content-disposition')),
+      notes: exportNotesOf(response.headers.get('x-storyengine-export-notes')),
+      missing: missingCountOf(response.headers.get('x-storyengine-missing')),
+    };
+  },
+
+  /**
    * What that file *would* become, with nothing written ([10 §5], as amended).
    *
    * The bytes are sent twice — once here and again to `importFile` on confirm —
@@ -742,13 +996,26 @@ export const api = {
     file: File,
     onConflict?: 'replace' | 'keep-both' | 'skip',
     destination?: ImportDestination,
+    /**
+     * How far the upload has got — [P13.8]. Given, the upload goes through
+     * {@link requestFormWithProgress}; an Aventuras backup can be a gigabyte.
+     */
+    onProgress?: (progress: UploadProgress) => void,
+    /**
+     * Bring an Aventuras database's stories across as sessions — [P13.11].
+     * Only an Aventuras database or backup reads it; absent is no.
+     */
+    stories?: boolean,
   ): Promise<ImportFileResult> => {
     const body = new FormData();
     if (onConflict !== undefined) body.append('onConflict', onConflict);
     // Same rule, same reason: appended before the file so the route sees it.
     if (destination !== undefined) body.append('destination', destination);
+    if (stories === true) body.append('stories', 'true');
     body.append('file', file);
-    return requestForm('/api/import/file', body);
+    return onProgress === undefined
+      ? requestForm('/api/import/file', body)
+      : requestFormWithProgress('/api/import/file', body, onProgress);
   },
 
   /**
@@ -761,8 +1028,14 @@ export const api = {
   importSweep: (
     root: string,
     onConflict?: 'replace' | 'keep-both' | 'skip',
+    /** An Aventuras install's stories, as sessions — [P13.11]. Absent is no. */
+    stories?: boolean,
   ): Promise<{ report: ImportReport; suggestions: NearMissOffer[] }> =>
-    request('POST', '/api/import/sweep', { root, ...(onConflict ? { onConflict } : {}) }),
+    request('POST', '/api/import/sweep', {
+      root,
+      ...(onConflict ? { onConflict } : {}),
+      ...(stories === true ? { stories } : {}),
+    }),
 
   /**
    * Past imports, and one of them in full ([P4 §7.4]).
@@ -774,11 +1047,11 @@ export const api = {
   importJobs: (): Promise<{ jobs: ImportJob[] }> => request('GET', '/api/import/jobs'),
 
   importJob: (id: string): Promise<{ report: ImportReport }> =>
-    request('GET', `/api/import/jobs/${id}`),
+    request('GET', `/api/import/jobs/${encodeURIComponent(id)}`),
 
   /** What the imports said about one object, for its own page ([P5 §1.8]). */
   objectImportNotes: (objectId: string): Promise<{ notes: ObjectImportNotes[] }> =>
-    request('GET', `/api/import/objects/${objectId}/notes`),
+    request('GET', `/api/import/objects/${encodeURIComponent(objectId)}/notes`),
 
   /**
    * What a folder is, without importing from it — the check behind the path box.
@@ -798,13 +1071,27 @@ export const api = {
    */
   importDirectoryPlan: (
     entries: { path: string; bytes: number }[],
+    /**
+     * Plan the chats in too — [P14.8]'s opt-in. The first plan leaves them out
+     * and says in `chats` what they would add; the panel asks again with this
+     * set once the person has chosen them, so the server spends the budget.
+     */
+    chats?: boolean,
   ): Promise<{
     verdict: string;
     suggestions: NearMissOffer[];
     wanted: string[];
     declared: string[];
     wantedBytes: number;
-  }> => request('POST', '/api/import/directory/plan', { entries }),
+    limitBytes: number;
+    chats: { count: number; bytes: number; fit: { count: number; bytes: number } };
+    /** Library files the upload limit left out — said before sending, handed back with it. */
+    overLimit: string[];
+  }> =>
+    request('POST', '/api/import/directory/plan', {
+      entries,
+      ...(chats === true ? { chats } : {}),
+    }),
 
   /**
    * The folder itself: every name, and the bytes of the files the plan asked
@@ -818,10 +1105,32 @@ export const api = {
     manifest: string[],
     carried: { path: string; file: File }[],
     onConflict?: 'replace' | 'keep-both' | 'skip',
+    /** An Aventuras folder's stories, as sessions — [P13.11]. Absent is no. */
+    stories?: boolean,
+    /**
+     * *Whether the person chose chats*, when the plan offered the choice —
+     * [P14.8]. `skip` makes each chat left out a `skipped` row rather than one
+     * that *could not be read*; absent is a folder the choice was never
+     * offered for, and takes whatever was carried.
+     */
+    chats?: 'include' | 'skip',
+    /**
+     * The plan's `overLimit` (2026-09-28), so the review names each file the
+     * upload limit left out as that, rather than as one that could not be read.
+     */
+    overLimit?: readonly string[],
+    /** The picked folder's name, which the recorded import is listed under (2026-09-28). */
+    folder?: string,
   ): Promise<{ report: ImportReport }> => {
     const body = new FormData();
     body.append('manifest', JSON.stringify(manifest));
+    if (folder !== undefined && folder !== '') body.append('folder', folder);
     if (onConflict !== undefined) body.append('onConflict', onConflict);
+    if (stories === true) body.append('stories', 'true');
+    if (chats !== undefined) body.append('chats', chats);
+    if (overLimit !== undefined && overLimit.length > 0) {
+      body.append('overLimit', JSON.stringify(overLimit));
+    }
     for (const { path, file } of carried) body.append(path, file, file.name);
     return requestForm('/api/import/directory', body);
   },
@@ -972,12 +1281,128 @@ export interface SessionSummary {
    * fact about the route.
    *
    * *Only the field a client has a use for*, on the terms this interface sets
-   * for `treatment`, `lore` and `goals`. The Setup's cast, openings, goals and
+   * for `treatment`, `lore` and `goals`. ~~The Setup's cast, openings, goals and
    * hooks are all on the wire too and all of them are a copy of an object the
-   * library can be asked for; what cannot be got any other way is **which
-   * object it was a copy of**.
+   * library can be asked for;~~ what cannot be got any other way is **which
+   * object it was a copy of**. *Corrected 2026-09-27: the copy is no longer on
+   * the wire.* A reply carries the Setup as its id and name, since its goals and
+   * hooks are the spoilers the play surface exists not to show
+   * (`presentSession` on the server).
    */
   setup?: { id: string };
+  /**
+   * ***Who is seated*** — the roster the cast panel adds to and takes from,
+   * claimed at [P14.5].
+   *
+   * On the wire since P2, as `preset` above was, and unclaimed because no
+   * surface changed it: `PUT /api/sessions/:id/cast` had no client. The panel's
+   * rows (`CastRow`) are the union of this roster and everyone the channels
+   * name, so they cannot say which members are *seated* — and a cast write is
+   * the roster sent whole, which needs the roster. `persona` is who the player
+   * is; `actors` the cast in its order, which is the order a `list` round
+   * speaks in.
+   */
+  cast?: { persona: string | null; actors: string[] };
+}
+
+/**
+ * ***How a session plays as a chat*** — the effective settings, as the server's
+ * one reader (`chatSettingsOf`) reads them — [P14 §1.2], [P14 §1.5], [P14.5].
+ *
+ * **Effective rather than stored**, which is why this is its own member of the
+ * read and not a field of `SessionSummary`: a Scene session written before
+ * P14.0 carries none of these fields and plays as a narrated one, and a panel
+ * reading the file would show it as Scene's declared chat — wrong about the
+ * very session the reading exists to protect.
+ */
+export interface ChatSettings {
+  voice: 'narrator' | 'embodied';
+  dispatch: 'merged' | 'per-actor';
+  speakers: {
+    policy: SpeakerPolicy;
+    allowSelfResponses: boolean;
+    namesInHistory: 'never' | 'groups' | 'always';
+    maxPerRound: number;
+  };
+  /** Null is no note. `every: 0` is a note switched off with its text kept. */
+  note: { text: string; depth: number; every: number } | null;
+  /** Turn id to *the whole turn* or *these message indices*. */
+  hidden: Record<string, true | number[]>;
+  prompts: {
+    /** Whether the pack's own instruction is sent. */
+    instruction: boolean;
+    /** Per actor: every card prompt skipped (`false`), or the parts skipped. Absent sends all. */
+    cards: Record<string, false | CardPromptPart[]>;
+  };
+}
+
+/**
+ * The speaker policies — the SDK's `ParticipantPolicy['select']`, spelled here
+ * because this package does not import the SDK. `fixed` is a pre-P14 session's
+ * reading and is offered by no control; a value this build has not heard of
+ * arrives as a string and is shown as itself.
+ */
+export type SpeakerPolicy = 'fixed' | 'natural' | 'list' | 'pooled' | 'manual' | 'smart';
+
+/** One of a card's own prompt fields — `se.card.system`, `.post-history`, `.depth`. */
+export type CardPromptPart = 'system' | 'post-history' | 'depth';
+
+/**
+ * A change to a chat's settings — `PUT /api/sessions/:id/chat`, [P14.5].
+ *
+ * *Every member optional.* `speakers` merges member by member; `note: null`
+ * removes the note; `prompts.cards` merges per card, where `true` (or an empty
+ * list) is *send everything* and `false` or a list of parts is what is skipped.
+ * The server writes voice, dispatch and speakers together whenever any one is
+ * sent, so a pre-P14 session is never re-voiced by a single box.
+ */
+export interface ChatPatch {
+  voice?: ChatSettings['voice'];
+  dispatch?: ChatSettings['dispatch'];
+  speakers?: Partial<ChatSettings['speakers']>;
+  note?: ChatSettings['note'];
+  prompts?: {
+    instruction?: boolean;
+    cards?: Record<string, boolean | CardPromptPart[]>;
+  };
+}
+
+export function setChatSettings(
+  sessionId: string,
+  patch: ChatPatch,
+): Promise<{ session: SessionSummary; chat: ChatSettings }> {
+  return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/chat`, patch);
+}
+
+/**
+ * Who is seated — [06 §7.2], [P14 §1.8]'s *"add and remove, over
+ * `PUT /sessions/:id/cast`, which exists and has no client"*. The roster is
+ * sent whole, persona included: the route replaces both members, and a panel
+ * that sends what it shows cannot drift from what is stored.
+ */
+export function setSessionCast(
+  sessionId: string,
+  cast: { persona: string | null; actors: string[] },
+): Promise<{ session: SessionSummary }> {
+  return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/cast`, cast);
+}
+
+/**
+ * Hide and unhide — [P14 §1.6], [P14.4]'s route, [P14.5]'s caller. **A set, not
+ * a toggle**: `true` hides the whole turn, a list hides those messages, and
+ * `false` or `[]` unhides. The client sends the turn's whole entry, which it
+ * already has on screen, so a retry lands where the first did.
+ */
+export function setTurnHidden(
+  sessionId: string,
+  turnId: string,
+  hidden: boolean | number[],
+): Promise<{ session: SessionSummary }> {
+  return request(
+    'PUT',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/hidden`,
+    { hidden },
+  );
 }
 
 /**
@@ -1051,7 +1476,7 @@ export interface NewSession {
   modeConfig?: Record<string, unknown>;
   /**
    * ***The Setup to start from*** — [04 §7](../../../docs/design/04-schemas.md),
-   * [P13.4](../../../docs/design/workplan/30-p13-implementation.md).
+   * [P15.4](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * **The route has taken this since [P7.4] and no client ever sent it**, so a
    * Setup was an object you could make and never play. Everything it carries is
@@ -1061,10 +1486,38 @@ export interface NewSession {
    */
   setup?: string;
   /**
-   * Which of the Setup's written openings to begin on — [03 §6], [P13.3].
+   * Which of the Setup's written openings to begin on — [03 §6], [P15.3].
    * Absent is its primary; `null` is *start cold*; an id names one.
+   *
+   * ***A Setup that carries an opening begins on it, always*** — the owner's
+   * decision, [25 B18](../../../docs/design/25-open-questions.md), 2026-10-03: its cast's greetings are not written, **not even
+   * when this is `null`**, because *cold* is one of the Setup's answers about
+   * how its story begins rather than a gap the greetings fill. An id the Setup
+   * does not hold, or an id sent with no `setup` beside it, is
+   * `422 unknown-setup-opening` — its own class since the P15 merge, apart
+   * from [P14.4]'s `unknown-opening`, which is about a character's greeting.
+   * (`null` with no `setup` asks for no opening, and gets none.) *A written
+   * opening is one with words*: the route counts an opening whose text is
+   * blank as absent, here and in deciding whether a Setup carries one.
    */
   opening?: string | null;
+  /**
+   * ***Which written opening each member starts on*** — actor id to opening id,
+   * [P14 §1.7], [P14.5]. Absent for a member is their primary; read only by a
+   * mode that writes an opening turn (`PublicMode.openingTurn`), and only when
+   * somebody besides the persona is seated — anywhere else the server ignores
+   * the map, its refusals included.
+   *
+   * *Beside a `setup` too* (2026-10-03, at the P15 merge): the route seats a
+   * Setup's party when no `cast` is sent, and a Setup with no opening of its
+   * own begins on that party's greetings — so this chooses among them. Beside
+   * a Setup that carries an opening a choice is **refused**,
+   * `422 conflicting-openings`, since under 25 B18 no greeting is written there
+   * (`opening` above) and a choice the server quietly ignored would be a
+   * story somebody picked and did not get. Empty is no choice, and passes —
+   * which is why `createSession` never sends it.
+   */
+  openings?: Record<string, string>;
 }
 
 /**
@@ -1085,6 +1538,14 @@ export interface PublicMode {
   presetIds: string[];
   setup: ModeSetup;
   surfaces: { region: string }[];
+  /**
+   * Whether a new session opens on its cast's greetings — [P14 §1.7]. Optional
+   * because a server older than [P14.5] does not say, and not saying is *no*.
+   * *Unless it starts from a Setup that carries an opening* (2026-10-03,
+   * [25 B18](../../../docs/design/25-open-questions.md)): that one opens on the Setup's, and `NewSession.opening` says
+   * why.
+   */
+  openingTurn?: boolean;
 }
 
 /**
@@ -1138,8 +1599,22 @@ export interface ActiveJob {
   commitStep: number;
 }
 
-export function listSessions(): Promise<{ sessions: SessionSummary[] }> {
-  return request('GET', '/api/sessions');
+/**
+ * The account's sessions — the live ones, or with `archived` every one.
+ *
+ * ***The archived ones were unreachable*** (2026-09-27). The route has taken
+ * `?archived=true` all along and nothing asked for it, so a session archived
+ * from its own page could only be found again by its address, and a memory
+ * remembered from one named it *a session you have deleted*. Archiving is
+ * restorable by design ([03 §10.3]); a list that could not show it was not.
+ */
+export function listSessions(options?: {
+  archived?: boolean;
+}): Promise<{ sessions: SessionSummary[] }> {
+  return request(
+    'GET',
+    options?.archived === true ? '/api/sessions?archived=true' : '/api/sessions',
+  );
 }
 
 export function createSession(input: NewSession): Promise<{
@@ -1169,10 +1644,18 @@ export function createSession(input: NewSession): Promise<{
      * because an empty cast is being asserted — and the two are the same value
      * here, since a session created in a browser has never had actors and the
      * surface that gives it one is [P7.2]'s.
+     *
+     * ***A cast given whole is sent whole*** (2026-09-27). `cast` was declared
+     * on the input for the assistant panel, which passes the shipped card as
+     * its one actor, and never read here — so every assistant session was made
+     * with nobody in it, and the card that says what the assistant is never
+     * reached a prompt.
      */
-    ...(input.persona === undefined || input.persona === ''
-      ? {}
-      : { cast: { persona: input.persona, actors: [] } }),
+    ...(input.cast !== undefined
+      ? { cast: input.cast }
+      : input.persona === undefined || input.persona === ''
+        ? {}
+        : { cast: { persona: input.persona, actors: [] } }),
     ...(input.mode === undefined || input.mode === '' ? {} : { mode: input.mode }),
     /**
      * **Omitted when empty**, like every other field here: a mode with no
@@ -1186,6 +1669,10 @@ export function createSession(input: NewSession): Promise<{
     ...(input.setup === undefined || input.setup === '' ? {} : { setup: input.setup }),
     // `null` travels — it is *start cold*, a choice rather than an absence.
     ...(input.opening === undefined ? {} : { opening: input.opening }),
+    // Only a choice somebody made: absent is every member's primary.
+    ...(input.openings === undefined || Object.keys(input.openings).length === 0
+      ? {}
+      : { openings: input.openings }),
   });
 }
 
@@ -1281,15 +1768,26 @@ export function addSessionHook(
   return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/hooks`, { hook });
 }
 
-/** And back out — any of them, whichever source put it there ([00 §3.1]). */
+/**
+ * And back out — any of them, whichever source put it there ([00 §3.1]).
+ *
+ * ***The row's own source travels with it*** (2026-09-28), as it does for a
+ * promotion: one hook can sit in the pool twice, through two carriers, and
+ * without `from` the server removes every row under the id. Absent, it still
+ * means exactly that.
+ */
 export function removeSessionHook(
   sessionId: string,
   hookId: string,
+  from?: HookRow['source'],
 ): Promise<{ session: SessionSummary }> {
-  return request(
-    'DELETE',
-    `/api/sessions/${encodeURIComponent(sessionId)}/hooks/${encodeURIComponent(hookId)}`,
-  );
+  const address = `/api/sessions/${encodeURIComponent(sessionId)}/hooks/${encodeURIComponent(hookId)}`;
+  if (from === undefined) return request('DELETE', address);
+  const query =
+    from.kind === 'session' || from.id === undefined
+      ? `from=${from.kind}`
+      : `from=${from.kind}&fromId=${encodeURIComponent(from.id)}`;
+  return request('DELETE', `${address}?${query}`);
 }
 
 /**
@@ -1418,6 +1916,39 @@ export interface ModeSurface {
   text?: string;
   image?: { url: string; alt: string };
   on?: boolean;
+  /** The contribution's heading within its region — [P14.5a]. */
+  group?: string;
+  /** `meter`: the bar, bounded — [P14.5a]. */
+  meter?: { value: number; min: number; max: number };
+  /**
+   * `record`: the value and the fields it is shown by — [P14.5a]. Raw JSON
+   * because a record is edited, and the edit is the whole value written back
+   * through the channel route; `locks` and `hidden` are sets of field paths
+   * (`<channel key>/<JSON Pointer>`) written back the same way.
+   */
+  record?: {
+    value: unknown;
+    fields: RecordField[];
+    locks: { key: string; paths: string[] } | null;
+    hidden: { key: string; paths: string[] } | null;
+  };
+}
+
+/**
+ * One field of a record — `RecordField` in `@storyengine/sdk`, spelled here
+ * because the client does not import the SDK. A `show` this build does not
+ * know is skipped, as an unknown widget arm is.
+ */
+export interface RecordField {
+  key: string;
+  label: string;
+  show: string;
+}
+
+/** A step a person may run between turns — `modeActions`, [P14.5a]. */
+export interface ModeAction {
+  stepId: string;
+  label: string;
 }
 
 export interface DialAxes {
@@ -1515,6 +2046,17 @@ export function readSession(sessionId: string): Promise<{
    * does not know is skipped, which is what keeps the vocabulary additive.
    */
   surfaces?: ModeSurface[];
+  /**
+   * What a person may run between turns — [P14.5a]'s *Update trackers*, while
+   * something it writes is switched on. Absent from an older server.
+   */
+  actions?: ModeAction[];
+  /**
+   * How this session plays as a chat — [P14.5]. **Absent for a mode that does
+   * not play as one**, which is `dials`' rule: nothing to render rather than
+   * controls that change nothing.
+   */
+  chat?: ChatSettings;
 }> {
   return request('GET', `/api/sessions/${sessionId}`);
 }
@@ -1580,7 +2122,9 @@ export type HookRefusal =
   | 'cast-gone'
   | 'subject-gone'
   | 'subject-met'
-  | 'subject-unavailable';
+  | 'subject-unavailable'
+  /** Not a hook the engine can read (2026-09-27). */
+  | 'malformed';
 
 /**
  * One row of the cast panel — [10 §13.2], [P7.2].
@@ -1665,6 +2209,21 @@ export interface DegradedChannel {
  * which is the whole reason recovery is safe to offer, and a status code would
  * throw away the record the workbench is meant to show. Callers read the effect.
  */
+/**
+ * ***Runs a step the mode declares on demand*** — `POST /sessions/:id/steps/
+ * :stepId/run`, [P14.5a]'s *Update trackers*. The answer is the engine turn it
+ * wrote, or `turn: null` when there was nothing to change.
+ */
+export function runSessionStep(
+  sessionId: string,
+  stepId: string,
+): Promise<{ turn: { id: string } | null }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/steps/${encodeURIComponent(stepId)}/run`,
+  );
+}
+
 export function writeSessionChannel(
   sessionId: string,
   key: string,
@@ -1682,6 +2241,17 @@ export function writeSessionChannel(
 }
 
 /**
+ * ***Where a path turn's siblings are drawn*** — the server's `swipeGroups`,
+ * [P14.5]. `messages[k]` is message *k*'s counter, the turn among it, `[]` for
+ * none, with one more entry than the turn has messages; `turn` is the turn's
+ * own strip. Both read the same from whichever member is on screen.
+ */
+export interface SwipeGroups {
+  messages: string[][];
+  turn: string[];
+}
+
+/**
  * The path from the head, and which of its nodes have siblings — [P6.3].
  *
  * `siblings` maps a turn on the path to every child of its parent, in creation
@@ -1691,7 +2261,17 @@ export function writeSessionChannel(
 export function readTranscript(
   sessionId: string,
   options: { limit?: number; from?: string } = {},
-): Promise<{ turns: TurnRecord[]; siblings?: Record<string, string[]> }> {
+): Promise<{
+  turns: TurnRecord[];
+  siblings?: Record<string, string[]>;
+  /**
+   * ***Where each path turn's siblings are drawn*** — [P14 §1.6], [P14.5]: for
+   * a turn on the path with siblings, the ordered alternatives on each
+   * message's counter (one extra entry for those that go on past its last
+   * message) and the siblings that answer a different move, kept on the turn.
+   */
+  swipes?: Record<string, SwipeGroups>;
+}> {
   /**
    * ***`from` walks to a node that is not the head*** — [10 §12.1], [P11.1].
    *
@@ -1797,6 +2377,37 @@ export function readRenditions(
  * what changes when a retry produces different ones. `route-callers.test.ts`
  * strips the query string, so this helper is what credits the route.
  */
+/**
+ * A picture on a move — [25 E15], R1. What the upload answers with: the content
+ * address the move will name, and what the server's store read from the bytes.
+ */
+export interface UploadedPicture {
+  digest: string;
+  mime: string;
+  bytes: number;
+}
+
+/**
+ * Uploads a picture for a move — the bytes first, then the move names them by
+ * digest in its ordinary JSON body ([10 §11.2b]'s two steps).
+ */
+export function uploadPicture(sessionId: string, blob: Blob): Promise<UploadedPicture> {
+  const form = new FormData();
+  form.append('file', blob, 'picture');
+  return requestForm<{ attachment: UploadedPicture }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/attachments`,
+    form,
+  ).then((answer) => answer.attachment);
+}
+
+/**
+ * Where a picture on a move is served. Content-addressed, so the digest in the
+ * path is also the cache key — a picture never changes under its address.
+ */
+export function pictureUrl(sessionId: string, digest: string): string {
+  return `/api/sessions/${encodeURIComponent(sessionId)}/attachments/${encodeURIComponent(digest)}`;
+}
+
 export function renditionAssetUrl(sessionId: string, renditionId: string, digest: string): string {
   return (
     `/api/sessions/${encodeURIComponent(sessionId)}` +
@@ -1826,7 +2437,7 @@ export function illustrateTurn(
   sessionId: string,
   turnId: string,
   purpose: 'illustration' | 'background',
-): Promise<{ rendition?: RenditionRecord; held?: 'no-binding' | 'no-moment' }> {
+): Promise<{ rendition?: RenditionRecord; held?: 'no-binding' | 'no-moment' | 'no-place' }> {
   return request(
     'POST',
     `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/illustrate`,
@@ -1836,16 +2447,42 @@ export function illustrateTurn(
 
 /**
  * ***Make a setup from here*** — [04 §7.2](../../../docs/design/04-schemas.md),
- * [P13.6](../../../docs/design/workplan/30-p13-implementation.md).
+ * [P15.6](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * The parts the wizard drafts, each its own call with its own outcome. A part
  * that failed carries a **class**, never prose — [01 §2]'s rule, so the wizard
  * says what to do about it in its own words.
+ *
+ * ***Two refusals and a remedy since the merge*** (2026-10-03). The server's
+ * draft learned `window-too-small` (its own refusal, a 500 before) and
+ * `truncated` (a reply cut off at its length limit, which is not offered), and
+ * a `call-failed` part now carries the provider failure's `class` and a
+ * `remedy`, as impersonation's refusal does — so the wizard can say *the
+ * endpoint refused the key* rather than *the model did not answer* to every
+ * failure alike. `remedy` is a string for `ApiError.remedy`'s reason: a newer
+ * server's remedy this build has never heard of is answered by
+ * `remedySentence` with nothing rather than a guess. `detail` is the
+ * endpoint's own words, for a log and never a sentence on screen.
+ *
+ * *`summary-truncated` and `summary-no-answer` since review the same day*: a
+ * link of the summary chain that was cut off or came back empty fails every
+ * part, and under the part's own reasons the wizard told a person to steer
+ * the part with a note — which never reaches the summariser.
  */
 export type SetupPart = 'storySoFar' | 'opening' | 'title' | 'facts';
-export type SetupPartRefusal = 'role-unbound' | 'role-dangling' | 'call-failed' | 'no-answer';
+export type SetupPartRefusal =
+  | 'role-unbound'
+  | 'role-dangling'
+  | 'window-too-small'
+  | 'call-failed'
+  | 'truncated'
+  | 'no-answer'
+  | 'summary-truncated'
+  | 'summary-no-answer';
 export type SetupPartOutcome<T> =
-  { ok: true; value: T; model: string | null } | { ok: false; reason: SetupPartRefusal };
+  | { ok: true; value: T; model: string | null }
+  | { ok: false; reason: Exclude<SetupPartRefusal, 'call-failed'> }
+  | { ok: false; reason: 'call-failed'; class: string; remedy: string; detail?: string };
 
 /**
  * ***What the Setup would carry, redacted.*** Names and counts: an unfired
@@ -1897,7 +2534,7 @@ export function draftSetupFromTurn(
 }
 
 /**
- * ***Saves a Setup made from this turn*** — [P13.7](../../../docs/design/workplan/30-p13-implementation.md).
+ * ***Saves a Setup made from this turn*** — [P15.7](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * What a person kept: the texts, the facts, and which carried groups to keep.
  * **Nothing about the carry itself travels** — the server recomputes it from the
@@ -1987,7 +2624,13 @@ export interface SubmitTurn {
   sessionId: string;
   idempotencyKey: string;
   headTurnId: string | null;
-  text: string;
+  /**
+   * The move's words. ***Absent is a turn with no input*** — [P14 §1.6]'s *let
+   * them talk*, ST's empty send — and so is every gesture that carries its move
+   * from the turn it names (a swipe, a continue) or writes its own (an edit).
+   * An empty string is still a move: a picture with no words is one.
+   */
+  text?: string;
   /**
    * What kind of thing this is — one of the mode's declared `inputs`
    * ([06 §1], [P7.9]). Absent lets the server apply the mode's default.
@@ -1995,6 +2638,18 @@ export interface SubmitTurn {
   kind?: string;
   /** Its own field, never folded into the action — [06 §5.1]. */
   guidance?: string;
+  /**
+   * Pictures on the move, by digest — [25 E15]. The server reads their type
+   * and size from its own store; a caption is the player's words about one.
+   */
+  attachments?: readonly { digest: string; caption?: string }[];
+  /**
+   * A redo's pictures: **the turn whose pictures this move carries**, copied by
+   * the server exactly as that turn recorded them — every id, kind and caption,
+   * and a picture whose bytes never reached this server. Never with
+   * `attachments`, which is for pictures just uploaded.
+   */
+  attachmentsOf?: string;
   /**
    * Attach this turn to a node other than the head — [P6.0c].
    *
@@ -2016,6 +2671,30 @@ export interface SubmitTurn {
    * the play surface's rule rather than the server's.
    */
   redoOf?: string;
+  /**
+   * ***Force-talk*** — who replies, in order, over the session's policy
+   * ([P14 §1.3]): the cast panel's *speak* and the composer's *who speaks next*.
+   */
+  speakers?: string[];
+  /**
+   * ***Push story*** — arms the director for this one turn ([P14 §1.9.3]):
+   * `natural` moves the story on, `random` brings in something unexpected.
+   */
+  push?: 'natural' | 'random';
+  /** ***Swipe*** — regenerate message *k* of the turn `rewriteOf`/`redoOf` names. */
+  fromMessage?: number;
+  /** ***Continue*** — append to the last message of this turn, as a sibling of it. */
+  continueOf?: string;
+  /** ***Edit*** — the turn a hand-written sibling rewrites; sent with `authored`. */
+  editOf?: string;
+  /**
+   * ***Edit*** — a turn written by hand, with no call ([P14 §1.6]). Lines left as
+   * they were are kept whole when `editOf` names the turn they came from.
+   */
+  authored?: {
+    input?: { text: string };
+    messages?: { speaker: string | null; text: string }[];
+  };
 }
 
 export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cursor: string }> {
@@ -2030,10 +2709,20 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
      * refuses. The wire says *the player did not pick*; the server says what
      * that means for this mode.
      */
-    input: {
-      text: submission.text,
-      ...(submission.kind === undefined ? {} : { kind: submission.kind }),
-    },
+    ...(submission.text === undefined
+      ? {}
+      : {
+          input: {
+            text: submission.text,
+            ...(submission.kind === undefined ? {} : { kind: submission.kind }),
+            ...(submission.attachments === undefined || submission.attachments.length === 0
+              ? {}
+              : { attachments: submission.attachments }),
+            ...(submission.attachmentsOf === undefined
+              ? {}
+              : { attachmentsOf: submission.attachmentsOf }),
+          },
+        }),
     ...(submission.guidance === undefined || submission.guidance.length === 0
       ? {}
       : { guidance: submission.guidance }),
@@ -2042,6 +2731,14 @@ export function submitTurn(submission: SubmitTurn): Promise<{ jobId: string; cur
     ...('parentTurnId' in submission ? { parentTurnId: submission.parentTurnId } : {}),
     ...(submission.rewriteOf === undefined ? {} : { rewriteOf: submission.rewriteOf }),
     ...(submission.redoOf === undefined ? {} : { redoOf: submission.redoOf }),
+    ...(submission.speakers === undefined || submission.speakers.length === 0
+      ? {}
+      : { speakers: submission.speakers }),
+    ...(submission.push === undefined ? {} : { push: submission.push }),
+    ...(submission.fromMessage === undefined ? {} : { fromMessage: submission.fromMessage }),
+    ...(submission.continueOf === undefined ? {} : { continueOf: submission.continueOf }),
+    ...(submission.editOf === undefined ? {} : { editOf: submission.editOf }),
+    ...(submission.authored === undefined ? {} : { authored: submission.authored }),
   });
 }
 
@@ -2076,7 +2773,13 @@ export interface Abandoned {
 
 export function moveHead(
   sessionId: string,
-  turnId: string,
+  /**
+   * ***`null` is the root*** — [P14.4] made the route take it so a greeting,
+   * the session's first turn, can be deleted: [P14 §1.6]'s *Delete* moves the
+   * head to the deleted turn's parent, and the first turn's parent is no turn
+   * at all. The turn stays on disk as a sibling nobody is on.
+   */
+  turnId: string | null,
   resume?: boolean,
 ): Promise<{ session: SessionSummary; abandoned: Abandoned }> {
   return request('PUT', `/api/sessions/${encodeURIComponent(sessionId)}/head`, {
@@ -2093,6 +2796,14 @@ export function cancelTurn(sessionId: string, jobId: string): Promise<{ jobId: s
 export interface PendingInput {
   text: string;
   guidance: string;
+  /**
+   * The kind the selector chose, so a pack whose input slots are per-kind
+   * previews the block the turn will send. Absent is the server's default, as
+   * it is for a submission.
+   */
+  kind?: string;
+  /** The move's pictures, so the preview assembles the blocks the turn will. */
+  attachments?: readonly { digest: string; caption?: string }[];
 }
 
 /**
@@ -2108,8 +2819,17 @@ export function previewTurn(
   sessionId: string,
   pending: PendingInput,
 ): Promise<{ preview: TurnPreview }> {
+  const pictures = pending.attachments ?? [];
   return request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/preview`, {
-    ...(pending.text === '' ? {} : { input: { text: pending.text } }),
+    ...(pending.text === '' && pictures.length === 0
+      ? {}
+      : {
+          input: {
+            text: pending.text,
+            ...(pending.kind === undefined ? {} : { kind: pending.kind }),
+            ...(pictures.length === 0 ? {} : { attachments: pictures }),
+          },
+        }),
     ...(pending.guidance === '' ? {} : { guidance: pending.guidance }),
   });
 }
@@ -2170,11 +2890,14 @@ export interface AdminConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
+  /** Which of `models` can see pictures ([25 E15]). */
+  imageModels?: string[];
   baseUrl?: string;
   /**
    * What this endpoint can do, where the install disagrees with the defaults.
    *
-   * Only the two an operator has a reason to set are surfaced — see
+   * Only the ones an operator has a reason to set are surfaced — four since
+   * 2026-10-03, listed on {@link ConnectionCapabilities}; see
    * {@link ConnectionInput}. The rest of the shape travels untouched so an
    * override written by hand is not lost by a save that does not know about it.
    */
@@ -2189,11 +2912,12 @@ export interface AdminConnection {
 /**
  * Per-connection overrides for what an endpoint can do.
  *
- * **Two of them are surfaced and the rest are not, deliberately.** The
+ * **Four of them are surfaced and the rest are not, deliberately.** The
  * conservative defaults are right for a provider nobody has told us about, and
- * these two are the ones an operator has a reason to correct because only they
- * know what they are running: a local model's real context window, and whether
- * their endpoint counts tokens.
+ * these four are the ones an operator has a reason to correct because only they
+ * know what they are running: a local model's real context window, whether
+ * their endpoint counts tokens, whether the same address also makes pictures,
+ * and whether it takes a seed with one (the fourth since 2026-10-03).
  *
  * Open-ended because the server's shape is, and because a save must not lose an
  * override somebody wrote by hand for a capability this form does not know
@@ -2204,8 +2928,63 @@ export interface ConnectionCapabilities {
   maxContextTokens?: number;
   /** Whether this endpoint reports token usage. */
   reportsUsage?: boolean;
+  /**
+   * Whether this address also answers image requests — [21 §3], [P9.2].
+   *
+   * A fact about the endpoint rather than the protocol: `openai-compatible`
+   * names a *chat* API, and whether the URL behind it serves
+   * `/images/generations` is something only the operator knows. Until
+   * [polish §25] a file edited by hand was the only place to say it.
+   */
+  rendersImages?: boolean;
+  /**
+   * Whether this endpoint takes a seed with a picture — [21 §3], set beside
+   * `rendersImages` since [polish §25]'s merge (2026-10-03).
+   *
+   * Off unless said, because `seed` is not part of OpenAI's image request and a
+   * strict endpoint refuses a field it does not know: sending it unasked turns
+   * a picture into a refusal. Where it is on, the recipe's seed travels and
+   * *Try again* can draw the same picture; the record says which was sent.
+   */
+  supportsImageSeed?: boolean;
   [capability: string]: unknown;
 }
+
+/** What a connection test asks — [polish §25]. The model and the words; never a key. */
+export interface ConnectionTestInput {
+  kind: 'text' | 'image';
+  modelId: string;
+  prompt: string;
+}
+
+/**
+ * What a connection test answered with.
+ *
+ * `modelId` is what the endpoint says answered, which may not be what was
+ * asked for. `cost` is null on every endpoint this build knows — the record's
+ * own refusal to invent a number, carried here for the same shape. A picture
+ * arrives as base64 so a page can show it without the picture being stored
+ * (the presser's usage log records the call, not the picture).
+ */
+export type ConnectionTestResult =
+  | {
+      kind: 'text';
+      text: string;
+      modelId: string;
+      finishReason: FinishReason;
+      usage: TokenUsage | null;
+      cost: { amount: number; currency: string } | null;
+      elapsedMs: number;
+    }
+  | {
+      kind: 'image';
+      mime: string;
+      base64: string;
+      modelId: string;
+      seed: number;
+      cost: { amount: number; currency: string } | null;
+      elapsedMs: number;
+    };
 
 export interface ConnectionInput {
   label: string;
@@ -2214,6 +2993,11 @@ export interface ConnectionInput {
   apiKey?: string;
   baseUrl?: string;
   models: string[];
+  /**
+   * Which of `models` can see pictures ([25 E15]). Omitted keeps what is
+   * stored, on the key's terms; the server narrows it to `models` either way.
+   */
+  imageModels?: string[];
   /** Omitted keeps what is stored, on the same terms as the key. */
   capabilities?: ConnectionCapabilities;
 }
@@ -2260,12 +3044,24 @@ export interface UsableConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
+  /** Which of `models` can see pictures ([25 E15]). Absent means none. */
+  imageModels?: string[];
+}
+
+/**
+ * Which role the calls outside a session ask for — today only field assist,
+ * `prose` unless its owner chose otherwise. Server: `providers/task-roles.ts`.
+ */
+export interface TaskRoles {
+  assist: 'prose' | 'fast' | 'reasoning';
 }
 
 /** Everything the role-binding editor needs, from the one request that answers it. */
 export interface MyRoles extends BindingsState {
   roles: RoleRow[];
   connections: UsableConnection[];
+  /** Absent from a server older than the choice, which means `prose`. */
+  tasks?: TaskRoles;
   /**
    * Personal connections on disk that were ignored for want of
    * `privateConnections` — [09 §4.5] wants the user *told* rather than left
@@ -2322,18 +3118,21 @@ export const adminApi = {
    * behaviour the check exists to stop, which is silently reverting whatever
    * somebody changed in the file since the page loaded.
    */
+  // The id is encoded here and in the two below, as the personal twins' always
+  // was (2026-09-27): it is whatever a hand-written file says, and `lab/gpu`
+  // reached another route, or `house#2` a cut-short address, without it.
   updateConnection: (
     id: string,
     input: ConnectionInput & { contentHash: string },
   ): Promise<{ connection: AdminConnection }> =>
-    request('PUT', `/api/admin/connections/${id}`, input),
+    request('PUT', `/api/admin/connections/${encodeURIComponent(id)}`, input),
 
   deleteConnection: (id: string): Promise<undefined> =>
-    request('DELETE', `/api/admin/connections/${id}`),
+    request('DELETE', `/api/admin/connections/${encodeURIComponent(id)}`),
 
   /** How many bindings point at a connection. Counts, never contents ([09 §4.5]). */
   connectionBindings: (id: string): Promise<{ bindings: number }> =>
-    request('GET', `/api/admin/connections/${id}/bindings`),
+    request('GET', `/api/admin/connections/${encodeURIComponent(id)}/bindings`),
 
   /**
    * Asks an endpoint what it offers — an assist, never the path ([P2B §2.6]).
@@ -2344,6 +3143,17 @@ export const adminApi = {
    */
   fetchModels: (input: { baseUrl?: string; apiKey?: string }): Promise<{ models: string[] }> =>
     request('POST', '/api/admin/connections/models', input),
+
+  /**
+   * Tries a saved connection — [polish §25]: a message on a turn's retry
+   * ladder, a picture once.
+   *
+   * **What is saved, not what is typed**: the server uses the stored key and
+   * address, and refuses a body that carries either. So this is a question
+   * about a connection that exists, and the form's unsaved edits are not in it.
+   */
+  testConnection: (id: string, input: ConnectionTestInput): Promise<ConnectionTestResult> =>
+    request('POST', `/api/admin/connections/${encodeURIComponent(id)}/test`, input),
 
   readBindings: (): Promise<BindingsState> => request('GET', '/api/admin/bindings'),
 
@@ -2531,6 +3341,9 @@ export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
  * `<a download>` at the route — a `fetch` would have to rebuild what the
  * browser already does, and the route sends a `content-disposition`. The
  * address still appears in the component, so the scan reaches it.
+ *
+ * *The library's downloads are the exception* (2026-09-28): their answers
+ * carry headers the page must read, and `api.takeFile` says which.
  */
 export interface BackupRecord {
   id: string;
@@ -2695,6 +3508,37 @@ export function importSessionDocument(document: unknown): Promise<{
   sessionId: string;
   turns: number;
   renditions: number;
+  /**
+   * The links the session names that resolve to nothing on this install — its
+   * cast and books live where it was exported ([P13.10]). Reported, and kept.
+   */
+  missing: { cast: string[]; lore: string[]; treatment: string[] };
 }> {
   return request('POST', '/api/sessions/import', document);
+}
+
+/**
+ * ***A chat somebody else's app wrote*** — a SillyTavern `.jsonl`, or
+ * Marinara's per-chat export of the same format —
+ * [P14.8](../../../docs/design/workplan/31-p14-scene-and-session-import.md).
+ *
+ * **Through the library's one-file door rather than beside the export**, and
+ * the difference is what each is. An export is our own document and loads as
+ * it stands; a chat is a foreign file that has to be read, resolved against
+ * this account's library and built into a session first — which is the import
+ * pipeline's work, so it goes where the pipeline is. The answer is one review
+ * row: `converted` with the session's id as `objectId`, `unchanged` when a
+ * session here already holds the chat, `recorded` when one holds it and the
+ * chat has grown since, `unrecognised` with the reason otherwise.
+ *
+ * ***`kind: chat`, so the door takes a chat and nothing else.*** The library's
+ * one-file import reads whatever it is given, and a `.jsonl` that is really a
+ * card would otherwise land in the library from a control that promised a
+ * session. Appended before the file, for `importFile`'s ordering rule.
+ */
+export function importChatFile(file: File): Promise<ImportFileResult> {
+  const body = new FormData();
+  body.append('kind', 'chat');
+  body.append('file', file);
+  return requestForm('/api/import/file', body);
 }

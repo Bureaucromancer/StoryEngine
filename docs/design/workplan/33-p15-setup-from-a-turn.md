@@ -1,14 +1,35 @@
-# 30 — P13 implementation plan
+# 33 — P15 implementation plan
 
-**Status: stages P13.0–P13.9 built on `claude/nice-davinci-xjdpf6`, 2026-09-26,
-and not merged. ***The exit gate ([§3](#3--the-exit-gate)) has not been
-walked***, so by [manual testing §0](05-manual-testing.md) this phase is **not
-closed** — its critical list is [sitting T](05-manual-testing.md).** One feature,
+**Status: stages P15.0–P15.9 built on `claude/nice-davinci-xjdpf6`, 2026-09-26,
+~~and not merged~~ *and merged through the `p15` branch on 2026-10-03, which
+brought `main` into the branch and resolved what the two had each built
+(§1.7–§1.9)*. ***The exit gate ([§3](#3--the-exit-gate)) has not been
+walked***, so under [manual testing §0](05-manual-testing.md)'s two-tier gate
+this phase is **open**: merged, and not closed — its critical list is
+[sitting W](05-manual-testing.md), unwalked.** One feature,
 filed as a phase for [P12 §1.5](29-p12-implementation.md)'s reason: a roadmap
 entry ([24](../24-roadmap.md)) holds no release commitment, and this was built
 now.
 
-**P13 is *make a setup from here*.** From any turn of a session a person can
+*Renamed 2026-10-03, at the merge.* Written and built as **P13**, in a document
+30 (`30-p13-implementation.md`), on a branch cut from `main` at `8cd8cc6c`
+before `main`'s own P13 — the Aventuras import, [P13](30-p13-aventuras-import.md),
+document 30 — and [P14](31-p14-scene-and-session-import.md), document 31,
+reached it. Both names and the number were taken and cited by hash first, so
+this phase is **P15**, and the [P14](31-p14-scene-and-session-import.md)
+precedent (`1c859485`) is how: **the rename is by line** — a *P13* on a line
+`main`'s copy of a file does not have is this phase's and now reads *P15*, here,
+in the design notes, in [the API reference](../../api.md) and in code comments,
+while every line about `main`'s P13 is untouched. **The commits that built it
+still say P13 in their subjects, and the stage hashes in §2 still cite those
+original commits**: the branch was merged rather than rebased, precisely so
+that every one of them stays reachable, and that history is not rewritten. Its
+document is filed at **33**, ahead of [P12A](34-p12a-the-look.md), by the
+execution-order rule the work-plan README's 2026-10-02 refiling applied — this
+ran while P12A had not opened — and its sitting, lettered T on the branch, is
+**W**, because `main` had spent T, U and V by the day it landed.
+
+**P15 is *make a setup from here*.** From any turn of a session a person can
 run a wizard that condenses the story up to that turn and converts the point
 into a real **Setup** — a library object new sessions start from — rather than
 merely branching the chat there. The primary use is a point somebody will
@@ -33,7 +54,7 @@ that *"already exist"*. What exists is [P7.4](23-p7-implementation.md)'s *Save
 as a setup*, which names the **session form's** configuration before a session
 exists — `setup-from-form.ts` — and never reads a running session. The design
 and the code disagree, and the repair is to build the thing and correct the
-sentence in the stage that makes it true (P13.7), not to reword the sentence
+sentence in the stage that makes it true (P15.7), not to reword the sentence
 now.
 
 ### 0.2 An emitted Setup would be unplayable today, three ways
@@ -93,11 +114,26 @@ because each is a sentence somebody would otherwise have to rediscover.
   awaited reads, when it had already gone by. So the button worked, and a person
   who left mid-press still had the call run to the end and paid for — the
   opposite failure from the one first written here, and found by the test rather
-  than by reasoning. **Fixed** in `routes/disconnect.ts`'s `abortOnDisconnect`,
-  which reads the response's `close` and which the [P13.6](#p136--the-draft)
+  than by reasoning. ~~**Fixed** in `routes/disconnect.ts`'s `abortOnDisconnect`,
+  which reads the response's `close` and which the [P15.6](#p156--the-draft)
   route uses too; `p9-gate-controls.test.ts` presses Illustrate over a listening
   socket both ways, and [P9.4](26-p9-implementation.md)'s record carries the
-  correction.
+  correction.~~ ***Fixed on `main` instead, and this branch's fix dropped —
+  corrected 2026-10-03, at the merge.*** `main` found the same bug the same day,
+  independently, and fixed it in `af5811a0`: `routes/disconnect.ts`'s
+  `disconnectSignal` reads the response's `close` exactly as `abortOnDisconnect`
+  did, **and is stricter** — it also checks `raw.destroyed`, which catches a
+  client that left during the route's own awaits, whose `close` has already
+  gone by when the listener would be attached. `abortOnDisconnect` had no such
+  check, and both of this branch's callers attached it after two awaited reads.
+  So the merge took `main`'s `disconnect.ts` and its socket-level tests, and
+  `main`'s side of `p9-gate-controls.test.ts`, and dropped `3d499ca0` whole —
+  reachable through the merge, and not in the tree. The [P15.6](#p156--the-draft) draft route uses `disconnectSignal` now,
+  and swallows the `Cancelled` it causes — a client that leaves gets nothing
+  back, as Illustrate's does, rather than an *Unhandled error* logged for every
+  closed tab. The branch's addendum to [P9.4](26-p9-implementation.md)'s record
+  was dropped with it, and P9.4 now carries a short note of its own citing
+  `af5811a0`, which until this date it did not.
 - ***An undeclared step's calls are `effects` calls.*** The condensation step
   first declared no `contributes`, so `callPurposeFor` read every call as
   effects and refused a person's advisory steer on it — every *Regenerate, but
@@ -122,13 +158,38 @@ preset, costs a second object), and folding the recap into the opening's prose
 `Setup.storySoFar?: string` is additive, so it needs no version bump
 ([04 §2](../04-schemas.md)). A session started from such a Setup gets it as the
 **root of its rolling summary chain**: the `summary` slot emits it as the oldest
-link from the first turn, and the first derived link folds it in as `previous`.
+link from the first turn, and the first derived link ~~folds it in as
+`previous`~~ *is handed it as `previous`, which since the merge means context
+— the note below*.
 That is [07 §5.1](../07-branching.md)'s `summary(n) = f(summary(n-1), turns)`
 with a seeded `n = 0` — no second mechanism, and the built-in Freeform and
 Scene presets already position the slot as *"the story so far"*.
 
 **What it costs**: a preset with no enabled summary slot never shows the model
 the root. The wizard says so when the session it was run from has none.
+
+***The chain it is the root of changed shape before it landed — 2026-10-03, at
+the merge.*** `main`'s `e9d1a142`, the day after this branch was cut, put the
+summary chain into **stretches**: each link summarises its own turns and is
+handed the one before as context, told not to repeat it. So "folds it in as
+`previous`" stopped being what `previous` does. The root is the stretch before
+the first turn, read *with* the links rather than retold by the first of them,
+and every reader of the story so far — the collector and the draft alike —
+reads the root and the links together. Two things follow, both settled by the
+merge rather than by this section as first written:
+
+- **The root is the first part of the summary given up when the slot is
+  full.** The branch argued that dropping it first cost nothing because the
+  first link already carried what it said; under stretches no link does, so
+  the argument was false by the time it reached `main`. The order stands for
+  a different reason — the one every link follows: the root is the oldest
+  stretch, and as a rule the largest, and a model continuing a story needs
+  where things stand more than how they began. What must outlast it is in the
+  companion lorebook, whose entries reach the prompt on their keys.
+- **Every caller that plans or derives a chain takes the root from one
+  plan** — the turn, and `main`'s warm derivation and preview, which the
+  branch never saw and which would otherwise have keyed a chain the turn never
+  reads.
 
 ### 1.2 What carries over, and what does not
 
@@ -182,8 +243,9 @@ reader that changes.
 ### 1.5 An opening is a turn, written by the engine
 
 The chosen written opening becomes the session's first turn: `output.text` is
-the opening, there is no `input` and no model call, and `Turn.opening` names
-the opening it came from. Its effects are the seeding writes of §1.2, proposed
+the opening, there is no `input` and no model call, ~~and `Turn.opening` names
+the opening it came from~~ *and no field marks it — §1.8, corrected 2026-10-03
+at the merge*. Its effects are the seeding writes of §1.2, proposed
 by `engine` through `acceptEffect` exactly as a hand-edit reconciliation's are.
 Redo, reroll and guided redo are refused on it — nothing generated it, so there
 is nothing to generate again.
@@ -194,6 +256,103 @@ is nothing to generate again.
 rather than by choice — [P12 §1.5](29-p12-implementation.md)'s departure, and
 recorded for the same reason: so nobody hunts for a branch that was never cut.
 
+***And then it was `p15` — 2026-10-03.*** The phase reached `main` through a
+branch cut for it at the branch's tip, `3d499ca0`, into which `main` was
+merged and its conflicts resolved before `p15` merged back — the
+[P14](31-p14-scene-and-session-import.md) precedent, `1c859485`. **The phase
+was renamed on the way, from P13 to P15, because P13 and P14 were both taken**:
+`main` had planned, built and merged the Aventuras import as P13 and Scene with
+session import as P14 while this was on its branch, and both are cited by hash.
+The status at the top says what the rename touched and what it left alone.
+
+### 1.7 A Setup's opening wins over a cast's greetings — always
+
+**Decided 2026-10-03 by the owner, at the merge.** [P14.4](31-p14-scene-and-session-import.md)
+built a different first turn while this phase was on its branch: in a mode that
+declares `openingTurn`, a session whose cast carries greetings opens on them —
+one output-only turn, the greetings chosen per actor by `openings`. P15.3's
+Setup opening is also a first turn. Each was right alone; together they both
+claimed turn 1, and only one kind of opening can be it.
+
+**When a Setup carries a written opening, the Setup's opening is the session's
+first turn, and the cast's greetings are not used for that session** — whichever
+of the Setup's openings is chosen, and even when the person starts it cold with
+`opening: null`. The reason is the feature's: a Setup made here holds an opening
+written for *this* point of *this* story, with the party already seated, and a
+greeting is an actor's first line in a story that has not started. A Setup with
+no written opening leaves greetings as P14.4 has them.
+[25 B18](../25-open-questions.md) records the decision where the other
+documents it touches can find it.
+
+**Two edges the decision does not reach, settled at the merge on the
+recommended answer, owner deferred — 2026-10-03:**
+
+- ***A greeting chosen beside a Setup that carries an opening is refused***,
+  `422 conflicting-openings`, rather than ignored, **wherever `openings` is
+  read**: a mode that declares `openingTurn`, with someone cast besides the
+  persona. There the Setup's opening is what the session starts on, so a
+  greeting chosen in the same request would be a choice the server quietly did
+  not honour — the failure the Setup-opening refusal (§1.9) exists to stop — and
+  the body asks for two first turns that only its client can choose between.
+  Anywhere else no greeting would be written, so the map asks for nothing and is
+  ignored, as P14.4 ignores it; so is an empty `openings`.
+- ***A Setup with no written opening, whose turn only seeds the party or spent
+  hooks, writes that seeding turn first, and the cast's greetings hang from it
+  as its children*** rather than beside it as second roots. Beside it, the head
+  would start on a greeting whose path never passes through the party or the
+  spent hooks — the effects would be written and not in force. As children, the
+  head's path runs through the seeding, and a single character's alternate
+  greetings are still siblings of each other, exactly as P14.4 lays them out.
+
+`sessions/opening.ts`'s `firstTurns` is the one account of turn 1 since the
+merge, and [the API reference](../../api.md)'s `POST /api/sessions` is the
+contract.
+
+### 1.8 An opening is a turn with no input and no request, and no field says so
+
+**Recommended answer, owner deferred — 2026-10-03.** P15.1 added `Turn.opening`,
+`{ id }`, naming the written opening a turn came from, and P15.3 refused a redo
+or rewrite of any turn carrying it. `main` had meanwhile settled the same
+question without a field: [P14](31-p14-scene-and-session-import.md)'s greeting
+turns are recognised by having **no `input` and no `request`**, which is what
+the play surface's `rerunnable` reads. A Setup's opening has neither, so it is
+already that kind of turn.
+
+**The field is dropped, and the convention is the test.** `Turn` is the frozen
+record ([25 B12](../25-open-questions.md)), and a field on it is a promise every
+reader keeps forever; one is worth adding only when a consumer genuinely needs
+to tell a Setup's opening from something else. None does. The only reader was
+the redo refusal, and with §1.7 only one kind of opening can be a session's
+turn 1 — so *which* opening a turn was is a question nothing asks, and
+*whether* it was one is answered by what it lacks. The predicate is named once,
+`redoable` in `packages/shared/src/turn.ts`, and both readers apply it: the play
+surface, which withholds **Redo**, and the turn route, which refuses a redo or
+rewrite with its code unchanged, `opening-turn`.
+
+**Wider than the field, on purpose.** The refusal now covers every turn of that
+shape — a Setup's opening and its effects-only seeding turn, a cast's greeting,
+a hand edit's divergence turn, a turn written by hand with no move, an import's
+reply to nothing. Each answered no move and made no call, so a whole-turn redo
+would put a reply to nothing in its place, which is *let them talk* sent from
+the parent — a gesture the composer already has. Before the merge `main`
+refused none of these, and the branch refused only turns that carried the
+field. *A swipe of one line is not refused here*: regenerating one member's
+line with the lines before it carried is P14's Swipe on a greeting, and it has
+something to make.
+
+### 1.9 A Setup opening that is not there has its own refusal
+
+**Recommended answer, owner deferred — 2026-10-03.** Both phases chose the
+code `unknown-opening`: P14.4 for a greeting chosen for somebody not in the
+cast or one that actor does not have, P15.3 for an opening id the Setup does
+not hold, or for any `opening` sent without a `setup`. **The causes differ** —
+one names an actor's greeting, the other a Setup's written opening — and a
+client that reads the code to say what went wrong would otherwise say the wrong
+thing about one of them. So the Setup's refusal is **`unknown-setup-opening`**,
+and P14.4's keeps `unknown-opening`; [the API reference](../../api.md) names
+both. *The branch's reference also said any `opening` without a `setup` was
+refused; the code refused only a string, and the reference now says so.*
+
 ---
 
 ## 2 — Stages
@@ -203,12 +362,12 @@ on creation), [P8](25-p8-implementation.md) (the summary chain and the memory
 extractor) and [P7.5](23-p7-implementation.md) (the hook pool and `se.hook`)
 are the prior art, and all three are on `main`.
 
-### P13.0 — This document
+### P15.0 — This document
 
 The readiness audit (§0) and the decisions (§1), written before code.
 **Done — `a46a1cc`.**
 
-### P13.1 — The schema
+### P15.1 — The schema
 
 `Setup.storySoFar` and `Setup.spentHooks`, both optional; `Turn.opening`; and a
 `story-so-far` arm on the block provenance, so the workbench can say where the
@@ -217,16 +376,17 @@ on emitting a Setup from a turn.
 *Proof obligation:* a Setup without either field is byte-identical on a round
 trip, and one with them validates.
 
-**Done — `f8affa5`.**
-### P13.2 — The summary root
+**Done — `f8affa5`.** *`Turn.opening` did not survive the merge (2026-10-03):
+§1.8 is why, and the frozen record carries no field from this phase.*
+### P15.2 — The summary root
 
 `planChain` and `ensureChain` take an optional root; the runner and every other
 assembler emit it as the oldest summary link.
 *Proof obligation:* **with no root, every existing chain's keys are unchanged**;
 a different root keys a disjoint chain; the fork properties hold with a root.
 
-**Done — `393f04b`.**
-### P13.3 — The opening turn
+**Done — `393f04b`.** *Re-threaded at the merge (2026-10-03) — §1.1's note.*
+### P15.3 — The opening turn
 
 `POST /api/sessions` consumes a Setup's written opening, `partyDefault` and
 `spentHooks` through one engine-written turn, and takes an `opening` parameter
@@ -234,15 +394,20 @@ a different root keys a disjoint chain; the fork properties hold with a root.
 *Proof obligation:* turn 1 is the opening, the party channel and the spent hooks
 are written by it, and a redo naming it is refused.
 
-**Done — `d364808`.**
-### P13.4 — Starting from a Setup in the browser
+**Done — `d364808`.** *Met [P14.4](31-p14-scene-and-session-import.md)'s
+greetings at the merge (2026-10-03): §1.7 is which wins, §1.8 how a redo
+recognises an opening without `Turn.opening`, and §1.9 the refusal's own code.*
+### P15.4 — Starting from a Setup in the browser
 
 The session form offers the account's Setups and their written openings; a
 Setup's own page offers *Start a session*; the play surface does not offer redo
 on an opening turn.
 
-**Done — `b2fc84c`.**
-### P13.5 — The carry-over
+**Done — `b2fc84c`.** *Since the merge (2026-10-03) the form carries
+[P14.5](31-p14-scene-and-session-import.md)'s greeting pickers too — beside a
+Setup only when it has no opening of its own, by §1.7 — and the play surface
+withholds redo by `main`'s rule rather than by `Turn.opening` (§1.8).*
+### P15.5 — The carry-over
 
 A pure builder from the state at a turn to a Setup, and the redacted preview of
 it.
@@ -250,7 +415,7 @@ it.
 entrance text and no hidden goal's statement**, for any pool and goal chain.
 
 **Done — `ffb126a`.**
-### P13.6 — The draft
+### P15.6 — The draft
 
 `POST /api/sessions/:sessionId/turns/:turnId/setup-draft`: the story so far, an
 opening, a name and blurb, and candidate facts, each its own model call through
@@ -258,8 +423,9 @@ its own step definition so one failing discards nothing.
 *Proof obligation:* the prompts carry the transcript and never hidden content;
 a warm summary chain costs no summariser call.
 
-**Done — `bb29aa5`.**
-### P13.7 — The commit
+**Done — `bb29aa5`.** *Its summariser rewritten at the merge (2026-10-03) —
+the merge record below.*
+### P15.7 — The commit
 
 `POST /api/sessions/:sessionId/turns/:turnId/setup` writes the companion
 lorebook, then the Setup.
@@ -269,38 +435,70 @@ is the opening with the party seeded, the spent hook is fired, the goal current
 at the turn is `goals[0]`, and an unfired hook is still in the pool.
 
 **Done — `f7c789f`.**
-### P13.8 — The wizard
+### P15.8 — The wizard
 
 *Make a setup from here* beside *Continue from here*, opening a dialog with the
 carry-over, the story so far, the opening, the facts, and a name.
 
 **Done — `e033435`.**
-### P13.9 — Close-out
+### P15.9 — Close-out
 
 The gate lands in [manual testing](05-manual-testing.md) as a sitting, the
 design corrections are checked against what shipped, and the changelog prose is
 parked in §2.1 for [P12 §2.1](29-p12-implementation.md)'s reason.
-**Done — this commit**, which is the one that says where the phase stands.
+**Done — ~~this commit~~ `feb7c8b`**, which is the one that ~~says~~ *said, on
+the branch,* where the phase stands. *(The hash written on 2026-10-03, at the
+merge: "this commit" stops naming anything once the document has moved on.)*
+
+### The merge into `main` — 2026-10-03
+
+*Not a stage.* `p15` was cut at the branch's tip, `3d499ca0`, and `main` was
+merged into it — the [P14](31-p14-scene-and-session-import.md) precedent,
+`1c859485` — so every hash above stays reachable. The first turn is at
+§1.7–§1.9, the summary root at §1.1's note, the disconnect at §0.5. The rest:
+
+- **The draft** (`turns/condense.ts`) had its own path to the chain and kept
+  every reply — on `main`, a cut-off summary under the runner's key and, for a
+  pictured move, a chain the runner never reads. It takes the runner's path,
+  plan (root included) and keep rule now, and reads the root and every link,
+  not the last alone. A link it cannot derive fails every part still wanted
+  with that link's class (`summary-truncated` or `summary-no-answer` for a
+  link not kept). *Recommended answer, owner deferred:* a part cut off at its
+  length limit is `truncated` and not offered. A provider failure
+  carries `class` and `remedy`, `window-too-small` is a refusal rather than a
+  500, and calls are usage lines,
+  `setup-draft:<part>` and `setup-draft:summarise` ([the API reference](../../api.md)).
+- **The client**: a chosen Setup hides *Characters*, says when it sets
+  greetings aside, and offers *How they open* when it has none; the two new
+  refusals clear the stale choice; a blank greeting is not offered; *Redo*
+  reads `redoable`; the wizard gives remedies; *Story so far* links to its
+  Setup; the entry ceiling rose from 336 to 342 (`tools/entry-budget.test.ts`).
+
+No gate row was edited.
 
 ### What is deliberately not in this phase
 
 - **An end-to-end journey.** `e2e/journeys.spec.ts` admits a journey by its
   being *catastrophic to break*, and the seven it holds are the list; this is a
   feature beside them. The browser walk that did happen, before
-  [P13.8](#p138--the-wizard) committed, is recorded in its commit.
+  [P15.8](#p158--the-wizard) committed, is recorded in its commit.
 - **A live test of the condensation.** The prompts are new, and whether a real
   model condenses well is critical row 1 — a judgement a live test could not
   make, since those assert structure and never prose.
 - **Seed openings.** A Setup made here carries one written opening; expanding a
   seed is still [P7B §1.11](24-p7b-presets-and-prompts.md)'s revisit.
 - **Consuming a treatment's or an actor's openings.** Only a Setup's are read at
-  creation, which is the half this feature needed.
+  creation, which is the half this feature needed. *(2026-10-03, at the merge:
+  an actor's are read too now — `main`'s [P14.4](31-p14-scene-and-session-import.md)
+  plays them as greetings in a mode that declares `openingTurn` — and §1.7 is
+  which of the two plays when both could. A treatment's are still not played
+  at creation.)*
 
 ---
 
 ## 2.1 — What the changelog will say
 
-*Written at P13.9, here rather than in `CHANGELOG.md`, for
+*Written at P15.9, here rather than in `CHANGELOG.md`, for
 [P12 §2.1](29-p12-implementation.md)'s reason: that file's headings are parsed by
 the About surface and an unreleased one is not a heading it takes.*
 
@@ -318,21 +516,34 @@ the About surface and an unreleased one is not a heading it takes.*
   Setups and their openings, and from a Setup's own library page. Until now the
   browser had no way to start from one.
 - **A Setup's opening is the session's first turn**, and its party is seated in
-  it. `opening: null` starts cold.
+  it. `opening: null` starts cold. *(Added 2026-10-03, §1.7:)* In a mode that
+  opens on the cast's greetings, a Setup with an opening of its own opens on
+  that instead, and the greetings are not used; a greeting chosen beside it is
+  refused (`conflicting-openings`). Beside a Setup that only seats a party or
+  spends hooks, the greetings come after its seeding turn.
 - **A Setup can carry the story so far**, and a session started from it shows
   the model that text from its first turn, as the oldest part of its rolling
   summary.
 
 **Changed**
 
-- A redo or rewrite naming an opening is refused — an opening was written, not
-  generated.
+- A redo or rewrite ~~naming an opening~~ is refused — an opening was written, not
+  generated. *(2026-10-03, at the merge, §1.8: any turn nothing made is, as
+  `422 opening-turn` — an opening, a greeting, a hand edit's divergence turn, a
+  turn written with no move, an import's reply to nothing; a swipe of one line
+  is not. The play surface already withheld Redo from these, so the change
+  shows only through the API.)*
 
 **Fixed**
 
 - **Leaving while a picture is being made now cancels it.** Illustrate was meant
   to stop its model call when you navigated away or closed the tab, and never
   did: the call ran to the end and the picture was asked for and paid for.
+  *(2026-10-03: true, and not this phase's — `main` fixed it in `af5811a0` and
+  this branch's fix was dropped, §0.5. The line stays because none of the
+  entries parked since alpha 4 — [main audit](32-main-audit.md) §7,
+  [P12 §2.1](29-p12-implementation.md), [P13 §3.5](30-p13-aventuras-import.md),
+  [polish §25](06-polish.md) — carries it; whoever writes the release takes it once.)*
 
 ---
 
@@ -342,6 +553,10 @@ Two tiers, per [manual testing §0](05-manual-testing.md). **The rows below are
 not edited to match what was walked.**
 
 ### 3.1 The critical list
+
+*Registered in [manual testing](05-manual-testing.md) as sitting **W** —
+lettered T on the branch, and re-lettered at the merge on 2026-10-03 because
+`main` had spent T, U and V. Unwalked.*
 
 | # | What | Why it is critical | Check |
 |---|---|---|---|

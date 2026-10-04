@@ -62,14 +62,41 @@ export interface ProviderFactoryOptions {
 }
 
 export function createProviderFactory(options: ProviderFactoryOptions = {}): ProviderFactory {
-  const cache = new Map<string, Provider>();
+  const cache = new Map<string, { fingerprint: string; provider: Provider }>();
 
+  /**
+   * ***A memo that checks it is still the same connection*** (2026-09-27).
+   *
+   * Keyed by id alone, the memo answered two questions wrongly. **A hand edit**
+   * to a connection file — a new base URL, a rotated key, a context window —
+   * was shown by the admin page, which reads the file, and ignored by every
+   * turn, which asked the memo, until a restart. Only the form's writes
+   * invalidated it. **And two files claiming one id**, in two accounts (a
+   * `house.json` copied as a template, an account's connections imported into
+   * another), shared whichever provider was built first, key and endpoint
+   * included: one person's prompts went to another's endpoint on the other's
+   * bill. Duplicate ids are surfaced and never blocked (`connections.ts`,
+   * after [P1 §1.2]), which is right while each account resolves its own
+   * connections and was not true of one memo every account shared.
+   * *(2026-10-03: "surfaced" was true within one scope, where the list marks
+   * the loser `shadowed`, and not across them — a personal file claiming a
+   * system id was reported by nothing until `ConnectionResolution.shadowing`,
+   * which the runner logs as a count. It is still shown by nothing on screen.
+   * Two accounts' files claiming one id are no duplicate to either account's
+   * resolver, and since this memo they are none to the memo either.)*
+   *
+   * So each slot remembers what it was built from, and a connection that says
+   * anything different gets a provider built from what it says. Two accounts
+   * sharing an id take turns in the slot, rebuilding each time: correct, and
+   * rare enough that correct is the whole requirement.
+   */
   const factory: ProviderFactory = (connection: Connection): Provider => {
-    const existing = cache.get(connection.id);
-    if (existing) return existing;
+    const fingerprint = fingerprintOf(connection);
+    const held = cache.get(connection.id);
+    if (held?.fingerprint === fingerprint) return held.provider;
 
     const provider = build(connection, options);
-    cache.set(connection.id, provider);
+    cache.set(connection.id, { fingerprint, provider });
     return provider;
   };
 
@@ -78,6 +105,25 @@ export function createProviderFactory(options: ProviderFactoryOptions = {}): Pro
   };
 
   return factory;
+}
+
+/**
+ * Everything a connection says, in an order that does not depend on how its
+ * file was written — so the same connection read twice is the same string, and
+ * any change to it, a label included, is a different one. Rebuilding for a
+ * label is a few objects; missing a change that mattered is the fault above.
+ */
+function fingerprintOf(connection: Connection): string {
+  return canonical(connection);
+}
+
+function canonical(value: unknown): string {
+  if (typeof value !== 'object' || value === null) return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, child]) => child !== undefined)
+    .sort(([one], [two]) => (one < two ? -1 : one > two ? 1 : 0));
+  return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`).join(',')}}`;
 }
 
 /**
