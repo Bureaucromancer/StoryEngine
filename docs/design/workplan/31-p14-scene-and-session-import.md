@@ -3,7 +3,9 @@
 **Status: merged to `main` 2026-09-30 at `8878851`, from
 `claude/sillytavern-marinara-import-id4eim`; the phase is open — every stage is
 built and reviewed (the as-built notes below), and the exit gate's critical list
-(§4.1) is unwalked.** ~~Planned 2026-09-28, for immediate implementation. No
+(§4.1) is unwalked.** *Registered in [manual testing](05-manual-testing.md) as
+sitting Y, 2026-10-04 — §4.1's rows as Y1–Y5 and §4.2's as Y7–Y10 — and none of
+it is walked.* ~~Planned 2026-09-28, for immediate implementation. No
 stage has landed.~~ A feature in its own document, on the precedent
 [P12 §1.5](29-p12-implementation.md) set.
 
@@ -2608,6 +2610,21 @@ criterion:
    judges whether the tracked state is right often enough to be worth its call,
    whether a push moves the story, and whether an edited message reads better
    than its original.
+
+*Registered 2026-10-04, four days after the merge, as
+[manual testing](05-manual-testing.md)'s sitting Y.* Until then no sitting there
+named this list, and §6 there had no row for P14. The five rows are Y1–Y5, Y6 is
+the desk work that closes the phase, and §4.2's four are Y7–Y10. Re-applying the
+criterion kept all five. One reading is recorded there as the recommended
+answer, owner deferred: rows 3 and 4 ask for a *real* SillyTavern folder and a
+*real* Marinara profile, and a folder the walker makes by playing in each answers
+what they check, which is structure — provided its group is set to a reply order
+other than SillyTavern's default, because the default imports as the same
+`natural` an import writes when it carries no strategy at all. It does not answer what other people's
+chats hold, which is the corpus question manual testing's R1 is for. If that
+reading is overruled, rows 3 and 4 wait on R1. **None of these rows was edited,
+and nothing is walked.** The results go in a table of their own in §4 when
+they exist.
 
 ### 4.2 The remainder — extends the standing list
 

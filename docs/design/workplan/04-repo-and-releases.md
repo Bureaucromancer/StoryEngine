@@ -143,6 +143,55 @@ still not run, and that remains the checkpoint
 [work plan §4.1](01-work-plan.md) puts ahead of beta. Read anywhere else, the
 repository's being public says only that its source can be read.
 
+***2026-10-03 is the decision's date, not the switch's*** *(added 2026-10-04)*.
+`gh repo view` still reported the repository private on 2026-10-04, while the
+work that was to go first was finished. The switch is the owner's act, and
+**the day it lands is written here, once, when it does.** Until then every
+*public since 2026-10-03* elsewhere — the heading above, the README, the deploy
+guide, the docs index and `ci.yml` — reads as the date of the decision. The
+correction pass after the switch starts from this paragraph rather than from a
+search. The notes added on 2026-10-04 (the Dockerfile, the unraid template and
+the deploy guide's icon sentence, `updates.ts` and its test, the update badge,
+`release.yml`, and [P10](27-p10-implementation.md)'s and
+[P11](28-p11-implementation.md)'s copies of the feed sentence) cite the decision
+and say what holds while private and what holds once public, so they need no
+such pass.
+
+**What the owner does at the switch, and what waits on it** (2026-10-04):
+
+- **Turn on private vulnerability reporting**, right after the visibility
+  changes: Settings → Code security → *Private vulnerability reporting*. It is
+  a per-repository setting, it is off by default (the owner's one public
+  repository, a fork, has it off), and going public does not turn it on.
+  [`SECURITY.md`](../../../SECURITY.md)'s only reporting route is its **Report a
+  vulnerability** button, which exists only when it is on. It cannot be set
+  beforehand: `gh api repos/Bureaucromancer/StoryEngine/private-vulnerability-reporting`
+  answers 404 while the repository is private, and should answer
+  `{"enabled":true}` after. `SECURITY.md` says what a reporter does in the gap.
+- **Decide the tarball's upload before the next `v*` tag.** The heading's *the
+  build did not* holds only until then. `release.yml`'s tarball job ends in
+  `actions/upload-artifact`, and on a public repository a run's artifacts can
+  be downloaded by anyone signed in to GitHub, for ninety days unless
+  `retention-days` says otherwise. The step has never run: the job arrived at
+  P11.9, after alpha 4. Keep the upload and say so here, give it a short
+  retention, or drop the step. The workflow's comment above the step says the
+  same, and [the deploy guide](../../deploy.md)'s *Cutting a release* warns the
+  person cutting the tag.
+
+**Two policies for a public repository — recommended answer, owner deferred,
+2026-10-04**, recorded here so they can be overruled in one place. The README
+and `SECURITY.md` state them and point back at this paragraph.
+
+- **No contributions for now.** Pull requests will not be merged; forks under
+  the AGPL are welcome. Nothing above implies this. It is new, and it is the
+  plainest reading of a project that promises no support and has one person
+  deciding its design.
+- **Security reports go privately and promise nothing.** They go through
+  GitHub's private vulnerability reporting, the setting the switch's first step
+  turns on, with no
+  response time, fix, advisory or credit promised. The no-promise half follows
+  from *no one is promised support* above. The private channel is the new part.
+
 ---
 
 ## 1. The model
@@ -416,7 +465,10 @@ beta.1.1 < beta.2 < 1.0.0` falls out of the specification. `compareVersions` in
 `packages/server/src/build-info.ts` implements exactly that, and its test names
 the hotfix shape in both directions, so that a stamp written by *1.0-beta 1*
 opens under *1.0-beta 1.1* and not the other way round. The `v` on the tag is
-for the workflow's `v*` filter, which exists because `p1` is a tag too; **the
+for the workflow's `v*` filter, which exists because ~~`p1` is a tag too~~ a
+phase marker such as `p1` would otherwise cut a release *(corrected 2026-10-04:
+`p1` was a tag when this was written and is gone, and the filter's reason
+outlived it)*; **the
 image tag is the string without it**, which is what `compose.yaml` and the
 template pull, and the workflow strips it before tagging.
 

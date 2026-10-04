@@ -884,7 +884,12 @@ works*. **That is this project's present state rather than a hypothetical**: the
 repository is private and [releases §4](04-repo-and-releases.md) says `latest`
 *"names nothing"* until a release is cut, so the default channel's feed answers
 404. A check that conflated them would tell every alpha operator their server was
-offline. And §6.5's conditionality is built the way it is written: an all-local
+offline. *(Noted 2026-10-04: the repository was decided public on 2026-10-03,
+and [releases §0.1a](04-repo-and-releases.md) records the day the switch lands.
+Once it is public, with no GitHub Release, the feed answers an empty list
+instead, which reads as the same `unknown` with the internet working. The case
+outlives the switch, as `updates.ts` now says beside its own copy of this
+sentence.)* And §6.5's conditionality is built the way it is written: an all-local
 install is told nothing, because *"a fully local setup is a legitimate,
 fully-functional deployment and its operator chose it deliberately"*.
 
@@ -1065,7 +1070,12 @@ character, which is everybody.
 obligation has not fired — but the *mechanism* is what a later phase would
 otherwise have to invent under time pressure, and it is cheaper now: a private
 build links to a private repository, which is correct and harmless, and the day
-the repository is public the link already works.
+the repository is public the link already works. *(Noted 2026-10-04: that day
+was decided on 2026-10-03, for this reason among others, and
+[releases §0.1a](04-repo-and-releases.md) records when it lands. From then the
+**Source** link opens for everyone. The obligation still waits on distribution,
+because the image stays private, but an install with other people on it is no
+longer offering them a source they cannot read.)*
 
 ---
 

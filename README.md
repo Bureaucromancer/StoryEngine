@@ -8,17 +8,24 @@ readiness ([releases §0.1a](docs/design/workplan/04-repo-and-releases.md)).
 Nothing here is a release. There are no published builds — the container image
 is a private package, and the `v1.0.0-alpha.*` tags are builds the project made
 for itself — nothing is supported, data formats may change without a migration,
-and issues and pull requests may go unanswered. Running it means building it
-from source ([Running it](#running-it)).
+and issues and pull requests may go unanswered. **It is not accepting
+contributions for now**, so a pull request will not be merged; forks are
+welcome, under the AGPL ([Licence](#licence)). A security problem goes
+privately, as [`SECURITY.md`](SECURITY.md) says, and not into a public issue.
+Both are policy, recorded in
+[releases §0.1a](docs/design/workplan/04-repo-and-releases.md) with the date
+they were set. Running it means building it from source ([Running it](#running-it)).
 
 The design is written down in [`docs/design/`](docs/design/); the code is
-through [P14](docs/design/workplan/31-p14-scene-and-session-import.md) of the
+through [P15](docs/design/workplan/33-p15-setup-from-a-turn.md) of the
 [work plan](docs/design/workplan/01-work-plan.md) — P13's whole-install
 Aventuras import and P14's Scene and session import merged on 2026-09-29 and
-2026-09-30 — with **several phases' exit gates still awaiting a person**;
+2026-09-30, and P15's Setup made from a turn on 2026-10-03 — with **several
+phases' exit gates still awaiting a person**, P15's among them;
 [the work plan's index](docs/design/workplan/README.md) records each phase's
 state rather than glossing it. *(This paragraph said "through P7" until
-2026-10-03, seven phases after it stopped being true.)* What exists: the storage spine and a derived
+2026-10-03, seven phases after it stopped being true, and "through P14" until
+2026-10-04, a day after P15 merged.)* What exists: the storage spine and a derived
 index that can be thrown away and rebuilt from it; accounts and sign-in; the
 library, with import from SillyTavern, Marinara and Aventuras and export back
 out again; **the turn, end
@@ -56,7 +63,9 @@ of Aventuras' own formats, with what each conversion could not carry named
 beside it. Start a session, take a turn, watch the reply stream. Branch
 from any earlier turn, rewrite or reroll a reply and move among the siblings it
 leaves, undo the newest turn, and search the lines you abandoned — every one of
-them is still there. Open the workbench beside Play to see what the turn was
+them is still there. From any turn, a wizard turns the story so far into a
+Setup that new sessions start from, and that Setup's own opening wins turn 1
+over the cast's greetings. Open the workbench beside Play to see what the turn was
 built from: every block with its source and reason, the budget's verdicts, the
 calls, the effects, which lore entries fired and which were skipped and why, and
 a diff between two turns. Read a lorebook as a document — browse it, search it,

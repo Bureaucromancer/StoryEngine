@@ -4,7 +4,11 @@
 # Alpha 1's image — docs/design/workplan/19-p6a-alpha-1.md §2, P6A.4.
 #
 # **An artifact, not a distribution.** The repository is private, the registry
-# package is private, and nobody else runs this (§0.1). That is what keeps
+# package is private, and nobody else runs this (§0.1). *(Noted 2026-10-04: the
+# repository was decided public on 2026-10-03, for licensing and CI rather than
+# readiness, and docs/design/workplan/04-repo-and-releases.md §0.1a records the
+# day the switch itself lands. The rest of this paragraph rests on the package,
+# which stays private either way.)* That is what keeps
 # docs/design/workplan/04-repo-and-releases.md §0's deferral of release
 # engineering intact, and what keeps AGPL §13 from attaching
 # (docs/design/09-server-multiuser-deployment.md §7). Publishing this image is a

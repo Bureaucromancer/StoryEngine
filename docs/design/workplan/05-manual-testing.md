@@ -232,6 +232,19 @@ is not the model failing; it is the model reporting an errand**, which is what
 §0's criterion calls clause (iii) and what this file exists to make visible
 rather than to absorb.
 
+***Updated 2026-10-04: twenty-six sittings, and the alphabet is spent.*** Q, R,
+S, T, U, V, W and Z arrived after the last update without a line here. Today X
+and Y arrived: [P13](30-p13-aventuras-import.md)'s and
+[P14](31-p14-scene-and-session-import.md)'s critical lists, registered five
+days and four days after their merges. *That lateness is the new failure.*
+The phases from P7 to P12 each had a sitting here within a day or so of the
+merge, and these two did not. Nothing noticed until a later sitting reserved their letters. *No commit to
+this file since 2026-09-17 records a walk*, so the count of results is still
+forty-nine. **Eleven phases are now held open by a critical list here** — P6B,
+P7, P7B, P8, P9, P10, P11, P12, P13, P14 and P15 — which is more than at any
+earlier update. The paragraphs above still apply: the split is sorting the
+pile, and it is not draining it.
+
 The walk so far has produced six findings in [playable log](21-playable-log.md) and eleven
 graded refinements in [refinements](22-walkthrough-refinements.md), and its sharpest
 result is one nobody asked for: sitting C ran eleven deliberate breakages,
@@ -255,13 +268,16 @@ is below; this is the afternoon.*
    afternoon that changes [P8](25-p8-implementation.md) onward.
 2. **K, entire** — and it is not an afternoon. ~~**This is the only item on this
    list holding a phase open:**~~ ~~**two items on this list now hold a phase
-   open** (2026-09-13)~~ ~~***three, since 2026-09-15***~~ ***four, since
-   2026-10-03*** — this list's own items, not every open phase in the file: under
+   open** (2026-09-13)~~ ~~***three, since 2026-09-15***~~ ~~***four, since
+   2026-10-03***~~ ***six, since 2026-10-04*** — this list's own items, not every open phase in the file: under
    [§0](#the-two-tier-gate)'s model K *is* [P6B](20-p6b-playable.md)'s gate, so
    P6B does not close until K1–K9 have results; **L is
    [P7](23-p7-implementation.md)'s**; ~~and~~ **M is
-   [P7B](24-p7b-presets-and-prompts.md)'s**; and **W is
-   [P15](33-p15-setup-from-a-turn.md)'s** (item 11), on the same terms.
+   [P7B](24-p7b-presets-and-prompts.md)'s**; ~~and~~ **W is
+   [P15](33-p15-setup-from-a-turn.md)'s** (item 11); and **X is
+   [P13](30-p13-aventuras-import.md)'s** and **Y is
+   [P14](31-p14-scene-and-session-import.md)'s** (items 13 and 14), on the same
+   terms.
    ~~K0 cuts alpha 4 before anything is recorded.~~ *K0 said cut alpha 4, and it
    was cut on 2026-09-09 — before P7's sixty-seven commits and P7B's twelve.
    **L0 and M0 are the same question asked again** and all three sittings want
@@ -314,6 +330,26 @@ is below; this is the afternoon.*
     account, and no endpoint** — walkable today, as D11–D20 and U1 are. Not a
     phase's gate, so it holds nothing open; it is on this list because it is
     cheap, not because anything waits on it.
+13. **X** — added 2026-10-04: [P13](30-p13-aventuras-import.md)'s two critical
+    lists, as one sitting in two halves, and **it holds a phase open**. Every
+    row wants [R13](#3-standing-prerequisites), an Aventuras install with a
+    library and stories in it, so it is an errand before it is a sitting, as O
+    is, though a cheaper one. Installing Aventuras and playing a story with a
+    branch in it is an afternoon, where R10 is an endpoint nobody has. X2 also
+    wants a second account on the same server. **X8 alone wants a picture
+    Aventuras drew**, which needs an image provider inside Aventuras. The other
+    rows can be walked without it, **but P13's close waits on it**, as P9's
+    waits on O: X records it as blocked rather than deferred.
+14. **Y** — added 2026-10-04: [P14](31-p14-scene-and-session-import.md)'s
+    critical list, and **it holds a phase open**. Y1, Y2 and Y5 want what K1
+    stands up, and Y1 one thing more: a character with at least two written
+    openings, because the seeded Mara has one. They belong **in the sitting
+    with L2, L3 and M**, after K.
+    Y3 and Y4 want a SillyTavern folder and a Marinara profile that have been
+    used. The walker's own will do, on the reading Y records, and each is half
+    an hour of play in the other program with the same key. Y0 says what each
+    must hold, including a group on a reply order other than SillyTavern's
+    default, without which Y3 cannot fail.
 
 **Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
 sitting — K5–K8 are the short form of it, and what they cannot reach is exactly
@@ -383,6 +419,7 @@ not of the steps.
 | **R11** | **A supervised install** — the image under `compose.yaml`'s `restart: unless-stopped`, ~~an unraid container with autostart~~ an unraid container whose Extra Parameters carry `--restart=unless-stopped`, or a systemd unit. *R8 is close and is not this*: a Docker daemon is what runs a container, and what this needs is a container something will start **again**. | [P10 §3](27-p10-implementation.md) step 6, and sitting P's C2 | **Partly to hand** — R8's first install ran 2026-09-07 under unraid, ~~which is supervised, so what is missing is a walk rather than a machine~~. Added 2026-09-17 by [P10 §3.1](27-p10-implementation.md). *The thing it blocks is narrow and is exactly the half a test cannot reach*: `restart.test.ts` proves the refusal, the 503 and the drain in-process, and **nobody has watched the process come back**. **Corrected 2026-09-27**: that unraid container was *not* supervised. Autostart restarts nothing that exits, and the template set no restart policy, so a walk there would have watched it stay stopped. The shipped unit did the same thing a different way: `Restart=on-failure` against a restart that exited 0. And on every deployment the process never exited at all, because the tab pressing the button held the listener's close open. All three are fixed underneath this row (the stream closer in `preClose`, the template's `--restart=unless-stopped`, an exit status of 75 and `RestartForceExitStatus=75`; [09 §6.4](../09-server-multiuser-deployment.md)). R8's container predates the template change, so add the parameter to it by hand before walking this. `main.test.ts` now proves the status and that a process with a tab open exits at all. **Watching it come back is still nobody's yet** |
 | **R10** | **An endpoint that serves the `image` role**, with a key — hosted or local. **R2 is a chat endpoint and does not answer this**; no prerequisite here ever has. | [P9](26-p9-implementation.md)'s whole gate: twelve of its fifteen steps want pixels, and **both of its criticals are blocked on this and nothing else** ([P9 §3.1](26-p9-implementation.md)) | **Not to hand**, added 2026-09-15 by [P9 §0.2](26-p9-implementation.md)'s readiness audit and **the row that made this table ten** — which is why that document's own *"nine standing prerequisites"* is struck in two places rather than left to read as though the audit had not happened ([P9 §0.3](26-p9-implementation.md), 2026-09-16). *Second-longest lead item after R1 and the only one a whole phase's critical list waits on.* ***And it is its own errand***: K, L, M and N — the four sittings that hold a phase open — all queue on a **chat** endpoint, and none of them produces this one. ~~It is also what settles [P9 §1.2](26-p9-implementation.md) — whether image providers go behind the same `Connection` vocabulary or beside it — which that document deliberately leaves open rather than deciding at a desk.~~ ***That half was decided at a desk after all*** (2026-09-16, [P9 §1.2](26-p9-implementation.md)): the pinned SDK already exports `imageModel` and `generateImage`, so the fork had no second client on the other side of it and `Provider` grew a second **verb** rather than a second **kind**, with the reversal condition written down — an endpoint whose request is not prompt-plus-scalars. **What R10 still blocks is the gate**, which is the larger half: [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start) cannot start without it, and P9 is built and open behind it |
 | **R12** | **A chat endpoint serving one model that sees pictures and one that does not** — Ollama with `llava` beside a text model is the cheap form; a hosted key whose provider offers both works too. *Neither R2 nor R10 answers it*: R2 is a chat endpoint that may or may not see, and R10 makes pictures rather than reading them. | ~~T2–T4~~ U2–U4 *(the sitting was re-lettered U on 2026-10-02 and this cell was missed; corrected 2026-10-03)*, and `pnpm test:live`'s picture case (`STORYENGINE_LIVE_VISION_MODEL`) | **Unconfirmed**, added 2026-09-27 with [25 E15](../25-open-questions.md) R1 |
+| **R13** | **An Aventuras install with a library and stories in it.** It needs a character with a PNG portrait and one with a JPEG, a scenario linked to a vault lorebook, a story with at least two branches and a lorebook of its own, a turn Aventuras illustrated, and a backup zip exported from it. *The walker's own, played for an afternoon, will do.* X's rows ask whether the import carries what is there, not what other people's libraries hold, which would be R1's question asked of another program. | [Sitting X](#x--p13s-critical-list--two-halves-one-aventuras-install-and-a-prerequisite-nobody-had-written-down) entire, which is [P13](30-p13-aventuras-import.md)'s two critical lists, and most of its remainder | **Unconfirmed**, added 2026-10-04 with sitting X. [P13 §3.3](30-p13-aventuras-import.md) calls its rows walkable *"with an Aventuras install, which Part 1's rows already assume is to hand"*, and nothing in this table recorded that assumption until now. ***The illustrated turn is an errand inside this one.*** Aventuras draws its pictures through an image provider set up inside Aventuras, so an install that never had one has no X8 to walk. That is [R10](#3-standing-prerequisites)'s kind of endpoint, run inside another program. The rest of X does not wait for it, and P13's close does: X records X8 as blocked rather than deferred |
 
 ---
 
@@ -1350,6 +1387,180 @@ is this known gap, not a regression**: record which kind of session the setup
 was made from — its mode, and whether the character was a companion — and no
 row is edited for it.
 
+### X — P13's critical list — *two halves, one Aventuras install, and a prerequisite nobody had written down*
+
+**The eleventh critical list under [§0](#the-two-tier-gate)'s model**, from
+[P13 §3.1 and §3.3](30-p13-aventuras-import.md) and not edited here.
+[P13](30-p13-aventuras-import.md) merged into `main` on 2026-09-29 at
+`7565265`, and again on 2026-09-30 at `6f55e6e` with Part 2 built. Every stage
+is done and neither list is walked, so under
+[§7](#7-closing-a-gate-and-closing-a-phase) the phase is open until these have
+results.
+
+***Registered 2026-10-04, five days late.*** P13's status line said *"neither
+gate is walked"*, and nothing here said so: §6 had no row for the phase and §4
+no sitting. That is [§10.1](#101-the-dangling-owner-which-is-the-finding-this-sweep-exists-to-have-produced)'s
+*a deferral nobody collects*, one level up. The lettering follows
+[Z](#z--a-connection-that-hides-another--ten-minutes-a-text-editor-and-a-second-account)'s
+note: **X is P13's sitting, with its two lists as halves**, because one
+Aventuras install serves both.
+
+**Derived, not chosen — and this time the phase did the deriving.** P13's gate
+is eighteen rows in two parts, and its document split each part itself, citing
+this file: four critical rows and five for the remainder in Part 1, and the
+same in Part 2. §3.3 argues the three clauses for Part 2's rows outright. §3.1
+does not, so they were applied here to all eight:
+
+- **(i) holds for every row.** Each names something P13 built: the snapshot
+  (P13.1), identity on the row (§1.5), carried portraits (§1.6), links resolved
+  inside the database (§1.7), the pairing and lineage rebuild (P13.11), the
+  world stored as lore (P13.12), identity across two sources (P13.15), and
+  pictures as renditions (P13.13). None is another phase's claim transported.
+- **(ii) holds plainly for six.** A snapshot that harmed a live database
+  (row 1) damages another program's data, and nothing here can undo that. An
+  identity that misses (rows 2 and 12) makes a second copy on every re-import.
+  A link, a pairing or a world used wrongly (rows 4, 10 and 11) is played
+  onward, and an imported session cannot be brought again to repair it,
+  because row 12's refusal is the design. ***The two picture rows, 3 and 13,
+  are the weakest, and they stay.*** For row 13, the reason is that same
+  refusal: a session played onward keeps the pictures its import wrote. Row 3
+  rests on what the mend costs. A portrait can be mended by importing again
+  with *replace*, which puts whatever was edited since into the actor's history
+  and off the actor.
+- **(iii) is where this sitting differs from the document.** §3.3 calls its
+  rows walkable *"with an Aventuras install, which Part 1's rows already assume
+  is to hand"*, and [§3](#3-standing-prerequisites) had no row for that
+  assumption. **It does now: R13, unconfirmed.** Row 13 wants more than an
+  install, too. Aventuras draws its pictures through an image provider set up
+  inside it, so an install that never had one has no illustrated turn to
+  bring. **Row 13 is therefore blocked rather than deferred**, as
+  [P9 §3.1](26-p9-implementation.md)'s C1 and C2 are: nobody decided it was not
+  worth walking, and it waits on R10's kind of endpoint run inside Aventuras.
+  So X8 stays on the list, and **P13 does not close until it has a result**.
+  The rest of X can be walked without it.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **X0** | **The install, and R13.** A running StoryEngine with a real chat connection (R2 or R3) bound to `prose`, the Aventuras install R13 describes, and a second account on the same server for X2. **Read L0 first.** The build question it forks on is asked again here, and more sharply: `v1.0.0-alpha.4` predates P13 entirely, so walking it answers none of these rows. | R13 | |
+| **X1** | ***A live database, swept while Aventuras is open.* Only a person can walk it.** In the library's import panel, sweep the Aventuras config directory by path while Aventuras is still running, and read the review. Then close Aventuras and open it again: it opens, and its library and stories are intact. | P13 1 | |
+| **X2** | **The backup zip, uploaded, makes the same library.** Upload it into a second account and compare that library with X1's: the same objects. Then, in the first account, upload the zip and sweep the directory again: every row of both reviews reads `unchanged`. | P13 2 | |
+| **X3** | **Portraits.** The PNG portrait is the card's picture, and the JPEG one is visible as its source image. | P13 3 | |
+| **X4** | **A linked lorebook, used.** Start a session from the scenario, take one turn, and read the workbench's lore report: the linked book is bound and its entries can fire. | P13 4 | |
+| **X5** | ***The story, beside Aventuras.* Only a person can walk it.** Sweep again with *stories* ticked. The imported session reads as the story did in Aventuras on its head branch, and each other branch can be reached as a line of its own. | P13 10 | |
+| **X6** | **Played one turn onward.** The narration has the story's cast and its story lorebook bound, and the persona is the protagonist. | P13 11 | |
+| **X7** | **Brought twice, kept once.** Sweep the database a second time, then pick the story's `.avt` by hand. Both are refused as already here, naming the first session, and no second session appears. | P13 12 | |
+| **X8** | **The illustrated turn.** Its picture is where Aventuras drew it, and no `<pic` text appears anywhere in the prose. *It needs R13's illustrated turn. Without one this row waits, and P13's close waits with it; the rest of X does not.* | P13 13 | |
+| **X9** | **Desk work, and it is what closes the phase.** Write the results into a table of their own in [P13 §3](30-p13-aventuras-import.md), and never into the eighteen rows, which [§0](#the-two-tier-gate)'s first honesty condition forbids. Then update §6's row here and P13's status line, and **route every `CORRECTION` into the document that owns the step.** | P13's close | |
+
+**X's remainder, which extends the standing list and holds nothing open.**
+These are P13 §3.2's and §3.4's ten rows, put here so that each has somewhere
+to record a result. They are breadth, duration, platform and corpus, which §0
+says are not criticality. Several want something X0 does not provide, and the
+row says what.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **X10** | A database of several hundred MB, swept by server path: the time and the peak memory stay reasonable. *Wants a large Aventuras library.* | P13 5 | |
+| **X11** | A Docker install with the Aventuras config directory mounted read-only, swept by path. *Wants [R8](#3-standing-prerequisites).* | P13 6 | |
+| **X12** | A backup exported from Aventuras on Android. *Wants Aventuras on an Android phone.* | P13 7 | |
+| **X13** | The imported tags' colours look like the ones in Aventuras. | P13 8 | |
+| **X14** | A backup over 64 MB, uploaded from a browser, once from a phone: it imports and shows progress. Behind a reverse proxy, the proxy's refusal reads as a sentence. *Wants a large backup, and a proxy for the last clause.* | P13 9 | |
+| **X15** | A story of several thousand entries: the sweep time, the peak memory, and the session list afterwards. | P13 14 | |
+| **X16** | A database from before Aventuras' migration 013, which has no branches, and one from before 029, whose branch copies are guessed ([P13 §0.5](30-p13-aventuras-import.md)). *Wants old Aventuras builds, or databases saved from them.* | P13 15 | |
+| **X17** | A `.avt` exported on Android, and one written by Aventuras' sync, stamped 1.7.0. | P13 16 | |
+| **X18** | An imported story played past its window: the chain summarises the imported turns, and none of Aventuras' chapters appears. *Wants a long story, or a long evening.* | P13 17 | |
+| **X19** | An imported backdrop chosen by hand, in a mode that stages backdrops. | P13 18 | |
+
+***What this list cannot reach.*** Every row is somebody's own install, so the
+sitting can say that the import carries what is there. It cannot say what other
+people's installs hold: the limits real authors reach, odd rows, a library some
+years old. That is R1's kind of question, asked of another program, and no row
+here answers it. *And the import runs one way.* Nothing writes back to
+Aventuras ([P13](30-p13-aventuras-import.md)'s *what is deliberately not in
+this phase*), so no row asks whether a story survives a round trip.
+
+### Y — P14's critical list — *a sitting against a real model, and the last free letter*
+
+**The twelfth critical list under [§0](#the-two-tier-gate)'s model**, from
+[P14 §4.1](31-p14-scene-and-session-import.md) and not edited here.
+[P14](31-p14-scene-and-session-import.md) merged into `main` on 2026-09-30 at
+`8878851` with every stage built and reviewed and the list unwalked, so under
+§7 the phase is open until these have results. *Registered 2026-10-04, with X,
+for the same reason and just as late.*
+
+***Y is the last free letter.*** With X and Y registered, every letter from A
+to Z names a sitting. The next sitting needs a scheme nobody has chosen yet, and
+the choice falls to whoever registers it.
+
+**Derived, not chosen — and again the phase did the deriving**: §4.1's five
+rows, written *"by manual testing §0's criterion"*, and §4.2's four for the
+remainder. Applied here:
+
+- **(i) holds for all five.** Rows 1, 2 and 5 are Part A's Scene: the gestures
+  (P14.4), who replies and per-actor dispatch (P14.1, P14.2), and the agents
+  (P14.5a–c). Rows 3 and 4 are Part B's import, SillyTavern's families and
+  groups (P14.9) and Marinara's trackers (P14.10).
+- **(ii) holds.** Part B's reason is X's: an imported chat is played onward,
+  and bringing it again cannot repair it, because a re-import *extends* the
+  session ([P14 §2.7](31-p14-scene-and-session-import.md)) rather than
+  replacing it. Part A compounds for a different reason. Every Scene session
+  after this phase plays on what rows 1 and 2 check, and so does every chat that
+  Part B imports.
+- **(iii) is satisfied for rows 1, 2 and 5** by a real chat endpoint, R2 or
+  R3: the install K1 stands up. **Rows 3 and 4 ask for a *real* SillyTavern
+  data folder and a *real* Marinara profile**, which are R1's first two items,
+  and R1 is not to hand. ***Read here as satisfied without R1 — recommended
+  answer, owner deferred, 2026-10-04.*** What these two rows check is
+  structure: a branched chat is one session; a group keeps its members, its
+  strategy and its muted members; the imported tracker state is what Marinara
+  showed. A folder the walker makes by playing in each program for half an hour
+  answers that, provided it has a branch, a group with a muted member on a
+  reply order other than SillyTavern's default, and trackers switched on. The
+  default matters because SillyTavern's *Natural order* imports as `natural`,
+  which is also what the import writes when it carries no strategy and Scene's
+  own default, so a group left on it would pass whether the importer carried
+  the strategy or dropped it. It cannot answer what other people's chats hold, which
+  is R1's question; K2 records the same limit for a hand-written lorebook. *If
+  this reading is overruled, Y3 and Y4 wait on R1 with E1 and E2.*
+- **Two of the five ask for a judgement**: row 2's *whether smart's picks beat
+  natural's often enough to be worth the call*, and row 5's three *worth its
+  call* questions. They are on the list because §4.1 put them there, and the
+  gate is not edited. The walk passes when the judgement is made and written
+  down. A *no* is a finding about the feature rather than a `FAIL` of the build,
+  the line [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)
+  draws for pictures, and it goes to [refinements](22-walkthrough-refinements.md)
+  with what was expected written before what was seen
+  ([§8](#8-where-a-finding-goes)).
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **Y0** | **The install**: a real endpoint, a model that answers, and room for several sessions. This is what K1 builds, and it is already standing if L or M has been walked. Y1 also wants a character with at least two written openings (a card's alternate greetings), made in the editor or imported from a card, because the seeded Mara has one. Then the two folders for Y3 and Y4, made or brought: a SillyTavern data folder holding a chat with a branch and a group of three with one member muted and its reply order set to something other than SillyTavern's default *Natural order* (*List*, *Manual* or *Pooled*), and a Marinara profile holding a roleplay with trackers on. **Read L0 first**: `v1.0.0-alpha.4` predates P14. | — | |
+| **Y1** | ***A single-character chat, from creation.* Only a person can walk it.** Start a Scene with a character whose card has alternate greetings. The greeting shows and swipes to its alternates. Then swipe, continue, edit, hide and impersonate (**Draft my next message**), and check that each behaves the way somebody who uses SillyTavern expects. | P14 1 | |
+| **Y2** | **A three-character group.** Play it on the default **Who replies**: the speakers are plausible, and force-talk (**Speak**, **Who speaks next**) and **Let them talk** both work. Then play it again on **Smart** and judge whether its picks beat the default's often enough to be worth the extra call. Every message names its speaker, and nobody writes another member's lines. | P14 2 | |
+| **Y3** | **The SillyTavern folder, imported and played one turn.** The branched chat is one session. The group keeps its members and its muted member, and its **Who replies** shows the order it was set to in SillyTavern: *List* reads as *Everyone, in cast order*, *Pooled* as *One at a time, taking turns*, and *Manual* as *Only who I ask*. A group left on *Natural order* would match what the import writes when it carries no strategy, which is Scene's own default (`SCENE_CHAT` in `import/chat/build.ts`, and `participants.select` in the Scene package's `mode.ts`), and prove nothing. | P14 3 | |
+| **Y4** | **The Marinara profile, imported and played one turn, with its trackers.** The imported tracker state is what Marinara showed, and the next turn updates it. | P14 4 | |
+| **Y5** | **Trackers, a push and the editor, on a Scene played from scratch.** Switch the trackers on, push the story, and switch on **Edit replies for style**. Judge three things: whether the tracked state is right often enough to be worth its call, whether a push moves the story, and whether an edited message reads better than its original. | P14 5 | |
+| **Y6** | **Desk work, and it is what closes the phase.** Write the results into a table of their own in [P14 §4](31-p14-scene-and-session-import.md), and never into §4.1's five rows. Then update §6's row here and P14's status line, and **route every `CORRECTION` into the document that owns the step.** | P14's close | |
+
+**Y's remainder, which extends the standing list and holds nothing open** —
+P14 §4.2's four, with somewhere to record a result.
+
+| # | Do | Clears | Result |
+|---|---|---|---|
+| **Y7** | **Update from source**, read by somebody who has not read [P14 §2.7](31-p14-scene-and-session-import.md): do they understand it, including why a message deleted in SillyTavern is still here? *Wants a second person, as [R4](#3-standing-prerequisites) does.* | P14 §4.2 | |
+| **Y8** | The narrated voice (**A narrator, telling the scene**) still produces what Write's falsification test ([13](../13-write-mode.md)) assumes Scene produces. | P14 §4.2 | |
+| **Y9** | Auto-mode (**Let them keep talking on their own**) stops when it should: on typing, on **Stop**, on opening an edit box, on a failed turn, and when nobody can reply. | P14 §4.2 | |
+| **Y10** | A 10,000-message import's first turn after the warm feels like any other turn. *Wants a chat that long.* | P14 §4.2 | |
+
+***What this list cannot reach.*** Every row is a short session over chats the
+walker chose or made, so a defect of accumulation survives it: a group three
+hundred turns in, or tracker state drifting over an evening. That is
+[sitting G](#g--the-long-pass--hours-unscripted-playables-second-sitting)'s.
+*And one known gap Y4 will meet.* A Marinara profile made today is storage
+format 7, and P14's chat readers were checked at format 4 (its status,
+2026-10-02). A private roleplay line importing as an ordinary one is that
+recorded gap, not a regression, and is written down as such.
+
 ### Z — A connection that hides another — *ten minutes, a text editor and a second account*
 
 **[Polish §26](06-polish.md#26-a-connection-that-hides-another-says-so)'s
@@ -1373,7 +1584,9 @@ has two — Part 1's rows 1–4 and Part 2's rows 10–13, the second written
 install serves both, which is what §3.3's third clause says it assumes — and
 **Y is P14's**. The mapping is whoever registers them to make; if X has to
 split, this note is where the dated line goes, and this sitting's letter does
-not move for it.
+not move for it. *Registered later the same day as this note reads: X is P13's,
+with Part 1's list and Part 2's as its two halves, and Y is P14's. X did not
+split.*
 
 ***Its own sitting rather than a row of V***, which is the connections sitting
 already: V wants R2 and R3, real endpoints, and this wants neither — the
@@ -1459,6 +1672,8 @@ a claim nobody made.*
 | **P11** | ~~10~~ **13** | **2 (in part), 3, 4 (in part), 5 (in part), 6 (in part), 7 (in part), 9 (in part), 10 (in part), 11 (in part), 13** — landed 2026-09-17 | **merged 2026-09-17 at `b572c4c`, and open; the list is unwalked** | **Planned rather than sketched, 2026-09-17** ([P11 §3.1](28-p11-implementation.md)), the seventh gate to split under [§0](#the-two-tier-gate), and **the only one whose phase has nothing after it** — so clause (ii) is re-read there rather than applied: what this gate compounds into is the **beta declaration** rather than a later phase. ***~~Five~~ Six criticals, two of them desk work***, which is unusual and is a property of a gate mostly asking *did the thing get built*: **R1** the item-by-item read of [§0.1](28-p11-implementation.md)'s list; **R2** a real session read, printed and copied; **R3** the assistant asked about your own library ([R2](#3-standing-prerequisites)); **R4** the 1.0 corpus read capability by capability, which **is** the beta claim; **R5** recording that row 13 is answered, which **unblocks R4**; and — added 2026-09-22 with [P11.2](28-p11-implementation.md)'s hook stage — **R6** a hook written on a carrier and one saved back out of a session, which is the first authoring surface a portable field has had. ***What a built P11 proves is most of its own list*** — the reading view's model, the editor contract over the key set rather than over the editors somebody remembered, *not a second chat* asserted from both sides, the trash and its sweep, the catalogue's per-key fallback, the tarball packed twice and compared, a session exported and imported through a reader sharing no state with the writer. ***What it does not have is named rather than absorbed***: [10 §11.2b]'s image slots, [10 §11.2c]'s entry travel, the assistant's **docs lorebook**, and — the one to argue about — ~~**row 8's Playwright suite, which no stage was asked to build**~~. Three are features with an argument; the fourth was infrastructure the gate assumed. All four are in [§10](#10-deferred-with-an-owner) so that R4's reader meets them as known absences. ***Row 8 built 2026-09-17***, the same day the record named it: the argument was withdrawn rather than won, the suite is [§5](#5-already-discharged-and-by-what)'s **P11 8** row, and **three of the seven journeys turned out to say something other than what they had been read as saying** — which is the case this row had been making all along with nothing anybody could act on. **Three absences stood**, and by the end of the same day two more were built: [10 §11.2c]'s entry travel — selection, export, import, and `VersionSource`'s `import` arm's first writer — and [10 §11.2b]'s image slots, which turned out to be **unreachable rather than unbuilt**, because a lorebook's container is a folder and nothing had ever written into one. **And the last of the four went the same day**: the docs lorebook, twenty-five keyed entries attached by one line, which is what *"needs no new machinery"* turned out to mean. **Nothing stands** — the four named absences are four closed rows, and none of them closed by being argued about |
 | **P12** | 5 + ~~5~~ **7** | **most of both halves** — `backup/archive.test.ts`, `backup/schedule.test.ts`, `backup/restore.test.ts`, `storage/tar-archive.test.ts`, `tools/tar-seam.test.ts`, `routes/backups.test.ts`, `settings/ImportBackup.test.tsx`, `settings/AdminBackups.test.tsx`, and `tools/restore.test.ts` repaired | **merged 2026-09-23 at `671950f`, and open; the list is unwalked — sitting S** | **The eighth gate to split under [§0](#the-two-tier-gate)**, and the shortest, because the phase is one feature. ***What no test here can witness is the two things the criterion keeps***: a **server rebuilding its index from an archive** (S1 — a search answering is the only observable proof), and a **supervisor restarting a process** after a self-restore, with the moved-aside directory intact beside the new one (S2). ***The phase found two defects in what [P11.11](28-p11-implementation.md) shipped rather than being blocked by them***: the index exclusion never fired, and long member names were being cut — and **the second table this file's first honesty condition requires is [P12 §3](29-p12-implementation.md), whose rows were not edited**. *The one thing the remainder cannot reach is size*: nothing here has archived a genuinely large library, and whether that is quick enough to be pleasant is a sitting behind a corpus rather than behind a build. ***Built and merged 2026-09-23, all fourteen stages, and the critical list never walked*** — **the seventh phase to be merged and left open**, which is the split [P7](23-p7-implementation.md)'s row first recorded and the rule §7 states. *Two of the five criticals are the ones no test can witness and they are unchanged by the build*; what changed is the remainder, which grew **two rows** for two surfaces the plan did not name: `DELETE /api/admin/restore`, because a failed restore keeps its marker so the next boot can refuse it and a marker nobody can remove is a trap on an install with no shell, and the **manifest read** that stands in for the preview [P12.9](29-p12-implementation.md) was written to build — [P4 §1.4](16-p4-implementation.md) having already settled that a sweep commits and reports. **The gate's own five rows were not edited**, which is this file's first honesty condition and the reason the two additions are in the remainder rather than in the list |
 | **P7B** | ~~12~~ **17** | **2, 3, 4, 7, 8, 9, 11, 16, 17** — §5 | **M, pending** | Written to [§0](#the-two-tier-gate) from the start: ~~three~~ **four** critical-list candidates named in [P7B §3](24-p7b-presets-and-prompts.md), the rest to a sitting here on the day it closes. ***Five rows and four stages added 2026-09-14*** by a second sweep reading the code against the design notes rather than the design notes against the phases ([P11 §0.1](28-p11-implementation.md)) — the setup and package editors, the workbench on a turn the head has passed, the import quarantine's listing, and home as a changelog-only prototype. **Its gate row 17 is the one worth naming here**: *nothing in the suite asserts that a shipped route has a caller*, and five of this phase's items were routes green in CI with no caller for up to six phases (§9). *What no critical list in this phase can reach is the class it exists for* — a walk can say these surfaces arrived, never whether an eighteenth is missing. ***Written and green 2026-09-14, and it found an eighteenth, a nineteenth and a twentieth on its first run*** ([P7B §1.12](24-p7b-presets-and-prompts.md)) — which is the answer to the clause before it, arriving from a test rather than from a walk. ~~**The ten stages are all committed; the critical list is walked on the day the phase closes and nothing below records a walk**~~ ***Merged into `main` 2026-09-15 at `e7d6dee`, and open*** — the same split P7's row above records, for the same reason: §7's rule is that a phase closes when its critical list is walked, and P7B's is not. **Sitting M**, four criticals and a judgement sitting: **M1** the pack demo end to end; **M2** the mid-session switch against compare and a rewind; **M3** the hand edit under an open panel; **M4** the workbench saying which turn it is showing; **M5** several turns on a browser-authored pack, judged. Nine rows answered by tests and in §5, three walked-but-not-critical folded into **M6** because they want the same install, and **M7** is the desk work. *Every row of M wants a live endpoint, which no earlier critical list had to admit*. ***Row 7's answer was false until 2026-09-27***: the framing never reached a prompt, and the tests it cited did not look ([P7B §3.2](24-p7b-presets-and-prompts.md)) |
+| **P13** | 8 + 10 | **none of the eighteen**, which are all *by hand*. The stages underneath are tested — `import/aventuras/*.test.ts` and the four `routes/import-aventuras*.test.ts` — over a fixture database built from hand-written DDL (`import/fixtures/test-aventuras-db.ts`) | **merged 2026-09-29 at `7565265`, and with Part 2 built at `6f55e6e` on 2026-09-30, and open; both lists are unwalked — sitting X, registered 2026-10-04** | **The eleventh gate to split under [§0](#the-two-tier-gate), and the first in two parts**: [P13 §3.1](30-p13-aventuras-import.md)'s four rows and §3.3's four, which X walks as two halves on one install. The phase derived its own lists. Applying the criterion again here found one thing the document assumed: **the Aventuras install every row wants had no row in [§3](#3-standing-prerequisites), and is R13 now.** X8 also wants a turn Aventuras illustrated, which needs R10's kind of endpoint inside Aventuras: it is blocked rather than deferred, as P9's C1 and C2 are, and the phase's close waits on it. *What the suite cannot reach is the other program*: a live database read beside the app that holds it, a portrait looked at, a story read beside the original. The ten remainder rows are X10–X19. *Registered five days after the merge*, because P13's status said both lists were unwalked and nothing here did |
+| **P14** | 5 + 4 | **none of the nine as written**, because every row is a person's judgement or a real folder. Underneath, by stage: `turns/speakers.test.ts`, `turns/smart-speakers.test.ts`, `turns/runner-dispatch.test.ts`, `sessions/swipes.test.ts`, the Scene package's `tracking`, `plot`, `edit` and `echo` tests, `import/chat/build-property.test.ts`, `import/chat-sync.test.ts`, and the `fixture-pair` project's `import/fixture-pair-chats.test.ts` with `import/chat-size.test.ts` ([P14.12](31-p14-scene-and-session-import.md)) | **merged 2026-09-30 at `8878851`, and open; the list is unwalked — sitting Y, registered 2026-10-04** | **The twelfth gate to split under [§0](#the-two-tier-gate).** Five criticals: two plays of Part A's Scene (Y1, Y2), two real imports (Y3, Y4), and the agents judged (Y5). ***Y3 and Y4 are read as walkable without R1*** — recommended answer, owner deferred, 2026-10-04: a folder the walker makes answers the structural claim, provided its group is on a reply order other than SillyTavern's default, though not R1's question. *Two rows carry a judgement*, smart's worth and the agents' worth, and a *no* there is a refinement rather than a `FAIL`. The four remainder rows are Y7–Y10. *Registered with P13's, and as late* |
 | **P15** | 3 + 3 | **most of both halves** — `sessions/opening.test.ts`, `sessions/setup-from-turn.test.ts` (the no-hidden-content property), `sessions/summary-chain-property.test.ts` (a golden no-root key), `routes/setup-from-turn.test.ts` (the round trip), `play/SetupFromTurn.test.tsx`, `play/SessionsPage.test.tsx` | **built 2026-09-26 on `claude/nice-davinci-xjdpf6`, ~~not merged~~ *merged through `p15` 2026-10-03, and open*; the list is unwalked — sitting ~~T~~ W** | **The ~~ninth~~ tenth gate to split under [§0](#the-two-tier-gate)**, and one feature like P12. *What the suite cannot reach is prose*: whether a real model's story so far is one a session can continue from (W1), and whether a spoiler reached the person still playing through a model's words rather than a payload (W2). ***The round trip is automated rather than owed*** — emit at a turn, start from the Setup, play a turn — and was run against two mutations before it was trusted. **The gate's three rows were not edited**; the three remainder rows are [P15 §3.2](33-p15-setup-from-a-turn.md)'s. *Written as P13 with sitting T, on a branch that could not see `main`'s P13 and P14 or P12A's T; renamed, re-lettered and counted again at the merge, 2026-10-03 — [P15](33-p15-setup-from-a-turn.md)'s status says how* |
 | **P12A** | 9 stages | ~~none yet~~ **P12A.1's face pairing** — `theme.test.ts`'s *the two faces*, from [polish §17](06-polish.md) | **T, registered 2026-09-22; ~~nothing built~~** *P12A.1, and P12A.0's typeface token, were built on `main` on 2026-10-01 at [polish §17](06-polish.md) (`04e45a5`), before the phase opened. What is left of P12A.1 is its measure check ([P12A](34-p12a-the-look.md)). No row of T is about the face, and each wants a stage that is still unbuilt, so T is still unwalkable.* | **The ninth gate to split under [§0](#the-two-tier-gate), and the first registered before its phase opens.** Six rows, five of them a person and one desk work, and **none of them blocked on a prerequisite** — [P12A §1.2](34-p12a-the-look.md) spends a stage decision on keeping it that way. *Why a phase exists here at all*: [10 §1.3](../10-ui-surfaces.md) was written on 2026-09-22 and put commitments into the 1.0 corpus that the build does not meet, and [releases §0](04-repo-and-releases.md) makes beta a completeness gate against that corpus — so **R4 waits on T**, and R1, R2, R3 and R5 do not. *What the list deliberately cannot reach*: whether a generated backdrop reads well, which is [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)'s errand and travels with R10 rather than holding this phase open |
 

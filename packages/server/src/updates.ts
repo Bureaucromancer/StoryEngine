@@ -55,7 +55,13 @@ import type { Connection } from './providers/connections.js';
  * cut"* — so the default channel has no release to compare against, the feed
  * answers 404, and the honest report is {@link UpdateState} `unknown` with
  * connectivity **fine**. A check that conflated the two would tell every alpha
- * operator their server had no internet.
+ * operator their server had no internet. *(Noted 2026-10-04: the repository was
+ * decided public on 2026-10-03, and
+ * [releases §0.1a](../../../docs/design/workplan/04-repo-and-releases.md)
+ * records the day the switch lands. While it is private the feed answers 404.
+ * Once it is public, with no GitHub Release, the feed answers an empty list,
+ * which `newestFor` reads as no release for the channel. The case and the
+ * report are the same either way, which is the point of treating them as one.)*
  */
 
 export type UpdateState =
@@ -150,7 +156,8 @@ export async function checkForUpdate(
     const response = await context.fetch(RELEASES_URL, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) {
       // **Something answered**, so the network is fine and this build simply
-      // cannot use the answer — a private repository, or a feed that moved.
+      // cannot use the answer — a private repository (this one, until the
+      // switch releases §0.1a records), or a feed that moved.
       return { state: 'unknown', latest: null, checkedAt: now, online: true };
     }
     payload = await response.json();

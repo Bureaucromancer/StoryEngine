@@ -570,6 +570,11 @@ hypothetical — the repository is private and
 [releases §4](04-repo-and-releases.md) says `latest` names nothing until a
 release is cut, so the default channel's feed answers 404, and a check that
 conflated the two would tell every alpha operator their server was offline.
+*(Noted 2026-10-04: the repository was decided public on 2026-10-03, and
+[releases §0.1a](04-repo-and-releases.md) records the day the switch lands.
+Once public, with no GitHub Release, the feed answers an empty list, which reads
+as the same `unknown` with the internet working, so the distinction is still
+not hypothetical.)*
 
 *This is the first conditional stage in this document to resolve*, and it
 resolved to the smaller arm, which is what a *Depends on* line is for.

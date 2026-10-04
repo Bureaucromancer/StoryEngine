@@ -1634,10 +1634,28 @@ reply while its place stands, because the render step's reuse checks
 [Backdrops](../guide/pictures.md#backdrops) says so to players). That re-ask
 predates this answer and is not a retry of one call in the sense the hidden pair
 was — each one is a record the workbench shows, not a request spent behind one —
-and the question put to the owner was about retries of a single call. ***Whether
+and the question put to the owner was about retries of a single call. ~~***Whether
 the configurable condition also covers the per-reply re-ask of a failed
 backdrop is open***, and is the owner's to answer: today it is automatic, paced
-only by how often a person replies, and has no setting.
+only by how often a person replies, and has no setting.~~
+
+***Answered 2026-10-04 — no; recommended answer, owner deferred.*** The
+configurable condition does not cover the per-reply re-ask, because the re-ask
+is not a retry. A retry sends the same request again because it failed, on a
+clock the server keeps. This is a new request, made because a person replied:
+it is paced by the person, written as a new rendition record with a fresh seed,
+shown on the workbench, and it stops when they stop, or when they turn
+**Stage a backdrop** off, which is the lever it already has. *What would change
+the answer is the trigger.* If a failed backdrop is ever asked for again
+without a reply — on a timer, with a backoff, from a sweep at boot — that is an
+automatic retry, and it arrives as the configurable policy above rather than
+beside it. The cost is real, and players are told about it: each re-ask is one
+more image request, which a paid endpoint may bill
+([Pictures](../guide/pictures.md#backdrops)). *To
+overrule this*, a "yes" makes the re-ask a setting now, through the five-place
+edit ([21 §4](21-internal-contracts.md)). The smallest such setting is a switch
+that stops asking again for a place whose backdrop failed. `renditions/worker.ts`,
+which pointed here as the open question, now points here as the answer.
 
 ### E8. Content rating — advisory, and always caveated
 

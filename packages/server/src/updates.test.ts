@@ -152,9 +152,13 @@ describe('what it makes of the answer', () => {
 describe('the connectivity signal, and what is not one', () => {
   /**
    * ***This project's own present state***: the repository is private, so the
-   * feed answers 404. [releases §4] also says `latest` *"names nothing"* until a
-   * release is cut. Neither is a network fault, and reporting one would tell
-   * every alpha operator something false about their own install.
+   * feed answers 404. *(Noted 2026-10-04: it was decided public on 2026-10-03,
+   * and [releases §0.1a] records the day the switch lands. Once public, with no
+   * GitHub Release, the feed answers the empty list the next test feeds. A feed
+   * that moves answers 404 too, so this case outlives the switch.)* [releases §4]
+   * also says `latest` *"names nothing"* until a release is cut. Neither is a
+   * network fault, and reporting one would tell every alpha operator something
+   * false about their own install.
    */
   it('reads an HTTP refusal as the internet working', async () => {
     const fetchImpl = vi.fn(() =>

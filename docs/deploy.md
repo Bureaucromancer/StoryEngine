@@ -319,7 +319,12 @@ for `/data` was root-owned, so the first start failed the way the volume
 section above describes; `chown -R 1000:1000 /mnt/user/appdata/storyengine` on
 the host fixes it, and the template's Data field says so now. The container
 list shows no icon, as the template's comment predicts: unraid fetches the icon
-over HTTP and the repository is private. And the setup token was not found in
+over HTTP and ~~the repository is private~~ the repository was private then.
+*(2026-10-04: going public was decided on 2026-10-03, in
+[releases §0.1a](design/workplan/04-repo-and-releases.md), and once it has
+happened a raw URL into the repository resolves and that reason is gone. The
+template still names no icon, and its comment says what is left to decide.)*
+And the setup token was not found in
 the log on the first try — the line is written on every start until an admin
 exists, it carries the token in its text now, and the token is also the
 contents of `state/setup.token` under the appdata folder.
@@ -341,7 +346,10 @@ contains the same tree the image runs — `dist/`, the resolved `node_modules/`
 with its links, the built client and `build-info.json` — with a systemd unit
 and an install script beside it. Before the workflow uploads it, it unpacks it
 somewhere fresh and starts it, and an archive whose server does not answer is
-not uploaded.
+not uploaded. The upload is a workflow artifact on the run's page, readable by
+whoever can read the repository, which on a public repository is anyone signed
+in to GitHub. *(2026-10-04: whether to keep it that way is undecided, and
+[Cutting a release](#cutting-a-release) step 3 asks for it before the next tag.)*
 
 ```bash
 tar xzf storyengine-1.0.0-alpha.2-linux.tar.gz
@@ -395,10 +403,22 @@ otherwise identical build stops being identical.
    date — `## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-…` — because the workflow looks
    for the version at the start of the line. The names, and how they follow
    from the string, are [releases §7.1](design/workplan/04-repo-and-releases.md)'s.
-3. Commit, then tag `v<version>` and push the tag. The tag moves `testing` too.
+3. ***Decide the tarball's upload first*** *(added 2026-10-04)*. Once the
+   repository is public, the tarball job's `actions/upload-artifact` step makes
+   `storyengine-<version>-linux` a download for anyone signed in to GitHub, for
+   ninety days unless `retention-days` is set, while the image stays a private
+   package. Nobody has decided that, and the step has never run. Before the
+   next `v*` tag, keep the upload and record it in
+   [releases §0.1a](design/workplan/04-repo-and-releases.md), give it a short
+   `retention-days`, or drop the step. The comment above the step in
+   `release.yml` says why each is reasonable. Once decided, this step can go.
+4. Commit, then tag `v<version>` and push the tag. The tag moves `testing` too.
 
-`.github/workflows/release.yml` fires on `v*` — filtered, because the only other
-tag in this repository is `p1` and phase tags are a habit here. **Before it
+`.github/workflows/release.yml` fires on `v*` — filtered, because ~~the only other
+tag in this repository is `p1` and phase tags are a habit here~~ phase branches
+are named `pN` and a marker at a phase's merge is the obvious tag to make.
+*(Corrected 2026-10-04: there is no `p1` tag any more. The repository's tags
+are the four `v1.0.0-alpha.*` builds.)* **Before it
 publishes anything** it runs the Linux half of CI on the tagged commit and
 checks that `CHANGELOG.md` has a dated heading for exactly this version; a red
 suite or a missing date stops it with nothing pushed. Then it builds the image,

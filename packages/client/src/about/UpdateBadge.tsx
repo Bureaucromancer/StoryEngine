@@ -59,7 +59,11 @@ export function UpdateBadge(props: { isAdmin: boolean }): JSX.Element | null {
   if (updates.state === 'current') return <Note>This is the newest build on your channel.</Note>;
 
   // `unknown` — never run, or the feed had nothing for this channel. Said as a
-  // fact rather than as a fault, because on a private repository it is neither.
+  // fact rather than as a fault, because on a private repository it is
+  // neither. *(Noted 2026-10-04: nor on a public one with no published
+  // release, which is what this repository becomes at the switch releases
+  // §0.1a records. Its feed then answers an empty list, which the server
+  // reads as this same `unknown`.)*
   return (
     <Note>
       No release has been published for your channel yet, so there is nothing to compare this build

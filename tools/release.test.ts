@@ -144,9 +144,12 @@ describe('the release workflow', () => {
   const workflow = read('.github/workflows/release.yml');
 
   it('fires on `v*` and nothing else', () => {
-    // The only tag in this repository is `p1`, a bare phase marker, and phase
-    // tags are a habit here — an unfiltered trigger would try to cut a release
-    // from the next one.
+    // ~~The only tag in this repository is `p1`, a bare phase marker, and phase
+    // tags are a habit here~~ — *corrected 2026-10-04: there is no `p1` tag any
+    // more, and the tags are the four `v1.0.0-alpha.*` builds. Phase branches
+    // are still bare `pN`, and a marker at a phase's merge is still the obvious
+    // tag to make* — so an unfiltered trigger would try to cut a release from
+    // the next one.
     expect(workflow).toContain("tags: ['v*']");
   });
 

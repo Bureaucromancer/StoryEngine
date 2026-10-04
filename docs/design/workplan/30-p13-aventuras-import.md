@@ -7,7 +7,10 @@ P13.15, scheduled by the person on 2026-09-29
 ([§0.3](#03-how-this-sits-with-25-e4)), P13.14 closed `recorded` — are each
 cited below by commit, and on `main` since 2026-09-30.
 **Neither gate is walked** ([§3](#3--the-exit-gate)); a green suite closes a
-stage, not a phase. P13.0 done — `34b3174` (the failing tests), `75c56ca` (the
+stage, not a phase. *Both critical lists are registered in
+[manual testing](05-manual-testing.md) as sitting X, 2026-10-04 — §3.1's rows as
+X1–X4 and §3.3's as X5–X8, with the remainder as X10–X19 — and none of it is
+walked.* P13.0 done — `34b3174` (the failing tests), `75c56ca` (the
 fix), 2026-09-28, and the fix set aside for main's own at the merge of
 2026-09-29 ([§0.4](#04-what-the-survey-found-in-our-own-tree)).** *Merged to `main` a
 second time, 2026-09-30, at `6f55e6e`, after
@@ -1244,6 +1247,22 @@ edited to match what was walked. ~~**Part 1's gate only** — Part 2 has no gate
 until it is scheduled.~~ Part 1's gate is §3.1–§3.2; **Part 2's**, written
 2026-09-30 once it was scheduled and built and before anything of it was
 walked, is §3.3–§3.4.
+
+*Registered 2026-10-04, five days after the merge, as
+[manual testing](05-manual-testing.md)'s sitting X.* Until then no sitting there
+named these lists, and §6 there had no row for P13. The two critical lists are
+X's two halves, on one Aventuras install: rows 1–4 are X1–X4 and rows 10–13 are
+X5–X8. The ten remainder rows are X10–X19, and X9 is the desk work that closes
+the phase. Re-applying the criterion found every row passing clauses (i) and
+(ii), with rows 3 and 13 the weakest on (ii). On (iii), the install §3.3 says
+the rows *"already assume is to hand"* had no row among manual testing's
+standing prerequisites, and is R13 there now, unconfirmed. Row 13 also wants a
+turn that Aventuras itself illustrated, and the phase waits on it: manual
+testing records that row as blocked rather than deferred, as
+[P9 §3.1](26-p9-implementation.md)'s C1 and C2 are, so the rest of X can be
+walked without it but P13 does not close until it has a result. **None of these rows was edited, and
+nothing is walked.** The results go in a table of their own in this section
+when they exist.
 
 ### 3.1 The critical list
 

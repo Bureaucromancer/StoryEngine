@@ -568,8 +568,13 @@ export async function runRendition(
      *   ([06 §10.2]), and pressing it is a person choosing to spend again on a
      *   call that bills by the picture. A failed backdrop has no button and is
      *   asked for afresh on the next reply instead — and whether *that* re-ask
-     *   falls under the configurable condition below is the owner's open
-     *   question at [25 E7], not something this comment decides.
+     *   falls under the configurable condition below ~~is the owner's open
+     *   question at [25 E7], not something this comment decides~~ was the
+     *   owner's open question at [25 E7]. *Answered there 2026-10-04 on the
+     *   recommended answer, owner deferred: it does not.* A re-ask is a new
+     *   request a person's reply makes, not a retry the server times, and it
+     *   would fall under the condition only if something asked again without a
+     *   reply.
      *
      * *When that changes*, it changes at [25 E7]'s per-connection queue, where a
      * retry is *"visible in progress events"* and has somewhere to be counted —

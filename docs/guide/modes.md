@@ -37,7 +37,9 @@ first turn you can step between; with a group, the first turn holds one greeting
 each member, in cast order. Characters without a greeting are skipped.
 
 Started from a setup that has an opening of its own, a Scene begins on that opening
-instead, and the characters' greetings are not used. See
+instead, and the characters' greetings are not used — whichever of its openings you
+choose, and even if you choose **None — start cold**. A setup with no opening of its
+own begins on the greetings as above. See
 [Starting from a setup](playing.md#starting-from-a-setup).
 
 A Scene with no characters at all is narrated. A typed line gets a reply, but **Let them

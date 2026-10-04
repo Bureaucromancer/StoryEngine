@@ -6,19 +6,29 @@
 # `ci.yml` says this file is "still absent, still deliberately"; it is absent no
 # longer, and the nightly tier still is.
 #
-# **Filtered to `v*`, and that filter is load-bearing.** The only tag in this
+# **Filtered to `v*`, and that filter is load-bearing.** ~~The only tag in this
 # repository is `p1`, a bare phase marker
 # (docs/design/workplan/19-p6a-alpha-1.md §0.6), and phase tags are a habit this
-# project already has. An unfiltered trigger would try to cut a release from the
-# next one. Gate step 2 checks exactly that by pushing a non-`v` tag and watching
-# nothing happen.
+# project already has.~~ *Corrected 2026-10-04: there is no `p1` tag, in this
+# clone or on origin. The tags are the four `v1.0.0-alpha.*` ones this file
+# built.* `p1` was the one tag when P6A was planned (that document's §0.6 says
+# so, as of then), and the filter's reason outlived it: phase branches are
+# named `pN` (`p6a`, `p15`), and a marker at a phase's merge is the obvious tag
+# to make. An unfiltered trigger would try to cut a release from the next one.
+# Gate step 2 checks exactly that by pushing a non-`v` tag and watching nothing
+# happen.
 #
 # **It publishes to a private package**, which is not a temporary state. Alpha 1
 # is a build this project made for itself; the moment the image goes public the
 # repository must go with it, because AGPL §13's source link has to resolve for
 # whoever is running it (docs/design/09-server-multiuser-deployment.md §7). §4 of
 # the phase plan names that as one decision rather than two, so that it cannot
-# happen by way of a registry visibility toggle.
+# happen by way of a registry visibility toggle. *The repository was decided
+# public first, on 2026-10-03, and that direction obliges nothing*
+# (docs/design/workplan/04-repo-and-releases.md §0.1a, which also records the
+# day the switch itself lands): the image stays private. The tarball job's
+# upload, at the end of this file, is the one step a public repository does
+# change.
 
 name: Release
 
@@ -178,9 +188,22 @@ jobs:
           tags: |
             ghcr.io/${{ steps.names.outputs.owner }}/storyengine:${{ steps.names.outputs.version }}
             ghcr.io/${{ steps.names.outputs.owner }}/storyengine:testing
-          # Cache through the registry rather than the runner: an on-tag build is
+          # ~~Cache through the registry rather than the runner: an on-tag build is
           # rare enough that a runner cache is always cold, and the layers that
-          # matter are `pnpm install` and `pnpm build`.
+          # matter are `pnpm install` and `pnpm build`.~~ *Corrected 2026-10-04:
+          # the two lines below have always used GitHub Actions' cache service
+          # (`type=gha`), not the registry (`type=registry`), so the comment
+          # described a configuration this file never had.* The layers worth
+          # caching are still `pnpm install` and `pnpm build`. The argument the
+          # comment made also turns against what is here. By GitHub's cache
+          # access rules (as documented, not measured on this repository) a run
+          # restores only what its own ref or the default branch wrote. Nothing
+          # on `main` builds this image, so each new tag starts cold, and
+          # `mode=max` writes layers only a re-run of the same tag can read.
+          # Alpha 1 needed one of those, when its tag moved to the fix. Left as
+          # it is: a registry cache would be the warm one, and it is another
+          # thing written into the package, which is a decision and not a
+          # comment's correction.
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -330,6 +353,24 @@ jobs:
           kill "$server" 2>/dev/null || true
           exit 1
 
+      # ***On a public repository this upload is a public download***
+      # (2026-10-04). A workflow run's artifacts can be downloaded from its run
+      # page by anyone with read access, and once the repository is public that
+      # is any signed-in GitHub user, for the retention period (ninety days
+      # unless set). So the next `v*` tag hands a runnable build to every
+      # reader of the Actions tab, while the image stays a private package —
+      # the one artifact that would be public, and not by anybody's decision.
+      # docs/design/workplan/04-repo-and-releases.md §0.1a's heading says the
+      # repository went public and the build did not, and its body now says the
+      # second half holds only until this step runs. This step has never run:
+      # the job arrived at P11.9, after the last tag (alpha 4, 2026-09-09).
+      #
+      # **Whoever cuts the next tag decides this deliberately**, and
+      # docs/deploy.md's *Cutting a release* asks for it as a step before the
+      # tag: keep the upload and say so in §0.1a, set a short `retention-days`,
+      # or drop the step. Dropping it costs no proof, because every check above (the pack,
+      # the comparison and the boot) runs before it. Nothing here was changed by
+      # writing this down.
       - uses: actions/upload-artifact@v4
         with:
           name: storyengine-${{ steps.names.outputs.version }}-linux
