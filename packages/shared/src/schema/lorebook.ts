@@ -83,6 +83,14 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  *   while nothing reads the field and is exactly the default that made P5.7's
  *   behaviour so sharp. A field nobody sets should not default to the widest
  *   value in its own union.
+ *
+ * *(2026-10-04: both decided — recommended answers, owner deferred, in 26 §B14
+ * and §B15, where either can be overruled. §B14 stays no; §B15 becomes
+ * `{ kind: 'linked', actorIds: [] }` for a new book and for every standalone
+ * SillyTavern import. [P16.2](../../../../docs/design/workplan/35-p16-world.md)
+ * builds them — the default with the copy from a World's members, this union's
+ * `world` arm on 26 §B16's answer — and rewrites this paragraph then; until it
+ * does, what the two bullets say about today's behaviour is still true.)*
  */
 export const LoreScope = Type.Union(
   [

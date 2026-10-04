@@ -134,6 +134,16 @@ const PLAN_ORDER = [
   // says which phase it follows without renumbering the next, which is a claim
   // about the label and never about the filing position (the docstring above).
   ['p12a-the-look', 'P12A'],
+  // **After P12A, by a decision rather than a default** (2026-10-04, written the
+  // day note 15 was rewritten under the owner's World decision). Neither phase
+  // has opened, so execution order here is a plan, and P16's own §0.1 gives the
+  // reasons it runs second: P12A is ready and unblocked where P16's `LoreScope`
+  // arm waits on an owner's answer, the rename's deadline binds both phases
+  // alike, and surfaces built after the look are built to it. Both run before
+  // beta, so P12A stops being the last phase before beta and this one is. If a
+  // release is cut before P12A lands, P16.0 moves ahead of it and this entry
+  // moves with it — by `--plan` and `--rename`, never by hand.
+  ['p16-world', 'P16'],
 ];
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' });

@@ -53,9 +53,14 @@ export const Package = Type.Object(
     media: Type.Array(EmbeddedMedia),
 
     /**
-     * Self-describing portable objects — each carries its own `schema`.
-     * Embedded copies resolved on import, not links: links inside the package
-     * resolve within it first, then locally, then dangle visibly.
+     * **References, not copies** — one envelope per member, naming its
+     * `schema`, `id` and `name`, resolved against the library when the package
+     * is exported (`packaging/export.ts`). This comment said *"embedded copies
+     * resolved on import"* until 2026-10-04, which is true of the exported file
+     * and was never true of what is stored here: embedding is a fact about the
+     * file, linking a fact about the store ([04 §9], [15 §3.1]). On import, links
+     * inside the file resolve within it first, then locally, then dangle
+     * visibly. The kind is renamed World at [P16.0], with `contents` unchanged.
      */
     contents: Type.Array(PortableObjectEnvelope),
 

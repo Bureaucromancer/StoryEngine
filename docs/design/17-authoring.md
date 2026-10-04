@@ -89,12 +89,13 @@ Three seams touch, and all three are additive:
 |---|---|
 | `PlotHook.requires` / `onFire` | **Already severed.** Removed from the schema rather than stubbed ([04 §6.1](04-schemas.md)); hooks keep `involves`, `notBefore` and `blockedBy`, the mechanical filters that carry most authored ones. Returns as optional fields. |
 | `Goal.completion: { kind: "mechanical" }` | A third variant beside `narrative` and `manual`. **The one that genuinely wants the vocabulary** — and the reason is instructive: a `Goal` lives on **Setup**, which is portable *authored* content, so a quest's completion condition belongs to whoever wrote the game rather than to the mode running it. Campaign's code cannot supply what is not Campaign's to say. |
-| Author-declarable channels | The `owner`-accepts-a-package-id widening lands at 1.0 ([06 §4.1](06-modes-and-turn-pipeline.md)). Only the surface that lets an author *define* a channel waits. |
+| Author-declarable channels | The `owner`-accepts-a-package-id widening lands at 1.0 ([06 §4.1](06-modes-and-turn-pipeline.md)). Only the surface that lets an author *define* a channel waits. *The id an authored channel names is a World's, since 2026-10-04 — 06 §4.1 separates that arm from the first-party namespaces the code's own channels use.* |
 
 **So Campaign at 5.0 is what produces the corpus this release is designed
 against, not what consumes the result.** What a rules-less Campaign cannot do is
 let somebody else author one: every authored quest completes narratively or
-manually, and a shipped Package can declare a Corruption channel without stating
+manually, and a shipped Package — *a World, from
+[P16.0](workplan/35-p16-world.md)* — can declare a Corruption channel without stating
 a rule about it. That is a real hole and it is a hole in the *authoring* story,
 which is why it is patched here rather than at 5.0.
 

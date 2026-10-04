@@ -401,8 +401,13 @@ simply *internal, done*.
 - **The right analogy is Session, not Actor.** A manuscript is one person's
   accumulating work, not a reusable authored artefact — which is
   [04 §1](04-schemas.md)'s *free to move* tier, where Session and the turn record
-  already live. [15 §3](15-world.md) declines to make World a portable kind on
-  a related instinct.
+  already live. ~~[15 §3](15-world.md) declines to make World a portable kind on
+  a related instinct.~~ *Corrected 2026-10-04: [15 §3](15-world.md) now makes
+  World a portable kind — Package's place, a set people send — and so stops being
+  this bullet's company. The instinct it cited survives in the half of World that
+  waits, its accrual ([15 §4](15-world.md)), which is one person's accumulating
+  record and is not what travels. A manuscript may be a World's member and does
+  not reach the wire while this tier holds ([16 §2](16-publish.md)).*
 
 **So, concretely:** it lives in the library and uses the object-folder machinery
 — history, watcher, index, backlinks, the detail route. It carries a

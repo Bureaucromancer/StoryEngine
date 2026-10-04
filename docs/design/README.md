@@ -19,7 +19,8 @@ that build says it is.
 **[work plan §0](workplan/01-work-plan.md) is the only place the version cut is
 stated.** It is not restated here, deliberately: this block used to carry a copy
 and copies drift. In one line, 1.0 is the Play surface and the releases after it
-add Write, then World, then Campaign.
+add Write, then World, then Campaign. *(2026-10-04: World's set half is 1.0's;
+what comes later is its continuity.)*
 
 Distribution, when there is something to distribute, is build-it-yourself until
 beta — which is defined as *feature complete to the 1.0 spec*. See
@@ -118,7 +119,8 @@ shortcut at a time.
 | [12-account-gallery.md](12-account-gallery.md) | The front door: a sign-in gallery as an opt-in arrival screen, the hide flag, account avatars |
 | [13-write-mode.md](13-write-mode.md) | The Write surface and its two modes, Outline and Prose: the manuscript kind, beats, the binder layouts, and a third top-level surface |
 | [14-writing-samples.md](14-writing-samples.md) | Prose pasted in as an exemplar of tone rather than a description of it — on actors, treatments and lorebooks |
-| [15-world.md](15-world.md) | World: a grouping of sessions that share a continuity, and the story bible that says what one contains |
+| [15-world.md](15-world.md) | World: the named set that replaces Package — membership, contribution and transport at 1.0 — and the continuity, memory and story bible that wait for real play |
+| [16-publish.md](16-publish.md) | Publish: the export review as a surface — a closure computed and shown, a World kept when a selection is published, and the file it writes |
 | [17-authoring.md](17-authoring.md) | The authoring tier: authored rules and lorebook extraction — turning what you played into what you can author with |
 | [18-character-studio.md](18-character-studio.md) | The Character Studio: reference-set curation, structured descriptors and the consistency loop that makes a card produce the same person twice |
 | [19-session-import.md](19-session-import.md) | Whether play history can be imported from the three surveyed sources, what it would cost, and the four things it asks of the session export format |
@@ -205,7 +207,11 @@ they still have to exist before code does.
   handled here ([04 §6](04-schemas.md) records why the name changed from
   *Setting*).
 - **Package** — a shareable bundle of actors, treatments, lorebooks, presets and
-  mode config; the "full game setup" export.
+  mode config; the "full game setup" export. *(Renamed **World** at
+  [P16](workplan/35-p16-world.md): a durable named set of library objects and
+  sessions, stored as references and published as copies — [15](15-world.md).
+  Not to be confused with a first-party namespace such as `storyengine.lore`,
+  which the code also calls a package — [15 §6](15-world.md).)*
 - **Session** — one running story/chat. Sessions are created *from* treatments and
   packages by copy, and never hold a live link back to them.
 - **Mode** — the thing that defines how a turn is built and what state it owns.

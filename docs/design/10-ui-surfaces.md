@@ -471,7 +471,11 @@ editor and enjoy it."* The library is the surface that audience is for.
 
 **Play carries the player-facing ergonomics** — quick setup, resuming, managing a
 story in flight, and eventually grouping sessions that share a continuity
-([15](15-world.md)). Someone who wants to *play* should never have to learn
+([15](15-world.md)). *(2026-10-04: the grouping is a library kind instead — a
+World, with a panel like the other five, and sessions among its members
+([15 §3](15-world.md)); what Play gains at 1.0 is starting a session in a World
+and adding one to it. The continuity would be Play's, and waits for real play
+([15 §4](15-world.md)).)* Someone who wants to *play* should never have to learn
 the object graph to do it, and someone who wants to *author* should never have to
 see through a friendly label to find out what they are editing.
 
@@ -1232,7 +1236,10 @@ nicer would be the wrong repair.
 backwards: a writer takes the stored object and produces a document, and nothing
 is kept. The bundle direction is unchanged — [04 §9.1](04-schemas.md)'s
 *export-as-package* is still how a closure travels, and this is how one object
-does.
+does. *(2026-10-04: and that door is **Publish** from
+[P16.3](workplan/35-p16-world.md) — [16](16-publish.md), which keeps these two
+where they are and sends a single object back to Download when its closure is
+the object alone.)*
 
 ### 5.1 Eight kinds is a lot to arrive at — and the library is not where that gets solved
 
@@ -1259,7 +1266,12 @@ is actually for: saying plainly what the thing on disk is called.
 
 **So: the panels are named for the kinds.** Actors, Lorebooks, Treatments,
 Setups, Presets, Packages — six panels, no demotions, no presented subset, real
-names. Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
+names. *(2026-10-04: **Packages becomes Worlds** at
+[P16.0](workplan/35-p16-world.md), because the kind is renamed —
+[15 §3](15-world.md). It is not the *Worlds* this section withdrew above: that
+was a friendlier alias for Treatment, sitting next to *Lorebooks* while the world
+lived in the lorebook; this is a panel named for the kind it shows, which is the
+rule this paragraph states.)* Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
 is the model, and a model with a friendlier alias for two of its six types is not
 a model.
 

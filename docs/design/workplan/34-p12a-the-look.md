@@ -60,6 +60,16 @@ sits inside a merge in progress, and `--rewrite` needs a committed one. **Its
 sitting stays T and its name stays P12A**, both for the reasons the next
 paragraph gives; P15's sitting is **W**.
 
+***And no longer the last phase before beta, from 2026-10-04*** — which moves
+nothing here. [P16](35-p16-world.md), World, was planned that day, when
+[15](../15-world.md) put its set half into the 1.0 corpus, and it is filed
+**after** this phase, at 35, by a decision [P16 §0.1](35-p16-world.md) argues:
+this phase is ready and unblocked, P16's `LoreScope` arm waits on an owner's
+answer, and P16's new surfaces are cheaper built to this phase's rules than
+retrofitted by its sweep. So this number, this sitting and this name all stay,
+and **§0.1's one scheduling claim gains a sibling** rather than changing: R4 must
+not be walked until this phase lands, and not until P16 lands either.
+
 **Its sitting stays T.** It was registered 2026-09-22; `main`'s own T — pictures
 on a move, [26 E15](../26-open-questions.md) — was registered 2026-09-27 by a
 branch that could not see this one, so it is the later registration and became

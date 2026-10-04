@@ -18,7 +18,9 @@ guessing at it.
 ([13](../13-write-mode.md)).**
 **3.0 adds the Character Studio — the surface that turns a played actor into a
 reusable visual identity ([18](../18-character-studio.md)).**
-**4.0 adds World — the continuity container ([15](../15-world.md)).**
+~~**4.0 adds World — the continuity container ([15](../15-world.md)).**~~
+**4.0 adds World's continuity — accrual and the story bible
+([15 §4](../15-world.md)) — at the latest, and when real play has earned it.**
 **5.0 adds Campaign — the mode, and the RPG channel library under it.**
 **6.0 adds the authoring tier — authored rules, and the surfaces that make
 authoring what you played a first-class activity.**
@@ -28,7 +30,12 @@ durable named set replaces Package, and lands before
 [26 B16](../26-open-questions.md)'s release or ships as a migration; the
 continuity half — accrual and the story bible — waits for real play, and
 whether that is still 4.0 is for the design step to say. The line above is not
-re-cut until then.)*
+re-cut until then.)* *(2026-10-04: the design step said, in
+[15](../15-world.md). **The set half is 1.0's** — the kind, membership,
+contribution and transport, at [P16](35-p16-world.md), §0.5 below. **The
+continuity half keeps 4.0's place** as its latest home, gated on evidence rather
+than on the number ([15 §4.3](../15-world.md)), so the line is not re-cut and
+Campaign's gate below is unchanged.)*
 
 **Surfaces own modes, and the two words are not interchangeable.** A surface is
 a top-level place in the application; a mode configures the pipeline inside one.
@@ -50,7 +57,7 @@ dependency graph shows:
 | **1.0** | Nothing. This is the core loop, and where this project diverges most from what already exists. |
 | **2.0 — Write** | 1.0's substrate *built*. Write consumes lorebook activation, mention resolution, the mode contract as a real interface rather than a shape one built-in mode happens to fit, and the summary chain — P5 through P8 ([13](../13-write-mode.md)). |
 | **3.0 — the Character Studio** | 1.0's actors *played*. Every format prerequisite lands at 1.0 ([18 §5](../18-character-studio.md)), so no later release owns anything it consumes; what it waits for is a stock of actors worth making reusable, because a reusable visual identity is worth nothing until there is a character you want back. |
-| **4.0 — World** | 1.0's play *accumulated*. A World is worth nothing until the third session ([15](../15-world.md)), so designing a continuity container before continuities exist is designing against a guess. |
+| **4.0 — World's continuity** | 1.0's play *accumulated*. ~~A World is worth nothing until the third session ([15](../15-world.md)), so~~ Designing a continuity container before continuities exist is designing against a guess. *2026-10-04: the set half needed no play and moved into 1.0; what this row gates is accrual and the story bible, and the happening it waits for is PLAYABLE producing sessions worth putting in a World ([15 §4.3](../15-world.md)).* |
 | **5.0 — Campaign** | 4.0's *continuity to run in*. A campaign is a multi-session form by nature — [06 §7.3](../06-modes-and-turn-pipeline.md) wants sessions-within-a-campaign with structured recaps and a bridging message on resume, and calls that a shared capability rather than a Campaign-specific one. World is where it becomes shared. |
 | **6.0 — the authoring tier** | 5.0's play *authored*. The rule vocabulary was deferred for want of a corpus of real authored worlds to design against ([26 C7](../26-open-questions.md)), and a release of Campaign is what produces one. |
 
@@ -123,15 +130,19 @@ not all make the same promise.
 
 The design says it should not: Campaign's state lives in channels the mode
 declares, and nothing it needs touches Actor, Lorebook, Treatment, Setup or
-Package. If it turns out to need a schema change, the mode contract or the data
+Package — *World, from [P16.0](35-p16-world.md), the same kind renamed*. If it turns out to need a schema change, the mode contract or the data
 model was wrong — and finding that out at 5.0 is exactly what the stability
 tiers exist to prevent. The same held for Messages when it had a release, and
 holds again if it ever gets one.
 
-> **World at 4.0 must add no portable kind at all** ([15](../15-world.md)).
+> ~~**World at 4.0 must add no portable kind at all** ([15](../15-world.md)).~~
 
-A World is a play-side grouping of sessions rather than a seventh portable kind,
-and sessions are the free-to-move tier ([04 §1](../04-schemas.md)). This is the
+> **World must change no other portable schema — not Actor, Lorebook,
+> Treatment, Setup or Preset — with one named, additive exception: `LoreScope`'s
+> `world` arm** ([15 §3](../15-world.md), [15 §5.3](../15-world.md)).
+
+~~A World is a play-side grouping of sessions rather than a seventh portable kind,
+and sessions are the free-to-move tier ([04 §1](../04-schemas.md)).~~ This is the
 easiest of the five to pass and the easiest to fail by accident, because the
 pressure to make a World exportable will be real the first time somebody wants
 to share one. *(2026-10-03: that pressure won, on purpose.
@@ -141,6 +152,20 @@ the commitment's letter holds and its reasoning does not, and "at 4.0" no longer
 says when. The release line is not re-cut here; the design step that rewrites
 [15](../15-world.md) does that, and B17 gives the rename
 [26 B16](../26-open-questions.md)'s release as its deadline.)*
+
+***Replaced 2026-10-04, when [15](../15-world.md) was rewritten.*** The old check
+passes on a technicality nobody should lean on — no kind is added because the
+kind that exists is renamed — so it is struck rather than kept, and the check
+worth running takes its place. **World may touch exactly one other portable
+schema, and the touch is named in advance**: a third arm on `LoreScope`, read at
+session creation, additive under [04 §2](../04-schemas.md). *A check with an
+unstated exception is a check that gets waived the first time it fires*, which is
+why the exception is in the check rather than beside it. **It runs at 1.0, at
+[P16](35-p16-world.md)'s exit, as a test** — P16 §1.6 pins the four untouched
+schema artefacts and the lorebook's outside `LoreScope` — and it runs again for
+the continuity half whenever that is built, against the same five schemas. How the
+arm itself lands inside `storyengine.lorebook/1` is
+[26 B16](../26-open-questions.md)'s question, which is the owner's.
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**
@@ -173,7 +198,8 @@ the re-ordering makes to this section.
 Everything the tier returns was *removed* rather than stubbed, which is what
 makes this checkable: `PlotHook.requires` and `onFire` come back as optional
 fields, `Goal.completion` gains a third variant, and `rules` is a new optional
-collection on Package and Treatment ([02 §2.2](../02-infinite-worlds.md)).
+collection on Package and Treatment ([02 §2.2](../02-infinite-worlds.md)) — *on
+World and Treatment, since Package is World from [P16.0](35-p16-world.md)*.
 Adding an optional field and adding a variant are both additive
 ([04 §2](../04-schemas.md)). If the tier turns out to need a *breaking* change to
 Actor, Lorebook, Treatment, Setup or Package, then §0.4 performed a deletion
@@ -305,7 +331,8 @@ no predicate language to express.
   at 1.0; only the authoring surface waits.
 
 **So what a rules-less Campaign cannot do is let somebody else author one.**
-Every authored quest completes narratively or manually; a shipped Package can
+Every authored quest completes narratively or manually; a shipped Package — *a
+World, from [P16.0](35-p16-world.md)* — can
 declare a Corruption channel but not state a rule about it — which is exactly the
 gap [02 §2](../02-infinite-worlds.md) names as the tier's reason to exist. That
 is a real hole, and it is a hole in the *authoring* story rather than in
@@ -399,6 +426,24 @@ fields whose absence means today's behaviour. Write wants them and Write is now
 Optional fields are additive and free; *reinterpreting* the existing constant
 and enabled flags as the four-value axis would be a version bump
 ([04 §2](../04-schemas.md)). Free now, a bump later, so now.
+
+***World's set half lands at 1.0 — a fifth, added 2026-10-04 and not on the same
+pass*** ([15](../15-world.md), [26 B17](../26-open-questions.md)).
+
+The kind, membership, contribution and transport — Package renamed World as a
+migration, a durable set of references with sessions among the members, a new
+session prefilled from its World, and [16](../16-publish.md)'s publish flow with
+the reader beside it — at [P16](35-p16-world.md). Two arguments moved it, and
+neither is the one the other four rest on. **None of it needs play**: a set with
+a name is worth something before the first session, which is the half of 4.0's
+gate that was never true. **And it was already half built**: Package was a
+durable library object holding references, so 1.0 was going to ship a portable
+set either way, and shipping it under the name that lets it be read at session
+creation costs a rename now rather than a migration of files people hold later.
+*What it costs is R4's corpus*, as [10 §1.3](../10-ui-surfaces.md) cost it
+before: [P11](28-p11-implementation.md)'s R4 reads these documents, so it waits on
+P16 as it waits on [P12A](34-p12a-the-look.md). The continuity half stays at 4.0
+(§0).
 
 ### 0.6 The authoring tier, and why it is not called "authored rules"
 
@@ -1585,10 +1630,12 @@ has no row in this section — merged first on 2026-09-23. Filed at 33
 ~~since~~ *from* 2026-10-02, after [P13](30-p13-aventuras-import.md),
 [P14](31-p14-scene-and-session-import.md) and the
 [main audit](32-main-audit.md), which have no rows here either and all ran
-before it; it is still the last phase before beta is said.* *(2026-10-03: and
+before it; ~~it is still the last phase before beta is said~~.* *(2026-10-03: and
 at 34 since then, behind [P15](33-p15-setup-from-a-turn.md) — make a setup from
 here — which has no row here either, was built while this phase had not opened,
-and merged first; the same reasoning, one more phase.)*
+and merged first; the same reasoning, one more phase.)* *(2026-10-04: and no
+longer the last before beta — [P16](35-p16-world.md), World, runs after it, below,
+for reasons its own §0.1 gives; both are before beta, and R4 waits on both.)*
 
 **Why there is a phase after the beta-hardening phase**, since that reads as a
 contradiction and the answer is mechanical. A directive to push the client
@@ -1625,6 +1672,38 @@ on [25](../25-roadmap.md) rather than in a stage, which is the same discipline
 the phase opened, and the first list here that could be written that early
 because the claims were written before the code.
 
+### P16 — World
+
+***Written 2026-10-04, the day [15](../15-world.md) was rewritten under the
+owner's decision of 2026-10-03, and it is the last phase before beta is said.***
+Skeleton: [P16](35-p16-world.md). It runs after P12A rather than before it, and
+its §0.1 says why rather than leaving the filing to imply it: P12A is ready and
+unblocked, this phase's `LoreScope` arm waits on an owner's answer
+([26 B16](../26-open-questions.md)), the rename's deadline binds both phases
+alike, and surfaces built after the look are built to it.
+
+**Why there is a phase here at all is P12A's reason again.** [15](../15-world.md)
+put membership, contribution and transport into the 1.0 corpus, beta is a
+completeness gate against that corpus ([releases §0](04-repo-and-releases.md)),
+and R4 reads it — so writing the note moved the gate, and this phase puts it
+back. **R4 waits on it as on P12A**; R1, R2, R3, R5 and R6 do not.
+
+**Four stages**: the kind, Package renamed World as a migration that reads both
+names, with installs' existing folders and the frozen `.sepack` format covered;
+membership, with an editor that is a picker and sessions among the members;
+contribution, a new session in a World copying its books into `session.lore` and
+reading `LoreScope`'s new `world` arm once, at creation; and
+[16](../16-publish.md)'s publish flow with the reader beside it.
+
+**What it is not** is the continuity: world-scoped memory, cross-session hook
+suppression and the story bible stay designed and unscheduled, gated on PLAYABLE
+having produced sessions worth putting in a World
+([15 §4.3](../15-world.md)), and P16 §4 says which tests would reopen them.
+
+**Its gate is [sitting AA](05-manual-testing.md)** — five rows, registered with
+the phase, the second list here written before its code, and the first sitting
+past Z.
+
 ---
 
 ## 5. After 1.0: the committed series
@@ -1643,10 +1722,16 @@ that does not exist.
   work, which is why it can go this early — and the one that has to settle a
   navigation argument before its scope is even checkable
   ([18 §6](../18-character-studio.md), [10 §2](../10-ui-surfaces.md)).
-- **4.0 — World.** The continuity container ([15](../15-world.md)), with the
-  story bible that gives a continuity a way to say what it contains. Its three
-  cheap obligations on 1.0 are real requirements now rather than insurance, and
-  they land at P7 and P8.
+- **4.0 — World's continuity.** ~~The continuity container
+  ([15](../15-world.md)), with the story bible~~ *Accrual — memory keyed on a
+  World, a hook that does not fire twice across its sessions, an introduction made
+  once per World — with the story bible ([15 §4](../15-world.md))* that gives a
+  continuity a way to say what it contains. ~~Its three cheap obligations on 1.0
+  are real requirements now rather than insurance, and they land at P7 and P8.~~
+  *Its three cheap obligations on 1.0 landed at P7 and P8 and are met
+  ([15 §5](../15-world.md)). The set half moved into 1.0 on 2026-10-04 (§0.5),
+  and this one keeps the number as its latest home, gated on play rather than on
+  a date.*
 - **5.0 — Campaign.** The mode, the RPG channel library, incremental world
   generation and the character-sheet machinery. Not the rule tier: §0.4 explains
   why Campaign does not need it, and why the two travelling together was the

@@ -549,6 +549,8 @@ earlier.
 - **Population-aware weighting's scope** (§4.4) — the user's whole library, or
   the actors of one world ([15](15-world.md))? A world is probably the honest
   population, since the complaint is *these characters look alike*, not *all my
-  characters do*.
+  characters do*. *(2026-10-04: from [P16.1](workplan/35-p16-world.md) that
+  population exists as data — a World's actor members — so the question becomes
+  whether to read it, not how to infer it.)*
 - **Whether the dice-aware narrowing (§3.7) is worth a mode declaring.** Cheap
   to express, unknown whether wanted.

@@ -306,9 +306,25 @@ export interface ChannelDefinition {
    *
    * Accepting a package id from the first channel definition written is one of
    * two things §4.1 says 1.0 owes, because widening it afterwards is a
-   * migration over every stored channel. It is already exercised: the
-   * retriever's timing channel is owned by `storyengine.lore`, which is a
-   * package and not a mode.
+   * migration over every stored channel — met by this field being a plain
+   * `string`, which it has been since the first channel definition (P2.6), long
+   * before P7.0 moved the type here. ~~It is already exercised: the retriever's
+   * timing channel is owned by `storyengine.lore`, which is a package and not a
+   * mode.~~
+   *
+   * ***Corrected 2026-10-04: "package" was two senses, and only one is
+   * exercised*** ([06 §4.1](../../../docs/design/06-modes-and-turn-pipeline.md),
+   * [15 §6](../../../docs/design/15-world.md)). `storyengine.lore` is a
+   * **first-party namespace** — engine code that is not a mode, answering for
+   * state it writes — and it and six others (`storyengine.cast`, `.hooks`,
+   * `.goals`, `.suggest`, `.renditions`, `.memory`) own channels today. What
+   * §4.1 asked for is the **authored-content** arm: a bundle somebody else wrote
+   * and nobody compiled, whose id is a World's from P16 on. **No channel is
+   * owned by one yet**, and declaring one is the authoring tier's. So an
+   * extension author reading this should take two things from it: a non-mode
+   * owner is legal and works, and every non-mode owner is treated alike today —
+   * available in every session — which is right for a namespace and would be
+   * wrong for a World, whose channels belong to its own sessions.
    */
   owner: string;
   version: number;

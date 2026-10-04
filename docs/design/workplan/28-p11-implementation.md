@@ -298,7 +298,9 @@ artifacts (P11.9); [10 §15.3](../10-ui-surfaces.md)'s system-library bullet,
 which [P10 §1.8](27-p10-implementation.md) adopts into P10.3; and
 `ChannelDefinition.migrate`, deferred with an argument and with no consumer yet.
 Correctly post-1.0: Messages, the branch visualiser, the file browser, the
-Character Studio, World and Write.
+Character Studio, World and Write. *(2026-10-04: World's set half is not — it is
+1.0's since [15](../15-world.md) was rewritten, at [P16](35-p16-world.md), which
+is why R4 waits on that phase; its continuity half is still post-1.0.)*
 
 **Two of those the first pass had graded unowned and the second corrected** —
 the system-library bullet and impersonation. Recording that is not humility, it
@@ -3345,7 +3347,7 @@ and the whole reason there are two.*
 | **9** `git tag` produces both artifacts reproducibly | `tools/pack-tarball.test.ts`, `tools/release.test.ts` | ✅ **in part** — the tarball is packed twice and compared, in a test and again in the workflow against the real artifact. **The container's half wants a daemon**, which this machine has never had |
 | **10** A session loads on another install, siblings and all | `sessions/export.test.ts`, `sessions/import.test.ts` | ✅ **in part** — the round trip through a reader that shares no state with the writer: every turn, a new session id, the old ids kept, each turn marked foreign, and `origin` recorded. *Another **build** reading them* is the half a second install would prove |
 | **11** A restore serves the sessions it was taken from | `tools/restore.test.ts` | ✅ **in part** — the archive carries the files and **not** the index, and the restored tree has none either. *A search answering afterwards* is [testing](03-testing.md)'s, and this phase's one case of a check living outside the document that owes it. ***True since `aaf7345`, and not when this row was written*** — [P12 §0.5](29-p12-implementation.md): the exclusion never fired and the fixture agreed with it; see [P11.11](#p1111--backup-and-restore)'s note |
-| **12** A person reads the 1.0 corpus | — | **C4. The gate.** Not startable until C5 is recorded |
+| **12** A person reads the 1.0 corpus | — | **C4. The gate.** Not startable until C5 is recorded *(2026-10-04: nor until [P12A](34-p12a-the-look.md) and [P16](35-p16-world.md) land — each put commitments into the corpus this row reads, [P12A §0.1](34-p12a-the-look.md) and [P16 §0.1](35-p16-world.md))* |
 | **13** The extractor is owned, or 1.0 ships manual capture deliberately | [P11.12](#p1112--the-automatic-extractor) | ✅ — **taken.** [§0.4](#04-the-audit-run--2026-09-17-at-45c613c) took it rather than carrying it a third time, and `repo-shape.test.ts` holds the clause that makes [P8](25-p8-implementation.md)'s C2 answerable |
 
 ***Three things this table says that the row list cannot.***
@@ -3415,7 +3417,8 @@ chapterisation and embeddings ([25 §3](../25-roadmap.md),
 ([testing §4.3](03-testing.md)); and every committed release after 1.0 — the
 Write surface, World, Campaign and the authored-rule tier — which are scheduled
 rather than deferred ([work plan §5](01-work-plan.md)) and whose arrival answers
-[work plan §0.2](01-work-plan.md)'s checks.
+[work plan §0.2](01-work-plan.md)'s checks. *(World's continuity, from
+2026-10-04; its set half is 1.0's, at [P16](35-p16-world.md).)*
 
 **No longer out of scope, and moved into §1.8:** session export, backup and
 restore, and the four packaging artifacts. All three were listed here when they

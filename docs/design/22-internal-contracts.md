@@ -366,8 +366,12 @@ interface ChannelDefinition {
   id: ChannelId
   /** **Shipped at P2.6**, with the first channel definition — [06 §4.1] names
    *  accepting a package id as something 1.0 owes from that first definition,
-   *  because widening it afterwards is a migration over every stored channel. */
-  owner: ModeId | ExtensionId | PackageId   // package: [06 §4.1], 6.0
+   *  because widening it afterwards is a migration over every stored channel.
+   *  ~~`PackageId`~~ — two senses in one arm, separated in [06 §4.1] on
+   *  2026-10-04: a first-party namespace, which owns channels today, and a
+   *  World, which is authored content and owns none until 6.0. The shipped
+   *  field is `owner: string`, and nothing in code moves. */
+  owner: ModeId | ExtensionId | NamespaceId | WorldId   // [06 §4.1]; World: 6.0
   version: number                            // paired with ChannelState.version
   schema: JSONSchema
   /** `hook` at P7.5 and `goal` at P7.6, each with a channel that needed it —

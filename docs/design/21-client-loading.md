@@ -14,7 +14,10 @@ Everything else here is still exploration, and §6's baseline was never taken.*
 **The planning assumption is continued growth.** The client has reached this
 size with much of the intended application still ahead of it. Modes, richer
 editors, memory inspection, renditions and localisation will add browser code;
-Write, World and authoring add whole surfaces later. The next few phases should
+Write, World and authoring add whole surfaces later *(World adds no surface —
+[15 §3](15-world.md) — but its 1.0 half brings a panel's editor, a picker and a
+publish review into the library at [P16](workplan/35-p16-world.md), corrected
+2026-10-04)*. The next few phases should
 be expected to increase the bundle. Neither ordinary cleanup nor the end of
 the current phase is a reason to expect that trend to reverse.
 
@@ -95,6 +98,10 @@ different kinds of pressure:
   assistance and localisation. Translation resources can have a language
   boundary as well as a feature boundary.
 - **Later surfaces:** Write's binder and prose tooling, World, and authoring.
+  *(World is not a surface — [15 §3](15-world.md); its 1.0 half is library code
+  at [P16](workplan/35-p16-world.md), which belongs with the library's routes
+  rather than with resuming Play, and its continuity half is later. Noted
+  2026-10-04.)*
   Their release order remains [work plan §0](workplan/01-work-plan.md)'s. They
   should not become part of resuming a Play session just because one client
   hosts all of them.

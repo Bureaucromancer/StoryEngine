@@ -34,7 +34,8 @@ direction rather than a feature.
 
 **§2, §2c.1 and §2c.3 are stubs pointing at committed releases.** Each was a
 feature-list entry until it turned out to be constitutive of a release rather
-than adjacent to one — the story bible to World ([15](15-world.md)), lorebook
+than adjacent to one — the story bible to World ([15](15-world.md)), *to its
+continuity half, gated on play, since 2026-10-04*, lorebook
 extraction to the authoring tier ([17](17-authoring.md)), and the Character
 Studio to a release of its own ([18](18-character-studio.md)). The stubs stay
 because the section numbers are cited elsewhere and because *why something left
@@ -197,7 +198,9 @@ stored rectangle — are unchanged through both moves and now live at
 for the one entry left in it: **§2c.2, continuity checking**. §2c.1's story bible
 went to World at 4.0 and §2c.3's extraction went to the authoring tier at 6.0 —
 both because they turned out to be constitutive of a release rather than adjacent
-to one.
+to one. *(2026-10-04: World split — its set half is 1.0's, and the bible stayed
+with the continuity half, which keeps 4.0 as its latest home and is gated on real
+play; §2c.1 says so.)*
 
 What continuity checking retains from the original framing is the reason it is
 additive: it reads data 1.0 already records, and it is a direct application of
@@ -207,7 +210,12 @@ correctable*.
 ### 2c.1 The story bible — moved
 
 **The story bible is no longer here. It ships with World at 4.0
-([15 §4](15-world.md)).**
+([15 §4](15-world.md)).** *(2026-10-04: with World's **continuity**, which is
+4.0's at the latest and gated on PLAYABLE having produced sessions worth putting
+in a World ([15 §4.3](15-world.md)). World's membership, contribution and
+transport moved into 1.0, at [P16](workplan/35-p16-world.md), and the bible did not
+move with them: a set with no continuity has nothing for a bible to show that its
+member list does not.)*
 
 It was defined as *what a session has established*, and [15 §1](15-world.md)
 defines a World partly as that same view widened across sessions — which made it
@@ -300,8 +308,8 @@ knows that the original does not.
 | Rendition asset eviction policy | [26 E3](26-open-questions.md) | The hook ships at P9; the policy does not. Operational rather than absent — it bites once renditions are used heavily, and not before. Backdrops are what make *heavily* arrive sooner: one image per place, kept for the life of the session ([06 §10.1a](06-modes-and-turn-pipeline.md)) |
 | Mention resolution beyond actors | [10 §13.1](10-ui-surfaces.md) | Locations, items, factions. Not in scope at 1.0. The span overlay carries a tagged reference from the first span written ([13 §13](13-write-mode.md)), so widening the target set is addition rather than migration |
 | The `proposed` mention tier | [10 §13.1](10-ui-surfaces.md) | `explicit` and `matched` ship at 1.0; the fuzzy model-proposed tier may follow. Wants real transcripts to judge the false-positive rate against |
-| Hook packs as a shareable kind | [03 §4.1](03-data-model.md) | Lean was "not at 1.0". Hooks travel inside a Package already; a pack of their own is a convenience for a sharing pattern nobody has yet |
-| Prologue packages | [26 B12](26-open-questions.md) | **Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet |
+| Hook packs as a shareable kind | [03 §4.1](03-data-model.md) | Lean was "not at 1.0". Hooks travel inside a Package already *(a World, from [P16.0](workplan/35-p16-world.md))*; a pack of their own is a convenience for a sharing pattern nobody has yet |
+| ~~Prologue packages~~ | [26 B12](26-open-questions.md) | ~~**Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet~~ ***Off this list, 2026-10-04***: a World published with one session ticked is a prologue, so it ships at [P16.3](workplan/35-p16-world.md) with no feature of its own ([26 B10](26-open-questions.md), [15 §3.2](15-world.md)). The row stays so the reason it left is findable |
 | **Extension installation, and the panel over it** | [10 §15.5](10-ui-surfaces.md), [P10 §1.5](workplan/27-p10-implementation.md) | **Arrived here 2026-09-16 at [P10.3](workplan/27-p10-implementation.md)**, which is the fork §1.5 held open for four phases closed rather than routed again. The distinction it was missing: **1.0 needs extensions *loaded*, not *installed*.** The dice reference extension (§4.4) that the work plan keeps at 1.0 is first-party and ships inside the image the way a built-in mode does, so it needs no acquiring step. *Acquiring one from outside* is a subsystem — fetch, verify, unpack, register, quota — and no 1.0 goal requires it. **Three artefacts already presuppose it and all three stay**, deliberately: `Capabilities.enableExtensions` on every account, `limits.extensionStorageQuotaMb` in the config, and [23 §6–§7](23-extensions.md)'s manifest and lifecycle. Each is cheap, each is specified, and each is *visibly* inert — the capability says so in `auth/accounts.ts`, the key is `'unread'` in `CONFIG_TIERS`, which is the tier that exists for exactly this. **What does not ship is the panel**, because [10 §15.5](10-ui-surfaces.md) is right that a screen listing nothing and installing nothing is the false front capability granting was pulled forward to avoid. Low rather than high because the extension *boundary* is the 1.0 commitment and it ships; this is how a stranger's extension gets onto a machine, which nobody has yet |
 
 ### 3.3 Eventually

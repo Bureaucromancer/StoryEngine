@@ -297,6 +297,14 @@ function applyBookFields(
  * and [26 §B15](../../../../../docs/design/26-open-questions.md) together —
  * writing the most permissive value into every imported book is a decision, and
  * currently an unexamined one.
+ *
+ * *(2026-10-04: examined now. 26 §B15 answers that every standalone book —
+ * this function's every call, not only a chat-bound one — imports as
+ * `{ kind: 'linked', actorIds: [] }`, a recommended answer the owner deferred,
+ * and [P16.2](../../../../../docs/design/workplan/35-p16-world.md) changes the
+ * line below and its test with the factory's default, neither waiting on the
+ * `world` scope arm. The chat-bound warning stays. Until then `global` is still
+ * what ships.)*
  */
 function applyScope(
   input: Readonly<Record<string, unknown>>,

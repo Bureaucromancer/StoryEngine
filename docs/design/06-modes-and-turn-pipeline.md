@@ -192,7 +192,12 @@ aspirational.
 ```ts
 interface ChannelDefinition {
   id: ChannelId                   // "storyengine.clock", "storyengine.party.hp"
-  owner: ModeId | ExtensionId | PackageId   // package: §4.1
+  /** ~~`PackageId`~~ — one arm that held two unrelated things, separated
+   *  2026-10-04 in §4.1: `NamespaceId` is a first-party engine namespace
+   *  (`storyengine.lore`, `storyengine.cast`, …), and `WorldId` is authored
+   *  content, the arm this section asked for, which needed a durable owner
+   *  [15](15-world.md) now supplies. The shipped field is `owner: string`. */
+  owner: ModeId | ExtensionId | NamespaceId | WorldId
   version: number                 // paired with ChannelState.version — [22 §1.3]
   schema: JSONSchema              // the state shape
   /** `hook` at P7.5 and `goal` at P7.6, each with a channel that needed it:
@@ -291,6 +296,61 @@ variables and write declarative rules over them, shipped as data inside the
 world, and its community used that to build weather engines, loot generators,
 class trees, quest state machines and dating sims with no engine involvement.
 
+***The word in that correction is doing two jobs, and 2026-10-04 separates
+them.*** The italic sentence is true in one reading and false in the other, and
+it never says which. `storyengine.lore` is the retriever: a **first-party
+namespace** — code in this repository, owning a channel because a subsystem that
+is not a mode still has to answer for the state it writes. What this section
+asked for is a **content bundle** — something a person authors and somebody else
+imports, and nobody compiled. Both were called a package, so a sentence about the
+namespace read as evidence about the bundle: the third arm *was* exercised, and
+by the sense this section was not about.
+
+**So the union has four arms, and always had; the fourth is the one that could
+not be seen.**
+
+| Arm | What owns the channel | Examples |
+|---|---|---|
+| `ModeId` | the mode that declared it | `storyengine.scene`, the assistant |
+| `ExtensionId` | somebody else's mode or extension | the id in its manifest ([23](23-extensions.md)) |
+| `NamespaceId` | **a first-party namespace** — an engine subsystem that is not a mode, answering for state it writes | `storyengine.lore`, `storyengine.cast`, `storyengine.hooks`, `storyengine.goals`, `storyengine.suggest`, `storyengine.renditions`, `storyengine.memory` — the seven the code registers, counted 2026-10-04 |
+| `WorldId` | **authored content** — this section's arm, and what the tier below is about | a World's own id, portable and stable, so it means the same thing on the install it arrives at ([15](15-world.md)) |
+
+*`mode-loader.ts`'s comments call the namespaces packages*, and mean this
+table's third row; they are read that way rather than renamed, because nothing in
+them is about the kind. *The SDK's docstring on `owner` was corrected instead*
+(2026-10-04): it made the italic sentence's claim — that this section's
+obligation was *already exercised* — in the extension contract authors read, so
+it now says the namespace sense is exercised and the World's arm is not yet.
+[15 §6](15-world.md) records the three senses of the word, the third being pnpm's
+workspace package, which is unrelated to both.
+
+**Nothing in the engine can tell the four apart, which is why prose has to.** The
+shipped field is `owner: string`, and its one consumer — `channelInPlay`, deciding
+whether a channel belongs to the session in front of it — asks only *is there a
+registered mode with this id*, so **every owner that is not a mode is one answer:
+available everywhere.** That is right for a namespace — `storyengine.cast` is
+registered outside a mode precisely so that [§8](#8-party)'s party is *"session
+state available to every mode"* — and it would be wrong for a World, whose
+channels belong to sessions in that World and to no others. Nothing has to move
+until the tier below has a consumer; it is written here because a rule that reads
+as an implementation detail is the kind that gets rediscovered as a bug.
+
+**The defect the bundle arm carried, stated as it actually was.** The `worlds`
+branch found it on 2026-09-14: [04 §9](04-schemas.md) said a package's contents
+were *"embedded copies resolved on import"*, so a package dissolved on arrival and
+a channel owned by one would point at nothing — widening `owner` had reserved a
+field for an owner that could not persist. ***Half of that was the design text and
+not the code***, which the 2026-10-03 audit found: a stored Package holds
+references and stays in the library, so on the install that made it there was
+always something for an id to name ([04 §9](04-schemas.md), corrected
+2026-10-04). **What was missing was the other half** — an owner with a portable id
+that persists on the install a file arrives at, which needs an import that keeps
+the set as well as its members, and no build has ever read a package file. A World
+is that object ([15 §3.1](15-world.md)), and its importer is
+[P16.3](workplan/35-p16-world.md)'s. **No channel is owned by one yet**: declaring
+a channel is the authoring tier's, below.
+
 **Scope: the tier is committed; the vocabulary is 6.0, the authoring tier**
 ([work plan §0.4](workplan/01-work-plan.md), [§0.6](workplan/01-work-plan.md)).
 Channels and engine-computed effects ship at 1.0 and are where the power actually
@@ -311,7 +371,8 @@ corpus for*, rather than one Campaign consumes.
 So there is a **third extensibility tier** between "engine feature" and "code
 extension": authored rules. Concretely:
 
-- `owner` may be a package, not just a mode or extension.
+- `owner` may be a package, not just a mode or extension — *the content bundle,
+  which is a World from [P16.0](workplan/35-p16-world.md) (2026-10-04)*.
 - Packages and treatments carry a `rules` collection — declarative
   condition/effect pairs over channels, evaluated as an end-of-turn step, with
   effects applied through the same path model-proposed updates use and recorded
@@ -328,7 +389,10 @@ impossible to add later rather than merely absent:
 
 - **`owner` accepts a package id**, not only a mode or extension id, from the
   first channel definition written. Widening that field later is a migration
-  over every stored channel.
+  over every stored channel. *Met by `owner: string` since the first channel
+  definition's (P2.6, as [22 §1.3](22-internal-contracts.md) records; the field
+  landed 2026-08-18, and P7.0 only moved it into `@storyengine/sdk`), and the id
+  it will hold for authored content is a World's (2026-10-04, the table above).*
 - **Effects apply through one path** — model-proposed, engine-computed and
   authored-rule effects all land as `ChannelEffect`s in the turn record. If rules
   ever need a private application path, the tier was bolted on rather than

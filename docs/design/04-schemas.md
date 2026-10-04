@@ -23,7 +23,7 @@ Internal structures can be migrated on upgrade because we own every copy.
 
 | Tier | Structures | Commitment |
 |---|---|---|
-| **Stable** | Actor, Lorebook, Treatment, Setup, Package, and the shared substructures in §3 | Define now, change only additively, version on breakage |
+| **Stable** | Actor, Lorebook, Treatment, Setup, Package — *World from [P16.0](workplan/35-p16-world.md), the same kind renamed ([§9](#9-package--a-bundle-and-nothing-else))* — and the shared substructures in §3 | Define now, change only additively, version on breakage |
 | **Provisional** | Preset (§8) | Portable, so it needs a schema — but at `/0`, which says the shape will move |
 | **Free to move** | Session, Turn record, Channel state, rule vocabulary | Internal. Migrate at will |
 
@@ -505,11 +505,25 @@ type LoreScope =
 // person owned into every prompt — `global` being both this schema's factory
 // default and the SillyTavern importer's fallback ([03 §3.4]).
 //
-// Two questions left open rather than settled, in [26](26-open-questions.md):
+// ~~Two questions left open rather than settled~~, in [26](26-open-questions.md):
 // §B14, may `scope` narrow a book the session already chose; and §B15, what a
 // new book's scope should default to. [15 §5.3](15-world.md) is where a
 // consumer would come from — inheritance, designed, not inferred from the
-// union's wording.
+// union's wording. (2026-10-04: both answered, in the paragraph below —
+// recommended answers, owner deferred.)
+//
+// DECIDED 2026-10-04, AND NOT YET BUILT ([15 §5.3](15-world.md),
+// [P16.2](workplan/35-p16-world.md)). The union gains a third arm,
+//   | { kind: "world"; worldIds: string[] }
+// read once, at session creation in one of those Worlds, by copying the book
+// into `session.lore`; `global` and `linked` stay read by nothing. World ids
+// are portable where session ids are not, which is the whole difference between
+// this arm and the one refused above. A new book defaults to
+// `{ kind: "linked", actorIds: [] }`, the narrowest honest value, and so does
+// every standalone SillyTavern book (§B15); §B14 keeps "no" — both the
+// recommended answer, owner deferred (26 B14/B15), and neither waits on B16.
+// Adding an arm to this closed union inside `/1` is
+// [26 B16](26-open-questions.md)'s question, and the arm waits on its answer.
 
 interface LoreFolder {
   id: string
@@ -730,8 +744,10 @@ work: a Treatment of Rain City does not describe Rain City.
 > ([15](15-world.md)) and is deliberately not spent on a library label.
 > *(2026-10-03: it will be spent on one —
 > [26 B17](26-open-questions.md) makes World the named set that replaces
-> Package, so Package's library label is the one it takes, when the design
-> step lands it. The reservation did its job: the word is free for that.)*
+> Package, so Package's library label is the one it takes, ~~when the design
+> step lands it~~ *at [P16.0](workplan/35-p16-world.md), now that the design
+> step has landed — [15](15-world.md), rewritten 2026-10-04*. The reservation
+> did its job: the word is free for that.)*
 
 ```ts
 interface Treatment {
@@ -1910,13 +1926,19 @@ dislikes how "hard" behaves can read the fragment that caused it and change it.
 
 ## 9. Package — a bundle, and nothing else
 
-***Decided against 2026-10-03, and still the shipped design until a design step
-replaces it*** — [26 B17](26-open-questions.md). The owner chose a World as the
-durable named set that **replaces Package**: membership, transport, and
-contribution to a session's lore through a `world` arm on `LoreScope`. This
-section, the code and the frozen `storyengine.package-export/1` still say
-Package, and nothing here changes until that step; B17 records why the rename
-has [26 B16](26-open-questions.md)'s release as its deadline.
+***To be renamed World, at [P16.0](workplan/35-p16-world.md)*** — and this
+section keeps the name the code and the files have until then. The owner decided
+on 2026-10-03 ([26 B17](26-open-questions.md)) that a World is the durable named
+set and **replaces Package**, and [15](15-world.md) was rewritten against that on
+2026-10-04: membership, transport through [16](16-publish.md), and contribution to
+a session's lore through a `world` arm on `LoreScope` (§5). **The kind is renamed,
+not joined**: the six portable kinds stay six, the schema below becomes
+`storyengine.world/1` with its fields unchanged, and a reader keeps accepting
+`storyengine.package/1` and upgrading it in memory, by §2's read-compatible rule
+applied to a rename ([P16 §1.1](workplan/35-p16-world.md)). **This step renames
+nothing in the schema**; the rename is the phase's, as a migration, because
+installs hold Packages and P11.10 froze `storyengine.package-export/1`.
+[26 B16](26-open-questions.md) is the deadline B17 gives it.
 
 With Setup carrying the game definition, a Package is reduced to what it always
 should have been: **an arbitrary bundle of portable objects, for moving them
@@ -1982,10 +2004,30 @@ carrying a game definition nobody had tested. As a self-describing container it
 has almost no surface of its own: new kinds do not change it, and the payload is
 made of independently-versioned objects.
 
-Contents are **embedded copies resolved on import**, not links: links inside the
-package resolve within it first, then locally, then dangle visibly
-([00 §3.3](00-stance.md)). `requires` is checked at import and produces a clear
-warning with a degraded-start option rather than a hard block where possible.
+~~Contents are **embedded copies resolved on import**, not links~~ ***Corrected
+2026-10-04: the stored form holds references, and only the file holds copies.***
+The sentence described the wire and was read as describing the store, and the
+code never did what it said. **A stored Package's `contents` is a list of
+`{ schema, id, name }` envelopes** — `PortableObjectEnvelope` in
+`shared/src/schema/package.ts`, so the "self-describing portable objects" the
+sketch above promises are, on disk, references to them — and they are **resolved
+against the library when the package is exported**: `packaging/export.ts` reads
+each named object at that moment and writes it into
+`storyengine.package-export/1` beside a manifest, reporting what no longer
+resolves ([P11.10](workplan/28-p11-implementation.md)). So:
+
+| | Holds | Because |
+|---|---|---|
+| **Stored** — `library/packages/<slug>/package.json` | references | the objects live in the library and are edited there; a container holding copies would be a second representation of each of them ([00 §2.8](00-stance.md)) |
+| **Wire** — the exported file | the objects, each as stored | a file naming ids is useless on the install it is sent to |
+
+[15 §3.1](15-world.md) makes that distinction the World's, and it is unchanged by
+the rename. **On import**, references inside the file resolve within it first,
+then locally, then dangle visibly ([00 §3.3](00-stance.md)) — *no build reads the
+file yet*; [P16.3](workplan/35-p16-world.md) builds the reader, for the World's
+format and the frozen package one. `requires` is checked at import and produces a
+clear warning with a degraded-start option rather than a hard block where
+possible.
 
 ### 9.1 One action produces a package
 
@@ -2010,6 +2052,23 @@ follow outbound references transitively and collect what they reach:
 | Setup | its own `hooks[]`, the same two fields | included |
 | Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
 | Lorebook | `hooks[].introduces.actor`, and its bare `hooks[].involves[]` `Ref`s with it | included |
+| World | every member in `contents`, and each member's closure | included; each member individually uncheckable |
+| Session (a World's member) | its `treatment`, its `lore[]` and its `cast` (persona and actors), and their closures; the session itself as its session export | the session **excluded until ticked**; never a sibling session |
+
+***The last two rows were added 2026-10-04, with [16](16-publish.md)***, for the
+kinds [15](15-world.md) puts in a set. A World is a list of starting points, so its
+closure is the union of theirs, and *uncheckable per member* is where the set kept
+and the file sent are allowed to differ. A session's own copies — its Setup, its
+preset, its hook pool and its goals, the `setup`, `preset`, `hooks` and `goals`
+fields of `SessionFile` — are inside its session export already
+([P11.10](workplan/28-p11-implementation.md)) and need no walk; session-local
+actors ([03 §2.3](03-data-model.md)) are designed but not on `SessionFile`
+([03 §8](03-data-model.md)), so there is nothing of theirs to carry or walk. What it names in
+the library does. **Its exclusion is the row's point**: the closure reaches what a
+session names and stops, and never pulls in the other sessions of the same World,
+because *this story* and *my six stories* are different things to send. Sessions
+default to unticked for [16 §5](16-publish.md)'s reason — sending somebody your
+transcripts is a thing to choose.
 
 Every level is shown, not just the first: the actor two steps out whose lorebook
 came along is named in the review, because "why is this package 40 MB" should be
@@ -2084,17 +2143,29 @@ demand* rather than being the storage shape. The recurring pull toward folding
 world content and framing into one file is, at bottom, a request for this
 button.
 
-**Exporting produces a file, not a library object.** A package is a snapshot of a
+~~**Exporting produces a file, not a library object.** A package is a snapshot of a
 closure at one moment, and auto-saving one on every export would fill the library
 with near-identical bundles nobody chose to keep. Keeping the package — as a
 re-exportable object that remembers its closure and picks up later edits — is a
-separate, explicit *Save this package* action.
+separate, explicit *Save this package* action.~~ ***Reversed 2026-10-04, by
+[16 §3](16-publish.md):*** publishing a selection of two or more keeps a World,
+because the worry was true of a snapshot and is not true of a set — a World holds
+references, so publishing it twice produces two files and one object. One object
+published keeps nothing ([16 §2](16-publish.md)). A file with no World
+kept is still offered, as a choice in the review, for *send this and forget it*.
 
-**[OPEN]** Whether a saved package re-resolves its closure on re-export or
+~~**[OPEN]** Whether a saved package re-resolves its closure on re-export or
 replays the exact contents it was built with. The first keeps a shared campaign
 current; the second is the only one that reproduces a byte-identical artefact,
 which matters if packages are ever addressed by hash. Lean: re-resolve, and show
-the diff.
+the diff.~~ ***Closed 2026-10-04: it re-resolves, and the code answered first.***
+A World holds references and the objects are edited in place, so it cannot
+replay anything; the published file is the frozen image. `packaging/export.ts`
+has read every named object at export time since
+[P11.10](workplan/28-p11-implementation.md), so the lean was the shipped
+behaviour before it was the design. *Show the diff* is [16 §5](16-publish.md)'s:
+re-publishing opens on what changed. Addressing by hash, if it ever arrives,
+addresses the file.
 
 ---
 

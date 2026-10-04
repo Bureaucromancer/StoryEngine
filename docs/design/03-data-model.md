@@ -36,6 +36,13 @@ full game means putting a Setup in a Package — but the Setup is an ordinary
 library object, useful for your own reuse without any of the transport
 machinery. See §7.
 
+*(2026-10-04: **Package is renamed World** at [P16.0](workplan/35-p16-world.md) —
+[26 B17](26-open-questions.md), [15](15-world.md) — and the count stays eight. A
+World is the same portable set, stored as references and published as copies, and
+it gains two jobs a Package never had: sessions among its members, and being read
+when a session starts in it. The split above survives the rename word for word:
+a Setup is what a game is, and a World is the set it draws from.)*
+
 ---
 
 ## 2. Actor
@@ -375,6 +382,13 @@ duplication disappears for free once persona is a flag on an actor.
 > a Worlds-shaped concept ([15 §5.3](15-world.md)) — rather than letting a field
 > on a library object opt itself into somebody's story.
 >
+> *Designed 2026-10-04, not yet built* ([15 §5.3](15-world.md),
+> [P16.2](workplan/35-p16-world.md)): a World contributes by **copying** its books
+> into `session.lore` when a session starts in it, and `LoreScope` gains a `world`
+> arm read at that one moment, by the same copy. The rule above is intact — a
+> World is one more thing that does the selecting, once, visibly — and `global`
+> and `linked` stay read by nothing.
+>
 > **Two questions were left open rather than settled by the reversal**, both
 > recorded so the next person meets them instead of re-deriving them:
 > [26 §B14](26-open-questions.md) — whether `scope` should *narrow* a book the
@@ -382,7 +396,11 @@ duplication disappears for free once persona is a flag on an actor.
 > introduces a new way for a deliberate choice to go quiet; and
 > [26 §B15](26-open-questions.md) — what a new book's `scope` should default to,
 > given that `global` is the widest value in the union and is what both the
-> factory and the importer currently produce.
+> factory and the importer currently produce. *(2026-10-04: both answered at
+> [15 §5.3](15-world.md) — B14 no, B15 `{ kind: 'linked', actorIds: [] }` for a
+> new book and for every standalone SillyTavern import — as recommended answers,
+> owner deferred; see [26](26-open-questions.md), where either can be overruled.
+> Built at [P16.2](workplan/35-p16-world.md).)*
 
 **`category` is removed**, not renamed — reversing an earlier decision here that
 kept Marinara's five-value book-level union as-is. The trigger was a collision
@@ -1423,6 +1441,11 @@ Reduced to a container, Package has almost no surface of its own:
   library (with a "these already exist, link or duplicate?" step). Links resolve
   within the package first, then locally, then dangle visibly. The only reliable
   way to ship something working to someone whose library you know nothing about.
+  *Corrected 2026-10-04: **in the file**, which is what this bullet is about. The
+  stored package holds references — `{ schema, id, name }` envelopes, resolved
+  when it is exported — and never held copies ([04 §9](04-schemas.md),
+  [15 §3.1](15-world.md)): embedding is a fact about the file, linking a fact
+  about the store.*
 - **`requires` is declared and checked at import**, producing "this wants
   Campaign ≥ 2 and an image connection; you have neither" rather than a
   broken session later. A warning with a degraded-start option where possible,
@@ -1438,7 +1461,11 @@ Reduced to a container, Package has almost no surface of its own:
   lorebook (§4) and is still shareable as one self-contained artefact, because
   the bundled form is produced on demand rather than being the storage shape.
 - On disk a package is a folder, zipped as `.sepack` for exchange
-  (§5.2.3).
+  (§5.2.3). *What [P11.10](workplan/28-p11-implementation.md) shipped is
+  `.sepack.json`, one JSON document — a manifest beside each object's stored JSON,
+  and no pixels — so the zip is not built; whether the World's file is that or a
+  zip of the members' folders is [16 §5.2](16-publish.md)'s open question
+  (2026-10-04).*
 
 **[OPEN]** Can a package ship an extension/mode *implementation*, or only declare
 a dependency on one? Shipping code makes packages far more powerful and makes
@@ -1449,7 +1476,11 @@ importing one a code-execution decision. Strong lean: **declare only** at 1.0
 starting state (a "pre-run prologue")? Attractive for authored content, and it
 crosses the content/session line the rest of the model keeps clean. Note the
 split makes this cleaner to reason about: it would be a *session* in a package,
-not a variant of Setup.
+not a variant of Setup. *Answered 2026-10-04, by consequence: a World published
+with one session ticked, which [P16.3](workplan/35-p16-world.md) ships and which
+needs nothing of its own ([26 B10](26-open-questions.md), [15 §3.2](15-world.md)).
+The line is crossed where it is drawn — in the file, as a session export beside the
+content, by a person ticking it.*
 
 ---
 

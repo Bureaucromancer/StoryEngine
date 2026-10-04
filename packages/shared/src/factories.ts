@@ -109,6 +109,14 @@ export function newLorebook(name: string): Lorebook {
      * person owned into every session's prompt. Anything that gives `scope` a
      * consumer again has to decide this line first, because a field nobody sets
      * should not default to the most permissive answer it can hold.
+     *
+     * *(2026-10-04: decided — 26 §B15 answers `{ kind: 'linked', actorIds: [] }`,
+     * a recommended answer the owner deferred, and
+     * [P16.2](../../../docs/design/workplan/35-p16-world.md) changes this line
+     * with the copy from a World's members, because the `world` scope arm it
+     * lands beside is what gives the field a consumer; the default itself
+     * changes no schema and does not wait on that arm. Until then the value
+     * below is still what ships, and still harmless.)*
      */
     scope: { kind: 'global' },
     enabled: true,

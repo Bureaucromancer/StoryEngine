@@ -73,11 +73,16 @@ export const OBJECT_FILENAMES = {
   [PRESET_SCHEMA]: 'preset.json',
   // [03 §5.1](../../../../docs/design/03-data-model.md) gives packages a folder and defers
   // its contents to §7, which describes the *format* rather than the on-disk
-  // shape. A stored package also holds embedded copies of its contents, so this
-  // filename is the manifest rather than the whole object — and the arrangement
-  // is settled with `.sepack` import and export, which [P4 §4] puts out of
-  // scope and places around P11. This comment said "settled at P4" until P4.0
-  // read it: P4 imports other people's formats and deliberately not our own.
+  // shape. A stored package holds **references** to its contents — `{ schema,
+  // id, name }` envelopes — and this file is the whole object; the copies exist
+  // only in the exported `.sepack.json`, which `packaging/export.ts` resolves
+  // from them ([04 §9], corrected 2026-10-04; until then this comment said a
+  // stored package held embedded copies, which it never did). The arrangement
+  // was left to `.sepack` import and export, which [P4 §4] put out of scope and
+  // placed around P11: P11.10 built the export, and [P16.3] builds the import.
+  // This comment said "settled at P4" until P4.0 read it: P4 imports other
+  // people's formats and deliberately not our own. The folder becomes `worlds/`
+  // at [P16.0].
   [PACKAGE_SCHEMA]: 'package.json',
 } as const satisfies Record<PortableSchemaId, string>;
 

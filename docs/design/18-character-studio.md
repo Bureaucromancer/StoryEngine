@@ -107,7 +107,9 @@ real.
   World, the tier for Campaign's corpus — so the ordering between them is
   untouched and each simply arrives one release later than it would have. The
   tier's corpus gets one more release to grow, which is the one place this
-  change pays something back.
+  change pays something back. *(2026-10-04: World has since split — its set half
+  moved into 1.0 ([15](15-world.md)), and only its continuity keeps 4.0, still
+  waiting for accumulated play; the ordering this bullet describes is unchanged.)*
 
 ## 2. The problem it addresses
 
@@ -247,4 +249,5 @@ discovering that is a better outcome than shipping a surface to justify a number
 - **Watch what the surface argument answers.** If [10 §2](10-ui-surfaces.md)
   settles on a panel, this was a feature-list entry that briefly wore a release
   number, and the honest response is to put it back — 3.0 becomes World and the
-  series shortens by one.
+  series shortens by one. *(3.0 would become World's continuity, since
+  2026-10-04 — the set half is 1.0's.)*

@@ -103,6 +103,10 @@ sharpens to:
 
 > **Packages may ship rules. Packages may never ship code.**
 
+*(2026-10-04: the package here is the content bundle, which becomes a World at
+[P16.0](workplan/35-p16-world.md); the rule moves with the name —
+[15 §3.3](15-world.md).)*
+
 The security boundary is the closed vocabulary, which is exactly the property
 that makes a declarative rules engine worth having over "let authors write
 JavaScript". It also means shared content gets dramatically more expressive

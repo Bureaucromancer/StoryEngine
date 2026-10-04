@@ -206,7 +206,10 @@ export flow, which is P4's ([P4](16-p4-implementation.md)) and belongs in
 [03 §11.6](../03-data-model.md) once settled. The intended shape:
 
 - **Native export (`.seactor`, `.sepack`) sends the active version**, with
-  **full history as an opt-in** on the export. This is [03 §11.6](../03-data-model.md)
+  **full history as an opt-in** on the export. *(2026-10-04: `.sepack` becomes
+  the World's file at [P16.3](35-p16-world.md), and *send them 1.2* has a place
+  to live — [16 §5](../16-publish.md)'s review opens a re-publish on what changed,
+  and carries this bullet's history toggle.)* This is [03 §11.6](../03-data-model.md)
   unchanged, and its reasons hold: forty drafts make the file large for no
   benefit to most recipients, and a working record carries false starts nobody
   agreed to publish. Sharing is the common case and collaboration is the
@@ -251,7 +254,11 @@ panels are named for the kinds. What is left here is the client work.
   Actors, Worlds and Games offered, Lorebooks, Presets and Packages reachable"*,
   which is the renaming layer [10 §5.1](../10-ui-surfaces.md) withdrew — and
   which the paragraph immediately above already cited as withdrawn. **The item
-  argued against itself**, and the bullet was the stale half.
+  argued against itself**, and the bullet was the stale half. *(2026-10-04:
+  **Packages becomes Worlds** at [P16.0](35-p16-world.md), and that is not the
+  withdrawn layer coming back — that one gave Treatment a friendlier alias; this
+  is the kind's own name, because the kind is renamed ([15 §3](../15-world.md)).
+  The rule this bullet states holds: the panels are named for the kinds.)*
 - **Shared machinery, per-kind surfaces.** One list component, one set of
   badges, filters, sorting and actions, one detail route. What each panel
   supplies is its columns, its sort and its empty state. Today's
