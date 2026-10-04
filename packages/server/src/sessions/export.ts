@@ -13,12 +13,12 @@ import { readRenditions } from '../renditions/store.js';
 import { readSession, readTurns, type SessionContext } from './store.js';
 
 /**
- * ***A session, serialised whole*** — [25 B12], [18 §3],
+ * ***A session, serialised whole*** — [26 B12], [19 §3],
  * [P11.10](../../../../docs/design/workplan/28-p11-implementation.md).
  *
  * **Three lines of work and one of them is the feature.** Reading the session
  * and the renditions is bookkeeping; reading **every turn rather than the
- * path** is the thing [18 §3]'s third consequence is about, and it is the one a
+ * path** is the thing [19 §3]'s third consequence is about, and it is the one a
  * serialiser written against our own read surfaces gets wrong — because every
  * read surface in this build calls `walkPath(head)` and that is the natural
  * thing to reach for.
@@ -67,7 +67,7 @@ export async function exportSession(
     schema: SESSION_EXPORT_SCHEMA,
     exportedBy: { version: context.build?.version ?? null, at: new Date().toISOString() },
     /**
-     * ***The document as it is on disk, spread.*** [18 §3]'s first consequence
+     * ***The document as it is on disk, spread.*** [19 §3]'s first consequence
      * says not to tighten what the record leaves loose, and the cheapest way to
      * honour it is not to restate the shape at all: a field this build grows
      * next phase travels without anybody remembering to add it here, and a

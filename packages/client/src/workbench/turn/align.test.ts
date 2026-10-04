@@ -134,7 +134,7 @@ describe('what changed about a block', () => {
 });
 
 /**
- * ***A different picture is a change, whatever the words say*** — [25 E15].
+ * ***A different picture is a change, whatever the words say*** — [26 E15].
  *
  * The three comparisons `changeOf` made before pictures existed — text,
  * included, tokens — are all blind to one: two uncaptioned pictures render as

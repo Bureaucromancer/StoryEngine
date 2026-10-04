@@ -547,7 +547,7 @@ function applyToLive(
               call: {
                 ...step.call,
                 // Null rather than zero when the provider reported nothing —
-                // the same distinction the record draws ([21 §1.4]).
+                // the same distinction the record draws ([22 §1.4]).
                 promptTokens: numberOr(params['promptTokens'], null),
                 completionTokens: numberOr(params['completionTokens'], null),
                 ms: numberOr(params['ms'], null),

@@ -12,7 +12,7 @@ import { migrateState, STATE_SCHEMA_VERSION, STEPS } from './migrations.js';
  * This file's doctrine is that steps are *stepwise and preserving* — each
  * version is a function from the previous one and none may drop a table —
  * because nothing in this store is a restatement of anything on disk
- * ([21 §5.1]). The index can be thrown away and rebuilt; a job in flight and
+ * ([22 §5.1]). The index can be thrown away and rebuilt; a job in flight and
  * the draft of a turn cannot.
  *
  * Until P4.0 there was exactly one step, so the rule had never been exercised:

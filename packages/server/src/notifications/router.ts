@@ -77,7 +77,7 @@ export type Occurrence =
       sessionId: string;
       turnId: string;
       sessionName: string;
-      /** A class, never a provider's words ([21 §1.4]). */
+      /** A class, never a provider's words ([22 §1.4]). */
       error: string;
       /**
        * ***What a person could do about it*** — [P11.6].
@@ -257,7 +257,7 @@ function draftFor(occurrence: Occurrence): NotificationDraft | null {
  * to know who. The registry that answers *whose* is therefore a new one, and it
  * is the notification bus's.
  *
- * **When [24 §3.4]'s real presence lands, something else implements this
+ * **When [25 §3.4]'s real presence lands, something else implements this
  * interface and no producer changes**, which is the whole reason it is an
  * interface over one class rather than a `connected: boolean` threaded through
  * every call site.

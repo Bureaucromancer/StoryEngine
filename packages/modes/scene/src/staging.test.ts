@@ -54,7 +54,7 @@ function member(over: Partial<StepCastMember> = {}): StepCastMember {
  * does no I/O, so `random` and `signal` are never read — and `signal` is an
  * `AbortSignal`, a **host global** that `@storyengine/sdk`'s own tsconfig
  * declares with `types: ["node"]` and this package's deliberately does not. Its
- * one dependency is the SDK, which is [19 §10]'s whole claim; adding
+ * one dependency is the SDK, which is [20 §10]'s whole claim; adding
  * `@types/node` so a test could construct an `AbortController` would be a second
  * one, bought to fake a field nothing reads. So the cast is stated here instead.
  *
@@ -92,7 +92,7 @@ describe('what the stager declares', () => {
     expect(STAGE_STEP.reads).toEqual(['output', 'cast', 'se.staging', 'se.backdrop.on']);
     expect(STAGE_STEP.writes).toEqual([EXPRESSION_CHANNEL.id, LOCATION_CHANNEL.id]);
     // Not `se.backdrop`: that one is `engine-computed` and [P9] fills it, which
-    // is why §7.2 reads like it forces [25 C16] and does not.
+    // is why §7.2 reads like it forces [26 C16] and does not.
     expect(STAGE_STEP.writes).not.toContain('se.backdrop');
   });
 

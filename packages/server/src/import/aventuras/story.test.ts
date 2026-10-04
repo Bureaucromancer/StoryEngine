@@ -24,7 +24,7 @@ import { readStoryRows, type AventurasStoryRows } from './story-rows.js';
 /**
  * ***The tree, and the pairing*** —
  * [P13.11](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
- * [18 §2.3.1](../../../../../docs/design/18-session-import.md).
+ * [19 §2.3.1](../../../../../docs/design/19-session-import.md).
  *
  * The producer, from rows to document, with nothing written: each claim of
  * its header — the pairing table, the lineage rebuilt from the branches and

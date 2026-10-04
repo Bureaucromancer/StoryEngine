@@ -204,7 +204,7 @@ export function loreReached(blocks: readonly AssembledBlock[] | undefined): Set<
  */
 function messagesToScan(context: RetrieveContext): string[] {
   // A move's words with its pictures' captions — the player's own words about
-  // what they showed are scanned as their other words are ([25 E15]). The
+  // what they showed are scanned as their other words are ([26 E15]). The
   // placeholder a picture with no caption gets is not: it is this engine's
   // words, and an entry keyed on *picture* must not fire because of it.
   const past = [...context.history]

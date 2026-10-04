@@ -39,7 +39,7 @@ describe('the data directory', () => {
   });
 
   it('keeps operational state out of the index', () => {
-    // [21 §5.1](../../../../docs/design/21-internal-contracts.md): deleting the index must
+    // [22 §5.1](../../../../docs/design/22-internal-contracts.md): deleting the index must
     // cost time and nothing else. Anything for which that is false — jobs,
     // idempotency keys, the notification inbox — needs its own home.
     expect(layout.stateFile).toBe(join(DATA, 'state', 'state.sqlite'));

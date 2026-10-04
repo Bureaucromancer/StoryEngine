@@ -1,4 +1,4 @@
-# 17 — The Character Studio
+# 18 — The Character Studio
 
 **Status: proposal.** The surface that turns an actor you played into a
 **reusable visual identity**. The card carries the format from 1.0
@@ -6,14 +6,14 @@
 having.
 
 **Scheduled for 3.0** ([work plan §0](workplan/01-work-plan.md)). Like [13](13-write-mode.md), [15](15-world.md) and
-[16](16-authoring.md) it is a design note that arrived after the original run
+[17](17-authoring.md) it is a design note that arrived after the original run
 rather than a new tier of document, and it reads after [03](03-data-model.md)
 and [10](10-ui-surfaces.md), whose media model and editor surfaces it turns into
 a release.
 
 **It has moved twice, and the second move is what this note exists to record.**
-It began as [24 §2](24-roadmap.md), a High-tier feature-list entry with no
-release attached. It moved into the authoring tier ([16 §4](16-authoring.md))
+It began as [25 §2](25-roadmap.md), a High-tier feature-list entry with no
+release attached. It moved into the authoring tier ([17 §4](17-authoring.md))
 when that tier acquired a release, on the strength of a shape it shares with
 lorebook extraction — each turns something you played into something you can
 author with. It moved out again when the shape turned out not to be a
@@ -66,9 +66,9 @@ designed early is a release worth building early.
 The tier and the Studio share a sentence — *turn what you played into something
 you can author with* — and share nothing else that matters to a schedule.
 
-| | The authoring tier ([16](16-authoring.md)) | The Character Studio |
+| | The authoring tier ([17](17-authoring.md)) | The Character Studio |
 |---|---|---|
-| **What gates it** | A corpus of real authored worlds to design a vocabulary against ([25 C7](25-open-questions.md)), which a release of Campaign is what produces | Actors people have played, which 1.0 produces |
+| **What gates it** | A corpus of real authored worlds to design a vocabulary against ([26 C7](26-open-questions.md)), which a release of Campaign is what produces | Actors people have played, which 1.0 produces |
 | **What it must build** | A predicate and effect language, an evaluator, and a sandbox | A curation UI, a generation pipeline and a consistency loop |
 | **What 1.0 owes it** | Two seams, both already stated in [06 §4.1](06-modes-and-turn-pipeline.md) | Four card fields, all format work (§5) |
 | **Who its user is** | Somebody authoring for other people | Somebody who played a character and wants them again |
@@ -81,7 +81,7 @@ first and shareable second. It never needed the corpus, so it never needed to
 be behind Campaign.
 
 **And it was always the tier's least settled member**, on the tier's own account
-([16 §4](16-authoring.md) as it stood): the only piece whose *surface* question
+([17 §4](17-authoring.md) as it stood): the only piece whose *surface* question
 was open. That reads differently now. Inside a tier, an unsettled surface
 question is a member that might have to be dropped late; as a release of its
 own, it is the first question the release has to answer, and §6 is where it gets
@@ -167,7 +167,7 @@ out is designed against whatever we imagine 2029 looks like.
 
 ## 5. What this obliges 1.0 to do
 
-The standing test ([24](24-roadmap.md) header: *what does this oblige 1.0 to
+The standing test ([25](25-roadmap.md) header: *what does this oblige 1.0 to
 do?*). Four obligations, all small, none of them a feature at 1.0, and the first
 is the one that is not recoverable.
 

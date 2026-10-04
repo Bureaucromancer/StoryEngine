@@ -11,7 +11,7 @@ import { CardFormatError } from './envelope.js';
  * ancillary chunks hold arbitrary bytes, so there is no reason to pay base64's
  * ~33% for the part that is actually large. The JSON keeps base64 because it
  * rides in a `tEXt` chunk that other tools can read
- * ([25 B5](../../../../../docs/design/25-open-questions.md)); the images do not need to be
+ * ([26 B5](../../../../../docs/design/26-open-questions.md)); the images do not need to be
  * readable by anything that does not already understand this format.
  *
  * ```

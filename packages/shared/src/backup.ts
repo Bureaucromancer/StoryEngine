@@ -5,7 +5,7 @@ import type { ImportNote } from './import.js';
 
 /**
  * ***What an archive says it is*** —
- * [25 E6](../../../docs/design/25-open-questions.md),
+ * [26 E6](../../../docs/design/26-open-questions.md),
  * [P12](../../../docs/design/workplan/29-p12-implementation.md).
  *
  * The first member of every backup archive, and the reason a reader can answer
@@ -25,7 +25,7 @@ import type { ImportNote } from './import.js';
  * `emit-schemas` writes one artefact per entry. An envelope is not an object
  * somebody edits, and a JSON Schema for it would suggest it were.
  *
- * ***It carries no path from the machine that wrote it.*** [21 §4.1]'s rule
+ * ***It carries no path from the machine that wrote it.*** [22 §4.1]'s rule
  * about logs applies with more force to a file that travels: an absolute path
  * says where somebody's data lives, and a restore reading one back would point
  * an install at a directory that may be somebody else's. Member names are

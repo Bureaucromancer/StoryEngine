@@ -26,7 +26,7 @@ import { labels } from '../i18n/catalogue.js';
 /**
  * The eight roles, in words somebody who did not write this can read.
  *
- * The vocabulary is [19 §5.1]'s and it stays the vocabulary — this only decides
+ * The vocabulary is [20 §5.1]'s and it stays the vocabulary — this only decides
  * what a *table* says, and every id it does not know falls through to itself
  * rather than to a blank cell.
  */

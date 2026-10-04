@@ -173,7 +173,7 @@ const LEGEND = 'text-sm font-medium text-ink-muted';
  * What the closed disclosure says.
  *
  * One string from a template literal rather than a sentence assembled around a
- * value in JSX, which is the shape [19 §12.6a] forbids — and the count is worth
+ * value in JSX, which is the shape [20 §12.6a] forbids — and the count is worth
  * having closed, because *no books attached* is the state that made every
  * session before [P6B.0] silent about lore.
  */

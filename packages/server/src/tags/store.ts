@@ -21,7 +21,7 @@ import type { Layout } from '../storage/layout.js';
  *
  * **Shaped like `PrefsStore`, with one deliberate difference: this one
  * validates.** The preferences store documents at length that it does not, and
- * that is the whole of [25 B13]'s decision — a bag whose keys nothing
+ * that is the whole of [26 B13]'s decision — a bag whose keys nothing
  * interprets can be added to and abandoned without a migration. A structured
  * document with a schema is what that decision *excluded*, which is why this is
  * a second file rather than a key in the first one, and why validating here

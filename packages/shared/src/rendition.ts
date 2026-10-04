@@ -3,7 +3,7 @@
 
 /**
  * Renditions — [06 §10](../../../docs/design/06-modes-and-turn-pipeline.md),
- * [21 §7](../../../docs/design/21-internal-contracts.md), built at [P9.0].
+ * [22 §7](../../../docs/design/22-internal-contracts.md), built at [P9.0].
  *
  * A **rendition** is a non-text artefact derived from a turn: an illustration
  * inside the prose, or the backdrop a scene is staged against. [06 §10.1] gives
@@ -15,7 +15,7 @@
  * decides it.*** That module's header states the rule and its expiry: *"no
  * `schema` field, no `$id`, no entry in `PORTABLE_SCHEMAS`, no emitted JSON
  * Schema, no validation on import — changing any of it is a refactor, not a
- * compatibility event… **Session export ([25 B12]) is the event that ends this
+ * compatibility event… **Session export ([26 B12]) is the event that ends this
  * freedom**."* A rendition hangs off a turn and travels with the session
  * directory, so it is governed by exactly that sentence. It lives in this
  * package for `turn.ts`'s other reason too: the client renders the placeholder,
@@ -91,7 +91,7 @@ export type RenditionState = 'pending' | 'ready' | 'failed';
 /**
  * Why a rendition has no pixels — **a class, never the endpoint's sentence**.
  *
- * [21 §1.4]'s rule, which `ProviderError` already splits the same way: the
+ * [22 §1.4]'s rule, which `ProviderError` already splits the same way: the
  * server does not know the reader's language, so what reaches a surface is
  * something the client can render and the provider's own words go to the log.
  *
@@ -176,7 +176,7 @@ export interface DroppedFragmentRecord {
  * it: `capPrompt(fragments, budget, separator).text === text`, for every
  * rendition, forever. [06 §10.3] needs it because the moment — the one fragment
  * with an author — must be *"written once, stored in `prompt` as the fragment it
- * is, and **replayed** on re-creation, never asked for again"*, and [25 E3]
+ * is, and **replayed** on re-creation, never asked for again"*, and [26 E3]
  * spells out the consequence: *"re-creating an evicted rendition makes no text
  * call at all."*
  *
@@ -197,7 +197,7 @@ export interface AssembledPrompt {
   text: string;
   /** Fragment ids, in kept order. */
   kept: readonly string[];
-  /** Never silently — [19 §5.3]'s rule, on the record. */
+  /** Never silently — [20 §5.3]'s rule, on the record. */
   dropped: readonly DroppedFragmentRecord[];
   /** True when the required fragments alone exceed the hard cap. */
   overCap: boolean;
@@ -258,7 +258,7 @@ export interface RenditionProvenance {
    * exists for.
    *
    * ***Known before the call rather than after it***, because the step draws it
-   * on the turn ([19 §14], {@link RenditionRequest.seed}) — so a `pending`
+   * on the turn ([20 §14], {@link RenditionRequest.seed}) — so a `pending`
    * record already states the seed its picture will be made with, and
    * re-creation replays a value rather than asking for one.
    *
@@ -340,7 +340,7 @@ export interface RenditionAsset {
  * **`prompt` and `provenance` are not diagnostics; they are the durable half of
  * the object** (§10.7). The `asset` may be evicted and the record stays whole
  * with `asset: null`, which is what lets an eviction *policy* be a later
- * decision rather than a migration ([25 E3], [P9 §1.4]) — and that only holds if
+ * decision rather than a migration ([26 E3], [P9 §1.4]) — and that only holds if
  * both fields are written from the first commit and never dropped.
  *
  * ***One file per rendition, and concurrency is what decides it.*** The tempting
@@ -461,11 +461,11 @@ export interface RenditionRequest {
   prompt: AssembledPrompt;
   workflow: Readonly<Record<string, string | number | boolean>>;
   /**
-   * ***The sampling seed, drawn on the turn*** — [19 §14], and the field that
+   * ***The sampling seed, drawn on the turn*** — [20 §14], and the field that
    * makes [06 §10.7]'s promise mechanical rather than remembered.
    *
    * **Drawn by the step through `StepHost.random`, not by the worker**, and
-   * [19 §14]'s rule is what decides it: *"every random draw comes from the
+   * [20 §14]'s rule is what decides it: *"every random draw comes from the
    * single RNG service and is recorded, or replay and branching break
    * silently."* The first draft had the worker call `randomInt` on the argument
    * that a rendition takes no part in state reconstruction ([06 §10.2]) — which

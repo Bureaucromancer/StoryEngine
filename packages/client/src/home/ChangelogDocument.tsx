@@ -17,7 +17,7 @@ import { SubsectionTitle } from '../ui/Text.js';
  * half of this page's cost"* and sent markdown to the reading view at
  * [P11.1](../../../../docs/design/workplan/28-p11-implementation.md). The price
  * was real and is now paid rather than argued past —
- * [20 §7](../../../../docs/design/20-client-loading.md) names *a new dependency
+ * [21 §7](../../../../docs/design/21-client-loading.md) names *a new dependency
  * joining the common entry* as its revisit trigger, `/` is the entry route, and
  * the measurement is recorded there. What the fence still holds is the
  * **general job**: this renders a changelog, in `home/`, against a declared

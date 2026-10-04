@@ -87,7 +87,7 @@ layer of bindings that belongs to the install rather than to a person:
   system bindings** — the existing non-blocking behaviour, no new mechanism."*
 - [10 §15.3](../10-ui-surfaces.md): system connections are *"the household's
   shared keys, **and the default role bindings everyone inherits**."*
-- [19 §5.1](../19-tech-stack.md): the resolution order is
+- [20 §5.1](../20-tech-stack.md): the resolution order is
   *"**install default** → role binding → session override → step override →
   actor hint"*, and the
   worked example is an admin binding the two defaults so that *"every user's
@@ -228,7 +228,7 @@ goes through `presentConnection`* — is not the rule. §2.2 is what it becomes.
 the same reader, layered *under* the personal one.
 
 `resolveRole`'s order becomes `step → session → user binding → install default`,
-which is [19 §5.1](../19-tech-stack.md)'s order read from the strongest end.
+which is [20 §5.1](../20-tech-stack.md)'s order read from the strongest end.
 The hint stays where it is, applied last and weakest over whichever layer won.
 
 Against the alternative, recorded because it is the cheaper-looking one:
@@ -341,7 +341,7 @@ time, which is the worst place to find out.
 **Decided, both halves:**
 
 - **The form offers `openai-compatible` and nothing else**, which is
-  [19 §5.5](../19-tech-stack.md)'s compatibility surface stated as a control
+  [20 §5.5](../20-tech-stack.md)'s compatibility surface stated as a control
   rather than as a paragraph: *if it speaks OpenAI-compatible chat it works, and
   if it does not it does not.* An empty `baseUrl` means OpenAI's own endpoint —
   the adapter already defaults to it — so the common cases are a key with no URL
@@ -421,7 +421,7 @@ because nothing about it is discarded when the second column arrives.
 key still hand-writes two files, exactly as today. P2B does not improve that
 case at all — it makes the case where *nobody* has configured anything work,
 which is every fresh install and most household ones. The household example
-[19 §5.1](../19-tech-stack.md) uses is *"Dad pays for the API"*, and that is
+[20 §5.1](../20-tech-stack.md) uses is *"Dad pays for the API"*, and that is
 precisely the half this phase builds.
 
 ### 2.8 Dangling bindings: the warning is here, the notification is not
@@ -523,7 +523,7 @@ walking the gate before writing any of it:
 
 - **`GET /api/admin/roles`**, because `via` was returnable by nothing. It is a
   local in `resolveRole`, deliberately absent from the turn record
-  ([21 §1.4](../21-internal-contracts.md) specifies no such field), and a table
+  ([22 §1.4](../22-internal-contracts.md) specifies no such field), and a table
   showing it would have had to reimplement §5.1's layering in the browser
   against two binding maps it would also have had to fetch. The route asks the
   resolver; the component renders what it says and works nothing out.
@@ -543,7 +543,7 @@ in prose.
 ### P2B.4 — First run, and the dead end closing
 
 The first connection an admin saves offers to write the install defaults from it
-— [19 §5.1](../19-tech-stack.md)'s *a good one and a cheap one*, with one model
+— [20 §5.1](../20-tech-stack.md)'s *a good one and a cheap one*, with one model
 answering both when only one exists. `defaultBindings` gets its first production
 caller.
 
@@ -577,7 +577,7 @@ read and two directory reads per account, and the cheaper answer was wrong.
 [The API doc](../../api.md) gains the connections and bindings routes;
 `connections.ts`'s P10 comment and `bindings.ts`'s P7 comment are repaired;
 [09 §4.5](../09-server-multiuser-deployment.md)'s *"no new mechanism"* sentence
-is corrected against §1.2; [19 §5.1](../19-tech-stack.md)'s resolution order is
+is corrected against §1.2; [20 §5.1](../20-tech-stack.md)'s resolution order is
 annotated with which layers have callers and which are P7's.
 
 *Ends at:* no document describes a fallback the code does not perform.
@@ -591,7 +591,7 @@ annotated with which layers have callers and which are P7's.
 - Its `GET /api/admin/accounts` section described the dead-end rule as *a system
   connection exists, or a personal one plus the capability*. That was an
   accurate description of the wrong implementation, so it moved with the code.
-- [19 §5.1](../19-tech-stack.md)'s note became a table, and gained the
+- [20 §5.1](../20-tech-stack.md)'s note became a table, and gained the
   correction the order alone could not state: **the first layer that resolves
   wins, not the first that exists.**
 
@@ -782,7 +782,7 @@ answer sheet. Every row was a thing this document assumed and could not check.
 | **Where the third section lives on the treatments route** | **A third section under Administration**, stacked with accounts and the install — not a tab and not its own route. P2A's admin half is a single conditional, which is what makes *absent is absent* a mechanism rather than a style: the sections do not render for a non-admin, so their hooks never mount and their browser issues no request that could be refused. A separate route would need that guard respelled, which is the thing [P2A §2.4](09-p2a-configuration-surface.md) refuses |
 | **Whether `AdminConnection` wants the stale-check idiom** | **Yes**, and the reason moved. It is not worth its weight against a second admin at this scale; it is worth it against the person editing the file on disk, which is the same writer and the same argument as the row above. The cost is known now: one field on the services record and one comparison, plus the discipline of updating that field on write — P2A's second save refused its own predecessor's work until it did |
 | **The dead-end count's exact wording**, shared with P2A's account list | **Written**: *"N people have no usable connection and cannot send a message."* followed by either *"No system connection is configured, so adding one fixes this for everybody."* or *"Give them their own connection, or allow them to add one."* The second clause is the one P2B changes — the whole phase is the first sentence reaching zero. Note the shape: the lint rule for assembled sentences forbids building these around the number, so each is a whole string with the count substituted in |
-| ~~**Whether the connections form reuses P2A's config form machinery**~~ Answered at P2A.0 | Partly, and the useful half is the idea rather than the code. `LIVE_APPLIERS` shipped keyed like `CONFIG_TIERS`, saying per key whether anything reads it, with completeness tests in both directions and a row asserting at least one key is honestly `unread`. A connection's `capabilities` overrides are the same shape of problem — *declared* against *in force* — but against `ProviderCapabilities`, so nothing is shared but the pattern. **What transfers is the rule**: where a declaration and an implementation disagree, a table records it and the declaration moves only when the intent changes ([21 §4.3](../21-internal-contracts.md)) |
+| ~~**Whether the connections form reuses P2A's config form machinery**~~ Answered at P2A.0 | Partly, and the useful half is the idea rather than the code. `LIVE_APPLIERS` shipped keyed like `CONFIG_TIERS`, saying per key whether anything reads it, with completeness tests in both directions and a row asserting at least one key is honestly `unread`. A connection's `capabilities` overrides are the same shape of problem — *declared* against *in force* — but against `ProviderCapabilities`, so nothing is shared but the pattern. **What transfers is the rule**: where a declaration and an implementation disagree, a table records it and the declaration moves only when the intent changes ([22 §4.3](../22-internal-contracts.md)) |
 
 ### 6.1 Two things P2A created that this plan did not anticipate
 
@@ -807,7 +807,7 @@ smaller claim than *"asserted over the route table"* and it is the true one;
 
 Every finding in §1 still holds, checked rather than assumed: `readBindings`
 reads one path, `layout` has no system bindings member, `resolveRole` layers
-three where [19 §5.1](../19-tech-stack.md) names five, `ResolutionSource` has
+three where [20 §5.1](../20-tech-stack.md) names five, `ResolutionSource` has
 four members and no `default`, `ProviderFactory` is still a bare function type
 with a memo and no invalidation, `PublicConnection` is still a `Pick` without
 `baseUrl`, and `sessionOverride`/`stepOverride` still have no caller outside

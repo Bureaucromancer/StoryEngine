@@ -13,12 +13,12 @@ import { Agent, fetch as undiciFetch } from 'undici';
  * underneath `performCall`'s own bound. So a slow local model — a large one
  * loading, or reading a long prompt on a small machine — could not be given
  * more than five minutes to start answering however the operator set
- * `providerTimeoutMs`, and `0`, which [21 §4] says switches the bound off,
+ * `providerTimeoutMs`, and `0`, which [22 §4] says switches the bound off,
  * switched off only ours. And the error reads *Headers Timeout Error*, which
  * the adapter's classifier took for a connection that did not work: the ladder
  * asked twice more, a quarter of an hour of waiting for one refusal.
  *
- * This dispatcher has neither limit, and the bound that stays is [21 §4]'s:
+ * This dispatcher has neither limit, and the bound that stays is [22 §4]'s:
  * `withIdleTimeout`, per attempt, on **silence** rather than duration, and off
  * at zero. Connecting still has undici's own timeout, which is a different
  * question — whether the endpoint is there at all — and is right to answer

@@ -168,7 +168,7 @@ export interface SweepRequest {
   destination?: ImportDestination;
   /**
    * ***The name the root arrived under***, when it arrived as one file: an
-   * uploaded archive's filename, never a path ([21 §4.1.1]). A CHARX is
+   * uploaded archive's filename, never a path ([22 §4.1.1]). A CHARX is
    * identified by it (see `CharxReader`); every other source ignores it.
    */
   rootName?: string;
@@ -933,7 +933,7 @@ class Writer {
    *
    * ***One that fails costs itself.*** A character or a book the library will
    * not take is left out of the links, with the note `store()` wrote, and the
-   * session is imported without it: [21 §4.1.1]'s poisoned-file rule one
+   * session is imported without it: [22 §4.1.1]'s poisoned-file rule one
    * level down, and the same rule `#createActor` keeps for a portrait. The
    * link that remains resolves, so `requireLinks` still holds.
    */
@@ -1189,7 +1189,7 @@ class Writer {
    * `create()` refuse the whole card, so a character was lost over its picture.
    * That is the poisoned-file rule violated one level down — one bad asset never
    * costs the object it belongs to, exactly as one bad file never aborts a
-   * sweep ([21 §4.1.1]).
+   * sweep ([22 §4.1.1]).
    */
   async #createActor(
     candidate: ImportCandidate,

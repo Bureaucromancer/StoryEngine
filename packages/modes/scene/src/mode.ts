@@ -38,11 +38,11 @@ import { TRACK_STEP, TRACKING_CHANNELS, TRACKING_SURFACES, track } from './track
  * is in `packages/modes/scene`, and the only package it may import is
  * `@storyengine/sdk`; the boundary graph in `eslint.rules.js` makes anything
  * else a lint failure and `tsconfig.json`'s single project reference makes it a
- * build error. That is [19 §10](../../../../docs/design/19-tech-stack.md)'s
+ * build error. That is [20 §10](../../../../docs/design/20-tech-stack.md)'s
  * *"cheapest possible enforcement of the design's central bet"* actually
  * enforcing something.
  *
- * **Nothing here is conditional on being a built-in.** [22 §4.1](../../../../docs/design/22-extensions.md)
+ * **Nothing here is conditional on being a built-in.** [23 §4.1](../../../../docs/design/23-extensions.md)
  * says built-ins go through the same boundary as anything a third party writes,
  * *"the moment built-ins run differently, they start relying on shared
  * references and the contract drifts without anyone noticing"* — so the only
@@ -321,7 +321,7 @@ export const STAGING_CHANNEL: ChannelDefinition = {
  * `{ kind: 'model', callId }` itself and the record says a model judged it.
  *
  * *This is worth stating because the obvious reading is that §7.2 forces
- * [25 C16].* `se.backdrop` is `engine-computed`, which refuses a step — so
+ * [26 C16].* `se.backdrop` is `engine-computed`, which refuses a step — so
  * *"steps writing to channels"* looks like a contradiction. It is not: the three
  * things §7.2 names have three different writers. A background's pointer is the
  * engine's and [P9] writes it; an expression is a model's judgement and a step

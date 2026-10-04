@@ -244,13 +244,13 @@ export const PLOT_STEP: StepDefinition = {
   callKind: 'plot',
   /**
    * *Every turn, and the step decides* — the trackers' reason: a mode cannot
-   * keep its own step out of a plan ([25 C17]), and the cadence is the
+   * keep its own step out of a plan ([26 C17]), and the cadence is the
    * session's.
    */
   when: { when: 'cadence', everyNTurns: 1 },
   /** **`warn`**: an arc that could not be revisited is not a lost turn. */
   failure: 'warn',
-  /** `prose`, for [25 C15]'s reason; `stepRoles` at this id binds a cheaper model. */
+  /** `prose`, for [26 C15]'s reason; `stepRoles` at this id binds a cheaper model. */
   role: 'prose',
 };
 

@@ -138,7 +138,7 @@ describe('the cast panel', () => {
   });
 
   it('surfaces a refused death as something to rule on, not as a badge', async () => {
-    // **The asymmetry's surface** — [06 §8.1], [25 C12]. The engine refused the
+    // **The asymmetry's surface** — [06 §8.1], [26 C12]. The engine refused the
     // model's proposal; a badge would be the *quiet* treatment that section
     // rules out, so this is a bordered box with two buttons and the actor's
     // name in a sentence.

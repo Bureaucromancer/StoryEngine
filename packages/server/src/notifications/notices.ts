@@ -33,7 +33,7 @@ export interface NoticeContext {
  *
  * ***Named keys rather than a sentence, and space-joined rather than
  * comma-joined.*** [09 §6.3] is explicit that a bare *restart required* *"invites
- * people to restart and hope"*, so the keys travel; and [19 §12.5] forbids the
+ * people to restart and hope"*, so the keys travel; and [20 §12.5] forbids the
  * server composing the list, so what crosses is a token list a client splits and
  * re-joins in its own punctuation. A config key cannot contain a space, which is
  * what makes the separator carry no language.

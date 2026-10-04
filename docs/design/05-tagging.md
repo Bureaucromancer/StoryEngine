@@ -6,7 +6,7 @@ name per line. This note is what had to be settled before that became a real
 surface — because the honest version of *what a tag is* turned out to differ from
 what two other notes say.
 
-Like [13](13-write-mode.md), [15](15-world.md) and [16](16-authoring.md) it is
+Like [13](13-write-mode.md), [15](15-world.md) and [17](17-authoring.md) it is
 a note that arrived after the original run rather than a new tier of document.
 It sits here, beside the pair whose position on tags it corrects.
 
@@ -126,7 +126,7 @@ A per-user `tags.json`, beside `prefs.json` in the canonical per-user block
 ([09 §4.3](09-server-multiuser-deployment.md)).
 
 **Not in `prefs.json`.** That file carries an explicit decision —
-[25 B13](25-open-questions.md) — that it is a bag the server does not validate,
+[26 B13](26-open-questions.md) — that it is a bag the server does not validate,
 and the whole return on that decision
 is that a preference the client stops using rots quietly instead of needing a
 migration. A structured document with a schema does not belong in it. This one

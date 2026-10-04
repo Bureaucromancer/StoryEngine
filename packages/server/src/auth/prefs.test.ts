@@ -11,7 +11,7 @@ import { Layout } from '../storage/layout.js';
 import { PrefsError, PrefsStore } from './prefs.js';
 
 /**
- * Client preferences — [25 B13](../../../../docs/design/25-open-questions.md), closed at
+ * Client preferences — [26 B13](../../../../docs/design/26-open-questions.md), closed at
  * [P2A §2.2](../../../../docs/design/workplan/09-p2a-configuration-surface.md).
  *
  * B13's answer was a per-user file, and the three details it left open are what

@@ -25,7 +25,7 @@ import type { SessionFile } from './types.js';
 /**
  * ***The round trip, and the three things a serialiser written against our own
  * records would silently get wrong*** —
- * [18 §3](../../../../docs/design/18-session-import.md),
+ * [19 §3](../../../../docs/design/19-session-import.md),
  * [P11 §1.8](../../../../docs/design/workplan/28-p11-implementation.md),
  * [P11.10](../../../../docs/design/workplan/28-p11-implementation.md).
  *
@@ -92,7 +92,7 @@ describe('a session, exported whole', () => {
   });
 
   /**
-   * ***A turn that never ran a model*** — [18 §3]'s first consequence.
+   * ***A turn that never ran a model*** — [19 §3]'s first consequence.
    * `input`, `output`, `request`, `cost` and `steps` are optional, and a
    * hand-edit divergence turn on disk is exactly that record. **Ours always
    * have them**, which is why a serialiser would tighten this without anybody
@@ -118,7 +118,7 @@ describe('a session, exported whole', () => {
   });
 
   /**
-   * ***A foreign identifier this build has never heard of*** — [18 §3]'s second
+   * ***A foreign identifier this build has never heard of*** — [19 §3]'s second
    * consequence, and the case that makes this a format rather than a dialect. A
    * turn imported from somewhere else carries where it came from, and an export
    * that dropped it would break re-import idempotence for every source that has

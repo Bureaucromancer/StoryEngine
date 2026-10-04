@@ -8,7 +8,7 @@ import type { NotificationView } from './types.js';
 
 /**
  * **The notification vocabulary: one sentence per class the server emits** —
- * [19 §12.5](../../../../docs/design/19-tech-stack.md), [P10.2].
+ * [20 §12.5](../../../../docs/design/20-tech-stack.md), [P10.2].
  *
  * The server never sends a sentence. [09 §3.4](../../../../docs/design/09-server-multiuser-deployment.md)
  * makes `params` the payload of a `{ key, params }` summary *"composed at
@@ -106,7 +106,7 @@ export const NOTIFICATION_LABELS: Record<string, NotificationLabel> = {
   /**
    * ***The one notice whose body names a filesystem path, and it is deliberate***
    * — [P12.12](../../../../docs/design/workplan/29-p12-implementation.md).
-   * [21 §4.1] keeps paths out of what a person reads because a page somebody
+   * [22 §4.1] keeps paths out of what a person reads because a page somebody
    * screenshots should not describe their disk; the exception is the directory
    * that a restore moved aside, which **is** the undo. A sentence saying *your
    * previous data is safe* without saying where it is would be worse than

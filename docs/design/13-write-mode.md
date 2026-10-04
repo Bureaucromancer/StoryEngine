@@ -184,7 +184,7 @@ and the field keeps the first job only.
   is a consequence of a decision already made for other reasons.
 - **The tree is local to a beat, never global to the manuscript.** Worth saying
   plainly, so nobody later points the branch visualiser
-  ([24 §1](24-roadmap.md)) at a Write session and finds a field of small bushes
+  ([25 §1](25-roadmap.md)) at a Write session and finds a field of small bushes
   with no spine to hang them on. Its collapse-linear-runs trick has nothing to
   collapse here.
 - **[07](07-branching.md)'s reconstruction guarantees are not claimed here, and
@@ -269,12 +269,12 @@ tool holds a live reference to the work.
 The consequence is already handled. Turn records will reference prose that has
 since changed — and a block source already carries a content hash precisely so it
 addresses *the bytes that were used* rather than the object with that id today
-([21 §1.1](21-internal-contracts.md)). An existing decision collecting, not a new
+([22 §1.1](22-internal-contracts.md)). An existing decision collecting, not a new
 problem.
 
 ### 4.7 Rewrite and reroll collapse, and the reason is already written down
 
-[19 §14.5](19-tech-stack.md) makes rewrite the default because *"I didn't like
+[20 §14.5](20-tech-stack.md) makes rewrite the default because *"I didn't like
 how that was written"* is the common intent over a narration of a resolved
 outcome. A beat resolves nothing, so that argument does not transfer — and the
 same section supplies the answer: in a mode that consumed no draws, rewrite and
@@ -287,7 +287,7 @@ stochastic lore entry, with no code change and no design revisit.
 
 The turn record is internal tier and free to move, and **session export is the
 event that ends that freedom** — [04 §1](04-schemas.md),
-[25 B12](25-open-questions.md), and the record's own definition all say so.
+[26 B12](26-open-questions.md), and the record's own definition all say so.
 
 This section was written while that freedom still existed, and it no longer does.
 The original disjunction was *either export is scheduled after 3.0, or its format
@@ -509,7 +509,7 @@ being done, and must not be done to close the gap below.
 **And the gap should be stated rather than smoothed.** A third-party mode may
 declare a top-level surface and get a nav entry leading to a page it did not
 write. Nothing in the *server-side* contract is bypassed: the declaration is
-complete and honest, and [22 §3](22-extensions.md)'s claim that contributing UI
+complete and honest, and [23 §3](23-extensions.md)'s claim that contributing UI
 crosses the worker boundary with **nothing** still holds. What is missing is a
 **page vocabulary**, which is [10 §8.1](10-ui-surfaces.md)'s deferral arriving
 from a new direction rather than a back door in the mode contract.
@@ -543,7 +543,7 @@ matters:
 
 **The cost, stated.** [10 §2](10-ui-surfaces.md) had two surface rows and a title
 that named the count. At 2.0 it has three, and a fourth is proposed
-([24 §3.4](24-roadmap.md)); §16 lists the edit that owed it. The count was always
+([25 §3.4](25-roadmap.md)); §16 lists the edit that owed it. The count was always
 a fact about what ships rather than a principle — and the reasoning that demotes
 the workbench is untouched, because a reader is still not a surface.
 
@@ -813,7 +813,7 @@ correcting*. A Matrix column has to be editable to be worth having.
 - *Story to come* is the chain of **authored synopses** for everything after —
   because the future has no prose to summarise, only intent.
 
-This puts [25 E1](25-open-questions.md)'s rolling summary and
+This puts [26 E1](26-open-questions.md)'s rolling summary and
 [07 §5.1](07-branching.md)'s content-addressed chain on new ground: in Play the
 chain runs over turns in path order, in Write over **nodes in binder order**.
 Same machinery, different sequence.
@@ -836,7 +836,7 @@ authored intent and the derived description of the result, disagreeing in one
 row. An edited summary is **pinned**, held against regeneration and marked as
 authored, in the same spirit as the *offered, never automatic* rule everywhere
 else here. And because summaries are derived and disposable
-([25 E1](25-open-questions.md)), the heavier repair is always available: discard
+([26 E1](26-open-questions.md)), the heavier repair is always available: discard
 and regenerate one node, a chapter, or the chain, with a better model or a
 better prompt. **Summary quality is not a one-way door**, which is what makes
 shipping a simple version of this safe.
@@ -942,7 +942,7 @@ constraint 3. Rich-text document models fight constraints 1 and 2.
 because the decision is contained: the document on disk is Markdown, the
 annotations are offsets in `manuscript.json`, and nothing in the server, the
 schemas or the API knows what the editor is. That is client-internal in the same
-structural sense [19 §6](19-tech-stack.md) makes the framework choice reversible
+structural sense [20 §6](20-tech-stack.md) makes the framework choice reversible
 — by construction rather than by promise. It is also this repository's **first
 editor dependency of any kind**, so it is argued in the register
 `packages/shared`'s dependency note establishes for this project, and it is
@@ -980,8 +980,8 @@ between, so "before Write" and "at 1.0" are the same instruction.
 | Plot-hook identity, goals, presence | **None.** All are Play concepts Write does not use. |
 | **The span overlay must generalise past actors** | **Real, and the largest.** [10 §13.1](10-ui-surfaces.md) already says the model *"should be built so that it can"* — Write needs three consumers of one span shape: mentions, machine-written provenance, and beat positions. So *generalises* has to mean **a tagged reference from the first span ever written**, and the type must not be named for mentions. If P7 ships it with an actor reference baked in, Write must either migrate every stored turn or grow a second span type — and the second is how one overlay becomes two. |
 | **The lore entry's four-value axis must not be squeezed into the two booleans** | **Real, and it lands at 1.0** ([work plan §0.5](workplan/01-work-plan.md)). Optional fields are additive and free later ([04 §2](04-schemas.md)); *reinterpreting* the existing constant and enabled flags as the axis is a version bump, because a field that means something different is a new version. So add the AI-context value, the track flag and the exclusion list as **optional fields whose absence means today's behaviour.** The old deadline was "2.0 at the latest", which stopped meaning anything when Write became 2.0 — the consumer and the deadline collided, so the deadline moves in front of it. Free now, a bump later, so now. |
-| **Summaries as content-addressed values, never a running total** | **Real, and Write is a second consumer rather than a new demand.** [07 §5.1](07-branching.md) and [25 E1](25-open-questions.md) already require it. Write's node-summary chain is impossible over a mutated blob, and §10.2's reorder analysis depends on the two-level keying. Strengthened, not added. |
-| **Session export must not freeze the turn record before §4 is settled** | **Real, the sharpest, and no longer hypothetical.** [25 B12](25-open-questions.md) and the record's own definition both say export ends the record's freedom to move. Write adds an anchor and narrows what the parent link means. Export now ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)), which removes the "schedule export later" branch entirely: **§4 has to be settled before P11 freezes the format.** This is the one row that makes this document near-term work rather than a design for later. |
+| **Summaries as content-addressed values, never a running total** | **Real, and Write is a second consumer rather than a new demand.** [07 §5.1](07-branching.md) and [26 E1](26-open-questions.md) already require it. Write's node-summary chain is impossible over a mutated blob, and §10.2's reorder analysis depends on the two-level keying. Strengthened, not added. |
+| **Session export must not freeze the turn record before §4 is settled** | **Real, the sharpest, and no longer hypothetical.** [26 B12](26-open-questions.md) and the record's own definition both say export ends the record's freedom to move. Write adds an anchor and narrows what the parent link means. Export now ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)), which removes the "schedule export later" branch entirely: **§4 has to be settled before P11 freezes the format.** This is the one row that makes this document near-term work rather than a design for later. |
 | **Version snapshot payloads stay opaque digest-addressed bytes** | **Small, and a check rather than a change.** A manuscript version is a manifest of file hashes (§5.4); if the payload is ever typed as *the object's JSON*, that is not expressible and Write grows a second history mechanism. Verify at P5, do not assume. |
 | **`surfaces` stays a declared value on the mode definition** | ~~**None, but do not delete it.** Widening the union is internal work. What is worth writing down is that an empty `surfaces` on Scene means *this mode contributes none*, not *placeholder* — an empty array nothing reads is exactly what invites removal.~~ ***Discharged 2026-09-13, and both halves of the risk are gone.*** `surfaces` is read — [P7.11](workplan/23-p7-implementation.md) gave it a renderer and a wire shape — and **Scene's is no longer empty**: it contributes three at [P7.12](workplan/23-p7-implementation.md). Freeform's *is* still empty, and now honestly so, which is the distinction this row was protecting: it declares one channel a person writes and has nothing of its own to show. *The obligation was right and expired by being met, which is the best way for one to go* |
 
@@ -1003,7 +1003,7 @@ between, so "before Write" and "at 1.0" are the same instruction.
   answers *who wrote it*. Track changes is a review workflow for several humans,
   which is the co-editing non-goal in different clothes.
 - **A grammar or style checker.** A per-keystroke advisory over prose has the
-  false-positive problem [24 §2c.2](24-roadmap.md) defers continuity checking
+  false-positive problem [25 §2c.2](25-roadmap.md) defers continuity checking
   for, without continuity checking's payoff — and the browser and the operating
   system already ship one.
 - **A submission or publishing pipeline.** Query letters and manuscript format
@@ -1078,7 +1078,7 @@ Write at 2.0 there is no intervening release to run these in:
 - ~~**If session export is scheduled before 3.0**, §4 stops being a far-release
   design and becomes a near constraint, and this document has to be settled
   early.~~ **This has fired.** Export ships at 1.0
-  ([25 B12](25-open-questions.md), [work plan §0.5](workplan/01-work-plan.md)),
+  ([26 B12](26-open-questions.md), [work plan §0.5](workplan/01-work-plan.md)),
   so §4 is a 1.0-adjacent constraint and this document is settled early rather
   than eventually. Kept struck through rather than deleted, because a reopening
   condition that quietly disappears when it fires teaches nobody anything.
@@ -1102,14 +1102,14 @@ list nobody can act on.
   a pointer rather than a §7.5, which would invite reading Write as Scene's peer.
   Write is a surface rather than a chat mode, a sharper version of the same
   distinction §7.4 already draws for the assistant.
-- **[25](25-open-questions.md)** has taken this document's open questions as E11
+- **[26](26-open-questions.md)** has taken this document's open questions as E11
   (the editor, §12) and E12 (the four smaller shapes: history granularity §5.4,
   plurals §9.2, sessions per manuscript §4.5, and templating inside a text block
   §11.1).
 - **[work plan §0](workplan/01-work-plan.md)** and
   [releases §0](workplan/04-repo-and-releases.md) carry the scheduling, and
   [the design index](README.md) carries the surface and the two new terms.
-  [24](24-roadmap.md) no longer carries any of it: §2e is gone, because the
+  [25](25-roadmap.md) no longer carries any of it: §2e is gone, because the
   feature list stopped holding release commitments.
 
 **Still owed, and deliberately not done here:**

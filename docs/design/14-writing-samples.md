@@ -20,7 +20,7 @@ A **writing sample** is the other half: a passage from the setting, or a page in
 a character's voice, pasted whole and offered as *write like this*. Not a
 paraphrase of the register — the register itself.
 
-The distinction is not new to this project. [17 §3](17-character-studio.md)
+The distinction is not new to this project. [18 §3](18-character-studio.md)
 already drew it for pictures:
 
 > **Style anchoring.** Style is a property of the *production*, not the person —
@@ -93,7 +93,7 @@ SillyTavern's `mes_example` and filled by nothing.
 **Renamed rather than added.** `examples` named the source field it was reserved
 for rather than the thing it fills; with a carrier called `writingSamples`, one
 concept under two names is exactly the drift
-[21 §1.1](21-internal-contracts.md) exists to prevent. The rename is free:
+[22 §1.1](22-internal-contracts.md) exists to prevent. The rename is free:
 `Preset` is at `/0`, the one schema whose own docstring says the shape will move;
 no shipped preset positioned the old arm; and an unknown slot from a newer build
 is skipped rather than thrown.
@@ -122,7 +122,7 @@ here rather than discovered later.
 **A long sample at a low priority often will not survive, and it is
 all-or-nothing.** A sample is dropped whole, never truncated — a half-excerpt
 teaches a register that stops mid-sentence. `estimateTokens` is `ceil(len/4)` and
-runs about 10% low ([25 §E5](25-open-questions.md)), so a 3,000-word story costs
+runs about 10% low ([26 §E5](26-open-questions.md)), so a 3,000-word story costs
 roughly 4,000 tokens and is *understated*. Against the Scene preset on a 24k
 window (`contextShare` 0.75, 1,024 reserved, so about 17k available) that fits
 comfortably. Against an 8k local model (about 5k available) it does not, and it

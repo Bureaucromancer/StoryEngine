@@ -162,7 +162,7 @@ function issuesOf(validate: ValidateFunction): string[] {
 }
 
 /**
- * What a miss reads as in the turn record — [21 §1.4].
+ * What a miss reads as in the turn record — [22 §1.4].
  *
  * **A sentence rather than Ajv's list**, because `ModelCall.error.message` is
  * what a person sees and *"/name must be string"* on its own does not say what

@@ -57,11 +57,11 @@ export interface Connection {
   /** Which models this endpoint offers. Safe to show: it is what a binding picks. */
   models: string[];
   /**
-   * ***Which of those models can see a picture*** — [25 E15], R1. A subset of
+   * ***Which of those models can see a picture*** — [26 E15], R1. A subset of
    * `models`, empty or absent by default.
    *
    * **Per model, and the first capability here that is.** Every other one is a
-   * property of the endpoint, which is why [21 §3] makes them overridable per
+   * property of the endpoint, which is why [22 §3] makes them overridable per
    * connection; seeing images is a property of the *model* — one Ollama URL
    * serves a vision model and a text one, and so does OpenRouter. A
    * connection-wide flag would be a lock-in bug: mark the connection for the
@@ -76,7 +76,7 @@ export interface Connection {
   imageModels?: string[];
   /**
    * Per-connection capability overrides, because a limit is a property of *this
-   * endpoint* ([19 §5.3](../../../../docs/design/19-tech-stack.md)).
+   * endpoint* ([20 §5.3](../../../../docs/design/20-tech-stack.md)).
    */
   capabilities?: Partial<ProviderCapabilities>;
 }
@@ -148,7 +148,7 @@ export function presentUsableConnections(
 
 /**
  * Whether this model on this connection may be sent a picture — the one
- * question the send rule asks of a connection ([25 E15]). **Absent means no**,
+ * question the send rule asks of a connection ([26 E15]). **Absent means no**,
  * which is the conservative answer every other capability starts from.
  */
 export function seesImages(connection: Connection, modelId: string): boolean {
@@ -733,7 +733,7 @@ export async function writeConnection(
    * key's argument above always covered and this code did not.
    *
    * The form has no field for them — deliberately, since
-   * [19 §5.3](../../../../docs/design/19-tech-stack.md) makes them the operator saying something
+   * [20 §5.3](../../../../docs/design/20-tech-stack.md) makes them the operator saying something
    * about their own endpoint rather than a setting with a sensible default — so
    * it sends none, and a write that took `input.capabilities` alone **deleted
    * whatever was on disk every time somebody renamed a connection.**

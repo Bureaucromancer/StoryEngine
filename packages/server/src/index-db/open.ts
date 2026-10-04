@@ -10,7 +10,7 @@ import { migrate, type MigrationResult } from './migrations.js';
 /**
  * Opening the derived index.
  *
- * **`node:sqlite`, not `better-sqlite3`.** [19 §7](../../../../docs/design/19-tech-stack.md)
+ * **`node:sqlite`, not `better-sqlite3`.** [20 §7](../../../../docs/design/20-tech-stack.md)
  * preferred it *if it held up*, and the live risk was FTS5 —
  * [P1 §1.4](../../../../docs/design/workplan/07-p1-implementation.md) verified it does, unflagged, on
  * the pinned runtime. Removing the project's only unavoidable native dependency
@@ -41,7 +41,7 @@ export async function openIndex({ path }: OpenIndexOptions): Promise<OpenedIndex
      * ***A file that is not an index is set aside, and the start goes on***
      * (2026-09-27).
      *
-     * [21 §5] makes deleting this file a non-event, and a file whose header a
+     * [22 §5] makes deleting this file a non-event, and a file whose header a
      * disk error or a bad copy has damaged is the same file with more steps:
      * everything in it is a restatement of what is on disk. It used to stop
      * the start instead — `pragma journal_mode` finds the damage and throws,

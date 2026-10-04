@@ -61,7 +61,7 @@ export interface ConditionContext {
   stages: ReadonlySet<string>;
   /**
    * Flags the user armed for this turn — ***produced at last*** ([P14.5b],
-   * [25 C17]): a submission's `push` arms `push`, which the director's step
+   * [26 C17]): a submission's `push` arms `push`, which the director's step
    * waits on (`turns/direct.ts`). Empty on every other turn.
    */
   armed: ReadonlySet<string>;
@@ -115,7 +115,7 @@ export function evaluateCondition(
  * and that sentence was retired before this one was written: the retriever
  * draws inside a prose step's `call` at [P5.6], engine-side of the seam and
  * never from a mode's own body, which is the precision the rule turns on.
- * Enforcing it *structurally* still waits on the worker split ([22 §4]).
+ * Enforcing it *structurally* still waits on the worker split ([23 §4]).
  */
 export function callPurposeFor(step: StepDefinition): CallPurpose {
   return step.contributes === 'messages' && step.writes.length === 0 ? 'prose' : 'effects';
@@ -132,7 +132,7 @@ export interface TurnPlan {
 }
 
 /**
- * Builds a step's payload from what it declared — [22 §3.1].
+ * Builds a step's payload from what it declared — [23 §3.1].
  *
  * A step that did not declare `history` does not receive it. The filter exists
  * now, with the first step, rather than as a retrofit when the boundary becomes
@@ -186,7 +186,7 @@ export function filterReads(
     parentTurnId: everything.parentTurnId,
     ...(everything.input === undefined ? {} : { input: everything.input }),
     /**
-     * **Unfiltered, like `input`** — [P7.3]. [22 §3.1]'s rule is about sources a
+     * **Unfiltered, like `input`** — [P7.3]. [23 §3.1]'s rule is about sources a
      * step might not be entitled to; this is the mode's own policy applied to
      * the mode's own turn.
      *
@@ -282,7 +282,7 @@ export function transcriptOf(path: readonly Turn[]): TranscriptTurn[] {
             kind: turn.input.kind,
             text: turn.input.text,
             // Kind and caption only — a transcript is *what was said*, and the
-            // bytes and their address are not ([25 E15]).
+            // bytes and their address are not ([26 E15]).
             ...(turn.input.attachments === undefined || turn.input.attachments.length === 0
               ? {}
               : {

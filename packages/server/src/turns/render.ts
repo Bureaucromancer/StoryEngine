@@ -213,9 +213,9 @@ export const RENDER_STEP: StepDefinition = {
    * ***`fast`, and this is the first step in the build to ask for a role other
    * than `prose`.***
    *
-   * [19 §5.1] names this step as the one that wants both — *"a rendition step
+   * [20 §5.1] names this step as the one that wants both — *"a rendition step
    * asks for both, `fast` to write the moment and `image` to render it"* — and
-   * [25 C15] is why the three steps before it all settled for `prose` anyway:
+   * [26 C15] is why the three steps before it all settled for `prose` anyway:
    * `resolveRole` has no cross-role fallback, so an unresolvable role is a
    * failed step row on every turn of every session.
    *
@@ -527,7 +527,7 @@ function request(
 /**
  * ***The sampling seed, drawn through the engine's RNG and put on the tape.***
  *
- * [19 §14]'s rule, and the reason it applies to a thing that takes no part in
+ * [20 §14]'s rule, and the reason it applies to a thing that takes no part in
  * state reconstruction: the draw belongs to the **turn** that asked for the
  * picture, the tape is where this build records draws, and *"an unrecorded draw
  * does not fail here; it fails much later"*. A first draft had the worker call

@@ -88,7 +88,7 @@ export function changeOf(
 }
 
 /**
- * ***A different picture is a change, whatever the words say*** — [25 E15].
+ * ***A different picture is a change, whatever the words say*** — [26 E15].
  * Two uncaptioned pictures read the same (*[Picture]*), cost the same, and are
  * different pixels; and one picture held for two different reasons is two
  * different answers to *did the model see it*.

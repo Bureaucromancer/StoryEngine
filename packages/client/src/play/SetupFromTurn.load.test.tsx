@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 /**
  * ***The wizard's chunk, on its way and failing to arrive*** —
  * [P15 §1.11](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
- * [20 §7.2](../../../../docs/design/20-client-loading.md).
+ * [21 §7.2](../../../../docs/design/21-client-loading.md).
  *
  * `SetupFromTurn.test.tsx` drives the dialog through `lazy()` and so proves
  * the chunk *arrives*; this file holds the two states the boundary adds, which
@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * throws, so the test can look at the waiting state first.
  *
  * *What this file cannot prove is that the dialog is off the entry*: a mocked
- * module is a module however it is imported, which is [20 §6]'s *"a unit test
+ * module is a module however it is imported, which is [21 §6]'s *"a unit test
  * that renders a mocked lazy component cannot"*. That is the build's question,
  * and `tools/entry-budget.test.ts` asks it — *keeps the setup wizard off the
  * entry*.

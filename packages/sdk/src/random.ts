@@ -2,11 +2,11 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 /**
- * Randomness as the host offers it — [22 §4](../../../docs/design/22-extensions.md).
+ * Randomness as the host offers it — [23 §4](../../../docs/design/23-extensions.md).
  *
  * **Why the contract names this and not the engine's `Rng`.** `Rng` is a class
  * with `#private` fields, so no structural interface can stand in for it, and
- * this package may not import `server` ([19 §10](../../../docs/design/19-tech-stack.md))
+ * this package may not import `server` ([20 §10](../../../docs/design/20-tech-stack.md))
  * — publishing it would mean publishing the tape machinery as contract, which
  * is the engine's business and nobody else's. So the seam is an interface and
  * the service stays behind it, which is also what makes the worker split a
@@ -16,7 +16,7 @@
  * engine's rule is an API property rather than a convention — *a draw with no
  * site cannot be replayed, and an API that allowed one would be an API whose
  * invariant depends on remembering* — and
- * [19 §14](../../../docs/design/19-tech-stack.md) puts an extension's draws on
+ * [20 §14](../../../docs/design/20-tech-stack.md) puts an extension's draws on
  * the same tape as the engine's. A host API offering a bare
  * `random(): Promise<number>` would hand every extension author the one shape
  * that makes a session unreplayable.

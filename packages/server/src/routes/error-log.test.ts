@@ -24,7 +24,7 @@ import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test
  * enumerable property. A `CallFailed` carries the call it failed on, whose
  * blocks are the whole rendered prompt. Illustrate still lets one through, so a
  * refused moment call wrote the turn's own prose into the log as an
- * *Unhandled error*. [21 §4.1] keeps portable object bodies out of the log, and
+ * *Unhandled error*. [22 §4.1] keeps portable object bodies out of the log, and
  * this is the one door every route that does not answer a failure falls
  * through.
  */

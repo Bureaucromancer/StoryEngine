@@ -5,7 +5,7 @@ These are design notes, not documentation of what exists — see [../](../) for
 that distinction, and treat anything here as intent rather than as a description
 of the code. Where a document still says *proposal*, it is one; the decisions
 that have since been settled are recorded as **RESOLVED** or **CONFIRMED** in
-[25](25-open-questions.md), and the phase plans from
+[26](26-open-questions.md), and the phase plans from
 [P1](workplan/07-p1-implementation.md) through
 [P7](workplan/23-p7-implementation.md) have been worked from rather than argued
 with, each carrying its own record of what shipped.
@@ -41,7 +41,7 @@ the obvious approach — "port the three feature sets into one server" — and t
 leave large areas untouched on purpose.
 
 Where a document takes a position, it is a proposal to argue with, not a
-decision. Open questions are collected in [25-open-questions.md](25-open-questions.md)
+decision. Open questions are collected in [26-open-questions.md](26-open-questions.md)
 and also flagged inline as **[OPEN]**.
 
 ## Two folders, and how they are cited
@@ -51,15 +51,15 @@ building it.** The split is by what a document answers. Design documents answer
 *what this is and why* — they change when a position changes. Work-plan
 documents answer *what gets built, in what order, and what is left to do* — they
 change as work lands, and several of them are worked from rather than argued
-with. [24 — the feature list](24-roadmap.md) sits near the end of the design
+with. [25 — the feature list](25-roadmap.md) sits near the end of the design
 side on purpose: it is where intent stops being design and starts pointing at
-the mechanical lists next door. Only [25](25-open-questions.md) comes after it,
+the mechanical lists next door. Only [26](26-open-questions.md) comes after it,
 because that one is a ledger you consult rather than a document you read
 through, and it is ordered by how expensive its questions are to answer late. It holds **no release commitments** — those are all
 in [work plan §0](workplan/01-work-plan.md).
 
 **Citations differ by folder, deliberately.** Design documents are cited by
-number — `[03 §5]`, `[21 §1]`. Work-plan documents are cited by **name** —
+number — `[03 §5]`, `[22 §1]`. Work-plan documents are cited by **name** —
 `[P1 §1.3]`, `[work plan §4.1]`, `[triage §6.2]`, `[polish §4]`,
 `[testing §2]`, `[releases §2]`.
 
@@ -119,18 +119,18 @@ shortcut at a time.
 | [13-write-mode.md](13-write-mode.md) | The Write surface and its two modes, Outline and Prose: the manuscript kind, beats, the binder layouts, and a third top-level surface |
 | [14-writing-samples.md](14-writing-samples.md) | Prose pasted in as an exemplar of tone rather than a description of it — on actors, treatments and lorebooks |
 | [15-world.md](15-world.md) | World: a grouping of sessions that share a continuity, and the story bible that says what one contains |
-| [16-authoring.md](16-authoring.md) | The authoring tier: authored rules and lorebook extraction — turning what you played into what you can author with |
-| [17-character-studio.md](17-character-studio.md) | The Character Studio: reference-set curation, structured descriptors and the consistency loop that makes a card produce the same person twice |
-| [18-session-import.md](18-session-import.md) | Whether play history can be imported from the three surveyed sources, what it would cost, and the four things it asks of the session export format |
-| [23-randomizers.md](23-randomizers.md) | Two agentic addons — a plot randomizer that draws an outcome before narration, and an appearance randomizer that draws descriptors before the model writes — and the eight things they ask of the design |
+| [17-authoring.md](17-authoring.md) | The authoring tier: authored rules and lorebook extraction — turning what you played into what you can author with |
+| [18-character-studio.md](18-character-studio.md) | The Character Studio: reference-set curation, structured descriptors and the consistency loop that makes a card produce the same person twice |
+| [19-session-import.md](19-session-import.md) | Whether play history can be imported from the three surveyed sources, what it would cost, and the four things it asks of the session export format |
+| [24-randomizers.md](24-randomizers.md) | Two agentic addons — a plot randomizer that draws an outcome before narration, and an appearance randomizer that draws descriptors before the model writes — and the eight things they ask of the design |
 | [05-tagging.md](05-tagging.md) | Tagging: what a tag is now that lore can gate on one, and a registry that decorates names without owning them |
 
 The table order **is** the numbering. Where a note reads beside an earlier one
 rather than after it, its row says so.
 
-**Three of these were promoted out of [24](24-roadmap.md)** when their subjects
-acquired releases — [15](15-world.md), [16](16-authoring.md) and
-[17](17-character-studio.md), the last of them twice. That is the pattern rather
+**Three of these were promoted out of [25](25-roadmap.md)** when their subjects
+acquired releases — [15](15-world.md), [17](17-authoring.md) and
+[18](18-character-studio.md), the last of them twice. That is the pattern rather
 than an accident: the feature list holds no release commitments, so anything
 scheduled leaves it for a design note of its own.
 
@@ -138,17 +138,17 @@ scheduled leaves it for a design note of its own.
 
 | Doc | What it covers |
 |---|---|
-| [19-tech-stack.md](19-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
-| [20-client-loading.md](20-client-loading.md) | Deferred client-loading options: expected bundle growth, route and tool boundaries, shared schemas, caching, and what to measure before acting |
-| [21-internal-contracts.md](21-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
-| [22-extensions.md](22-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
+| [20-tech-stack.md](20-tech-stack.md) | Language, runtime, framework, localisation, randomness, dev mode |
+| [21-client-loading.md](21-client-loading.md) | Deferred client-loading options: expected bundle growth, route and tool boundaries, shared schemas, caching, and what to measure before acting |
+| [22-internal-contracts.md](22-internal-contracts.md) | The types P2 is built against — the completed turn record, channel effects, provider capabilities, `config.json` |
+| [23-extensions.md](23-extensions.md) | The extension boundary and interface: worker isolation, host API, storage |
 
 ### What comes after, and what is unresolved
 
 | Doc | What it covers |
 |---|---|
-| [24-roadmap.md](24-roadmap.md) | The feature list — three priority tiers, no releases attached — plus desired extensions, hints for expansion authors |
-| [25-open-questions.md](25-open-questions.md) | Every open decision, ordered by how expensive it is to answer late |
+| [25-roadmap.md](25-roadmap.md) | The feature list — three priority tiers, no releases attached — plus desired extensions, hints for expansion authors |
+| [26-open-questions.md](26-open-questions.md) | Every open decision, ordered by how expensive it is to answer late |
 
 ### Then the work plan
 
@@ -185,7 +185,7 @@ they still have to exist before code does.
    feature set.** Play holds Scene and Freeform at 1.0 and Campaign later; Write
    is a surface of its own holding Outline and Prose
    ([13](13-write-mode.md)); a Social surface is proposed and undefined
-   ([24 §3.4](24-roadmap.md)). **Which release each lands in is
+   ([25 §3.4](25-roadmap.md)). **Which release each lands in is
    [work plan §0](workplan/01-work-plan.md)'s to say, not this file's.** What is
    a commitment rather than a schedule is the consequence: a later release should
    need no change to the 1.0 portable schemas

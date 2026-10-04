@@ -20,7 +20,7 @@ import { repairVisualDescriptors } from './vault-character.js';
  * ***A story's world, resolved for the branch the person was on, and made
  * into a cast and a lorebook*** —
  * [P13.12](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
- * [18 §2.3.1](../../../../../docs/design/18-session-import.md).
+ * [19 §2.3.1](../../../../../docs/design/19-session-import.md).
  *
  * **Pure, as `story.ts` is**: rows in, objects out, nothing written. The sweep's
  * Writer stores what this returns — the actors and the book, each keyed for
@@ -31,7 +31,7 @@ import { repairVisualDescriptors } from './vault-character.js';
  *
  * ## Resolution — which rows the head sees
  *
- * [18 §2.3.1]: *"a branch's cast is its lineage's `characters` with each row's
+ * [19 §2.3.1]: *"a branch's cast is its lineage's `characters` with each row's
  * `overrides_id` shadowing the row it names and `deleted` rows removed;
  * `snapshot_complete` marks a branch that owns a complete copy and needs no
  * lineage."* That sentence is Aventuras' own `getCharactersResolved`
@@ -65,7 +65,7 @@ import { repairVisualDescriptors } from './vault-character.js';
  * | the flag on, 026–028 | its edits and tombstones only | 0 | main, then each ancestor, then itself |
  *
  * So `snapshot_complete = 0` is two different things, and resolving the
- * default kind through its lineage — which the letter of [18 §2.3.1] would do
+ * default kind through its lineage — which the letter of [19 §2.3.1] would do
  * — puts every character in the cast twice: main's, and the branch's copy
  * under another id. **A branch with the flag unset is read as a copy of its
  * own when it owns rows and none of them is an edit or a tombstone**, and

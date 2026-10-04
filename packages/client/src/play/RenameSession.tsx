@@ -96,7 +96,7 @@ export function RenameSession(props: { sessionId: string; name: string }): React
 
 /**
  * The button's whole accessible name, built here rather than in the JSX — a
- * sentence assembled from children is the shape [19 §12.6a] forbids.
+ * sentence assembled from children is the shape [20 §12.6a] forbids.
  *
  * A list of *Rename* buttons that all say *Rename* is a list nobody can
  * navigate by name, so each one carries the session it acts on. Several unnamed

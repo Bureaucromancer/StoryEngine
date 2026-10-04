@@ -9,10 +9,10 @@ import type { AssembledBlock } from './types.js';
 /**
  * Step 4 — blocks become provider messages
  * ([06 §5](../../../../docs/design/06-modes-and-turn-pipeline.md),
- * [21 §2](../../../../docs/design/21-internal-contracts.md)).
+ * [22 §2](../../../../docs/design/22-internal-contracts.md)).
  *
  * **The only place that knows what a chat API looks like.** That is what makes
- * [19 §5.5](../../../../docs/design/19-tech-stack.md)'s chat-only decision cheap
+ * [20 §5.5](../../../../docs/design/20-tech-stack.md)'s chat-only decision cheap
  * to unmake: a completion renderer would be a second implementation of this one
  * function, not a rewrite, because the core representation stays structured.
  *
@@ -82,7 +82,7 @@ export function render(
 }
 
 /**
- * Keeps a message's ordered parts, once it has a picture in it — [25 E15].
+ * Keeps a message's ordered parts, once it has a picture in it — [26 E15].
  *
  * ***The text parts joined are always `content`***, which is the property that
  * keeps `content` the frozen contract's whole text rendering: a message only

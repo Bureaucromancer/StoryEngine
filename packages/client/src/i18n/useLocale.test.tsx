@@ -13,7 +13,7 @@ import { localised, useLocale } from './useLocale.js';
 
 /**
  * ***The stage's *Ends at*, as far as a test can carry it*** —
- * [19 §12](../../../../docs/design/19-tech-stack.md),
+ * [20 §12](../../../../docs/design/20-tech-stack.md),
  * [P11.8](../../../../docs/design/workplan/28-p11-implementation.md).
  *
  * *"The app runs in the test French… and an untranslated key renders English

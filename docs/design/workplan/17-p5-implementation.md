@@ -748,7 +748,7 @@ machinery in view.
 ### 1.2 Stochastic activation draws through the tape
 
 Per-entry `probability` goes through the RNG service and is recorded keyed by
-site ([19 §14.6](../19-tech-stack.md) names stochastic lore activation
+site ([20 §14.6](../20-tech-stack.md) names stochastic lore activation
 explicitly). A rewrite replays the same activations — *same setup, same result,
 different words* — and the workbench shows `lore:<entry> chance 30% → fired`
 rather than an anonymous draw.
@@ -893,7 +893,7 @@ pair alongside `object_fts`, and `object_fts` is deleted by path in **five**
 separate places in the ingest path. Every one needs a sibling, and missing one
 leaves stale entry rows in a store whose entire claim is that it is derived and
 trustworthy — a failure that is silent, survives a restart, and is precisely what
-[21 §5](../21-internal-contracts.md)'s index invariants exist to forbid.
+[22 §5](../22-internal-contracts.md)'s index invariants exist to forbid.
 **Mitigation, and it is worth doing regardless of this phase: extract one helper
 that owns dropping and reinserting an object across both table pairs, so five
 delete sites become one.**
@@ -1634,7 +1634,7 @@ blaming the reader for a table the server had not built**, because the route
 caught every throw and called it the caller's. `no such table` is the one
 message a query string cannot produce, so it is re-thrown now and becomes a 500
 with the real fault in the log. The remedy for the index itself is the one
-[21 §5](../21-internal-contracts.md) already prescribes: delete it, and the next
+[22 §5](../22-internal-contracts.md) already prescribes: delete it, and the next
 start rescans.
 
 *Ends at:* **met, and walked** — searching `eat` across a library of four books
@@ -2008,7 +2008,7 @@ an imported treatment resolves to zero books in silence.
 **A lint rule about `Math.random` corrected a design decision.** Grouping was
 going to be deterministic highest-weight-wins, reasoning that a swipe changing
 which of three weather entries is in the prompt reads as instability. That is a
-real problem [19 §14.5] had already solved — draws go on the turn's tape and a
+real problem [20 §14.5] had already solved — draws go on the turn's tape and a
 rewrite replays it — so `groupWeight` is a weighted draw, which is what a weight
 is. Sorting by it would have made `groupWeight: 99` mean *always* rather than
 *usually* and quietly deleted the field.
@@ -2118,9 +2118,9 @@ nothing depended on getting it right.~~
 >
 > **Two questions were left open on purpose and written down**, so the next
 > person meets them rather than re-deriving them from the union's wording:
-> [25 §B14](../25-open-questions.md) — may `scope` *narrow* a book the session
+> [26 §B14](../26-open-questions.md) — may `scope` *narrow* a book the session
 > already chose, which is coherent and was declined because it is a new way for
-> a deliberate choice to go quiet; and [25 §B15] — what a new book's `scope`
+> a deliberate choice to go quiet; and [26 §B15] — what a new book's `scope`
 > should default to, since `global` is the widest value in the union and is what
 > both the factory and the SillyTavern importer produce.
 > [15 §5.3](../15-world.md) is where a consumer would come from.

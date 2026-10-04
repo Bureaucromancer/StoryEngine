@@ -28,7 +28,7 @@ version **12**, main having spent 11 on the picture-caption reindex.
   - greetings, swipes, continue, force-talk, edit and hide;
   - a transcript that names who spoke.
 - **Part B — session import from both sources into that Scene.** Swipes,
-  branches and groups included. This is [18 §7](../18-session-import.md)'s
+  branches and groups included. This is [19 §7](../19-session-import.md)'s
   verdict built: a pure converter per source, emitting the
   [P11.10](28-p11-implementation.md) interchange format, handed to the
   `importSession` reader that already exists.
@@ -155,7 +155,7 @@ overridable per-turn."*
 
 **[03 §2.6](../03-data-model.md)** assumes *"individual-dispatch Scene mode"*.
 
-**[07 §3](../07-branching.md)** and **[25 C11](../25-open-questions.md)** settle the
+**[07 §3](../07-branching.md)** and **[26 C11](../26-open-questions.md)** settle the
 record shape. Under `per-actor` dispatch *"one turn produces several messages. A
 turn is still **one node**"*.
 
@@ -236,7 +236,7 @@ The freeze is *a promise not to tighten*. An unknown optional field rides
 through `importSession`'s spread unchanged, and every turn ever written lacks it
 and stays valid. `storyengine.session-export/1` does not change.
 
-*It also gives [25 C2](../25-open-questions.md) its record.* C2 is mixed voice
+*It also gives [26 C2](../26-open-questions.md) its record.* C2 is mixed voice
 within a turn: a narrator paragraph followed by embodied dialogue. That is a
 `speaker: null` message beside attributed ones. C2 is not built here, but it no
 longer needs a format change when it is.
@@ -637,7 +637,7 @@ party or spent hooks, its seeding turn is written first and the greetings are
 its children rather than roots, so the head starts on a line where the party
 is seated (a recommended answer, the owner's decision deferred).
 [P15 §1.7](33-p15-setup-from-a-turn.md) has the reasoning and
-[25 B18](../25-open-questions.md) the decision. *P14.4's error code is unchanged
+[26 B18](../26-open-questions.md) the decision. *P14.4's error code is unchanged
 by it*: `unknown-opening` still means an actor's greeting, and a Setup's missing
 opening has its own ([P15 §1.9](33-p15-setup-from-a-turn.md)).
 
@@ -762,7 +762,7 @@ shapes are Marinara's stored ones, read from the code that applies its results
   `failure: 'warn'`, role `prose`, `stepRoles`-bindable) sends one structured
   call whose schema is the enabled channels' schemas side by side. This is
   Marinara's batching (`agent-pipeline.ts:76-142`: agents sharing a model share
-  a call) and it is the answer to [25 C18](../25-open-questions.md)'s *"three
+  a call) and it is the answer to [26 C18](../26-open-questions.md)'s *"three
   `post` steps make three calls over the same prose"* for this case: six
   trackers are one call, not six. Its candidates are its own: the enabled
   channels' current values, the last few messages and the turn's output, never
@@ -825,7 +825,7 @@ so a step can add advisory words but cannot fill the slot the pack positioned.
 If the call fails, the pack's own fixed push text for that flavour stands in:
 Marinara's individual group mode uses exactly such a fixed directive
 (`generate.routes.ts:5754`). This is also **the first producer for
-`StepCondition.armed`**, which [25 C17](../25-open-questions.md) records as
+`StepCondition.armed`**, which [26 C17](../26-open-questions.md) records as
 having none. The flag on the submission is the producer.
 
 **Secret plot.** [06 §7.3](../06-modes-and-turn-pipeline.md): *"Hidden GM state
@@ -867,7 +867,7 @@ which rewrites the message and keeps the original in the message's extras.
   rewrite* (Marinara's default) is ours too: a round being edited streams to
   the transcript only once the edit is in.
 - **Continuity** is built as **notices, not rewrites, by default.**
-  [24 §2c.2](../24-roadmap.md) decided this for continuity in so many words:
+  [25 §2c.2](../25-roadmap.md) decided this for continuity in so many words:
   *"Emits notices, never effects… a checker confident enough to rewrite the
   story would be worse than the problem."* So continuity rides the same call and
   its findings appear as a checklist on the message they are about. That
@@ -1110,7 +1110,7 @@ Everything else is a note, never silence:
 
 **Marinara `conversation` and `game` chats stay recorded**; Part B imports
 `roleplay`. **Chat-scoped lorebooks** link as `global` books
-([18 §4.4](../18-session-import.md)).
+([19 §4.4](../19-session-import.md)).
 
 ### 2.7 Sync: a re-import extends the session it came from
 
@@ -1330,8 +1330,8 @@ slightly wrong; each is recorded where the code carries its argument.
   reattach sees the cleaned text, while a client already appending keeps the
   raw text until the turn lands (review, 2026-09-29).
 - **Three design notes state the old shapes, and carry dated corrections**:
-  [21 §1.1]'s `BlockSource` (the `round` arm), [04 §8.2]'s slot sources (the
-  `scope` field) and [19]'s template namespace (five names).
+  [22 §1.1]'s `BlockSource` (the `round` arm), [04 §8.2]'s slot sources (the
+  `scope` field) and [20]'s template namespace (five names).
 
 *Left for [P14.3]:* the pack's wording (naming the speaker as the one to write,
 the group nudge); names in history, which prefixes the round's entries as it
@@ -1956,7 +1956,7 @@ carries `agent_memory` rows and a director that keeps a plot
 
 - **Push.** `push: 'natural' | 'random'` on `POST /turns` (`TurnPayload.push`)
   puts `push` in the turn's armed set — **the first producer
-  `StepCondition.armed` has had**, recorded at [25 C17] with why it does not
+  `StepCondition.armed` has had**, recorded at [26 C17] with why it does not
   close C17 — and `se.scene.direct` (`turns/direct.ts`, engine-owned) is
   `{ when: 'armed', flag: 'push' }`. The runner plans it only on a pushed turn
   (the suggester's rule) and still evaluates its condition. **After the mode's
@@ -2039,7 +2039,7 @@ import does not arrive on a sync, for the trackers' reason (§2.7 grafts
 presence only). The director's and the plot's models are the session's
 `stepRoles` at `se.scene.direct` and `se.scene.plot`, which still have no
 control (`PUT …/roles`, P7B §1.12). And every Scene turn now carries a third
-dead `ok` row, the plot pass switched off — [25 C17], now past its *decide
+dead `ok` row, the plot pass switched off — [26 C17], now past its *decide
 with the second instance*.
 
 *Corrected at [P14.5c], 2026-09-30.* The stage left the import's
@@ -2125,7 +2125,7 @@ immersive HTML. What the stage decided that §1.9.4–§1.9.6 left open:
   turn is one message), carried lines skipped, answering Marinara's
   `{ editNeeded, editedText, changes }` plus `issues [{ issue, quote, fix }]`;
   any call failing fails the step `warn` and the round goes through unedited.
-  **Under `notice` alone nothing rewrites** (the review's finding, [24 §2c.2]'s
+  **Under `notice` alone nothing rewrites** (the review's finding, [25 §2c.2]'s
   *"notices, never effects"*): with style off and continuity not applying, the
   model is not offered the rewrite shape and a rewrite it returns anyway is
   dropped, its findings' quotes matched against the unedited text.
@@ -2190,10 +2190,10 @@ immersive HTML. What the stage decided that §1.9.4–§1.9.6 left open:
   sentences, no dependency.
 
 *Left for its owner.* Every Scene turn now carries **five** dead `ok` rows
-(plot, editor, stager, trackers, echo) — [25 C17], where `revises.enabledBy`
+(plot, editor, stager, trackers, echo) — [26 C17], where `revises.enabledBy`
 is recorded as the shape a general answer could take. The editor makes one
 call per message on top of the narrator's, the stager's and the trackers' —
-[25 C18]'s cost, grown. The editor's and the chorus's models are the
+[26 C18]'s cost, grown. The editor's and the chorus's models are the
 session's `stepRoles` at `se.scene.edit` and `se.scene.echo`, which still have
 no control (P7B §1.12). The editor switches and settings arrive on a first
 import only, the trackers' reason. And the gate's critical item 5 (*"whether
@@ -2476,7 +2476,7 @@ played with no `se.summary` call in the turn's record. The warm is
 - **Not covered:** removing an account does not cancel its warms. A warm in
   flight then can write one link into a folder being removed. It is the same
   exposure a rendition job has, and it is left for whoever next touches
-  account removal. [18 §7.5](../18-session-import.md)'s other open point, that the memory extractor
+  account removal. [19 §7.5](../19-session-import.md)'s other open point, that the memory extractor
   *"has the same shape and was not checked"*, is still unchecked. Its
   eight-turn read is §3's *not in this phase*.
 
@@ -2563,7 +2563,7 @@ by that project alone. The two new files are `import/fixture-pair-chats.test.ts`
      `scenario` into a Treatment, but the chat door links no treatment to the
      session it builds, so `se.treatment` is `empty-source` on every imported
      chat. SillyTavern sends the card's scenario on every turn of that chat.
-     Neither §2.6 nor [18](../18-session-import.md) says which should happen.
+     Neither §2.6 nor [19](../19-session-import.md) says which should happen.
      The pair test leaves `se.treatment` out of `FED` rather than assert the
      gap. *Fixed at [P14.5c]*, 2026-09-30: the session pass links the
      treatment the sweep made from the cast's card scenario, found by its
@@ -2579,7 +2579,7 @@ by that project alone. The two new files are `import/fixture-pair-chats.test.ts`
 
 - **Immersive HTML and the card-evolution auditor** (§1.9.4, §1.9.5).
 - **Mixed voice** (C2), and per-character hide.
-- **`LoreScope`'s chat arm** ([18 §4.4](../18-session-import.md)).
+- **`LoreScope`'s chat arm** ([19 §4.4](../19-session-import.md)).
 - **Aventuras `.avt`.**
 - **Backfilling cross-session memory from imported history.** The extractor
   reads only the eight turns since it last ran (`memory/extract.ts:345`).

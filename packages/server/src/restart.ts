@@ -89,7 +89,7 @@ export type RestartRefusal =
  * `services.draining` is set **synchronously**, before the first `await`, or a
  * turn submitted in the same tick would slip past the refusal.
  *
- * **Clients reconnect on their own** ([19 §8]), so what a person sees is the
+ * **Clients reconnect on their own** ([20 §8]), so what a person sees is the
  * stream's *reconnecting* state and then the page coming back — which is
  * §6.4's own description of the result.
  */

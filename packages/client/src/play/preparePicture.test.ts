@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_PICTURE_EDGE, PictureRefused, preparePicture, scaledSize } from './preparePicture.js';
 
 /**
- * ***Redrawn, scaled, and never the original*** — [25 E15], R1.
+ * ***Redrawn, scaled, and never the original*** — [26 E15], R1.
  *
  * The redraw itself is a browser's canvas and is not exercised here; what is,
  * is the two decisions this module makes on its own. **The size**: the longer

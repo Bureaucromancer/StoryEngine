@@ -47,7 +47,7 @@ export type MacroRefusal =
   /**
    * The macro draws randomness. Every draw comes from the RNG service and is
    * recorded, or replay and branching break silently
-   * ([19 §14](../../../../docs/design/19-tech-stack.md)) — a template rolling
+   * ([20 §14](../../../../docs/design/20-tech-stack.md)) — a template rolling
    * its own dice is exactly the case that rule exists for.
    */
   | 'randomness-must-be-drawn-and-recorded'

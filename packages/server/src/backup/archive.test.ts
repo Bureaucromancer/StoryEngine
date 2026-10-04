@@ -394,10 +394,10 @@ describe('an install backup', () => {
   });
 
   /**
-   * ***A snapshot, not a copy*** — [21 §5.1] makes `state.sqlite` authoritative
+   * ***A snapshot, not a copy*** — [22 §5.1] makes `state.sqlite` authoritative
    * and not rebuildable, so it is the one file here whose torn copy loses
    * something. `VACUUM INTO` is what the script cannot do and is the concrete
-   * form of [25 E6]'s quiesce argument being answered rather than restated.
+   * form of [26 E6]'s quiesce argument being answered rather than restated.
    */
   it('carries the operational store as a readable database, and not its write-ahead log', async () => {
     const record = await takeBackup(context, {

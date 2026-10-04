@@ -55,7 +55,7 @@ import type {
  *   session id, and then clean up after every refusal.
  * - **A picture that cannot be written costs its pixels and nothing else.**
  *   The reader keeps the record and clears its asset — the recipe and a retry,
- *   which is what an evicted rendition is ([25 E3]) — and this hook never
+ *   which is what an evicted rendition is ([26 E3]) — and this hook never
  *   throws, so a database that goes bad between the two reads costs the
  *   pictures it still owed and not a half-written session.
  *
@@ -109,7 +109,7 @@ import type {
  *   empty one.
  * - **The provenance claims no request.** `binding` is `null` — no connection
  *   of this install drew it, and naming Aventuras' model there would fabricate
- *   one, which is [18 §3]'s first consequence for a turn and the same here —
+ *   one, which is [19 §3]'s first consequence for a turn and the same here —
  *   `seed` is `null` because Aventuras kept none, and `workflow` is empty
  *   because it is re-sent on a retry, where Aventuras' style id would mean
  *   nothing to this install's endpoint. `at` is when Aventuras made it. The

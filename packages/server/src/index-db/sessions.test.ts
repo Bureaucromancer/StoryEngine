@@ -23,7 +23,7 @@ import { rebuild } from './rebuild.js';
 import { listSessionRows, searchTurns, sessionSnapshot, turnText } from './sessions.js';
 
 /**
- * Sessions and turns in the index — [19 §7.1], F10.
+ * Sessions and turns in the index — [20 §7.1], F10.
  *
  * Two properties matter here and they pull in different directions. The index
  * must be **maintained on write**, because a lazily built search index is empty
@@ -160,7 +160,7 @@ describe('rebuild-from-disk equals the incremental index, for sessions too', () 
 
   it('agrees after writes, an archive, a rename and a delete', async () => {
     // The same assertion the library is held to, and it is what keeps the
-    // session rows honest about being derived ([21 §5]).
+    // session rows honest about being derived ([22 §5]).
     await aSessionWith('Rain City', ['The rain had not stopped in nine days.', 'Nor had she.']);
     const archived = await aSessionWith('Old Game', ['Once.']);
     const doomed = await aSessionWith('A Mistake', ['Never mind.']);

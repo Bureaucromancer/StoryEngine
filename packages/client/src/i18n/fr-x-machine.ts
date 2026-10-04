@@ -3,7 +3,7 @@
 
 /**
  * ***The deliberately bad machine French*** —
- * [19 §12.4](../../../../docs/design/19-tech-stack.md),
+ * [20 §12.4](../../../../docs/design/20-tech-stack.md),
  * [P11 §1.3](../../../../docs/design/workplan/28-p11-implementation.md),
  * [P11.8](../../../../docs/design/workplan/28-p11-implementation.md).
  *

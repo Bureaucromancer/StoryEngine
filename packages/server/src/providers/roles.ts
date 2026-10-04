@@ -7,7 +7,7 @@ import { type Binding, type ModelRole, MODEL_ROLES } from './types.js';
 export type { Binding };
 
 /**
- * Role bindings — [19 §5.1](../../../../docs/design/19-tech-stack.md).
+ * Role bindings — [20 §5.1](../../../../docs/design/20-tech-stack.md).
  *
  * **Steps never name a model. They name a role, and the install binds roles to
  * connections.** Nothing in a mode, step or extension refers to a provider or a
@@ -136,7 +136,7 @@ export type RoleResolution =
  * stage P2B.3, and the answer to *"why did this turn use that model"* before
  * anybody has to ask it.
  *
- * **It carries the resolution rather than re-deriving it.** [19 §5.1]'s
+ * **It carries the resolution rather than re-deriving it.** [20 §5.1]'s
  * layering lives in {@link resolveRole} and nowhere else; a surface that
  * inspected the two binding maps and worked out which one would win would be a
  * second implementation of the resolution order, wrong the first time a layer

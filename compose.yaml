@@ -45,7 +45,7 @@ services:
     environment:
       # Both of these are the documented variables, not container-only settings
       # — the same names work on a bare-metal install
-      # (docs/design/21-internal-contracts.md §4).
+      # (docs/design/22-internal-contracts.md §4).
       #
       # Uncomment when there is TLS in front of this. A Secure cookie is not sent
       # back over plain HTTP, so turning it on without HTTPS makes signing in

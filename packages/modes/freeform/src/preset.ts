@@ -333,7 +333,7 @@ export const FREEFORM_PRESET: Preset = {
     },
     /**
      * ***The story above the window*** — [07 §5.1](../../../../docs/design/07-branching.md),
-     * [25 E1](../../../../docs/design/25-open-questions.md), added at
+     * [26 E1](../../../../docs/design/26-open-questions.md), added at
      * [P8.1](../../../../docs/design/workplan/25-p8-implementation.md).
      *
      * **The slot is where the standing line is discharged.** A chain nothing
@@ -682,7 +682,7 @@ export const FREEFORM_PRESET: Preset = {
    * 'Hard' meaning something different in one prompt pack than another is a
    * feature."* Swap this preset and *harsh* means whatever the next one says.
    *
-   * **Ranked, so [19 §5.3]'s cap drops the least important rather than cutting a
+   * **Ranked, so [20 §5.3]'s cap drops the least important rather than cutting a
    * sentence**, and the floor [06 §7.3.1] requires is written into `harsh`
    * itself: *"Obstruction must not reach unreachability. Difficulty modulates
    * the cost and the route, never whether the goal can be attained at all."*
@@ -773,7 +773,7 @@ export const FREEFORM_PRESET: Preset = {
    * [P11.5](../../../../docs/design/workplan/28-p11-implementation.md).
    *
    * **The same shape as the two lists above and deliberately not a third dial.**
-   * [23 §5.4] is explicit: a frequency dial stays a *separate channel* from
+   * [24 §5.4] is explicit: a frequency dial stays a *separate channel* from
    * difficulty, *"because folding* how often *into* how hard *rebuilds exactly
    * the conflation [06 §7.3.2] exists to prevent"*. What these three lists share
    * is a data shape — a named level with ranked fragments — and nothing else:

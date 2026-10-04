@@ -18,7 +18,7 @@ import { FREEFORM_PRESET } from './preset.js';
  * the SDK from its first line, by somebody with no access to `server`, could
  * declare what [06 §9] says an externally-authored mode must be able to declare.
  * Every failure here would be a hole in the contract rather than a bug in the
- * mode, which is the whole reason [19 §10] wanted a second package.
+ * mode, which is the whole reason [20 §10] wanted a second package.
  */
 
 describe('the manifest is data', () => {
@@ -241,7 +241,7 @@ describe('what this mode declares that Scene could not', () => {
   });
 
   /**
-   * ***Declares no channel it cannot write*** — [25 C16], and the assertion is
+   * ***Declares no channel it cannot write*** — [26 C16], and the assertion is
    * written this way round on purpose.
    *
    * This mode wanted `se.freeform.input` — [06 §1]'s *world-state

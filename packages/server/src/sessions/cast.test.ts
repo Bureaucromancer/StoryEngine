@@ -140,7 +140,7 @@ describe('a model may not kill somebody on its own', () => {
   });
 
   it('refuses a terminal status from the model, and records the attempt', () => {
-    // **The asymmetry** — [06 §8.1], [25 C12]. A missed death is corrected in a
+    // **The asymmetry** — [06 §8.1], [26 C12]. A missed death is corrected in a
     // click; a false one silently removes somebody from every subsequent
     // assembly. So the model is under-fired and the attempt stays in the record.
     const effect = acceptEffect('t1', proposal('dead', { kind: 'model', callId: 'c1' }), {});

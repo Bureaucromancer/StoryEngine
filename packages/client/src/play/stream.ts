@@ -5,7 +5,7 @@ import { field, openSseStream, type StreamHandle, type StreamHandlers } from '..
 
 /**
  * The session stream — [09 §3.1](../../../../docs/design/09-server-multiuser-deployment.md),
- * [19 §11](../../../../docs/design/19-tech-stack.md).
+ * [20 §11](../../../../docs/design/20-tech-stack.md).
  *
  * ***What is left here after [P10.2] is the cursor, which is the only thing
  * about this stream that is its own.*** The transport — a `fetch` loop rather

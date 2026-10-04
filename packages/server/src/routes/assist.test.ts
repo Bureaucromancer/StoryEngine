@@ -31,7 +31,7 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  * the generation would have made accepting it the default, because refusing it
  * would then be a second write. The answer goes to a form and the form decides.
  *
- * The third is [21 §1.4]: an unbound role comes back as a **class**, never a
+ * The third is [22 §1.4]: an unbound role comes back as a **class**, never a
  * sentence, because the client owns the words and [P11.6] already wrote them.
  */
 
@@ -142,7 +142,7 @@ describe('writing one field', () => {
     expect(response.body.seed as string).toContain('Vera Solano');
   });
 
-  /** A class, for the client to word — [21 §1.4], [P11.6]. */
+  /** A class, for the client to word — [22 §1.4], [P11.6]. */
   it('refuses with a class when nothing is bound', async () => {
     const response = await server.request({
       method: 'POST',
@@ -222,7 +222,7 @@ describe('writing one field', () => {
   });
 
   /**
-   * ***The role is the account's to choose, until [25 C15] chooses for
+   * ***The role is the account's to choose, until [26 C15] chooses for
    * everyone*** — `providers/task-roles.ts`. [10 §11.4] says assist wants
    * `fast`; asking for it unconditionally would fail every install that never
    * bound it, so the default stays `prose` and the person who has bound a quick

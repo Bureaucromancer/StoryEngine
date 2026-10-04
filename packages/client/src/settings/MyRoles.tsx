@@ -31,7 +31,7 @@ import { Note, SubsectionTitle } from '../ui/Text.js';
  * **For every account, not only one with connections of its own.** A binding is
  * two ids, and re-pointing *Quick background jobs* at the cheaper model on the
  * install's own connection needs no key and no capability. That is
- * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s *"anyone who wants their
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md)'s *"anyone who wants their
  * own key overrides a role without the admin's involvement"* read at its word:
  * the admin decides what exists, the person playing decides which of it they
  * use.
@@ -234,7 +234,7 @@ const ASSIST_ROLES: readonly TaskRoles['assist'][] = ['prose', 'fast', 'reasonin
 
 /**
  * ***Which of your models writes a field when you ask for help*** — a stopgap
- * for [25 C15](../../../../docs/design/25-open-questions.md), and it says so in
+ * for [26 C15](../../../../docs/design/26-open-questions.md), and it says so in
  * its own words rather than in a design note's.
  *
  * [10 §11.4](../../../../docs/design/10-ui-surfaces.md) wants assists on the

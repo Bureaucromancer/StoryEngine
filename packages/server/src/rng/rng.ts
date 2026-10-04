@@ -8,7 +8,7 @@ import { cryptoSource, type RandomSource } from './source.js';
 
 /**
  * The one place random numbers come from —
- * [19 §14](../../../../docs/design/19-tech-stack.md).
+ * [20 §14](../../../../docs/design/20-tech-stack.md).
  *
  * **Singular is a correctness property, not tidiness.** Three things rest on
  * it: replay and branching, because state at turn N must stay a pure function
@@ -27,7 +27,7 @@ import { cryptoSource, type RandomSource } from './source.js';
  *
  * Every draw is recorded, and a turn carries the tape of what it consumed. That
  * is what makes **rewrite** and **reroll** two different operations
- * ([19 §14.5](../../../../docs/design/19-tech-stack.md)): replay the tape for
+ * ([20 §14.5](../../../../docs/design/20-tech-stack.md)): replay the tape for
  * the same mechanical outcome and different prose, or draw fresh for a new
  * outcome. Rewrite is the default, which is what stops swiping from being
  * save-scumming by accident — fail a check, swipe, succeed.
@@ -210,7 +210,7 @@ export function swipeReplay(tape: Tape, from: number): Tape {
 /**
  * The eight draws, at one site.
  *
- * The list is [19 §14.2](../../../../docs/design/19-tech-stack.md)'s, and it is
+ * The list is [20 §14.2](../../../../docs/design/20-tech-stack.md)'s, and it is
  * a floor rather than a wish: `dice` and `chance` are needed by the authored
  * rules vocabulary, and `weightedPick` covers loot-table shapes, which is
  * exactly where somebody would otherwise improvise with `Math.random()`.

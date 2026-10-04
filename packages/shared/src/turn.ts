@@ -8,17 +8,17 @@ import type { GenerationParams } from './schema/preset.js';
 
 /**
  * The turn record — [03 §8](../../../docs/design/03-data-model.md),
- * [21 §1](../../../docs/design/21-internal-contracts.md) — as plain types the
+ * [22 §1](../../../docs/design/22-internal-contracts.md) — as plain types the
  * server writes and the client reads.
  *
  * **Internal tier, deliberately, and unlike everything under `schema/`.**
- * [21 §1] and [04 §1] put these shapes in the *free to move* tier: no `schema`
+ * [22 §1] and [04 §1] put these shapes in the *free to move* tier: no `schema`
  * field, no `$id`, no entry in `PORTABLE_SCHEMAS`, no emitted JSON Schema, no
  * validation on import — changing any of it is a refactor, not a
  * compatibility event, because a turn record never crosses an install
  * boundary. They live in this package only so the client can stop re-declaring
  * them ([P3.0] — the workbench is the first surface that needs more of them
- * than a chat view does). ~~**Session export ([25 B12]) is the event that ends
+ * than a chat view does). ~~**Session export ([26 B12]) is the event that ends
  * this freedom**: the day a stored turn becomes a portable artefact, these
  * graduate to `schema/` and the registry, and not before.~~
  *
@@ -26,7 +26,7 @@ import type { GenerationParams } from './schema/preset.js';
  * `session-export.ts` publishes these records, so **a change here is now a
  * compatibility event** rather than a refactor: an install that exported a
  * session is a file another install reads. What the freeze actually obliges is
- * [18 §3](../../../docs/design/18-session-import.md)'s four consequences, and
+ * [19 §3](../../../docs/design/19-session-import.md)'s four consequences, and
  * the first is the one a change would violate without anybody noticing —
  * ***`input`, `output`, `request`, `cost` and `steps` stay optional***, because
  * that is what lets a turn which never ran a model exist, and ours always have
@@ -34,7 +34,7 @@ import type { GenerationParams } from './schema/preset.js';
  *
  * **They did not graduate to `schema/` and the registry, and that is a
  * decision.** The sentence above assumed *portable* and *validated on import*
- * were one thing; [18 §3] is the argument that they are not. A registry entry
+ * were one thing; [19 §3] is the argument that they are not. A registry entry
  * would mean validating a foreign turn against **our** shape — and consequences
  * 1 and 2 are both about tolerating shapes we did not write, so the registry
  * would enforce exactly what the format exists not to enforce. *The freeze is a
@@ -61,7 +61,7 @@ import type { GenerationParams } from './schema/preset.js';
 
 /**
  * The roles a step can ask for. Steps name roles, never models —
- * [19 §5.1](../../../docs/design/19-tech-stack.md) — which is what makes an
+ * [20 §5.1](../../../docs/design/20-tech-stack.md) — which is what makes an
  * install portable and an extension safe to share.
  */
 export const MODEL_ROLES = [
@@ -78,7 +78,7 @@ export const MODEL_ROLES = [
 export type ModelRole = (typeof MODEL_ROLES)[number];
 
 /**
- * A rendered message, on its way to a provider — [21 §2].
+ * A rendered message, on its way to a provider — [22 §2].
  *
  * `fromBlocks` is the requirement merging must not break: the workbench maps
  * every sent byte back to the block that produced it, and a merge that
@@ -91,7 +91,7 @@ export interface RenderedMessage {
   /** Which blocks produced this message, in order. Non-empty always. */
   fromBlocks: string[];
   /**
-   * ***The message in order, when a picture's pixels go in it*** — [25 E15],
+   * ***The message in order, when a picture's pixels go in it*** — [26 E15],
    * R1.
    *
    * Absent on every other message — one with no picture, and one whose picture
@@ -119,7 +119,7 @@ export type MessagePart =
     };
 
 /**
- * One picture on a player's move — [25 E15](../../../docs/design/25-open-questions.md), R1.
+ * One picture on a player's move — [26 E15](../../../docs/design/26-open-questions.md), R1.
  *
  * ***An annotation on the move, never a replacement for its words.*** The
  * player's text stays in `input.text` untouched, and the picture rides beside
@@ -174,7 +174,7 @@ export interface TokenUsage {
  * How a call failed, in the vocabulary the record and the UI both use.
  *
  * The class is what lets the UI offer the right recovery rather than surfacing
- * a provider string ([21 §1.4]).
+ * a provider string ([22 §1.4]).
  */
 export type ErrorClass = 'transient' | 'retryable' | 'terminal';
 
@@ -183,7 +183,7 @@ export type ErrorClass = 'transient' | 'retryable' | 'terminal';
  *
  * Narrower than any SDK's, deliberately: this is what reaches a turn record
  * and eventually a person, and a class travels where a provider's own string
- * must not ([21 §1.4]).
+ * must not ([22 §1.4]).
  */
 export type FinishReason = 'stop' | 'length' | 'filtered' | 'tool' | 'unknown';
 
@@ -191,7 +191,7 @@ export type DrawKind =
   'int' | 'float' | 'bool' | 'chance' | 'pick' | 'weightedPick' | 'shuffle' | 'dice';
 
 /**
- * One recorded draw — [19 §14.6](../../../docs/design/19-tech-stack.md).
+ * One recorded draw — [20 §14.6](../../../docs/design/20-tech-stack.md).
  *
  * `detail` is what makes the workbench legible: `skill-check:persuasion d20 →
  * 7` rather than an anonymous list of numbers.
@@ -226,7 +226,7 @@ export type Tape = Draw[];
 
 /**
  * Where a block came from — **one vocabulary, used from both ends**
- * ([21 §1.1]). A preset slot names a source, the assembler fills it, and the
+ * ([22 §1.1]). A preset slot names a source, the assembler fills it, and the
  * resulting block records where it came from: same names, both ends. The
  * identifiers are what make provenance clickable — *which* lore entry, not "a
  * lore entry".
@@ -284,10 +284,10 @@ export type BlockSource =
       turnId: string;
       range: [number, number];
       /**
-       * `attachment` since 2026-09-27 ([25 E15]): one picture on the turn's
+       * `attachment` since 2026-09-27 ([26 E15]): one picture on the turn's
        * input, emitted inside the `history` expansion rather than as a source of
        * its own — a new top-level arm would become a slot any preset could
-       * position ([21 §1.1]'s derivation), and a picture belongs where its turn
+       * position ([22 §1.1]'s derivation), and a picture belongs where its turn
        * is.
        */
       part: 'input' | 'output' | 'attachment';
@@ -381,7 +381,7 @@ export type BlockSource =
   | { kind: 'attempt'; turnId: string | null }
   /**
    * What the player just did — the turn that is happening, not history. With
-   * `part: 'attachment'`, one picture on it ([25 E15]); absent is the words.
+   * `part: 'attachment'`, one picture on it ([26 E15]); absent is the words.
    */
   | { kind: 'input'; part?: 'attachment'; attachmentId?: string }
   /**
@@ -589,7 +589,7 @@ export interface AssembledBlock {
   advisory?: true;
   /**
    * ***The picture this block stands for, and whether its pixels went*** —
-   * [25 E15], R1. Absent on every block that is not a picture.
+   * [26 E15], R1. Absent on every block that is not a picture.
    *
    * `sent: false` is the ordinary case and carries its reason, because a block
    * that was included and sent only its text rendering *did* emit something —
@@ -600,7 +600,7 @@ export interface AssembledBlock {
 
 /**
  * Why a picture went as words rather than pixels — the per-call send rule of
- * [25 E15]:
+ * [26 E15]:
  *
  * - `model-text-only` — the model this call resolved to is not one its
  *   connection lists as seeing images;
@@ -641,7 +641,7 @@ export interface BlockImage {
 
 /**
  * The window a turn may spend, and the honest account of where it came from —
- * [21 §1.5], reshaped by [P3.0]. `source` names the origin of the **ceiling**
+ * [22 §1.5], reshaped by [P3.0]. `source` names the origin of the **ceiling**
  * — whichever side won: the endpoint's declared window, the preset's absolute
  * cap, or the config default (`'user'`, live-editable). The preset's
  * `contextShare` narrows the ceiling to `tokens` without relabelling it.
@@ -659,7 +659,7 @@ export interface BudgetLimit {
   share?: number;
 }
 
-/** [21 §1.5]. */
+/** [22 §1.5]. */
 export interface BudgetVerdict {
   limit: BudgetLimit;
   /** Held back for the completion. */
@@ -684,7 +684,7 @@ export interface BudgetVerdict {
 }
 
 /**
- * One model call — [21 §1.4].
+ * One model call — [22 §1.4].
  *
  * `resolved` records what the role actually became, because the binding can
  * change between turns and *"why is this turn different"* needs an answer.
@@ -802,7 +802,7 @@ export type StepFailureReason =
  * resolved to is on this network — and a turn record that stored them would be
  * claiming last Tuesday's network as part of what happened. So a remedy travels
  * on the live event and the notification, and
- * [18 §3](../../../docs/design/18-session-import.md)'s export format never sees
+ * [19 §3](../../../docs/design/19-session-import.md)'s export format never sees
  * it.
  *
  * ***The distinction that pays for the whole type is `-offline` against
@@ -816,7 +816,7 @@ export type StepFailureReason =
  * case — and `endpoint-silent` is the honest answer when nothing has looked.
  *
  * The sentences live on the client, keyed by these values, which is
- * [19 §12.4](../../../docs/design/19-tech-stack.md)'s rule and what lets
+ * [20 §12.4](../../../docs/design/20-tech-stack.md)'s rule and what lets
  * [P11.8](../../../docs/design/workplan/28-p11-implementation.md) fold them into
  * a catalogue without touching this file.
  */
@@ -1182,7 +1182,7 @@ export interface StepOutcome {
    * is the editor's own account of what it changed ([P14 §1.9.4]: *"the step
    * outcome carries the `changes`"*); `notices` is what it found and did
    * **not** change, which the transcript draws as a checklist on the message
-   * ([24 §2c.2]'s *"emits notices, never effects"*). *The engine writes it from
+   * ([25 §2c.2]'s *"emits notices, never effects"*). *The engine writes it from
    * the step's result*, as it writes `round`, so a step cannot record an edit
    * that never reached the message.
    */
@@ -1307,7 +1307,7 @@ export interface TurnCost {
    * token totals**: a figure only when every call reported one and all of them
    * in one currency, and null otherwise — *not priced*, which is a different
    * claim from *free*. Null is the ordinary value today: no adapter in this
-   * build prices a call, and [25 E16](../../../docs/design/25-open-questions.md)
+   * build prices a call, and [26 E16](../../../docs/design/26-open-questions.md)
    * is where the approach to changing that is recorded. The field lands first
    * so a turn priced later needs no migration to say so.
    *
@@ -1319,7 +1319,7 @@ export interface TurnCost {
 }
 
 /**
- * One effect on one channel — [21 §1.2], the most load-bearing type in that
+ * One effect on one channel — [22 §1.2], the most load-bearing type in that
  * document. It carries reversibility, it crosses the worker boundary, it is
  * what a branch replays and what undo inverts — which is why `before` is
  * stored rather than derived.
@@ -1418,7 +1418,7 @@ export type EffectOp =
   | { type: 'append'; path: string }
   | { type: 'increment'; path: string; by: number };
 
-/** [21 §1.3]. */
+/** [22 §1.3]. */
 export interface ChannelState {
   /** Which schema version the value was written against. */
   version: number;
@@ -1427,7 +1427,7 @@ export interface ChannelState {
    * Set when load-time validation failed and the value was quarantined.
    *
    * **No writer exists yet, and that is a recorded decision** ([P3.0]):
-   * `ChannelDefinition` ships without `schema` ([21 §6] refuses to invent it
+   * `ChannelDefinition` ships without `schema` ([22 §6] refuses to invent it
    * ahead of the mode contract), so a guard on a validation that cannot fail
    * would be dead code impersonating a mechanism. The writer arrives with the
    * first `ChannelDefinition.schema`; the panel renders the field whenever
@@ -1444,7 +1444,7 @@ export interface ChannelState {
  * **`speaker: null` is the narrator**, and null rather than absent because it is
  * an answer: *nobody in the cast said this, the scene did*. That is a Scene
  * turn in `narrator` voice, a `/comment` line imported from SillyTavern, and
- * the narrator half of [25 C2](../../../docs/design/25-open-questions.md)'s
+ * the narrator half of [26 C2](../../../docs/design/26-open-questions.md)'s
  * mixed voice. An absent speaker would read as *not recorded*, which is a
  * different fact and not one this record has any reason to hold.
  *
@@ -1530,7 +1530,7 @@ export interface Turn {
     text: string;
     raw: string;
     /**
-     * Pictures on this move — [25 E15], R1. **Optional, and absent on every turn
+     * Pictures on this move — [26 E15], R1. **Optional, and absent on every turn
      * without one**, which is what keeps it an addition under the [P11.10]
      * freeze rather than a change to the record this project has the most of.
      */
@@ -1563,7 +1563,7 @@ export interface Turn {
    * ***A turn is one node however many messages it emits.***
    * [07 §3](../../../docs/design/07-branching.md) says so for `per-actor`
    * dispatch — *"one turn produces several messages. A turn is still **one
-   * node**"* — and [25 C11](../../../docs/design/25-open-questions.md) settled
+   * node**"* — and [26 C11](../../../docs/design/26-open-questions.md) settled
    * it. The record had nowhere for the several messages and nowhere for their
    * authors: this was `{ text, reasoning? }` and a Scene group round had to be
    * one paragraph by nobody. `messages` is where they go, each with its
@@ -1585,10 +1585,10 @@ export interface Turn {
    * tightens nothing — each of those turns stays valid, and a turn that carries
    * it rides through `importSession`'s spread on an install that does not
    * understand it, which is the second consequence of
-   * [18 §3](../../../docs/design/18-session-import.md) doing its job. So
+   * [19 §3](../../../docs/design/19-session-import.md) doing its job. So
    * `storyengine.session-export/1` does not change.
    *
-   * *It also gives [25 C2](../../../docs/design/25-open-questions.md) its
+   * *It also gives [26 C2](../../../docs/design/26-open-questions.md) its
    * record.* C2 is mixed voice within a turn — a narrator paragraph, then
    * embodied dialogue — and that is a `speaker: null` message beside attributed
    * ones. C2 is not built by this field; it no longer needs a format change
@@ -1617,14 +1617,14 @@ export interface Turn {
   };
   /**
    * ***Where this turn came from, when it came from somewhere else*** —
-   * [18 §3](../../../docs/design/18-session-import.md)'s second consequence,
+   * [19 §3](../../../docs/design/19-session-import.md)'s second consequence,
    * [P11.10](../../../docs/design/workplan/28-p11-implementation.md).
    *
    * **Added before the freeze, which is the last moment it is an edit.**
    * [04 §1](../../../docs/design/04-schemas.md) puts this record in the *free to
    * move* tier **because nothing exports it**, and [P11.10] ends that — so
    * afterwards this would be a migration of the record this project has the
-   * most of. [18 §3] asks for it in as many words: *"a foreign message
+   * most of. [19 §3] asks for it in as many words: *"a foreign message
    * identifier must have somewhere to go… and the absent case is not an edge,
    * it is the most widely deployed source of the three."*
    *
@@ -1654,7 +1654,7 @@ export interface Turn {
    * [R11](../../../docs/design/workplan/22-walkthrough-refinements.md), [P7.9].
    *
    * ***On the turn, which is a persisted-shape decision rather than a
-   * convenience*** — and [22 §4] says why it had to be made now rather than
+   * convenience*** — and [23 §4] says why it had to be made now rather than
    * later: *"R11's 'save unselected suggestions' is a persisted-shape
    * requirement, and that puts it on the critical path to P11's export freeze."*
    * The fork it names is *"generate them inside the turn as a `post` step, or
@@ -1714,7 +1714,7 @@ export interface Turn {
   // deferred): an opening is recognised by what it lacks, `redoable` below,
   // and this record is frozen, so a field is a promise every reader keeps.
   effects: ChannelEffect[];
-  /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
+  /** Every draw the turn consumed, keyed by site ([20 §14.6]). */
   tape: Tape;
   /** A tombstone the reader skips. */
   removed?: true;

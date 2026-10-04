@@ -93,7 +93,7 @@ RUN pnpm --filter @storyengine/server --legacy deploy --prod /app
 
 # **The modes are not in the server's manifest** — P7.0.
 #
-# docs/design/19-tech-stack.md §10 makes "built-in modes consume the SDK and not
+# docs/design/20-tech-stack.md §10 makes "built-in modes consume the SDK and not
 # the server" a build error, and a manifest edge would have been the one
 # direction the lint rules cannot see. `mode-loader.ts` resolves each by bare
 # specifier at run time instead, so what the image owes it is the package on the

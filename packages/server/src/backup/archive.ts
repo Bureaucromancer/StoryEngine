@@ -35,7 +35,7 @@ import { readTarGz, writeTarGz, type ArchiveMember } from '../storage/tar-archiv
 
 /**
  * ***What goes in an archive, and what it is called*** —
- * [25 E6](../../../../docs/design/25-open-questions.md),
+ * [26 E6](../../../../docs/design/26-open-questions.md),
  * [P12.2](../../../../docs/design/workplan/29-p12-implementation.md).
  *
  * **The policy half.** `storage/tar-archive.ts` knows how to write a gzipped tar
@@ -362,12 +362,12 @@ async function takeBackupNow(
   let unpackedBytes = 0;
 
   /**
-   * ***The operational store, snapshotted rather than copied*** — [21 §5.1]
+   * ***The operational store, snapshotted rather than copied*** — [22 §5.1]
    * makes `state.sqlite` authoritative and not rebuildable, so it is the one
    * file here that a torn copy actually loses something.
    *
    * `VACUUM INTO` writes a consistent image of the database as of one moment,
-   * while the server keeps writing to it. **This is [25 E6]'s quiesce argument
+   * while the server keeps writing to it. **This is [26 E6]'s quiesce argument
    * answered rather than worked around**: E6 says there is no write-lock to take
    * *from outside the process*, and that is true and is about the outside.
    *

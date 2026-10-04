@@ -199,7 +199,7 @@ describe('a self-write does not double-index', () => {
 
 describe('deleting index.sqlite is a non-event', () => {
   it('rebuilds from disk on the next open', async () => {
-    // [21 §5](../../../../docs/design/21-internal-contracts.md). The index's defining
+    // [22 §5](../../../../docs/design/22-internal-contracts.md). The index's defining
     // property: losing it costs time and nothing else.
     await library.saveObject(newActor('Vera Solano'), 'vera-solano');
     await library.saveObject(newLorebook('Rain City'), 'rain-city');
@@ -254,7 +254,7 @@ describe('deleting index.sqlite is a non-event', () => {
    * other way.
    *
    * *Corrected 2026-09-27.* ~~A file that is not a database fails the open.~~
-   * The index is derived, and [21 §5] makes deleting it a non-event, so the
+   * The index is derived, and [22 §5] makes deleting it a non-event, so the
    * one file whose loss costs nothing no longer keeps the server from
    * starting: it is kept aside under `.damaged` and the fresh file asks for a
    * rebuild like any new one.

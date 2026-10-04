@@ -85,7 +85,7 @@ describe('what the model said, narrowed to what a book will take', () => {
 describe('what the book already knows', () => {
   /**
    * §2's *"a second session about the same events does not double the book"*,
-   * and the honest shape of it without embeddings ([25 E2] puts semantic
+   * and the honest shape of it without embeddings ([26 E2] puts semantic
    * retrieval post-1.0): the text, normalised.
    */
   it('recognises the same fact said again with different punctuation', () => {
@@ -176,7 +176,7 @@ describe('what the extractor reads', () => {
 });
 
 /**
- * ***The player's move is quoted to its last line*** — [25 E15], and the rule
+ * ***The player's move is quoted to its last line*** — [26 E15], and the rule
  * `quoted` exists for. The extractor quotes the move and leaves the reply bare
  * so a model can tell what somebody did from what the narrator said; with one
  * `> ` in front of the whole move, each picture's stand-in — on a line of its

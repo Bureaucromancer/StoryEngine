@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
  *
  * `rm -rf` on a live data directory half-succeeds, and the half that survives is
  * the wrong half: both SQLite stores stay — including `state/`, which
- * [21 §5.1](../../docs/design/21-internal-contracts.md) calls authoritative and not
+ * [22 §5.1](../../docs/design/22-internal-contracts.md) calls authoritative and not
  * disposable — while `state/session.key`, a plain file beside it, goes. The
  * store outlives the key that validates the sessions in it, `config.json`
  * vanishes so the next start silently reverts to defaults, and a tester who

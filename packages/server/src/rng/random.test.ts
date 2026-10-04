@@ -8,7 +8,7 @@ import { Rng } from './rng.js';
 import { seededSource } from './source.js';
 
 /**
- * The host's `random` — [P7.0], [22 §4].
+ * The host's `random` — [P7.0], [23 §4].
  *
  * **The claim under test is that it is an adapter and not a second
  * implementation.** The whole argument for converting the seam rather than the

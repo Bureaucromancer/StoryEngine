@@ -30,7 +30,7 @@ import { propose, PROPOSE_STEP } from './propose.js';
  * `types: ["node"]` and this package's deliberately does not. Adding
  * `@types/node` so a test could construct an `AbortController` would be a second
  * dependency bought to fake a field nothing reads, against
- * [19 §10](../../../../docs/design/19-tech-stack.md)'s whole claim.
+ * [20 §10](../../../../docs/design/20-tech-stack.md)'s whole claim.
  */
 function host(answer: Partial<StepCallResult> = {}): StepHost & { asked: unknown[] } {
   const asked: unknown[] = [];

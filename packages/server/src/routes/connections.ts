@@ -99,7 +99,7 @@ const CONNECTION_FIELDS = {
   apiKey: Type.Optional(Type.String({ maxLength: 512 })),
   baseUrl: Type.Optional(Type.String({ maxLength: 2048 })),
   models: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 200 }),
-  /** Which of `models` see pictures ([25 E15]). Absent keeps what is stored. */
+  /** Which of `models` see pictures ([26 E15]). Absent keeps what is stored. */
   imageModels: Type.Optional(
     Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 200 }),
   ),
@@ -130,7 +130,7 @@ const EditBody = Type.Object(
 const IdParams = Type.Object({ id: Type.String({ minLength: 1, maxLength: 200 }) });
 
 /**
- * The two models a first run answers with — [19 §5.1](../../../../docs/design/19-tech-stack.md)'s
+ * The two models a first run answers with — [20 §5.1](../../../../docs/design/20-tech-stack.md)'s
  * *a good one and a cheap one*.
  *
  * Sent as two bindings rather than as eight, because the eight are policy
@@ -435,9 +435,9 @@ export function registerConnectionRoutes(app: FastifyInstance, services: AppServ
    *
    * **Which layer won is computed here, because it is only computable here.**
    * It is a local in `resolveRole`, it is deliberately absent from the turn
-   * record ([21 §1.4] specifies no such field), and before this nothing
+   * record ([22 §1.4] specifies no such field), and before this nothing
    * returned it — so a table showing it would have had to reimplement
-   * [19 §5.1]'s layering in the browser, against two binding maps it would also
+   * [20 §5.1]'s layering in the browser, against two binding maps it would also
    * have had to fetch. That is a second copy of the resolution order living in
    * a different language from the first.
    *
@@ -798,7 +798,7 @@ const TEST_STEP: StepDefinition = {
  * `renditions/worker.ts`, the other caller of `renderImage`, calls it directly
  * for the same reason. Nor would its ladder be right if it had one: a picture
  * is asked once, by the owner's decision of 2026-10-03 at
- * [25 E7](../../../../docs/design/25-open-questions.md), and the adapter sends
+ * [26 E7](../../../../docs/design/26-open-questions.md), and the adapter sends
  * it with `maxRetries: 0` so that a 429 arrives as itself — `busy` here, rather
  * than a status-less `RetryError` read as `refused`. So the picture keeps the
  * branch's shape: one attempt, bounded by `providerTimeoutMs` as a wall clock
@@ -848,7 +848,7 @@ const TEST_STEP: StepDefinition = {
  * causes — a refused key, an address that does not answer — are calls no
  * endpoint billed. A picture's line is the
  * one image call the log carries: a rendition's cost has no field to go in
- * ([25 E16](../../../../docs/design/25-open-questions.md)), and a test picture
+ * ([26 E16](../../../../docs/design/26-open-questions.md)), and a test picture
  * leaves no record of its own for one to be added to.
  */
 async function testConnection(
@@ -1166,7 +1166,7 @@ async function respond(error: unknown, reply: FastifyReply): Promise<FastifyRepl
  * *is* a system connection in a different directory, which is exactly what
  * `resolveConnections` has always believed.
  *
- * **[19 §5.1]'s sentence is the point of the whole surface**: *"anyone who wants
+ * **[20 §5.1]'s sentence is the point of the whole surface**: *"anyone who wants
  * their own key overrides a role without the admin's involvement"*. Until now
  * the only way to exercise it was to write a JSON file by hand.
  *

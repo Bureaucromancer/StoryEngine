@@ -13,7 +13,7 @@ import { Fine } from '../ui/Text.js';
 import { PictureRefused } from './preparePicture.js';
 
 /**
- * ***Pictures on a move, in Play*** — [25 E15](../../../../docs/design/25-open-questions.md), R1.
+ * ***Pictures on a move, in Play*** — [26 E15](../../../../docs/design/26-open-questions.md), R1.
  *
  * Two surfaces and one promise. The composer lets a player attach pictures and
  * say what each is; the transcript shows them on the move they were part of.
@@ -75,7 +75,7 @@ export interface ComposerPicture {
 }
 
 /**
- * ***Will the model see it*** — [25 E15]'s *"Play marks each attachment sent
+ * ***Will the model see it*** — [26 E15]'s *"Play marks each attachment sent
  * as a picture or sent as its description"*, answered **before** the move is
  * sent rather than after, which is when the answer is worth having.
  *

@@ -108,7 +108,7 @@ import { labels } from '../i18n/catalogue.js';
 const PREVIEW_DEBOUNCE_MS = 400;
 
 /**
- * A refusal in the reader's own language — [21 §1.4]'s rule, [P9.4].
+ * A refusal in the reader's own language — [22 §1.4]'s rule, [P9.4].
  *
  * The class is what crossed the wire and the sentence is written here, which is
  * the same split `Rendition.tsx`'s `reasonOf` makes for a failed picture: the
@@ -190,7 +190,7 @@ export function PlayPage({
   const [kind, setKind] = useState<string | undefined>(undefined);
   const [guidance, setGuidance] = useState('');
   /**
-   * ***Pictures on the move being composed*** — [25 E15], R1. Uploaded as they
+   * ***Pictures on the move being composed*** — [26 E15], R1. Uploaded as they
    * are attached, so what the move names is a digest the server already holds;
    * cleared when the move is sent, as the words are.
    */
@@ -305,7 +305,7 @@ export function PlayPage({
    * ***A 200 with a reason is an answer, not an error***, which is what the
    * route's own docstring says and why this is not read off `illustrate.error`:
    * **nothing is bound to the image role** is the ordinary state of every
-   * install ([19 §5.1]), and rendering it through the error path would make a
+   * install ([20 §5.1]), and rendering it through the error path would make a
    * setting somebody has not done yet look like a fault.
    */
   const held = illustrate.data?.held;
@@ -524,7 +524,7 @@ export function PlayPage({
   const submit = (): void => {
     if (send.isPending || running || attaching) return;
     // A move may be only a picture — its words are the picture's caption, and
-    // the record keeps the move either way ([25 E15]).
+    // the record keeps the move either way ([26 E15]).
     if (draft.trim().length === 0 && pictures.length === 0) {
       /**
        * ***An empty box is *let them talk*, in a chat*** — [P14 §1.8]. Under
@@ -683,7 +683,7 @@ export function PlayPage({
    * all: an instruction with nothing to refer to and an attempt with no
    * instruction are each a different feature from *this again, but change
    * X*. With neither, the body is exactly what it was before the field
-   * existed — a plain redo stays *same setup, different words* ([19 §14.6]),
+   * existed — a plain redo stays *same setup, different words* ([20 §14.6]),
    * and the model is not shown a reply it might then avoid or copy.
    */
   const redo = useMutation({
@@ -1529,11 +1529,11 @@ export function PlayPage({
  * two buttons is that a server picking between them is wrong about half the
  * time.
  *
- * **Redo splits into rewrite and reroll where draws exist** ([19 §14.5]).
+ * **Redo splits into rewrite and reroll where draws exist** ([20 §14.5]).
  * *Redo* rewrites: the draws come off this turn's tape, so the mechanical
  * outcome holds and only the prose changes. *Reroll* is the explicit second
  * action that rolls again — and it **only appears when the turn consumed
- * draws**, which is [19 §14.6]'s rule and the reason it is absent from most
+ * draws**, which is [20 §14.6]'s rule and the reason it is absent from most
  * turns: an ordinary turn against an ordinary book draws nothing, and a button
  * offering to re-roll nothing would be a button that lies.
  *
@@ -2093,7 +2093,7 @@ function TurnView({
           are still drawn inside the row, and fade the same way once neither
           the pointer nor focus is in the turn. Focus stays in the panel while
           it is typed into, which is most of its life; moving it changes a
-          component with tests of its own, so it is recorded at [20 §7.2]
+          component with tests of its own, so it is recorded at [21 §7.2]
           rather than made in passing. */}
       {setup.place}
 
@@ -2119,7 +2119,7 @@ function TurnView({
  *
  * **History shows the selected path only**, so this is the whole of how an
  * alternative is reachable: a count, a way to step between them, and a way to
- * give one a name. The full tree visualiser is post-1.0 ([24 §1]) and this is
+ * give one a name. The full tree visualiser is post-1.0 ([25 §1]) and this is
  * deliberately not a small version of it — it answers *there are others* and
  * *take me to one*, which is what a person swiping needs.
  *
@@ -2229,7 +2229,7 @@ function SiblingStrip({
 /**
  * What the stream is doing, in words rather than only a spinner.
  *
- * `reconnecting` is a real state with its own sentence, because [19 §11] asks
+ * `reconnecting` is a real state with its own sentence, because [20 §11] asks
  * for *a quiet reconnecting state that resumes rather than erroring out* — and
  * a client that showed an error there would be wrong, since the cursor makes
  * the resume lossless.

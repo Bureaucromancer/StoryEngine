@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ***The wizard's chunk arrives, and the dialog fails as it draws*** —
- * [20 §7.2](../../../../docs/design/20-client-loading.md), 2026-10-04.
+ * [21 §7.2](../../../../docs/design/21-client-loading.md), 2026-10-04.
  *
  * The boundary around the wizard catches more than its load: once the chunk is
  * in, anything thrown while rendering the dialog reaches it too. That is

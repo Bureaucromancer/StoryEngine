@@ -1,7 +1,7 @@
-# 22 — Extensions: the boundary and the interface
+# 23 — Extensions: the boundary and the interface
 
-**Status: proposal.** Resolves [25 A1](25-open-questions.md) and
-[25 A1c](25-open-questions.md), and expands [06 §9](06-modes-and-turn-pipeline.md).
+**Status: proposal.** Resolves [26 A1](26-open-questions.md) and
+[26 A1c](26-open-questions.md), and expands [06 §9](06-modes-and-turn-pipeline.md).
 
 ---
 
@@ -33,7 +33,7 @@ part that shapes the API — async, serialisable, declared reads — and that sh
 is what cannot be retrofitted.
 
 Authority isolation is deferrable because of one property, not two:
-**extensions are admin-installed** ([25 A1](25-open-questions.md)). Installing
+**extensions are admin-installed** ([26 A1](26-open-questions.md)). Installing
 one is a deliberate act by the operator, on the same footing as anything else
 they choose to run on that box. Deferring is a judgement about *that* threat
 model, and tightening later is additive — it removes reachability without
@@ -136,7 +136,7 @@ Another mechanism that already existed.
 >   it does not know what fits. The sketch below is corrected.
 > - ~~Effects are `EffectProposal` — no `before`, no `applied`, no id.~~
 >   **`EffectProposal` won**, for the reason that was already written here: a
->   step proposes; the engine decides and stamps ([21 §1.2]). Only the engine can
+>   step proposes; the engine decides and stamps ([22 §1.2]). Only the engine can
 >   record a refusal. The sketch below is corrected.
 > - ~~`StepHost.rng` is a live `Rng` with synchronous methods, which **cannot
 >   cross a worker hop**… Nothing at P2 draws inside a step.~~ **Converted at
@@ -155,7 +155,7 @@ Another mechanism that already existed.
 > `StepImplementation = (input: StepInput, host: StepHost) => Promise<StepResult>`
 > — because a host that is a *field on the payload* is the thing that cannot be
 > serialised; ~~`StepResult` carries one `message`, not `messages[]`;~~ `config` has
-> no shipped home yet; and `suspend` ([25 C5]) and `diagnostics` are unbuilt. The
+> no shipped home yet; and `suspend` ([26 C5]) and `diagnostics` are unbuilt. The
 > split into input-and-host is the shape §4's own argument wants, and is the
 > reason the rest of this block reads as it does.
 >
@@ -210,9 +210,9 @@ interface StepContext {
 
 interface StepResult {
   candidates?: Candidate[]              // not blocks — the assembler makes those
-  effects?: EffectProposal[]            // no before, no applied, no id — [21 §1.2]
+  effects?: EffectProposal[]            // no before, no applied, no id — [22 §1.2]
   messages?: Message[]
-  suspend?: InputRequest                // [25 C5]
+  suspend?: InputRequest                // [26 C5]
   diagnostics?: string[]                // surfaced in the workbench
 }
 ```
@@ -229,7 +229,7 @@ interface HostApi {
   model: {
     call(role: ModelRole, req: ModelRequest): Promise<ModelResponse>
   }
-  random: RandomApi                        // the one RNG source — [19 §14]
+  random: RandomApi                        // the one RNG source — [20 §14]
   storage: ExtensionStorage                // §5
   log(level, message, meta?): void
 }
@@ -240,11 +240,11 @@ earlier draft of this list claimed more than §2 delivers:
 
 - **No connection or credential is *passed* across.** An extension asks for a
   call by *role*; the host resolves the connection and executes it
-  ([19 §5.1](19-tech-stack.md)). Credentials are not in the worker's payload.
+  ([20 §5.1](20-tech-stack.md)). Credentials are not in the worker's payload.
 - **No direct library writes *through this API*.** `propose` returns something
   reviewable ([06 §7.4](06-modes-and-turn-pipeline.md)).
 - **Randomness is *provided* by the host**, which makes
-  [19 §14.4](19-tech-stack.md)'s replay-determinism check pass for free when an
+  [20 §14.4](20-tech-stack.md)'s replay-determinism check pass for free when an
   extension uses it. *Provided, not enforced* — §4.0 below is the whole of why
   that word is doing work, and [06 §9](06-modes-and-turn-pipeline.md) was
   corrected on 2026-09-11 because it had claimed the stronger thing.
@@ -293,7 +293,7 @@ carries the word "sandbox".
 
 ### 4.1 Built-ins go through the same boundary
 
-[19 §10](19-tech-stack.md) says built-in modes must consume the published SDK
+[20 §10](20-tech-stack.md) says built-in modes must consume the published SDK
 exactly as a third party would, enforced by package boundaries. **Run them in
 workers too**, by default.
 
@@ -307,7 +307,7 @@ CI running built-ins through the worker path so drift still surfaces.
 
 ## 5. Extension storage — resolving A1c
 
-Noodle surfaced the gap ([24 §4.6](24-roadmap.md)): an extension can own session
+Noodle surfaced the gap ([25 §4.6](25-roadmap.md)): an extension can own session
 state via channels and can read the library, but has nowhere to keep durable
 data of its own.
 
@@ -402,7 +402,7 @@ Three mitigations, all cheap:
 - **Version the SDK API and widen additively.** Extensions declare a range;
   widening never breaks anyone.
 - **Ship the reference extensions against the same API.** Dice and poker
-  ([24 §4.4](24-roadmap.md)) exist partly to surface gaps before third parties
+  ([25 §4.4](25-roadmap.md)) exist partly to surface gaps before third parties
   hit them. Poker in particular reaches for per-actor hidden state and
   multi-participant sequencing, which is where an API is most likely to be found
   wanting.
@@ -449,8 +449,8 @@ extension ever written.**
 ## 11. A renderer contract — committed, and timed to the second verb
 
 **Decided 2026-09-19, and it exists because a deferral needed somewhere to
-land.** [19 §5.6](19-tech-stack.md) defers several image backends — Midjourney
-by name ([25 E14](25-open-questions.md)) — on the reasoning that whoever actually
+land.** [20 §5.6](20-tech-stack.md) defers several image backends — Midjourney
+by name ([26 E14](26-open-questions.md)) — on the reasoning that whoever actually
 uses one should build it. **That reasoning is only honest if they can.** Today
 they cannot: `packages/sdk` publishes channels, dials, media, modes, randomness
 and steps, and **no provider or renderer contract at all**, so "somebody else
@@ -474,7 +474,7 @@ to need a version 2 before it has a second consumer.
 (prompt, seed, the scalar bag, reference images), the result (bytes, media type,
 the resolved model, cost or an honest null), the capability record an endpoint
 declares, and the failure taxonomy — a refusal that is terminal is a different
-thing from one worth retrying ([21 §1.4](21-internal-contracts.md)).
+thing from one worth retrying ([22 §1.4](22-internal-contracts.md)).
 
 **What it must not carry**, on the same rule [§4](#4-what-the-boundary-looks-like)
 already states for modes: the credential. An extension declares that it can
@@ -483,5 +483,5 @@ override order stay in the engine. A renderer extension that could read a key
 would make every other guarantee in this document conditional on trusting it.
 
 **Until it ships, the honest statement is that image providers are core-only and
-a new one means a fork** — and [19 §5.6](19-tech-stack.md) says so rather than
+a new one means a fork** — and [20 §5.6](20-tech-stack.md) says so rather than
 leaving readers to infer an extension point that is not there.

@@ -6,9 +6,9 @@ import type { Turn } from './turn.js';
 
 /**
  * ***A session, whole, for another install*** —
- * [25 B12](../../../docs/design/25-open-questions.md),
+ * [26 B12](../../../docs/design/26-open-questions.md),
  * [10 §12.3](../../../docs/design/10-ui-surfaces.md),
- * [18 §3](../../../docs/design/18-session-import.md),
+ * [19 §3](../../../docs/design/19-session-import.md),
  * [P11 §1.8](../../../docs/design/workplan/28-p11-implementation.md),
  * [P11.10](../../../docs/design/workplan/28-p11-implementation.md).
  *
@@ -25,10 +25,10 @@ import type { Turn } from './turn.js';
  * `Rendition` graduates on the same event, so this envelope freezes **two**
  * records and the consequences below apply to both.
  *
- * ***Written with import in mind***, which [25 E4] says is the whole difference
+ * ***Written with import in mind***, which [26 E4] says is the whole difference
  * between two documents only one of which could be written here: *"a format
  * designed with import in mind and a format designed without it are different
- * documents."* [18 §3]'s four consequences are each free now and expensive
+ * documents."* [19 §3]'s four consequences are each free now and expensive
  * afterwards, and each is visible in the shape below:
  *
  * 1. **Nothing is made mandatory that is optional on the record.** `input`,
@@ -81,7 +81,7 @@ export interface SessionExport {
   /**
    * The pictures, and this is the second record the freeze covers —
    * [P9 §1.1](../../../docs/design/workplan/26-p9-implementation.md),
-   * [21 §7](../../../docs/design/21-internal-contracts.md).
+   * [22 §7](../../../docs/design/22-internal-contracts.md).
    *
    * **The records, not the pixels.** An asset is content-addressed bytes on
    * disk, and an export that inlined them would be a hundred megabytes of
@@ -119,7 +119,7 @@ export interface SessionDocument {
  * [P4](../../../docs/design/workplan/16-p4-implementation.md)'s *"P11-ish"*.
  *
  * §1.9 decided `.sepack` is this stage's rather than a stage of its own, and the
- * deciding consideration was **not** scheduling: an envelope is one of [18 §3]'s
+ * deciding consideration was **not** scheduling: an envelope is one of [19 §3]'s
  * four consequences — *free while the format is being written and expensive
  * afterwards* — and a second one written later is two formats forever.
  *
@@ -149,7 +149,7 @@ export interface PackageExport {
   /**
    * The objects themselves, exactly as they are on disk.
    *
-   * **Not re-serialised through a narrowing type**, on [18 §3]'s first
+   * **Not re-serialised through a narrowing type**, on [19 §3]'s first
    * consequence generalised: every one of these is already a portable object
    * with a published schema, and a writer that restated their shapes would be a
    * second definition of six records that can then disagree with the first.

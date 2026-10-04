@@ -13,7 +13,7 @@ import { NOTIFICATION_LABELS, foldedSuffix, summary } from './labels.js';
  *
  * ***This is `library/note-labels.test.ts` on a second subject, and it exists
  * because that one found twenty-four missing keys.*** The shape of the defect is
- * identical: the server sends `{ key, params }` and never prose ([19 §12.5]),
+ * identical: the server sends `{ key, params }` and never prose ([20 §12.5]),
  * the client turns classes into words, and {@link summary}'s fallback renders an
  * unlabelled class **as itself**. That fallback is correct for a version skew —
  * a newer server's class appears rather than vanishing — and is a silent defect

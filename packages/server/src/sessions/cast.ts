@@ -132,7 +132,7 @@ export const STATUS_CHANNEL: ChannelDefinition = {
   schema: { type: 'string', enum: [...STATUSES] },
   init: { kind: 'literal', value: 'alive' },
   /**
-   * **The asymmetry, declared** — [06 §8.1], [10 §13.2], [25 C12].
+   * **The asymmetry, declared** — [06 §8.1], [10 §13.2], [26 C12].
    *
    * *"Models kill characters casually and in passing. A missed death is an
    * annoyance corrected in one click; a false one silently removes someone from

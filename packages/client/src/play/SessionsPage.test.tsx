@@ -906,7 +906,7 @@ function aCard(id: string, name: string, openings: { id: string; label: string; 
 
 /**
  * ***A Setup's opening, and its characters' greetings*** — the owner's
- * decision, [25 B18](../../../../docs/design/25-open-questions.md) (2026-10-03), [P15](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ * decision, [26 B18](../../../../docs/design/26-open-questions.md) (2026-10-03), [P15](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * A Setup that carries an opening begins on it, always, and the greetings its
  * party would have given are not written — not even when *start cold* is

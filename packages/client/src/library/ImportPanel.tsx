@@ -48,7 +48,7 @@ import { labels } from '../i18n/catalogue.js';
  * when somebody collapses the form is worse than one that does not fold.
  *
  * **The sentences are composed here, from classes and params.** The server sends
- * `{ key, params, level }` and never prose ([25 A2d]) — a report stored as
+ * `{ key, params, level }` and never prose ([26 A2d]) — a report stored as
  * English is a bug that only surfaces when somebody changes language. There is
  * no ICU catalogue yet ([P11 §1.3] owns that), so these are the same open-keyed
  * label maps every other class-to-word surface here uses, with the raw key as
@@ -1185,7 +1185,7 @@ function Report(props: { report: ImportReport }): JSX.Element {
       <ul className="flex flex-col gap-2 text-sm">
         {props.report.items.map((item) => (
           <li key={item.source} className="border-t border-line pt-2">
-            {/* Relative to the folder that was swept, never absolute ([21 §4.1.1]). */}
+            {/* Relative to the folder that was swept, never absolute ([22 §4.1.1]). */}
             <code className="block break-all text-xs text-ink">{item.source}</code>
             <Note>{DISPOSITION_LABELS[item.disposition] ?? item.disposition}</Note>
             {item.notes.map((note, index) => (

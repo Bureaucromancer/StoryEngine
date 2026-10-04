@@ -564,7 +564,7 @@ export const SCENE_PRESET: Preset = {
     },
     /**
      * ***The story above the window*** — [07 §5.1](../../../../docs/design/07-branching.md),
-     * [25 E1](../../../../docs/design/25-open-questions.md), added at
+     * [26 E1](../../../../docs/design/26-open-questions.md), added at
      * [P8.1](../../../../docs/design/workplan/25-p8-implementation.md).
      *
      * **The slot is where the standing line is discharged.** A chain nothing
@@ -890,7 +890,7 @@ export const SCENE_PRESET: Preset = {
    * thinks a dial that overruns the player is a broken dial at any setting.
    *
    * ***Two fragments each, so the ranking is real rather than decorative.***
-   * [19 §5.3]'s cap drops the lowest `priority` first, and a level with one
+   * [20 §5.3]'s cap drops the lowest `priority` first, and a level with one
    * fragment either survives whole or vanishes whole. The high one is the
    * disposition; the low one is the caveat that makes it safe — which is the
    * right thing to lose first if something must be lost, because a prompt

@@ -565,7 +565,7 @@ function same(a: unknown, b: unknown): boolean {
 /**
  * The effects that quarantine a channel whose stored value no longer fits its
  * schema — [06 §4.2](../../../../docs/design/06-modes-and-turn-pipeline.md),
- * [25 B7](../../../../docs/design/25-open-questions.md), built at [P7.1].
+ * [26 B7](../../../../docs/design/26-open-questions.md), built at [P7.1].
  *
  * **The sibling of {@link divergenceEffects}, and the difference between them is
  * the whole design.** A divergence is a value *arriving* — somebody edited the
@@ -587,7 +587,7 @@ function same(a: unknown, b: unknown): boolean {
  * **Three rungs of four, and the missing one is `migrate`.** 06 §4.2 puts a
  * migration between coercion and quarantine, *"if the definition ships a
  * `migrate(fromVersion, state)`"* — and none can, because the field is
- * deliberately absent from `ChannelDefinition` ([21 §1.3] makes it optional,
+ * deliberately absent from `ChannelDefinition` ([22 §1.3] makes it optional,
  * 06 §4.2 wants it only for *"the genuine minority"*). Its absence is not
  * silent: a value that would have been migrated is quarantined instead, with its
  * raw value kept, which is the outcome that rung improves on rather than

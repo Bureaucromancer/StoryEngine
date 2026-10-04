@@ -15,7 +15,7 @@ import { Fine, Note } from '../ui/Text.js';
  * The install's settings — [10 §15.3](../../../../docs/design/10-ui-surfaces.md).
  *
  * **Every control is generated from the config the server sent**, including its
- * tier badge, because the tier table travels as data ([21 §4]) and a hand-written
+ * tier badge, because the tier table travels as data ([22 §4]) and a hand-written
  * list of fields here would be a second copy of the schema — wrong the first
  * time somebody adds a key.
  *
@@ -413,7 +413,7 @@ function saveFailure(error: Error): string {
  *
  * Sentence case rather than a lookup table, because a table is the second copy
  * this control was built to delete. The values are lowercase identifiers by
- * construction ([21 §4]), so capitalising the first letter is the whole rule,
+ * construction ([22 §4]), so capitalising the first letter is the whole rule,
  * and a value that needs more than that needs a real name in the schema.
  */
 function labelOf(choice: string): string {

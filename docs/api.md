@@ -18,7 +18,7 @@ web client, so an address outside `/api` may answer HTML — but an address
 `404 {"error":"not-found"}` like any other JSON error, because a client that
 parses this API is worse served by a page than by a 404. Whether the UI is
 served at all is one config key, `server.clientRoot`
-([21 §4](design/21-internal-contracts.md)); in development it is unset and the
+([22 §4](design/22-internal-contracts.md)); in development it is unset and the
 client is a second process.
 
 ---
@@ -432,7 +432,7 @@ shadowed copies, and any row inside its tombstone settling window
 (`tombstonedAt` in epoch milliseconds, `null` for a live row). Paths are
 portable — root-relative, `/`-separated — never native ones. **Best-effort,
 not a contract**: the index's tables are an implementation detail
-([21 §5](design/21-internal-contracts.md)) and its migration policy is
+([22 §5](design/22-internal-contracts.md)) and its migration policy is
 drop-and-rescan, so after an index schema bump this route may return less
 until the surface catches up. Read-only; the object's contents stay the read
 route's answer.
@@ -460,7 +460,7 @@ converted, `200 { item, notes }` when it did not.
 
 `item` is one row of the import review's vocabulary — `{ source, disposition,
 notes, objectId? }` — where `source` is the filename **as it arrived**, never a
-path ([21 §4.1.1](design/21-internal-contracts.md)). `disposition` is
+path ([22 §4.1.1](design/22-internal-contracts.md)). `disposition` is
 `converted`, `recorded` or `unrecognised` — or `unchanged`, for a re-upload of
 what is already here — and `recorded` is the interesting
 answer: a PNG card today is a file this build converts at **P4.2**, so it is
@@ -899,7 +899,7 @@ objects are never rewritten and are reported as `unchanged`, which is a differen
 answer from `skipped`.
 
 **Source files in the report are named relative to the root**, never absolutely
-([21 §4.1.1](design/21-internal-contracts.md)) — a review somebody pastes into an
+([22 §4.1.1](design/22-internal-contracts.md)) — a review somebody pastes into an
 issue must not be a description of their filesystem.
 
 The response also carries `suggestions` — see below. A sweep of the wrong folder
@@ -1258,7 +1258,7 @@ is the second consumer: a rendition's asset needs serving too, and
 Every rendition this session holds, as
 `{ renditions: Rendition[], selection: Record<turnId, renditionId> }` —
 [06 §10](design/06-modes-and-turn-pipeline.md),
-[21 §7](design/21-internal-contracts.md), [P9.2], [P9.4].
+[22 §7](design/22-internal-contracts.md), [P9.2], [P9.4].
 
 **Off the session read and off the transcript read, deliberately**, which is
 `GET /sessions/:id/memory`'s argument: a rendition's state changes *after* its
@@ -1272,7 +1272,7 @@ reader would then watch a picture they did not choose for as long as the stale
 half survived.
 
 **A `ready` record whose file is gone is listed with `asset: null`** (2026-09-30)
-— [25 E3](design/25-open-questions.md)'s evicted picture, *"a picture that can
+— [26 E3](design/26-open-questions.md)'s evicted picture, *"a picture that can
 be made again"*, which a client renders as a placeholder with a retry. It went
 out as stored, so a page drew a broken image. **A read, not a reconcile**: this
 route, the asset and the attachment routes and `GET …/turns/:turnId` read the
@@ -1287,7 +1287,7 @@ buffer. The client cache-busts with `?v=<digest>` as it does for media.
 
 **`404` for a rendition with no `asset`**, which is three different states and
 one answer: still pending, failed, or **evicted**. That last one is
-[25 E3](design/25-open-questions.md)'s whole point — *"deleting one leaves
+[26 E3](design/26-open-questions.md)'s whole point — *"deleting one leaves
 `asset: null` and a picture that can be made again"* — ~~so a 404 here is what the
 client renders a regenerable placeholder from, rather than an `<img>` quietly
 failing~~. *Corrected 2026-09-30:* the client drew the `<img>` and it failed
@@ -1312,7 +1312,7 @@ stalls on either is unusable"* — moved from the turn to a button.
 
 **A refusal is a `200` with a class, not a `4xx`.** `{ held: "no-binding" }` when
 nothing is bound to the `image` role, which is the ordinary state of every
-install ([19 §5.1](design/19-tech-stack.md)), `{ held: "no-moment" }` when
+install ([20 §5.1](design/20-tech-stack.md)), `{ held: "no-moment" }` when
 the turn has no prose or the moment call declined, and — since 2026-09-30 —
 `{ held: "no-place" }` for **Set the scene** where the story has named no place:
 a backdrop's recipe is the place and the tone, and without the place it was a
@@ -1345,7 +1345,7 @@ another's prose.
 
 Runs a recipe again — the retry on a failed picture and the re-creation of an
 evicted one, which are the same act: a record with no pixels, run again
-([25 E3](design/25-open-questions.md), [P9.4]).
+([26 E3](design/26-open-questions.md), [P9.4]).
 
 **No text call is made.** The record already holds the fragments, the separator,
 the budget and the seed, so there is no assembly on this path and no role to
@@ -1357,7 +1357,7 @@ and for the same reason: the pixels arrive on the stream, and a `200` would read
 as *here is your picture*.
 
 **The pending record carries no `provenance.seedSent`** (written 2026-09-26,
-merged 2026-10-03, [21 §7](design/21-internal-contracts.md)). Whether the seed was sent is the last
+merged 2026-10-03, [22 §7](design/22-internal-contracts.md)). Whether the seed was sent is the last
 run's fact rather than the recipe's — the next run may go out on a connection
 whose `supportsImageSeed` has changed since — so the field is dropped here and
 written afresh by the run that lands. The seed itself is kept, which is what
@@ -1633,7 +1633,7 @@ says whether a new session opens on its cast's written greetings, so a creation
 form offers each member's opening only for a mode that writes one — the
 creation body's `openings` is read by no other. *Unless the session starts from
 a Setup that carries a written opening, which opens on that instead (2026-10-03,
-[25 B18](design/25-open-questions.md)).*
+[26 B18](design/26-open-questions.md)).*
 
 **What this install can play.** Added at P7.4, and until then nothing could tell
 a client which modes exist — the session form offered *the mode's own preset* and
@@ -1781,7 +1781,7 @@ cast or an opening that member does not have written — checked before the
 session exists. *(Accepted since P14.4, and not written here until 2026-10-03.)*
 
 **A Setup's opening wins over the cast's greetings, always** — the owner's
-decision, 2026-10-03 ([25 B18](design/25-open-questions.md)). When the Setup
+decision, 2026-10-03 ([26 B18](design/26-open-questions.md)). When the Setup
 carries a written opening, the session starts on the Setup's turn — or on no
 turn at all, started cold with nothing to seed — and **no greeting is written**,
 whichever of its openings is chosen, and with `opening: null` too. Two edges, each the recommended answer with the owner's
@@ -2181,7 +2181,7 @@ reports what it could not read on every turn where somebody playing can see it
 an omitted key means the empty map — a partial update could not express *clear
 this override*, and clearing one is the commoner act.
 
-**Two of [19 §5.1](design/19-tech-stack.md)'s five layers, and the reason they
+**Two of [20 §5.1](design/20-tech-stack.md)'s five layers, and the reason they
 live on the session rather than in a mode** is that section's opening sentence:
 *nothing in a mode, step or extension refers to a provider or a model id*. A
 binding names a `connectionId` that exists on exactly one install, so *a cheap
@@ -2294,7 +2294,7 @@ time, and what decides whether to raise them is `achieved` plus `next`. *The
 author's fuller `detail` does not travel*: [04 §7.1] reserves it for steps.
 
 `goals` rows also carry `proposed` — the narrator judged the goal met and a
-person has not ruled ([25 C12], answered *ask* at P7.6). `se.goal` declares
+person has not ruled ([26 C12], answered *ask* at P7.6). `se.goal` declares
 `confirm: ['achieved']`, so the judge's completion lands on the turn recorded and
 **unapplied**: the three offers stay down and the panel asks. `proposed` and
 `achieved` are never both true, because confirming *is* the applied effect that
@@ -2479,7 +2479,7 @@ from the same place), which a client keeps on the turn; `[]` when there are none
 ### `POST /api/sessions/:sessionId/attachments` · `GET /api/sessions/:sessionId/attachments/:digest`
 
 A picture for a player's move, uploaded before the move is sent —
-[25 E15](design/25-open-questions.md), R1. Upload is `multipart/form-data` with
+[26 E15](design/26-open-questions.md), R1. Upload is `multipart/form-data` with
 one file part, the library import's two-step shape
 ([10 §11.2b](design/10-ui-surfaces.md)): the bytes first, then the turn names
 them by digest in its ordinary JSON body.
@@ -2551,7 +2551,7 @@ two tabs on one session look like. An explicit `null` branches from the root —
 One turn at a time still holds: a second submission while a turn is in flight is
 `409 busy` whether it branches or not.
 
-**`rewriteOf` is the difference between rewrite and reroll** ([19 §14.5]). It
+**`rewriteOf` is the difference between rewrite and reroll** ([20 §14.5]). It
 names a turn whose draws this one should replay: the same roll, so the same
 mechanical outcome and different prose. Absent, the turn draws fresh — which is
 reroll, and also every ordinary turn. **A turn id rather than a tape**, because
@@ -2561,7 +2561,7 @@ wishes it had got, and a turn from another session is `404 no-such-turn`.
 Rewrite is the default of the two gestures, which is what stops swiping past a
 failed check from being save-scumming by accident. A turn that consumed no
 draws has nothing to reroll, and the surface must not offer it one
-([19 §14.6]).
+([20 §14.6]).
 
 **`redoOf` is the other half of a redo**
 ([06 §5.1](design/06-modes-and-turn-pipeline.md), [07 §7](design/07-branching.md)).
@@ -2593,7 +2593,7 @@ the same turns, by the same rule (`redoable` in `shared` names it).
 
 **`input.attachments` names pictures already uploaded to this session** —
 at most four, each by digest with an optional caption
-([25 E15](design/25-open-questions.md)). **Digests and captions are all a client
+([26 E15](design/26-open-questions.md)). **Digests and captions are all a client
 says**: the type, size and dimensions on the turn are read from this server's
 store, on `rewriteOf`'s reasoning. A digest the store does not hold is **`422
 unknown-attachment`**, carrying the `digest`.
@@ -2803,7 +2803,7 @@ state; **409 `not-at-tip`** carrying `keys` and `branchFrom`.
 an inverse only while nothing has touched the same key since — apply it after
 something has and you destroy the later change and produce a state no turn ever
 wrote, plausibly enough that nothing surfaces
-([21 §1.2.1](design/21-internal-contracts.md)). So a turn that is no longer the
+([22 §1.2.1](design/22-internal-contracts.md)). So a turn that is no longer the
 tip **for its keys** is refused with the keys that block it and the node to
 branch from instead. *Tip* is per key: a later turn on a different channel
 blocks nothing.
@@ -3112,7 +3112,7 @@ because it is the kind of thing people should read rather than discover:
 > **If it speaks OpenAI-compatible chat, it works. If it does not, it does not.**
 
 There is no raw-completion path, no instruct templates, no context templates and
-no stop-sequence machinery ([19 §5.5](design/19-tech-stack.md)). A local model
+no stop-sequence machinery ([20 §5.5](design/20-tech-stack.md)). A local model
 is a connection with a `localhost` URL and no key — llama.cpp, Ollama, vLLM, LM
 Studio and KoboldCpp all expose the same shape. A completion-only service needs
 a translating proxy in front of it, which is an off-the-shelf thing to point at
@@ -3167,7 +3167,7 @@ want exactly the opposite.
 ### `GET /api/me/prefs` · `PATCH /api/me/prefs`
 
 `{ "prefs": { …namespaced keys } }` — client preferences, stored in
-`users/<handle>/prefs.json` ([25 B13](design/25-open-questions.md), resolved).
+`users/<handle>/prefs.json` ([26 B13](design/26-open-questions.md), resolved).
 
 A patch **merges shallowly** and `null` **deletes**. The response is the whole
 document rather than an acknowledgement, so a client lands on the truth rather
@@ -3203,7 +3203,7 @@ write surface for any signed-in account. A bad key is `400 invalid`; too large i
 **What *your* turns will do, where `GET /api/admin/roles` says what the install
 has got.** Same row shape; different layers. This one resolves your own
 `users/<handle>/bindings.json` over the install defaults against the connections
-you may actually use, which is [19 §5.1](design/19-tech-stack.md)'s order — and
+you may actually use, which is [20 §5.1](design/20-tech-stack.md)'s order — and
 `via` is the whole reason to ask a server rather than work it out in a browser.
 
 One request carries the whole pane: the resolved table, the raw document to edit,
@@ -3233,7 +3233,7 @@ hash is the library's stale-check idiom: a mismatch is
 rather than only being told no. That matters more here than for the system file,
 because [10 §4](design/10-ui-surfaces.md) says hand-editing this one works.
 
-**No administrator is involved, and no capability is checked.** [19 §5.1] is
+**No administrator is involved, and no capability is checked.** [20 §5.1] is
 explicit that *anyone who wants their own key overrides a role without the
 admin's involvement*. A binding is two ids; what keeps that safe is that
 `resolveRole` looks the `connectionId` up in the capability-filtered list, so one
@@ -3247,7 +3247,7 @@ only field assist, which asks for `prose` unless you chose otherwise.
 `PUT /api/me/task-roles` takes `{ "assist": "prose" | "fast" | "reasoning" }` and
 answers `{ tasks }`; any other role is `400`, and there is no hash, because the
 file is one value and the request carries all of it. It is a stopgap for
-[25 C15](design/25-open-questions.md): [10 §11.4](design/10-ui-surfaces.md) says
+[26 C15](design/26-open-questions.md): [10 §11.4](design/10-ui-surfaces.md) says
 assists want `fast`, and until role fallback is decided for everyone, the person
 who knows whether their `fast` model is bound chooses. A server older than this
 omits `tasks`, which means `prose`.
@@ -3435,7 +3435,7 @@ refuses it is the state of the install.
 
 **The tier table travels as data.** The client may not import from the server
 package, and a duplicated copy would falsify
-[21 §4](design/21-internal-contracts.md)'s claim that the annotation *is* the
+[22 §4](design/22-internal-contracts.md)'s claim that the annotation *is* the
 source — so a key a newer build adds renders with the right badge without a
 client release. `appliers` is the honest half beside it: a tier says what a key
 is *for*, and this says whether anything reads it yet. The two are allowed to
@@ -3595,7 +3595,7 @@ not count tokens will make every figure in a turn record null. The rest of the
 capability shape travels untouched.
 
 **`imageModels` names which of `models` can see pictures** on a player's move
-([25 E15](design/25-open-questions.md)), and it is **per model, not a
+([26 E15](design/26-open-questions.md)), and it is **per model, not a
 capability**, which is the point of it: one endpoint serves a vision model and a
 text one, so a connection-wide flag would send pixels to the text model the
 first time a binding or an actor hint picked it. Absent keeps what is stored;
@@ -3800,7 +3800,7 @@ address.
 ([10 §11.5](design/10-ui-surfaces.md)). **And a test that returns is recorded**,
 as [10 §11.4](design/10-ui-surfaces.md) asks of every model call that is not a
 turn: one line in the usage log of the account that pressed it
-(`users/<handle>/usage.jsonl`, [21 §1.4](design/21-internal-contracts.md)) —
+(`users/<handle>/usage.jsonl`, [22 §1.4](design/22-internal-contracts.md)) —
 an admin's own for the install's connections — with the purpose
 `connection-test:text` or `connection-test:image` and the role
 `connection-test`, which no binding can have, because a test resolves no role.
@@ -3824,7 +3824,7 @@ a duplicated id to the file that wins, which is the one a turn would use.
 ```
 
 The install defaults, layered under every account's own
-([19 §5.1](design/19-tech-stack.md)). A whole document rather than a patch per
+([20 §5.1](design/20-tech-stack.md)). A whole document rather than a patch per
 role: eight roles is not a chatty write path, and a wrong binding stops turns
 rather than collapsing a pane.
 
@@ -3847,7 +3847,7 @@ there is nothing on disk to preserve, so a write is a whole rewrite.
 `{ "hi": { "connectionId": "…", "modelId": "…" }, "lo": { … }, "contentHash": "…" }`
 → the same shape `GET /api/admin/bindings` returns.
 
-**Two bindings in, a whole document out** — [19 §5.1]'s *a good one and a cheap
+**Two bindings in, a whole document out** — [20 §5.1]'s *a good one and a cheap
 one*, spread across the roles that have a text fallback. Which role gets which
 is policy — the expensive model writes, everything else uses the cheap one — and
 it stays on the server so that no install ends up with `prose` on the cheap
@@ -3880,9 +3880,9 @@ exactly when somebody else is most likely to have put something there already.
 
 **What every role will do, resolved rather than described.** `via` — which layer
 won — is a local in `resolveRole`, deliberately absent from the turn record
-([21 §1.4](design/21-internal-contracts.md) specifies no such field), and
+([22 §1.4](design/22-internal-contracts.md) specifies no such field), and
 returned by nothing before this. A surface showing it would have had to
-reimplement [19 §5.1]'s layering in the browser, against two binding maps it
+reimplement [20 §5.1]'s layering in the browser, against two binding maps it
 would also have had to fetch: a second copy of the resolution order, in a
 different language from the first.
 
@@ -4177,7 +4177,7 @@ searchable, and its pictures arrive with their records: pixels and all, since a
 backup holds them, and a picture that was still being made as `interrupted`,
 with a retry. The pictures a player attached to moves come too, each stored
 under the digest of the bytes the archive holds
-([25 E15](design/25-open-questions.md)).
+([26 E15](design/26-open-questions.md)).
 
 **A tag whose name is already here under another id keeps the one here.** An
 object brought in with the archive's id for it still reads that name, because a
@@ -4283,7 +4283,7 @@ pending restore** → `204`, whether or not there was one.
 fails to unpack keeps its marker deliberately — the failure has to survive into
 the next boot to be refused there, and deleting it would turn *this did not
 work* into *nobody ever asked*. But a marker nothing will act on and nobody can
-remove is a trap on exactly the install this feature exists for: [25 E6]'s
+remove is a trap on exactly the install this feature exists for: [26 E6]'s
 operator has a shell, and `docs/deploy.md`'s household one has a web page and
 nothing else.
 

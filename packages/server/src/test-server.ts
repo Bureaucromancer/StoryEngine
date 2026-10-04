@@ -186,7 +186,7 @@ export async function makeTestServer(options: TestServerOptions = {}): Promise<T
       ...(loaded?.config ?? DEFAULT_CONFIG),
       // `silent`, because several of these run at once and a suite that prints
       // a request log per assertion buries its own failures. This is the
-      // level's reason for existing ([21 §4]).
+      // level's reason for existing ([22 §4]).
       ...{ log: { ...DEFAULT_CONFIG.log, level: 'silent' as const } },
       ...options.config,
       dataDir,

@@ -124,7 +124,7 @@ describe('the architectural boundary graph (docs/design/workplan/03-testing.md �
   });
 });
 
-describe('no direct fs outside server/src/storage (docs/design/19-tech-stack.md §9)', () => {
+describe('no direct fs outside server/src/storage (docs/design/20-tech-stack.md §9)', () => {
   it('blocks node:fs in an ordinary server file', async () => {
     const fired = await rulesFiredIn('packages/server/src/uses-fs.ts');
     expect(fired).toContain('no-restricted-imports');
@@ -145,7 +145,7 @@ describe('no direct fs outside server/src/storage (docs/design/19-tech-stack.md 
   });
 });
 
-describe('no randomness outside the RNG service (docs/design/19-tech-stack.md §14.4)', () => {
+describe('no randomness outside the RNG service (docs/design/20-tech-stack.md §14.4)', () => {
   it('blocks Math.random', async () => {
     const fired = await rulesFiredIn('packages/shared/src/uses-math-random.ts');
     expect(fired).toContain('no-restricted-properties');
@@ -180,7 +180,7 @@ describe('no randomness outside the RNG service (docs/design/19-tech-stack.md §
 
   it('permits it in the id generator — an id is not a draw', async () => {
     // Nothing replays a uuid and no outcome depends on its value, so it is not
-    // the thing docs/design/19-tech-stack.md §14.1 protects. The exemption is
+    // the thing docs/design/20-tech-stack.md §14.1 protects. The exemption is
     // deliberately one file wide, which the next test is what actually proves.
     // Both rules are relaxed together: the real ids.ts draws through the Web
     // Crypto global (shared runs in the browser too), which the syntax rule
@@ -407,7 +407,7 @@ describe('sentences assembled from fragments (docs/design/workplan/01-work-plan.
   });
 
   it('does not apply to the server, whose strings are log lines', async () => {
-    // docs/design/19-tech-stack.md §12.7 keeps those deliberately untranslated,
+    // docs/design/20-tech-stack.md §12.7 keeps those deliberately untranslated,
     // and a rule that fired on them would teach people to work around it.
     //
     // ~~`uses-fs.ts`~~ — which holds no sentence and no `+`, so this passed
@@ -418,7 +418,7 @@ describe('sentences assembled from fragments (docs/design/workplan/01-work-plan.
   });
 });
 
-describe('Intl only (docs/design/19-tech-stack.md §12.6)', () => {
+describe('Intl only (docs/design/20-tech-stack.md §12.6)', () => {
   const INTL = /Hand-rolled date, time or number formatting/;
 
   it('catches every way of baking a locale in', async () => {
@@ -433,7 +433,7 @@ describe('Intl only (docs/design/19-tech-stack.md §12.6)', () => {
   });
 });
 
-describe('physical-direction Tailwind utilities (docs/design/19-tech-stack.md §12.6)', () => {
+describe('physical-direction Tailwind utilities (docs/design/20-tech-stack.md §12.6)', () => {
   /** This rule's own reports, told apart from anything else in the same slot. */
   const PHYSICAL = /Physical-direction utility/;
 

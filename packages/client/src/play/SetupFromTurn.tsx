@@ -18,7 +18,7 @@ import { Note } from '../ui/Text.js';
 
 /**
  * ***Make a setup from here*** — [04 §7.2](../../../../docs/design/04-schemas.md),
- * [16 §3](../../../../docs/design/16-authoring.md),
+ * [17 §3](../../../../docs/design/17-authoring.md),
  * [P15.8](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * **Beside *Continue from here*, and the other answer to the same wish.**
@@ -29,7 +29,7 @@ import { Note } from '../ui/Text.js';
  *
  * ***The button is here and the dialog is not*** (2026-10-04,
  * [P15 §1.11](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
- * [20 §7.2](../../../../docs/design/20-client-loading.md)). Every turn of every
+ * [21 §7.2](../../../../docs/design/21-client-loading.md)). Every turn of every
  * transcript draws this button, so it has to be on the play page's code; the
  * dialog behind it is seen by somebody who pressed it on one turn, and until
  * this date every byte of it was on the common entry — paid for by a first load
@@ -167,7 +167,7 @@ const SetupWizard = lazy(() =>
  * the time the dialog closes, so focus would land on nothing. And nothing is
  * covered while the chunk is on its way, so there is nothing to close: the
  * transcript, the composer and the other turns' buttons all stay in reach. On a
- * LAN the sentence is there for a moment; [20 §7.1]'s contingency for the
+ * LAN the sentence is there for a moment; [21 §7.1]'s contingency for the
  * changelog said the same of its own fallback — *a sentence rather than a
  * spinner*.
  *
@@ -175,7 +175,7 @@ const SetupWizard = lazy(() =>
  * rejection to the nearest error boundary, and without this one the nearest is
  * the router's `RouteErrorCard`, which would swap the whole play page —
  * transcript, composer, an unsent move — for *This page could not be rendered*
- * over one dialog. [20 §5](../../../../docs/design/20-client-loading.md): *"a
+ * over one dialog. [21 §5](../../../../docs/design/21-client-loading.md): *"a
  * failed inspector should leave the page beside it usable."* *A class
  * component, which `router.tsx` argues against for the page-sized case* because
  * a hand-rolled boundary forgets to reset on navigation; this one cannot

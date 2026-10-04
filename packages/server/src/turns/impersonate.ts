@@ -115,7 +115,7 @@ export type ImpersonateResult =
   /**
    * ***The endpoint failed, said as a class and a remedy*** (2026-09-27). The
    * call's record and the endpoint's own words are here for the log line and
-   * go no further: [21 §4.1] keeps a prompt out of the log, and a client gets
+   * go no further: [22 §4.1] keeps a prompt out of the log, and a client gets
    * the class and what a person could do about it.
    */
   | {

@@ -762,7 +762,7 @@ function firedOn(path: readonly Turn[]): Map<string, string> {
  * ***Why this lives beside `readPacing` and not in `dials.ts`.*** That module
  * opens by saying what it is not: *"a third dial that is deliberately not
  * here… nothing here reads it, nothing here writes it, and `dials.test.ts`
- * asserts the three are three."* [23 §5.4] is the reason — folding *how often*
+ * asserts the three are three."* [24 §5.4] is the reason — folding *how often*
  * into *how hard* rebuilds the conflation [06 §7.3.2] exists to prevent. **What
  * crosses the line is one sort and nothing else**: {@link levelFragments} orders
  * a level's fragments by priority, which is a fact about `DifficultyLevel` the
@@ -771,7 +771,7 @@ function firedOn(path: readonly Turn[]): Map<string, string> {
  *
  * *One string rather than a list*, because the selector's call takes candidate
  * blocks and one block is what an author positioned: the ranking still decides
- * the order, and [19 §5.3]'s cap cuts from the end of the prompt rather than
+ * the order, and [20 §5.3]'s cap cuts from the end of the prompt rather than
  * from inside this. A pack that wants two blocks can write two levels' worth of
  * fragments and will get them in rank order.
  *

@@ -90,13 +90,13 @@ export function RenditionView(props: RenditionProps): JSX.Element {
  * Why there are no pixels, in the reader's own language.
  *
  * ***The class is what crossed the wire, and the sentence is written here***, on
- * [21 §1.4]'s rule: the server does not know the reader's language, so a failure
+ * [22 §1.4]'s rule: the server does not know the reader's language, so a failure
  * travels as something a client can render and the provider's own words go to
  * the log. This is the client rendering it.
  *
  * *An evicted rendition is `ready` with no asset*, which is why that case is
  * separate from `failed`: nothing went wrong, the pixels were reclaimed, and the
- * recipe is right there — [25 E3]'s *"evict pixels, keep recipes, regenerate on
+ * recipe is right there — [26 E3]'s *"evict pixels, keep recipes, regenerate on
  * demand"*.
  */
 function reasonOf(rendition: Rendition): string {
@@ -167,7 +167,7 @@ export function anchorOffset(text: string, anchor: string | undefined): number |
  * between one option is furniture.
  *
  * *Numbered rather than thumbnailed*, which is the cheap end of the same
- * affordance — a strip of previews is a gallery, and [24 §3.3] puts the
+ * affordance — a strip of previews is a gallery, and [25 §3.3] puts the
  * storyboard surface outside 1.0. The numbers are the order they were made in,
  * which is the one ordering the record actually carries.
  */

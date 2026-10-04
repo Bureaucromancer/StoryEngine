@@ -224,7 +224,7 @@ export function fileErrors(context: LibraryContext, handle: string): LibraryFile
  * 2026-08-27: **every row the index holds for the id**, shadowed and
  * tombstoned included, and the projection is **best-effort rather than a
  * contract** — it restates the derived index, whose tables stay an
- * implementation detail ([21 §5](../../../docs/design/21-internal-contracts.md)),
+ * implementation detail ([22 §5](../../../docs/design/22-internal-contracts.md)),
  * so after an index schema bump it may return less until this surface
  * catches up.
  *
@@ -547,7 +547,7 @@ function assertValidObject(object: unknown): PortableSchemaId {
  * blank and nothing accepted a canvas. The alternative was an importer that
  * wrote the file itself, which would have bypassed the kind queue, the
  * id-conflict check, `writeAtomic` and the synchronous ingest that makes
- * read-after-write hold ([21 §5]). Those four are not incidental to `create()`;
+ * read-after-write hold ([22 §5]). Those four are not incidental to `create()`;
  * they are what it is.
  *
  * The codec splices our envelope into the pixels and never re-encodes them, so
@@ -678,7 +678,7 @@ export interface ChangeAttribution {
   /**
    * Whether the server stamps `provenance.updatedAt` on a real change.
    * Defaults on: `authoredAt` correctness must not depend on the client
-   * remembering to stamp ([21 §1.6]). Restore turns it off — restoring is not
+   * remembering to stamp ([22 §1.6]). Restore turns it off — restoring is not
    * authoring, and stamping would change the restored bytes and so break
    * "restoring the state you are on is a no-op".
    */

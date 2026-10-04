@@ -989,7 +989,7 @@ describe('the prose a pack ships for the dial', () => {
   });
 
   /**
-   * ***Highest priority first, which is [19 §5.3]'s ordering and not the
+   * ***Highest priority first, which is [20 §5.3]'s ordering and not the
    * array's.*** A collector that emitted them in the order somebody typed them
    * would make the pack's ranking depend on typing, which is the accident
    * `rank` avoids one level up — and it would hand the cap the wrong end to cut.

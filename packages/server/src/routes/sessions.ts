@@ -136,7 +136,7 @@ import { resolveCast } from '../turns/cast.js';
 import { readRegistry } from '../tags/store.js';
 
 /**
- * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [19 §8].
+ * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [20 §8].
  *
  * **Every route resolves its session from the account, never from a parameter.**
  * There is no `:handle` here any more than there is in the library routes: the
@@ -168,7 +168,7 @@ const AttachmentParams = Type.Object({
 /**
  * ***The ceiling on one attached picture*** — below `limits.maxUploadMb`, for
  * the avatar's reason: the client scales a picture down before it sends it
- * ([25 E15]), so anything past this is a photograph that skipped that step,
+ * ([26 E15]), so anything past this is a photograph that skipped that step,
  * and a model would be sent more than it can use. *Not a config key*: nobody
  * tunes it, and [work plan §2.3]'s standing line is that not everything is a
  * setting.
@@ -294,7 +294,7 @@ const ChannelParams = Type.Object({
 const ChannelBody = Type.Object({ value: Type.Unknown() }, { additionalProperties: false });
 
 /**
- * A binding is a connection and one of its models — [19 §5.1].
+ * A binding is a connection and one of its models — [20 §5.1].
  *
  * **Validated for shape and not for existence**, which is `setSessionRoles`'
  * argument: a binding naming a removed connection resolves as `dangling`, and
@@ -473,7 +473,7 @@ const CreateBody = Type.Object(
      * about each.
      *
      * ***A Setup that carries a written opening wins over the cast's
-     * greetings, always*** — the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md), 2026-10-03,
+     * greetings, always*** — the owner's decision, [26 B18](../../../../docs/design/26-open-questions.md), 2026-10-03,
      * `sessions/opening.ts` rule 1: whichever is chosen here, `null` included,
      * the greetings below are not written for this session.
      */
@@ -828,7 +828,7 @@ const RememberBody = Type.Object(
  * composed: the gestures submit, they do not preview.
  */
 /**
- * Pictures named on a move — [25 E15], R1. **Digests and captions only**: the
+ * Pictures named on a move — [26 E15], R1. **Digests and captions only**: the
  * type and size are read from this server's store, and a digest it does not
  * hold is refused. Four at most, which is more than a move needs and few enough
  * that a model that sees them is not asked to read a gallery.
@@ -887,7 +887,7 @@ const SubmitBody = Type.Object(
      */
     parentTurnId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     /**
-     * Replay this turn's draws — **rewrite** rather than reroll, [19 §14.5],
+     * Replay this turn's draws — **rewrite** rather than reroll, [20 §14.5],
      * [P6.2].
      *
      * A turn id rather than a tape: the draws are read from the record on this
@@ -938,7 +938,7 @@ const SubmitBody = Type.Object(
           attachments: AttachmentsField,
           /**
            * ***A redo's pictures, named by the turn that has them*** —
-           * [25 E15]. The server copies that turn's `input.attachments` as
+           * [26 E15]. The server copies that turn's `input.attachments` as
            * recorded, ids and kinds and digest-less pictures included, rather
            * than rebuilding them from what a client re-sends — see
            * `attachmentsAgain`. Not with `attachments`, which is for pictures
@@ -1534,7 +1534,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * decided by `firstTurns`, the one account of turn 1 since the merge.
        *
        * ***A Setup that carries a written opening wins over the cast's
-       * greetings, always*** — **the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md),
+       * greetings, always*** — **the owner's decision, [26 B18](../../../../docs/design/26-open-questions.md),
        * 2026-10-03.** Whichever opening was chosen, and when *start cold* was:
        * the session takes the Setup's turn and writes no greeting. A Setup with
        * no written opening leaves the greetings as P14.4 writes them, hung from
@@ -2373,7 +2373,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * Which model this session uses for a role, and for one step — [19 §5.1],
+   * Which model this session uses for a role, and for one step — [20 §5.1],
    * [P7 §1.9], [P7.3].
    *
    * **The surface §1.9 says P7 owes**, and it names the shape: *"a session-level
@@ -2688,7 +2688,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const { layout } = services.sessions;
       const all = await readRenditions(layout, account.handle, sessionId);
       /**
-       * ***Ready with no file is no pixels*** (2026-09-30) — [25 E3], and the
+       * ***Ready with no file is no pixels*** (2026-09-30) — [26 E3], and the
        * answer the client already renders as *cleared, try again*. The record
        * went out as it was, `ready` with an asset, so the page drew a broken
        * image where the design promised a picture that can be made again.
@@ -2707,7 +2707,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***A picture for a move, uploaded before the move is sent*** — [25 E15], R1,
+   * ***A picture for a move, uploaded before the move is sent*** — [26 E15], R1,
    * and [10 §11.2b]'s two-step shape: the bytes first, then the turn names them
    * by digest in its ordinary JSON body.
    *
@@ -2870,7 +2870,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       if (bytes === null) {
         /**
          * **A record that says `ready` and a file that is gone.** Which is not a
-         * bug to guard against but the state [25 E3] describes: somebody emptied
+         * bug to guard against but the state [26 E3] describes: somebody emptied
          * `assets/`, and *"deleting one leaves `asset: null` and a picture that
          * can be made again"*. ~~A 404 is what the placeholder renders from~~ —
          * it was not: the page drew a broken image. *Since 2026-09-30 the list
@@ -2963,7 +2963,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * turn to a button.
    *
    * *A refusal is a 200 with a reason*, not an error: **nothing is bound to the
-   * image role** is the ordinary state of every install ([19 §5.1]), and it is
+   * image role** is the ordinary state of every install ([20 §5.1]), and it is
    * an answer to *can you make a picture* rather than a failed request.
    */
   app.post(
@@ -3037,7 +3037,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***Make a setup from here: the draft*** — [04 §7.2], [16 §3],
+   * ***Make a setup from here: the draft*** — [04 §7.2], [17 §3],
    * [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * **Writes nothing.** What comes back is for a person to read, edit and keep
@@ -3127,7 +3127,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***Make a setup from here: the commit*** — [04 §7.2], [16 §3],
+   * ***Make a setup from here: the commit*** — [04 §7.2], [17 §3],
    * [P15.7](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
    *
    * **Writes the companion lorebook when facts were kept, then the Setup**, and
@@ -3190,7 +3190,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***Run this recipe again*** — [25 E3], [06 §10.2], [P9.4].
+   * ***Run this recipe again*** — [26 E3], [06 §10.2], [P9.4].
    *
    * ***Gate step 15, and it is structural rather than careful.*** *"Re-create an
    * evicted rendition and **no text call is made**: the moment is replayed from
@@ -3321,7 +3321,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * **History shows the selected path only** ([07 §6]), so the alternatives
        * are not in `turns` and must be named some other way or they are
        * unreachable — which is what [P2C §5] meant by *a storage affordance with
-       * no route*, and what [18 §4.3] predicted for an imported chat: swipes
+       * no route*, and what [19 §4.3] predicted for an imported chat: swipes
        * land correctly in the tree and cannot be seen.
        *
        * Only nodes that actually have alternatives appear. A map of every turn
@@ -3465,7 +3465,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***A session, whole, for another install*** — [25 B12], [10 §12.3],
+   * ***A session, whole, for another install*** — [26 B12], [10 §12.3],
    * [P11.10](../../../../docs/design/workplan/28-p11-implementation.md).
    *
    * **`GET`, because it reads and changes nothing** — which is the opposite of
@@ -3479,8 +3479,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * copy it out by hand.
    */
   /**
-   * ***And back in*** — [18 §3](../../../../docs/design/18-session-import.md),
-   * [25 B12](../../../../docs/design/25-open-questions.md),
+   * ***And back in*** — [19 §3](../../../../docs/design/19-session-import.md),
+   * [26 B12](../../../../docs/design/26-open-questions.md),
    * [P11 §3](../../../../docs/design/workplan/28-p11-implementation.md)'s row 10.
    *
    * The gate's row 10 is *"a session exported from this install **loads on
@@ -3508,7 +3508,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       request.body,
     );
     if (!result.ok) {
-      // A class, for the client to word — [21 §1.4], as everywhere else. A
+      // A class, for the client to word — [22 §1.4], as everywhere else. A
       // session already here is a conflict with what is here rather than a
       // fault in the file.
       return reply
@@ -3583,7 +3583,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
        * ***And no timeout here, on purpose.*** `limits.providerTimeoutMs` is
        * enforced inside `performCall`, per attempt, by `withIdleTimeout`, which
        * bounds **silence rather than duration** and reads `<= 0` as *switched
-       * off*. Both are [21 §4]'s row and [P2C §1.3]'s semantics, and a draft
+       * off*. Both are [22 §4]'s row and [P2C §1.3]'s semantics, and a draft
        * goes through that helper like every other call. This route used to add
        * its own copy as `AbortSignal.timeout(providerTimeoutMs)`, which broke
        * both halves of that row. It was a wall-clock ceiling on top of the idle
@@ -3742,7 +3742,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
   /**
    * Undo — apply an effect's `before`, or refuse and offer the branch —
-   * [§1.4], [21 §1.2.1], [P6.3].
+   * [§1.4], [22 §1.2.1], [P6.3].
    *
    * The refusal is the feature. `before` is an inverse only while nothing has
    * touched the same key since; applying it otherwise destroys the later change
@@ -4168,7 +4168,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
       /**
        * ***The pictures, read from this server's store rather than believed*** —
-       * [25 E15], R1. A digest the store does not hold names a picture that was
+       * [26 E15], R1. A digest the store does not hold names a picture that was
        * never uploaded here, and recording it would be a turn pointing at
        * nothing; refused before a job exists, while the request is still one.
        *

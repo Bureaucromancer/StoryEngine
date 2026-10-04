@@ -13,7 +13,7 @@ import { formatCalendarDate } from '../format.js';
  * A message with a value substituted into it is the shape a catalogue entry
  * takes; `<p>Showing {name}</p>` is the shape the assembly rule forbids, because
  * a sentence that exists only as a shape in the JSX tree cannot be handed to a
- * translator at all ([19 §12.6a]). So each of these returns a whole sentence,
+ * translator at all ([20 §12.6a]). So each of these returns a whole sentence,
  * and the page renders one expression.
  *
  * The branch is on a **code**, never on displayed text — the other half of the

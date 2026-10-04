@@ -14,7 +14,7 @@
  * client imports only from here ([P3.0]'s precedent for the turn record). What
  * crosses is *classes and parameters*, never sentences —
  * [P4 §1.4](../../../docs/design/workplan/16-p4-implementation.md) decides that
- * and [25 A2d](../../../docs/design/25-open-questions.md) is why: a report
+ * and [26 A2d](../../../docs/design/26-open-questions.md) is why: a report
  * stored as English is a bug that only shows up when somebody changes language.
  * There is no ICU message layer in this repository yet
  * ([P11 §1.3](../../../docs/design/workplan/28-p11-implementation.md) owns the
@@ -133,7 +133,7 @@ export interface ImportNote {
 export interface ImportItemReport {
   /**
    * What this was, **named relative to the sweep root** — never absolutely.
-   * [21 §4.1](../../../docs/design/21-internal-contracts.md)'s foreign-path
+   * [22 §4.1](../../../docs/design/22-internal-contracts.md)'s foreign-path
    * doctrine: the root is recorded once, on the job, where the person who typed
    * it can see it. A per-item absolute path turns a report somebody pastes into
    * an issue into a description of their filesystem.

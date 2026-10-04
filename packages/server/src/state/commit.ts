@@ -149,7 +149,7 @@ export async function advanceCommit(
         now,
       );
       /**
-       * **The session and the account too** — [21 §4.1].
+       * **The session and the account too** — [22 §4.1].
        *
        * This carried `jobId` and `turnId` alone, and the id a person can see is
        * the session's, because it is the one in the URL. So the line that says

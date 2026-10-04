@@ -271,7 +271,7 @@ describe('step 2 — swipes are siblings, and nothing is destroyed', () => {
     // The transcript is the selected path, and the affordance is what makes the
     // other two reachable — **the falsifying mutation is reporting no
     // alternatives**, which leaves them on disk and unreachable, exactly the
-    // state [18 §4.3] describes for an imported chat with swipes.
+    // state [19 §4.3] describes for an imported chat with swipes.
     const path = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}/turns` });
     expect((path.body.turns as { id: string }[]).map((turn) => turn.id)).toEqual([first, three]);
     expect((path.body.siblings as Record<string, string[]>)[three]).toEqual([one, two, three]);

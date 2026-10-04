@@ -80,7 +80,7 @@ away, and without a sound you either sit watching a spinner or come back late.
 It is a tiny feature that materially changes how the app feels to use.
 
 The large pressure: **Messages mode does not work without it** — though Messages
-is now unscheduled ([24 §3.4](24-roadmap.md)), so this argument lands later than
+is now unscheduled ([25 §3.4](25-roadmap.md)), so this argument lands later than
 the others and has no date at all. Autonomous
 messages ([06 §7.1](06-modes-and-turn-pipeline.md)) exist to reach you when you
 are *not* looking. A character messaging you first, with no way for that to
@@ -161,7 +161,7 @@ arrives on the reattach's snapshot, and the client announces the newest such row
 it had not yet said, which is what *replays* came to mean.
 
 **That inbox is operational state, not derived** — it goes with jobs and auth
-sessions in the store described in [21 §5.1](21-internal-contracts.md), never in
+sessions in the store described in [22 §5.1](22-internal-contracts.md), never in
 the disposable index. A notification that vanishes when someone deletes
 `index.sqlite` was never durable.
 
@@ -249,7 +249,7 @@ From the start, notification events carry:
   it is one field rather than a doubling of the class list.
 - **a renderable summary as `{ key, params }`, not English prose.** Composed at
   display time, because the server cannot know the reader's language
-  ([19 §12.5](19-tech-stack.md)). Note this cuts both ways: the params must carry
+  ([20 §12.5](20-tech-stack.md)). Note this cuts both ways: the params must carry
   everything the sentence needs, since composing a summary later from
   *unstructured* fields produces the "New event in session 4f2a" school of
   notification.
@@ -266,10 +266,10 @@ settings.
 |---|---|---|
 | `turn.complete` | no | 1.0 — the completion-sound case |
 | `turn.failed` | **yes** | 1.0 |
-| `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([25 C5](25-open-questions.md)); the strongest argument for push |
+| `turn.awaiting-input` | **yes** | 1.0 — a turn suspended for the player ([26 C5](26-open-questions.md)); the strongest argument for push |
 | `artifact.ready` | no | 1.0 — an async artefact attached to a turn has completed |
-| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([22 §7](22-extensions.md)) |
-| `message.received` | no | With Messages, whenever it is built ([24 §3.4](24-roadmap.md)) |
+| `system.notice` | varies | 1.0 — admin-facing: restart required (§6.3), no usable connection (§4.5), an extension disabled after repeated crashes ([23 §7](23-extensions.md)) |
+| `message.received` | no | With Messages, whenever it is built ([25 §3.4](25-roadmap.md)) |
 
 **`artifact.ready` rather than `rendition-ready`.** Renditions are the only
 producer at 1.0, but the class is about *asynchronous work attached to a turn
@@ -293,7 +293,7 @@ already specified with nowhere to be delivered. Without it each of them invents
 a private path.
 
 **Awaiting-input deserves special mention.** If a turn can suspend for player
-input ([25 C5](25-open-questions.md)), and the player has wandered off, the
+input ([26 C5](26-open-questions.md)), and the player has wandered off, the
 session is stuck until told. That class is the strongest argument for push
 rather than in-app-only.
 
@@ -423,7 +423,7 @@ in [12 §3](12-account-gallery.md).
 interface Account {
   handle: string          // stable, used for directory names, immutable
   displayName: string
-  passwordHash, salt      // scrypt, per [19 §9] — no native dependency
+  passwordHash, salt      // scrypt, per [20 §9] — no native dependency
   role: "admin" | "user"
   enabled: boolean
   hiddenFromGallery?: boolean  // presentation, not a capability; absent means listed. [12 §4]
@@ -443,7 +443,7 @@ interface Capabilities {
    *  are argued in [10 §4.2.2] rather than here. */
   fileAccess: "none" | "read" | "write"
   /** May enable installed extensions for their own sessions. Installing
-   *  remains admin-only. Default false. [22 §7] */
+   *  remains admin-only. Default false. [23 §7] */
   enableExtensions: boolean
 }
 ```
@@ -461,7 +461,7 @@ First-run creates the first admin. Admins manage accounts, install extensions,
 and administer the system scope (§4.3, §4.5). Everything else is a user.
 
 **All accounts are manually provisioned.** Auto-provisioning is on the feature
-list at Low ([24 §3.2](24-roadmap.md)) rather than in any committed version. No
+list at Low ([25 §3.2](25-roadmap.md)) rather than in any committed version. No
 self-registration, no invite links, no auto-provisioning from an identity
 provider. Not a philosophical position — simply simpler, and matched to reality:
 most installs are one user or a handful, and the typical act of adding a person
@@ -502,7 +502,7 @@ than scattering booleans as they arise, is that **a future role system then
 becomes a move rather than an invention** — capabilities relocate from the
 account to a role, and accounts reference roles. Additive, and only if wanted.
 
-**A real role system is on the feature list at High** ([24 §3.1](24-roadmap.md)),
+**A real role system is on the feature list at High** ([25 §3.1](25-roadmap.md)),
 not in a committed version. The signals that it
 is needed: a capability that is not a simple boolean, wanting to apply the same
 set to several people, or wanting permissions scoped to particular objects
@@ -644,7 +644,7 @@ similarity:
 #### Where they are actually consumed: role bindings
 
 Users do not pick a connection per turn. They bind **model roles**
-([19 §5.1](19-tech-stack.md)), and a binding may point at a personal or a system
+([20 §5.1](20-tech-stack.md)), and a binding may point at a personal or a system
 connection. That is what makes this the natural household arrangement:
 
 > The admin binds `prose` and `fast` to system connections. Every user's
@@ -671,7 +671,7 @@ Three details that decide whether it works:
   ([10 §4](10-ui-surfaces.md)), so a UI-level check is a trivial bypass. The
   loader must ignore personal connections for a user without the capability.
   That also means the same rule covers extensions for free, since they request
-  calls by role and the host resolves ([22 §4](22-extensions.md)).
+  calls by role and the host resolves ([23 §4](23-extensions.md)).
 - **Revoking disables, never deletes.** Existing personal connections stay on
   disk and stop resolving, and the user is *told* rather than left wondering why
   a model call started failing. Role bindings pointing at them dangle and fall
@@ -716,13 +716,13 @@ Three details that decide whether it works:
   question. Turns already record cost and already belong to a user
   ([10 §3](10-ui-surfaces.md)), so what 1.0 owes is the *recording*, which it
   already does. The aggregate view is on the feature list at Eventually
-  ([24 §3.3](24-roadmap.md)) and is where it surfaces. *Corrected 2026-09-27:
+  ([25 §3.3](25-roadmap.md)) and is where it surfaces. *Corrected 2026-09-27:
   "record cost" was true of tokens and not of money.* The turn's totals had no
   money field at all, and every call's `cost` was null because no adapter
   prices anything. The field now exists (`TurnCost.money`, alongside
-  `ModelCall.cost` and the usage log's `cost` — [21 §1.4](21-internal-contracts.md)),
+  `ModelCall.cost` and the usage log's `cost` — [22 §1.4](22-internal-contracts.md)),
   so a priced call needs no migration to be recorded; what fills it is
-  [25 E16](25-open-questions.md)'s recommendation, and until then every turn
+  [26 E16](26-open-questions.md)'s recommendation, and until then every turn
   says *not priced*, never zero.
 
   *An earlier draft pinned this to "2.0", which was always a release later than
@@ -735,7 +735,7 @@ Three details that decide whether it works:
   beats a turn that errors, and the progress stream (§3.3) makes waiting legible
   instead of looking like a hang. Scoping the queue to the connection, not the
   user, is the part that has to be right from the start; the cap itself can stay
-  a setting. See [25 E7](25-open-questions.md) for the failure taxonomy this
+  a setting. See [26 E7](26-open-questions.md) for the failure taxonomy this
   sits inside.
 
 **No literal system account.** "The system account" is the right mental model
@@ -845,7 +845,7 @@ survives the phase that makes the UI exist.
 
 ### 5.2 Tailscale
 
-**All on the feature list at High** ([24 §3.1](24-roadmap.md)), not in a
+**All on the feature list at High** ([25 §3.1](25-roadmap.md)), not in a
 committed version. Not hard, but a side project rather than a release blocker.
 Worth designing the seam now because it changes the auth model
 rather than sitting beside it. Three levels, in increasing order of effort:
@@ -873,7 +873,7 @@ access.
 
 **Settled: Level 1 yes, Level 2 maybe, Level 3 not worth the effort** — an
 embedded `tsnet` node is a real component for a convenience the two simpler
-levels mostly deliver. **All of it is on the feature list at High** ([24 §3.1](24-roadmap.md)), not in a committed version. Not hard, but a side
+levels mostly deliver. **All of it is on the feature list at High** ([25 §3.1](25-roadmap.md)), not in a committed version. Not hard, but a side
 project rather than anything on the path.
 
 The only thing to do now is keep the auth layer shaped so Level 2 is a provider
@@ -916,7 +916,7 @@ than disappearing:
 This should be a single, documented environment variable rather than a hidden
 build difference, so that a bare-metal user can opt into the same behaviour and
 a container user can tighten it. *It is: `SE_HOST`, since
-[P6A.0](workplan/19-p6a-alpha-1.md), and [21 §4](21-internal-contracts.md)
+[P6A.0](workplan/19-p6a-alpha-1.md), and [22 §4](22-internal-contracts.md)
 carries the table of the four variables that exist.*
 
 **Ship an unraid Community Applications template as a first-class artifact.**
@@ -1209,7 +1209,7 @@ within a timeout, then exit. And because this is multi-user, the confirmation
 must say what it is about to interrupt: *"2 other users have active sessions."*
 
 Clients reconnect on their own, since the event stream already reconnects
-([19 §8](19-tech-stack.md)), so the user-visible result is a brief disconnected
+([20 §8](20-tech-stack.md)), so the user-visible result is a brief disconnected
 banner rather than a manual refresh.
 
 *Added 2026-09-27:* **one server per data directory**, which nothing here had
@@ -1226,7 +1226,7 @@ directory is retried by the supervisor like any other failed start.
 **[OPEN]** Whether extension install/uninstall can avoid a full restart. In-process
 ESM modules make true unloading hard — stale references, already-registered
 channel definitions — so "restart required" is the honest 1.0 answer, and a
-cleaner lifecycle depends on [25 A1](25-open-questions.md).
+cleaner lifecycle depends on [26 A1](26-open-questions.md).
 
 ### 6.5 Update check, and using it as a connectivity signal
 

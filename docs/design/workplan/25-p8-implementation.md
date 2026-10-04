@@ -66,7 +66,7 @@ corpus convention.
   it looks because a memory is a lorebook entry and every retrieval mechanism it
   needs shipped at P5.
 - **Within-session summarisation as a rolling summary**
-  ([25 E1](../25-open-questions.md)) — schedulable rather than needing its own
+  ([26 E1](../26-open-questions.md)) — schedulable rather than needing its own
   design pass, with one constraint that must hold on the first commit.
 
 **The demo that defines done:** *start a second session with the same actor and
@@ -315,7 +315,7 @@ decision made without evidence.
 extraction *quality* question, which is a tuning matter
 [work plan P11](01-work-plan.md) owns for every other feature and owns for this
 one. The granularity question (§1.2), whose constraint is the part to hold and
-whose answer wants volume. And [25 E2](../25-open-questions.md)'s embeddings,
+whose answer wants volume. And [26 E2](../26-open-questions.md)'s embeddings,
 which this document is the first real customer for and which are not scheduled by
 saying so.
 
@@ -912,7 +912,7 @@ byte-identity can be confused with a prompt that happens to match. No
 summaries-of-summaries, because [07 §5](../07-branching.md) says content
 addressing handles them *"without special cases"* and that is a claim to inherit
 rather than to exercise on the first commit. No eviction — a summary is small,
-and [25 C8](../25-open-questions.md)'s *generous during alpha* is the standing
+and [26 C8](../26-open-questions.md)'s *generous during alpha* is the standing
 posture for this class of derived file.
 
 *Ends at:* ~~forking a four-hundred-turn session and observing that the parent's
@@ -1048,14 +1048,14 @@ new field, applied to a new source.
 ***`transcript` is the fifth member of `reads` and the first added to make a
 payload smaller.*** Every earlier member widened what a step could ask for. This
 one exists because `history` is **too wide to refuse with**. [06 §6] and
-[22 §3.1](../22-extensions.md) both carried the old union and both are corrected;
+[23 §3.1](../23-extensions.md) both carried the old union and both are corrected;
 so is `filterReads`' own comment, which said `reads` had *"exactly two
 pseudo-sources"* and was wrong when it was written (`cast` made three at P7.12).
 *The argument never depended on the count.*
 
 **`resolveStepRole` is extracted from `planCall` rather than restated.** The
 summariser has to know its resolved binding **before** the call, to look a link up
-by content address and usually not make one — and a second copy of [19 §5.1]'s
+by content address and usually not make one — and a second copy of [20 §5.1]'s
 layering would be a second answer to *which model is this*, which is how a session
 derives its chain under one model and reads it under another.
 
@@ -1150,7 +1150,7 @@ quietly done.***
 
 **The export warning has no export path to be on.** [08 §2] asks to *"warn on any
 export path — this is the one place the reuse could bite"*, and **nothing in this
-build downloads a library object**; session export is [25 B12](../25-open-questions.md)
+build downloads a library object**; session export is [26 B12](../26-open-questions.md)
 and out of scope. A warning written against that path would have been
 unreachable — the deliverable-nothing-noticed shape this stage deleted a helper
 over. So it goes where a person meets the book: the object page, which is also
@@ -1284,7 +1284,7 @@ sit here with the retrieval path rather than with the writer.
 
 *Deliberately not built.* No cross-actor memory
 ([08 §3](../08-cross-session-memory.md), explicitly not 1.0). No widening beyond
-persona. No embeddings ([25 E2](../25-open-questions.md)) — this document is
+persona. No embeddings ([26 E2](../26-open-questions.md)) — this document is
 their first real customer and saying so is not scheduling them.
 
 *Ends at:* the four combinations [08 §4](../08-cross-session-memory.md)'s table
@@ -1589,17 +1589,17 @@ for that reason rather than because the criterion was generous.
 
 ## 4. Out of scope, deliberately
 
-Chapterisation ([24 §3](../24-roadmap.md) — and note that P7's completed goal
+Chapterisation ([25 §3](../25-roadmap.md) — and note that P7's completed goal
 chain is a better spine for chapters than word count is, which is an argument
 for the roadmap item rather than for pulling it in); embeddings and semantic
-retrieval ([25 E2](../25-open-questions.md) — this document is their first real
+retrieval ([26 E2](../26-open-questions.md) — this document is their first real
 customer if they are ever built, and saying so is not scheduling them);
 cross-actor memory, *Vera recalling that she and Tomas both know you*
 ([08 §3](../08-cross-session-memory.md), which multiplies the scope matrix and is
 explicitly not 1.0); narrator- or World-scoped memory
 ([15](../15-world.md) — but §1.2's constraint is in scope); memories writing
 state (§1.6, and it is a rule rather than a deferral); session export
-([25 B12](../25-open-questions.md)), which is where the non-shareable marking will
+([26 B12](../26-open-questions.md)), which is where the non-shareable marking will
 eventually have to be enforced rather than merely warned about.
 
 ---

@@ -262,7 +262,7 @@ function modeOf(setup: Record<string, unknown> | undefined): string | null {
 
 /**
  * ***What the form says about a Setup's opening and its characters'
- * greetings*** — the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md) (2026-10-03), recorded in
+ * greetings*** — the owner's decision, [26 B18](../../../../docs/design/26-open-questions.md) (2026-10-03), recorded in
  * [P15](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
  * `greetingsSetAside` is the decision itself: a Setup that carries an opening
@@ -1089,7 +1089,7 @@ function GreetingPicker(props: {
  * What the closed disclosure says the session will be given.
  *
  * One string rather than a sentence assembled around values in JSX, which is
- * the shape [19 §12.6a] forbids — and it is closed by default, so this line is
+ * the shape [20 §12.6a] forbids — and it is closed by default, so this line is
  * the only thing standing between somebody and a session that retrieves
  * nothing, which is the state every session was in before [P6B.0].
  */

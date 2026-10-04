@@ -63,7 +63,7 @@ import { requestRendition } from './manual.js';
  * makes no turn.
  *
  * ***Aggregate spend tracking is where this is properly answered, and it is
- * post-1.0*** — [24 §3], which [10 §3] states and `CostSummary`'s docstring
+ * post-1.0*** — [25 §3], which [10 §3] states and `CostSummary`'s docstring
  * repeats: *"per-turn only; aggregate tracking is post-1.0 by design."* §10.6
  * already says [06 §10] has no budget of its own, so there is nothing in this
  * phase for the figure to be missing **from**; what a later aggregate has to
@@ -287,7 +287,7 @@ async function askForMoment(
  * The sampling seed for a hand-pressed picture.
  *
  * ***Drawn from the clock rather than from the RNG service, and the exemption is
- * narrow enough to state.*** [19 §14] puts every draw on the turn tape because a
+ * narrow enough to state.*** [20 §14] puts every draw on the turn tape because a
  * draw that affects outcome has to replay; this one affects an outcome that is
  * **not** replayed from a tape at all — it is written onto the rendition's own
  * `provenance.seed` before the job runs, which is what makes *re-creating* an

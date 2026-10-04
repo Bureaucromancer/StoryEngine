@@ -198,7 +198,7 @@ time. Summaries must be *values keyed by their inputs*, not *a running total*.
 
 ### 5.1 The rolling summary is a chain, not a blob
 
-[25 E1](25-open-questions.md) settles the rolling summary as the default
+[26 E1](26-open-questions.md) settles the rolling summary as the default
 in-session memory, which reads like a collision with the paragraph above. It is
 not, provided one thing holds: **"rolling" describes the chain, not mutation.**
 
@@ -246,7 +246,7 @@ What this buys, beyond one mechanism instead of two:
   its own effects. The sources' swipe arrays cannot express this at all — which
   is why swiping in a game-like mode tends to corrupt tracked state in practice.
 - **Rewrite and reroll are separable, and rewrite is the default.** Each node
-  records the draws it consumed ([19 §14.5](19-tech-stack.md)), so a sibling can
+  records the draws it consumed ([20 §14.5](20-tech-stack.md)), so a sibling can
   either replay that tape — *rewrite*: same mechanical outcome, different
   writing — or draw fresh — *reroll*: new outcome. Without the distinction,
   swiping past a failed check is save-scumming by accident. Both siblings are
@@ -258,11 +258,11 @@ What this buys, beyond one mechanism instead of two:
 The cost is UI, not storage. A long session accumulates many unnamed siblings,
 so the history view must default to the selected path and surface siblings as an
 inline affordance on the node, with the full tree behind a deliberate action.
-Retention is [25 C9](25-open-questions.md); the storage argument for keeping
+Retention is [26 C9](26-open-questions.md); the storage argument for keeping
 everything is strong, so the question is really about presentation.
 
 That "deliberate action" is the branch tree visualiser, specified as a post-1.0
-item in [24 §1](24-roadmap.md). It is pure addition — everything it draws is
+item in [25 §1](25-roadmap.md). It is pure addition — everything it draws is
 already recorded — with one obligation on 1.0: turn storage must tolerate
 removal, so pruning is possible later without a migration.
 
@@ -300,7 +300,7 @@ end ([06 §5.1](06-modes-and-turn-pipeline.md)). So the per-turn controls carry
 a field for it, and what is typed there rides with whichever of rewrite and
 reroll is pressed next — a modifier on the gesture, not a third gesture,
 because "not that sentence" and "not that outcome" are still different
-requests ([19 §14.5](19-tech-stack.md)). With an instruction the model is also
+requests ([20 §14.5](20-tech-stack.md)). With an instruction the model is also
 shown the attempt it is about: a sibling is an ordinary node with a full
 record, so the redo's record says which attempt was shown and what was asked,
 and the attempt itself is never history. Empty, the field changes nothing.
@@ -343,7 +343,7 @@ The UX to port is **Marinara's**: one button, any message, any time.
 
 ## 9. Open questions
 
-Added to [25](25-open-questions.md) as C8–C10. C11 (branch anchor within a
+Added to [26](26-open-questions.md) as C8–C10. C11 (branch anchor within a
 multi-message turn) is **resolved** by §3 — a turn is one node.
 
 - **C8. Snapshot interval and eviction.** Every N turns of depth, plus at nodes

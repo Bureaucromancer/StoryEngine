@@ -167,7 +167,7 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // Read with its presets since 2026-09-27: a disabled group switches its
   // sections off, which is the part of a group a block can carry.
   prompt_groups: 'converted',
-  /** Would become tags on whatever it organises; `Lorebook.category` was removed deliberately ([24 §2d]). */
+  /** Would become tags on whatever it organises; `Lorebook.category` was removed deliberately ([25 §2d]). */
   library_folders: 'recorded',
 
   // ── Credential: never lands, not even in `compat` ([P4 §1.1]) ─────────────
@@ -179,12 +179,12 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   api_connection_folders: 'credential',
 
   // ── Recorded, not converted ───────────────────────────────────────────────
-  // Session-shaped. ~~Chat import is closed rather than deferred ([25 E4]).~~
+  // Session-shaped. ~~Chat import is closed rather than deferred ([26 E4]).~~
   //
-  // *Corrected 2026-09-01.* **Conditional, not closed.** [25 E4] was rewritten
+  // *Corrected 2026-09-01.* **Conditional, not closed.** [26 E4] was rewritten
   // on 2026-08-31 — *"the condition is the shape, not the appetite"* — and the
   // condition is a session interchange format beginning at P11's export
-  // ([25 B12]). The dispositions below are unchanged and `recorded` is now the
+  // ([26 B12]). The dispositions below are unchanged and `recorded` is now the
   // right arm rather than an approximate one; see the longer note on the same
   // row in `sillytavern.ts`, and [21] for the survey.
   //
@@ -192,7 +192,7 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // Marinara messages and swipes carry real ids, so re-import identity here is
   // tractable where ST's is not — and a Marinara *branch* is a copied chat with
   // a back-pointer, not a tree edge, so a family of them imports as duplicated
-  // prefixes unless it is reassembled whole ([18 §2.2]).
+  // prefixes unless it is reassembled whole ([19 §2.2]).
   //
   // ***`chats`, `messages` and `message_swipes` are converted since [P14.10]***
   // (2026-09-29): the reader hands the three to the session pass as one
@@ -240,7 +240,7 @@ export const MARINARA_DISPOSITIONS: Readonly<Record<string, ImportDisposition>> 
   // director's bookkeeping and go nowhere.
   agent_memory: 'converted',
   capability_documents: 'recorded',
-  // Rule-shaped, deferred with the rule vocabulary to 2.0 ([25 C7]).
+  // Rule-shaped, deferred with the rule vocabulary to 2.0 ([26 C7]).
   regex_scripts: 'recorded',
   prompt_overrides: 'recorded',
   /**

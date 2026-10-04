@@ -318,7 +318,7 @@ async function importSessions(
       imported += 1;
       /**
        * ***The pictures on its moves, which only a backup can bring*** —
-       * [25 E15]. An export carries the records and not the bytes; an archive
+       * [26 E15]. An export carries the records and not the bytes; an archive
        * carries the session directory whole. Stored through the attachment
        * store rather than copied by name, so every file is re-addressed by its
        * own bytes: one renamed or altered in the archive lands under the digest

@@ -24,7 +24,7 @@ import {
 /**
  * ***The summary chain, derived before anybody asks for it*** —
  * [P14.11](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
- * [18 §7.5](../../../../docs/design/18-session-import.md)'s cliff.
+ * [19 §7.5](../../../../docs/design/19-session-import.md)'s cliff.
  *
  * `ensureChain` is lazy and sequential by design — link *n* is
  * `f(link(n-1), units)`, and nothing is derived until a turn asks — which is

@@ -112,7 +112,7 @@ need *showing*.
   work is compatible with A and B but does not require C* is a useful thing to be
   able to say even if no model ever reads the files. The mechanism is already
   right: books do not point at books, consumers link books
-  ([25 B2](25-open-questions.md)), and the cohesion is delivered as a view
+  ([26 B2](26-open-questions.md)), and the cohesion is delivered as a view
   ([10 §5.2](10-ui-surfaces.md)) rather than bought with a schema.
 
 ### 2.1 The corollary about the machinery, and the misreading it prevents
@@ -315,7 +315,7 @@ panel, then find out whether anybody wants the field.**
 **`requires` or `compatibleWith` on the book.** The composability property in §2
 invites a declared compatibility list. It loses because books do not point at
 books by design, and reopening that reopens the ownership question
-[25 B2](25-open-questions.md) closed. It also loses on its own terms: a declared
+[26 B2](26-open-questions.md) closed. It also loses on its own terms: a declared
 list **decays silently** as both books change, where a derived one cannot. The
 honest version is co-occurrence — which other books appear beside this one in the
 same Treatment's or Package's links — which is a query rather than a field, and

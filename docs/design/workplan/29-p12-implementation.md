@@ -13,7 +13,7 @@ filed as one anyway — see [§1.5](#15-a-feature-in-its-own-document-and-a-bran
 **P12 is backups a person can take, list, delete, import and restore, from the
 web UI, on a schedule.** [P11.11](28-p11-implementation.md) shipped backup and
 restore as *"a script, two commands, and one test"* on 2026-09-17, which is what
-[25 E6](../25-open-questions.md) asked for and all it asked for. This phase
+[26 E6](../26-open-questions.md) asked for and all it asked for. This phase
 reverses that decision deliberately, records why, and repairs two defects in
 what shipped.
 
@@ -21,7 +21,7 @@ what shipped.
 
 ## 0 — Why this phase exists, when E6 said not to build it
 
-[25 E6](../25-open-questions.md) is marked **Opinionated** and its first line is
+[26 E6](../26-open-questions.md) is marked **Opinionated** and its first line is
 *"the design already did most of this, so do not build a subsystem."*
 [P11.11](28-p11-implementation.md)'s own record says *"this is a script rather
 than a route, a server feature or a schedule."* This phase is that subsystem, so
@@ -88,7 +88,7 @@ describing and does not generalise to this.
 
 E6 is about the install: archive the data directory, restore it, rebuild the
 index. *Export my account* is a different feature in a different family —
-session export ([25 B12](../25-open-questions.md)), library download
+session export ([26 B12](../26-open-questions.md)), library download
 ([10 §5.0a](../10-ui-surfaces.md)), `.sepack` — and it is how
 [the corpus's fourth commitment](../README.md) (*"drag a folder out of the
 storage directory and you have exported it"*) is kept for somebody who cannot
@@ -113,7 +113,7 @@ Found by reading `layout.ts` beside `backup.mjs`, not by a failure.
   exclusion read `if (at === '' && DERIVED.test(entry.name))` — a filename test
   applied only at the data root — and [03 §5.1](../03-data-model.md) puts the
   index at `index/index.sqlite`, one level down. So the clause that
-  [25 E6](../25-open-questions.md), [P11.11](28-p11-implementation.md) and
+  [26 E6](../26-open-questions.md), [P11.11](28-p11-implementation.md) and
   [docs/deploy.md](../../deploy.md) all exist to describe **never fired once**.
   `restore.test.ts` could not catch it: its fixture wrote `index.sqlite` at the
   source *root*, agreeing with the mistake rather than with the layout. Two
@@ -216,7 +216,7 @@ asked.
 [P11 §1.1](28-p11-implementation.md)'s rule ejects features from a hardening
 phase, so this is not a fourteenth stage appended to that document. It is
 small for a phase and is filed as
-one because the alternative — a roadmap entry ([24](../24-roadmap.md)) — holds
+one because the alternative — a roadmap entry ([25](../25-roadmap.md)) — holds
 no release commitment, and this is being built now.
 
 ***The branch is `claude/data-backup-system-0sir4i`, not `p12`***, by
@@ -275,7 +275,7 @@ side of the line `layout.ts` draws against `prefs.json`.
 ### P12.5 — Three config keys and the schedule
 
 `backup.frequency`, `backup.onStart`, `backup.contents`, each a six-place edit
-including `LIVE_APPLIERS` and both halves of [21 §4](../21-internal-contracts.md).
+including `LIVE_APPLIERS` and both halves of [22 §4](../22-internal-contracts.md).
 `startBackupSchedule` on `startTrashSweep`'s shape, wired where
 `startUpdateCheck` is and stopped where `trash.stop()` is.
 *Proof obligation:* **a run missed while the server was down happens on the next
@@ -290,9 +290,9 @@ rather than disabled, which is the mechanism `SettingsPage.tsx` already uses.
 
 ### P12.7 — The corpus
 
-This document, [25 E6](../25-open-questions.md)'s amendment,
+This document, [26 E6](../26-open-questions.md)'s amendment,
 [03 §5.1](../03-data-model.md)'s tree, [04](../04-schemas.md)'s manifest,
-[21 §4](../21-internal-contracts.md)'s rows, [10](../10-ui-surfaces.md)'s
+[22 §4](../22-internal-contracts.md)'s rows, [10](../10-ui-surfaces.md)'s
 panels, `docs/api.md`, `docs/deploy.md`, the changelog, and the standing list.
 ***The point at which the original ask is delivered.***
 
@@ -488,12 +488,12 @@ looking for months later — *where did my old data go* — is in it.
 ***`DELETE /api/admin/restore` was not in the plan and the work asked for
 it.*** A failed restore keeps its marker on purpose, so that the next boot can
 refuse it rather than loop; but a marker nothing will act on and nobody can
-remove is a trap on exactly the install this feature was built for. [25 E6]'s
+remove is a trap on exactly the install this feature was built for. [26 E6]'s
 operator has a shell. `docs/deploy.md`'s household one has a web page and
 nothing else, which is the first of the four arguments in §0 arriving from a
 different direction.
 
-*And the notice names a filesystem path*, which [21 §4.1] otherwise forbids in
+*And the notice names a filesystem path*, which [22 §4.1] otherwise forbids in
 what a person reads. The exception is argued rather than taken: the directory
 that moved aside **is** the undo, and *your previous data is safe* without
 saying where would be worse than saying nothing.
@@ -564,7 +564,7 @@ prose is parked where the person cutting the release will find it.
 
 **Added**
 
-- **Backups you can take from the browser** — [25 E6](../25-open-questions.md),
+- **Backups you can take from the browser** — [26 E6](../26-open-questions.md),
   [P12](29-p12-implementation.md). Settings → Backups takes
   one, lists what is stored, hands it over as a download and deletes one. Same
   again for the whole install, under Administration. Three `backup.*` settings
@@ -574,7 +574,7 @@ prose is parked where the person cutting the release will find it.
 - **A backup taken from inside the server is more consistent than one taken from
   outside it.** The operational store is snapshotted with `VACUUM INTO` while it
   is being written to; everything else was already atomic. This is why
-  [25 E6](../25-open-questions.md) — *do not build a subsystem* — is
+  [26 E6](../26-open-questions.md) — *do not build a subsystem* — is
   amended rather than ignored: it reasoned about a process on the **outside**.
 - **`scheduledBackups`, a fourth capability, default off.** Anyone may take a
   backup of their own work; what an administrator grants is the *server* writing

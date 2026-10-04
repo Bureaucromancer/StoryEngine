@@ -48,7 +48,7 @@ import { labels } from '../i18n/catalogue.js';
  * fallback stops being per *key* and becomes per *kind* (translate `do.label`
  * and you have silently un-translated `do.hint`), and the build-time check that
  * a namespace's keys and its English agree has to learn a second shape.
- * [19 §12.2]'s *explicit hierarchical keys* is exactly this: the hierarchy goes
+ * [20 §12.2]'s *explicit hierarchical keys* is exactly this: the hierarchy goes
  * in the key, not in the value.
  *
  * *So `do.label` rather than `do: { label }`*, and the three readers below spell

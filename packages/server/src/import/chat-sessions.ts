@@ -79,7 +79,7 @@ import type { FileSource, ImportCandidate } from './source.js';
  * its source since ([P14 §2.7], [P14.10a], {@link syncRow}); `unchanged` when
  * it has not; `unrecognised` with the reason when the file will not read.
  * One chat that will not load is one row, and the sweep goes on around it —
- * the poisoned-file rule ([21 §4.1.1]) applied to conversations.
+ * the poisoned-file rule ([22 §4.1.1]) applied to conversations.
  *
  * ***A family is one session*** ([P14 §2.5], [P14.9]). A sweep groups a
  * character folder's chats — and `group chats/`, by each group's list — by
@@ -561,7 +561,7 @@ export interface ChatPass {
  *    once, since nothing the pass writes is a library object and the answers
  *    cannot change under it.
  *
- * ***A row per file seen*** — the review's unit, [21 §4.1.1]'s poisoned-file
+ * ***A row per file seen*** — the review's unit, [22 §4.1.1]'s poisoned-file
  * rule applied to conversations: one chat that will not load is one row, and
  * the pass goes on around it. A family's chats each get a row, all pointing at
  * the family's one session; the root's carries what building it said, and the

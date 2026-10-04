@@ -347,7 +347,7 @@ describe('a failed rendition is a placeholder, never a failed turn', () => {
 
     const [failed] = await renditionsOf();
     /**
-     * **A class, never the endpoint's sentence** — [21 §1.4]. The provider said
+     * **A class, never the endpoint's sentence** — [22 §1.4]. The provider said
      * *"the endpoint said no"*; what reaches the record is `terminal`, because
      * the server does not know the reader's language and the provider's own
      * words go to the log.
@@ -402,7 +402,7 @@ describe('with nothing bound to the image role', () => {
 
   it('takes the turn and asks for nothing, rather than failing obscurely', async () => {
     /**
-     * ***The dangling posture, applied to a step*** — [P2B], [19 §5.1]. That
+     * ***The dangling posture, applied to a step*** — [P2B], [20 §5.1]. That
      * section leaves `image` unset on every install *"because there is no
      * sensible text-model fallback for it"*, so without the runner's gate every
      * turn of every session would log a failed step to discover what the binding

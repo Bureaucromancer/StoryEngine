@@ -3,7 +3,7 @@
 
 /**
  * ***A picture made safe and small before it leaves the browser*** —
- * [25 E15](../../../../docs/design/25-open-questions.md), R1.
+ * [26 E15](../../../../docs/design/26-open-questions.md), R1.
  *
  * **Every picture is redrawn, and the original is never sent.** A photograph
  * from a phone carries where it was taken, when, and on what; redrawing it

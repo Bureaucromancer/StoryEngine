@@ -168,7 +168,7 @@ Three details that decide whether it feels right:
   editable, and is not sent until the user sends it. Anything else takes
   authorship away rather than assisting it.
 - **It is a `generate` step like any other**, so it is recorded in the turn
-  record and rewrite/reroll apply ([19 §14.5](19-tech-stack.md)) — an
+  record and rewrite/reroll apply ([20 §14.5](20-tech-stack.md)) — an
   impersonation you dislike is re-rollable without ceremony. *Built otherwise,
   and recorded 2026-09-27:* the first detail wins where the two conflict, so an
   impersonation commits no turn and has no turn record to be in
@@ -193,7 +193,7 @@ aspirational.
 interface ChannelDefinition {
   id: ChannelId                   // "storyengine.clock", "storyengine.party.hp"
   owner: ModeId | ExtensionId | PackageId   // package: §4.1
-  version: number                 // paired with ChannelState.version — [21 §1.3]
+  version: number                 // paired with ChannelState.version — [22 §1.3]
   schema: JSONSchema              // the state shape
   /** `hook` at P7.5 and `goal` at P7.6, each with a channel that needed it:
    *  a firing state is per hook and a goal's is per goal, and neither is a
@@ -206,12 +206,12 @@ interface ChannelDefinition {
   render?: string                 // how the value reads in a prompt — P7.1
   surface?: WidgetSpec            // how it renders in the HUD, if at all
   /** Terminal values a person confirms before they apply — P7.2, and what
-   *  [25 C12](25-open-questions.md)'s answer turns on. */
+   *  [26 C12](26-open-questions.md)'s answer turns on. */
   confirm?: readonly string[]
 }
 ```
 
-***Reconciled with [21 §1.3](21-internal-contracts.md) on 2026-09-11, at
+***Reconciled with [22 §1.3](22-internal-contracts.md) on 2026-09-11, at
 [P7.0](workplan/23-p7-implementation.md), and the timing is the point.*** This
 sketch was missing `version` and `visibility` outright, wrote `owner` without
 `PackageId` — which §4.1 immediately below says 1.0 owes from the first channel
@@ -228,7 +228,7 @@ the other way round; where the two still differ is a *schedule*, stated next.
 
 ~~**Four members are specified here and deliberately absent from the shipped
 type**: `schema`, `init: InitPolicy`, `migrate` (21 §1.3's, not shown above) and
-`surface?: WidgetSpec`. [21 §6](21-internal-contracts.md) defers `InitPolicy` and
+`surface?: WidgetSpec`. [22 §6](22-internal-contracts.md) defers `InitPolicy` and
 `WidgetSpec` because they *"want the mode contract built first"* — that contract
 is the SDK, and P7.1 is the stage that designs them against their first real
 consumer. They stay in this sketch because it is the design, and their absence
@@ -242,7 +242,7 @@ starts has not really been declared. `render` and `confirm` joined them at P7.1
 and P7.2 and are in the sketch above now.
 
 **Only `migrate` is still absent**, and its argument stands on its own rather
-than on [21 §6](21-internal-contracts.md)'s deferral, which has itself been
+than on [22 §6](22-internal-contracts.md)'s deferral, which has itself been
 struck: a hook that sits inside the replay path should not have its contract
 guessed before a channel needs one, and after fifteen stages of channels none
 has.
@@ -261,7 +261,7 @@ The properties that make this worth doing:
   "invert the effects of the newest turn" rather than a hand-maintained snapshot
   struct. Reaching further back is branch-and-replay, not inversion — an effect's
   recorded `before` is only a valid inverse while nothing has touched the same
-  path since ([21 §1.2.1](21-internal-contracts.md)).
+  path since ([22 §1.2.1](22-internal-contracts.md)).
 - **`update: "engine-computed"` is where determinism lives.** Marinara is right
   that combat round math is calculated by the engine, not the model, "so results
   stay fair and consistent". Generalised: any channel may declare that the model
@@ -318,9 +318,9 @@ extension": authored rules. Concretely:
   in the turn record like everything else.
 - Rules are **data, not code**: terms in a closed vocabulary our evaluator
   interprets. That is what makes them safe to import, and it sharpens
-  [25 A2](25-open-questions.md) to "packages may ship rules, never code."
+  [26 A2](26-open-questions.md) to "packages may ship rules, never code."
 
-The rule vocabulary itself is [25 C7](25-open-questions.md);
+The rule vocabulary itself is [26 C7](26-open-questions.md);
 [02 §3](02-infinite-worlds.md) proposes a starting point for when it is designed.
 
 **What 1.0 owes the deferral** — the two things that would make the tier
@@ -431,7 +431,7 @@ The pipeline's context stage produces `AssembledBlock[]`
    we are confident matter. Output is a verdict per block: included, or dropped
    with the rule that dropped it.
 4. **Render.** Blocks become provider messages. This is the only place that knows
-   what a chat API looks like — and, should the decision in [19 §5.5](19-tech-stack.md)
+   what a chat API looks like — and, should the decision in [20 §5.5](20-tech-stack.md)
    ever be revisited, the only place a completion renderer would have to
    touch ([00 §2.2](00-stance.md)). It carries one decision worth naming:
    **adjacent blocks with the same role** — six consecutive `system` blocks are
@@ -439,7 +439,7 @@ The pipeline's context stage produces `AssembledBlock[]`
    messages outright, so it is a **provider capability** rather than a global
    choice, and a merged message still records which blocks produced it or the
    workbench loses its mapping. Shape in
-   [21 §2](21-internal-contracts.md).
+   [22 §2](22-internal-contracts.md).
 
 The `AssemblyPlan` in the mode definition declares the ordering constraints and
 budget policy; it does not build strings.
@@ -503,12 +503,12 @@ persist. Standing instructions are a different feature with a different home —
 Marinara's Author's Notes, injected every turn. Conflating the two produces
 accumulating meta-instruction, which is the failure the box exists to prevent.
 It is recorded in the turn record ~~(so a rewrite replays it,
-[19 §14.5](19-tech-stack.md))~~ but does not enter the message history that
+[20 §14.5](20-tech-stack.md))~~ but does not enter the message history that
 later turns assemble from. *(Struck 2026-09-06: as built, the record keeps
 guidance only as an assembled block with its wrapper applied, and a plain redo
 resends the turn's words and not its instruction — so a rewrite does **not**
 replay it. Whether it should, and what the record would need, is
-[25 C14](25-open-questions.md).)*
+[26 C14](26-open-questions.md).)*
 
 **One slot, several producers.** The same block can be filled by the user's box,
 by an authored rule's `giveGuidance` effect ([02 §3](02-infinite-worlds.md)), or
@@ -522,13 +522,13 @@ instruction saying what to change. That is a slot of its own rather than a
 fourth producer of this one — the content is prose the model wrote, not an
 instruction, and the record has to say *which* attempt was shown — so it has
 its own `SlotSource` and `BlockSource` arm, `attempt`, carrying the turn id
-([04 §8.2](04-schemas.md), [21 §1.1](21-internal-contracts.md)). Everything
+([04 §8.2](04-schemas.md), [22 §1.1](22-internal-contracts.md)). Everything
 else about it is this section again: positioned by the preset, with a wrapper
 that says what it is; advisory, forced by the collector rather than left to the
 author, and refused by §5.2's firewall; one-shot; recorded in the turn record
 as a block and never entering the history later turns assemble from. What
 fills it is the server's own record — the submission names a turn, as it does
-for the tape ([19 §14.5](19-tech-stack.md)) — so the model is shown what was
+for the tape ([20 §14.5](20-tech-stack.md)) — so the model is shown what was
 written and not what a client says was. A plain redo sends nothing here, and
 its prompt is exactly what it was.
 
@@ -539,7 +539,7 @@ call or computation whose output determines a systematic result.**
 
 Concretely, guidance is excluded from:
 
-- the RNG service and anything consuming it ([19 §14](19-tech-stack.md));
+- the RNG service and anything consuming it ([20 §14](20-tech-stack.md));
 - the pre-narration **evaluation** step that decides what happens
   ([02 §4.3](02-infinite-worlds.md));
 - **rule condition evaluation**, including AI-evaluated fuzzy conditions
@@ -607,7 +607,7 @@ interface StepDefinition {
   callKind: string                // what a preset's `appliesTo` filters on — [04 §8.2]
   when: StepCondition             // cadence ("every 8 turns"), stage flags, user-armed
   failure: "abort" | "warn" | "ignore"
-  role: ModelRole | null          // the role its call asks for, or null — [19 §5.1]
+  role: ModelRole | null          // the role its call asks for, or null — [20 §5.1]
 }
 ```
 
@@ -650,7 +650,7 @@ rather than folded in above:
   step feeding the main call; worth naming as a pattern.
 - **Steps cannot suspend for input, and should be able to.** Nothing here can
   pause mid-turn to ask the player a question and resume with the answer. See
-  [25 C5](25-open-questions.md).
+  [26 C5](26-open-questions.md).
 
 ### 6.1 The plot-hook selector
 
@@ -910,7 +910,7 @@ assistant (§7.4), which is not a chat mode but is built out of the same parts.
 **Messages is specified here and is not scheduled.** It was a 2.0 mode until the
 release re-cut moved it off the schedule entirely; it now sits on the feature
 list as one candidate mode of a possible Social surface
-([24 §3.4](24-roadmap.md)). §7.1 is unchanged and is most of the reason that
+([25 §3.4](25-roadmap.md)). §7.1 is unchanged and is most of the reason that
 cluster is worth defining rather than dropping — the design is done, and what is
 missing is the decision about what surface it belongs to.
 
@@ -923,7 +923,7 @@ the reading [13 §6](13-write-mode.md) exists to prevent. That was the argument
 when Write was a fifth mode; calling it a surface states the same thing more
 directly.
 
-### 7.1 Messages — **not scheduled** ([24 §3.4](24-roadmap.md))
+### 7.1 Messages — **not scheduled** ([25 §3.4](25-roadmap.md))
 
 Messenger-shaped. Marinara's Conversation mode is the reference and it is the
 most complete of the three sources.
@@ -970,7 +970,7 @@ Design notes:
   channels.~~ **Three things, three writers** — corrected 2026-09-13, at
   [P7.12](workplan/23-p7-implementation.md), which built the sentence and found
   it not quite true. *Read as written it forces
-  [25 C16](25-open-questions.md)*: `se.backdrop` is `engine-computed`, which
+  [26 C16](26-open-questions.md)*: `se.backdrop` is `engine-computed`, which
   §8.1's refusal denies a step, so *steps writing to channels* looks like a
   contradiction demanding a policy change. It is not, because the three things
   named do not share a writer:
@@ -1169,7 +1169,7 @@ while a false completion ends the story on a turn that did not earn it.
 fires. Cheap insurance against the worse error, at the cost of a prompt at the
 most dramatically loaded moment in the session.~~
 
-***[RESOLVED] — ask*** (2026-09-13, [25 C12](25-open-questions.md),
+***[RESOLVED] — ask*** (2026-09-13, [26 C12](26-open-questions.md),
 [P7.6](workplan/23-p7-implementation.md)). `se.goal` declares
 `confirm: ['achieved']`, so the judge's completion is recorded on the turn and
 **not applied**: the three offers of §7.3.4 do not raise and the goal panel asks.
@@ -1202,7 +1202,7 @@ finally have the information.
 
 Completed goals are retained with the turn that completed them. That gives the
 reading view real structure for free — an adventure's goal chain is a much
-better spine for chapters than word count is ([25 E1](25-open-questions.md)) —
+better spine for chapters than word count is ([26 E1](26-open-questions.md)) —
 and it gives the plot-hook selector (§6.1) a signal it otherwise lacks:
 proximity to the current goal is a strong reason to fire a hook or hold it.
 
@@ -1447,7 +1447,7 @@ the definition, but the debt was already there.
 **Status changes to `dead` are flagged, not applied quietly.** Models kill
 characters in passing, and the two error directions are not symmetric — a missed
 death is corrected in a click, a false one removes someone from every subsequent
-assembly. Same asymmetry as goal completion ([25 C12](25-open-questions.md)) and
+assembly. Same asymmetry as goal completion ([26 C12](26-open-questions.md)) and
 the same posture: under-fire, surface prominently, keep the manual override
 available.
 
@@ -1507,7 +1507,7 @@ role and the host executes it), or write another mode's `modeData`.
 
 **Execution model: settled.** Extensions run behind a worker-thread boundary
 from 1.0, and built-in modes go through the same interface — specified in
-[22](22-extensions.md).
+[23](23-extensions.md).
 
 ***Five of the seven are built, and the list stopped being a test the day the
 second mode was written*** (2026-09-13). Channels with schemas at
@@ -1515,7 +1515,7 @@ second mode was written*** (2026-09-13). Channels with schemas at
 any stage from P7.0, input kinds and participant policy at P7.3 and P7.9, UI
 surfaces at P7.11. **What is still unbuilt is the capability API and the
 package-dependency bullet** — the two that cross a boundary, which is not a
-coincidence: [22 §4](22-extensions.md) owns both and neither has had a consumer
+coincidence: [23 §4](23-extensions.md) owns both and neither has had a consumer
 yet. *The list keeps its future tense for the two, and for the reason the last
 paragraph of this section gives: a contract is real when somebody outside the
 project builds against it, and nobody has.*
@@ -1528,9 +1528,9 @@ receives only what it declared it needs.
 
 ~~Two of the "must not" items above stop being conventions and become structural:
 an extension in a worker cannot reach a credential, and cannot reach an
-unrecorded random source ([19 §14](19-tech-stack.md)).~~
+unrecorded random source ([20 §14](20-tech-stack.md)).~~
 
-***Retracted 2026-09-11, because [22 §4.0](22-extensions.md) retracts it and this
+***Retracted 2026-09-11, because [23 §4.0](23-extensions.md) retracts it and this
 sentence is the one [P7 §1.3](workplan/23-p7-implementation.md) cites to settle
 where the worker hop lands.*** A Node worker thread **is not a sandbox**: it can
 `require('node:crypto')` and `require('node:fs')`, and connection credentials are
@@ -1541,17 +1541,17 @@ behaviour.
 
 **What is structural is that neither is handed over.** The worker's payload
 carries no credential — a step asks for a call by role and the host resolves the
-connection ([19 §5.1](19-tech-stack.md)) — and randomness arrives as a host
+connection ([20 §5.1](20-tech-stack.md)) — and randomness arrives as a host
 capability whose draws land on the turn tape
-([19 §14](19-tech-stack.md)). An extension that goes around either is
+([20 §14](20-tech-stack.md)). An extension that goes around either is
 *misbehaving rather than prevented*, exactly the status 22 §4.0 gives `HostApi`
 itself.
 
 **So the enforcement is named rather than assumed**: the lint rule that bans
 reaching `node:crypto`'s random functions outside the RNG service
-([19 §14.4](19-tech-stack.md)), and the extension test kit's replay-determinism
+([20 §14.4](20-tech-stack.md)), and the extension test kit's replay-determinism
 check. Both are real and neither is a boundary. Real isolation is a separate
-process with a stripped environment, which is [22 §10](22-extensions.md)'s open
+process with a stripped environment, which is [23 §10](23-extensions.md)'s open
 item and carries the word *sandbox*.
 
 ---
@@ -1580,7 +1580,7 @@ interface Rendition {
    *  dispatch, and the moment inside it this picture is of. §10.4a */
   scope: { messageId?: string; anchor?: string } | null
   state: "pending" | "ready" | "failed"
-  /** Ranked prompt fragments as sent, plus what the cap dropped. [19 §5.3] */
+  /** Ranked prompt fragments as sent, plus what the cap dropped. [20 §5.3] */
   prompt: AssembledPrompt | null
   /** null once evicted — the recipe outlives the pixels. §10.7 */
   asset: AssetRef | null          // under the session's assets/
@@ -1599,7 +1599,7 @@ as "the image feature" is most of what makes video and speech cheap later.
 
 ***The shape held; two of the three types it names could not carry what this
 section asks of them, and the third was never defined at all.***
-[21 §7](21-internal-contracts.md) is the built interface and the argument for
+[22 §7](22-internal-contracts.md) is the built interface and the argument for
 each; what follows is the summary, here because this is where a reader meets the
 sketch.
 
@@ -1717,7 +1717,7 @@ turn's action is an illustration wearing the wrong clothes: it will put the figh
 in the wallpaper and then stay there for thirty turns.
 
 **Text in, images out.** Conditioning the generation on a location's `reference`
-*image* is **lore-conditioned renditions** ([24 §3](24-roadmap.md)), which is
+*image* is **lore-conditioned renditions** ([25 §3](25-roadmap.md)), which is
 deferred past 1.0 for a reason that is not plumbing: *choosing which images*,
 when six active entries and three present actors all carry references, is the
 hard part, and attaching all of them produces mud ([03 §3.6](03-data-model.md)).
@@ -1791,16 +1791,16 @@ kind the pipeline already makes. Four fragments:
   reading the turn's output text (below);
 - present actors' `VisualDescriptors` and their `reference` media
   ([04 §3](04-schemas.md)) — this is what the Character Studio's payload
-  ([17](17-character-studio.md)) exists to feed, and the reason typed media roles
+  ([18](18-character-studio.md)) exists to feed, and the reason typed media roles
   are a 1.0 obligation;
 - channel state — location, time of day, weather, whatever a mode tracks;
 - the treatment's `tone` and any style profile.
 
 Assembled as **ranked fragments under the provider's declared cap**
-([19 §5.3](19-tech-stack.md)), so overrun drops the lowest-ranked fragment
+([20 §5.3](20-tech-stack.md)), so overrun drops the lowest-ranked fragment
 rather than truncating mid-sentence. That work was specified for exactly this
 case, and it already named this first fragment: *subject, style, quality tags,
-character reference, negative* is [19 §5.3](19-tech-stack.md)'s own list, and the
+character reference, negative* is [20 §5.3](20-tech-stack.md)'s own list, and the
 subject is the moment.
 
 #### The moment is written, not extracted
@@ -1811,7 +1811,7 @@ produces a prompt about a paragraph, which is how an illustration ends up
 depicting three things at once and none of them well.
 
 So the first fragment comes from a call — the cheap `fast` role the pipeline's
-other judgements use ([19 §5.1](19-tech-stack.md)) — reading the turn's output
+other judgements use ([20 §5.1](20-tech-stack.md)) — reading the turn's output
 text and answering *what is the picture of*. Both sources do this, and it is the
 one thing their two otherwise opposite designs agree on.
 
@@ -1820,7 +1820,7 @@ then concatenates the style suffix afterwards, so the result routinely overruns
 the character limit its own system prompt spends four lines insisting on — and
 nothing downstream checks. Ranked fragments are what make a cap true, because the
 cap applies to the assembled whole and the ranking decides what goes. The model
-is *told* its budget and writes within it ([19 §5.3](19-tech-stack.md)); the
+is *told* its budget and writes within it ([20 §5.3](20-tech-stack.md)); the
 assembler is what makes the budget real.
 
 **The moment is a fragment like any other, and that is what keeps it from costing
@@ -1843,7 +1843,7 @@ not one. This is the clearest vindication the structured appearance field has
 had.
 
 **How many named characters one picture can hold is a provider capability.** It
-belongs beside `maxPromptChars` in [19 §5.3](19-tech-stack.md)'s block rather
+belongs beside `maxPromptChars` in [20 §5.3](20-tech-stack.md)'s block rather
 than in prose to a model. Aventuras caps at one for consistency's sake; Marinara
 derives both a visible-character limit and a reference-image limit that runs from
 one to sixteen depending on the backend. A number that varies per endpoint is the
@@ -1864,7 +1864,7 @@ questions asked of one turn.
 saying because it is the sentence most likely to be quoted against the moment
 call. That rule is about what the *image* generation is conditioned on — text,
 not a reference image — and a model writing a line of text does not move it.
-Lore-conditioned renditions ([24 §3](24-roadmap.md)) are still deferred, for the
+Lore-conditioned renditions ([25 §3](25-roadmap.md)) are still deferred, for the
 reason they were always deferred.
 
 ### 10.4 How many, and which moments
@@ -1882,7 +1882,7 @@ first is 1.0 and only the second is a judgement:
   renditions per turn, which is what makes the deferral cheap.
 - **Storyboarding** — a strip *presented* as a storyboard, with its own surface
   and its own pacing. Downstream of moments rather than a third mechanism, and
-  the thing that stays deferred as a product ([24 §3](24-roadmap.md)). Worth
+  the thing that stays deferred as a product ([25 §3](25-roadmap.md)). Worth
   stating plainly, because [triage §6.3](workplan/02-triage.md) discards Marinara's
   storyboard and anime-episode directors from core and that verdict stands: a
   judgement about one turn is not a director, and the line between them is the
@@ -2086,7 +2086,7 @@ treatment *is* prose.
 requires text-only Scene to be fully supported, as it is in both sources, and a
 backdrop is precisely the feature that tempts an implementation to treat its
 absence as an empty state to fill. An unset `image` role says so plainly rather
-than failing a turn ([19 §5.1](19-tech-stack.md)); an unwanted backdrop leaves
+than failing a turn ([20 §5.1](20-tech-stack.md)); an unwanted backdrop leaves
 the surface exactly as it was.
 
 ~~**[OPEN]** Whether an on-demand rendition of an *old* turn assembles from that
@@ -2115,7 +2115,7 @@ the same field. Whatever is decided, it is decided once.
 
 ### 10.7 Renditions accumulate; recipes are permanent
 
-Two policies, both settled in [25 E3](25-open-questions.md), both cheap now and
+Two policies, both settled in [26 E3](26-open-questions.md), both cheap now and
 awkward to retrofit.
 
 **Illustrating an old turn adds; it does not overwrite.** A turn holds a list of

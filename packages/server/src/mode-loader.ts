@@ -32,7 +32,7 @@ import { LORE_TIMING_CHANNEL, registerChannel } from './sessions/channels.js';
  * *true*: the engine has no type for what comes back, cannot be type-checked
  * against it, and has to validate the shape at run time — which is what a host
  * that will one day load a third-party package off disk has to do anyway
- * ([22 §6–§7](../../../docs/design/22-extensions.md), and nothing installs until
+ * ([23 §6–§7](../../../docs/design/23-extensions.md), and nothing installs until
  * P10). An exemption would have bought a compile-time check the engine is not
  * entitled to, and would have left `packages/server/package.json` naming a mode.
  *

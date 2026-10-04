@@ -304,7 +304,7 @@ export function smartSpeakers(context: SmartSpeakersContext): {
  * What an unusable answer says on the outcome — a sentence per class, for
  * `missMessage`'s reason: *"the model did not answer with JSON"* is something a
  * person can act on, and a class name is not. **None of them quotes the
- * answer**: the message reaches the log too, and [21 §4.1] keeps model output
+ * answer**: the message reaches the log too, and [22 §4.1] keeps model output
  * out of it — the call's own record is where a person reads what came back.
  */
 const UNUSABLE: Record<Exclude<PickReading, { ok: true }>['why'], string> = {

@@ -49,7 +49,7 @@ branch that then sat unmerged; the fix reached `main` only at that branch's
 merge, after five more index rows had copied the broken pattern. The link
 checker's rule (i) is what now catches a label of that shape. The fourth: the
 same run rewrote the work-plan index's two examples of a design citation,
-`[03 §5]` and `[21 §1]`, as `[testing §5]` and `[playable log §1]`, because the
+`[03 §5]` and `[22 §1]`, as `[testing §5]` and `[playable log §1]`, because the
 script read the index's filename labels as evidence that every other `03` and
 `21` in that file is a work-plan document — and that README is the one document
 that quotes the convention instead of using it. The first run had done the same
@@ -150,7 +150,7 @@ records P4's amendment and keeps *"browsing, previewing, switching
 mid-session"* — pack selection, never block editing — and no stage from P7.0
 to P7.9 carries even that. P7.2 is the cast panel. P7.3, on branch `p7`, carries
 ~~voice and dispatch as session fields,~~ the session and step overrides of
-[19 §5.1](../19-tech-stack.md), and the role-binding editor; not the pack, not
+[20 §5.1](../20-tech-stack.md), and the role-binding editor; not the pack, not
 `params`. *Corrected 2026-09-29: P7.3 deferred voice and dispatch to P7.9, whose
 record never mentions them; they became session fields at
 [P14.0](31-p14-scene-and-session-import.md) ([P14 §0.6](31-p14-scene-and-session-import.md)).*
@@ -226,7 +226,7 @@ path around either. §2 is one stage per absence, in dependency order.
 does not find them twice: ~~voice and dispatch as optional session fields,~~ the
 session and step model overrides, and the role-binding editor (P7.3); the
 input-kind selector and R11's suggested actions (P7.9); the guidance one-click
-refill of [25 C14](../25-open-questions.md) (*"lands in this phase unless
+refill of [26 C14](../26-open-questions.md) (*"lands in this phase unless
 somebody moves it"*, P7 §0.1); the setup wizard and the `setups/` kind's writer
 (P7.4); and the two false deferrals P7 §0.1a struck — the context-window surface
 and the advisory marker — which were already built. *Corrected 2026-09-29: voice
@@ -623,7 +623,7 @@ nobody needs to answer**, namely who may read it and whether it exists before
 sign-in; and `tools/release.test.ts` already pins `CHANGELOG.md`'s version
 against three other files, so a fourth consumer inherits that guarantee. *The
 cost, stated:* the bundle grows by the changelog — sixteen kilobytes today — and
-[20 — client loading](../20-client-loading.md) is what measures whether that
+[21 — client loading](../21-client-loading.md) is what measures whether that
 matters, at [P11.0](28-p11-implementation.md).
 
 ### 1.11 What the fold deliberately did not collect
@@ -686,7 +686,7 @@ or if where it goes is a decision.** One of the five passed.
   and make a new one, which costs more than the problem. It is a field and a
   button on a row `AdminAccounts` already draws.
 - **Owed: `PUT /sessions/:id/roles`** — a session's model override, which
-  [19 §5.1](../19-tech-stack.md) is explicit that *"anyone who wants their own
+  [20 §5.1](../20-tech-stack.md) is explicit that *"anyone who wants their own
   key overrides a role without the admin's involvement"*. [P7.3] built the
   route, the resolution layer and the tests, and named where the surface goes —
   *"beside the lore panel's disclosure"* — and built no control. It is a panel
@@ -699,7 +699,7 @@ or if where it goes is a decision.** One of the five passed.
   promote half has a control on the play page and the other two have none, so a
   name is creatable and permanent. The surface is the list §6 sends to the
   history strip, which does not exist — the tree visualiser is post-1.0
-  ([24 §1](../24-roadmap.md)) but a create with no undo is not what that
+  ([25 §1](../25-roadmap.md)) but a create with no undo is not what that
   deferral was about. Routed to the same register.
 - **Not owed here: `GET /api/search`**, which §1.11 and §4 already route to
   [P11.1](28-p11-implementation.md).
@@ -1156,11 +1156,11 @@ because a selection held in the panel would have made a reader into a place.
 
 **The dependency, and the trigger it fires.** `react-markdown` is pinned in the
 client. `/` is the entry route, so this is
-[20 §7](../20-client-loading.md)'s *"a substantial new browser dependency joins
+[21 §7](../21-client-loading.md)'s *"a substantial new browser dependency joins
 the common entry"* by definition. It was measured at the time — **+120.59 kB
 minified, +36.71 kB gzip, a sixth of the entry** — and the decision not to bring
 P11.0's audit forward, with the lazy-loading contingency, is recorded at
-[20 §7.1](../20-client-loading.md). The price the struck docstring named was
+[21 §7.1](../21-client-loading.md). The price the struck docstring named was
 real; what it got wrong was the trade.
 
 ***The warning above is the right one, and this is not it.*** The test is

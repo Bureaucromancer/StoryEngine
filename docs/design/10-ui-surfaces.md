@@ -162,7 +162,7 @@ below lands.
 
 **[OPEN]** Whether the tooling surfaces eventually need a **simple/advanced
 split**, or **a user-rearrangeable layout** so density is something a user dials.
-Carried as [25 E10](25-open-questions.md), where the caution that matters is
+Carried as [26 E10](26-open-questions.md), where the caution that matters is
 recorded: **neither is a licence to skip designing the surface now.** Themes
 move look, not information architecture, and "the user can rearrange it later"
 is how a UI ends up never having been designed at all.
@@ -355,7 +355,7 @@ applies in the library, the editors and the cast panel as much as in play,
 because identity is not atmosphere — it is the thing [00 §3.6](00-stance.md)
 says must be visible and correctable everywhere it is inferred.
 
-**[25 E10](25-open-questions.md) is unaffected.** Whether the dense side ever
+**[26 E10](26-open-questions.md) is unaffected.** Whether the dense side ever
 becomes dialable is still open, and nothing here is an instalment on it.
 
 #### What this costs, and who owns it
@@ -376,7 +376,7 @@ The split is therefore explicit, and it is the last thing this section does:
   had built it the day before ([polish §17](workplan/06-polish.md)), and what
   [P12A](workplan/34-p12a-the-look.md) keeps of it is the measure check.*
 - **Not 1.0, and not commitments** — the gallery view and per-step setup
-  explanation. They are on the feature list ([24](24-roadmap.md))'s priorities,
+  explanation. They are on the feature list ([25](25-roadmap.md))'s priorities,
   and if P12A reaches them they ship early rather than late.
 - **Arrival is neither, and the distinction is not a quibble.**
   [polish §5](workplan/06-polish.md) already carries the full home as
@@ -418,15 +418,15 @@ Play's layout conditional on the mode.
 
 **A fourth is proposed and undefined.** Social — a messenger, a feed and a board
 as three modes of one surface — sits on the feature list rather than in a release
-([24 §3.4](24-roadmap.md)). It is named here because Messages was going to be a
+([25 §3.4](25-roadmap.md)). It is named here because Messages was going to be a
 Play mode and no longer is, and because a surface count that ignored it would be
 stale on arrival.
 
 **And one committed release has to decide what shape it is.** The Character
-Studio ships at 3.0 ([17](17-character-studio.md)), and whether it is a panel in
+Studio ships at 3.0 ([18](18-character-studio.md)), and whether it is a panel in
 the actor editor, a mode of an existing surface, or a surface of its own is
 undecided — three answers with three different navigation costs, laid out in
-[17 §6](17-character-studio.md). **This section is where that gets answered, and
+[18 §6](18-character-studio.md). **This section is where that gets answered, and
 it has to be answered before 3.0's scope is checkable**: a panel and a
 top-level place of its own are not the same release. It is named here rather
 than left in 24 because it is a surface argument, and surface arguments are
@@ -672,7 +672,7 @@ year where a session's turns grow without bound.
 row the index holds for the id — the winner first in portable-path order, the
 shadowed copies, and any row inside its tombstone settling window — with
 portable paths only, never native ones. The route serving them is a
-**best-effort projection, not a contract**: [21 §5](21-internal-contracts.md)
+**best-effort projection, not a contract**: [22 §5](22-internal-contracts.md)
 keeps the index's tables an implementation detail and the migration policy is
 drop-and-rescan, so the projection restates the index and may return less after
 a schema bump until the surface catches up. The winning path is *named* here
@@ -722,7 +722,7 @@ when the turn commits, and the two are never on screen at once.
 - **Cost** — tokens and wall time for *this turn*, itemised by call, so "agents
   cost extra" is a number rather than a documentation note. This is displaying a
   field the record already holds. **Aggregate spend tracking is post-1.0**
-  ([24 §3](24-roadmap.md)) — the people running this at the development stage
+  ([25 §3](25-roadmap.md)) — the people running this at the development stage
   are power users who already monitor their provider usage, and a usage
   dashboard is a very nice feature that is not core functionality.
 
@@ -733,7 +733,7 @@ What it lets you do:
   that same reply. It does not change the reply already on screen." That
   separation is correct and should be preserved. Re-running follows the same
   rewrite/reroll distinction as an ordinary swipe
-  ([19 §14.5](19-tech-stack.md)) and defaults to **rewrite** — editing a block
+  ([20 §14.5](20-tech-stack.md)) and defaults to **rewrite** — editing a block
   is changing the input, not asking for different luck.
 - **Diff two turns**, or the same turn before and after a preset change. The
   cheapest possible answer to "it got worse and I don't know what I changed".
@@ -803,7 +803,7 @@ briefly a place, because there is no room for it to be anything else.
 ## 4. File access as a permission level
 
 **Deprioritised. Experimental at best, and on the roadmap rather than in 1.0
-([24 §3](24-roadmap.md)).** The reasoning below stands and the feature is still
+([25 §3](25-roadmap.md)).** The reasoning below stands and the feature is still
 wanted; what changed is its position. Import and export UIs exist for a reason,
 in-app library management matters more, and a file-management UI is a
 disproportionate amount of surface — and of risk — for something most people
@@ -812,7 +812,7 @@ will never open.
 **Two things survive the deprioritisation and should still land at 1.0:**
 
 - **The capability field** ([09 §4.2](09-server-multiuser-deployment.md)) and the
-  **single audited path-resolution helper** ([19 §9](19-tech-stack.md)). The
+  **single audited path-resolution helper** ([20 §9](20-tech-stack.md)). The
   helper is needed by every filesystem-touching route regardless, and having one
   from the start is the difference between a security property and a hope.
 - **Hand-editing on disk keeps working**, because that was never about the UI.
@@ -902,7 +902,7 @@ blank one:
   do not overlap, and the code enforces the gap rather than trusting the two
   rules to stay compatible.
 - **Read-only, and the report is relative.** The sweep never writes to the
-  source, and [21 §4.1](21-internal-contracts.md)'s foreign-path doctrine names
+  source, and [22 §4.1](22-internal-contracts.md)'s foreign-path doctrine names
   files relative to the sweep root rather than absolutely, so the review does
   not become a filesystem map.
 
@@ -944,7 +944,7 @@ roots**, and account, credential, job and operational state are outside it.
 may change their display name and password and not their role.
 
 **The general rule this establishes**, since more operational state is coming
-([21 §5](21-internal-contracts.md)): *the file browser exposes what the user
+([22 §5](22-internal-contracts.md)): *the file browser exposes what the user
 authored, never what the server decides with.* Anything the engine reads to make
 an authorisation or scheduling decision is out of scope by construction, and new
 files under the user directory are excluded by default rather than included by
@@ -1005,7 +1005,7 @@ Honest accounting, because the user is right that this is a pain:
   the rest. An earlier draft here proposed shipping read-only download-and-zip
   early and holding only write and the text editor back to a “1.x” point
   release. That is superseded by the section header: the *whole* feature is on
-  the feature list ([24 §3.3](24-roadmap.md), [25 D3](25-open-questions.md)),
+  the feature list ([25 §3.3](25-roadmap.md), [26 D3](26-open-questions.md)),
   there is no 1.x line in the release model ([releases §2](workplan/04-repo-and-releases.md)),
   and a half-shipped file browser is the version most likely to be cited as a
   reason not to finish it.
@@ -1081,7 +1081,7 @@ Where it should differ:
   belongs to search.** There is a genuine use for one list of everything, but
   its organising principle is a query rather than "everything you own": a search
   result set is a mixed list nobody has to be taught to read. FTS5 is already in
-  the stack for library search ([19 §7.1](19-tech-stack.md)). So *browse* takes
+  the stack for library search ([20 §7.1](20-tech-stack.md)). So *browse* takes
   a kind and *find* does not, and the unfiltered browse view is kept as a
   machinery-visible preference alongside the rest of them. None of this is a
   contract change: the API goes on accepting an absent kind
@@ -1308,7 +1308,7 @@ rows.
 
 **With a *New treatment on this world* action in that section**, creating a
 Treatment prefilled with a `LoreLink` to this book. This is the affordance the
-primary-lorebook relationship would have bought ([25 B2](25-open-questions.md)),
+primary-lorebook relationship would have bought ([26 B2](26-open-questions.md)),
 without buying the relationship: authoring flows from the world you are looking
 at, and the result is still an independent object linking N books.
 
@@ -1641,7 +1641,7 @@ session rather than a bespoke thing. The UI side:
 ## 8. Extension-contributed UI
 
 Resolved here because it is what decouples the frontend framework choice from
-everything else (see [19 §6](19-tech-stack.md)).
+everything else (see [20 §6](20-tech-stack.md)).
 
 **Extensions do not ship UI components.** They declare widgets from a versioned
 vocabulary that the host renders: HUD widgets, side panels, message decorations,
@@ -1658,7 +1658,7 @@ still works after a framework upgrade.
 *Added 2026-09-13, after [P7.11](workplan/23-p7-implementation.md) built this
 section and [P7.12](workplan/23-p7-implementation.md) gave it three consumers.
 The paragraph above is kept as written because it is the design; this records
-what happened to it, which is [21 §1.1](21-internal-contracts.md)'s rule about a
+what happened to it, which is [22 §1.1](22-internal-contracts.md)'s rule about a
 sketch that has acquired a shipped counterpart.*
 
 **A mode declares `surfaces`, and the host renders them.** The contract is
@@ -1672,7 +1672,7 @@ terms of the first.*** A channel declaring `surface` means exactly
 `{ region: 'hud', channelId: <itself>, widget: <that spec> }` — the shorthand for
 the common case, not a rival mechanism. Stating the seam that way is what stops
 this being two vocabularies for one job, which is the failure
-[21 §1.1](21-internal-contracts.md) exists to prevent.
+[22 §1.1](22-internal-contracts.md) exists to prevent.
 
 **Four regions ship where the list above names three of its six slots as
 regions**, and the fourth is not an embellishment. `hud | panel | message |
@@ -1686,7 +1686,7 @@ cites as evidence.** `{ kind: 'text' | 'image' | 'toggle'; label }`, and that is
 all — no colour, no icon, no pinned, no min or max. *That is a narrowing rather
 than a refutation*: the vocabulary took the shape of its first real consumers and
 declined to mint fields nothing asks for, which is the same discipline
-[21 §6](21-internal-contracts.md) applies to a type. **The evidence sentence
+[22 §6](22-internal-contracts.md) applies to a type. **The evidence sentence
 above should be read as what the vocabulary must be able to grow to, not as a
 description of what it is.** `toggle` is its first *writable* arm, and a write
 goes through the ordinary channel route: a mode gains a control and gains no new
@@ -1739,7 +1739,7 @@ result consistent.
 
 **The signal to build it anyway** is a genuine class of thing the vocabulary
 cannot reach without becoming a rendering engine in disguise. Tactical combat and
-anything map-shaped are the likely triggers ([24 §4.3](24-roadmap.md)) — and
+anything map-shaped are the likely triggers ([25 §4.3](25-roadmap.md)) — and
 both are things we have already decided not to build ourselves, so the pressure
 would be coming from outside, which is the right kind of evidence to act on.
 
@@ -2388,7 +2388,7 @@ before they are discovered:
   wants the `fast` role, image work wants an image connection, and a household
   server needs those resolvable per user. *As built (2026-09-27):* field assist
   asks for `prose` by default, because `fast` fails on any install that never
-  bound it ([25 C15](25-open-questions.md)), and each person may point it at
+  bound it ([26 C15](26-open-questions.md)), and each person may point it at
   their `fast` or `reasoning` model instead from the role-binding settings — a
   choice of **role**, so which model that means stays in the table beside it.
   The per-account choice is a stopgap and retires when C15 decides fallback for
@@ -2397,7 +2397,7 @@ before they are discovered:
   1.0.** Recording is nearly free and cannot be added retroactively — a spend
   view built later over data that was never captured shows nothing for the first
   year. So capture assist-call cost from the start and leave the aggregate view
-  to [24 §3](24-roadmap.md).
+  to [25 §3](25-roadmap.md).
 - **They produce no turn record.** ~~§8.2's provenance is the record, which is
   another reason it is not optional.~~ **Corrected 2026-09-27.** There is no
   §8.2 in this document, and the provenance that sentence most plausibly meant —
@@ -2405,12 +2405,12 @@ before they are discovered:
   usage, it is written by the client, and only when the person saves, so an
   assist somebody rejected (which cost exactly as much) would leave nothing. The
   record is the account's usage log, `users/<handle>/usage.jsonl`
-  ([21 §1.4](21-internal-contracts.md)): one line per call, the provider's own
+  ([22 §1.4](22-internal-contracts.md)): one line per call, the provider's own
   figures or null. ~~It covers every call that makes no turn~~ *It covers the
   text calls that make no turn and return* (corrected the same day) — field
   assists, impersonation, and the moment call behind **Illustrate** — and it is
-  what the aggregate view in [24 §3](24-roadmap.md) will read. **Not yet**: an
-  image render's own cost, which [25 E16](25-open-questions.md) records as
+  what the aggregate view in [25 §3](25-roadmap.md) will read. **Not yet**: an
+  image render's own cost, which [26 E16](26-open-questions.md) records as
   dropped, and ~~a call that failed or was cancelled after the provider had
   started billing, which records nothing because nothing returned~~ *(struck
   2026-10-03: not since P14. The on-demand step behind* Update trackers
@@ -2429,7 +2429,7 @@ before they are discovered:
   [P15](workplan/33-p15-setup-from-a-turn.md) merge (2026-10-03) it also covers*
   **Make a setup from here**: one line per call the draft makes, purpose
   `setup-draft:<part>`, and `setup-draft:summarise` for each link of the
-  summary chain it had to derive ([21 §1.4](21-internal-contracts.md)).
+  summary chain it had to derive ([22 §1.4](22-internal-contracts.md)).
 
 ### 11.5 Traps
 
@@ -2548,7 +2548,7 @@ and it round-trips into every other tool people already use.
 
 Worth separating before they get conflated:
 
-| | **Reading view** | **Session export** ([25 B12](25-open-questions.md)) |
+| | **Reading view** | **Session export** ([26 B12](26-open-questions.md)) |
 |---|---|---|
 | For | A person to read | Another install to load |
 | Fidelity | Lossy by design — the machinery is stripped | Lossless |
@@ -2556,9 +2556,9 @@ Worth separating before they get conflated:
 
 ***The export cell was stale and is corrected 2026-09-14.***
 [work plan §0.5](workplan/01-work-plan.md) moved session export into 1.0 and gave
-it to [P11](workplan/28-p11-implementation.md); [25 B12](25-open-questions.md)
+it to [P11](workplan/28-p11-implementation.md); [26 B12](26-open-questions.md)
 records the same resolution, and [13 §13](13-write-mode.md) and
-[18 §3](18-session-import.md) both write against it. **Four documents had
+[19 §3](19-session-import.md) both write against it. **Four documents had
 overtaken this cell and it still said otherwise**, which matters more here than
 in most places: this table exists to stop two things being conflated, and a
 table that is wrong about one of them conflates them by a different route.
@@ -2703,7 +2703,7 @@ the screen.
 **Presence and status are channels** ([06 §4](06-modes-and-turn-pipeline.md)),
 model-proposed and engine-decided, which buys three properties with no new
 machinery: changes are effects in the turn record, invertible at the tip and
-otherwise revisited by branching ([21 §1.2.1](21-internal-contracts.md));
+otherwise revisited by branching ([22 §1.2.1](22-internal-contracts.md));
 panel state is reconstructible at any node; and **a branch gets it right** —
 someone dead on one line and alive on another is a requirement, not a bug, and it
 falls out of effects being per-node ([07 §4](07-branching.md)).
@@ -2720,7 +2720,7 @@ one click; a false one silently removes someone from the story, and every
 subsequent turn is then assembled around their absence. So a proposed status
 change to `dead` is surfaced prominently rather than applied as a quiet badge
 change, and it is reversible from the effect log. Same reasoning as
-[25 C12](25-open-questions.md), same bias: under-fire, and keep the manual path
+[26 C12](26-open-questions.md), same bias: under-fire, and keep the manual path
 always available.
 
 **The panel must be editable, and this is what makes it worth building.** If it
@@ -2751,7 +2751,7 @@ their own history, and none of the three sources answers it well — SillyTavern
 has no session search at all, and scrolling is the interface. It is also, given
 this architecture, close to free: turns are on disk, the index is derived and
 rebuildable, FTS5 is already in the stack for library search
-([19 §7.1](19-tech-stack.md)), and the tree walk already produces reading order.
+([20 §7.1](20-tech-stack.md)), and the tree walk already produces reading order.
 
 **Argued for 1.0** on the grounds that it is small, that it is a differentiator
 on a dimension nobody competes on, and that the alternative — scrolling a
@@ -2787,7 +2787,7 @@ someone acting on something that never happened in their story.
 
 ### 14.3 Why this and not embeddings
 
-[25 E2](25-open-questions.md) puts semantic retrieval post-1.0 and aims it at
+[26 E2](26-open-questions.md) puts semantic retrieval post-1.0 and aims it at
 cross-session memory rather than at lorebooks. Text search is the complement, not
 a lesser version of it:
 
@@ -2807,7 +2807,7 @@ same results list, one more retriever behind it.
 ### 14.4 What it is not
 
 - **Not a replacement for memory.** Search is what *you* do; summarisation and
-  retrieval are what the *engine* does ([25 E1](25-open-questions.md),
+  retrieval are what the *engine* does ([26 E1](26-open-questions.md),
   [08](08-cross-session-memory.md)). They meet at the index and nowhere else, and
   a search result never enters a prompt because a search happened.
 - **Not full-corpus search over other people's libraries.** Per-user scoping
@@ -2853,7 +2853,7 @@ prohibition on searching from where you happen to be standing.
 
 **Nothing here changes §14.3.** Lexical, verifiable, no provider, and embeddings
 would extend this surface rather than replace it — for lore entries exactly as
-for turns, and [25 E2](25-open-questions.md)'s judgement that semantic retrieval
+for turns, and [26 E2](26-open-questions.md)'s judgement that semantic retrieval
 is worth less for lorebooks than it looks applies with its original force.
 
 ---
@@ -2903,7 +2903,7 @@ Available to every account, admin or not.
   without it — [P7.3](workplan/23-p7-implementation.md), 2026-09-12.*** A
   personal *connection* is a credential and a private host, which is why §15.5
   gates that surface on the `privateConnections` check being real. A *binding* is
-  two ids, and [19 §5.1](19-tech-stack.md) is explicit that **anyone who wants
+  two ids, and [20 §5.1](20-tech-stack.md) is explicit that **anyone who wants
   their own key overrides a role without the admin's involvement** — so the
   editor is offered to every account, and what keeps it safe is that
   `resolveRole` looks a binding's connection up in the capability-filtered list:
@@ -2916,7 +2916,7 @@ Available to every account, admin or not.
   density question will eventually land here, and two more are waiting: the
   *As stored* pane state ([polish §2](workplan/06-polish.md)) and the all-kinds
   library view ([polish §4](workplan/06-polish.md)). **Where these persist was
-  [25 B13](25-open-questions.md)**, and the answer is a per-user `prefs.json`
+  [26 B13](26-open-questions.md)**, and the answer is a per-user `prefs.json`
   rather than a field on `Account`, settled at
   [P2A §2.2](workplan/09-p2a-configuration-surface.md) — the question had to
   close before the first preference shipped, not before this surface did.
@@ -3009,16 +3009,16 @@ account ones:
   because the bullet is the argument*: what an admin cannot do here, and why, is
   worth a reader finding.
 - **Extensions**: install is admin-only, enable is per-user
-  ([22 §7](22-extensions.md)). Both halves of that live in their respective
+  ([23 §7](23-extensions.md)). Both halves of that live in their respective
   halves of this surface. ***Neither half ships at 1.0*** — [P10.3](workplan/27-p10-implementation.md),
   2026-09-16, and the reason is the distinction §15.5's blocker was missing:
   **1.0 needs extensions to be *loaded*, not *installed*.** The dice reference
-  extension ([24 §4.4](24-roadmap.md)) that the
+  extension ([25 §4.4](25-roadmap.md)) that the
   [work plan](workplan/01-work-plan.md) keeps at 1.0 is **first-party** and
   ships inside the image the way a built-in mode does, so it needs no acquiring
   step at all. Acquiring an extension from outside the install is a subsystem —
   fetch, verify, unpack, register, quota — that no 1.0 goal requires, and it is
-  [24 §3](24-roadmap.md)'s now rather than a phase's.
+  [25 §3](25-roadmap.md)'s now rather than a phase's.
 - **Restart, and server notices** ([09 §6.3](09-server-multiuser-deployment.md)) —
   including the two things restart must not do naively.
 - **Connectivity and bind state** ([09 §6.5](09-server-multiuser-deployment.md)),
@@ -3030,7 +3030,7 @@ account ones:
   is where `auth.minPasswordLength` ([09 §4.1](09-server-multiuser-deployment.md))
   is set.
 
-### 15.3a Backups, on both halves — [25 E6](25-open-questions.md), [P12.6](workplan/29-p12-implementation.md)
+### 15.3a Backups, on both halves — [26 E6](26-open-questions.md), [P12.6](workplan/29-p12-implementation.md)
 
 *Added 2026-09-22. This document contained the word* backup *zero times before
 it, which is what a feature designed as a shell command looks like from the UI's
@@ -3170,7 +3170,7 @@ after P2. An earlier revision of this section homed the whole surface at P10 and
 then observed that two pieces were wanted earlier; what changed is the reason.
 It is not that the user half is small — it is that five shipped artifacts
 already describe this surface as existing, from `config.example.json` calling it
-*"the primary path"* to [21 §4.2](21-internal-contracts.md) contracting the
+*"the primary path"* to [22 §4.2](22-internal-contracts.md) contracting the
 write against it. That makes it a missing dependency rather than an early
 feature, and [work plan §2.3](workplan/01-work-plan.md) is the rule written so
 the same gap does not open again.
@@ -3178,7 +3178,7 @@ the same gap does not open again.
 **What P2A closes:** §15.1 entire, §15.2 entire — including capability
 *granting*, with enforcement pulled forward from P10 so the grant is not a false
 front — and two of §15.3's five bullets, the config form and the restart notice.
-It also closes [25 B13](25-open-questions.md), because a preferences pane needs
+It also closes [26 B13](26-open-questions.md), because a preferences pane needs
 somewhere to put a preference.
 
 **What [P2B](workplan/10-p2b-provider-configuration.md) closes:** system
@@ -3209,7 +3209,7 @@ and three of them by building the blocker rather than the surface:
   wrong order, and two config keys had already shipped ahead of it.
 - **The extensions panel does not**, and that is the fork above closed: 1.0 needs
   extensions *loaded*, not *installed*, and acquiring one from outside the
-  install is [24 §3](24-roadmap.md)'s.
+  install is [25 §3](25-roadmap.md)'s.
 
 ~~**And §15.3's system-library bullet has no owner, which is a defect in this
 section rather than a scheduling question.** §4.2 makes that scope

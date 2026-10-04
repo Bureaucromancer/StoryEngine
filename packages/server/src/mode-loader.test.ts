@@ -29,7 +29,7 @@ import {
  * declares and cannot see the engine at all. Between them sits a run-time
  * module resolution that **no compiler checks**: `mode-loader.ts` holds a bare
  * specifier in a variable, reads a key off whatever comes back, and the whole
- * arrangement is opaque to `tsc` on purpose ([19 §10](../../../docs/design/19-tech-stack.md)
+ * arrangement is opaque to `tsc` on purpose ([20 §10](../../../docs/design/20-tech-stack.md)
  * — a built-in mode consumes the SDK exactly as a third party would, so the
  * engine has no compile-time knowledge of it to check).
  *

@@ -29,7 +29,7 @@ import { defaultBindings, resolveRole, ROLE_TIER_DEFAULTS } from './roles.js';
 import { MODEL_ROLES } from './types.js';
 
 /**
- * Connections and role bindings — [09 §4.5], [19 §5.1].
+ * Connections and role bindings — [09 §4.5], [20 §5.1].
  *
  * The household case is what these two files exist for: an admin binds the two
  * defaults to system connections and everyone's calls resolve there — *"Dad
@@ -531,7 +531,7 @@ describe('resolving a role', () => {
 
 /**
  * **The install default layer** — [P2B §2.1](../../../../docs/design/workplan/10-p2b-provider-configuration.md),
- * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s weakest layer, finally present.
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md)'s weakest layer, finally present.
  *
  * Three documents described a layer of bindings belonging to the install rather
  * than to a person, and [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) said a
@@ -1098,7 +1098,7 @@ describe('nonsense a person can type', () => {
  * **The capability overrides survive an edit, for the key's own reason.**
  *
  * Found by a readiness survey ahead of P2C rather than by a failure. The form
- * has no field for `capabilities` — [19 §5.3] makes them the operator saying
+ * has no field for `capabilities` — [20 §5.3] makes them the operator saying
  * something about their own endpoint — so it sends none, and a write that took
  * `input.capabilities` alone deleted what was on disk on every rename.
  *
@@ -1150,7 +1150,7 @@ describe('an edit that mentions no capabilities', () => {
 
 /**
  * ***Which models see pictures survives an edit on the same terms, and is
- * narrowed to the models being written*** — [25 E15], R1.
+ * narrowed to the models being written*** — [26 E15], R1.
  *
  * `imageModels` sits beside `models` rather than inside `capabilities`, and the
  * reason is this describe block: the form writes `models` fresh on every save

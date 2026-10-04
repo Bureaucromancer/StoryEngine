@@ -11,7 +11,7 @@ import { labels } from '../i18n/catalogue.js';
 /**
  * Display names for the six kinds, keyed by folder name. Keyed by the *value*,
  * never the other way around — nothing branches on a displayed string
- * ([19 §12.6](../../../../docs/design/19-tech-stack.md)).
+ * ([20 §12.6](../../../../docs/design/20-tech-stack.md)).
  */
 export const KIND_LABELS: Record<LibraryKind, string> = labels('library.kind', {
   actors: 'Actors',
@@ -28,7 +28,7 @@ export const KIND_LABELS: Record<LibraryKind, string> = labels('library.kind', {
  *
  * `KIND_LABELS` above is what a tab says; this is what a sentence about one
  * object says, and the two cannot be derived from each other in a language
- * where plurals are not suffixes. A separate table is what [19 §12.2]'s
+ * where plurals are not suffixes. A separate table is what [20 §12.2]'s
  * explicit keys are for.
  */
 export const KIND_WORDS: Record<LibraryKind, string> = labels('library.kind-word', {

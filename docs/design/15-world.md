@@ -6,7 +6,7 @@ a shared treatment baseline, with the stylistic particulars still varying per
 session. *"The Rain City campaign"*, holding six sessions that know about each
 other.
 
-***Decided 2026-10-03, and not yet written here — read [25 B17](25-open-questions.md)
+***Decided 2026-10-03, and not yet written here — read [26 B17](26-open-questions.md)
 first.*** The owner took the `worlds` branch's argument in part: a World
 becomes **the durable named set, and replaces Package** — membership, transport,
 and contribution to a session's lore through a `world` arm on `LoreScope`.
@@ -22,14 +22,14 @@ neither is adopted as written.
 
 ~~**Scheduled for 4.0** ([work plan §0](workplan/01-work-plan.md)).~~ *Superseded
 2026-10-03, pending the design step: when World lands is that step's to say, and
-[25 B16](25-open-questions.md) gives the rename a deadline ([25 B17](25-open-questions.md)).*
+[26 B16](26-open-questions.md) gives the rename a deadline ([26 B17](26-open-questions.md)).*
 Like [12](12-account-gallery.md) and
 [13](13-write-mode.md) it is a design note that arrived after the original run
 rather than a new tier of document, and it reads after
 [03](03-data-model.md) and [08](08-cross-session-memory.md), whose session model
 and memory keying it widens.
 
-This note began as §2c.1 of [24](24-roadmap.md), where it was a roadmap entry with
+This note began as §2c.1 of [25](25-roadmap.md), where it was a roadmap entry with
 an obligations table framed as insurance against a feature that might never
 happen. It moved here when World became a committed release, and the framing
 moved with it: **§5's obligations are requirements now, not hedges.**
@@ -77,7 +77,7 @@ guess would be the shape of the feature.
 ## 3. It is a play-side object, not a portable kind
 
 *(Superseded in part 2026-10-03, pending the design step —
-[25 B17](25-open-questions.md). A World that replaces Package is a portable kind:
+[26 B17](26-open-questions.md). A World that replaces Package is a portable kind:
 Package's place, so the sixth rather than a seventh, and the thing that travels.
 The first bullet's count survives that; the second bullet does not, and is
 struck; the third, that World is not a surface, the decision does not touch. The
@@ -96,9 +96,9 @@ Three things follow, and each is a constraint worth holding:
   *your* play, and the material underneath it already travels as a Package
   ([04 §9.1](04-schemas.md)). Someone who wants to share "the Rain City setting"
   is asking for the Package; someone who wants to share "my six Rain City
-  sessions" is asking for session export ([25 B12](25-open-questions.md)), which
+  sessions" is asking for session export ([26 B12](26-open-questions.md)), which
   is a different feature that already exists by then.~~ *Superseded 2026-10-03
-  ([25 B17](25-open-questions.md)): the World is what a set travels as, because
+  ([26 B17](26-open-questions.md)): the World is what a set travels as, because
   there is no Package left for it to travel beside.*
 - **World is not a surface.** The name reads like one and it is not: it adds no
   top-level place to the application ([10 §2](10-ui-surfaces.md)). It is a
@@ -154,7 +154,7 @@ than inventing a parallel view.
 **Continuity checking is not part of this.** Reading established state back
 against recent turns to flag contradictions is a separate, more expensive
 feature with a false-positive problem the bible does not have, and it stays on
-the feature list ([24](24-roadmap.md)). The bible is what makes it *possible*
+the feature list ([25](25-roadmap.md)). The bible is what makes it *possible*
 later; it is not a down payment on it.
 
 ## 5. What this obliges 1.0 to do
@@ -230,9 +230,9 @@ arrives, three things have to be decided together rather than one at a time:
   creation and stays selected — not a live query that re-decides every turn. That
   keeps the rule intact rather than carving an exception into it.
 - **Whether `scope` then narrows** a book the session has chosen —
-  [25 §B14](25-open-questions.md), left open on purpose, with the argument for
+  [26 §B14](26-open-questions.md), left open on purpose, with the argument for
   both answers written down.
-- **What a new book's `scope` should default to** — [25 §B15]. `global` is the
+- **What a new book's `scope` should default to** — [26 §B15]. `global` is the
   widest value in the union and the current default, which is precisely why P5.7
   went wrong so fast.
 
@@ -265,7 +265,7 @@ between now and 4.0 should be refused.**
   extraction, which is a separate feature.
 - **Not automatic.** Sessions do not join a continuity by resembling each other.
   A World is something a person makes and puts sessions into, for the same
-  reason chapterisation is manual ([25 E1](25-open-questions.md)): a human knows
+  reason chapterisation is manual ([26 E1](26-open-questions.md)): a human knows
   where a continuity's edges are and a heuristic does not.
 - **Not a second memory store.** World-scoped memory is the existing memory
   mechanism with a fourth key, not a parallel system

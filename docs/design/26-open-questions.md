@@ -1,4 +1,4 @@
-# 25 — Open questions
+# 26 — Open questions
 
 Collected from the inline **[OPEN]** markers, plus questions that don't belong to
 one document. Ordered by how expensive they are to answer late.
@@ -15,7 +15,7 @@ AGPL-compatible, and user content is unaffected. See [triage §1](workplan/02-tr
 Spawns A1b, below.
 
 **A1. Extension execution model. — RESOLVED: worker-thread boundary from 1.0.**
-Specified in [22](22-extensions.md). The decision turns on separating two things
+Specified in [23](23-extensions.md). The decision turns on separating two things
 that get bundled under "sandbox": **fault isolation** (a crash, hang or runaway
 loop not taking the server down) is cheap and shapes the API, so take it now;
 **authority isolation** (an extension unable to reach the filesystem at all) is
@@ -26,7 +26,7 @@ The reason this costs less than instinct suggests: **the extension surface
 already serialises.** Five of the seven things [06 §9] requires are declarative
 and cross no boundary at all; the remaining two are a function over JSON-shaped
 data and async host calls. Built-in modes run through the same boundary, so the
-contract cannot drift. *[06 §9, 22]*
+contract cannot drift. *[06 §9, 23]*
 
 **A1b. May extensions be non-AGPL? — RESOLVED 2026-08-09: no. Extensions and
 modes are AGPL-3.0, with no linking exception.** The friction of requiring
@@ -39,14 +39,14 @@ is explicitly *not* covered and stays the author's own. See
 [triage §1.1–1.2](workplan/02-triage.md).
 
 **A1c. Extension-owned durable storage. — RESOLVED: a namespaced key/value host
-API, not a directory.** Specified in [22 §5](22-extensions.md). The worker
+API, not a directory.** Specified in [23 §5](23-extensions.md). The worker
 boundary from A1 makes this cleaner than the directory the question assumed:
 storage is a host call namespaced per (user, extension), so cross-user and
 cross-extension reach are impossible by construction rather than by check. Backed
 by files under the user's directory so it inherits the watcher, index and backup
 story; quota declared in the manifest; removed on uninstall with an explicit
 keep-the-data prompt. Values are JSON — bulk bytes go through a separate asset
-call returning a handle. *[06 §9, 24 §4.6, 22 §5]*
+call returning a handle. *[06 §9, 25 §4.6, 23 §5]*
 
 **A2. Can a package ship code? — SHARPENED by [02 §2.1](02-infinite-worlds.md):
 packages may ship *rules*, never *code*.** Declarative rules are terms in a
@@ -62,7 +62,7 @@ service, no network dependency, every draw recorded in the turn's effects.**
 Nothing else draws — not steps, modes, the rules evaluator, or extensions.
 `node:crypto` under the hood with an injectable generator for tests; the API
 must be complete enough (dice notation, weighted pick, chance) that nobody is
-tempted to bypass it. Specified in [19 §14](19-tech-stack.md).
+tempted to bypass it. Specified in [20 §14](20-tech-stack.md).
 
 **Follow-on also resolved: rewrite and reroll are separate operations, and
 rewrite is the default.** An ordinary swipe replays the recorded draw tape —
@@ -70,7 +70,7 @@ same mechanical outcome, different prose — and drawing fresh is a deliberate
 second action, so swiping past a failed check cannot be save-scumming by
 accident. Draws are keyed by site rather than position so replay survives a
 divergent execution path. Still open, and minor: whether a session may flip the
-default. See [19 §14.5–14.6](19-tech-stack.md).
+default. See [20 §14.5–14.6](20-tech-stack.md).
 
 **A2c. Notification event schema. — RESOLVED, by separating two taxonomies that
 were being treated as one.** Specified in
@@ -90,7 +90,7 @@ written, which means one component serves live and historical alike.
 
 Classes, closed: `turn.complete`, `turn.failed`, `turn.awaiting-input`,
 `artifact.ready`, `system.notice` at 1.0; `message.received` whenever Messages is
-built ([24 §3.4](24-roadmap.md)). Named
+built ([25 §3.4](25-roadmap.md)). Named
 `artifact.ready` rather than `rendition-ready` because the class is about async
 work attached to a turn finishing, and naming it for its first producer means
 renaming it for the second. Deliberately **not** split into blocking and
@@ -100,7 +100,7 @@ non-blocking: renditions never block by design and the blocking case is already
 the distinction that actually matters for routing, as a field rather than a
 doubling of the list. *[09 §3.2–3.5]*
 
-**A2d. UI localisation.** Settled in [19 §12](19-tech-stack.md): i18next with
+**A2d. UI localisation.** Settled in [20 §12](20-tech-stack.md): i18next with
 explicit hierarchical keys, ICU plurals, silent per-key English fallback,
 machine translation as the primary path with provenance markers, Weblate for
 contributors. Two items are load-bearing before code: **CSS logical properties
@@ -136,7 +136,7 @@ never leaves the server, `system/connections/` is excluded from file access
 entirely (unlike `system/library/`), and there is no copy-to-mine because copying
 would mean copying the credential.
 
-They are consumed through **role bindings** ([19 §5.1](19-tech-stack.md)) rather
+They are consumed through **role bindings** ([20 §5.1](20-tech-stack.md)) rather
 than picked per turn, which is what makes the household case work — an admin
 binds `prose` and `fast` to system connections and personal bindings override.
 Two consequences worth carrying: cost attribution stops being optional once
@@ -149,11 +149,11 @@ account capability**, default true, enforced at resolution rather than creation
 so the file browser is not a bypass. Revoking disables rather than deletes.
 Beyond that, a general role system is on the feature list at High
 ([09 §4.2.1](09-server-multiuser-deployment.md),
-[24 §3.1](24-roadmap.md)) rather than in any committed version.
-*[09 §4.5, 09 §4.2, 19 §5.1]*
+[25 §3.1](25-roadmap.md)) rather than in any committed version.
+*[09 §4.5, 09 §4.2, 20 §5.1]*
 
 **A4. Raw-completion support. — RESOLVED: legacy, dropped, no adapter.**
-Specified in [19 §5.5](19-tech-stack.md). Not "chat-shaped by default with a
+Specified in [20 §5.5](20-tech-stack.md). Not "chat-shaped by default with a
 completion path behind it" — the supported surface is **OpenAI-compatible chat
 and nothing below it**, stated as a position rather than left to be discovered.
 
@@ -168,7 +168,7 @@ Cheap to unmake: [06 §5](06-modes-and-turn-pipeline.md) already isolates
 rendering as a single step, so a completion renderer would be a second
 implementation of one seam rather than a rewrite. Two conditionals elsewhere now
 close firmly — bundled tokenizers and the instruct/context template surface both
-stay discarded. *[00 §2.2, 19 §5.5, triage §6.2]*
+stay discarded. *[00 §2.2, 20 §5.5, triage §6.2]*
 
 **A5. Multiplayer posture. — CONFIRMED: don't preclude, don't build.**
 `participants` is a list, `control: "player"` is not structurally limited to one,
@@ -188,18 +188,18 @@ Sandboxed custom rendering is painful for everyone it touches — see
 [10 §8.1](10-ui-surfaces.md) — and core features come first. The paired
 commitment is that deferring it means *actively widening the declarative
 vocabulary* instead, since every widget type added is one fewer reason to need
-an iframe. *[10 §8, 19 §6]*
+an iframe. *[10 §8, 20 §6]*
 
 **A7. Schema direction of derivation. — CONFIRMED: TypeBox.** JSON Schema is the
 artefact; TypeScript types are derived from it. The deciding argument stands:
 package and extension manifests must be validatable by tools not compiled
-against our TypeScript ([19 §4](19-tech-stack.md)). *[19 §4]*
+against our TypeScript ([20 §4](20-tech-stack.md)). *[20 §4]*
 
 **A8. Runtime and index driver. — CONFIRMED: Node LTS, `node:sqlite` preferred
 with `better-sqlite3` as fallback.** Low-risk because the index is derived — a
 driver bug costs a rebuild, not data — and preferring the built-in leaves the
 project with no unavoidable native dependency, which is what keeps Docker builds
-simple. *[19 §2, §7]*
+simple. *[20 §2, §7]*
 
 ---
 
@@ -459,7 +459,7 @@ The choices: **open the unions** before then (an unknown role or source kept
 and ignored, which is what `ActorRole` and `CallKind` already do); **bump the
 version** at each widening, with a migration; or **accept** that an older build
 refuses a newer file, and say so where exports are offered. *[04 §2–§3](04-schemas.md),
-[21 §7](21-internal-contracts.md)*
+[22 §7](22-internal-contracts.md)*
 
 *(2026-10-03: B17 below gives the same release a second meaning, recorded here
 without choosing among the three answers above. World replacing Package renames
@@ -607,7 +607,7 @@ deferred: leave the asymmetry documented until then*
 **C1. Names. — RESOLVED: Messages, Scene, Freeform, Campaign — four modes, no
 Adventure grouping.** Freeform ships at 1.0 and Campaign at 5.0
 ([work plan §0](workplan/01-work-plan.md)); Messages is specified and unscheduled
-([24 §3.4](24-roadmap.md)).
+([25 §3.4](25-roadmap.md)).
 
 **Amended once, and the amendment is the interesting half.** The original
 resolution named a mode **Adventure** carrying two presets, *Adventure ·
@@ -671,7 +671,7 @@ so authors learn one thing and we sandbox one thing. The *choice* needs real
 research and, more usefully, a closer understanding of the suite as actually
 built: what rule conditions really need to express, and whether a template
 language stretches to them comfortably. Deferring the pick costs nothing as long
-as the single-language constraint holds. *[06 §5, 19]*
+as the single-language constraint holds. *[06 §5, 20]*
 
 **C7. Authored rule vocabulary. — RE-SCOPED: deferred to 6.0, the authoring
 tier** ([work plan §0.6](workplan/01-work-plan.md)).
@@ -896,22 +896,22 @@ but it wants real sessions to judge. Under-firing plus always-available manual
 completion is the position regardless. *[06 §7.3.3]*
 
 **C13. What the randomizers ask of the pipeline. — OPEN, three parts, and the
-first two get expensive after P7.** [23](23-randomizers.md) outlines a plot
+first two get expensive after P7.** [24](24-randomizers.md) outlines a plot
 randomizer (an evaluate-before-narrate step that draws an outcome from
 model-proposed candidates) and an appearance randomizer (a field assist that
 draws descriptors from a palette before the model writes). Neither needs a new
 mechanism; each exposes a gap in an existing one. *(a)* A step's judgement call
 is re-run on rewrite, so a draw made over its output cannot replay — the
 rendition moment's *written once, replayed* rule ([06 §10.3]) wants to become a
-step-level contract ([23 §5.1]). *(b)* Draws outside a turn have nowhere to be
+step-level contract ([24 §5.1]). *(b)* Draws outside a turn have nowhere to be
 recorded, because the assist path's record is provenance and provenance has no
-tape ([23 §5.2]) — a portable-schema addition, so it wants doing once. *(c)* A
+tape ([24 §5.2]) — a portable-schema addition, so it wants doing once. *(c)* A
 step's block is one of the two sources no preset slot can position, and an
 outcome verdict that lands at the top of the prompt is the one most likely to
-be softened ([23 §5.3]). Leaning: do *(a)* with P7's async-draw conversion,
+be softened ([24 §5.3]). Leaning: do *(a)* with P7's async-draw conversion,
 since the randomizer is the first production step that draws; do *(b)* whenever
 provenance is next touched; decide *(c)* with the dice extension, which needs
-the same slot. *[23 §5]*
+the same slot. *[24 §5]*
 
 ***(a) has its first production caller, and (c) turned out to be two questions***
 (2026-09-13, [P7.5](workplan/23-p7-implementation.md) stage three). The plot-hook
@@ -953,7 +953,7 @@ building something that asked for one, and SHARPENED by E15** (2026-09-13,
 [P7.5](workplan/23-p7-implementation.md); sharpened 2026-09-26). `MODEL_ROLES`
 has eight arms —
 `prose`, `fast`, `reasoning`, `vision`, `image`, `video`, `speech`, `embedding` —
-and [19 §5.1](19-tech-stack.md) orders five resolution layers over them. **Every
+and [20 §5.1](20-tech-stack.md) orders five resolution layers over them. **Every
 one of those layers is a binding for the role asked for**: `resolveRole` has no
 cross-role fallback, so a role nothing bound resolves `unbound` and the step
 fails. ~~And nothing in the build binds anything but `prose`: no install
@@ -961,7 +961,7 @@ default, no wizard, no route that suggests one.~~ **Corrected 2026-09-26: there
 is a route that suggests one.** The first-run offer
 (`POST /api/admin/bindings/defaults`, [P2B](workplan/10-p2b-provider-configuration.md)
 stage P2B.4) spreads a good model and a cheap one across the five roles
-[19 §5.1](19-tech-stack.md)'s hi/lo table names, so an install whose admin
+[20 §5.1](20-tech-stack.md)'s hi/lo table names, so an install whose admin
 accepted it has `fast`, `reasoning`, `vision` and `embedding` bound as well —
 and `vision` bound to the cheap *text* model. The premise holds for an install
 that declined the offer or wrote its bindings by hand. So a step declaring any
@@ -970,7 +970,7 @@ first thing to declare one and discover it.
 
 *The workaround is real and is what the selector does*: ask for `prose` and let
 an operator point the step at something smaller through `stepRoles`, which is
-[19 §5.1]'s fourth layer and exactly the *"a cheap model for one noisy step"*
+[20 §5.1]'s fourth layer and exactly the *"a cheap model for one noisy step"*
 case. What that costs is that the roles vocabulary describes an intent nothing
 can act on, and the cost grows with every step that would honestly want a
 different role — a summariser, a mention-resolver, an image prompt.
@@ -983,7 +983,7 @@ declares its own fallback chain (`fast → prose`, `reasoning → prose`,
 `vision → ∅`), which is more mechanism but is the only one of the three that can
 say *there is no sensible substitute for `vision`*. **Decide with the first step
 that genuinely cannot use `prose`**, which is an image or vision step rather than
-a cheaper text one. *[19 §5.1, 06 §6]*
+a cheaper text one. *[20 §5.1, 06 §6]*
 
 **SHARPENED 2026-09-26 by E15, which is that step.** Describing a picture the
 player attached cannot use a text model at all, and its needs add a fourth
@@ -997,7 +997,7 @@ option that survives the correction above: every install that took the
 first-run offer already has `vision → lo` written into its bindings, and under
 *(a)*, *(b)* or a plain *(c)* that row would send pictures to a text model.
 Under *(d)* it is inert rather than wrong. **A discrepancy to settle, not a
-side to take here:** [19 §5.1](19-tech-stack.md) and `ROLE_TIER_DEFAULTS` put
+side to take here:** [20 §5.1](20-tech-stack.md) and `ROLE_TIER_DEFAULTS` put
 `vision` on *lo* alongside `fast` and `embedding`, while its own reason for
 leaving `image`, `video` and `speech` unset — *no sensible text-model fallback* —
 is true of `vision` too. It is harmless only because nothing calls `vision`, and
@@ -1097,7 +1097,7 @@ slope the type exists to refuse. *(c)* **Leave it**, and accept a dead `ok` row
 as what declaring a step costs — defensible while one mode has one such step and
 worse with every mode that gets another. **Decide with the second instance**, or
 when a phase is measuring turn cost, since (c)'s price is paid in the record
-rather than in tokens. *[06 §6, 22 §4.1]*
+rather than in tokens. *[06 §6, 23 §4.1]*
 
 *`armed` has a producer since 2026-09-29*
 ([P14.5b](workplan/31-p14-scene-and-session-import.md)): a submission's
@@ -1177,7 +1177,7 @@ seventh artifact: [09 §5.4](09-server-multiuser-deployment.md) calls it a thin
 wrapper over Tier 1, and it is scheduled with the image.
 
 **D1. Tailscale. — RESOLVED: Level 1 yes, Level 2 maybe, Level 3 no. Feature
-list, High** ([24 §3.1](24-roadmap.md)). *Post-2.0* was the old phrasing and it
+list, High** ([25 §3.1](25-roadmap.md)). *Post-2.0* was the old phrasing and it
 stopped meaning anything when the release line grew past 2.0; what it meant was
 **not in a committed version**, which is what the feature list is for. An embedded `tsnet` node is a real component for a convenience the
 simpler levels mostly deliver. Not hard, but a side project rather than anything
@@ -1185,7 +1185,7 @@ on the path. The only thing to do now is keep the auth layer shaped so Level 2 i
 a provider rather than a special case, which costs nothing. *[09 §5.2]*
 
 **D2. Auto-provisioning accounts. — RESOLVED: no. All accounts manually
-provisioned; the feature is on the list at Low** ([24 §3.2](24-roadmap.md)),
+provisioned; the feature is on the list at Low** ([25 §3.2](25-roadmap.md)),
 not in any committed version. No self-registration, no invite
 links, no identity-provider provisioning. Not philosophical — simpler, and
 matched to reality, since most installs are one user or a handful and adding
@@ -1211,7 +1211,7 @@ single audited path-resolution helper — needed by every filesystem-touching ro
 regardless, and having one from the start is the difference between a security
 property and a hope. **Hand-editing on disk keeps working**, because that was
 never about the UI: [10 §4.1](10-ui-surfaces.md)'s forcing function is unchanged.
-*[10 §4, 24 §3]*
+*[10 §4, 25 §3]*
 
 **D4. Mobile layout, and the stance on native clients. — RESOLVED.**
 Responsive-and-usable at 1.0; a distinct mobile-optimised layout stays later.
@@ -1223,7 +1223,7 @@ and not ours to build; pitch it if you want to contribute one, but nothing ships
 that is not a feature-complete client with a real advantage over the web app.*
 A partial native client is worse than none — it splits the surface, halves the
 testing, and teaches people that some features live in one place and some in the
-other. *[10 §1, 24 §3]*
+other. *[10 §1, 25 §3]*
 
 ---
 
@@ -1280,7 +1280,7 @@ advice, accepted or ignored.
 
 **Opinionated: lower value than it looks for lorebooks, genuinely useful for
 memory, and not in a committed version either way — feature list, Low
-([24 §3.2](24-roadmap.md)).**
+([25 §3.2](25-roadmap.md)).**
 
 Keyword activation plus the budgeter covers most real lorebook use — the whole
 SillyTavern ecosystem runs on it. Semantic activation adds a provider
@@ -1379,7 +1379,7 @@ only one of them can be written at P11.
 ever writes one that is a fine outcome. What this rules out is answering the
 question twice.
 
-*Surveyed 2026-09-01, in [18](18-session-import.md).* **The condition above is
+*Surveyed 2026-09-01, in [19](19-session-import.md).* **The condition above is
 now checkable**, which it was not while it named a shape nobody had costed.
 Three things from that survey are worth having here rather than only there.
 **Aventuras already ships this document's proposed shape** — `.avt`, one
@@ -1395,7 +1395,7 @@ reader for a format with no writer, which
 [P4 §1.3](workplan/16-p4-implementation.md) struck `.seactor` for being and
 [work plan §2.2](workplan/01-work-plan.md) forbids.
 
-[18 §3](18-session-import.md) is the part addressed to P11 — four things the
+[19 §3](19-session-import.md) is the part addressed to P11 — four things the
 export format has to do if it is to be the target E4 describes, rather than a
 serialisation of our own records that happens to be written down.
 
@@ -1413,7 +1413,7 @@ this entry declines. [P12.8](workplan/29-p12-implementation.md)'s
 as P13's Part 2 on this reading and **not scheduled**, so *"still not a
 commitment"* above is unchanged.
 
-*Revisited 2026-09-28, at [18 §7](18-session-import.md).* The condition is met:
+*Revisited 2026-09-28, at [19 §7](19-session-import.md).* The condition is met:
 P11.10 shipped the format with a writer and a reader, so a converter aimed at it
 is no longer a reader for a format with no writer. Still not a commitment — §7
 prices what is left and proposes an order, and schedules nothing.
@@ -1588,7 +1588,7 @@ and the class is what should determine the response.
 | Class | Examples | Response |
 |---|---|---|
 | **Transient** | 429, 5xx, timeout, connection reset | Bounded retry with backoff, **visible in progress events** as "retrying (2/3)" rather than a spinner |
-| **Retryable with a change** | Context overflow, malformed structured output, prompt cap exceeded | Shrink and resend, or re-ask — mechanisms that already exist ([19 §5.3](19-tech-stack.md)) |
+| **Retryable with a change** | Context overflow, malformed structured output, prompt cap exceeded | Shrink and resend, or re-ask — mechanisms that already exist ([20 §5.3](20-tech-stack.md)) |
 | **Terminal** | Invalid credential, model not found, content refusal | Fail the step, surface as **actionable** ([09 §3.5](09-server-multiuser-deployment.md)) |
 
 Two things worth calling out:
@@ -1621,7 +1621,7 @@ condition: ***if pictures ever get automatic retries, the policy must be
 configurable***. So it will not arrive as a ladder hard-coded around the call —
 `renditions/worker.ts` says at the call why it is not a loop there, since there
 is nowhere honest to count a retry — but as a config key, a five-place edit made
-then ([21 §4](21-internal-contracts.md)), most naturally beside the
+then ([22 §4](22-internal-contracts.md)), most naturally beside the
 per-connection queue above, where a retry is *visible in progress events* and
 has somewhere to be counted. The chat calls' ladder is untouched by this answer.
 
@@ -1653,7 +1653,7 @@ beside it. The cost is real, and players are told about it: each re-ask is one
 more image request, which a paid endpoint may bill
 ([Pictures](../guide/pictures.md#backdrops)). *To
 overrule this*, a "yes" makes the re-ask a setting now, through the five-place
-edit ([21 §4](21-internal-contracts.md)). The smallest such setting is a switch
+edit ([22 §4](22-internal-contracts.md)). The smallest such setting is a switch
 that stops asking again for a place whose backdrop failed. `renditions/worker.ts`,
 which pointed here as the open question, now points here as the answer.
 
@@ -1819,7 +1819,7 @@ targets and long-document virtualisation.
 **Why leaving it open costs nothing.** The document on disk is Markdown, the
 annotations are offsets in `manuscript.json`, and no part of the server, the
 schemas or the API knows what the editor is — client-internal in the same
-structural sense [19 §6](19-tech-stack.md) makes the framework choice reversible.
+structural sense [20 §6](20-tech-stack.md) makes the framework choice reversible.
 Two constraints hold whichever way it goes: read-only rendering must not require
 the editor bundle, or the reading view ([10 §12](10-ui-surfaces.md)) takes a
 dependency on it; and if the beat interaction turns out to need rich structured
@@ -1938,7 +1938,7 @@ models, since variation there is already siblings rather than a batch parameter 
 with upscale as an action on the chosen sibling. Somebody should confirm that
 against a real endpoint rather than take it from here.
 
-**Where it belongs instead.** Not in core. [22 §11](22-extensions.md) commits to
+**Where it belongs instead.** Not in core. [23 §11](23-extensions.md) commits to
 a renderer contract published through the SDK, timed to ComfyUI — and that is
 the honest home for this: an extension somebody who actually uses Midjourney
 writes, installs on their own server, and accepts the terms of. The deferral is
@@ -1951,12 +1951,12 @@ would make this an ordinary table row overnight; or the renderer contract
 landing, after which this stops being a question for the project at all. Until
 one of those, the nearest backends with real APIs and comparable output are Nano
 Banana Pro, FLUX through OpenRouter, and Stability — all of which
-[19 §5.6](19-tech-stack.md) already reaches.
-*[19 §5.6, 22 §11, 09 §1]*
+[20 §5.6](20-tech-stack.md) already reaches.
+*[20 §5.6, 23 §11, 09 §1]*
 
 ### E15. Images on the player's input — on the roadmap, and never a lock-in
 
-**Position: a High-tier roadmap feature ([24 §3.1](24-roadmap.md)), specified
+**Position: a High-tier roadmap feature ([25 §3.1](25-roadmap.md)), specified
 here because its one hard requirement is easy to get wrong and expensive to
 put right afterwards.** A player may attach one or more pictures to a move, and
 a model that can see them gets the pixels. **Having done that once must never
@@ -1980,12 +1980,12 @@ below:
 - **The record**, all optional: `input.attachments` (id, open `kind`, digest,
   and the type, size and pixel dimensions the server read from its own store,
   and the caption); `RenderedMessage.parts` beside `content`
-  ([21 §2](21-internal-contracts.md)); `AssembledBlock.image`, the disclosure;
+  ([22 §2](22-internal-contracts.md)); `AssembledBlock.image`, the disclosure;
   `part: "attachment"` on the `input` and `history` sources
-  ([21 §1.1](21-internal-contracts.md)). Four pictures to a move.
+  ([22 §1.1](22-internal-contracts.md)). Four pictures to a move.
 - **Per-model support**: `imageModels` on a connection, a subset of `models`,
   empty by default, with a checkbox per model in the connection editor
-  ([21 §3](21-internal-contracts.md)).
+  ([22 §3](22-internal-contracts.md)).
 - **The send rule, in `planCall`**, against the model resolved after the session
   and step layers and the actor hint. A picture whose pixels do not go sends its
   words, and the block says why. When several reasons hold, the one recorded is
@@ -2086,12 +2086,12 @@ preview now answer `400` to an unknown `input` field; new files appear under
 
 *Surveyed 2026-09-26, against the build as P12 left it.* No design note
 addressed image input before this entry. The `vision` role
-([19 §5.1](19-tech-stack.md)) is the only hook, and nothing calls it.
+([20 §5.1](20-tech-stack.md)) is the only hook, and nothing calls it.
 
 **The engine already refuses to lock, and the design is about keeping that
 true.** Every model call re-resolves its role — `resolveRole`, through
 `planCall` — and records what it got as `ModelCall.resolved`
-([21 §1.4](21-internal-contracts.md)), precisely because the binding can change
+([22 §1.4](22-internal-contracts.md)), precisely because the binding can change
 between turns. And history is re-collected from the `Turn` records on every
 call; nothing ever replays an earlier call's `messages`. So a session is not
 "on" a model at all, and there are only two ways images could change that.
@@ -2123,7 +2123,7 @@ not this.
   for an edit.
 - **The description** is written by a model through the `vision` role, and it
   lives **beside the turn**, keyed by the picture's digest and so shared across
-  siblings. That is [21 §7.2](21-internal-contracts.md)'s fork taken the same
+  siblings. That is [22 §7.2](22-internal-contracts.md)'s fork taken the same
   way for the same reason: turn segments are never rewritten, so anything
   produced after a turn commits cannot be added to its record. On the turn, a
   description could never be written later, and two populations would stay
@@ -2183,7 +2183,7 @@ input; scanning a model's description is opt-in, for 06 §5.1's reason.
 
 **Capability is per model, and has to be from the first tier.** Every
 capability so far is a property of the endpoint, which is why
-[21 §3](21-internal-contracts.md) makes them overridable per connection. Seeing
+[22 §3](22-internal-contracts.md) makes them overridable per connection. Seeing
 images is a property of the *model*: one Ollama URL serves a vision model and a
 text one, and so does OpenRouter. A connection-wide flag is a lock-in bug with
 extra steps. Mark the connection for the describer, then rebind `prose` to a
@@ -2234,7 +2234,7 @@ tighten*).
   marker — so spans, summary keys and *annotate, never rewrite*
   ([10 §13.1](10-ui-surfaces.md)) are untouched.
 - `RenderedMessage.content` stays the whole text rendering, which is the
-  contract [21 §2](21-internal-contracts.md) froze. An ordered `parts?` rides
+  contract [22 §2](22-internal-contracts.md) froze. An ordered `parts?` rides
   beside it and names pictures **by digest**, so the call record stays small;
   the bytes are loaded for the wire and never persisted. The adapter builds
   array content only for a message carrying an admitted picture, because some
@@ -2242,7 +2242,7 @@ tighten*).
   because a local endpoint cannot reach this server.
 - The attachment is emitted as its own block from inside the existing `input`
   and `history` expansions, as a new `part`, rather than as a new top-level
-  source — which [21 §1.1](21-internal-contracts.md)'s derivation would turn
+  source — which [22 §1.1](22-internal-contracts.md)'s derivation would turn
   into a slot any preset could position.
 - The SDK's `Candidate` gains an optional picture too. That is a change to a
   published contract, and should be named as one when it happens.
@@ -2272,14 +2272,14 @@ words plus its text rendering is the cheap answer.
   and backup import carrying them.
 - **R2 — describe.** The `vision` call, once C15 is decided as *(d)*: an
   explicit action, the description beside the turn, describing retroactively,
-  and its cost recorded — [24 §3.3](24-roadmap.md) already obliges 1.0 to record
+  and its cost recorded — [25 §3.3](25-roadmap.md) already obliges 1.0 to record
   assist-call cost, and this call joins that obligation.
 - **R3 — a wider window, and a budget.** Pictures from earlier turns, each its
   own droppable block carrying a declared per-image token figure. The
   budgeter's estimate is characters over four (E5) and a picture has none, so
   where no figure is declared the fallback is a configured default marked
   *image cost unknown* — never zero, and never a number this project made up,
-  which is why [21 §3](21-internal-contracts.md) leaves a limit it has not
+  which is why [22 §3](22-internal-contracts.md) leaves a limit it has not
   verified *undeclared rather than defaulted*. Asking an endpoint which of its
   models see images belongs here too, where endpoints will say; this entry has
   not checked which do.
@@ -2300,7 +2300,7 @@ condition on whoever reaches for `vision` first: nothing calls it until its
 resolution asks whether the model can see.
 
 **Not this.** Lore and actor reference images sent to the narrator — that is
-the selector problem [24 §3.1](24-roadmap.md)'s lore-conditioned renditions row
+the selector problem [25 §3.1](25-roadmap.md)'s lore-conditioned renditions row
 defers, and [10 §11.2b](10-ui-surfaces.md)'s *"they are not sent"* stays true of
 library pictures. Pictures out of the text model, which renditions already
 cover. Video, audio and documents: `kind` is held open for them, and nothing
@@ -2312,21 +2312,21 @@ needs nothing else first.~~ **R1 is built (2026-09-27).** What moves the rest:
 R2 waits on C15 decided as *(d)*; R3 has no outside gate — its per-picture
 figure is part of its own work; R4's chat-attached pictures wait on a chat
 importer (E4).
-*[24 §3.1, 06 §5.1, 21 §1.1, 21 §2, 21 §3, 21 §7.2, 03 §5.5, 04 §2, 10 §11.1, 10 §11.2b, 19 §5.1, C14, C15, E3]*
+*[25 §3.1, 06 §5.1, 22 §1.1, 22 §2, 22 §3, 22 §7.2, 03 §5.5, 04 §2, 10 §11.1, 10 §11.2b, 20 §5.1, C14, C15, E3]*
 
 ### E16. Money — the provider's figure, a declared price, and never a shipped table
 
 **Position: the record has somewhere to put money, and nothing fills it yet;
 the approach below is the recommendation for what should.** Three places carry
 a money figure — `ModelCall.cost`, the usage log's `cost` for calls that make no
-turn ([21 §1.4](21-internal-contracts.md)), and since 2026-09-27 the turn's own
+turn ([22 §1.4](22-internal-contracts.md)), and since 2026-09-27 the turn's own
 total, `TurnCost.money` — and all three are null on every real endpoint, because
 the adapter prices nothing. [09 §4.5](09-server-multiuser-deployment.md) said
 turns *"already record cost"*, which was true of tokens only; it now says so.
 The field landed first on purpose: a turn priced later needs no migration to
 say what it cost, and an unpriced one says *not priced*, never zero.
 
-**The rule a filler has to keep is [21 §1.4]'s**: *provider-reported, not
+**The rule a filler has to keep is [22 §1.4]'s**: *provider-reported, not
 estimated*. So the recommendation is ordered by how honestly each source can
 claim that.
 
@@ -2362,9 +2362,9 @@ is a person's own number applied to a measured one, and the record should be
 able to tell the two apart: an optional `source: "provider" | "declared"` on the
 cost, so a spend view built later can say which of its figures a provider
 vouched for. Per model because a price is, like image input
-([E15](25-open-questions.md)), a property of the model rather than of the
+([E15](26-open-questions.md)), a property of the model rather than of the
 endpoint; on the connection because that is where somebody who knows says so
-([21 §3](21-internal-contracts.md)). A local model's owner who wants *free* to
+([22 §3](22-internal-contracts.md)). A local model's owner who wants *free* to
 read as a claim rather than an absence declares zero.
 
 **3. Never a shipped price table.** A bundled table of per-model prices is the
@@ -2378,9 +2378,9 @@ default and not as a fallback.
 OpenRouter's figure already includes and a declared price would have to model;
 image calls, whose `ImageResult.cost` exists and is dropped because a rendition
 has no field for it; and the aggregate view itself
-([24 §3.3](24-roadmap.md)), which reads whatever this fills.
+([25 §3.3](25-roadmap.md)), which reads whatever this fills.
 
 What moves it: somebody on OpenRouter wanting the number, which needs only the
 live test and the adapter change in step 1. Step 2 waits for somebody who wants
 a figure beside a direct or local endpoint.
-*[21 §1.4, 21 §3, 09 §4.5, 24 §3.3, E15]*
+*[22 §1.4, 22 §3, 09 §4.5, 25 §3.3, E15]*

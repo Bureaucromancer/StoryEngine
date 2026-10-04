@@ -18,7 +18,7 @@ import { ImportPanel } from './ImportPanel.js';
  *
  * **The assertion that matters is that the server sends no prose.** It sends
  * `{ key, params, level }`, and this composes the sentence — which is what keeps
- * a report from being English frozen into a durable record ([25 A2d]). So the
+ * a report from being English frozen into a durable record ([26 A2d]). So the
  * tests here are mostly about the composition: that params reach the sentence,
  * and that a class this build has never heard of still renders as *something*,
  * because a record written by a newer build can arrive at an older client.
@@ -70,7 +70,7 @@ describe('after a sweep', () => {
         screen.getByText(/Removed connection fields: reverse_proxy, proxy_password\./),
       ).toBeTruthy();
     });
-    // The file is named as it arrived, relative to the root ([21 §4.1.1]).
+    // The file is named as it arrived, relative to the root ([22 §4.1.1]).
     expect(screen.getByText('OpenAI Settings/Harbour.json')).toBeTruthy();
   });
 

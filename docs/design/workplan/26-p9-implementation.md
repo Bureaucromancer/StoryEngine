@@ -82,7 +82,7 @@ does not exist (§1.1).
 
 **CI this phase establishes:** golden-file coverage of prompt assembly under the
 provider's declared cap — the ranked-fragment path from
-[19 §5.3](../19-tech-stack.md) getting its second consumer and its first one with
+[20 §5.3](../20-tech-stack.md) getting its second consumer and its first one with
 a hard external limit — plus the recipe-survives-eviction property: *for any
 rendition, dropping `asset` and re-running from `prompt` and `provenance`
 produces a request byte-identical to the original's.* The backdrop's reuse key
@@ -367,7 +367,7 @@ original.
    first code that resolves an `asset` to a path — the reader that turns one into
    a URL, or the hook `asset: null` implies — or the accessor lands in P9.2 with
    the first writer and P9.0 ships the path *convention* in
-   [21](../21-internal-contracts.md) and [03 §5](../03-data-model.md) alone.
+   [22](../22-internal-contracts.md) and [03 §5](../03-data-model.md) alone.
    **What it may not do is add a dangling accessor and call it an exit
    condition**, which is the form the obligation currently takes.
 
@@ -542,7 +542,7 @@ to discover at the gate.
 `purpose`, `scope` (both halves, §1.6), `state`, `prompt`, `asset`, `provenance`,
 `error` — and it is the only place in the design that has it. It is **not** in
 [04](../04-schemas.md), which owns portable objects; **not** in
-[21](../21-internal-contracts.md), which owns internal ones; and **not** in
+[22](../22-internal-contracts.md), which owns internal ones; and **not** in
 [03](../03-data-model.md), which owns what is on disk. ~~`sessions/<id>/assets/`
 exists in the layout with nothing writing to it.~~ ***It exists in
 [03 §5](../03-data-model.md)'s tree and in none of the code*** (§0.1's finding
@@ -561,14 +561,14 @@ defect twice."*** A `pending` rendition writes no bytes, so P9.0 ending *"with n
 provider behind it at all"* and adding an accessor is that defect a third time.
 **Either the accessor arrives with the first code that resolves an `asset` to a
 path, or it arrives in P9.2 with the first writer** and P9.0 ships the convention
-in [21](../21-internal-contracts.md) and [03 §5](../03-data-model.md) alone.
+in [22](../22-internal-contracts.md) and [03 §5](../03-data-model.md) alone.
 P9.0's proof obligation below is amended to ask for the caller.
 
 That is the same shape of gap as
 [P2B §1](10-p2b-provider-configuration.md)'s missing fallback layer — three
 documents relying on a thing no document defines — and it is named here so it is
 found while planning rather than on the day. The remedy is small: one section in
-[21](../21-internal-contracts.md), one paragraph in
+[22](../22-internal-contracts.md), one paragraph in
 [03 §5](../03-data-model.md) about where the bytes live, and the turn record's
 link to them.
 
@@ -598,7 +598,7 @@ date.** A rendition hangs off a turn, and turns are internal. The
 counter-argument is that the recipe is the durable half and someone will want it
 to survive an export.
 
-When this was written, export was [25 B12](../25-open-questions.md) with no
+When this was written, export was [26 B12](../26-open-questions.md) with no
 release attached, so deciding here would have been deciding early and blind.
 **Export now ships at 1.0** ([work plan §0.5](01-work-plan.md)) at P11, which is after
 this phase — so the lean still holds, but it is no longer a decision that can be
@@ -614,7 +614,7 @@ plain TypeScript in `packages/shared/src/rendition.ts` beside `turn.ts` — and
 the answer to *when does it graduate* was already written, in `turn.ts`'s own
 header: no `schema` field on the portable side, no `$id`, no entry in
 `PORTABLE_SCHEMAS`, no emitted JSON Schema, and ***"session export
-([25 B12](../25-open-questions.md)) is the event that ends this freedom"***. A
+([26 B12](../26-open-questions.md)) is the event that ends this freedom"***. A
 rendition hangs off a turn, so it graduates **when the turn record does**, at the
 export freeze, and not before. That is a real answer rather than a lean, and it
 costs P11 nothing to collect: the recipe travels exactly when the turn it hangs
@@ -652,12 +652,12 @@ which is the claim that actually needed one.
 
 ### 1.2 The provider layer speaks chat, and no image endpoint does
 
-`image` is one of the eight model roles ([19 §5.1](../19-tech-stack.md)) and is
+`image` is one of the eight model roles ([20 §5.1](../20-tech-stack.md)) and is
 **unset until a matching connection exists**, because there is no sensible
 text-model fallback for it. So the role vocabulary is ready. What is not ready is
 the adapter: `Provider` in `packages/server/src/providers/types.ts` is
 `generate(request) → GenerationResult` with an optional text `stream`, and
-[19 §5.5](../19-tech-stack.md)'s compatibility surface is stated as *if it speaks
+[20 §5.5](../20-tech-stack.md)'s compatibility surface is stated as *if it speaks
 OpenAI-compatible chat, it works* — which no image-generation API does.
 
 So the phase owns a genuine question rather than a wiring job: **does `Provider`
@@ -668,7 +668,7 @@ re-derive them:
 - Connections, credentials-never-leave-the-server, role binding and the
   five-layer override order are all worth reusing whichever answer wins; the
   *capability record* and the request/response shapes are not.
-- [19 §5.5](../19-tech-stack.md) already says the chat bet is reversible at a
+- [20 §5.5](../20-tech-stack.md) already says the chat bet is reversible at a
   single seam because rendering is isolated as one step. A second *provider
   kind* is a larger claim than a second renderer and should be made
   deliberately.
@@ -681,7 +681,7 @@ re-derive them:
   endpoint — **and** `maxPromptChars` / `usefulPromptChars`, which
   `providers/prompt-caps.ts` reads and whose docstring is about CLIP's
   77-token window. So one record is already answering two questions, which is
-  either the seam [19 §5.5](../19-tech-stack.md) promised or the first sign of
+  either the seam [20 §5.5](../20-tech-stack.md) promised or the first sign of
   the half-lie a forced fit produces.
 
 ~~***This is the one decision this document deliberately does not make***, and
@@ -704,7 +704,7 @@ renderImage?(request: ImageRequest): Promise<ImageResult>;
 
 beside `generate` and `stream`, with `ProviderCapabilities.rendersImages` saying
 whether it is there. One provider kind, one capability record, one connection,
-one binding — which is precisely what [19 §5.5](../19-tech-stack.md) means when
+one binding — which is precisely what [20 §5.5](../20-tech-stack.md) means when
 it says the chat bet is reversible *at a single seam*: this is a second method on
 the seam, not a second seam.
 
@@ -750,7 +750,7 @@ is **not** the sentence a reader should take away first. The prior finding is
 that a long provider list is mostly a **table of endpoints**, and that building
 it as adapters buys nothing. The decision that follows, with the families
 measured and the corpus's own three internal votes on which of its names matter,
-is [19 §5.6](../19-tech-stack.md).
+is [20 §5.6](../20-tech-stack.md).
 
 *Two things that section settles which this one had no way to reach.* OpenRouter
 is **not** OpenAI-compatible for images, so it needs a shim rather than a row.
@@ -806,7 +806,7 @@ that section's own condition: *whatever is decided, it is decided once.*
 
 ### 1.4 Eviction is a later decision, and that is only true if the hook ships
 
-[25 E3](../25-open-questions.md) is explicit that an eviction policy can be
+[26 E3](../26-open-questions.md) is explicit that an eviction policy can be
 adopted later *because adopting one can never cost history*. That holds only if
 two things are true from the first commit: `asset: null` renders as a
 regenerable placeholder rather than a broken image, and the recipe — prompt,
@@ -1025,7 +1025,7 @@ widening it is the one repair that undoes the argument.
 
 **Text in, images out.** A background prompt is built from channel state as
 *text*. Conditioning generation on a location's `reference` **image** is
-**lore-conditioned renditions**, deferred past 1.0 by [24 §3](../24-roadmap.md)
+**lore-conditioned renditions**, deferred past 1.0 by [25 §3](../25-roadmap.md)
 and by §4 below, for a reason that survives contact with this feature: *choosing
 which images* is the hard part when six active entries and three present actors
 all carry references, and attaching all of them produces mud.
@@ -1074,7 +1074,7 @@ and [P8 §2](25-p8-implementation.md) both needed the same amendment).
 
 ### P9.0 — The contract
 
-§1.1: `Rendition` lands in [21](../21-internal-contracts.md), the bytes get a
+§1.1: `Rendition` lands in [22](../22-internal-contracts.md), the bytes get a
 home in [03 §5](../03-data-model.md) under `sessions/<id>/assets/`, and the turn
 record links to them. §1.2's provider question answered and written down before
 any adapter is chosen. **Both unions are closed here** — `kind` with one value
@@ -1141,7 +1141,7 @@ An ordinary `post`-stage step ([06 §10.3](../06-modes-and-turn-pipeline.md)),
 composing from what is already there: **the moment**, present actors'
 `VisualDescriptors` and their `reference` media, channel state, and the
 treatment's tone. Assembled as **ranked fragments under the provider's declared
-cap** ([19 §5.3](../19-tech-stack.md)) so overrun drops the lowest-ranked
+cap** ([20 §5.3](../20-tech-stack.md)) so overrun drops the lowest-ranked
 fragment rather than truncating mid-sentence — work that was specified for
 exactly this case and has had no consumer until now.
 
@@ -1238,7 +1238,7 @@ seed drawn after the record is written is a seed the `pending` record cannot
 state, so *re-creating* an evicted picture could never be a replay of the same
 number. The **step** draws it through `host.random.at(SE_RENDER, 'seed')`, it
 rides on the request to `provenance.seed`, and the worker reads it off the
-record. [19 §14]'s tape turned out to be exactly the right place for it.
+record. [20 §14]'s tape turned out to be exactly the right place for it.
 
 ***The backdrop's ranking had to be narrowed, and the narrowing exposed a gap
 worth naming.*** Including all rendered channel state made Scene's clock part of
@@ -1372,7 +1372,7 @@ fixed:
 rendition by its id alone, and a rendition id is its turn's, which session
 import keeps — so two sessions on one install can hold the same ids.
 `STEPS[7]` adds `session_id` to each index and every lookup takes the pair
-([21 §7](../21-internal-contracts.md)). *A data directory opened by the picture
+([22 §7](../22-internal-contracts.md)). *A data directory opened by the picture
 branch before it merged* numbered its own steps 6 and 7 differently and must be
 reset (`pnpm reset-data`, or `tools/reset-data.mjs`); only that branch's own
 builds could have made one, and no release did.
@@ -1411,7 +1411,7 @@ claim up.
 Many renditions per turn with the user choosing which is shown — structurally
 the turn tree again, siblings under a node, and for the same reason:
 regeneration must never be destructive
-([25 E3](../25-open-questions.md), [06 §10.7](../06-modes-and-turn-pipeline.md)).
+([26 E3](../26-open-questions.md), [06 §10.7](../06-modes-and-turn-pipeline.md)).
 Variations ship; §1.4's `asset: null` rendering ships with them.
 
 **The backdrop's channel binding belongs here**, because *which one is showing*
@@ -1515,7 +1515,7 @@ So this deferral, and the two dials with it, currently point at nobody — which
 is [manual testing §10.1](05-manual-testing.md)'s exact shape, a deferral moved
 off one owner and onto a phase that never took it. *The narrowing that makes it
 smaller than it reads:* the **storyboard surface** downstream of the judgement is
-on the feature list ([24 §3.3](../24-roadmap.md)) rather than in 1.0, so what is
+on the feature list ([25 §3.3](../25-roadmap.md)) rather than in 1.0, so what is
 actually unowned is the judgement and the two dials, not the surface they would
 feed. Recorded here rather than assigned, because inventing an owner is the
 thing that stops anybody looking.
@@ -1574,11 +1574,11 @@ what is absent is the token accounting. Making it a turn would put a node with n
 prose in somebody's transcript, which is a worse trade for a story than a missing
 line in a cost total.
 
-~~[25 E4]'s budget is where it is properly answered.~~ ***Miscited, and corrected
-2026-09-16 by [P11 §0.2](28-p11-implementation.md)'s re-audit.*** [25 E4] is
+~~[26 E4]'s budget is where it is properly answered.~~ ***Miscited, and corrected
+2026-09-16 by [P11 §0.2](28-p11-implementation.md)'s re-audit.*** [26 E4] is
 *session import from other platforms*; there is no budget question in
-[25](../25-open-questions.md) at all. **Aggregate spend tracking is post-1.0**
-([24 §3](../24-roadmap.md)), which [10 §3](../10-ui-surfaces.md) and
+[26](../26-open-questions.md) at all. **Aggregate spend tracking is post-1.0**
+([25 §3](../25-roadmap.md)), which [10 §3](../10-ui-surfaces.md) and
 `CostSummary`'s docstring both already said — so the correct reading is that
 nothing in 1.0 totals this, and the note's job is to make sure whatever does
 knows the call is out there.
@@ -1830,7 +1830,7 @@ field [06 §10.7](../06-modes-and-turn-pipeline.md) calls load-bearing, and the
 same promise §1.2 found the Pollinations path breaking on purpose. **The steps and
 the results above stand as recorded.** What changed is the adapter, which now
 sends the seed where a connection declares `supportsImageSeed`
-([21 §3](../21-internal-contracts.md)), and the record, which says whether it
+([22 §3](../22-internal-contracts.md)), and the record, which says whether it
 did (`seedSent`). ~~*Sitting O's endpoint needs that capability declared for row 6
 to hold at the wire*; without it, the workbench now says — correctly — that the
 seed was not sent.~~ *Sitting O never walks row 6*: row 6 is **AUTO**, discharged
@@ -1872,13 +1872,13 @@ moments of a turn deserve a picture, and how many — now specified in full at
 [06 §10.4](../06-modes-and-turn-pipeline.md) and deliberately not built here,
 along with the storyboard surface downstream of it; an eviction *policy* (§1.4 —
 the hook, not the policy); **lore-conditioned renditions**
-([24 §3](../24-roadmap.md): committed
+([25 §3](../25-roadmap.md): committed
 intent rather than a maybe, and deferred because *choosing which images* is the
 hard part when six active entries and three present actors all carry references
 — it wants P7's location channel for an honest selector and real sessions to
 tune against — and §1.7 is explicit that a backdrop is the most plausible excuse
 for crossing that line and still does not cross it); the Character Studio
-([17](../17-character-studio.md)) — which is now a committed release at 3.0 and
+([18](../18-character-studio.md)) — which is now a committed release at 3.0 and
 therefore the nearest post-1.0 consumer of everything this phase builds, rather
 than a member of the authoring tier at 6.0; any model-quality evaluation of
 generated images
@@ -1924,7 +1924,7 @@ because each is one step away from something this phase does build:
 — and once it exists, generating an image is a provider call and a job. The
 risk is entirely in getting the type right, because it is the one thing here
 that later phases and later *releases* will be stuck with: video and speech are
-named in [24](../24-roadmap.md) as things the `kind` union and
+named in [25](../25-roadmap.md) as things the `kind` union and
 `scope.messageId` should keep cheap, and §1.6 is the three fields that do it —
 the third, `scope.anchor`, being the one this phase actually uses.
 

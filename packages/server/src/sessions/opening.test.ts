@@ -308,7 +308,7 @@ describe('one account of turn 1', () => {
   });
 
   /**
-   * ***The owner's decision, 2026-10-03 — [25 B18](../../../../docs/design/25-open-questions.md).*** Mutation: make
+   * ***The owner's decision, 2026-10-03 — [26 B18](../../../../docs/design/26-open-questions.md).*** Mutation: make
    * `setupWins` false and the greetings are written beside the opening, two
    * first turns where the rule allows one.
    */

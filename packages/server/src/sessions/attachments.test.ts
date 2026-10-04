@@ -26,7 +26,7 @@ import {
 } from './attachments.js';
 
 /**
- * ***The store behind a picture on a move*** — [25 E15](../../../../docs/design/25-open-questions.md),
+ * ***The store behind a picture on a move*** — [26 E15](../../../../docs/design/26-open-questions.md),
  * R1: `sessions/<id>/attachments/<sha256 hex>.<ext>`.
  *
  * `routes/attachments.test.ts` walks the whole path — upload, turn, redo,

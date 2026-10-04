@@ -300,7 +300,7 @@ describe('whether a turn has a chain', () => {
 });
 
 /**
- * ***The player's move is quoted to its last line*** — [25 E15], and the
+ * ***The player's move is quoted to its last line*** — [26 E15], and the
  * quotation rule `quoted` exists for.
  *
  * The summariser hands a model each turn as the player's move quoted and the

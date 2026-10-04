@@ -238,7 +238,7 @@ export const AVENTURAS_REQUIRED: Readonly<Record<string, TableRequirement>> = {
   // story's tree are read in full*** — the columns Aventuras' own row mappers
   // read (`mapStory`, `mapStoryEntry` and the branch row, `database.ts`), and
   // not one more: `parent_id` is never selected, because nothing Aventuras
-  // writes ever sets it ([18 §2.3.1]), and the translation, world-state and
+  // writes ever sets it ([19 §2.3.1]), and the translation, world-state and
   // retry columns are not read by this stage. Each column added after its
   // table is gated on the migration that added it (`late`, above).
   stories: {

@@ -31,11 +31,11 @@ import {
 
 /**
  * The first real adapter — the AI SDK behind the thin interface
- * ([19 §5](../../../../docs/design/19-tech-stack.md)).
+ * ([20 §5](../../../../docs/design/20-tech-stack.md)).
  *
  * **One adapter, not eight.** The supported surface is stated in a line:
  * *if it speaks OpenAI-compatible chat, it works; if it does not, it does not*
- * ([19 §5.5](../../../../docs/design/19-tech-stack.md)). That covers the hosted
+ * ([20 §5.5](../../../../docs/design/20-tech-stack.md)). That covers the hosted
  * providers and it covers a local model, which is a connection with a
  * `localhost` URL and no key — llama.cpp, Ollama, vLLM, LM Studio and KoboldCpp
  * all expose it. Provider-specific adapters can join later without changing
@@ -91,7 +91,7 @@ export class OpenAICompatibleProvider implements Provider {
        * `stream_options: {include_usage: true}` only when told to, and without
        * it the final chunk carries no usage block at all — so `usage` was null
        * on every streamed turn no matter what the capabilities said, and
-       * [21 §1.4](../../../../docs/design/21-internal-contracts.md)'s
+       * [22 §1.4](../../../../docs/design/22-internal-contracts.md)'s
        * *provider-reported, not estimated* had nothing to report.
        *
        * Harmless where it is not supported: an endpoint that does not know the
@@ -223,7 +223,7 @@ export class OpenAICompatibleProvider implements Provider {
       const image = result.images[0];
       if (image === undefined) {
         // An endpoint that answered without a picture. A class rather than the
-        // SDK's sentence, per [21 §1.4], and `terminal` because retrying a
+        // SDK's sentence, per [22 §1.4], and `terminal` because retrying a
         // request the endpoint accepted and answered emptily is not a retry.
         throw new ProviderError('terminal', 'The endpoint returned no image.');
       }
@@ -380,7 +380,7 @@ export class OpenAICompatibleProvider implements Provider {
    * Two gates, and both matter: a provider that declares it does not report
    * usage must not appear to, and a provider that declares it does can still
    * answer with nothing. `ModelCall.usage` is *"provider-reported, not
-   * estimated"* ([21 §1.4](../../../../docs/design/21-internal-contracts.md)),
+   * estimated"* ([22 §1.4](../../../../docs/design/22-internal-contracts.md)),
    * and the budgeter's margin is what covers the gap.
    */
   #usage(
@@ -394,7 +394,7 @@ export class OpenAICompatibleProvider implements Provider {
 
 /**
  * What the SDK takes as one message's content: a string, or — for a user
- * message carrying a picture ([25 E15]) — its parts in order.
+ * message carrying a picture ([26 E15]) — its parts in order.
  */
 /**
  * *A `file` part with an image type*, not the SDK's `image` part: this SDK
@@ -553,7 +553,7 @@ function splitForSdk(
  * System text put in front of a user message, whichever shape it has.
  *
  * ***A message carrying a picture is joined by a text part, never by
- * concatenation*** — [25 E15]. Its parts are the order the picture was placed
+ * concatenation*** — [26 E15]. Its parts are the order the picture was placed
  * in, and a string join would have nowhere to put it; so the text becomes a
  * part of its own at the front, and a message without a picture stays the
  * string it always was.
@@ -673,7 +673,7 @@ function toSdkParams(request: GenerationRequest): Record<string, unknown> {
 
 /**
  * Classifies a failure so the UI can offer the right recovery rather than
- * surfacing a provider string ([21 §1.4]).
+ * surfacing a provider string ([22 §1.4]).
  *
  * Deliberately coarse. Providers signal this inconsistently — a clear 400 from
  * one, a generic error from another — and a classifier that pretended to more

@@ -347,7 +347,7 @@ export interface ChatSettings {
  * this module is engine code, and engine code spells no mode id
  * (`tools/repo-shape.test.ts`, *"the engine names no mode"*): a mode id written
  * here would be the engine knowing which modes exist, which is the bet
- * [19 §10] calls the design's central one. The caller names it through
+ * [20 §10] calls the design's central one. The caller names it through
  * `mode-registry.ts`, the one place with a reason to spell one.
  *
  * *Which constant the caller takes is P14.8's to decide, and it is not

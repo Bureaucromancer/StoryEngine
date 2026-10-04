@@ -35,7 +35,7 @@ import {
  *   system/library/        shipped, read-only, loaded for everyone
  *   users/<handle>/library/…
  *   index/index.sqlite     derived. Deleting it must be a non-event.
- *   state/state.sqlite     operational. Deleting it is *not* a non-event — [21 §5.1]
+ *   state/state.sqlite     operational. Deleting it is *not* a non-event — [22 §5.1]
  * ```
  *
  * **The path is the owner.** No stored object carries an owner field and there
@@ -125,7 +125,7 @@ export const INSTANCE_LOCK_NAME = 'instance.lock';
  * Every path in the data directory, derived from one root.
  *
  * A class rather than loose functions taking `dataRoot` everywhere, because the
- * root comes from config ([21 §4](../../../../docs/design/21-internal-contracts.md)) and
+ * root comes from config ([22 §4](../../../../docs/design/22-internal-contracts.md)) and
  * threading it through every call site is how one caller ends up using a
  * default and writing somewhere nobody expects.
  */
@@ -189,7 +189,7 @@ export class Layout {
     return resolveWithin(this.dataRoot, 'index');
   }
 
-  /** Derived and disposable. Deleting it must be a non-event ([21 §5]). */
+  /** Derived and disposable. Deleting it must be a non-event ([22 §5]). */
   get indexFile(): string {
     return resolveWithin(this.indexRoot, 'index.sqlite');
   }
@@ -197,7 +197,7 @@ export class Layout {
   /**
    * Operational state: jobs, idempotency keys, the notification inbox. **Not**
    * derived, not rebuildable, and therefore not in the index
-   * ([21 §5.1](../../../../docs/design/21-internal-contracts.md)).
+   * ([22 §5.1](../../../../docs/design/22-internal-contracts.md)).
    */
   get stateRoot(): string {
     return resolveWithin(this.dataRoot, 'state');
@@ -212,7 +212,7 @@ export class Layout {
    *
    * Operational rather than derived, by the same test: losing it would surprise
    * a user — everyone is logged out. Not in `config.json`, which has nowhere to
-   * put a credential ([21 §4]), and not in the index, which is deletable
+   * put a credential ([22 §4]), and not in the index, which is deletable
    * without consequence.
    */
   get sessionKeyFile(): string {
@@ -378,7 +378,7 @@ export class Layout {
    * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) says a dangling binding
    * *"falls back to system bindings"*, [10 §15.3](../../../../docs/design/10-ui-surfaces.md) calls
    * system connections *"the default role bindings everyone inherits"*, and
-   * [19 §5.1](../../../../docs/design/19-tech-stack.md) puts *install default* at the weak end of
+   * [20 §5.1](../../../../docs/design/20-tech-stack.md) puts *install default* at the weak end of
    * the resolution order. What shipped was one layer, so the fallback those
    * sentences promise could not happen — which is why [P2B §1.2] calls
    * *"no new mechanism"* the sentence that hid the work.
@@ -517,7 +517,7 @@ export class Layout {
   }
 
   /**
-   * `users/<handle>/prefs.json` — client preferences ([25 B13]).
+   * `users/<handle>/prefs.json` — client preferences ([26 B13]).
    *
    * A per-user file rather than `localStorage` or a map on `Account`: pane
    * state that does not survive a move to another browser is not state anybody

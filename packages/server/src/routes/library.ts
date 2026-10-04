@@ -385,7 +385,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * ***A package, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10].
    *
    * **`.sepack` is this stage's rather than a stage of its own**, and §1.9's
-   * argument was not scheduling: an envelope is one of [18 §3]'s four
+   * argument was not scheduling: an envelope is one of [19 §3]'s four
    * consequences — free while the format is written, expensive afterwards — and
    * a second one written later is two formats forever.
    *
@@ -688,7 +688,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
 
     if (!result.ok) {
       /**
-       * **A class, never a sentence** — [21 §1.4]. `not-bound` is a
+       * **A class, never a sentence** — [22 §1.4]. `not-bound` is a
        * configuration fault with a remedy the client already knows how to
        * word ([P11.6]'s `REMEDY_SENTENCES`), `window-too-small` is another
        * (2026-09-27), and `no-answer` is an endpoint that replied with
@@ -740,7 +740,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   /**
    * The index rows behind an object — the workbench's projection ([P3.3]).
    *
-   * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [21 §5] keeps
+   * **Best-effort by decision** ([P3 §7.4], decided 2026-08-27): [22 §5] keeps
    * the index's tables an implementation detail and the migration policy is
    * drop-and-rescan, so this route *restates* rather than promises — after an
    * index schema bump it may return less until the surface catches up. What it

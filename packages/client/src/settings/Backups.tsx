@@ -14,7 +14,7 @@ import { ImportBackup } from './ImportBackup.js';
 
 /**
  * ***A copy of your work you can take away*** —
- * [25 E6](../../../../docs/design/25-open-questions.md),
+ * [26 E6](../../../../docs/design/26-open-questions.md),
  * [P12.6](../../../../docs/design/workplan/29-p12-implementation.md).
  *
  * ***In Settings beside the trash, and for the trash's reason***: it holds

@@ -18,7 +18,7 @@ import type { Layout } from '../storage/layout.js';
  *
  * ***`PrefsStore`'s shape with `tags.json`'s posture***, and the difference is
  * the whole reason this is a separate file rather than three keys in the
- * preferences bag. [25 B13] chose a bag *because* a preference the client stops
+ * preferences bag. [26 B13] chose a bag *because* a preference the client stops
  * using should rot quietly rather than need a migration. This is read by a
  * timer, on the server, and what it decides is whether a file gets written to
  * somebody's disk — so an unrecognised value here is not a stale preference, it

@@ -5,8 +5,8 @@ import type { ProviderCapabilities } from './types.js';
 
 /**
  * Known-provider defaults, overridable per connection —
- * [19 §5.3](../../../../docs/design/19-tech-stack.md),
- * [21 §3](../../../../docs/design/21-internal-contracts.md).
+ * [20 §5.3](../../../../docs/design/20-tech-stack.md),
+ * [22 §3](../../../../docs/design/22-internal-contracts.md).
  *
  * **Per connection is the right home for an override**, because a limit is a
  * property of *that endpoint*: two OpenAI-compatible URLs can be a hosted
@@ -19,7 +19,7 @@ import type { ProviderCapabilities } from './types.js';
  * `usefulPromptChars` and `maxContextTokens` are optional in the contract, and
  * they are left unset wherever this repository has not verified the value.
  * A wrong cap is worse than no cap — it either wastes headroom or truncates
- * silently, which is the exact failure [19 §5.3] exists to prevent — and a
+ * silently, which is the exact failure [20 §5.3] exists to prevent — and a
  * confident-looking table of half-remembered limits is how that happens. What
  * is set below is the *shape* of each endpoint, which is what capability
  * negotiation actually needs.
@@ -71,7 +71,7 @@ export const CONSERVATIVE_CAPABILITIES: ProviderCapabilities = {
  * Per known provider. The keys are adapter-facing names, not display names.
  *
  * `openai-compatible` is the one that matters most: it is what a local model
- * is ([19 §5.2](../../../../docs/design/19-tech-stack.md)), and it is
+ * is ([20 §5.2](../../../../docs/design/20-tech-stack.md)), and it is
  * deliberately the conservative baseline — the endpoint behind it could be
  * anything, and the connection is where someone who knows better says so.
  */
@@ -90,7 +90,7 @@ export const KNOWN_PROVIDERS: Record<string, Partial<ProviderCapabilities>> = {
     supportsStreaming: true,
     // Anthropic takes the system prompt as its own parameter rather than as a
     // message, and rejects consecutive same-role turns in the conversation —
-    // the case [21 §2] says varies by endpoint, and the reason it is a
+    // the case [22 §2] says varies by endpoint, and the reason it is a
     // capability rather than a global setting.
     mergeSameRole: 'required',
     systemMessage: 'supported',
@@ -110,7 +110,7 @@ export const KNOWN_PROVIDERS: Record<string, Partial<ProviderCapabilities>> = {
    * It inherited `reportsUsage: false` verbatim, which meant **every turn this
    * build can actually take recorded no usage at all**, whatever the endpoint
    * sent: the one provider `canBuild` accepts was also the one declared not to
-   * count. [21 §1.4](../../../../docs/design/21-internal-contracts.md)'s
+   * count. [22 §1.4](../../../../docs/design/22-internal-contracts.md)'s
    * *provider-reported, not estimated* had nothing to report from, and the
    * turn's own token figures were zeros.
    *

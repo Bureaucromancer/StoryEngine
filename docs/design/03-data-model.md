@@ -377,10 +377,10 @@ duplication disappears for free once persona is a flag on an actor.
 >
 > **Two questions were left open rather than settled by the reversal**, both
 > recorded so the next person meets them instead of re-deriving them:
-> [25 §B14](25-open-questions.md) — whether `scope` should *narrow* a book the
+> [26 §B14](26-open-questions.md) — whether `scope` should *narrow* a book the
 > session has already chosen, which is coherent and was not taken because it
 > introduces a new way for a deliberate choice to go quiet; and
-> [25 §B15](25-open-questions.md) — what a new book's `scope` should default to,
+> [26 §B15](26-open-questions.md) — what a new book's `scope` should default to,
 > given that `global` is the widest value in the union and is what both the
 > factory and the importer currently produce.
 
@@ -472,7 +472,7 @@ recoverable, which makes the taxonomy the part that has to land early even thoug
 the feature does not.
 
 The intended first consumer is rendition conditioning
-([24 §3](24-roadmap.md)), and it is deferred for a real reason rather than a
+([25 §3](25-roadmap.md)), and it is deferred for a real reason rather than a
 scheduling one: passing an image to an image model is trivial, but choosing
 *which* image, when six entries and three actors all carry references, is not.
 That wants the location channel to exist and real sessions to tune against.
@@ -537,7 +537,7 @@ described the definition as carrying them "typed against the unstable rule
 vocabulary while its content fields are committed". §6.1 does not: the two
 fields were **removed** rather than carried with a warning, because the
 vocabulary they were typed against is the 6.0 authoring tier's
-([25 C7](25-open-questions.md), [work plan §0.4](workplan/01-work-plan.md)) and
+([26 C7](26-open-questions.md), [work plan §0.4](workplan/01-work-plan.md)) and
 a `/1` schema with two fields pointing at something unwritten is worse than a
 `/1` schema without them. They return additively, so nothing here has to move
 when the vocabulary arrives.)*
@@ -664,7 +664,7 @@ the degraded case.
 
 **Firing an introduction hook writes nothing by itself, and cannot.** It is
 tempting to have it add the character to the cast directly, and that is an
-`onFire` effect — the vocabulary deferred to the 6.0 authoring tier ([25 C7](25-open-questions.md)).
+`onFire` effect — the vocabulary deferred to the 6.0 authoring tier ([26 C7](26-open-questions.md)).
 The available path is the one [06 §5.2](06-modes-and-turn-pipeline.md) already
 blesses: the hook contributes guidance, the narrator writes the arrival, and
 presence follows the story like any other model-proposed change. Saying so
@@ -707,7 +707,7 @@ above are the answer, and a hook leaves a session by promotion.** *(Closed
 2026-09-22. What stood here was **[OPEN]** ~~whether hooks are also a shareable
 kind in their own right — a "hook pack" droppable onto any treatment~~, leaning
 "not at 1.0" — which was already weaker than the position the corpus had taken
-elsewhere: [25 C7b](25-open-questions.md) says flatly that "'Hook packs' as a
+elsewhere: [26 C7b](26-open-questions.md) says flatly that "'Hook packs' as a
 separately shareable kind stay declined". Two documents disagreeing about a
 decline is how a decline gets relitigated, and the place the question is asked is
 the place a reader asks it again, so it is answered here rather than pointed
@@ -847,7 +847,7 @@ disposable index**.
       trash/                  # deleted objects awaiting the retention window §10.2
       backup.json             # this account's backup schedule. [P12.4]
       usage.jsonl             # what model calls that make no turn spent. Append-only. [10 §11.4]
-      task-roles.json         # which role field assist asks for — a stopgap for [25 C15]
+      task-roles.json         # which role field assist asks for — a stopgap for [26 C15]
       backups/                # their own archives. Never inside another archive.
       connections/            # the user's own. Credentials never leave the server.
       sessions/<session-id>/
@@ -857,8 +857,8 @@ disposable index**.
         summaries/             # derived, content-addressed. [07 §5.1], P8.0
         renditions/            # one file per rendition — the recipe. §5.5, P9.0
         assets/                # the pixels, and the one disposable directory
-        attachments/           # pictures a player attached. Not disposable. §5.5, [25 E15]
-  backups/              # the install's archives — [25 E6], [P12.2]
+        attachments/           # pictures a player attached. Not disposable. §5.5, [26 E15]
+  backups/              # the install's archives — [26 E6], [P12.2]
   index/
     index.sqlite        # derived. Deleting it must be a non-event.
 ```
@@ -1058,7 +1058,7 @@ A flat list of images is cheap and forecloses everything downstream: an image
 pipeline needs to know *which* picture is the canonical likeness and which is a
 costume variant. Retrofitting roles onto a flat list means guessing, so the
 taxonomy goes in at 1.0 even if only two roles are populated. This is the format
-prerequisite for the Character Studio ([17](17-character-studio.md), 3.0).
+prerequisite for the Character Studio ([18](18-character-studio.md), 3.0).
 
 **Binary, not base64.** PNG ancillary chunks hold arbitrary bytes, so a private
 chunk can carry a length-prefixed blob index directly and avoid base64's ~33%
@@ -1228,7 +1228,7 @@ here whose contents are **deliberately disposable**. The record of a rendition
 lives in the turn log with its prompt, seed and parameters; the file under
 `assets/` is the output of running them. Deleting one leaves `asset: null` and a
 picture that can be made again, which is what lets an eviction policy be a later
-decision rather than a migration ([25 E3](25-open-questions.md),
+decision rather than a migration ([26 E3](26-open-questions.md),
 [06 §10.7](06-modes-and-turn-pipeline.md)).
 
 Two consequences worth stating where the layout is, because both are easy to get
@@ -1247,7 +1247,7 @@ backwards:
 
 ***`attachments/` is the third directory, and exists because `assets/` is
 disposable*** — added 2026-09-27 with R1 of
-[25 E15](25-open-questions.md), pictures on a player's move. Everything in
+[26 E15](26-open-questions.md), pictures on a player's move. Everything in
 `assets/` has a recipe that makes it again; a picture somebody uploaded has
 none, so in `assets/` the first eviction policy anyone wrote would delete the
 only copy of something a person made. The two directories differ on exactly the
@@ -1306,11 +1306,11 @@ Consequences worth having:
 
 **Turn storage must tolerate removal** — a tombstone the reader skips, plus a
 compaction pass that rewrites a segment. No UI needs it at 1.0, but pruning a
-branch subtree ([24 §1.4](24-roadmap.md)) does, and retrofitting deletion into a
+branch subtree ([25 §1.4](25-roadmap.md)) does, and retrofitting deletion into a
 format that assumed pure append is a migration rather than a feature.
 
 **Retention: keep everything.** No automatic compaction of old records
-([25 B3](25-open-questions.md)). A full record runs roughly 10–100× its message
+([26 B3](26-open-questions.md)). A full record runs roughly 10–100× its message
 text, so a thousand-turn session is tens to a couple of hundred megabytes —
 acceptable, and the reason the layout above matters.
 
@@ -1371,7 +1371,7 @@ session's first turn, always, and the cast's greetings are not used for that
 session** — whichever of the Setup's openings is chosen, and even when the
 session starts cold. A Setup with no written opening leaves the greetings as
 P14.4 has them. The reasoning is [P15 §1.7](workplan/33-p15-setup-from-a-turn.md)'s,
-and [25 B18](25-open-questions.md) records the decision where every document it
+and [26 B18](26-open-questions.md) records the decision where every document it
 touches can find it.
 
 ---
@@ -1443,7 +1443,7 @@ Reduced to a container, Package has almost no surface of its own:
 **[OPEN]** Can a package ship an extension/mode *implementation*, or only declare
 a dependency on one? Shipping code makes packages far more powerful and makes
 importing one a code-execution decision. Strong lean: **declare only** at 1.0
-([25 A2](25-open-questions.md)).
+([26 A2](26-open-questions.md)).
 
 **[OPEN]** Should a package be able to ship a partially-played session as a
 starting state (a "pre-run prologue")? Attractive for authored content, and it
@@ -1495,7 +1495,7 @@ interface Session {
 `SessionFile` in `packages/server/src/sessions/types.ts`. A session may be started
 without a name and renamed at any time — it is id-addressed, so unlike a library
 object nothing is derived from the name and frozen — and an unnamed one stores
-`""`, which clients render as *Untitled session* ([25 E13](25-open-questions.md)).
+`""`, which clients render as *Untitled session* ([26 E13](26-open-questions.md)).
 The rest of this block is older than the implementation in other ways too:
 `participants`, `origin` and `localActors` are not on `SessionFile`.
 
@@ -1574,7 +1574,7 @@ interface Turn {
   parentTurnId: TurnId | null    // the tree edge. Siblings are swipes/branches.
   createdAt: string
   input: { actorId: ActorId | null; kind: InputKind; text: string; raw: string
-           /** Pictures on the move — 2026-09-27, [25 E15] R1. Each has an id,
+           /** Pictures on the move — 2026-09-27, [26 E15] R1. Each has an id,
             *  an open `kind`, the digest, and the type, size and pixel
             *  dimensions the server read from its own store (optional, so a
             *  record whose bytes never arrived can still say a picture was
@@ -1603,7 +1603,7 @@ interface Turn {
   output: { text: string; reasoning?: string; messages?: OutputMessage[] }
   /** Terminal only — a turn in flight lives in the operational store ([P2 §2.10]). */
   status: "complete" | "failed" | "suspended"
-  /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
+  /** Every draw the turn consumed, keyed by site ([20 §14.6]). */
   tape: Tape
   /** A tombstone the reader skips. Nothing removes turns at 1.0; pruning a
    *  branch subtree does (§5.5). */
@@ -1615,12 +1615,12 @@ interface Turn {
    *  live-only and the history view disagrees with the live one about what
    *  happened. Added at P2.5, with the runner that produces them. */
   steps: StepOutcome[]
-  effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [21 §1.2.1]
+  effects: ChannelEffect[]       // proposed and applied changes. Invertible at the tip; see [22 §1.2.1]
   /** Resolved references into `input.text` and `output.text`, as an overlay.
    *  The text itself is never rewritten with markup. [06 §8.2, 10 §13.1]
    *  ~~`mentions: MentionSpan[]`~~ — renamed 2026-09-11, see below. */
   spans: TextSpan[]
-  cost: { promptTokens, completionTokens, wallMs, model, money? }  // money: 2026-09-27, [25 E16]
+  cost: { promptTokens, completionTokens, wallMs, model, money? }  // money: 2026-09-27, [26 E16]
 }
 
 interface TextSpan {
@@ -1686,7 +1686,7 @@ interface AssembledBlock {
   /** The rendered text. Present because the workbench maps every sent byte back
    *  to the block that produced it, which a reference alone cannot do. */
   text: string
-  /** One vocabulary, shared with the preset's slots — [21 §1.1]. Carries the
+  /** One vocabulary, shared with the preset's slots — [22 §1.1]. Carries the
    *  identifier too (*which* lore entry), so provenance is clickable. */
   source: BlockSource
   reason: string                 // "keyword match: 'cathedral'" / "always" / "pinned by user"
@@ -1699,7 +1699,7 @@ interface AssembledBlock {
    *  effect-producing call — expressible over a committed record. */
   advisory?: true
   /** A picture on a player's move, and whether its pixels went — 2026-09-27,
-   *  [25 E15] R1. Decided per call: `{ attachmentId, digest, mime, sent,
+   *  [26 E15] R1. Decided per call: `{ attachmentId, digest, mime, sent,
    *  withheld? }`, where `withheld` says why the block's text went instead —
    *  `unknown-kind`, `outside-window`, `not-user-role`, `missing-bytes`,
    *  `model-text-only` (the model last when several hold) — or `budget`, when
@@ -1729,7 +1729,7 @@ be a record claiming a prompt was built. *Absent* and *empty* are different
 claims, and the workbench renders the difference.
 
 **`ModelCall`, `BudgetVerdict`, `ChannelEffect`, `ChannelState` and `BlockSource`
-are defined in [21](21-internal-contracts.md).** They are internal and free to
+are defined in [22](22-internal-contracts.md).** They are internal and free to
 migrate ([04 §1](04-schemas.md)); they are written down because the assembler
 cannot be built against a reference. `ChannelEffect` is the one worth reading
 before writing any of this — it carries the reversibility
@@ -1783,7 +1783,7 @@ that you meant to.
 
 The gap is worth naming plainly, because this design otherwise sells safety hard.
 Branching means you can always go back ([07](07-branching.md)); full history means
-nothing is lost to summarisation ([25 E1](25-open-questions.md)); files on disk
+nothing is lost to summarisation ([26 E1](26-open-questions.md)); files on disk
 mean you can always get your data out (§5). Against all of that, an unqualified
 Delete button is the one place where *gone* means gone — and the first person to
 lose a character they had spent an evening writing will not be consoled by the
@@ -1849,7 +1849,7 @@ Four properties worth fixing now:
   purge in the operational store, which kept every turn's draft and events;
   those are collected now, a day after the turn (21 §5.1).
 - **Trash is excluded from export and from backup by default**
-  ([25 E6](25-open-questions.md)) — restoring a backup should not resurrect
+  ([26 E6](26-open-questions.md)) — restoring a backup should not resurrect
   everything the user threw away before taking it. ***This sentence had no
   enforcer from P4 until [P12.0](workplan/29-p12-implementation.md)***: delete
   became a move at P4.4 and `tools/backup.mjs` archived `trash/` along with
@@ -1919,7 +1919,7 @@ and sometimes the user's.
 
 `source` earns its place here more than it does in Marinara, because more things
 edit objects in this design: field assists ([10 §11.1](10-ui-surfaces.md)), the
-assistant's proposals ([22 §4](22-extensions.md)), and import. *"Who changed my
+assistant's proposals ([23 §4](23-extensions.md)), and import. *"Who changed my
 character"* is a question with several possible answers, and the history is where
 it gets one.
 
@@ -1980,7 +1980,7 @@ the history index goes through it. The sentence above is true again.
 copied. An agent making a run of small edits can produce hundreds of entries, and
 an unbounded list is a list nobody scrolls.
 
-- **A generous default count, tunable** ([21 §4](21-internal-contracts.md)) —
+- **A generous default count, tunable** ([22 §4](22-internal-contracts.md)) —
   prune oldest first, per object.
 - **Pinned versions are never pruned.** Pinning is what a user does to the state
   they might want back in a year, and it is the entire answer to "the cap ate

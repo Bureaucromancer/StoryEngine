@@ -129,7 +129,7 @@ export function carryAt(source: CarrySource): Carry {
    * member — a chat's character, cast at creation and never made a companion —
    * is not carried, and a Setup has no field that could carry them, because
    * `partyDefault` is read at creation as a party. That is
-   * [25 B19](../../../../docs/design/25-open-questions.md), the owner's to
+   * [26 B19](../../../../docs/design/26-open-questions.md), the owner's to
    * answer, and [P15 §1.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)'s
    * fifth known gap.
    */

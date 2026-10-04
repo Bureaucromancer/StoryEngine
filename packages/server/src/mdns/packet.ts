@@ -13,7 +13,7 @@
  * host, one A record, one name. The encoder below is the whole of what that
  * needs, and it is a hundred lines of `DataView` against a format fixed in 1987.
  *
- * ***The other half of the argument is the supply chain.*** [19 §10] makes the
+ * ***The other half of the argument is the supply chain.*** [20 §10] makes the
  * dependency licence manifest a shipped artefact, and a package that opens a
  * multicast socket and parses attacker-shaped bytes off the local network is
  * exactly the kind of dependency worth not having. What is here parses the same

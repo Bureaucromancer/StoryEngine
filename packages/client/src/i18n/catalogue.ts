@@ -3,7 +3,7 @@
 
 /**
  * ***The catalogue*** —
- * [19 §12](../../../../docs/design/19-tech-stack.md),
+ * [20 §12](../../../../docs/design/20-tech-stack.md),
  * [P11 §1.3](../../../../docs/design/workplan/28-p11-implementation.md),
  * [P11.8](../../../../docs/design/workplan/28-p11-implementation.md).
  *
@@ -28,7 +28,7 @@
  * ---
  *
  * ***`i18next` is not here, and that is a decision with a number behind it.***
- * [19 §12.3](../../../../docs/design/19-tech-stack.md) recommends it, and the
+ * [20 §12.3](../../../../docs/design/20-tech-stack.md) recommends it, and the
  * recommendation's own deciding factor is that *"i18next runs on the server
  * too"* — push bodies rendered with the app closed. **That need is not real in
  * this build**: [P10.2] renders every notification on the client, from this
@@ -39,7 +39,7 @@
  * entry bundle at **280 kB gzip** and recommended a recorded ceiling;
  * `i18next` with `react-i18next` and an ICU plugin is a fifth of that again,
  * arriving on the common entry for a feature **no shipped locale uses yet**.
- * *That is [20 §7](../../../../docs/design/20-client-loading.md)'s
+ * *That is [21 §7](../../../../docs/design/21-client-loading.md)'s
  * "substantial new browser dependency joins the common entry" trigger,
  * knowingly, for a benefit nobody can use today.*
  *

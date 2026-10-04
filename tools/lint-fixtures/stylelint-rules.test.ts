@@ -32,7 +32,7 @@ async function rulesFiredIn(fixture: string): Promise<string[]> {
   return result.warnings.map((w) => w.rule);
 }
 
-describe('logical properties in CSS (docs/design/19-tech-stack.md §12.6)', () => {
+describe('logical properties in CSS (docs/design/20-tech-stack.md §12.6)', () => {
   it('flags every physical property in the fixture', async () => {
     const fired = await rulesFiredIn('physical.css');
 

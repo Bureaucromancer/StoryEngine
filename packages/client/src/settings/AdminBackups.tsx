@@ -17,7 +17,7 @@ import { ImportBackup } from './ImportBackup.js';
 
 /**
  * ***The install's own backup*** —
- * [25 E6](../../../../docs/design/25-open-questions.md),
+ * [26 E6](../../../../docs/design/26-open-questions.md),
  * [P12.6](../../../../docs/design/workplan/29-p12-implementation.md).
  *
  * ***A list and two buttons, and no schedule form.*** The install's schedule is

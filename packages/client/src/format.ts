@@ -3,7 +3,7 @@
 
 /**
  * Formatting — `Intl` only, from the first component
- * ([19 §12.6](../../../docs/design/19-tech-stack.md)). No hand-rolled "2 minutes ago",
+ * ([20 §12.6](../../../docs/design/20-tech-stack.md)). No hand-rolled "2 minutes ago",
  * and since [P3.2] no hand-rolled `${ms}ms` either: the workbench renders
  * token counts and wall times, and 07 §12.6a classes a hand-rolled duration
  * as a rewrite if deferred.

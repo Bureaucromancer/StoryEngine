@@ -3,19 +3,19 @@
 
 /**
  * ***What this build can actually render, as opposed to what it formats*** —
- * [19 §12](../../../../docs/design/19-tech-stack.md),
+ * [20 §12](../../../../docs/design/20-tech-stack.md),
  * [P11.8](../../../../docs/design/workplan/28-p11-implementation.md).
  *
  * Two different questions have been sharing one field, and this file is the
  * second one appearing. `Account.locale` has always answered *how should dates
  * and numbers be written, and what language should the server compose a
- * notification in* — [19 §12.6]'s `Intl` from the first component — over a list
+ * notification in* — [20 §12.6]'s `Intl` from the first component — over a list
  * of regional Englishes whose docstring says outright that it is **not a claim
  * about translation**. This is the claim about translation: the short list of
  * tags for which a catalogue exists.
  *
  * ***A registry rather than a static import, because a catalogue must not ride
- * the common entry.*** [20 §7](../../../../docs/design/20-client-loading.md)'s
+ * the common entry.*** [21 §7](../../../../docs/design/21-client-loading.md)'s
  * budget is about what every load pays for, and a locale nobody in this install
  * has chosen should cost nothing at all. So each entry carries a `load` that
  * resolves to a dynamic `import()`, which Vite turns into its own chunk — the

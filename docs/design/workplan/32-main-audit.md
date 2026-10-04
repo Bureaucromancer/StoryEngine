@@ -79,7 +79,7 @@ commit and each reversible:
   mode's own pack gains blocks the mode ships later; a change to a block it
   already holds reaches new sessions only.
 - **`MediaRole` stays closed** (`df495ae`), and
-  [25 B16](../25-open-questions.md) puts the widening question to the owner.
+  [26 B16](../26-open-questions.md) puts the widening question to the owner.
 - **Uploads are recorded as uploads** (`56e952d`): `import_job` gains a
   `transport` column defaulting to `path`, true of every existing row, so
   *Update from source* still offers a file picker for an uploaded chat.
@@ -99,7 +99,7 @@ commit and each reversible:
   outlive the persona at 70 — though only once the budget has dropped
   everything ranked below the block. `collect.ts` documents it as deliberate,
   and no test showed it biting, so it stands as that decision rather than as
-  the lower of the two numbers. [21 §1.1](../21-internal-contracts.md) says so
+  the lower of the two numbers. [22 §1.1](../22-internal-contracts.md) says so
   beside the record's `difficulty` source.
 
 ---
@@ -244,10 +244,10 @@ document):
   [P12](29-p12-implementation.md)'s P12.12 *Ends at*, for the undo's path.
 - [P13 §0.5](30-p13-aventuras-import.md) and its P13.6 record, for the
   re-minted tag.
-- [P7](23-p7-implementation.md) and [19 §10](../19-tech-stack.md), for the
-  per-mode deploys that failed every build from P7.0; and [19 §9](../19-tech-stack.md)
+- [P7](23-p7-implementation.md) and [20 §10](../20-tech-stack.md), for the
+  per-mode deploys that failed every build from P7.0; and [20 §9](../20-tech-stack.md)
   for the `fs` ban's `import()` gap.
-- [04 §8.2](../04-schemas.md) and [21 §1.1](../21-internal-contracts.md): the
+- [04 §8.2](../04-schemas.md) and [22 §1.1](../22-internal-contracts.md): the
   slot and block sources written in — `state`, `difficulty`, `directedness` and
   `summary` in the first; `state`, `difficulty`, `summary`, `schema` and
   `continue` in the second; lore's `outlet` and `bookId` and preset's
@@ -267,7 +267,7 @@ document):
   `node:fs` is not caught; catching it needs the fs-aware syntax restated in
   every block of the rule.
 - **The closed `MediaRole` union, and the preset union's widenings** — a
-  question to the owner at [25 B16](../25-open-questions.md), before the first
+  question to the owner at [26 B16](../26-open-questions.md), before the first
   release that exports native objects.
 - **A renamed Aventuras tag is minted again by a re-sweep** of the same
   database — P13's, found beside `921de13` and recorded in
@@ -280,7 +280,7 @@ document):
   first half: the setup wizard's dialog is the client's first `lazy()`, and the
   ceiling, raised to 342 at P15's merge, is back at 336
   ([P15 §1.11](33-p15-setup-from-a-turn.md),
-  [20 §7.2](../20-client-loading.md)). The note sentences are still on the
+  [21 §7.2](../21-client-loading.md)). The note sentences are still on the
   entry.*
 - **The polish pass's own leftovers** are
   [polish §24](06-polish.md#24-what-the-pass-found-and-left).

@@ -203,7 +203,7 @@ export function startBackupSchedule(
    * cause is one account's library — a path too long for an archive to carry —
    * and that is not a reason for nobody else on the install to get one.
    *
-   * **Paths never reach the log**, per [21 §4.1]: what goes in is the scope and
+   * **Paths never reach the log**, per [22 §4.1]: what goes in is the scope and
    * the error's class. A person is told through a notification, which is where
    * somebody who is not reading `docker logs` will actually see it.
    */

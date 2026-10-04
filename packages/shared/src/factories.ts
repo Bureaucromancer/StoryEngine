@@ -100,7 +100,7 @@ export function newLorebook(name: string): Lorebook {
     description: '',
     /**
      * **The widest value in the union, and that is an open question rather
-     * than a considered default** — [25 §B15](../../../docs/design/25-open-questions.md).
+     * than a considered default** — [26 §B15](../../../docs/design/26-open-questions.md).
      *
      * It is harmless today because nothing reads `scope`: a lorebook reaches a
      * session by being selected and by nothing else ([03 §3.4]). It was not

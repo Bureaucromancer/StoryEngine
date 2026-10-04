@@ -498,7 +498,7 @@ describe('setting an account’s password', () => {
  * The install form — [10 §15.3], [P2A §2.5] and [P2A §2.6].
  *
  * Every control is generated from what the server sent, tier badge included,
- * because the tier table travels as data ([21 §4]) and a hand-written list of
+ * because the tier table travels as data ([22 §4]) and a hand-written list of
  * fields here would be a second copy of the schema — wrong the first time
  * somebody adds a key.
  */
@@ -677,7 +677,7 @@ describe('the user half', () => {
 /**
  * The theme control — [10 §15.1](../../../../docs/design/10-ui-surfaces.md)'s
  * Preferences pane, and the first thing to use the per-user store that
- * [25 B13](../../../../docs/design/25-open-questions.md) settled.
+ * [26 B13](../../../../docs/design/26-open-questions.md) settled.
  *
  * The claim being tested is not that a `<select>` works. It is that *system* is
  * recorded as the **absence** of a preference rather than as a third stored

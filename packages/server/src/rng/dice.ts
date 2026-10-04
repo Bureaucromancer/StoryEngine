@@ -6,7 +6,7 @@
  *
  * Not speculative: the authored-rules vocabulary already needs `<<1d20>>` and
  * both first-party reference extensions need dice
- * ([19 §14.2](../../../../docs/design/19-tech-stack.md)).
+ * ([20 §14.2](../../../../docs/design/20-tech-stack.md)).
  *
  * **A notation this parser does not understand is an error, never a default.**
  * Quietly rolling `1d6` because `2d6kh1` did not parse would produce a game

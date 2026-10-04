@@ -12,7 +12,7 @@ import { readSession, readTurns } from '../sessions/store.js';
 import { readableOwners } from '../library.js';
 
 /**
- * Search — [19 §7](../../../../docs/design/19-tech-stack.md), and F10's answer.
+ * Search — [20 §7](../../../../docs/design/20-tech-stack.md), and F10's answer.
  *
  * The finding was that `search()` existed, was tested, and had **no caller**: an
  * FTS index maintained on every write that nothing could ever query. This route
@@ -57,7 +57,7 @@ function resultLimit(raw: string | undefined): number {
 
 /**
  * Whether each turn hit is on the line its session is currently on — [§1.6],
- * [19 §7.1], [P6.3].
+ * [20 §7.1], [P6.3].
  *
  * **Labelled, never hidden and never passed off as current.** A hit on an
  * abandoned line is a real thing somebody wrote and is exactly what *I know I

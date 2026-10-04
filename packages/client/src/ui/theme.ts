@@ -16,7 +16,7 @@
 export type ThemeChoice = 'system' | 'light' | 'dark';
 
 /**
- * The key in `prefs.json` — [25 B13](../../../../docs/design/25-open-questions.md),
+ * The key in `prefs.json` — [26 B13](../../../../docs/design/26-open-questions.md),
  * and the first preference to actually use the store that question settled.
  *
  * Per-user rather than per-install, which is what a theme is: two people

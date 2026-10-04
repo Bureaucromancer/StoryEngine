@@ -63,9 +63,9 @@ import { NO_RELEASES, releaseTitle, showingLine, type Showing } from './labels.j
  * kilobytes in a `<pre>` is not *legible as it stands* when it is the only
  * content on the page: it reads as a dump, which is what a person arriving at
  * the application saw. `react-markdown` is pinned in the client's manifest, and
- * [20 §7](../../../../docs/design/20-client-loading.md)'s revisit trigger — *a
+ * [21 §7](../../../../docs/design/21-client-loading.md)'s revisit trigger — *a
  * new dependency joins the common entry* — is fired by this **on purpose**,
- * measured, and recorded at [20 §7.1] rather than argued past. The fence that
+ * measured, and recorded at [21 §7.1] rather than argued past. The fence that
  * still holds is the general job: rendering goes through
  * [ChangelogDocument](./ChangelogDocument.tsx), which declares the changelog's
  * element set and degrades everything else to its own text, and which lives in

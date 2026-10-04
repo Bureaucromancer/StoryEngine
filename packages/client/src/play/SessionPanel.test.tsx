@@ -431,7 +431,7 @@ describe('update from source', () => {
 });
 
 /**
- * ***An export containing attachments should say so*** — [25 E15], said where
+ * ***An export containing attachments should say so*** — [26 E15], said where
  * the choice is made.
  *
  * An export is the story's text: it carries the record of every picture and

@@ -59,7 +59,7 @@ import { transcriptOf } from './steps.js';
  * [04 §7.2](../../../../docs/design/04-schemas.md),
  * [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
  *
- * **What a person reviews before anything is written** — [16 §3]'s *offered,
+ * **What a person reviews before anything is written** — [17 §3]'s *offered,
  * never automatic, and reviewed before it lands*. Nothing here writes to the
  * library or the session; the commit does, from what the person kept.
  *
@@ -387,7 +387,7 @@ export async function draftSetupFromTurn(
    * *The runner's path, by the runner's function* — `summarisablePath` over the
    * same transcript the summariser step is handed, so a move's pictures and
    * their captions are in the unit keys as they are in the turn's
-   * ([25 E15]). *The runner's keep rule*, so a link cut off at its length
+   * ([26 E15]). *The runner's keep rule*, so a link cut off at its length
    * limit, refused or empty is never written under the runner's key: the
    * runner would read it as held and carry the cut for the rest of the session.
    * And `signal`, so a draft that joined the warm's derivation of a link stops

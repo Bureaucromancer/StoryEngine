@@ -19,7 +19,7 @@ import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test
 
 /**
  * ***Pictures on a player's move, and the one property they must not break*** —
- * [25 E15](../../../../docs/design/25-open-questions.md), R1.
+ * [26 E15](../../../../docs/design/26-open-questions.md), R1.
  *
  * The property: **using a picture once never confines a session to models that
  * see.** Whether the pixels go is decided per call, from the model that call
@@ -581,7 +581,7 @@ describe('pictures that travel', () => {
 
 /**
  * ***The sweep that rides on an upload, and the re-upload it used to eat*** —
- * [25 E15]'s *pictures nothing names and nobody has touched for a day go*, and
+ * [26 E15]'s *pictures nothing names and nobody has touched for a day go*, and
  * `storeAttachment`'s 2026-09-27 correction.
  *
  * The sweep is right to exist: a composer that attached a picture and was

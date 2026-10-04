@@ -265,7 +265,7 @@ describe('step 9 — the job survives the client', () => {
     expect(turn.status).toBe('complete');
     expect(turn.output.text).toBe(SLOW_TEXT);
     // The call ran to the end rather than being classified as a failure that
-    // happened to leave text behind ([21 §1.4]).
+    // happened to leave text behind ([22 §1.4]).
     expect(turn.request.calls[0].outcome).toBe('ok');
 
     const read = await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` });
@@ -550,7 +550,7 @@ describe('step 13 — one key, one job, one provider call', () => {
  *   invisible to an assertion that only checks the sequence is sorted.
  *
  * The header variant is not a duplicate of the query one. A browser resends
- * `Last-Event-ID` by itself, with no code of ours involved — that is why [19 §8]
+ * `Last-Event-ID` by itself, with no code of ours involved — that is why [20 §8]
  * chose SSE — and the only existing test of that header proves a *nonsense*
  * value does not 500. Nothing asserted that a real cursor arriving that way
  * resumes anything.

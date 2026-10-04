@@ -19,8 +19,8 @@ import { Fine } from '../ui/Text.js';
 
 /**
  * ***A session somebody else exported*** —
- * [18 §3](../../../../docs/design/18-session-import.md),
- * [25 B12](../../../../docs/design/25-open-questions.md),
+ * [19 §3](../../../../docs/design/19-session-import.md),
+ * [26 B12](../../../../docs/design/26-open-questions.md),
  * [10 §12.3](../../../../docs/design/10-ui-surfaces.md),
  * [P11 §3](../../../../docs/design/workplan/28-p11-implementation.md)'s row 10.
  *
@@ -204,7 +204,7 @@ export function ImportSession(): JSX.Element {
             (failure: unknown) => {
               setBusy(false);
               /**
-               * **A class into a sentence, here** — [21 §1.4]. The server
+               * **A class into a sentence, here** — [22 §1.4]. The server
                * sends `unreadable`, `wrong-schema`, `no-turns`,
                * `broken-tree` or `already-here`, and each has its own
                * remedy: a broken file, the wrong file, a file that is right

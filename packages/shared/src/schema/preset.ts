@@ -137,7 +137,7 @@ export type ActorScope = Static<typeof ActorScope>;
  * What fills a slot. Closed for now, and expected to grow as modes declare
  * channels — which is one of the four reasons this schema is `/0` (§8.5).
  *
- * This is `BlockSource` ([21 §1.1](../../../../docs/design/21-internal-contracts.md)) minus
+ * This is `BlockSource` ([22 §1.1](../../../../docs/design/22-internal-contracts.md)) minus
  * its ~~two~~ assembler-only origins: `preset`, because a preset's own prose *is* a
  * TextBlock rather than a reference to one, and `step`, because a step's
  * contribution did not exist when the preset was authored — ***and since P14,
@@ -203,7 +203,7 @@ export const SlotSource = Type.Union(
      * Writing samples — [04 §3.1]. **Renamed from `examples`**, which named the
      * SillyTavern field it was reserved for rather than the thing it fills; the
      * carrier is `writingSamples` on three kinds, and one concept under two
-     * names is exactly the drift [21 §1.1] exists to prevent. Safe to rename
+     * names is exactly the drift [22 §1.1] exists to prevent. Safe to rename
      * rather than add because this schema is `/0`, no shipped preset positions
      * the old arm, and `default:` in the collector skips an unknown slot
      * instead of throwing.
@@ -247,7 +247,7 @@ export const SlotSource = Type.Union(
     /**
      * The treatment slot. Named for the kind it reads, completing the
      * Setting→Treatment rename ([04 §6]) that the docs took and the code did
-     * not — [04 §8.2], the §8.4.1 marker table and [21 §1.1] have all spelled
+     * not — [04 §8.2], the §8.4.1 marker table and [22 §1.1] have all spelled
      * this `treatment` since; every line of shipped code spelled it `setting`
      * until P4.0, which meant an importer written to the marker table emitted
      * presets this schema rejected ([P4 §1.7]).
@@ -306,7 +306,7 @@ export const SlotSource = Type.Union(
      * other and has said so.
      *
      * **Several candidates per slot, one per fragment**, in `priority` order —
-     * which is what makes [19 §5.3]'s cap able to drop the lowest-ranked rather
+     * which is what makes [20 §5.3]'s cap able to drop the lowest-ranked rather
      * than cut a sentence in half. A slot that joined them into one string would
      * have thrown that away at the point it was built.
      *
@@ -322,7 +322,7 @@ export const SlotSource = Type.Union(
      *
      * That section says the guidance block is *positioned by the preset*, which
      * makes it slot-nameable by definition. It was missing: the internal
-     * `BlockSource` gained it at P2.5 and both [21 §1.1] and [04 §8.2] were
+     * `BlockSource` gained it at P2.5 and both [22 §1.1] and [04 §8.2] were
      * edited to match, but this — the schema that actually validates a preset —
      * was not, so a preset positioning the one block §5.1 says it positions
      * failed validation. Found at P2.6, by the first preset that needed it.
@@ -339,7 +339,7 @@ export const SlotSource = Type.Union(
      * the instruction saying what to change: "make it rain harder" needs an
      * *it*. What fills the slot is that sibling's `output.text`, read from the
      * server's own record and never from the wire — the posture the tape takes
-     * ([19 §14.5]), so a client cannot show the model words the record does
+     * ([20 §14.5]), so a client cannot show the model words the record does
      * not hold. Which sibling is recorded on the emitted block, as the producer
      * is for `guidance`.
      *
@@ -363,7 +363,7 @@ export const SlotSource = Type.Union(
     /**
      * The story above the window, as a chain of summaries —
      * [07 §5.1](../../../../docs/design/07-branching.md),
-     * [25 E1](../../../../docs/design/25-open-questions.md), [P8.1].
+     * [26 E1](../../../../docs/design/26-open-questions.md), [P8.1].
      *
      * **Not a bigger `history`, and the distinction decides the budget.**
      * `history` is the mode's `historyWindow` of verbatim turns; this is
@@ -540,7 +540,7 @@ export type BudgetPolicy = Static<typeof BudgetPolicy>;
  * ([00 §3.2](../../../../docs/design/00-stance.md)).
  *
  * The portable subset — the parameters an OpenAI-compatible chat endpoint
- * understands ([19 §5.5](../../../../docs/design/19-tech-stack.md)). Backend-specific
+ * understands ([20 §5.5](../../../../docs/design/20-tech-stack.md)). Backend-specific
  * sampler controls (`dry_*`, `mirostat_*`, `xtc_*`, `tfs`, and the rest of the
  * text-completion family) have no chat-API equivalent and land in `compat` with
  * a named loss in the import review, never here.
@@ -608,7 +608,7 @@ export type PresetVariable = Static<typeof PresetVariable>;
  * with a source rather than buried in a conditional.
  *
  * Fragments are *ranked* rather than a single string, so the prompt-cap
- * machinery ([19 §5.3](../../../../docs/design/19-tech-stack.md)) can drop the lowest-ranked
+ * machinery ([20 §5.3](../../../../docs/design/20-tech-stack.md)) can drop the lowest-ranked
  * rather than cutting mid-sentence.
  */
 export const DifficultyLevel = Type.Object(
@@ -706,7 +706,7 @@ export const Preset = Type.Object(
      * three things for an author to learn.
      *
      * ***But it is emphatically not a third dial axis***, and the separation is
-     * load-bearing rather than filing. [23 §5.4] states it directly: a frequency
+     * load-bearing rather than filing. [24 §5.4] states it directly: a frequency
      * dial stays a **separate channel** from difficulty, *"because folding* how
      * often *into* how hard *rebuilds exactly the conflation 06 §7.3.2 exists to
      * prevent"*. So `DialAxis` does not grow an arm, `dials.ts` still reads

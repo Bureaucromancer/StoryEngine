@@ -57,7 +57,7 @@ import { isRecord, isVaultScenario, note, strings, text } from './shapes.js';
  *   whose every-turn field says nothing.
  * - So the prose lands in `framing` and the review **says so**, and points at
  *   the extraction that is the real answer
- *   ([16 §3](../../../../../docs/design/16-authoring.md), 4.0). A bent
+ *   ([17 §3](../../../../../docs/design/17-authoring.md), 4.0). A bent
  *   invariant that reports itself is a decision; a silent one is a bug.
  *
  * **What the alternative destination is for.** A scenario whose `settingSeed`

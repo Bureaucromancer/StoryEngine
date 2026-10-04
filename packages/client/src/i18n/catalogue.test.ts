@@ -12,7 +12,7 @@ import { TRANSLATIONS } from './locales.js';
 
 /**
  * ***The one build-time check the sweep leaves behind*** —
- * [19 §12](../../../../docs/design/19-tech-stack.md),
+ * [20 §12](../../../../docs/design/20-tech-stack.md),
  * [P11 §1.3](../../../../docs/design/workplan/28-p11-implementation.md),
  * [P11.8](../../../../docs/design/workplan/28-p11-implementation.md).
  *
@@ -48,7 +48,7 @@ import { TRANSLATIONS } from './locales.js';
  *
  * 1. **Prose written inline in JSX** — a heading, a hint, a button's word. That
  *    is the whole interface, it was never in a table, and reaching it needs the
- *    `<Trans>`-shaped machinery [19 §12.3] buys with `i18next` — which
+ *    `<Trans>`-shaped machinery [20 §12.3] buys with `i18next` — which
  *    `catalogue.ts` defers, with its reasons.
  * 2. **`[value, label]` option lists** fed to `SelectField`. They are a
  *    control's own options rather than a class-to-word table, and several of

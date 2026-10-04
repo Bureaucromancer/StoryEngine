@@ -124,7 +124,7 @@ export const DEFAULT_MODE_ID = 'storyengine.scene';
  * code, and engine code spells no mode id (`tools/repo-shape.test.ts`, *"the
  * engine names no mode"*): a mode id written into `import/` would be the engine
  * knowing which modes exist, which is the bet
- * [19 §10](../../../docs/design/19-tech-stack.md) calls the design's central
+ * [20 §10](../../../docs/design/20-tech-stack.md) calls the design's central
  * one. This file is one of the two that may, with a reason beside each literal.
  * The chat builder takes the id as `BuildContext.modeId`
  * (`import/chat/types.ts`), and every door that calls it passes this.
@@ -226,7 +226,7 @@ export interface PublicMode {
    * creation form offers each member's opening only for a mode that writes
    * one. A choice the mode would never read is a control that does nothing.
    * *Unless the session starts from a Setup that carries a written opening*
-   * (2026-10-03, [25 B18](../../../docs/design/25-open-questions.md)), which
+   * (2026-10-03, [26 B18](../../../docs/design/26-open-questions.md)), which
    * opens on that instead.
    */
   openingTurn: boolean;

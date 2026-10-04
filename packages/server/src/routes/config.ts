@@ -35,7 +35,7 @@ import { fileExists } from '../storage/files.js';
  *
  * **The tier table travels as data.** The client may not import from the server
  * package, and a duplicated copy of `CONFIG_TIERS` would falsify
- * [21 §4](../../../../docs/design/21-internal-contracts.md)'s claim that the
+ * [22 §4](../../../../docs/design/22-internal-contracts.md)'s claim that the
  * annotation *is* the source. Sending it means a key a newer build adds renders
  * with the right badge without a client release — and `LIVE_APPLIERS` travels
  * beside it, because a control that says *live* and is not read yet is the
@@ -517,7 +517,7 @@ export function registerConfigRoutes(app: FastifyInstance, services: AppServices
    * **202, and the response is the last thing this process sends.** The drain
    * runs behind it and then the process exits; a handler that awaited the drain
    * would be writing to a socket the exit is about to close. Clients reconnect
-   * on their own ([19 §8]), so what a person sees is the stream's reconnecting
+   * on their own ([20 §8]), so what a person sees is the stream's reconnecting
    * state and then the page coming back.
    */
   app.post('/restart', async (request, reply) => {
@@ -662,7 +662,7 @@ function forwardedProto(header: string | string[] | undefined): string | null {
 /**
  * Why a restart was refused, in words — and **the server's own words, unusually**.
  *
- * *[21 §1.4] says a class crosses and a sentence does not*, and the class does
+ * *[22 §1.4] says a class crosses and a sentence does not*, and the class does
  * cross: `error` carries it. This is the `message` field, which every refusal in
  * this API already carries beside the class for a reader who has no catalogue —
  * and there are exactly three of these, none of which a client can compose

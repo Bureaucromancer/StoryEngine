@@ -68,7 +68,7 @@ let head: string | null = null;
  * Brings a server up with the connections a picture needs — or without them.
  *
  * `bindImage: false` is gate row 8's whole setup: the connections exist and the
- * `image` role is **unset**, which is the state [19 §5.1] leaves every install
+ * `image` role is **unset**, which is the state [20 §5.1] leaves every install
  * in *"because there is no sensible text-model fallback for it"*.
  */
 async function boot(options: { bindImage: boolean; moment?: string }): Promise<void> {
@@ -194,7 +194,7 @@ describe('nothing bound to the image role', () => {
     /**
      * **And no `fast` call either**, which is the gate that keeps the step out
      * of the plan rather than idling it. A build that ran the step and discarded
-     * its answer would log one moment call per turn of every session — [19 §5.1]
+     * its answer would log one moment call per turn of every session — [20 §5.1]
      * says the binding already answers the question, so asking a model is paying
      * to be told what the configuration says.
      */
@@ -568,7 +568,7 @@ describe('the recipe outlives the pixels', () => {
     const before = { text: made.prompt.text, digest: made.digest, seed: made.provenance.seed };
 
     /**
-     * **Eviction, performed rather than simulated.** [25 E3]'s policy is *"evict
+     * **Eviction, performed rather than simulated.** [26 E3]'s policy is *"evict
      * pixels, keep recipes, regenerate on demand"*, and nothing in this build
      * evicts yet — so the row is walked by doing to the record exactly what an
      * eviction policy would do to it, which is also the shape [P9 §1.4] says
@@ -670,7 +670,7 @@ describe('the pictures on disk', () => {
 
   /**
    * ***A picture whose file was deleted is listed as one with no pixels*** —
-   * [25 E3]'s *"a picture that can be made again"*, which the page renders as
+   * [26 E3]'s *"a picture that can be made again"*, which the page renders as
    * a placeholder with a retry. It went out as stored, and the page drew a
    * broken image.
    */

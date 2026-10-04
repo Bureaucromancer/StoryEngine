@@ -73,7 +73,7 @@ export function SessionPanel(props: {
 }): JSX.Element | null {
   const session = useSession(props.sessionId);
   /**
-   * ***Whether the story has pictures on its moves*** — [25 E15]: *"an export
+   * ***Whether the story has pictures on its moves*** — [26 E15]: *"an export
    * containing attachments should say so"*. The transcript Play already holds,
    * read from the same cache entry, so asking costs nothing. *The path shown,
    * not every branch*: a picture only on a branch nobody is looking at goes
@@ -226,7 +226,7 @@ export function SessionPanel(props: {
           </Link>
           {/*
             ***The other direction*** — [10 §12.3](../../../../docs/design/10-ui-surfaces.md),
-            [25 B12](../../../../docs/design/25-open-questions.md), [P11.10].
+            [26 B12](../../../../docs/design/26-open-questions.md), [P11.10].
             The reading view is *for a person to read* and this is *for another
             install to load*; §12.3's table exists so the two are not conflated,
             and putting them beside each other is the place that conflation

@@ -178,7 +178,7 @@ describe.skipIf(!configured)('structured output against a live endpoint', () => 
 });
 
 /**
- * ***A picture against a real endpoint*** — [25 E15], R1.
+ * ***A picture against a real endpoint*** — [26 E15], R1.
  *
  * **The half a stub cannot answer**: whether an endpoint that says it sees
  * pictures takes the `image_url` data URL the adapter writes. The wire test in

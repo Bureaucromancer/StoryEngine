@@ -1,4 +1,4 @@
-# 24 — The feature list, and desired extensions
+# 25 — The feature list, and desired extensions
 
 **Status: proposal.** Two distinct lists that are easy to confuse:
 
@@ -35,8 +35,8 @@ direction rather than a feature.
 **§2, §2c.1 and §2c.3 are stubs pointing at committed releases.** Each was a
 feature-list entry until it turned out to be constitutive of a release rather
 than adjacent to one — the story bible to World ([15](15-world.md)), lorebook
-extraction to the authoring tier ([16](16-authoring.md)), and the Character
-Studio to a release of its own ([17](17-character-studio.md)). The stubs stay
+extraction to the authoring tier ([17](17-authoring.md)), and the Character
+Studio to a release of its own ([18](18-character-studio.md)). The stubs stay
 because the section numbers are cited elsewhere and because *why something left
 this list* is the most useful thing this document can record about it.
 
@@ -48,7 +48,7 @@ this list* is the most useful thing this document can record about it.
 
 **Tier: High.** The turn tree ([07 §3](07-branching.md)) makes every swipe and branch a node in
 one structure. At 1.0 the reading surface shows the **selected path**, with
-siblings as an inline affordance on each node ([25 C9](25-open-questions.md)).
+siblings as an inline affordance on each node ([26 C9](26-open-questions.md)).
 That is the right default and it is deliberately not a tree browser.
 
 The visualiser is the escalation: a view of the whole tree for when the default
@@ -163,7 +163,7 @@ pleasant later feature into a migration.
 - **Not the default reading surface.** The 1.0 path view stays the default. A
   tree browser as the primary way to read your own story would be a bad trade
   for a feature most people use occasionally.
-- **Not a merge tool.** Cross-branch merge is [25 C10](25-open-questions.md) and
+- **Not a merge tool.** Cross-branch merge is [26 C10](26-open-questions.md) and
   stays out of scope. The visualiser is where a merge UI would eventually live,
   which is a reason to keep its layout honest, not a reason to build merging.
 - **Not editable topology.** No dragging nodes to re-parent. The tree records
@@ -174,7 +174,7 @@ pleasant later feature into a migration.
 ## 2. Character Studio — moved
 
 **The Character Studio is a committed release of its own at 3.0
-([17](17-character-studio.md)).**
+([18](18-character-studio.md)).**
 
 It was a High-tier entry here until the authoring tier acquired a release, and it
 went there on the shape it shares with lorebook extraction and authored rules:
@@ -184,10 +184,10 @@ Studio is that move for an actor's visual identity.
 **It moved a second time when that shape turned out not to be a dependency.**
 Nothing in the tier gated it and nothing it needs waits for the corpus that holds
 the tier back, so it now carries a release number rather than a tier membership
-([17 §1.2](17-character-studio.md)). Its four obligations on 1.0 — typed media
+([18 §1.2](18-character-studio.md)). Its four obligations on 1.0 — typed media
 roles, structured descriptors, per-media generation provenance, and crop as a
 stored rectangle — are unchanged through both moves and now live at
-[17 §5](17-character-studio.md).
+[18 §5](18-character-studio.md).
 
 ---
 
@@ -234,7 +234,7 @@ hundred turns later; what is available is noticing.
 The shape, and every piece of it exists:
 
 - **A `fast`-role step** at `post`. The cheap-model principle
-  ([19 §5.1](19-tech-stack.md)) applies squarely: this runs often and judges
+  ([20 §5.1](20-tech-stack.md)) applies squarely: this runs often and judges
   rather than writes.
 - **Reads recent turns plus channel state plus activated lore** — precisely what
   `StepDefinition.reads` already declares
@@ -263,7 +263,7 @@ genre's most common complaint.
 ### 2c.3 Lorebook extraction — moved
 
 **Extraction ships with the authoring tier at 6.0
-([16 §3](16-authoring.md)).** *Play a session, keep the world* turned out to be
+([17 §3](17-authoring.md)).** *Play a session, keep the world* turned out to be
 the clearest single statement of what that release is for, which made it the
 wrong thing to leave on a list with no release attached.
 
@@ -280,44 +280,44 @@ knows that the original does not.
 
 | Item | Deferred in | Note |
 |---|---|---|
-| **Tailscale, all levels** | [09 §5.2](09-server-multiuser-deployment.md) | Level 1 yes, Level 2 maybe, Level 3 not worth it ([25 D1](25-open-questions.md)). Keep the auth layer shaped so Level 2 is a provider rather than a special case. High because reaching your own server from outside the house is the most-asked-for thing this project does not do |
+| **Tailscale, all levels** | [09 §5.2](09-server-multiuser-deployment.md) | Level 1 yes, Level 2 maybe, Level 3 not worth it ([26 D1](26-open-questions.md)). Keep the auth layer shaped so Level 2 is a provider rather than a special case. High because reaching your own server from outside the house is the most-asked-for thing this project does not do |
 | **A real user role system** | [09 §4.2.1](09-server-multiuser-deployment.md) | Named capabilities on the account cover the household case; roles, groups and per-object permissions are the wrong shape of effort for four users. Enumerating the capabilities now makes it a *move* rather than an invention. Signals it is needed: a capability that is not a boolean, wanting one set applied to several people, or permissions scoped to objects rather than accounts |
-| **Prompt-overrun recovery** | [19 §5.4](19-tech-stack.md) | Detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting. Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
-| **Manual chapterisation** | [25 E1](25-open-questions.md) | The rolling summary is the 1.0 answer. Chapters are **primarily a reading feature** ([10 §12](10-ui-surfaces.md)) — a human knows where a chapter ended better than a heuristic, so the interaction is manual with agentic advice ("this looks like a break"), never automatic. Chunking summaries along those boundaries falls out as a secondary benefit. **Obliges 1.0 to** keep full history on disk, which it does, so chapters apply retroactively to sessions that predate the feature. Named as a likely out-of-sequence pickup somewhere in the 1.0–2.0 range |
+| **Prompt-overrun recovery** | [20 §5.4](20-tech-stack.md) | Detect a length-driven refusal and retry smaller, bounded by a regenerate-attempts setting. Deferred because providers signal length failures inconsistently, so detection is heuristic and wants real failures to tune against. **Obliges 1.0 to** declare prompt caps and assemble prompts from ranked fragments, which turns the retry into "drop the lowest fragment and resend" |
+| **Manual chapterisation** | [26 E1](26-open-questions.md) | The rolling summary is the 1.0 answer. Chapters are **primarily a reading feature** ([10 §12](10-ui-surfaces.md)) — a human knows where a chapter ended better than a heuristic, so the interaction is manual with agentic advice ("this looks like a break"), never automatic. Chunking summaries along those boundaries falls out as a secondary benefit. **Obliges 1.0 to** keep full history on disk, which it does, so chapters apply retroactively to sessions that predate the feature. Named as a likely out-of-sequence pickup somewhere in the 1.0–2.0 range |
 | **Lore-conditioned renditions** | [03 §3.6](03-data-model.md) | **Committed intent, not a maybe** — much of why lore images exist. A location's `reference` image is the same shape of input to *illustrate this scene* that an actor's already is ([06 §10.3](06-modes-and-turn-pipeline.md)). Deferred because the plumbing is not the hard part: **choosing which images** is, when six active entries and three present actors all carry references, and conditioning on all of them produces mud. Wants the location channel (P7) for an honest selector, a precedence rule against actor references, and real sessions to tune how many references help before they fight. Half-built — *attach every active entry's image* — gives worse illustrations than no feature, and gets switched off rather than reported. **Obliges 1.0 to** give `reference` the same meaning on lore as on actors, make media addressable per entry, and carry `tags` so a selector has something finer than a role to discriminate on ([04 §3](04-schemas.md)). **The backdrop does not open this** ([06 §10.1a](06-modes-and-turn-pipeline.md)): it conditions on channel state as *text* and ships at 1.0 on that basis, while feeding a location's `reference` image to the model stays here. Recorded because a picture of a place is the most plausible-looking reason anyone will have to move the line, and the selector problem is absent rather than solved |
-| **Image attachments on player input** | [25 E15](25-open-questions.md) | A player attaches pictures to a move, and a model that can see them gets the pixels. **The one hard requirement is that using it once never confines a session to models that can**: each attachment always has a text rendering — the player's caption, a description written through `vision`, or an honest placeholder — and whether pixels go is decided per call from the model that call resolved to, so nothing records a session as multimodal. High because it is wanted early and is additive all the way down. ~~What gates it is a decision rather than the data model: [25 C15](25-open-questions.md) settled as its capability-gated option *(d)*, and image support declared per *model* rather than per connection, without which a text model sharing a connection with a vision model gets pixels it refuses.~~ *R1 needed neither* (2026-09-27): per-model support is built (`imageModels`), and only R2's describe step waits on [25 C15](25-open-questions.md) as its option *(d)*. **The caveat, stated rather than hidden:** few roleplay-tuned models see images, and whether pictures improve narration wants real sessions — so *describe once with a model that sees, narrate with the one you like* is the path to tune first, and pixels to the narrator is the upgrade. **Obliges 1.0 to** one test — a turn carrying an unknown field inside `input` survives import and re-export unchanged, which [04 §2](04-schemas.md) already requires and nothing asserts — and three restraints: `RenderedMessage.content` stays the whole text rendering, `input.text` stays the player's words, and `assets/` stays the renditions' disposable directory, since an upload has no recipe to regenerate it from. Not the row above: that one sends *library* pictures to an *image* model, and this entry leaves them unsent. **R1 built 2026-09-27**: attach with a caption, per-model `imageModels`, the per-call send rule for the current move, the composer saying whether the model will see each picture, and pictures carried through redo, the reading view, export and backup import — the obligation test with it. R2 (describing through `vision`) waits on C15 *(d)*; what R1 left out and where it departs from E15's text are listed there |
+| **Image attachments on player input** | [26 E15](26-open-questions.md) | A player attaches pictures to a move, and a model that can see them gets the pixels. **The one hard requirement is that using it once never confines a session to models that can**: each attachment always has a text rendering — the player's caption, a description written through `vision`, or an honest placeholder — and whether pixels go is decided per call from the model that call resolved to, so nothing records a session as multimodal. High because it is wanted early and is additive all the way down. ~~What gates it is a decision rather than the data model: [26 C15](26-open-questions.md) settled as its capability-gated option *(d)*, and image support declared per *model* rather than per connection, without which a text model sharing a connection with a vision model gets pixels it refuses.~~ *R1 needed neither* (2026-09-27): per-model support is built (`imageModels`), and only R2's describe step waits on [26 C15](26-open-questions.md) as its option *(d)*. **The caveat, stated rather than hidden:** few roleplay-tuned models see images, and whether pictures improve narration wants real sessions — so *describe once with a model that sees, narrate with the one you like* is the path to tune first, and pixels to the narrator is the upgrade. **Obliges 1.0 to** one test — a turn carrying an unknown field inside `input` survives import and re-export unchanged, which [04 §2](04-schemas.md) already requires and nothing asserts — and three restraints: `RenderedMessage.content` stays the whole text rendering, `input.text` stays the player's words, and `assets/` stays the renditions' disposable directory, since an upload has no recipe to regenerate it from. Not the row above: that one sends *library* pictures to an *image* model, and this entry leaves them unsent. **R1 built 2026-09-27**: attach with a caption, per-model `imageModels`, the per-call send rule for the current move, the composer saying whether the model will see each picture, and pictures carried through redo, the reading view, export and backup import — the obligation test with it. R2 (describing through `vision`) waits on C15 *(d)*; what R1 left out and where it departs from E15's text are listed there |
 
 ### 3.2 Low
 
 | Item | Deferred in | Note |
 |---|---|---|
-| **Auto-provisioning accounts** | [25 D2](25-open-questions.md) | Self-registration, invites, an identity provider. Low rather than eventual because the shape is known and the demand is not — a household install does not need it, and everything larger wants the role system above first |
+| **Auto-provisioning accounts** | [26 D2](26-open-questions.md) | Self-registration, invites, an identity provider. Low rather than eventual because the shape is known and the demand is not — a household install does not need it, and everything larger wants the role system above first |
 | Truly mobile-optimised layout | [10 §1](10-ui-surfaces.md) | A mode of the same web app, never a native shell. Low because the responsive floor already works and the ceiling is a real design project |
 | Custom extension rendering (sandboxed iframe) | [10 §8](10-ui-surfaces.md) | The declarative widget vocabulary covers 1.0; the escape hatch is real work. Tactical combat or anything map-shaped are the likely triggers (§4.3) |
 | **Per-actor knowledge scope** (anti-omniscience) | [02 §5](02-infinite-worlds.md) | Held as an acceptance test for the channel model rather than a feature commitment. Low on competence rather than importance: this project has not yet earned an opinion about memory scoping, and guessing at one produces a feature that is wrong in a way nobody can debug |
-| Embeddings and semantic retrieval | [25 E2](25-open-questions.md) | Aimed at cross-session memory ([08](08-cross-session-memory.md)) first, lorebooks a distant second — keyword activation plus the budgeter already covers most lorebook use, and "cosine 0.71" is not a reason a human can act on. Vectors live in the derived index, so re-embedding is a rebuild rather than data loss. Same competence caveat as the row above |
+| Embeddings and semantic retrieval | [26 E2](26-open-questions.md) | Aimed at cross-session memory ([08](08-cross-session-memory.md)) first, lorebooks a distant second — keyword activation plus the budgeter already covers most lorebook use, and "cosine 0.71" is not a reason a human can act on. Vectors live in the derived index, so re-embedding is a rebuild rather than data loss. Same competence caveat as the row above |
 | Cross-actor memory | [08 §8](08-cross-session-memory.md) | *"Vera recalling that she and Tomas both know you."* Explicitly not 1.0, and in the same memory-scoping area held back for the same reason |
-| Rendition asset eviction policy | [25 E3](25-open-questions.md) | The hook ships at P9; the policy does not. Operational rather than absent — it bites once renditions are used heavily, and not before. Backdrops are what make *heavily* arrive sooner: one image per place, kept for the life of the session ([06 §10.1a](06-modes-and-turn-pipeline.md)) |
+| Rendition asset eviction policy | [26 E3](26-open-questions.md) | The hook ships at P9; the policy does not. Operational rather than absent — it bites once renditions are used heavily, and not before. Backdrops are what make *heavily* arrive sooner: one image per place, kept for the life of the session ([06 §10.1a](06-modes-and-turn-pipeline.md)) |
 | Mention resolution beyond actors | [10 §13.1](10-ui-surfaces.md) | Locations, items, factions. Not in scope at 1.0. The span overlay carries a tagged reference from the first span written ([13 §13](13-write-mode.md)), so widening the target set is addition rather than migration |
 | The `proposed` mention tier | [10 §13.1](10-ui-surfaces.md) | `explicit` and `matched` ship at 1.0; the fuzzy model-proposed tier may follow. Wants real transcripts to judge the false-positive rate against |
 | Hook packs as a shareable kind | [03 §4.1](03-data-model.md) | Lean was "not at 1.0". Hooks travel inside a Package already; a pack of their own is a convenience for a sharing pattern nobody has yet |
-| Prologue packages | [25 B12](25-open-questions.md) | **Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet |
-| **Extension installation, and the panel over it** | [10 §15.5](10-ui-surfaces.md), [P10 §1.5](workplan/27-p10-implementation.md) | **Arrived here 2026-09-16 at [P10.3](workplan/27-p10-implementation.md)**, which is the fork §1.5 held open for four phases closed rather than routed again. The distinction it was missing: **1.0 needs extensions *loaded*, not *installed*.** The dice reference extension (§4.4) that the work plan keeps at 1.0 is first-party and ships inside the image the way a built-in mode does, so it needs no acquiring step. *Acquiring one from outside* is a subsystem — fetch, verify, unpack, register, quota — and no 1.0 goal requires it. **Three artefacts already presuppose it and all three stay**, deliberately: `Capabilities.enableExtensions` on every account, `limits.extensionStorageQuotaMb` in the config, and [22 §6–§7](22-extensions.md)'s manifest and lifecycle. Each is cheap, each is specified, and each is *visibly* inert — the capability says so in `auth/accounts.ts`, the key is `'unread'` in `CONFIG_TIERS`, which is the tier that exists for exactly this. **What does not ship is the panel**, because [10 §15.5](10-ui-surfaces.md) is right that a screen listing nothing and installing nothing is the false front capability granting was pulled forward to avoid. Low rather than high because the extension *boundary* is the 1.0 commitment and it ships; this is how a stranger's extension gets onto a machine, which nobody has yet |
+| Prologue packages | [26 B12](26-open-questions.md) | **Newly unblocked** — it waited on session export, and export ships at 1.0 ([work plan §0.5](workplan/01-work-plan.md)). Low rather than high only because nobody has asked for it yet |
+| **Extension installation, and the panel over it** | [10 §15.5](10-ui-surfaces.md), [P10 §1.5](workplan/27-p10-implementation.md) | **Arrived here 2026-09-16 at [P10.3](workplan/27-p10-implementation.md)**, which is the fork §1.5 held open for four phases closed rather than routed again. The distinction it was missing: **1.0 needs extensions *loaded*, not *installed*.** The dice reference extension (§4.4) that the work plan keeps at 1.0 is first-party and ships inside the image the way a built-in mode does, so it needs no acquiring step. *Acquiring one from outside* is a subsystem — fetch, verify, unpack, register, quota — and no 1.0 goal requires it. **Three artefacts already presuppose it and all three stay**, deliberately: `Capabilities.enableExtensions` on every account, `limits.extensionStorageQuotaMb` in the config, and [23 §6–§7](23-extensions.md)'s manifest and lifecycle. Each is cheap, each is specified, and each is *visibly* inert — the capability says so in `auth/accounts.ts`, the key is `'unread'` in `CONFIG_TIERS`, which is the tier that exists for exactly this. **What does not ship is the panel**, because [10 §15.5](10-ui-surfaces.md) is right that a screen listing nothing and installing nothing is the false front capability granting was pulled forward to avoid. Low rather than high because the extension *boundary* is the 1.0 commitment and it ships; this is how a stranger's extension gets onto a machine, which nobody has yet |
 
 ### 3.3 Eventually
 
 | Item | Deferred in | Note |
 |---|---|---|
 | Real multiplayer — turn arbitration, per-user hidden state, simultaneous input | [09 §8](09-server-multiuser-deployment.md) | Posture is "don't preclude, don't build"; three cheap 1.0 decisions keep the door open |
-| **In-UI file access, the whole feature** | [10 §4](10-ui-surfaces.md) | Deprioritised to experimental ([25 D3](25-open-questions.md)). Import/export UIs and in-app library management matter more; a file-management UI is disproportionate surface and risk for something most people never open. The capability field and the audited path helper still land at 1.0, and hand-editing on disk keeps working regardless |
-| Aggregate cost and usage view | [10 §3](10-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing. **Met 2026-09-27 for the calls that make no turn**: field assists, impersonation and the Illustrate moment call append to `users/<handle>/usage.jsonl` ([21 §1.4](21-internal-contracts.md)). What is recorded is provider-reported usage; `cost` stays null for every real endpoint because nothing prices a call yet. Turns gained a money field the same day (`TurnCost.money`), and [25 E16](25-open-questions.md) recommends how to fill it — the provider's own figure where it reports one, a price the person declares where it does not, and never a shipped table |
-| Sharing content between users on one install | [25 A3](25-open-questions.md) | The path is the owner and there is no sharing primitive. Open when it arrives, and not before someone has two users who both want it |
+| **In-UI file access, the whole feature** | [10 §4](10-ui-surfaces.md) | Deprioritised to experimental ([26 D3](26-open-questions.md)). Import/export UIs and in-app library management matter more; a file-management UI is disproportionate surface and risk for something most people never open. The capability field and the audited path helper still land at 1.0, and hand-editing on disk keeps working regardless |
+| Aggregate cost and usage view | [10 §3](10-ui-surfaces.md) | Per-turn cost still shows at 1.0 — it is a field on the record. The dashboard is not core functionality: the audience at this stage are power users already monitoring provider usage. **Obliges 1.0 to record cost anyway**, including for library-time assist calls, since a spend view built later over uncaptured data shows nothing. **Met 2026-09-27 for the calls that make no turn**: field assists, impersonation and the Illustrate moment call append to `users/<handle>/usage.jsonl` ([22 §1.4](22-internal-contracts.md)). What is recorded is provider-reported usage; `cost` stays null for every real endpoint because nothing prices a call yet. Turns gained a money field the same day (`TurnCost.money`), and [26 E16](26-open-questions.md) recommends how to fill it — the provider's own figure where it reports one, a price the person declares where it does not, and never a shipped table |
+| Sharing content between users on one install | [26 A3](26-open-questions.md) | The path is the owner and there is no sharing primitive. Open when it arrives, and not before someone has two users who both want it |
 | Video renditions | [06 §10](06-modes-and-turn-pipeline.md) | The `kind` union and `scope.messageId` ship at P9; the implementation does not. An animated backdrop is `{ kind: "video", purpose: "background" }` — expressible from P9 and unbuilt, which is the whole reason `purpose` is not a fourth `kind` ([06 §10.1a](06-modes-and-turn-pipeline.md)) |
 | Speech and TTS renditions | [06 §10](06-modes-and-turn-pipeline.md) | As above — the shape ships, the feature does not. Voice as an *I/O surface* is a desired extension rather than this (§4.3) |
 | Rendition series and storyboarding | [06 §10.4](06-modes-and-turn-pipeline.md) | **The surface, not the mechanism.** The count judgement beneath it — which moments of a turn deserve a picture, and how many — is now specified and lands in a phase after P9. What stays here is presenting the result *as* a storyboard, with its own surface and pacing, which is also the line that keeps [triage §6.3](workplan/02-triage.md)'s discard verdict intact |
-| A native client | [10 §1](10-ui-surfaces.md) | Not ours to build and not a priority, but no longer ruled out — the bar is a feature-complete client with a real advantage over the web app ([25 D4](25-open-questions.md)) |
-| Cross-branch merge | [25 C10](25-open-questions.md) | Nothing in the tree model precludes it, and nothing in use has asked for it |
-| A simple/advanced split, or a rearrangeable layout | [25 D7](25-open-questions.md) | Explicitly not blocking. Density and disclosure carry 1.0; a second layout system is a large commitment to make on a guess |
+| A native client | [10 §1](10-ui-surfaces.md) | Not ours to build and not a priority, but no longer ruled out — the bar is a feature-complete client with a real advantage over the web app ([26 D4](26-open-questions.md)) |
+| Cross-branch merge | [26 C10](26-open-questions.md) | Nothing in the tree model precludes it, and nothing in use has asked for it |
+| A simple/advanced split, or a rearrangeable layout | [26 D7](26-open-questions.md) | Explicitly not blocking. Density and disclosure carry 1.0; a second layout system is a large commitment to make on a guess |
 
 The peripheral feature surface discarded in [triage §6.3](workplan/02-triage.md) —
 table games, music, calls, haptics — deliberately does **not** appear above. It
@@ -470,7 +470,7 @@ contract, which makes it valuable feedback even if few people use it.
 
 **Alternative memory strategies.**
 *Seam:* retrieval and summarisation steps, replacing the defaults.
-*Why:* the rolling summary ([25 E1](25-open-questions.md)) is deliberately the
+*Why:* the rolling summary ([26 E1](26-open-questions.md)) is deliberately the
 simple answer, and the honest position is that someone will have a better idea
 than ours.
 Retrieval being a set of steps behind a common interface
@@ -495,7 +495,7 @@ test of the capability API being *narrow*. Device access must be something an
 extension has to be granted, never something it inherits by being installed. An
 attempt at this would find out.
 
-**Randomizers — outcomes and appearances.** *Outlined in [23](23-randomizers.md);
+**Randomizers — outcomes and appearances.** *Outlined in [24](24-randomizers.md);
 wanted early, and first-party.*
 *Seam:* for plot, a `generate`-stage step that asks the cheap model for a few
 outcomes by kind, draws one with the RNG service under difficulty-derived
@@ -510,7 +510,7 @@ sharper.
 *Proves:* evaluate-before-narrate with a real consumer, a step that draws
 inside the boundary, structured output through `StepCallRequest.schema`, and
 whether rewrite and reroll keep their meanings when a draw is made over a
-model-written list ([23 §3.5](23-randomizers.md)).
+model-written list ([24 §3.5](24-randomizers.md)).
 
 ### 4.4 First-party reference extensions: dice and poker
 
@@ -561,7 +561,7 @@ never touches:
 - **Multi-participant action between player turns.** A hand runs several betting
   rounds with characters acting in sequence and the player acting in the middle
   of them. This exercises step iteration and the suspend-for-input mechanism
-  ([25 C5](25-open-questions.md)) harder than anything else on the list.
+  ([26 C5](26-open-questions.md)) harder than anything else on the list.
 
 *Scope control:* hand evaluation is a solved problem with libraries, and side
 pots and multi-way all-ins are where the complexity actually lives. Heads-up
@@ -571,7 +571,7 @@ completeness.
 ### 4.5 One constraint this puts on core: randomness
 
 Both extensions roll dice, in the general sense, which forced a core decision —
-now settled in [19 §14](19-tech-stack.md).
+now settled in [20 §14](20-tech-stack.md).
 
 There is **one canonical RNG service**, server-local, with no network
 dependency, and every draw is recorded in the turn's effects. Extensions receive
@@ -677,7 +677,7 @@ worth generalising into core whether or not any feed is ever built.
 If this section is to be more than a wishlist:
 
 - The contract has to be published and versioned, with the built-in modes
-  visibly consuming it ([19 §10](19-tech-stack.md)).
+  visibly consuming it ([20 §10](20-tech-stack.md)).
 - The declarative widget vocabulary has to be documented with worked examples,
   since it is the part most likely to block someone.
 - Rules need reference documentation at least as good as the code SDK's, because

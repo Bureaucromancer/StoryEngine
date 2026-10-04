@@ -10,20 +10,20 @@ import type { Layout } from '../storage/layout.js';
 /**
  * ***What a model call that writes no turn spent*** —
  * [10 §11.4](../../../../docs/design/10-ui-surfaces.md),
- * [21 §1.4](../../../../docs/design/21-internal-contracts.md).
+ * [22 §1.4](../../../../docs/design/22-internal-contracts.md).
  *
  * §11.4 is the obligation, and it is unusually direct about why it cannot wait:
  * *"They cost money, and must be **recorded** even though nothing displays it at
  * 1.0. Recording is nearly free and cannot be added retroactively — a spend view
  * built later over data that was never captured shows nothing for the first
- * year."* [24 §3.3](../../../../docs/design/24-roadmap.md) repeats it as a 1.0
+ * year."* [25 §3.3](../../../../docs/design/25-roadmap.md) repeats it as a 1.0
  * obligation. A turn records its calls on its own tape (`ModelCall`); the calls
  * that make no turn — a field assist, an impersonation, the moment call behind
  * **Illustrate** — had nowhere to put the provider's figures, and each of them
  * dropped them on the floor.
  *
  * ***One file per account, append-only, and not the index or `state.sqlite`.***
- * The index is out by [21 §5.1](../../../../docs/design/21-internal-contracts.md)'s
+ * The index is out by [22 §5.1](../../../../docs/design/22-internal-contracts.md)'s
  * own test — *"if losing it would surprise a user, it is not derived"* — and
  * this is not derived from anything. `state.sqlite` is authoritative but
  * install-level: an account archive deliberately holds none of it. A file
@@ -61,8 +61,8 @@ export const USAGE_SCHEMA = 'storyengine.usage/1';
  * `connection-test:text` or `connection-test:image`, says which arm.
  *
  * *Additive inside `storyengine.usage/1`*: nothing reads this file yet, and the
- * aggregate view that will ([24 §3.3](../../../../docs/design/24-roadmap.md))
- * is specified against [21 §1.4](../../../../docs/design/21-internal-contracts.md),
+ * aggregate view that will ([25 §3.3](../../../../docs/design/25-roadmap.md))
+ * is specified against [22 §1.4](../../../../docs/design/22-internal-contracts.md),
  * which records the value.
  */
 export const CONNECTION_TEST_ROLE = 'connection-test';
@@ -72,7 +72,7 @@ export const CONNECTION_TEST_ROLE = 'connection-test';
  *
  * ***The same three measured fields `ModelCall` carries, with the same rule.***
  * `usage` and `cost` are **provider-reported or null, never estimated**
- * ([21 §1.4]'s *"the estimate decides, the measurement records"*): they are
+ * ([22 §1.4]'s *"the estimate decides, the measurement records"*): they are
  * copied from what the adapter returned, so the capability gate
  * (`reportsUsage`) and the adapter's own second gate — *did the provider
  * actually send numbers* — are honoured by not being re-implemented here. A

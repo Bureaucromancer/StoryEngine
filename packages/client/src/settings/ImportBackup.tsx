@@ -234,7 +234,7 @@ export function ImportBackup(props: {
             <Fine>{credentialsLine(held)}</Fine>
             {/*
              * What the archive says it left out, in the shared note vocabulary
-             * rather than prose ([25 A2d]) — the same sentences the review
+             * rather than prose ([26 A2d]) — the same sentences the review
              * below renders, from the same table.
              */}
             {held.omitted.map((note, index) => (
@@ -386,7 +386,7 @@ export function ImportBackup(props: {
  * What the import did, in the vocabulary every other import already uses.
  *
  * ***The notes are rendered from `note-labels.ts` rather than from prose the
- * server sent***, which is [25 A2d] and not a style preference: a report stored
+ * server sent***, which is [26 A2d] and not a style preference: a report stored
  * as English is a bug that surfaces the day somebody changes language. The
  * groups that were **not** taken are in this list too — *my keys did not come
  * across* is a question with an answer rather than a bug report.

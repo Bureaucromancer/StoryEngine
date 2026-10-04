@@ -19,7 +19,7 @@ import type { Layout } from '../storage/layout.js';
 
 /**
  * **Illustrate** and **Set the scene** — [06 §10.6](../../../../docs/design/06-modes-and-turn-pipeline.md),
- * [25 E3](../../../../docs/design/25-open-questions.md), [P9.4].
+ * [26 E3](../../../../docs/design/26-open-questions.md), [P9.4].
  *
  * *"A manual **Illustrate** action on any message in the history, which is the
  * same step invoked by hand — **additive, never replacing**."*
@@ -70,7 +70,7 @@ export interface ManualRequest {
   tone: string | null;
   image: { binding: Binding; capabilities: ProviderCapabilities };
   workflow: Readonly<Record<string, string | number | boolean>>;
-  /** Drawn by the caller, so this module makes no draw of its own ([19 §14]). */
+  /** Drawn by the caller, so this module makes no draw of its own ([20 §14]). */
   seed: number;
   /** A verbatim quote naming where the picture goes, when one is known. */
   anchor?: string;
@@ -146,7 +146,7 @@ export async function requestRendition(request: ManualRequest): Promise<Renditio
 }
 
 /**
- * Re-creates an evicted or failed rendition from its own record — [25 E3].
+ * Re-creates an evicted or failed rendition from its own record — [26 E3].
  *
  * ***This is gate step 15, and it is structural rather than careful.*** *"Re-create
  * an evicted rendition and **no text call is made**: the moment is replayed from

@@ -4,7 +4,7 @@
 import type { TurnAttachment } from '@storyengine/shared';
 
 /**
- * ***A picture, in words*** — [25 E15](../../../../docs/design/25-open-questions.md), R1.
+ * ***A picture, in words*** — [26 E15](../../../../docs/design/26-open-questions.md), R1.
  *
  * **Every attachment always has a text rendering**, and this is where it is
  * spelled — once, so the prompt, the summariser and memory describe the same
@@ -72,7 +72,7 @@ export function moveText(
 
 /**
  * A move's words with its pictures' **captions** after them, and nothing else —
- * what a keyword scan reads ([25 E15]: the caption is scanned as input is), and
+ * what a keyword scan reads ([26 E15]: the caption is scanned as input is), and
  * what search indexes, since a person reads search.
  *
  * *No placeholder*, which is the difference from {@link moveText}: a lorebook

@@ -7,7 +7,7 @@ import { createValidator, type ValidateFunction } from '@storyengine/shared';
 /**
  * Holding a channel's value to the schema it declares —
  * [06 §4.2](../../../../docs/design/06-modes-and-turn-pipeline.md),
- * [25 B7](../../../../docs/design/25-open-questions.md), built at
+ * [26 B7](../../../../docs/design/26-open-questions.md), built at
  * [P7.1](../../../../docs/design/workplan/23-p7-implementation.md).
  *
  * **Two callers, two answers, and they are not the same rule.** A *proposal*

@@ -3,7 +3,7 @@
 
 /**
  * What a channel declares about itself —
- * [21 §1.3](../../../docs/design/21-internal-contracts.md).
+ * [22 §1.3](../../../docs/design/22-internal-contracts.md).
  *
  * ~~**Deliberately short of the documented type**, and the absences are a
  * schedule rather than an oversight. `schema`, `init: InitPolicy`, `migrate`
@@ -11,13 +11,13 @@
  *
  * **`schema` and `init` arrived at [P7.1](../../../docs/design/workplan/23-p7-implementation.md)**,
  * which is the stage
- * [21 §6](../../../docs/design/21-internal-contracts.md) was waiting for: it
+ * [22 §6](../../../docs/design/22-internal-contracts.md) was waiting for: it
  * defers `InitPolicy` and `WidgetSpec` on the grounds that they *"want the mode
  * contract built first"*, and that contract is this package. Designing them
  * before it existed would have been the one thing worse than leaving them out —
  * a shape other code starts depending on before the section that owns it exists.
  *
- * **Still absent, and still a schedule**: `migrate`, which [21 §1.3] makes
+ * **Still absent, and still a schedule**: `migrate`, which [22 §1.3] makes
  * optional and which [06 §4.2] wants only for *"the genuine minority"* of schema
  * changes, so it acquires a consumer or it does not arrive; and
  * `surface?: WidgetSpec`, which is the HUD half of [10 §8]'s vocabulary and a
@@ -44,7 +44,7 @@
  * "no consumer yet".** A *generated* init means a draw or a call at session
  * start, and session start is not a turn: the RNG tape is keyed
  * `site:purpose#index` and lives on a turn record
- * ([19 §14.6](../../../docs/design/19-tech-stack.md)), so a value drawn before
+ * ([20 §14.6](../../../docs/design/20-tech-stack.md)), so a value drawn before
  * the first turn has nowhere to be recorded — and replay-from-zero, which
  * [07 §4](../../../docs/design/07-branching.md) makes a CI assertion, could not
  * reproduce it. The two arms below are pure functions of declarations the
@@ -365,7 +365,7 @@ export interface ChannelDefinition {
   /** Tokens the channel may spend when rendered into a prompt. Null for none. */
   budget: number | null;
   /**
-   * The state shape, as JSON Schema — [06 §4.2], [25 B7], built at [P7.1].
+   * The state shape, as JSON Schema — [06 §4.2], [26 B7], built at [P7.1].
    *
    * **Required rather than optional, which is 06 §4's own shape and not a
    * tightening.** A channel without one cannot be validated, so it cannot be
@@ -410,7 +410,7 @@ export interface ChannelDefinition {
    */
   render?: string;
   /**
-   * Values a model may not set on its own — [06 §8.1], [10 §13.2], [25 C12],
+   * Values a model may not set on its own — [06 §8.1], [10 §13.2], [26 C12],
    * built at [P7.2](../../../docs/design/workplan/23-p7-implementation.md).
    *
    * **A declared list, because the alternative is engine code naming a
@@ -424,7 +424,7 @@ export interface ChannelDefinition {
    * ambiguous about which.** 06 §8.1 says *"flagged, not applied quietly"* and
    * 10 §13.2 says *"surfaced prominently rather than applied as a quiet
    * badge"* — both of which contrast with *quiet* and neither of which settles
-   * *applied*. [25 C12](../../../docs/design/25-open-questions.md) settles it:
+   * *applied*. [26 C12](../../../docs/design/26-open-questions.md) settles it:
    * *"**Under-firing** plus always-available manual completion is the position
    * regardless."* And the harm 10 §13.2 names is in the applying — *"a false one
    * silently removes someone from the story, and every subsequent turn is then
@@ -448,7 +448,7 @@ export interface ChannelDefinition {
    *
    * **Optional, and absent is the answer for most channels.** A channel with no
    * surface is one there is nothing useful to show about: lore timing is the
-   * shipped example, and [21 §6](../../../docs/design/21-internal-contracts.md)
+   * shipped example, and [22 §6](../../../docs/design/22-internal-contracts.md)
    * deferred this field precisely so it would be designed against a channel that
    * wanted one rather than three that might.
    *

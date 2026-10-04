@@ -206,7 +206,7 @@ function ObjectView(props: {
        * content"* and asks to **warn on any export path — this is the one place
        * the reuse could bite.** ***There is no export path.*** Nothing in this
        * build downloads a library object, and session export is
-       * [25 B12](../../../../docs/design/25-open-questions.md), explicitly out of
+       * [26 B12](../../../../docs/design/26-open-questions.md), explicitly out of
        * this phase's scope — so a warning written against that path would be a
        * warning nobody can reach, which is the deliverable-nothing-noticed shape
        * this phase deleted a helper over.
@@ -625,7 +625,7 @@ function ObjectBody(props: {
   object: LibraryObject;
   kind: LibraryKind;
   search: ObjectSearch;
-  /** The reader's, for a memory's origin date — [19 §12.6]. */
+  /** The reader's, for a memory's origin date — [20 §12.6]. */
   locale: string | undefined;
 }): JSX.Element {
   const { object, search } = props;

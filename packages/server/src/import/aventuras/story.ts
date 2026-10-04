@@ -19,10 +19,10 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
 /**
  * ***An Aventuras story, as a `storyengine.session-export/1` document*** —
  * [P13.11](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
- * [18 §2.3.1](../../../../../docs/design/18-session-import.md),
+ * [19 §2.3.1](../../../../../docs/design/19-session-import.md),
  * [P13 §0.3](../../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4).
  *
- * ***A producer, not an importer*** — [25 E4]'s *one format, not N importers*,
+ * ***A producer, not an importer*** — [26 E4]'s *one format, not N importers*,
  * kept by construction. This module returns a document and writes nothing; the
  * sweep's Writer hands the document to `importSession`, the one reader, which
  * is the only thing that writes an imported session (`sessions/producer.ts`
@@ -43,7 +43,7 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
  *
  * So a conversion builds main as a chain of turns, and hangs each branch's
  * first turn off **the turn that holds the fork entry in its parent's
- * lineage** — [18 §2.3.1]'s rule. Parents are placed before children, so the
+ * lineage** — [19 §2.3.1]'s rule. Parents are placed before children, so the
  * turn that holds a fork entry always exists by the time a branch asks.
  *
  * ***The lookup walks the lineage, not the story.*** A branch's view of an
@@ -53,7 +53,7 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
  * turn. So each line keeps what it placed, and a fork is looked up on the
  * parent's own line first and then up through its ancestors.
  *
- * ## Pairing — [18 §2.3.1]'s table
+ * ## Pairing — [19 §2.3.1]'s table
  *
  * | Entries, in lineage order | Turn |
  * |---|---|
@@ -88,7 +88,7 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
  * - **Metadata into `cost`, never into `request`.** `request` is what was
  *   assembled and asked for, and nothing recorded that; writing the model,
  *   temperature or effort into a `ModelCall` would fabricate a call
- *   ([18 §3]'s first consequence). So `cost` carries what was measured — the
+ *   ([19 §3]'s first consequence). So `cost` carries what was measured — the
  *   model and the wall-clock time — and the temperature, reasoning effort and
  *   profile have no field that would not claim a request, and stay in
  *   Aventuras.
@@ -331,7 +331,7 @@ export function produceStory(rows: AventurasStoryRows, key: StoryKey): StoryProd
         kind: IMPORTED_INPUT_KIND,
         text: proseOf(pair.input.content),
         // What the person typed, when Aventuras translated it into `content`
-        // before sending it ([18 §2.3.1]'s *`original_input` as `raw`*).
+        // before sending it ([19 §2.3.1]'s *`original_input` as `raw`*).
         raw: pair.input.originalInput ?? proseOf(pair.input.content),
       };
     }

@@ -206,7 +206,7 @@ export function registerAuthRoutes(app: FastifyInstance, services: AppServices):
         password: body.password,
         // Defaulted from Accept-Language, per [09 §4.2]. The server localises
         // notifications with the app closed, so it has to know
-        // ([19 §12.5](../../../../docs/design/19-tech-stack.md)).
+        // ([20 §12.5](../../../../docs/design/20-tech-stack.md)).
         locale: localeFrom(request.headers['accept-language']),
         ...(body.displayName === undefined ? {} : { displayName: body.displayName }),
       });

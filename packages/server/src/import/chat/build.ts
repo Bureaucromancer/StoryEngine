@@ -1138,7 +1138,7 @@ function contentOf(input: Node['input'], lines: readonly Line[]): NodeContent {
  * presence, which is the source's state and not a fabrication
  * ({@link mutedEffects}).
  *
- * **No `request`, `cost` or `steps`.** [18 §3]'s first consequence keeps them
+ * **No `request`, `cost` or `steps`.** [19 §3]'s first consequence keeps them
  * optional precisely so a turn that never ran a model can exist, and
  * [P14 §2.6] is blunt about the temptation: *"A `TurnRequest` built from three
  * of its fields is a fabrication of the other twenty."*

@@ -356,7 +356,7 @@ describe('§1.7 beside a Setup — what a session started from one opens on', ()
   }
 
   /**
-   * ***The owner's decision, 2026-10-03 — [25 B18](../../../../docs/design/25-open-questions.md).*** Mutation: make
+   * ***The owner's decision, 2026-10-03 — [26 B18](../../../../docs/design/26-open-questions.md).*** Mutation: make
    * `firstTurns`' `setupWins` false and the greeting is written on top of the
    * opening, so the path is two turns long.
    */

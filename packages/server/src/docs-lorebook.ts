@@ -393,7 +393,7 @@ const ENTRIES: readonly LoreEntry[] = [
    * name, and never on `setup` alone, which the kinds entry above already owns.
    *
    * *The sentence saying what "the party" is was added 2026-10-04*, with
-   * [25 B19](../../../docs/design/25-open-questions.md): a chat's character
+   * [26 B19](../../../docs/design/26-open-questions.md): a chat's character
    * who was seated and never joined the party is not carried, and help that
    * said *the party carries* to somebody making a setup from a chat would have
    * promised them the one character they came for.

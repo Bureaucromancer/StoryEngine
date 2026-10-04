@@ -2,7 +2,7 @@
 
 **Status: intent, not a proposal.** A running list of things that are worth
 doing and are not feature-list items. The distinction matters, because
-[24](../24-roadmap.md) has a bar — an entry there is a *feature* held out of the
+[25](../25-roadmap.md) has a bar — an entry there is a *feature* held out of the
 committed versions, and it earns its place by being additive to the data model.
 Nothing here clears that bar and nothing here should have to. These are the small differences
 between a surface that works and a surface that is pleasant, and every one of
@@ -12,7 +12,7 @@ and invisible while reading the spec.
 **The house rule for this file:** an item belongs here if it changes what a user
 sees or does, is bounded, and needs no schema change and no new contract. If an
 item turns out to need either, it stops being polish — move it to
-[24](../24-roadmap.md), where it gets a priority tier, or to the phase plan it
+[25](../25-roadmap.md), where it gets a priority tier, or to the phase plan it
 actually belongs to.
 
 Order is intent, not priority. Two of these are arcs and should land in order:
@@ -137,7 +137,7 @@ is the answer to a whole class of "did that take?" doubt.
 
 **Collapsed by default, in both places.** An expandable pane, closed on arrival,
 its state remembered per user rather than per object — which needs somewhere to
-put a preference, and that is [25 B13](../25-open-questions.md), not this item.
+put a preference, and that is [26 B13](../26-open-questions.md), not this item.
 *Unblocked: B13 resolved at [P2A §2.2](09-p2a-configuration-surface.md) and the
 per-user `prefs.json` store shipped with it, so this item no longer waits on
 anything.* In the library that is a
@@ -266,7 +266,7 @@ panels are named for the kinds. What is left here is the client work.
   whatever other "show me the machinery" settings accumulate — the same instinct
   that keeps §2's *As stored* pane. Removing it outright is acceptable if the
   preference plumbing is what stands between this and shipping. Where a
-  preference persists is [25 B13](../25-open-questions.md), shared with item 2;
+  preference persists is [26 B13](../26-open-questions.md), shared with item 2;
   the surface that eventually shows them is [10 §15.1](../10-ui-surfaces.md).
   *Both shipped at [P2A](09-p2a-configuration-surface.md), so the escape hatch in
   the sentence above — delete the view rather than wait — is no longer needed.*
@@ -386,10 +386,10 @@ that [10 §3] calls a reader with no state of its own.
 
 **The dependency was taken knowingly and the price is on the record.**
 `react-markdown` is pinned in the client, and `/` is the entry route, so this
-fires [20 §7](../20-client-loading.md)'s revisit trigger by definition. The
+fires [21 §7](../21-client-loading.md)'s revisit trigger by definition. The
 measurement — **+120.59 kB minified, +36.71 kB gzip, a sixth of the entry** —
 and the decision not to bring P11.0's audit forward are recorded at
-[20 §7.1](../20-client-loading.md), with the lazy-loading contingency
+[21 §7.1](../21-client-loading.md), with the lazy-loading contingency
 pre-argued. The struck reasoning in `HomePage.tsx` was right about the price and
 wrong about the trade: sixteen kilobytes in a `<pre>` is not *legible as it
 stands* when it is the only thing on the page.
@@ -436,7 +436,7 @@ the variant the settings surface used had neither a hover nor a disabled state,
 so a button that could not be pressed looked exactly like one that could.
 
 **What it is now.** [10 §1.2](../10-ui-surfaces.md) and
-[19 §6.1](../19-tech-stack.md) carry the design; the enforcement is the part
+[20 §6.1](../20-tech-stack.md) carry the design; the enforcement is the part
 that matters to this list:
 
 - The palette is `packages/client/src/index.css` and nowhere else. A Tailwind
@@ -455,10 +455,10 @@ scale, and a dark theme it does not have to think about.
 
 **What was deliberately not done.**
 
-- **No config file.** [25 E10](../25-open-questions.md) records the reasoning.
+- **No config file.** [26 E10](../26-open-questions.md) records the reasoning.
   The theme *setting* did follow, once both themes were right: light, dark or
   match my system, in the Preferences pane ([10 §15.1](../10-ui-surfaces.md)),
-  written to the per-user `prefs.json` that [25 B13](../25-open-questions.md)
+  written to the per-user `prefs.json` that [26 B13](../26-open-questions.md)
   settled — which makes it the first thing to use that store, and the reason the
   pane exists at all. Note the order, because it is E10's whole argument: the
   surfaces were made correct first, and only then was one of them made
@@ -690,7 +690,7 @@ component over a static list of control labels rather than over an index.
 
 **No schema change, no new contract, nothing hidden** — which is exactly this
 file's house rule, and is why the other two thirds of R3 are at
-[25 E10](../25-open-questions.md) instead.
+[26 E10](../26-open-questions.md) instead.
 
 ---
 
@@ -892,7 +892,7 @@ the `image` role* — had no cheap way to be confirmed before P9's gate.
   resolves to, under the same guard as that row's Edit and Remove.
 - A ***Makes pictures*** control in *What this endpoint can do*, merged over
   what is stored the way *reports token counts* is, in a group headed *Drawing
-  pictures* so it cannot be read as [25 E15](../25-open-questions.md)'s *Models
+  pictures* so it cannot be read as [26 E15](../26-open-questions.md)'s *Models
   that can see pictures* beside it. **Try a picture** is offered only where it
   says yes, and the server refuses a picture anywhere else before sending
   anything.
@@ -907,11 +907,11 @@ the `image` role* — had no cheap way to be confirmed before P9's gate.
 
 **Why it is polish and not a phase stage.** It changes what a person sees and
 does, it is bounded, and it needs no schema change — `rendersImages` has been a
-stored capability since [21 §3](../21-internal-contracts.md), and
+stored capability since [22 §3](../22-internal-contracts.md), and
 `supportsImageSeed` since the merge before this one — and no new contract: two
 routes in the model fetch's family, an optional field on two internal classes
 nothing in 21 specifies, and one more value in a field 21 does specify, the
-usage line's `role` ([21 §1.4](../21-internal-contracts.md), recorded there),
+usage line's `role` ([22 §1.4](../22-internal-contracts.md), recorded there),
 which is additive inside `storyengine.usage/1` and read by nothing yet.
 [Item 8](#8-five-sampler-settings-the-adapter-drops) is the precedent for
 server work in this file. P10 and P11 are both merged, so a stage heading there
@@ -967,7 +967,7 @@ recommended answer, owner deferred**:
    not, and cannot**: `performCall` has no picture arm, `renditions/worker.ts`
    calls `renderImage` directly for the same reason, and a picture is asked
    once by the owner's other decision of the day
-   ([25 E7](../25-open-questions.md)), so it keeps the branch's one bounded
+   ([26 E7](../26-open-questions.md)), so it keeps the branch's one bounded
    attempt. Argued at the route as well as here.
 2. ***It is recorded***, in the usage log of whoever pressed it, admin or not,
    with the purpose `connection-test:text` or `connection-test:image` and the
@@ -980,7 +980,7 @@ recommended answer, owner deferred**:
    P14, write a line for a failed or cancelled call that reached the provider,
    with null figures. The picture's line is the one image call the log
    carries: a rendition's cost has no field
-   ([25 E16](../25-open-questions.md)), and a test picture leaves no record of
+   ([26 E16](../26-open-questions.md)), and a test picture leaves no record of
    its own.
 3. ***It stops when the person leaves*** — `disconnectSignal`, as Illustrate
    and the field assist take it, on both arms. The branch had argued that
@@ -1006,7 +1006,7 @@ row, which had grown to cover Edit and Remove while the branch was out.
 
 **A code/doc disagreement this found and does not fix.**
 `ProviderCapabilities.rendersImages`' docstring in `providers/types.ts`, and
-[21 §3](../21-internal-contracts.md) beside it, say the binding surface reads the
+[22 §3](../22-internal-contracts.md) beside it, say the binding surface reads the
 flag. Nothing in the client does: the role table offers every connection for
 the `image` role. Filtering it is a role-table change with its own argument
 about what an unset `image` role should look like, and is left for that. *Still
@@ -1125,7 +1125,7 @@ said *deferred rather than polish*, because showing it needs a new field on one
 of the two routes and the `api.md` text to match — *a new contract*. §25,
 merged the same day, read the rule the other way: its *no new contract* covered
 two whole routes and optional fields on classes
-[21](../21-internal-contracts.md) does not specify. On §25's reading, two
+[22](../22-internal-contracts.md) does not specify. On §25's reading, two
 optional fields on existing responses,
 neither specified by 21, are not a new contract, and that is the reading taken
 here; that row is struck and noted rather than left disagreeing. And

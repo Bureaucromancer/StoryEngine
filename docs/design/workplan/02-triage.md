@@ -49,7 +49,7 @@ courting to enable a proprietary-extension case nobody has asked for.
 - **No linking exception, so no deadline.** An exception can only be granted by
   the copyright holders, which made it a decide-before-the-first-outside-PR
   question. Declining it removes that time bomb entirely.
-- **[25 A1](../25-open-questions.md) is now purely technical again.** The extension
+- **[26 A1](../26-open-questions.md) is now purely technical again.** The extension
   execution model — in-process modules versus sandboxed workers — was carrying a
   licensing dimension it no longer has. Decide it on safety, blast radius and
   API ergonomics alone. In-process is licence-viable, which is the simpler
@@ -57,7 +57,7 @@ courting to enable a proprietary-extension case nobody has asked for.
 - **The SDK package must itself be AGPL**, deliberately. This is the mechanism
   by which the decision actually holds: extensions import `sdk`, so `sdk`'s
   licence is what makes them combined works. Publishing it permissively "to be
-  friendly" would quietly undo the decision. See [19 §10](../19-tech-stack.md).
+  friendly" would quietly undo the decision. See [20 §10](../20-tech-stack.md).
 - **Extension manifests should declare a licence field**, surfaced by the
   installer. Not enforcement — legibility. It makes the expectation visible at
   the point of authoring and lets a user see what they are installing.
@@ -456,7 +456,7 @@ suite absent across 518k lines does not appear.
 | Keyword matching semantics | Marinara `keyword-scanner.ts` / ST `world-info.js` | **PORT** | Behaviour spec. Marinara's is ST's superset and better organised. |
 | Regex ReDoS guard | Marinara `regex-timeout.ts` (~60 ln) | **ADOPT** | See §5.1 — the strongest single lift candidate in all three repos. |
 | Two-tier token budget + trim order + skip reporting | Marinara | **PORT** | Already the budgeter [00 §2.6](../00-stance.md) argues for. |
-| Tiered retrieval (always / keyword / LLM-select) | Aventuras `EntryRetrievalService` | **PORT** | Best memory design of the three; Retrieval tiers pair with the rolling summary ([25 E1](../25-open-questions.md)). |
+| Tiered retrieval (always / keyword / LLM-select) | Aventuras `EntryRetrievalService` | **PORT** | Best memory design of the three; Retrieval tiers pair with the rolling summary ([26 E1](../26-open-questions.md)). |
 | Stickiness tuning constants | Aventuras `STICKINESS_BY_TYPE` | **PORT** | See §5.2 — empirical tuning is the asset. |
 | Chapter summarisation + batching | Aventuras `ChapterBatchPlanner/Service` | **PORT** | Unexamined in detail; flagged as the next design doc. |
 | Agentic retrieval (tool-driven search) | Aventuras `AgenticRetrievalService` | **REBUILD** | Right idea; ours is a pipeline step ([06 §6](../06-modes-and-turn-pipeline.md)). |
@@ -486,7 +486,7 @@ suite absent across 518k lines does not appear.
 | Character panel with active/inactive/dead | Aventuras | **PORT, corrected** | The state tracking is the valuable part. Split the one enum into presence and status channels, and make the panel *editable* so it repairs identity errors rather than only reporting them ([10 §13.2](../10-ui-surfaces.md)). |
 | NPC identity resolution | Aventuras | **REBUILD** | Splits one character into several and merges several into one — notably worse at it than the models are. Ours proposes rather than auto-materialising, and surfaces its conclusions as linked mentions ([10 §13.1](../10-ui-surfaces.md)). |
 | Table games, Spotify, haptics, calls, Echo Chamber, storyboards | Marinara | **DISCARD from core** | Must be *expressible* as extensions; none ship. The storyboard *surface* is what is discarded — the planner call under it, which decides how many moments of a turn deserve a picture, is taken and rebuilt ([06 §10.4](../06-modes-and-turn-pipeline.md)). A judgement about one turn is not an anime-episode director; the difference is the surface. |
-| Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [24 §4.6](../24-roadmap.md) |
+| Noodle (in-app social timeline) | Marinara | **DISCARD from core**; carryover **PORT as a general pattern** | The feed is a skin. Ambient off-screen activity feeding context both ways is the reusable idea. [25 §4.6](../25-roadmap.md) |
 
 ### Platform
 
@@ -599,7 +599,7 @@ We need token counts for budgeting, but not that precision. Providers return
 real usage; a fast local approximation is enough for *pre*-flight budgeting, and
 the turn record stores actual counts afterward. Shipping tokenizer model files
 is a large maintenance surface for accuracy we do not need. **DISCARD**, revisit
-Now unconditional: raw-completion support is dropped ([19 §5.5](../19-tech-stack.md)),
+Now unconditional: raw-completion support is dropped ([20 §5.5](../20-tech-stack.md)),
 so the one thing that might have argued for exact tokenisation is gone.
 
 ### 6.3 Marinara's peripheral feature surface
@@ -627,7 +627,7 @@ its own presentation and its own pacing. A judgement about one turn is not an
 episode director, and the line between them is the surface rather than the call.
 
 The desirable ones are picked up as **desired extensions** in
-[24 §4](../24-roadmap.md), with the seam each should use and where the naive
+[25 §4](../25-roadmap.md), with the seam each should use and where the naive
 version goes wrong. Two in particular — table games and music — are genuinely
 natural in some modes, and are *better* as extensions than they would be in
 core, because the whole point is to let a real engine do work the model only
@@ -694,15 +694,15 @@ Stated so the gaps are known. Verdicts above do not cover these and should not
 be assumed to:
 
 - ~~Marinara's Noodle subsystem~~ — **now examined**, notes in
-  [24 §4.6](../24-roadmap.md). An in-app fake social timeline, ~6,400 lines of
+  [25 §4.6](../25-roadmap.md). An in-app fake social timeline, ~6,400 lines of
   server services. Verdict: **one candidate shape for the Social cluster**
-  ([24 §3.4](../24-roadmap.md)) rather than a core feature — the earlier verdict
+  ([25 §3.4](../25-roadmap.md)) rather than a core feature — the earlier verdict
   was "extension, probably not by us", which changed when Messages left the
   release schedule and the question widened. Its *carryover* mechanism
   generalises into something worth having either way, and attempting it reveals
   two gaps in the extension model.
 - **ST's extension runtime and the `third-party` loading path** — relevant to
-  [25 A1](../25-open-questions.md) and worth a look before deciding the extension
+  [26 A1](../26-open-questions.md) and worth a look before deciding the extension
   execution model. The remaining item most worth closing.
 - **Client component trees** in all three.
 - **Marinara's `bot-browser`** service.
@@ -714,8 +714,8 @@ detail:
 
 | | Verdict |
 |---|---|
-| **Tactical combat engine**, spatial context, hierarchical maps | **Out of scope.** Grid battle is a desired extension at most ([24 §4.3](../24-roadmap.md)), and the largest one there. Not examined further because nothing in core depends on the answer. |
+| **Tactical combat engine**, spatial context, hierarchical maps | **Out of scope.** Grid battle is a desired extension at most ([25 §4.3](../25-roadmap.md)), and the largest one there. Not examined further because nothing in core depends on the answer. |
 | **Achievements** | **DISCARD.** No plans, no roadmap entry, no seam owed to it. |
-| **`sidecar`** — Marinara's in-process local model | **DISCARD, firmly.** See [19 §5.2](../19-tech-stack.md). Local models are supported *as connections*, never as an embedded runtime. |
+| **`sidecar`** — Marinara's in-process local model | **DISCARD, firmly.** See [20 §5.2](../20-tech-stack.md). Local models are supported *as connections*, never as an embedded runtime. |
 | **`professor-mari`** | Examined for the assistant design; see [06 §7.4](../06-modes-and-turn-pipeline.md). General-purpose assistant yes, its tool surface no, its default tone no, and the card is swappable. |
 | **Image / video / TTS pipelines** | ~~Not examined~~ — **the image halves of both were read on 2026-09-03**, notes in [survey §1](../01-source-survey.md) and [survey §2](../01-source-survey.md), and [06 §10.3](../06-modes-and-turn-pipeline.md), [§10.4](../06-modes-and-turn-pipeline.md) and [§10.4a](../06-modes-and-turn-pipeline.md) are what changed as a result. Still not ported: the requirement is designed rather than taken. TTS and video remain unexamined. |

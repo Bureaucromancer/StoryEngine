@@ -14,7 +14,7 @@ import { MODEL_ROLES } from './types.js';
  *
  * **A decision made under silence, and worth flagging as one.**
  * [09 §4.5](../../../../docs/design/09-server-multiuser-deployment.md) and
- * [19 §5.1](../../../../docs/design/19-tech-stack.md) both say a binding points at a
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md) both say a binding points at a
  * connection and neither says where it is written; [03 §5.1](../../../../docs/design/03-data-model.md)'s
  * tree has no file for it. So: a file in the user's own directory, beside
  * `connections/`, following the same rule everything else does — the path is the
@@ -47,7 +47,7 @@ import { MODEL_ROLES } from './types.js';
  * answers 412 rather than being silently overwritten.
  *
  * **Two layers, not one.** `system/bindings.json` holds the install defaults
- * everyone inherits and a user's own file overrides it per role — [19 §5.1]'s
+ * everyone inherits and a user's own file overrides it per role — [20 §5.1]'s
  * order, read from the weak end. They are deliberately the *same shape read by
  * the same reader*: merging them before resolution would give the same answer
  * for every role that resolves and lose the one thing the surface needs, which

@@ -222,7 +222,7 @@ finding above has a home here.
 - **Fixed inside the phase.**
 - **A gate correction** — a step asked the wrong question.
 - **Polish** ([polish](06-polish.md)).
-- **[P7](23-p7-implementation.md) or the feature list** ([24](../24-roadmap.md)).
+- **[P7](23-p7-implementation.md) or the feature list** ([25](../25-roadmap.md)).
 
 **Nothing is allowed to have no home.**
 

@@ -54,7 +54,7 @@ meaning. §0.3's blocking box has the short version.
 
 Unusually for these plans, most of P6 is *already decided* — the tree model,
 swipes-as-branches, snapshots-as-cache and the tape are settled in
-[07](../07-branching.md) and [19 §14.5](../19-tech-stack.md) — so this document is
+[07](../07-branching.md) and [20 §14.5](../20-tech-stack.md) — so this document is
 mostly sequencing plus the two open questions those documents left (C8, C9)
 **and the four decisions other phases have since handed here** (§1.7–§1.9).
 Format follows [P1](07-p1-implementation.md).
@@ -240,7 +240,7 @@ committed tape is `[]`, and the P2 gate asserts it.
 
 So §1.3's rewrite/reroll split is **still untestable when this phase opens**, and
 gate step 3 has nothing to assert against. Worse than untestable, in one respect
-that §1.3 has to face rather than inherit: [19 §14.6](../19-tech-stack.md) says
+that §1.3 has to face rather than inherit: [20 §14.6](../20-tech-stack.md) says
 the reroll affordance must not appear when a turn consumed no draws — and with an
 always-empty tape, that is *every* turn. Shipping §1.3 as written would build a
 second affordance that is correct, unexercised, and never visible.
@@ -421,14 +421,14 @@ on P5.4–P5.6.
 the retriever: `rng.at('lore.probability', entry.id).chance(…)`
 (`retrieval/activate.ts:535`) and `rng.at('lore.group', key).weightedPick(…)`
 (`:611`). ~~Both are keyed by entry or by book-and-group rather than positionally,
-which is [19 §14]'s *keyed by site, never by position* being honoured by its first
+which is [20 §14]'s *keyed by site, never by position* being honoured by its first
 real consumer~~ — so a rewrite that takes a slightly different path replays the
 draws it can and draws fresh for the rest, which is the behaviour §1.3 needs to be
 able to test at all.
 
 > **Half wrong, corrected 2026-09-02 at [P5 §0.5](17-p5-implementation.md).** The
 > *site keys* are stable — entry id, and book-and-group — and that half is what
-> [19 §14] asks for. **But `weightedPick`'s payload is a position.**
+> [20 §14] asks for. **But `weightedPick`'s payload is a position.**
 > `rng/rng.ts:196-213` records `index`, an offset into the candidate list, and
 > the replay guard at `:120-125` accepts a recorded draw whenever
 > `recorded.kind === kind && recorded.detail === detail` — where `detail` is
@@ -449,7 +449,7 @@ able to test at all.
 **But the tape is non-empty only for a turn that actually rolled**, and that is
 the half of the finding that survives. `probability` is null by default and a
 group contest needs two entries in one group both firing, so an ordinary turn
-against an ordinary book still commits `[]`. [19 §14.6]'s rule — the reroll
+against an ordinary book still commits `[]`. [20 §14.6]'s rule — the reroll
 affordance must not appear when a turn consumed no draws — therefore still hides
 it most of the time, which is **correct behaviour and a poor test bed**. §1.3 is
 now testable; gate step 3 needs a fixture that deliberately rolls, and should say
@@ -562,7 +562,7 @@ revisit.
 
 - **C8 is already resolved, and this document is still asking it.** §1.1 is
   headed *"closing C8"* and §5 lists *"N, finally"* as unsettled, but
-  [25 C8](../25-open-questions.md) reads **"RESOLVED: tuneable, and generous
+  [26 C8](../26-open-questions.md) reads **"RESOLVED: tuneable, and generous
   during alpha — snapshot often and keep many … tighten once there is evidence,
   not before."** That is not merely an answer, it leans against the shipped
   default: *generous* argues for snapshotting more often than every ten turns
@@ -627,7 +627,7 @@ now because getting it wrong is the expensive kind.*
   dependency and it is narrower than it reads. The *two gestures* — redo,
   continue differently — need no draws and can ship. What needs a non-empty tape
   is the **split inside redo**, and on a turn that consumed no draws the reroll
-  affordance must by [19 §14.6](../19-tech-stack.md)'s own rule not appear. So
+  affordance must by [20 §14.6](../20-tech-stack.md)'s own rule not appear. So
   P6.0, P6.1 and most of P6.2 were unblocked even before P5 finished.
 - **PLAYABLE, for §1.8 and §1.2.** *Which reply an edit changes* is a use
   question with a lean and no evidence, and *whether a count and two arrows are
@@ -635,7 +635,7 @@ now because getting it wrong is the expensive kind.*
   visualiser exists for. Both are named in §5 and neither has moved.
 
 **§1.1 is no longer on this list**, which is the one thing that got smaller:
-[25 C8](../25-open-questions.md) reads **RESOLVED** (§0.2), so N is a tuning
+[26 C8](../26-open-questions.md) reads **RESOLVED** (§0.2), so N is a tuning
 decision with a stated direction — *generous during alpha* — rather than a
 question waiting on session sizes.
 
@@ -704,7 +704,7 @@ that costs more attention when met mid-stage than when cleared cold.
 2. **Gate step 9 owes a test that does not exist** (§0.1). Writing it is
    independent of the snapshot work and pins what "applied" has to mean.
 3. **C8's stale framing** in §1.1 here and in [07 §9](../07-branching.md) — both
-   still ask a question [25](../25-open-questions.md) answered.
+   still ask a question [26](../26-open-questions.md) answered.
 4. **§4's handoff names one consumer where there are two** (§0.2), and the
    constraint P6 hands forward is two-level keying rather than "a chain".
 5. **Deselecting a lorebook strands its timing counters**, and nothing has
@@ -734,16 +734,16 @@ that costs more attention when met mid-stage than when cleared cold.
 ### 1.1 Snapshot interval and eviction — ~~closing C8~~ applying it
 
 > **C8 is already resolved and this heading was still asking it** (§0.2).
-> [25 C8](../25-open-questions.md) reads *"RESOLVED: tuneable, and generous
+> [26 C8](../26-open-questions.md) reads *"RESOLVED: tuneable, and generous
 > during alpha — snapshot often and keep many … tighten once there is evidence,
 > not before."* So N is a tuning decision with a stated direction rather than a
 > question waiting on PLAYABLE, and *generous* leans against the ten that ships.
 > The eviction half below already agrees with it.
 
-[25 C8](../25-open-questions.md): snapshots every N turns of depth, plus at any
+[26 C8](../26-open-questions.md): snapshots every N turns of depth, plus at any
 node that acquires a second child (the node about to be materialised once per
 sibling). Needs a default N; `sessions.snapshotEveryNTurns` already exists in
-config at `10` ([21 §4](../21-internal-contracts.md)), which is the provisional
+config at `10` ([22 §4](../22-internal-contracts.md)), which is the provisional
 answer. Eviction: none at 1.0 — snapshots are small (channel state is numbers
 and flags), derived, and deleting them all must already cost only time, which
 the property test enforces. ~~Decide N finally on revisit with real session
@@ -752,11 +752,11 @@ direction 06 already chose, and tighten on evidence rather than before it.*
 
 ### 1.2 Sibling presentation — closing C9 far enough to ship
 
-[25 C9](../25-open-questions.md): everything is kept; the question is
+[26 C9](../26-open-questions.md): everything is kept; the question is
 presentation. The 1.0 answer per [07 §6](../07-branching.md): history shows the
 selected path only; a node with siblings gets an inline affordance (count +
 prev/next + promote-to-named-ref); the full tree visualiser stays post-1.0
-([24 §1](../24-roadmap.md)). `lastSelectedChildId` per node so back-and-forward
+([25 §1](../25-roadmap.md)). `lastSelectedChildId` per node so back-and-forward
 resumes rather than guesses ([07 §3](../07-branching.md)).
 
 ### 1.3 The two gestures are two buttons
@@ -764,7 +764,7 @@ resumes rather than guesses ([07 §3](../07-branching.md)).
 > ~~**Depends on P5.4–P5.6, and §0.1 makes that a stated dependency rather than an
 > assumption.** The rewrite/reroll half needs a non-empty tape, and there is
 > still no production draw site — so on today's code the reroll affordance
-> would be correct, unexercised, and by [19 §14.6]'s own rule never visible,
+> would be correct, unexercised, and by [20 §14.6]'s own rule never visible,
 > since it must not appear for a turn that consumed no draws.~~ **Dependency met
 > 2026-09-02** (§0.1a). The draw sites are `rng.at('lore.probability', entry.id)`
 > and `rng.at('lore.group', key)`, both in `retrieval/activate.ts`, both keyed by
@@ -773,7 +773,7 @@ resumes rather than guesses ([07 §3](../07-branching.md)).
 >
 > **What survives is a testing constraint, not a blocker.** A turn only rolls
 > when an entry carries a `probability` or two entries contest a group; against
-> an ordinary book the tape is still `[]` and [19 §14.6]'s rule correctly hides
+> an ordinary book the tape is still `[]` and [20 §14.6]'s rule correctly hides
 > the affordance. So the split is exercisable but not incidentally — **a fixture
 > has to be built to roll**, and gate step 3 should name it. The two *buttons* do
 > not depend on any of this; the *split* does.
@@ -782,13 +782,13 @@ resumes rather than guesses ([07 §3](../07-branching.md)).
 are both offered explicitly from any message — guessing is wrong half the time
 ([07 §7](../07-branching.md)). Redo further splits rewrite/reroll where draws
 exist, rewrite default, reroll the explicit second action, no second affordance
-when the turn consumed no draws ([19 §14.5–14.6](../19-tech-stack.md)).
+when the turn consumed no draws ([20 §14.5–14.6](../20-tech-stack.md)).
 
 ### 1.4 Undo is tip-only, and the refusal is a feature
 
 Undo applies `before` at the tip; anything deeper is refused and the branch
 path offered instead — the check is the index knowing the latest effect per
-`(channelId, scopeKey, path)` ([21 §1.2.1](../21-internal-contracts.md)). This
+`(channelId, scopeKey, path)` ([22 §1.2.1](../22-internal-contracts.md)). This
 lands at P6 rather than P2 because the refusal's *alternative* (branch here) is
 what makes it acceptable UI, and that alternative is this phase.
 
@@ -799,7 +799,7 @@ escaped ones (library writes, generated assets) are never replayed or
 reverted, and abandoning a line says plainly that N library writes from it
 still exist. Small, and it pre-empts a confusing class of bug reports.
 **Closed at the P2 revisit, the way it leaned:** `scope` was added to
-`ChannelEffect` in [21 §1.2](../21-internal-contracts.md) and P2 writes only
+`ChannelEffect` in [22 §1.2](../22-internal-contracts.md) and P2 writes only
 `"session"` ([P2 §2.7](08-p2-implementation.md)) — P6 gets a field, not a
 migration. *And a second clause, from §0.1:* the field has **no producer** —
 `escaped` appears nowhere outside a test — so the work is a writer plus the
@@ -828,7 +828,7 @@ abandonment banner, not a reader over data that is already there.
 Session-scoped index rows carry their turn id and a materialised path;
 turn-search hits off the current path stay indexed and are **labelled** with
 their branch, never hidden and never passed off as current
-([19 §7.1](../19-tech-stack.md), [10 §14.2](../10-ui-surfaces.md)). Path
+([20 §7.1](../20-tech-stack.md), [10 §14.2](../10-ui-surfaces.md)). Path
 materialisation for the head is one more derived thing the index holds.
 
 ### 1.7 The deferrals other phases have sent here
@@ -1293,7 +1293,7 @@ use.
 read *"Snapshots are P6's. Nothing reads this."* since P2A;
 `reconstructAlong` reads it per reconstruction through a closure the session
 context holds, because a number read at construction is exactly the shape that
-made four rows in that table lie ([21 §4.3]). `live-config.test.ts` gained a
+made four rows in that table lie ([22 §4.3]). `live-config.test.ts` gained a
 second describe for it: six turns, a save of two, and `GET /api/sessions/:id` —
 which reconciles hand edits, and so reconstructs — leaves snapshots at the
 second, fourth and sixth nodes; delete them, save five, read again, and the
@@ -1328,7 +1328,7 @@ timing, because *a time a person would accept* is a judgement about a machine
 and a CI assertion about it is a flake waiting for a busy runner. The wall-clock
 half belongs to the gate walk.
 
-**What is deliberately not here.** No eviction, per §1.1 and [25 C8]'s
+**What is deliberately not here.** No eviction, per §1.1 and [26 C8]'s
 *generous during alpha* — snapshots are small and derived, and the phase gate's
 own step 6 is the argument that keeping them costs nothing that matters. And the
 default N is still ten, because C8 says to tighten on evidence rather than
@@ -1342,7 +1342,7 @@ before it; what changed is that the number now does something.
 > [07 §4](../07-branching.md) names both triggers and §1.1 carries only the first;
 > *"a node with several children is a node whose state will be materialised
 > repeatedly, once per sibling explored"* is the cheap win. No eviction at 1.0
-> (§1.1; [25 C8](../25-open-questions.md) reads RESOLVED — pick generously). Flip
+> (§1.1; [26 C8](../26-open-questions.md) reads RESOLVED — pick generously). Flip
 > `config.ts:278` from `'unread'` to `'applied'` and **write the test that does not
 > exist** (gate step 9): the behavioural shape from `routes/live-config.test.ts`,
 > saving a new N over `PUT /config` on a running server and showing the *cadence*
@@ -1522,7 +1522,7 @@ own words rather than the composer's. *Continue from here* moves the head to the
 node and lets the composer write its child, which is P6.1's move-head doing the
 whole job. **Redo splits where draws exist**: rewrite is the default and reroll
 is the explicit second action, and reroll is **absent on a turn that consumed no
-draws** — [19 §14.6]'s rule, which is most turns, since an ordinary book draws
+draws** — [20 §14.6]'s rule, which is most turns, since an ordinary book draws
 nothing.
 
 **§1.8 is implemented and written down** (gate step 11): *the view follows the
@@ -1581,7 +1581,7 @@ reroll affordance is absent on a turn with an empty tape. (iv) §1.8 above.
 > nothing; (ii) rewrite reproduces the same activation set and reroll does not,
 > with `replayed` marked per draw (`shared/src/turn.ts:109`); (iii) the reroll
 > affordance does not appear on a turn that consumed no draws
-> ([19 §14.6](../19-tech-stack.md)); (iv) §1.8's decision is implemented **and
+> ([20 §14.6](../20-tech-stack.md)); (iv) §1.8's decision is implemented **and
 > written down where a person can find it** — gate step 11.
 >
 > *One trap for the fixture:* a session's lore links are session-wide but **not
@@ -1605,7 +1605,7 @@ Walking the path is O(depth) against turns already read.
 
 **The refusal is the feature, and it is the whole of the implementation.**
 `before` is an inverse only while nothing has touched the same key since;
-[21 §1.2.1]'s worked case is HP 10 → 8 at turn N and 8 → 5 later, where applying
+[22 §1.2.1]'s worked case is HP 10 → 8 at turn N and 8 → 5 later, where applying
 N's `before` now destroys the later change and leaves a state no turn ever
 wrote — plausibly, which is why it needs a check rather than a warning. A turn
 that is no longer the tip **for its keys** is refused with the keys that block
@@ -1645,7 +1645,7 @@ names each path node's siblings — only where there is more than one, because a
 count of one on every turn is noise on every turn — and stepping to one is a
 head move **with `resume`**, so coming back to a line returns to where you were
 on it. Naming is [07 §6]'s *promote*: a name, and no data moves. The full tree
-visualiser stays post-1.0 ([24 §1]) and this is deliberately not a small one.
+visualiser stays post-1.0 ([25 §1]) and this is deliberately not a small one.
 
 **Tombstones**, the last hygiene item: `readTurns` drops them, so they never
 reach `childrenByParent` — which matters newly here, because navigation asks
@@ -1732,7 +1732,7 @@ actually landed and the gate could name real state instead of hypothetical.*
    it, which is what makes *the record marks replayed vs fresh* mean something:
    it was satisfiable by a draw that replayed to the wrong entry.
    At temperature 0 a rewrite returns ~the same text, and that is correct
-   ([19 §14.6](../19-tech-stack.md)).
+   ([20 §14.6](../20-tech-stack.md)).
    **The fixture has to be built to roll** (§0.1a): the production draw sites are
    `lore.probability` and `lore.group`, so the session needs a lore entry with a
    `probability` below 100 or two entries contesting one group. A turn against an
@@ -1743,7 +1743,7 @@ actually landed and the gate could name real state instead of hypothetical.*
 4. Undo the newest turn → channel state reverts locally; attempt to invert a
    deeper effect → refused, branch offered (§1.4).
    **Covered at P6.3** in `sessions/undo.test.ts`. *Tip* turned out to be per
-   **key** rather than per turn, which is what [21 §1.2.1] says and what makes
+   **key** rather than per turn, which is what [22 §1.2.1] says and what makes
    a deeper turn nothing has written over still undoable.
 5. A character dead on one line is alive on the other; timing counters
    ([P5 §1.1](17-p5-implementation.md)) diverge per line correctly.
@@ -1855,9 +1855,9 @@ Step 9 is that line with one key already named; it is not the whole of it.
 
 ## 4. Out of scope, deliberately
 
-The branch tree visualiser (post-1.0, [24 §1](../24-roadmap.md)); branch/subtree
+The branch tree visualiser (post-1.0, [25 §1](../25-roadmap.md)); branch/subtree
 pruning UI (post-1.0 — the storage tolerates it, which was P2's obligation);
-cross-branch merge ([25 C10](../25-open-questions.md) — out of scope and
+cross-branch merge ([26 C10](../26-open-questions.md) — out of scope and
 deliberately not precluded); summarisation (P8 — but P8's rolling summary
 **must** arrive as the content-addressed chain of
 [07 §5.1](../07-branching.md), ~~and this phase's revisit should re-read that

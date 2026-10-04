@@ -219,7 +219,7 @@ describe('the chain a draft extends', () => {
    * it must read that link and derive nothing.
    *
    * Falsified by the branch's own path — `{ input: { text } }`, which drops the
-   * picture's caption from the unit key ([25 E15]) — under which the draft
+   * picture's caption from the unit key ([26 E15]) — under which the draft
    * writes a link keyed on a move without its picture, the turn's summariser
    * keys the move with it, misses, and calls again.
    */

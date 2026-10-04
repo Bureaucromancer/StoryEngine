@@ -139,9 +139,9 @@ export function AdminConnections(): JSX.Element {
 
 /**
  * ***Your* connections** — [10 §15.1](../../../../docs/design/10-ui-surfaces.md),
- * [19 §5.1](../../../../docs/design/19-tech-stack.md), [P10.3].
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md), [P10.3].
  *
- * [19 §5.1]'s sentence is the whole of it: *"anyone who wants their own key
+ * [20 §5.1]'s sentence is the whole of it: *"anyone who wants their own key
  * overrides a role without the admin's involvement"*. The reader for this
  * directory has existed since P2A and the writer did not, deliberately — a
  * personal surface predating the `privateConnections` check would have been
@@ -434,7 +434,7 @@ function ConnectionForm({
     connection?.capabilities?.reportsUsage ?? null,
   );
   /**
-   * ***Which models see pictures*** — [25 E15], per model because one endpoint
+   * ***Which models see pictures*** — [26 E15], per model because one endpoint
    * routinely serves one that does and one that does not. Empty by default,
    * which is the conservative answer: a picture shown to a model not ticked
    * here goes as its caption, and the story carries on either way.
@@ -744,7 +744,7 @@ function ConnectionForm({
           )}
           {/**
            * ***Drawing pictures, kept apart from seeing them*** — [polish §25],
-           * merged 2026-10-03 beside [25 E15]'s per-model list above it, which
+           * merged 2026-10-03 beside [26 E15]'s per-model list above it, which
            * arrived on `main` while the branch was out.
            *
            * The two sit one control apart and are opposite directions of one
@@ -753,7 +753,7 @@ function ConnectionForm({
            * story. A person who ticked a vision model and then saw *Makes
            * pictures* would reasonably think it the same question asked twice,
            * and answering yes to it on a chat endpoint is exactly the mistake
-           * [21 §3] says the flag exists to stop — so it gets its own fieldset,
+           * [22 §3] says the flag exists to stop — so it gets its own fieldset,
            * a legend that says *drawing*, and a sentence naming the other one.
            */}
           <fieldset className="flex flex-col gap-3">
@@ -764,7 +764,7 @@ function ConnectionForm({
               that can see pictures.
             </Fine>
             {/**
-             * ***The flag [21 §3] says is set per connection, finally somewhere
+             * ***The flag [22 §3] says is set per connection, finally somewhere
              * a person can set it.*** Until this control `rendersImages` was a
              * hand edit to the JSON file, which is why the `image` role could
              * only be served by somebody who had read the design notes.
@@ -1037,7 +1037,7 @@ function TestAnswer({
 
 /**
  * The first run's one question — [P2B §3] stage P2B.4, and
- * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s *a good one and a cheap one*.
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md)'s *a good one and a cheap one*.
  *
  * **Two pickers rather than eight**, because eight is more setup than anybody
  * will do and one system-wide default is not enough. Which role gets which is
@@ -1216,7 +1216,7 @@ function RemoveConnectionDialog({
  * model"* from a support question into a glance.
  *
  * **It renders what the server resolved; it does not work anything out.**
- * [19 §5.1]'s layering lives in `resolveRole`, and a table that inspected the
+ * [20 §5.1]'s layering lives in `resolveRole`, and a table that inspected the
  * binding maps and decided which would win would be a second implementation of
  * the resolution order — wrong the first time a layer is added, and wrong
  * silently. `GET /api/admin/roles` exists precisely so this component can be

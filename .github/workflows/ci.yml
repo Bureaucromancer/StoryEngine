@@ -147,7 +147,7 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm build
 
-      # The JSON Schemas are the published artefact (docs/design/19-tech-stack.md
+      # The JSON Schemas are the published artefact (docs/design/20-tech-stack.md
       # §4) and are committed, so third-party tools can fetch one without
       # building anything. `pnpm build` regenerates them; if that changes a file,
       # someone edited a TypeBox schema without re-emitting.

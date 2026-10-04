@@ -7,7 +7,7 @@ import type { DatabaseSync } from 'node:sqlite';
  * Schema versioning for the operational store — the opposite discipline to the
  * index's.
  *
- * [21 §5.1](../../../../docs/design/21-internal-contracts.md) draws the line: the index is a
+ * [22 §5.1](../../../../docs/design/22-internal-contracts.md) draws the line: the index is a
  * restatement of what is on disk, so a schema change there throws the old file
  * away and rescans. **Nothing in here is a restatement of anything.** A job in
  * flight, the idempotency key that stops a retry charging twice, the draft of a
@@ -85,7 +85,7 @@ create index job_by_session on job(session_id, created_at);
 --
 -- A browser retry, a reconnect, a double-click. The key names the job it
 -- created, so a repeat submission returns that job — queued, running or
--- terminal — rather than making a second provider call ([21 §5.1]).
+-- terminal — rather than making a second provider call ([22 §5.1]).
 create table idempotency (
   account     text not null,
   session_id  text not null,
@@ -142,7 +142,7 @@ create table import_job (
   id           text primary key,
   account      text not null,
   -- **Where the sweep was pointed, recorded once and here.**
-  -- [21 §4.1](../../../../docs/design/21-internal-contracts.md)'s foreign-path
+  -- [22 §4.1](../../../../docs/design/22-internal-contracts.md)'s foreign-path
   -- doctrine: source files are named relative to this root everywhere else — in
   -- the review, in the log, in \`VersionRecord.from\` — because the log is the
   -- thing people paste into issues. The absolute path lives on the job record,
@@ -203,7 +203,7 @@ create table import_event (
 create table import_item (
   job_id      text not null references import_job(id) on delete cascade,
   seq         integer not null,
-  -- Relative to the sweep root, never absolute ([21 §4.1.1]). The root lives
+  -- Relative to the sweep root, never absolute ([22 §4.1.1]). The root lives
   -- once on the job, where the person who typed it can see it.
   source      text not null,
   disposition text not null,
@@ -289,7 +289,7 @@ create index import_item_by_job on import_item(job_id, seq);
    * ([06 §10.7]) and they travel and delete with the session ([03 §10.3]), so
    * they live in `sessions/<id>/renditions/` where a person can read them. What
    * is here is the **dispatch** — queued, running, finished — which exists only
-   * here and nowhere else, and that is [21 §5.1]'s own test for what belongs in
+   * here and nowhere else, and that is [22 §5.1]'s own test for what belongs in
    * this store.
    */
   `
@@ -325,7 +325,7 @@ create table rendition_job (
   updated_at    real not null,
   finished_at   real,
 
-  -- A class, never a provider's words ([21 §1.4]): the server does not know the
+  -- A class, never a provider's words ([22 §1.4]): the server does not know the
   -- reader's language, and the endpoint's own sentence goes to the log.
   error         text
 ) strict;
@@ -383,7 +383,7 @@ create table notification (
   actionable  integer not null,
 
   -- The params of a \`{ key, params }\` summary, composed at display time because
-  -- the server does not know the reader's language ([19 §12.5]). **Params, not
+  -- the server does not know the reader's language ([20 §12.5]). **Params, not
   -- prose** — and [09 §3.4] warns this cuts both ways: they must carry
   -- everything the sentence needs, or a later composer produces the
   -- "New event in session 4f2a" school of notification.

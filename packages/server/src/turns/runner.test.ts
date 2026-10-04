@@ -180,7 +180,7 @@ let logLines: Record<string, unknown>[] = [];
  * A `Logger` that keeps its lines, bindings merged in.
  *
  * Structural rather than a pino instance writing to a stream: `Logger` is four
- * methods ([21 §4.1] keeps it that small on purpose), and going through a real
+ * methods ([22 §4.1] keeps it that small on purpose), and going through a real
  * logger would mean asserting against a serialiser instead of against what the
  * runner passed. The bindings matter — `child()` is how a job id reaches every
  * line — so they are merged rather than dropped.
@@ -189,7 +189,7 @@ let logLines: Record<string, unknown>[] = [];
  * The runner's logger seam, recording **which level** as well as what.
  *
  * All three used to share one writer, which made the level unobservable — and
- * [21 §4.1] draws a boundary there that matters: `error` is what the server
+ * [22 §4.1] draws a boundary there that matters: `error` is what the server
  * could not do, `warn` what it refused. A user pressing Stop is neither, and
  * logging it at `error` was most of what a session's log contained.
  */
@@ -337,7 +337,7 @@ async function runNextTurn(): Promise<Turn> {
  * `StepCondition` is where it would go and its three arms are closed by explicit
  * design; two of them (`stage`, `armed`) have no producer at all, which is the
  * shape of the gap rather than a thing to fix under a stage. Recorded at
- * [25 C17].
+ * [26 C17].
  */
 /*
  * *The fourth is [P14.5b]'s secret-plot pass*, and the note applies to it too —
@@ -418,7 +418,7 @@ describe('a turn goes all the way through', () => {
     expect(serialised).not.toContain('secret-host.invalid');
     expect(serialised).not.toContain('apiKey');
     expect(serialised).not.toContain('baseUrl');
-    // And the id, which is what [21 §1.4] says the record may carry, is there —
+    // And the id, which is what [22 §1.4] says the record may carry, is there —
     // so this is not passing because nothing was recorded at all.
     expect(serialised).toContain(CONNECTION_ID);
   });
@@ -620,7 +620,7 @@ describe('the three failure modes are three', () => {
    * `err: error` serialises an error's own enumerable properties, and a
    * `CallFailed` carries `partialText` and `call` — so a failed step wrote **the
    * whole rendered prompt and the model's partial narration** into the log.
-   * [21 §4.1] says portable object bodies never appear there: *a log is not a
+   * [22 §4.1] says portable object bodies never appear there: *a log is not a
    * backup and user prose is not diagnostic.*
    *
    * The assertion is on the *absence of prose*, which is the thing that has to
@@ -654,7 +654,7 @@ describe('the three failure modes are three', () => {
   });
 
   /**
-   * [21 §4.1]'s boundary: `error` is *"what the server could not do"*, `warn`
+   * [22 §4.1]'s boundary: `error` is *"what the server could not do"*, `warn`
    * what it refused. **A user pressing Stop is neither** — it is the system
    * doing exactly what was asked — and Stop is the most-pressed button in a
    * session against real latency, so logging it at `error` was most of what a
@@ -921,7 +921,7 @@ describe('what the provider did, and what it cost', () => {
 
     expect(turn.status).toBe('complete');
     // One `ModelCall` for one logical call, with the attempts counted on it —
-    // which is where [21 §1.4] puts them.
+    // which is where [22 §1.4] puts them.
     expect(turn.request?.calls).toHaveLength(1);
     expect(turn.request?.calls[0]?.retries).toBe(1);
     expect(provider.requests).toHaveLength(2);
@@ -1003,7 +1003,7 @@ describe('a turn ending is news, and a turn you stopped is not', () => {
   });
 
   /**
-   * ***A class, never a provider's words*** — [21 §1.4]. The endpoint's own
+   * ***A class, never a provider's words*** — [22 §1.4]. The endpoint's own
    * sentence goes to the log; what crosses this seam is something a client can
    * render in a language the server does not know.
    */
@@ -1661,7 +1661,7 @@ describe('a turn that cannot even be set up', () => {
    * neither the session nor the account.
    *
    * **The id a person actually has is the session's**, because it is the one in
-   * the URL. [21 §4.1] asks for the bindings to be set once where the subject
+   * the URL. [22 §4.1] asks for the bindings to be set once where the subject
    * comes into existence, and that is `start()` rather than `#body`.
    */
   it('names the session on the line that says a turn never started', async () => {
@@ -1685,7 +1685,7 @@ describe('a turn that cannot even be set up', () => {
     });
     // And a shape rather than the error object: the same `CallFailed` that
     // carries `partialText` and the rendered prompt can reach this path, and
-    // [21 §4.1] says portable object bodies never appear in a log.
+    // [22 §4.1] says portable object bodies never appear in a log.
     expect(JSON.stringify(line)).not.toContain('partialText');
   });
 
@@ -2267,7 +2267,7 @@ describe("the preset's own settings reach the call", () => {
   });
 
   it('records the params it actually used on the call', async () => {
-    // [21 §1.4]: the record answers "why is this turn different", which it
+    // [22 §1.4]: the record answers "why is this turn different", which it
     // cannot do if the params it names are not the params that were sent.
     const { turn } = await runTurn();
     expect(turn.request?.calls[0]?.params).toEqual(provider.requests[0]?.params);
@@ -2348,7 +2348,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    * `costOf` used to sum over the calls that happened to report, so a turn where
    * none did recorded `promptTokens: 0`. That is a fabricated total in a record
    * whose sibling `ModelCall.cost` is hard-coded null precisely to avoid
-   * fabricating one, and [21 §1.4] is *provider-reported, not estimated* —
+   * fabricating one, and [22 §1.4] is *provider-reported, not estimated* —
    * a zero is an estimate with a confident face.
    *
    * It went unnoticed because the only assertion over `turn.cost` read `model`
@@ -2543,7 +2543,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    * So the figures here are ones that cannot arise by accident. 137 and 42 are
    * not defaults, not lengths of anything in this file, and not derivable from
    * the prompt; 0.0012 USD is a price no estimator in this repo computes,
-   * because there is no estimator — [21 §1.4] says `usage` is
+   * because there is no estimator — [22 §1.4] says `usage` is
    * *provider-reported, not estimated*, and `cost` is the field that says the
    * same about money. `cost` in particular had **nothing asserting it reached
    * the record**: the repository's only other mention of the field is
@@ -2584,7 +2584,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
     expect(turn.cost?.model).toBe('fake-hi');
     expect(turn.cost?.wallMs).toBeGreaterThan(0);
 
-    // …and the same numbers on the call itself, which is where [21 §1.4] puts
+    // …and the same numbers on the call itself, which is where [22 §1.4] puts
     // them. The turn total is a fold over these; asserting only the fold would
     // pass with the per-call record emptied.
     const call = turn.request?.calls[0];
@@ -2708,7 +2708,7 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    *   data in both, so **neither needs a place on the allowlist** — which turns
    *   two excuses into two assertions: that a turn names its parent, and that
    *   the clock effect records the time it moved from. An effect that cannot
-   *   state where it came from is not invertible, which is [21 §1.2.1].
+   *   state where it came from is not invertible, which is [22 §1.2.1].
    *
    * Mutation this catches: any production change that starts writing `null`
    * into the record — a `resolved` that stops carrying its `modelId`, a
@@ -2716,9 +2716,9 @@ describe('the turn record answers what actually ran — gate step 11', () => {
    * a block whose `source` is not filled in — including on a field added after
    * this test was written, which is the property a spot check cannot have.
    */
-  it('carries no null where [21 §1] says data, on the record as it comes off disk', async () => {
+  it('carries no null where [22 §1] says data, on the record as it comes off disk', async () => {
     // Scripted, so `usage` and `cost` carry figures. They are *allowed* to be
-    // null by [21 §1.4], and are therefore on the allowlist — which means the
+    // null by [22 §1.4], and are therefore on the allowlist — which means the
     // walk alone cannot notice them going missing. The explicit assertion below
     // is what stops the allowlist from becoming a place to hide a regression.
     makeRunner({
@@ -2777,9 +2777,9 @@ describe('the turn record answers what actually ran — gate step 11', () => {
       .map(([path]) => path)
       .filter((path) => !NULL_IS_DATA.has(generalise(path)));
 
-    expect(offending, `null where [21 §1] says data: ${offending.join(', ')}`).toEqual([]);
+    expect(offending, `null where [22 §1] says data: ${offending.join(', ')}`).toEqual([]);
 
-    // The allowlist's two escape hatches, closed for this turn. [21 §1.4]
+    // The allowlist's two escape hatches, closed for this turn. [22 §1.4]
     // permits both to be null — that is what "provider-reported" means when a
     // provider reports nothing — but this provider reported, so a record that
     // dropped the figures would be a regression the allowlist would otherwise
@@ -2835,20 +2835,20 @@ function generalise(path: string): string {
  *
  * - `input.actorId` — [03 §8]: an input not attributed to an actor. Scene has
  *   a fixed participant and never attributes one.
- * - `effects[*].scopeKey` — [21 §1.2]: *which value, when the channel is scoped
+ * - `effects[*].scopeKey` — [22 §1.2]: *which value, when the channel is scoped
  *   per actor or per entry*. `se.clock` declares `scope: 'session'`, so there
  *   is no key to name.
- * - `effects[*].rejectedReason` — [21 §1.2]: *present when `applied` is false*.
+ * - `effects[*].rejectedReason` — [22 §1.2]: *present when `applied` is false*.
  *   The clock effect is engine-proposed against an `engine-computed` channel,
  *   so it is admitted and there is no refusal to state.
- * - `request.calls[*].usage` and `.cost` — [21 §1.4]: provider-*reported*, and
+ * - `request.calls[*].usage` and `.cost` — [22 §1.4]: provider-*reported*, and
  *   a provider that reports nothing must be recorded as having reported nothing
  *   rather than as having reported zero. The turn under test scripts both, so
  *   the walk's caller closes these two by hand — an allowlist entry is a
  *   permission, not a place to hide a regression.
- * - `request.calls[*].error` — [21 §1.4]: the classified failure, null on a
+ * - `request.calls[*].error` — [22 §1.4]: the classified failure, null on a
  *   call that succeeded.
- * - `effects[*].supersedes` — [21 §1.2] via [P3.0]: the refusal an engine
+ * - `effects[*].supersedes` — [22 §1.2] via [P3.0]: the refusal an engine
  *   write replaced. Null is "this effect superseded nothing", which is the
  *   ordinary clock advance on a turn where nothing proposed against it —
  *   exactly this turn.
@@ -2857,7 +2857,7 @@ function generalise(path: string): string {
  * why they are absent and each absence is an extra assertion. Both are granted
  * *for the first turn of a session*, and the walk deliberately runs on the
  * second: `parentTurnId` ([03 §8] — null for the first turn, every other turn
- * names its parent) and `effects[*].before` ([21 §1.2.1] — the state the effect
+ * names its parent) and `effects[*].before` ([22 §1.2.1] — the state the effect
  * inverts back to, which does not exist before the channel has a value).
  *
  * **And one that stopped being expressible at all** ([P3.0]): the old
@@ -3060,7 +3060,7 @@ describe('the privateConnections capability', () => {
  * **`via` is not on the record**, and it is worth saying so where somebody would
  * assume otherwise. `ModelCall` carries `resolved: { connectionId, modelId }` —
  * what the role became — and nothing about which layer decided it;
- * [21 §1.4](../../../../docs/design/21-internal-contracts.md) specifies it that way. So these
+ * [22 §1.4](../../../../docs/design/22-internal-contracts.md) specifies it that way. So these
  * assert the connection, and the layer is a live answer the role table shows
  * rather than a recorded one. Putting `via` on the record is a contract change,
  * which means the document first.
@@ -3412,7 +3412,7 @@ describe('a mode that selects speakers', () => {
 
   /**
    * ***A rewrite picks the same speakers*** — [P14.1]'s proof obligation, and
-   * [19 §14.5]'s *same mechanical outcome, different prose* reaching who
+   * [20 §14.5]'s *same mechanical outcome, different prose* reaching who
    * speaks. `natural` over three members draws a shuffle and a roll each, so
    * the first turn's tape carries the selector's draws; the rewrite is a
    * sibling handed that tape, and every one of those draws must come off it.
@@ -3974,7 +3974,7 @@ describe('a call that asked for a shape', () => {
  * assert is the *wiring*: that the engine's one non-mode step joins the plan,
  * that its line lands on the turn, and that a fired hook's words reach the
  * prompt **in the slot the preset positioned** rather than after everything else
- * ([25 C13(c)], which [P7 §1.5] raised as the thing that had no answer).
+ * ([26 C13(c)], which [P7 §1.5] raised as the thing that had no answer).
  */
 describe('a session with a hook pool', () => {
   /** Puts a pool on the session, which is what makes the selector join the plan. */
@@ -4332,7 +4332,7 @@ describe('a session with a goal', () => {
    * first channel carrying the policy — three cast channels have since [P3.0] —
    * it is the first one a model's judgement is *written to*.)
    *
-   * ***And it is refused, which is [25 C12]'s answer.*** `confirm: ['achieved']`
+   * ***And it is refused, which is [26 C12]'s answer.*** `confirm: ['achieved']`
    * makes the judgement a **recorded, unapplied** proposal: the record says what
    * the narrator thought, the session has not moved, and the goal panel asks. A
    * false completion ending a story that did not earn it is the error the
@@ -4672,7 +4672,7 @@ describe('an introduction the narrator was asked to make', () => {
  * [P14 §1.1](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
  * [P14.0].
  *
- * A turn is one node however many messages it emits ([07 §3], [25 C11]), so
+ * A turn is one node however many messages it emits ([07 §3], [26 C11]), so
  * what these hold to account is the record rather than any dispatch: a step
  * hands back attributed messages, and the turn that lands on disk keeps them
  * **and** a `text` every older reader can read. *No mode ships a step that does

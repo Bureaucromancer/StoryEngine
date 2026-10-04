@@ -365,7 +365,7 @@ export async function gatherAssemblyInputs(
 
 /**
  * ***Which model a call resolves to, asked the same way by every caller*** —
- * [19 §5.1]'s layers as this gather holds them (2026-09-27).
+ * [20 §5.1]'s layers as this gather holds them (2026-09-27).
  *
  * The runner handed `planCall` the session's own overrides and the cast, and
  * the preview and impersonation did not. So a session whose narrator was

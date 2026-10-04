@@ -521,7 +521,7 @@ describe('importing one', () => {
 
     /**
      * ***The ledger names the archive, not where it sits on this disk.*** A
-     * backup import is chosen by id, so [21 §4.1.1]'s allowance for an absolute
+     * backup import is chosen by id, so [22 §4.1.1]'s allowance for an absolute
      * root — a path the person typed — does not reach it. On Windows it used to
      * store the server's whole path, which then appeared in the import history.
      */

@@ -41,7 +41,7 @@ function recordingHost(answer: { subject: string; anchor?: string }): {
       } as StepCallResult);
     },
     /**
-     * ***The seed comes from here***, which is [19 §14]'s rule and the reason
+     * ***The seed comes from here***, which is [20 §14]'s rule and the reason
      * the step draws it rather than the worker: *"every random draw comes from
      * the single RNG service and is recorded."* A fixed draw makes the digest
      * and the request assertions below deterministic, which is the same thing

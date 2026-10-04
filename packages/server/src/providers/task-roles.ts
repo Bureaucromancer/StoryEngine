@@ -10,7 +10,7 @@ import { resolveWithin } from '../storage/paths.js';
  * ***Which role a call outside any session asks for, when its owner has
  * said*** — `users/<handle>/task-roles.json`, added 2026-09-27.
  *
- * **A stopgap for [25 C15](../../../../docs/design/25-open-questions.md), named
+ * **A stopgap for [26 C15](../../../../docs/design/26-open-questions.md), named
  * as one.** [10 §11.4](../../../../docs/design/10-ui-surfaces.md) says field
  * assist *"wants the `fast` role"*; the code asks for `prose`, because
  * `resolveRole` has no cross-role fallback and an install that never bound
@@ -30,7 +30,7 @@ import { resolveWithin } from '../storage/paths.js';
  * ***Its own file, not a key in `bindings.json` or `prefs.json`.*** The bindings
  * document is exactly its role keys, replaced whole under a hash, and a second
  * kind of entry would be dropped by its reader and fight its writer. The
- * preferences bag is one the server deliberately never interprets ([25 B13]), and
+ * preferences bag is one the server deliberately never interprets ([26 B13]), and
  * this is a thing the server acts on.
  *
  * **Absent, unreadable or nonsense reads as the default**, the posture every

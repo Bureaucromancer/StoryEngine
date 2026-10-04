@@ -5,7 +5,7 @@ agreeing before code, because other people's data ends up in them.
 
 Written as TypeScript for readability. The implementation derives these from
 TypeBox, and **the published artifact is JSON Schema**
-([19 §4](19-tech-stack.md)) — third-party tools need a schema they can validate
+([20 §4](20-tech-stack.md)) — third-party tools need a schema they can validate
 against without compiling our types.
 
 ---
@@ -48,7 +48,7 @@ character.**
 **Turn records are internal despite being large and valuable.** They never leave
 the install, so they can churn freely — which matters, because the assembler
 will churn. With one horizon worth knowing: session export is wanted eventually
-([25 B12](25-open-questions.md)), and when it ships the turn record becomes a
+([26 B12](26-open-questions.md)), and when it ships the turn record becomes a
 portable format and this freedom ends.
 
 ---
@@ -192,7 +192,7 @@ type MediaRole =
 // lorebook entry as on an actor — *this is what it looks like*, suitable for
 // conditioning generation — which is what lets a later feature treat a
 // location's reference image the way it already treats an actor's
-// ([24 §3](24-roadmap.md)). `map` is the only addition lore needed, because a
+// ([25 §3](25-roadmap.md)). `map` is the only addition lore needed, because a
 // diagram is genuinely not a likeness. `illustration` was considered and
 // rejected as a synonym for `reference` that would leave authors guessing.
 //
@@ -283,7 +283,7 @@ The rest of this design describes style: `tone.styleNotes` says "terse,
 hardboiled", `se.voice` is register and verbal tics and is explicit that it is
 not what somebody sounds like. This is the field that *demonstrates* it — a
 passage from the setting, pasted whole. The precedent is
-[17 §3](17-character-studio.md),
+[18 §3](18-character-studio.md),
 which already separated a style exemplar from a likeness for pictures on the
 grounds that style is a property of the production rather than of the person.
 
@@ -341,7 +341,7 @@ interface Actor {
   /** Prose written *as* this person, offered as an exemplar — §3.1.
    *  Top-level rather than under `profile`, and beside `openings`: the profile
    *  is what somebody is like, while a sample demonstrates how they are
-   *  written, which [17 §3](17-character-studio.md) classes as production. */
+   *  written, which [18 §3](18-character-studio.md) classes as production. */
   writingSamples?: WritingSample[]
   lore: Ref[]                      // linked lorebooks, not embedded
 
@@ -505,7 +505,7 @@ type LoreScope =
 // person owned into every prompt — `global` being both this schema's factory
 // default and the SillyTavern importer's fallback ([03 §3.4]).
 //
-// Two questions left open rather than settled, in [25](25-open-questions.md):
+// Two questions left open rather than settled, in [26](26-open-questions.md):
 // §B14, may `scope` narrow a book the session already chose; and §B15, what a
 // new book's scope should default to. [15 §5.3](15-world.md) is where a
 // consumer would come from — inheritance, designed, not inferred from the
@@ -667,7 +667,7 @@ drawing. The `⚠` on `LoreEntry.media` is untouched and means exactly what it
 said. The panel that spends `primaryMediaId` is [10 §5.3](10-ui-surfaces.md).
 
 The intended first real consumer is rendition conditioning
-([24 §3](24-roadmap.md)): a location's `reference` image is the same shape of
+([25 §3](25-roadmap.md)): a location's `reference` image is the same shape of
 input to *illustrate this scene* that an actor's already is
 ([06 §10.3](06-modes-and-turn-pipeline.md)). That is why `reference` carries the
 same meaning across both kinds rather than lore getting a vocabulary of its own.
@@ -729,7 +729,7 @@ work: a Treatment of Rain City does not describe Rain City.
 > **`World` is now reserved** for the 4.0 continuity container over sessions
 > ([15](15-world.md)) and is deliberately not spent on a library label.
 > *(2026-10-03: it will be spent on one —
-> [25 B17](25-open-questions.md) makes World the named set that replaces
+> [26 B17](26-open-questions.md) makes World the named set that replaces
 > Package, so Package's library label is the one it takes, when the design
 > step lands it. The reservation did its job: the word is free for that.)*
 
@@ -1018,7 +1018,7 @@ for the engine to do with it, so there is nothing to enumerate.
 
 ### 6.2 `contentRating` is advisory — and says so
 
-Settled in [25 E8](25-open-questions.md), recorded here because it constrains
+Settled in [26 E8](26-open-questions.md), recorded here because it constrains
 every surface that displays the field.
 
 **The rating states the author's intent for the material. It is not a statement
@@ -1128,7 +1128,7 @@ beside the cast, and which P14.5 made something a person does (the session
 form's *Characters*, the cast panel's *Add to the cast*). So neither *Save as
 a setup* nor a Setup made from a turn can carry a character who was present
 and not travelling with you. Recorded 2026-10-04 as
-[25 B19](25-open-questions.md), and left as a documented asymmetry until the
+[26 B19](26-open-questions.md), and left as a documented asymmetry until the
 owner answers it.
 
 **Sessions are created from a Setup by copy**, per prefill-not-binding
@@ -1262,7 +1262,7 @@ change (§2):
 - **`storySoFar`** is the condensed history. A session started from the Setup
   gets it as the **root of its rolling summary chain** — emitted by the preset's
   `summary` slot as the oldest link (*recorded as its own `story-so-far` arm,
-  not a `summary` — [21 §1.1](21-internal-contracts.md), 2026-10-03*), and
+  not a `summary` — [22 §1.1](22-internal-contracts.md), 2026-10-03*), and
   ~~folded in as `previous` by the first link the summariser derives~~ *handed to the first link the summariser derives
   as `previous`*. That is [07 §5.1](07-branching.md)'s
   `summary(n) = f(summary(n-1), turns)` with a seeded start rather than a second
@@ -1301,7 +1301,7 @@ and a session started from a Setup plays its primary one as an engine-written
 first turn ([03 §6](03-data-model.md)). *(2026-10-03, at the merge that brought
 this into `main`:)* **and plays it instead of the cast's greetings** in a mode
 that would otherwise open on them — the owner's decision, recorded at
-[03 §6](03-data-model.md) and [25 B18](25-open-questions.md). No field on the
+[03 §6](03-data-model.md) and [26 B18](26-open-questions.md). No field on the
 turn says it was an opening: the branch added `Turn.opening` for that, and it
 was dropped at the merge, because a turn with no `input` and no `request` is
 already how the record says *nothing generated this*
@@ -1314,7 +1314,7 @@ by accident. Only what has a host-owned meaning on a Setup crosses. Presence,
 status and a dial's live value do not, and [P15 §1.2](workplan/33-p15-setup-from-a-turn.md)
 names each.
 
-**Distinct from a prologue package** ([25 B10](25-open-questions.md)), which is
+**Distinct from a prologue package** ([26 B10](26-open-questions.md)), which is
 a partly-played *session* in a package. The trade is the opposite one: the
 history is condensed away and what travels is something that starts clean.
 
@@ -1543,7 +1543,7 @@ type SlotSource =
   // Written in 2026-10-01 (the audit's record, [main audit §4](workplan/32-main-audit.md)),
   // with lore's `outlet`, which it had not gained either.
 
-// SlotSource is BlockSource ([21 §1.1](21-internal-contracts.md)) minus its ~~two~~
+// SlotSource is BlockSource ([22 §1.1](22-internal-contracts.md)) minus its ~~two~~
 // three assembler-only origins — `preset`, because a preset's own prose *is* a
 // TextBlock rather than a reference to one, and `step`, because a step's
 // contribution did not exist when the preset was authored; and (corrected
@@ -1558,7 +1558,7 @@ type SlotSource =
 // `axis` says which, and `schema`, the engine's own JSON instruction, is
 // recorded by no slot at all. *(2026-10-03, at the P15 merge)* And the other way
 // round, one slot records two kinds: `summary` records the chain's root as
-// `story-so-far` and its links as `summary` ([21 §1.1](21-internal-contracts.md)).
+// `story-so-far` and its links as `summary` ([22 §1.1](22-internal-contracts.md)).
 
 /** Prose the preset author wrote. */
 interface TextBlock extends BlockCommon {
@@ -1722,7 +1722,7 @@ named consequence, never as a silent drop.
   naming the characters**, rather than a silent choice among them.
 - **Instruct and context templates** are not converted at all
   ([00 §2.2](00-stance.md), [triage §6.1](workplan/02-triage.md)). They exist to serve raw
-  completion, which is unsupported ([19 §5.5](19-tech-stack.md)).
+  completion, which is unsupported ([20 §5.5](20-tech-stack.md)).
 
   *Extended at [P4 §7.17](workplan/16-p4-implementation.md): they are now
   **recognised** as well as refused, and **recognising is not converting**.* The
@@ -1911,12 +1911,12 @@ dislikes how "hard" behaves can read the fragment that caused it and change it.
 ## 9. Package — a bundle, and nothing else
 
 ***Decided against 2026-10-03, and still the shipped design until a design step
-replaces it*** — [25 B17](25-open-questions.md). The owner chose a World as the
+replaces it*** — [26 B17](26-open-questions.md). The owner chose a World as the
 durable named set that **replaces Package**: membership, transport, and
 contribution to a session's lore through a `world` arm on `LoreScope`. This
 section, the code and the frozen `storyengine.package-export/1` still say
 Package, and nothing here changes until that step; B17 records why the rename
-has [25 B16](25-open-questions.md)'s release as its deadline.
+has [26 B16](26-open-questions.md)'s release as its deadline.
 
 With Setup carrying the game definition, a Package is reduced to what it always
 should have been: **an arbitrary bundle of portable objects, for moving them
@@ -2057,7 +2057,7 @@ thing it has ever had to an outward pointer is `LoreEntry.actorFilter`
 ([§5](#5-lorebook)) — a list of bare strings matched against whoever is in the
 session, which is a filter and not a reference to a library object.
 `introduces.actor` is a `Ref` ([§3](#3-shared-substructures)), and
-[25 C7d](25-open-questions.md) allowed it onto lorebook-carried hooks knowing
+[26 C7d](26-open-questions.md) allowed it onto lorebook-carried hooks knowing
 exactly that, *"over the objection that it makes a Lorebook depend on an Actor
 for the first time"*, on the ground that **the dependency is soft**: *"an
 unresolvable subject breaks the hook, never the book."* That is why the row is an
@@ -2119,7 +2119,7 @@ interface BackupManifest {
 }
 ```
 
-**Here rather than in [21](21-internal-contracts.md) because it travels.** That
+**Here rather than in [22](22-internal-contracts.md) because it travels.** That
 document's header states that nothing in it carries a `schema` field or a
 version number; this does both, for the reason every portable record does — an
 archive written by one install is read by another, and possibly by an older one.
@@ -2144,7 +2144,7 @@ whole archive, because all-or-nothing is the right failure for a restore and the
 wrong one for a backup.
 
 **It carries no path from the machine that wrote it.**
-[21 §4.1](21-internal-contracts.md)'s rule about logs applies with more force to
+[22 §4.1](22-internal-contracts.md)'s rule about logs applies with more force to
 a file that travels.
 
 ---
@@ -2153,8 +2153,8 @@ a file that travels.
 
 | Structure | Why not |
 |---|---|
-| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [21](21-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
-| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([25 B7](25-open-questions.md)). Shape in [21 §1.3](21-internal-contracts.md). |
+| **Session, Turn record** | Internal. Never leaves the install, so free to migrate — and the assembler will churn. Defined in [22](22-internal-contracts.md), because *free to move* is not the same as *need not exist* when P2 has to write one. |
+| **Channel definitions and state** | Owned by modes and extensions, versioned with them ([26 B7](26-open-questions.md)). Shape in [22 §1.3](22-internal-contracts.md). |
 | **Rule vocabulary** (`Predicate`, `Effect`) | Deferred to 6.0, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)). Now blocks nothing: the fields that depended on it are gone from §6.1 and §7.1, and both return additively. |
 | **Connection** | Private, local, never exported. Free to change. |
 | **Account** | Internal. |
@@ -2172,7 +2172,7 @@ a file that travels.
   condition rather than a date ([P11 §0.1](workplan/28-p11-implementation.md)).
 - **[OPEN]** Whether `Openings.seeds` should record the expanded result when a
   user accepts one, or leave that entirely to the session
-  ([25 B9](25-open-questions.md)).
+  ([26 B9](26-open-questions.md)).
 
 **Two entries removed as already answered**, and both had drifted into
 contradicting their own resolutions:

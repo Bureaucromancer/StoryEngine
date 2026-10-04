@@ -227,7 +227,7 @@ the shape [work plan §2.3](01-work-plan.md)'s standing line exists against.
    a contract question rather than a bug — the disk shape should not change.
 
 **And one deferral that arrived after this document was written:**
-[25 C14](../25-open-questions.md), opened 2026-09-06 by the guided-redo work.
+[26 C14](../26-open-questions.md), opened 2026-09-06 by the guided-redo work.
 Does guidance belong on the turn record, and if so as a field on `Turn` or read
 back from the block table — to be decided together with
 [10 §10](../10-ui-surfaces.md)'s one-click refill, which is the same question
@@ -500,7 +500,7 @@ moved out* and means *the mode moved out **and** the host half was rehomed*. The
 mode itself has **zero** production consumers outside the registry, which is the
 strongest evidence for §1.1's underlying claim and is not in the document.
 
-**The second mode package is never named.** [19 §10](../19-tech-stack.md)'s tree
+**The second mode package is never named.** [20 §10](../20-tech-stack.md)'s tree
 draws `modes/scene/` and `modes/adventure/` — and **Adventure no longer exists**:
 [06 §1](../06-modes-and-turn-pipeline.md) dissolved the grouping into Scene,
 Freeform and Campaign as peer modes, moving `freeform` from a preset id inside
@@ -547,7 +547,7 @@ carries the `usable` replay guard).
 through `StepHost.rng` outside one test (`turns/runner.test.ts:1772-1773`), so the
 field can be **replaced** rather than converted: give the host an async `random`
 capability, leave the engine's `Rng` synchronous, and `retrieval/activate.ts` and
-its ninety test call sites are untouched. That satisfies [22 §4](../22-extensions.md)'s
+its ninety test call sites are untouched. That satisfies [23 §4](../23-extensions.md)'s
 shape at a fraction of the cost, and it is what the revisit should price first.
 
 **And the risk nobody has named.** `Rng.draw` (`rng.ts:126-129`) assigns a draw's
@@ -558,13 +558,13 @@ and the guarantee is gone: two concurrent calls scanning the same entry race for
 `lore.probability:<id>#0` and `#1`, and on replay the recorded values bind to
 whichever drew first *that time* — *"much later as a branch that reconstructs
 wrong"*, which is exactly the symptom `rng.ts:14-18` exists against. **Alpha
-sessions on disk carry tapes**, and [19 §14.5](../19-tech-stack.md) makes rewrite
+sessions on disk carry tapes**, and [20 §14.5](../20-tech-stack.md) makes rewrite
 the default swipe gesture, so every swipe exercises the replay path. Mitigation is
 cheap if chosen up front and a data-corruption bug if found later. §1.3 treats the
 hop as a performance question; this is not one.
 
 **`RandomApi` is specified nowhere**, which makes it an input the conversion
-lacks rather than an output. `HostApi` exists only in [22 §4](../22-extensions.md);
+lacks rather than an output. `HostApi` exists only in [23 §4](../23-extensions.md);
 `random: RandomApi` names a type no document defines; and `rng.ts:68-71` states
 the invariant the API must honour — *"There is deliberately no unkeyed draw: a
 draw with no site cannot be replayed, and an API that allowed one would be an API
@@ -632,7 +632,7 @@ The stage reads as though it consumes existing shapes. It does not.
   contribution."* Step candidates are appended after the preset's
   (`runner.ts:622`). So a fired hook's text would arrive at the **end** of the
   prompt rather than where the preset put guidance. That is
-  [25 C13(c)](../25-open-questions.md), which this document never cites.
+  [26 C13(c)](../26-open-questions.md), which this document never cites.
 
   ***Half true, and the false half is the one that mattered*** (2026-09-13,
   P7.5 stage three). C13(c) is real and unchanged: a step's own candidate does
@@ -746,7 +746,7 @@ P7.1's stage text names only the second.
 **06 §4.2's error surface is unbuilt and unowned.** `ChannelState.degraded`
 (`shared/src/turn.ts:513-527`) has no writer and no reader, and says so —
 *"The writer arrives with the first `ChannelDefinition.schema`."* §1.4 collects
-the validate-coerce-migrate-quarantine ladder from [25 B7](../25-open-questions.md)
+the validate-coerce-migrate-quarantine ladder from [26 B7](../26-open-questions.md)
 and stops at *"being real"*; the ladder's fourth rung **is** the surface, because
 quarantine is only survivable if something tells the person and offers the
 recovery. [06 §4.2](../06-modes-and-turn-pipeline.md) calls it *"the part worth
@@ -785,25 +785,25 @@ about. Each is a line or two to collect and awkward to discover mid-stage.*
 
 **From the corpus, routed here by name and never read back:**
 
-1. **[25 C13](../25-open-questions.md) — the randomizer questions — names P7 and
+1. **[26 C13](../26-open-questions.md) — the randomizer questions — names P7 and
    is cited nowhere in this document.** C13(a) is that a step's judgement call is
    re-run on rewrite, so a draw made over its output cannot replay; its own lean
-   is *"do (a) with P7's async-draw conversion"*, i.e. §1.2's. [23 §5.1](../23-randomizers.md)
+   is *"do (a) with P7's async-draw conversion"*, i.e. §1.2's. [24 §5.1](../24-randomizers.md)
    names the plot-hook selector as having *"the same exposure in principle"* —
    and the selector's stage 2 **is** a judgement call with an entrance drawn over
    its output. C13(c) is the guidance-positioning problem above; C13's own text
    says *"the first two get expensive after P7."*
-2. **[25 C5](../25-open-questions.md) — steps that suspend for player input — plus
+2. **[26 C5](../26-open-questions.md) — steps that suspend for player input — plus
    [P3 §1.6](15-p3-implementation.md)'s explicit *note for P7*: the obvious name
    is taken.** `Turn.status: 'suspended'` (`shared/src/turn.ts:545`) already means
    *will resume and complete*. One naming decision, made before the first
    suspending step is written, or every step written this phase is written against
    a vocabulary that later has to move.
-3. **[25 C3](../25-open-questions.md) — impersonation, and the split P11 asks P7
+3. **[26 C3](../26-open-questions.md) — impersonation, and the split P11 asks P7
    to make.** [P11.4](28-p11-implementation.md) says *"this stage is whatever half
    of that P7 did not take, and the revisit should start by finding out which."*
    P7's revisit did not know it was asked.
-4. **[25 A1c](../25-open-questions.md) — the namespaced key/value storage host
+4. **[26 A1c](../26-open-questions.md) — the namespaced key/value storage host
    API.** If P7.0 publishes `HostApi`, P7.0 decides whether storage is in it.
    Extension *installation* is P10's; the API is not.
 5. **P8's spoiler defence is a P7 dependency.** [P8](25-p8-implementation.md)
@@ -845,7 +845,7 @@ about. Each is a line or two to collect and awkward to discover mid-stage.*
 13. **Hidden GM state as a channel** ([triage §4](02-triage.md)) — a PORT verdict
     with no phase, which *"generalises to all modes for free"* once channels are a
     contract.
-14. **[20 §client-loading](../20-client-loading.md) forecasts this phase's bundle
+14. **[21 §client-loading](../21-client-loading.md) forecasts this phase's bundle
     pressure** — mode selection, setup, party, hooks, goals and their declarative
     widgets — and P7.1's widget vocabulary is where it grows.
 15. **[13 §13](../13-write-mode.md)'s P7-era falsification test**: *"if the first
@@ -902,7 +902,7 @@ about. Each is a line or two to collect and awkward to discover mid-stage.*
 #### Two documents that disagree, in the sentence this phase relies on
 
 **§1.3 cites [06 §9](../06-modes-and-turn-pipeline.md) and
-[22](../22-extensions.md) in one breath to settle the hop, and they contradict
+[23](../23-extensions.md) in one breath to settle the hop, and they contradict
 each other about randomness specifically.** 06 §9 still says an extension in a
 worker *"cannot reach an unrecorded random source"*; 22 §4.0 retracts exactly that
 phrasing — *"wrong, and wrong in the direction that matters… A Node worker thread
@@ -912,12 +912,12 @@ which changes what the conversion is buying. A doc edit, before P7.0.
 
 **And the retired sentence has four homes, of which §1.2 amended one.** *"Nothing
 at P2 draws inside a step"* still stands unamended at
-[22 §4](../22-extensions.md), at `turns/steps.ts:128`, at
+[23 §4](../23-extensions.md), at `turns/steps.ts:128`, at
 `turns/steps.test.ts:220-221`, and inside §P7.0's own stage cell. Two of those are
 in the server's source and are **the first files a P7.0 implementer opens** —
 `steps.ts` *is* the contract being moved. A docstring that contradicts the plan is
 how a stage re-derives a decision the phase already made. Also in the same
-neighbourhood: `22 §4` cites `[19 §11]` for the RNG, and 19 §11 is *Dev mode* —
+neighbourhood: `22 §4` cites `[20 §11]` for the RNG, and 19 §11 is *Dev mode* —
 randomness is 19 §14. The renumber preserved a section number that was already
 wrong, and it is the one citation a P7.0 implementer would follow to learn what
 `RandomApi` owes.
@@ -1025,11 +1025,11 @@ reason for a partial op, so `EffectOp`'s arms stay unimplemented by decision.
 Item 10 named one test in a block of three and the complaint was about all three.
 Two items — 3 and 8 — were discharged earlier, in the stage that needed them.*
 
-1. ~~**The four retired-sentence homes and the `[19 §11]` citation** — 22 §4,
+1. ~~**The four retired-sentence homes and the `[20 §11]` citation** — 22 §4,
    `turns/steps.ts:128`, `turns/steps.test.ts:220-221`, and §P7.0's own cell.
    **22 §4 now owes three corrections rather than one**: the retired sentence,
    `blocks` → `Candidate`, and the full effect → `EffectProposal` (§1.2), plus
-   the `[19 §11]` citation, which points at *Dev mode* where it means randomness
+   the `[20 §11]` citation, which points at *Dev mode* where it means randomness
    at 19 §14.~~ **Done 2026-09-11.** All four homes and the citation. 22 §4's
    blockquote now records the three divergences as *settled* rather than as
    deliberately unreconciled, and its `StepResult` sketch carries `Candidate` and
@@ -1054,7 +1054,7 @@ Two items — 3 and 8 — were discharged earlier, in the stage that needed them
    purpose)`. It is the conversion's input, not its output.~~ **Settled and
    built 2026-09-11, at the head of P7.0.** It carries them: `rng.ts`'s *"there
    is deliberately no unkeyed draw"* is an API property rather than a
-   convention, and [19 §14](../19-tech-stack.md) puts extension draws on the
+   convention, and [20 §14](../20-tech-stack.md) puts extension draws on the
    tape, so a bare `random(): Promise<number>` was never open. `at(site,
    purpose)` stays **synchronous** — it names a draw rather than making one, so
    across a hop it is a local constructor and only the draws are messages — and
@@ -1241,21 +1241,21 @@ form.
 ***All three are settled as of P7.0, 2026-09-11, and the first two went the way
 this section leaned.*** Publishing a type is deciding it, so the SDK export was
 where they had to be answered: a step returns `Candidate`, an effect is an
-`EffectProposal`, and **[22 §4](../22-extensions.md) is the document that gets
+`EffectProposal`, and **[23 §4](../23-extensions.md) is the document that gets
 corrected** in both — a cold-list edit (§0.2) rather than an open question. The
 third is the `random` conversion, built. The list below is kept because the
 reasoning is the record of why.
 
-[22 §4](../22-extensions.md) records what P2 built against what the boundary
+[23 §4](../23-extensions.md) records what P2 built against what the boundary
 needs, deliberately unreconciled because reconciling early would have been
 guessing:
 
 - A step returns `candidates: Candidate[]`, not `blocks: AssembledBlock[]`.
   Renaming toward the boundary is a rename — and arguably the *step* is right
-  and [22](../22-extensions.md) is the document to correct, since a block is
+  and [23](../23-extensions.md) is the document to correct, since a block is
   what the assembler produces.
 - Effects are `EffectProposal` — no `before`, no `applied`, no id. A step
-  proposes and the engine stamps ([21 §1.2](../21-internal-contracts.md)). This
+  proposes and the engine stamps ([22 §1.2](../22-internal-contracts.md)). This
   is the better shape and should survive; the boundary document should adopt it.
 - **`StepHost.rng` is a live `Rng` with synchronous methods, and cannot cross a
   worker hop.** `HostApi.random` is async throughout. This one touches every
@@ -1291,7 +1291,7 @@ and §1.3 carries the determinism risk the change creates.
 
 ### 1.3 Does the worker hop land here, or after?
 
-[22](../22-extensions.md) settles worker-thread isolation **from 1.0** and
+[23](../23-extensions.md) settles worker-thread isolation **from 1.0** and
 [06 §9](../06-modes-and-turn-pipeline.md) says built-ins go through the same
 interface. What is genuinely open is whether the hop is *this* phase's or a
 later one's, with the SDK shipping first and the isolation following.
@@ -1353,14 +1353,14 @@ first correction above, both of this section's arguments for landing the hop
 *here* are gone: the conversion is forced by the package split either way, and
 the hop buys no enforcement the lint rule does not already buy. What is left for
 the hop is fault isolation — crash, hang and runaway-loop containment, which
-[22 §2](../22-extensions.md) calls the realistic failure — and that is a real
+[23 §2](../23-extensions.md) calls the realistic failure — and that is a real
 reason, just not this section's reason. *06 §9 was also wrong about credentials,
 for the same reason and in the more alarming direction; §0.2's item 2 has it.*
 
 ### 1.4 `InitPolicy` has exactly one first consumer, and it is in this phase
 
-[21 §1.3](../21-internal-contracts.md) records that P2 ships neither
-`schema`/`migrate` nor `init`, and [21 §6](../21-internal-contracts.md) is what
+[22 §1.3](../22-internal-contracts.md) records that P2 ships neither
+`schema`/`migrate` nor `init`, and [22 §6](../22-internal-contracts.md) is what
 defers `InitPolicy` and `WidgetSpec`, with the reason: a contract designed
 against one real need beats one designed against three imagined ones. **The
 pacing dial is that need** — a session channel with `update: "user-only"`,
@@ -1426,7 +1426,7 @@ same round trip `clockStart()` makes, so changing the declaration moves the
 answer and a test substitutes the channel to prove it.
 
 `migrate` has no such consumer and should not acquire one speculatively; what it
-does need is [25 B7](../25-open-questions.md)'s
+does need is [26 B7](../26-open-questions.md)'s
 validate-coerce-migrate-quarantine path being real once author-declared channels
 exist ([06 §4.1–4.2](../06-modes-and-turn-pipeline.md)).
 
@@ -1623,7 +1623,7 @@ wrong in P11 is finding it wrong after everything is built on it.
 
 ### 1.9 Session and step overrides have been plumbed and never passed
 
-[19 §5.1](../19-tech-stack.md)'s override table names two of five layers as
+[20 §5.1](../20-tech-stack.md)'s override table names two of five layers as
 **P7's, with the mode contract that would use them** — `resolveRole` implements
 four of the five, ~~and the fifth has no caller~~ **and three of those four are
 passed by nothing outside tests: session, step, and the actor hint**.
@@ -1634,7 +1634,7 @@ the same phase or is named as debt with an owner, not left as a third comment.
 
 ***Corrected 2026-09-10, on two counts.*** The count is **two, not one** — §0.1
 said so while claiming to confirm this section *"exactly"*, and
-[19 §5.1](../19-tech-stack.md) marks both session and step *"plumbed into
+[20 §5.1](../20-tech-stack.md) marks both session and step *"plumbed into
 `resolveRole` and never passed"*. And *"no caller"* wants the qualifier P2B
 already uses: `providers/connections.test.ts:221-243` passes both, in a test named
 for the precedence it proves, and has since before §0.1 was written. **No
@@ -1648,7 +1648,7 @@ importer, and resolvable — `resolveRole` applies it last and weakest and repor
 `hintUnmet` when it cannot. **It is never passed either**:
 `turns/calls.ts:277-282` builds its options with role, bindings, defaults and
 usable, and nothing else. So **three of the four implemented layers have no
-production caller** — and [19 §5.1](../19-tech-stack.md)'s table, whose stated job
+production caller** — and [20 §5.1](../20-tech-stack.md)'s table, whose stated job
 is *"which layers have callers, so the order above is not read as a description of
 what runs"*, gives the actor hint *"Built. Applied last and weakest"* while giving
 session and step *"Plumbed into `resolveRole` and never passed."* All three are in
@@ -1665,7 +1665,7 @@ a route that does not exist (`PATCH /sessions/:id` accepts only `name`). ~~The
 surface is the mode or preset declaration, not a panel.~~ That distinction is what
 *"named as debt with an owner"* should record.
 
-***The struck sentence is wrong, and [19 §5.1](../19-tech-stack.md) is what says
+***The struck sentence is wrong, and [20 §5.1](../20-tech-stack.md) is what says
 so — corrected 2026-09-11 at P7.3.*** That section opens with **"Steps never name
 a model… Nothing in a mode, step or extension refers to a provider or a model id
 — which is what makes an install portable, an extension safe to share"**, and a
@@ -1754,7 +1754,7 @@ would have a home** ([P4 §1.8](16-p4-implementation.md)'s disposition tables):
 **The decision the revisit owes, and it is one decision rather than four:**
 *does P7 convert any of it, or does "recorded" turn out to be where it stays?*
 The honest default is the second. Every item above is a foreign engine's
-runtime state, and [25 E4](../25-open-questions.md) ~~already closed~~ declines
+runtime state, and [26 E4](../26-open-questions.md) ~~already closed~~ declines
 to commit to chat and session import on the grounds that *"a half-working
 importer generates more support burden than no importer at all"* — an argument
 that does not weaken when the state gets more mode-specific. What would change
@@ -1776,7 +1776,7 @@ one direction and not the other.** *"A format argument rather than a completenes
 one"* is precisely the argument E4 now makes, so the revisit cannot treat the
 question as answered elsewhere and skip it. It still has to decide, per shape,
 whether conversion is a table or a rewrite — and it now has
-[18](../18-session-import.md) to decide against, whose §2.2 is the relevant
+[19](../19-session-import.md) to decide against, whose §2.2 is the relevant
 finding for the Marinara rows above: `game_*` state hangs off chats whose
 branches are *copied chats* rather than tree edges, so any of it that converts
 converts against a history model that is not ours.
@@ -1831,7 +1831,7 @@ what the assembler produces once the budgeter has ruled, and a step cannot
 produce one because it does not know what fits. A step's effect is an
 `EffectProposal` with no `before`, no `applied` and no id, because only the
 engine can record a refusal. Both were the engine's shapes against
-[22 §4](../22-extensions.md)'s, and in both the engine was right — so **22 is the
+[23 §4](../23-extensions.md)'s, and in both the engine was right — so **22 is the
 document that gets corrected**, which is now a cold-list item rather than an open
 question.
 
@@ -1909,7 +1909,7 @@ answers were an eslint exemption naming the one file, or genuinely not depending
 on the module at compile time; the second is *true*, since the engine has no type
 for what comes back and has to validate the shape at run time, which is what a
 host that will one day load a package off disk has to do anyway
-([22 §6–§7](../22-extensions.md)). The cost is stated in the file rather than
+([23 §6–§7](../23-extensions.md)). The cost is stated in the file rather than
 discovered later: a specifier `tsc` cannot see is one it cannot check, so a
 renamed entry export breaks at startup and not at build. `mode-loader.test.ts`
 converts that class back into a red suite, and both of its cross-package pins —
@@ -2035,13 +2035,13 @@ than deploying it — see the correction above)*.
 ### P7.1 — Channels as a general mechanism
 
 Modes declare channels and the registry is built from declarations rather than
-from a built-in set of ~~one~~ two ([21 §1.3](../21-internal-contracts.md)) —
+from a built-in set of ~~one~~ two ([22 §1.3](../22-internal-contracts.md)) —
 P5 put `se.lore.timing` beside the clock, and both are `engine-computed`, so
 the declarative path still has no `model-proposed` or `user-only` subject until
 this stage builds one. `schema`,
 §1.4's `init`, author-declared channels
 ([06 §4.1](../06-modes-and-turn-pipeline.md)), the migration posture from
-[25 B7](../25-open-questions.md), hidden visibility with a reveal affordance, and
+[26 B7](../26-open-questions.md), hidden visibility with a reveal affordance, and
 the minimum of the declarative widget vocabulary
 ([10 §8](../10-ui-surfaces.md)) — no extension-shipped components, now or later.
 
@@ -2104,7 +2104,7 @@ be discovered, since a contract silently shipping two of three named arms is the
 divergence P7.0 spent a commit correcting elsewhere.
 
 Then **`schema` acquired its first reader, on the way in**: `refuse` now returns
-`'schema'`, which is the `rejectedReason` cause [21 §1.2](../21-internal-contracts.md)
+`'schema'`, which is the `rejectedReason` cause [22 §1.2](../22-internal-contracts.md)
 lists *first* — *"validation failure"* — and which nothing had ever produced,
 because policy refusals were the whole vocabulary. Checked after the policy
 rules, deliberately: *who may write* is the more useful sentence, since a policy
@@ -2335,7 +2335,7 @@ step 3 by a person, and the dial, which lands with its selector.
 with one derived badge over two axes. **The asymmetric-death treatment is part
 of the stage, not polish**: a proposed status change to `dead` is surfaced
 prominently and is reversible from the effect log, same bias as
-[25 C12](../25-open-questions.md) — under-fire, and keep the manual path.
+[26 C12](../26-open-questions.md) — under-fire, and keep the manual path.
 
 **And the effect vocabulary cannot express a timeline that grows, which is what
 this stage's central shape is** (2026-09-10). `EffectOp` declares five arms —
@@ -2404,7 +2404,7 @@ P7.6's goal completion is documented as the same posture, and building one
 status-shaped now is the reinvention this phase keeps catching.
 
 *The two source documents are ambiguous about whether "flagged, not applied
-quietly" means refused or applied-loudly, and [25 C12] is what settles it:
+quietly" means refused or applied-loudly, and [26 C12] is what settles it:
 **under-firing plus always-available manual completion is the position
 regardless**, and the harm 10 §13.2 names is in the applying. The manual path is
 the channel-write route [P7.1] built for recovery, which turns out to be the same
@@ -2440,7 +2440,7 @@ second source of truth about who is in the story, which that same paragraph call
 ***Found building the panel, fixed there: `acceptEffect` stamped `before` into
 `after` on a refusal.*** So a rejected effect recorded that **something** had
 been refused and not **what** — which contradicts the sentence
-[21 §1.2](../21-internal-contracts.md) uses to justify recording refusals at all:
+[22 §1.2](../22-internal-contracts.md) uses to justify recording refusals at all:
 *"the model tried to give itself forty gold and the engine said no, and a system
 that dropped the attempt would leave the workbench unable to explain why nothing
 happened."* The forty gold was exactly what got dropped. `EffectList` rendered
@@ -2503,7 +2503,7 @@ visible controls rather than a four-way enum — **and as optional *session* fie
 whose absence means the mode's value**, which `modes/types.ts:36-48` defers here
 by name and is a record-shape change rather than a control; `per-actor` making
 `ModelHint` meaningful at last; mixed voice within a turn as a preset capability
-([25 C2](../25-open-questions.md)); §1.9's session and step overrides, **and the
+([26 C2](../26-open-questions.md)); §1.9's session and step overrides, **and the
 role-binding editor two documents routed into §1.9**, which is a different
 surface. *The taxonomy has no imported material behind it: the SillyTavern
 importer records `groups` and `group chats` and parses neither, so nothing named
@@ -2516,7 +2516,7 @@ see the record-shape decision below and §1.6)*.
 
 #### In progress — opened 2026-09-11
 
-**Done: [19 §5.1]'s override layers are passed.** `resolveRole` has implemented
+**Done: [20 §5.1]'s override layers are passed.** `resolveRole` has implemented
 five layers since P2B and §1.9 found **three of the four built ones had no
 production caller** — session, step and the actor hint. The table in 19 §5.1
 exists precisely so *"the order above is not read as a description of what
@@ -3020,7 +3020,7 @@ saved Setup would start a different session — a seeding turn, and companions
 form that picked characters starts with nobody seated. Closing it needs a
 Setup to carry a cast that is not a party, which the schema has no field for;
 that is the owner's to decide, and nothing here guesses it. *(Recorded as an
-open question, [25 B19](../25-open-questions.md), on 2026-10-04 —
+open question, [26 B19](../26-open-questions.md), on 2026-10-04 —
 [P15 §1.12](33-p15-setup-from-a-turn.md) — with the second gap the same cause
 leaves: a Setup made from a turn carries the party and not the cast.)*
 
@@ -3088,7 +3088,7 @@ say so rather than leave a reader to reconcile it with §4:*
 removed** from the `/1` schema with `onFire` because the rule vocabulary is 6.0.
 Four of five, additively recoverable.
 
-*And [25 C13](../25-open-questions.md) is this stage's, uncited: a judgement call
+*And [26 C13](../26-open-questions.md) is this stage's, uncited: a judgement call
 is re-run on rewrite, so a draw made over its output cannot replay — which is
 precisely stage 2 followed by an entrance drawn across `introduces.entrances`.
 `pick`'s `usable` gate is the mechanism waiting for a first production caller, and
@@ -3335,7 +3335,7 @@ this applies to a supplied plan too without contradicting *a test that supplied 
 plan asked for that plan*.
 
 **§1.5's *"the guidance slot cannot position a step's block"* was half true, and
-the half that was false is the one that mattered.** [25 C13(c)] is real —
+the half that was false is the one that mattered.** [26 C13(c)] is real —
 step candidates are appended after the preset's, so a hook returned as a
 `Candidate` would arrive at the end of the prompt — but the slot itself was never
 the obstacle. `collect.ts` filled `se.guidance` from **one** producer, the user's
@@ -3357,7 +3357,7 @@ slips.***
   fallback — and **nothing in this build binds any role but `prose`**: no install
   default, no wizard, no route that suggests one. So on a stock install every
   turn of every session with a hook pool logged a failed step and no hook ever
-  fired. Changed to `prose`, with `stepRoles` ([19 §5.1]'s fourth layer) as the
+  fired. Changed to `prose`, with `stepRoles` ([20 §5.1]'s fourth layer) as the
   way an install points it at something smaller. *The finding is bigger than this
   step: seven of `MODEL_ROLES`' eight arms are unreachable the same way, so the
   roles vocabulary is aspirational until bindings ship defaults for more of them
@@ -3384,7 +3384,7 @@ turns into a sentence. Five verdicts, because *held*, *cooling* and
 makes a correctly-quiet session distinguishable from a broken one. **Absent means
 the selector did not run**, which is every session with no pool.
 
-*[25 C13] has its first production caller.* The entrance is drawn with
+*[26 C13] has its first production caller.* The entrance is drawn with
 `weightedPick` rather than `pick` for exactly the reason C13 gives: a judgement
 call is re-run on a rewrite, so the hook the draw sits under may be a different
 hook with a different entrance list — `pick` records the list's *length* and would
@@ -3666,7 +3666,7 @@ completion always available; the three offers at conclusion, chosen **at
 completion rather than at setup**; completed goals retained with the turn that
 completed them, which is
 what gives the reading view (P11) a real spine and the selector a proximity
-signal. [25 C12](../25-open-questions.md) — confirmation before completion fires
+signal. [26 C12](../26-open-questions.md) — confirmation before completion fires
 — is decided here or explicitly left open with its reason. *C12 leaves only the
 confirmation gate open: the bias and the always-available manual escape are
 settled, and this phase commits to the same bias twice, at P7.2 for death.*
@@ -3729,7 +3729,7 @@ the game rather than to the mode running it."*
 *"retained with the turn that completed them"*, and the effect that wrote
 `achieved` lands on that turn — so it is a walk of the path, which is the version
 that survives a rewind where a stored turn id on a branch that no longer contains
-it does not. *That retention is [25 E1]'s spine for the reading view, free the
+it does not. *That retention is [26 E1]'s spine for the reading view, free the
 moment the state is an effect.*
 
 ***The judge is a `post` step, and the second engine-owned one.*** [06 §7.3.3]:
@@ -3752,16 +3752,16 @@ not move. So the collector fills the arm that returned `[]` since P2, **and its
 same change of meaning [P5.9] made for lore: an empty goal slot now says *this
 session has no goal* rather than *waiting on the engine*.
 
-~~**[25 C12] is left open, and the mechanics narrow it.** The question is whether
+~~**[26 C12] is left open, and the mechanics narrow it.** The question is whether
 narrative completion should require confirmation before it fires. What this stage
 can say is that **completion is not the destructive act**: it marks `achieved`
 and raises three offers, and the one that ends a story is a separate, explicit
 press. So the question reduces to whether a *false* completion is annoying rather
-than costly — which is tuning, and [25 C12] is right that it *"wants real
+than costly — which is tuning, and [26 C12] is right that it *"wants real
 sessions to judge"*. The bias and the always-available manual escape are settled
 and built; the gate is not needed to make a false completion recoverable.~~
 
-***[25 C12] is answered: ask.*** (Corrected 2026-09-13, the same day, after a
+***[26 C12] is answered: ask.*** (Corrected 2026-09-13, the same day, after a
 review of this cell found the gate's mechanism already built.) The narrowing
 above is sound as far as it goes and it **reached the wrong conclusion by
 pricing the wrong thing**. It, and C12 itself, assumed a confirmation meant a
@@ -3886,7 +3886,7 @@ Two settings, levels supplied by the prompt pack rather than engine code
 ([06 §7.3.1–7.3.2](../06-modes-and-turn-pipeline.md)). Coherent only because
 P7.6 shipped goals — difficulty without a goal can only say *introduce friction*,
 which reads as arbitrary within a few turns. *And
-[23 §5.4](../23-randomizers.md) adds a constraint this stage must not lose: a
+[24 §5.4](../24-randomizers.md) adds a constraint this stage must not lose: a
 frequency dial stays a **separate** channel from difficulty, because folding
 * how often* into *how hard* rebuilds exactly the conflation
 [06 §7.3.2](../06-modes-and-turn-pipeline.md) exists to prevent.*
@@ -3939,13 +3939,13 @@ channel two modes declare independently if they spell it the same way.
   twice. `dials.test.ts` refuses the identical-prose case, which is as close to
   judging fragments as anything mechanical gets.
 - ***One candidate per fragment, ranked.*** [04 §8] made the fragments a ranked
-  array so [19 §5.3]'s cap can *"drop the lowest-ranked rather than cutting
+  array so [20 §5.3]'s cap can *"drop the lowest-ranked rather than cutting
   mid-sentence"*, and a slot that joined them into one string would have
   discarded that where it was built. The emitted block records the **level and
   the fragment's index**, because [04 §8]'s claim for the pack layer is that
   *"someone who dislikes how 'hard' behaves can read the fragment that caused it
   and change it"* — which a block carrying only text cannot support.
-- **[23 §5.4]'s constraint, held as an assertion rather than as prose.** A
+- **[24 §5.4]'s constraint, held as an assertion rather than as prose.** A
   frequency dial stays a separate channel from difficulty; `dials.test.ts`
   asserts the three ids are three, so the day somebody merges two of them the
   suite says so.
@@ -3977,7 +3977,7 @@ a preview that lies**, and both are handed over in one line now.
 ### P7.9 — Freeform, and Scene grown up
 
 The second mode — **`packages/modes/freeform`, and it is the second package, not
-only the second mode**; ~~[19 §10](../19-tech-stack.md)'s tree still draws
+only the second mode**; ~~[20 §10](../20-tech-stack.md)'s tree still draws
 `modes/adventure`, a mode [06 §1](../06-modes-and-turn-pipeline.md) dissolved~~
 *— it did when this stage was written and did not by the time it landed: §0.1a's
 item 4 struck it at P7.0, and this sentence contradicted that four sections down
@@ -4070,7 +4070,7 @@ than a review"* half of gate step 1 covering a package nobody wrote it for.
 ***What a second mode was for is finding holes, and it found three.***
 
 - ***A mode cannot declare a channel the engine computes for it*** —
-  [25 C16](../25-open-questions.md), and it is the real one. Freeform wanted
+  [26 C16](../26-open-questions.md), and it is the real one. Freeform wanted
   `se.freeform.input`, holding [06 §1]'s *world-state classification* in its
   smallest true form: what kind of thing the last turn was, computed from the
   submission's **validated** input kind, which is a fact the engine holds.
@@ -4128,7 +4128,7 @@ refuses a model and a step and admits a person, which is exactly the set.
 ***Text-only stays first-class through `null`***, which is a state rather than an
 absence.
 
-**[R11]'s suggested actions, and the persisted-shape fork answered.** [22 §4]
+**[R11]'s suggested actions, and the persisted-shape fork answered.** [23 §4]
 put this on the critical path to P11's export freeze rather than in the
 discretionary pile, and named the fork: *inside the turn as a `post` step, or
 beside `lastSelectedChild`*. **On the turn.** A suggestion is a reading of one
@@ -4241,7 +4241,7 @@ the common case, not a rival mechanism. The server composes both into one list;
 nothing needs precedence rules because they are additive, and the existing `hud`
 wire key keeps its meaning and its tests. **Stating the seam this way is what
 stops this being two vocabularies for one job**, which is the failure
-[21 §1.1](../21-internal-contracts.md) exists to prevent.
+[22 §1.1](../22-internal-contracts.md) exists to prevent.
 
 **A fourth region, and the argument for it is [10 §2.3].** §9's three were
 written before §10.1a existed, and a backdrop is none of them: 10 §2.3 calls it
@@ -4289,7 +4289,7 @@ that is still sixteen blocks.
 
 ***The apparent contradiction, and why it is not one.*** `se.backdrop` is
 `engine-computed`, which `effects.ts` refuses a step — so *"steps writing to
-channels"* reads like it forces [25 C16]. It does not, because **the three things
+channels"* reads like it forces [26 C16]. It does not, because **the three things
 §7.2 names have three different writers**:
 
 | §7.2 names | Channel | Update | Who writes it |
@@ -4305,7 +4305,7 @@ it. This one could.
 
 **A gap found by needing it: `StepInput.cast`.** A step could not see an actor's
 expression set at all — `speakers` carries ids, and `StepHost` has no library
-reader until [22 §4]'s capability API. Being handed the cast by the engine
+reader until [23 §4]'s capability API. Being handed the cast by the engine
 without declaring it would have been the back door [06 §2] refuses, so the
 contract widened instead: `cast` is gated by `reads: ['cast']` like a channel,
 and carries **the manifest and never the bytes** (an id, a role, a label). *That
@@ -4327,7 +4327,7 @@ call on every turn, and on a self-hosted build that is the player's own machine.
 default of *off* honest rather than the feature hiding is that **the control is
 on the screen either way**, which is what P7.11 built.
 
-***And the one thing that did not work, stated plainly — [25 C17].*** The
+***And the one thing that did not work, stated plainly — [26 C17].*** The
 suggester keeps itself out of the plan when it is off, and `runner.ts` argues for
 that at length: an idle step is *"an `ok` row contributing nothing on every turn
 of every session in the build."* **A mode cannot do the same.** `planFor` zips
@@ -4563,7 +4563,7 @@ the work of this section.
 | **3** A mode's channel: in the registry, enforced, rendered, reconstructing | **tests**, with the fourth clause folded into the P6 property fixture | **AUTO** — registry membership and `update` enforcement are unit tests; reconstruction-at-a-node is already carried by `sessions/reconstruct-property.test.ts` and needs a mode-declared channel added to its fixture. The *renders* clause is the weak form of step 9 and should be merged there rather than walked twice |
 | **4** A hook fires, the record says why, held ≠ judged-none | **a test** for the four states; **a person** for whether the line explains anything | **AUTO** for the record half — drive the selector into pacing-held, nothing-eligible, judged-none and fired, assert four distinguishable lines. **Standing** for the reading half: [work plan P11](01-work-plan.md) owns selector legibility as tuning, so clause (ii) has nothing to say |
 | **5** Commit, rewind past it, uncommitted | **a property test** — the [testing §1](03-testing.md) row, which the step already says | **AUTO**, and it should not reach a walk sheet. Cheapest of the four hook rows: P6 property-tested the fold that answers it, so it is satisfiable the day the channel is declared |
-| **6** A goal completes, three offers, *Advance*, readable after *End* | **a test** for the mechanics; **a person** for the moment | **AUTO** for the mechanics — completed goal retained with its turn, *Advance* writing the next, branchable after *End*, **and the confirmation gate refusing the judge's completion** ([25 C12](../25-open-questions.md), answered *ask* at P7.6). **Standing** for the rest: whether the judge is *accurate* still wants real sessions, and a judgement at the most dramatically loaded moment is as answerable in November |
+| **6** A goal completes, three offers, *Advance*, readable after *End* | **a test** for the mechanics; **a person** for the moment | **AUTO** for the mechanics — completed goal retained with its turn, *Advance* writing the next, branchable after *End*, **and the confirmation gate refusing the judge's completion** ([26 C12](../26-open-questions.md), answered *ask* at P7.6). **Standing** for the rest: whether the judge is *accurate* still wants real sessions, and a judgement at the most dramatically loaded moment is as answerable in November |
 | **7** Dead on one branch, alive on the other, in the panel | **nothing here** | **Standing** — and it fails clause **(i)** outright. [P6 §3](18-p6-implementation.md)'s step 5 is the same check, *covered at P6.3*, through the replay and through the head. What is new is only *"with no special case in the panel's code"*, which is a component test and a code read |
 | **8** Mentions highlight what the scanner matched; unresolved offers | **tests** | **AUTO** — both clauses are assertions: highlight set equals match set over one text, and an unresolved name produces an offer and writes no actor. **But the clause that actually compounds is not in the gate**: §1.7's *the type must not carry an actor reference in its name or its shape*, which [13 §13](../13-write-mode.md) prices at migrating every stored turn or growing a second span type. That is a code-shape check and wants its own step |
 | **9a** A wizard for a mode the engine has no knowledge of | **a person** | **critical — C3.** (i) ✓ §5 calls it the contract's hardest single claim; (ii) ✓ `SetupSchema` ships with the SDK and every extension author afterwards discovers it wrong; (iii) ✓ a throwaway declaration and a browser |
@@ -4606,12 +4606,12 @@ the code and this was written after it — both stay.*
 | **3** A mode's channel: registry, policy, widget, reconstruction | **YES — AUTO** | Registry: `mode-registry.test.ts`. Policy: `effects.test.ts`'s *a proposal is judged against the channel that owns it*. Widget: `channels.test.ts` and `ChannelHud.test.tsx`. Reconstruction: `reconstruct-property.test.ts`, whose fixture drives `se.clock` — **declared by the Scene package**, so the fourth clause is already a mode-declared channel |
 | **4** A hook fires; held ≠ judged-none | **YES for the record half — AUTO** | `hook-selector.test.ts`'s *the five answers are five answers*, added at [P7.9]: five situations driven, five verdicts, `new Set(…).size === 5`. Four of the five were asserted before, **one at a time in three files** — which is not the claim the row makes, and `cooling` had never reached a record at all. The *reading* half stays Standing, as §3.1 says |
 | **5** Commit, rewind past it, uncommitted | **YES — AUTO** | `hooks.test.ts`'s *a commitment rewound past*, added at [P7.9]: committed on one line, absent on its sibling, and the case that would survive a broken implementation — a rewind landing **between** a commitment and its lapse. Also asserted for `fired`, which is the half [03 §4.1] states first |
-| **6** A goal completes; three offers; *Advance*; readable after *End* | **YES for the mechanics — AUTO** | `sessions.test.ts`'s *advances, carries on and ends through the channel write*; `goals.test.ts` for retention and the completing turn; `GoalPanel.test.tsx` for the three offers; `runner.test.ts` for a still-running turn after *End*. **Plus the confirmation gate** ([25 C12], answered *ask* at P7.6), which §3.1's cell did not ask for because the question was open when it was written |
+| **6** A goal completes; three offers; *Advance*; readable after *End* | **YES for the mechanics — AUTO** | `sessions.test.ts`'s *advances, carries on and ends through the channel write*; `goals.test.ts` for retention and the completing turn; `GoalPanel.test.tsx` for the three offers; `runner.test.ts` for a still-running turn after *End*. **Plus the confirmation gate** ([26 C12], answered *ask* at P7.6), which §3.1's cell did not ask for because the question was open when it was written |
 | **7** Dead on one branch, alive on the other | **Standing, unchanged** | Fails clause (i) — it is P6's check, covered at P6.3. The new clause is *"with no special case in the panel's code"*, a component test and a code read |
 | **8** Mentions highlight what matched; unresolved offers | **YES for the half that compounds — AUTO** | `mentions.test.ts` for the highlight set; `extract.test.ts`'s *an unresolved name*, added at [P7.9], for **never creates** — no span for a name nobody answers to, no effect of any kind, no model call, and no cast channel in `writes`. ***The gate and the stage disagree about the word `offers`***: [P7.7]'s Done cell defers the `proposed` span with its reason, so what shipped is *never creates* and not *offers*. §3.1 anticipated this — *"the clause that actually compounds is not in the gate"* — and the structural clause it names is the one that landed |
 | **9a** A wizard for a mode the engine knows nothing about | **NO — C3, a person** | Freeform declares one ([P7.9]) and `modes.test.ts` proves the declaration crosses the wire intact. **Rendering it in a browser is the walk.** Open |
 | **9b** A failed part retried without discarding the rest | **YES — AUTO** | `sessions.test.ts`'s *keeps what succeeded when a part fails*, against the scripted provider, over `GENERATING_MODE`'s two parts |
-| **10** Author a small mode against the SDK, no `server` | **NO — C1, the anchor** | *"No assertion covers it"*, and none does. What [P7.9] can say is that **the second mode was written this way and the contract held with three holes** — [25 C16]'s engine-computed gap, the process-wide registry, and `inputs` enforcing nothing — all three found by writing it and two of them fixed. That is evidence about the contract and it is **not the walk**, because the writer knew what the contract permitted. Open |
+| **10** Author a small mode against the SDK, no `server` | **NO — C1, the anchor** | *"No assertion covers it"*, and none does. What [P7.9] can say is that **the second mode was written this way and the contract held with three holes** — [26 C16]'s engine-computed gap, the process-wide registry, and `inputs` enforcing nothing — all three found by writing it and two of them fixed. That is evidence about the contract and it is **not the walk**, because the writer knew what the contract permitted. Open |
 | **The standing line** — no configuration without a surface | **YES for this phase's own; the two inherited ones closed at [P7.14]** | Discharged at [P7.9]: the **input-kind selector** has one, and so does every channel this phase declared — the two dials (`DialPanel`), hook pacing (`HookPanel`, [P7.5]), the goal chain (`GoalPanel`, [P7.6]) and the suggestion toggle (`Suggestions`). ~~***Two of §0.1a's four remain***~~ — **built at [P7.14]**: the per-book retrieval knobs get a fieldset on the lorebook editor, and an entry can be made an outlet and named. *The outlet's **authoring** half is not closed and cannot be here*: an outlet only lands if a preset slot names it, and there is no preset editor in the client at all — flagged for P11, where [10 §11]'s editor sweep lives. ~~*And `se.backdrop` ships state with no surface, knowingly*~~ — **it has one at [P7.12]**, over the vocabulary [P7.11] built |
 
 ~~**Eight of thirteen rows answered by tests**~~ — **nine**, after [P7.13]
@@ -4631,9 +4631,9 @@ predicates, which [06 §6](../06-modes-and-turn-pipeline.md) warns against by
 name); Campaign and Messages ([work plan §5](01-work-plan.md) — committed, not
 speculative); engine-computed combat; mechanical goal completion, which needs
 the vocabulary; extension *installation* and its panel (P10 — the manifest and
-lifecycle are specified at [22 §6–§7](../22-extensions.md) and nothing installs);
+lifecycle are specified at [23 §6–§7](../23-extensions.md) and nothing installs);
 custom extension rendering ([10 §8.1](../10-ui-surfaces.md), deferred as far as
-it will go); cross-branch merge ([25 C10](../25-open-questions.md)); the hook
+it will go); cross-branch merge ([26 C10](../26-open-questions.md)); the hook
 selector's **tuning** — what four pacing levels resolve to, how a judgement
 prompt is worded — which [work plan P11](01-work-plan.md) owns and which can only be
 done by playing.

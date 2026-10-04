@@ -69,7 +69,7 @@ describe('the illustration ranking', () => {
     const fragments = illustrationFragments(inputs());
     const moment = fragments.find((one) => one.id === 'moment');
 
-    // [19 §5.3]'s list opens with *subject*, and §10.3 names the moment as it.
+    // [20 §5.3]'s list opens with *subject*, and §10.3 names the moment as it.
     // `required` is what makes `capPrompt` report `overCap` rather than quietly
     // cutting the one fragment the prompt is pointless without.
     expect(moment?.text).toBe('a guttering lantern on a wet quay');
@@ -193,7 +193,7 @@ describe('the backdrop ranking', () => {
 describe('the recipe is what the cap ran over', () => {
   it('re-caps to the same text it sent', () => {
     /**
-     * ***The property [21 §7] states and this phase's exit gate compares***:
+     * ***The property [22 §7] states and this phase's exit gate compares***:
      * `capPrompt(fragments, budget, separator).text === text`, for every
      * rendition, forever.
      *
@@ -246,7 +246,7 @@ describe('the recipe is what the cap ran over', () => {
 describe('a prompt over the cap drops its lowest-ranked fragment and says which', () => {
   it('drops from the bottom and records the reason', () => {
     /**
-     * **Gate row 7.** [19 §5.3]'s failure is *"silent truncation: the request
+     * **Gate row 7.** [20 §5.3]'s failure is *"silent truncation: the request
      * succeeds, the tail is discarded, and the user gets a degraded image with
      * nothing to indicate why"* — so the assertion is not that the prompt fits,
      * it is that the record says what went and why.

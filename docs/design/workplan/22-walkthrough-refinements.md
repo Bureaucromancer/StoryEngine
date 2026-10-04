@@ -34,7 +34,7 @@ moved a lot:
 | **R5** | Make the workbench resizable | **It has been resizable since P3.** The drag handle has been *zero pixels tall* the whole time. Fixed already, on an unmerged branch. **Nothing to build.** |
 | **R6** | Make *continue from here* predictable | **The answer to a question P6 deliberately left open** and named PLAYABLE as the place to answer — [P6 §1.8](18-p6-implementation.md). It is a triage input, not a new item. |
 | **R7** | An in-flight indicator when the workbench is closed | **Specified nearly verbatim** at [10 §9](../10-ui-surfaces.md): *"a collapsed line while things go well"*. P3.5 built it only inside the panel. |
-| **R8** | Delete a turn, warning about downstream turns | **Post-1.0 and already on the roadmap** — [24 §1.4](../24-roadmap.md)'s *R4 — Curate*, *"prune a subtree"*. Its warning is specified and is **stronger** than the one requested. |
+| **R8** | Delete a turn, warning about downstream turns | **Post-1.0 and already on the roadmap** — [25 §1.4](../25-roadmap.md)'s *R4 — Curate*, *"prune a subtree"*. Its warning is specified and is **stronger** than the one requested. |
 | **R9** | Session delete, duplicate, rename, import, export, in the library | **Five verbs, five different truths, ~60% already built.** Rename is done but unpushed; delete and archive have routes and no UI; import/export is P11 and blocked. *"In library"* is a placement the object set refuses. |
 | **R10** | Visual feedback on Send; a UI pass on all buttons | **A recorded, deliberately-accepted condition** — [P2C brief §3.4](13-p2c-brief.md) says it almost word for word. One file, because [10 §1.2](../10-ui-surfaces.md) consolidated the look into `ui/`. |
 | **R11** | Suggested actions, pre-1.0, per-session toggle, keep the unselected | **The author's self-diagnosis is exactly right and checkable.** The phrase appears **once** in the whole corpus, in the sentence defining Freeform — a 1.0 mode. Every downstream document dropped it. |
@@ -221,7 +221,7 @@ ruled on when it marked an addressed lore entry.
 > owners, which makes the address a shared decision rather than R1's alone.
 
 **2. Does the settings surface get progressive disclosure?** R3's complaint is
-real and is the *forcing evidence* [25 E10](../25-open-questions.md) was written
+real and is the *forcing evidence* [26 E10](../26-open-questions.md) was written
 to wait for. But [10 §1.1](../10-ui-surfaces.md) rejects disclosure-as-reflex
 naming administration specifically, [10 §15.4](../10-ui-surfaces.md) refuses
 R3's exact remedy, and *"a closed section must name what is inside it that is
@@ -247,7 +247,7 @@ and the ToC need the argument written or the sections corrected.
 > held to.
 >
 > **What this owes, and it is one paragraph nobody has written.**
-> [25 E10](../25-open-questions.md) is cited as the home of the roll-up and the ToC
+> [26 E10](../26-open-questions.md) is cited as the home of the roll-up and the ToC
 > by two documents and **has never been edited to accept either**. E10's own
 > forcing evidence is *people lost at first run*, not an author finding an admin
 > page long — so R3 is not the evidence E10 was waiting for, and saying so is
@@ -334,10 +334,10 @@ now and a migration later.
 | **R1** | Unowned; a 1.0 commitment [P11.0](28-p11-implementation.md)'s audit exists to find. **Named at [manual testing §10](05-manual-testing.md), 2026-09-09** with [F-05](21-playable-log.md). ~~**Still unowned 2026-09-11**, and the 2026-09-11 sweep that placed eleven other surfaces passed over it without saying why~~ **[P7B](24-p7b-presets-and-prompts.md), 2026-09-14** — *the second sweep found it, and the reason the first passed over it is worth the line: that sweep read [10](../10-ui-surfaces.md) against the phase documents, and this one is not a missing surface but a built one wired to the wrong argument* | medium | ~~decision 1~~ **taken 2026-09-11 (§3); buildable now** |
 | **R6** | ~~[P6B.3](20-p6b-playable.md) triage~~ **Closed 2026-09-09**: [F-06](21-playable-log.md) answers [P6 §5](18-p6-implementation.md), and P6 closed collecting it. **The question closed; the observation did not** — *nothing marks a turn that already has a continuation* has no home, and the server's own `abandoned` count is already computed and read by nothing | medium | ~~decision 1~~ **taken; the residue needs a home** |
 | **R4** | Needs a paragraph in [10](../10-ui-surfaces.md) first — no owner, no text. **Named at [manual testing §10](05-manual-testing.md), 2026-09-09**, and see §6's correction: the refutation that downgraded it does not hold | medium | a written spec |
-| **R3** roll-up + ToC | ~~[25 E10](../25-open-questions.md)~~ **Refused 2026-09-11, and recorded at [25 E10](../25-open-questions.md)** — which until then had never been told it was their home | medium | ~~decision 2~~ **taken (§3)** |
+| **R3** roll-up + ToC | ~~[26 E10](../26-open-questions.md)~~ **Refused 2026-09-11, and recorded at [26 E10](../26-open-questions.md)** — which until then had never been told it was their home | medium | ~~decision 2~~ **taken (§3)** |
 | **R2** | ~~[P7 §1.9](23-p7-implementation.md) for the real blocker~~ **§1.9 never carried it, on any branch.** [P7.3](23-p7-implementation.md) takes the *user* half on branch `p7`; the **admin half was owned by nobody and is built here, 2026-09-11** — see §7 | large | ~~decision 3~~ **taken: no reorder, no duplicate (§3)** |
 | **R11** | [P7.9](23-p7-implementation.md) — Freeform, and its specification first. **Routed by name on branch `p7` only**, and not in that stage's exit criterion, so it can be cut without the gate noticing | large | ~~decision 4~~ **taken (§3)** |
-| **R8** | [24 §1.4](../24-roadmap.md) *R4 — Curate*, post-1.0 | medium | — **but see §7: [24 §1.6](../24-roadmap.md) puts part of its cost in 1.0, and this table missed it** |
+| **R8** | [25 §1.4](../25-roadmap.md) *R4 — Curate*, post-1.0 | medium | — **but see §7: [25 §1.6](../25-roadmap.md) puts part of its cost in 1.0, and this table missed it** |
 | **R9** import/export | ~~[P11](28-p11-implementation.md), blocked on a 2.0 design document~~ **Export is P11's and has no stage**; **import is not a commitment at all** and this row conflated them | large | export: settling [13 §4](../13-write-mode.md) |
 
 **Build order has one hard constraint.** R8 subtracts what R1 and R6 add: if
@@ -351,7 +351,7 @@ form of the constraint is **R1 before R8**, with [P6](18-p6-implementation.md)'s
 sibling affordance standing in for the rest. It is worth moving somewhere
 durable: the constraint exists **only in this file** — a grep for its phrasing
 matches nothing else on any branch — and R8 lives in a roadmap tier that is built
-from [24 §1.4](../24-roadmap.md), which says nothing about it. One sentence beside
+from [25 §1.4](../25-roadmap.md), which says nothing about it. One sentence beside
 *R4 — Curate* would outlive this document.
 
 ---
@@ -556,13 +556,13 @@ the first archive control to ship makes a session vanish with no route back; and
 taken, which is the half that had a deadline.
 
 **8. R8 stays post-1.0 — but part of its cost is not.**
-[24 §1.6](../24-roadmap.md), one section past the one this document cites, puts
+[25 §1.6](../25-roadmap.md), one section past the one this document cites, puts
 *turn storage tolerates removal* in 1.0. **The tombstone half is built and
 tested; compaction is unbuilt, unowned, and named by no stage** — and the removal
 *write path* is undesigned, with the two tests that construct a tombstone doing
 it two different ways. It has to land, or be deliberately narrowed to tolerance
 alone, **before [P11](28-p11-implementation.md) freezes the turn record**; after
-that it is the migration [24 §1.6](../24-roadmap.md) exists to prevent. This
+that it is the migration [25 §1.6](../25-roadmap.md) exists to prevent. This
 document missed it entirely, which is the sharpest thing the re-read found.
 
 ### 7.3 What R2's admin half is, and why it is not P7's

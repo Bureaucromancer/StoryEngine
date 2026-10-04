@@ -8,7 +8,7 @@ import { translationFor } from './locales.js';
 
 /**
  * Follows the account's locale, loads its catalogue, and re-renders when it
- * lands — [19 §12](../../../../docs/design/19-tech-stack.md), [P11.8].
+ * lands — [20 §12](../../../../docs/design/20-tech-stack.md), [P11.8].
  *
  * ***`useTheme`'s shape, one indirection deeper.*** The theme's authority is a
  * preference and its application is a DOM attribute; the locale's authority is

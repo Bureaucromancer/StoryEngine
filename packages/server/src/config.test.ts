@@ -72,7 +72,7 @@ describe('the raw document', () => {
 
 describe('the tier table is the source', () => {
   it('gives every key a tier', () => {
-    // [25 D0](../../../docs/design/25-open-questions.md) requires every key to be
+    // [26 D0](../../../docs/design/26-open-questions.md) requires every key to be
     // annotated. Adding a key without deciding how it applies should be a test
     // failure rather than a silent `undefined` that reads as "live".
     const missing = configKeys().filter((key) => tierOf(key) === null);
@@ -195,7 +195,7 @@ describe('the tier table is the source', () => {
    * ***And it moved again at [P11.7]***, which built the retention sweep — so
    * `limits.extensionStorageQuotaMb` takes the seat, tiered `live` because a
    * quota is a thing an operator changes and expects to matter, unread because
-   * nothing installs an extension yet ([24 §3.2](../../../docs/design/24-roadmap.md)).
+   * nothing installs an extension yet ([25 §3.2](../../../docs/design/25-roadmap.md)).
    *
    * **Twice now, and the pattern is the finding rather than either move.** The
    * exemplar of *stored and not read* keeps becoming read, which means this
@@ -225,7 +225,7 @@ describe('the tier table is the source', () => {
   });
 
   /**
-   * **The tier table in [21 §4] names exactly the keys the schema has, with the
+   * **The tier table in [22 §4] names exactly the keys the schema has, with the
    * same tiers.**
    *
    * That document calls the annotation *the source, not documentation of it* —
@@ -240,7 +240,7 @@ describe('the tier table is the source', () => {
    */
   it('matches the tier table in the internal contracts', async () => {
     const doc = await readFile(
-      fileURLToPath(new URL('../../../docs/design/21-internal-contracts.md', import.meta.url)),
+      fileURLToPath(new URL('../../../docs/design/22-internal-contracts.md', import.meta.url)),
       'utf8',
     );
 
@@ -270,7 +270,7 @@ describe('the tier table is the source', () => {
    */
   it('has no row in the table calling an applied key unread', async () => {
     const doc = await readFile(
-      fileURLToPath(new URL('../../../docs/design/21-internal-contracts.md', import.meta.url)),
+      fileURLToPath(new URL('../../../docs/design/22-internal-contracts.md', import.meta.url)),
       'utf8',
     );
 
@@ -424,7 +424,7 @@ describe('loading', () => {
 describe('config has nowhere to put a credential', () => {
   it('declares no key that looks like one', () => {
     // The same structural enforcement the portable schemas get
-    // ([00 §3.2](../../../docs/design/00-stance.md), [21 §4]): connections live in
+    // ([00 §3.2](../../../docs/design/00-stance.md), [22 §4]): connections live in
     // `connections/`, and a check can be forgotten where a missing field
     // cannot.
     const denied = /key|secret|password|token|credential|proxy|auth|url|endpoint|host/i;
@@ -533,7 +533,7 @@ describe('the closed unions travel with the config', () => {
 });
 
 /**
- * The environment layer — [P6A.0], [P6A §1.2], [21 §4],
+ * The environment layer — [P6A.0], [P6A §1.2], [22 §4],
  * [P10 §1.2](../../../docs/design/workplan/27-p10-implementation.md).
  *
  * **The claim the phase turns on is the first test**: a server that takes its
@@ -664,7 +664,7 @@ describe('the environment layer', () => {
    */
   it('matches the variable table in the internal contracts', async () => {
     const doc = await readFile(
-      fileURLToPath(new URL('../../../docs/design/21-internal-contracts.md', import.meta.url)),
+      fileURLToPath(new URL('../../../docs/design/22-internal-contracts.md', import.meta.url)),
       'utf8',
     );
 

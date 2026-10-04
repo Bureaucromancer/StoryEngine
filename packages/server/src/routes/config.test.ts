@@ -65,7 +65,7 @@ describe('GET /api/admin/config', () => {
 
     expect(response.status).toBe(200);
     // The client may not import from the server package, and a duplicated table
-    // would falsify [21 §4]'s claim that the annotation *is* the source —
+    // would falsify [22 §4]'s claim that the annotation *is* the source —
     // sending it means a key a newer build adds renders with the right badge
     // without a client release.
     expect(response.body.tiers['server.port']).toBe('restart');
@@ -320,7 +320,7 @@ describe('PUT /api/admin/config', () => {
  * The asymmetry is the correct one and both halves matter. A newer build's key
  * may legitimately be on disk, and eating it would make a downgrade
  * destructive. No client may invent one, and accepting one would falsify the
- * structural claim [21 §4](../../../../docs/design/21-internal-contracts.md)
+ * structural claim [22 §4](../../../../docs/design/22-internal-contracts.md)
  * makes about config having nowhere to put a credential.
  */
 describe('what survives a round trip', () => {
@@ -357,7 +357,7 @@ describe('what survives a round trip', () => {
    * **And a key the caller invents never reaches disk** — not because it was
    * rejected, but because the pick never looked at it.
    *
-   * `apiKey` is the shape that matters: [21 §4] argues config has nowhere to
+   * `apiKey` is the shape that matters: [22 §4] argues config has nowhere to
    * put a credential, and an unknown-key-preserving write over an open schema
    * would have made that false the moment somebody sent one.
    */

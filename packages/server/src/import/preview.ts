@@ -54,7 +54,7 @@ export interface PreviewRequest {
   library: LibraryContext;
   /** Whose library the re-import question is asked about. */
   handle: string;
-  /** The file as it arrived. Never a path ([21 §4.1.1]). */
+  /** The file as it arrived. Never a path ([22 §4.1.1]). */
   filename: string;
   candidate: ImportCandidate;
   /**

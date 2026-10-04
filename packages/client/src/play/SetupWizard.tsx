@@ -32,7 +32,7 @@ import { Fine, SectionTitle, SubsectionTitle } from '../ui/Text.js';
  * reach it through `lazy()` and the dialog stops being paid for by every first
  * load of every route
  * ([P15 §1.11](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
- * [20 §7.2](../../../../docs/design/20-client-loading.md)).
+ * [21 §7.2](../../../../docs/design/21-client-loading.md)).
  *
  * **Nothing on the common entry may import this module statically**, and that
  * is the whole of the boundary: one static import from anywhere the entry
@@ -113,7 +113,7 @@ interface Fact {
  * be redrafted on its own — *Regenerate*, with a note if somebody has one —
  * without discarding the others, which is the route's own per-part shape.
  *
- * **Offered, never automatic, and reviewed before it lands** ([16 §3]):
+ * **Offered, never automatic, and reviewed before it lands** ([17 §3]):
  * nothing is written until *Save*, and everything a model wrote is on screen,
  * editable, when it is pressed.
  *

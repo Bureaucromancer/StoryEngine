@@ -44,14 +44,14 @@ import type { SessionFile } from './types.js';
 
 /**
  * ***The other half of [P11.10]'s format*** —
- * [18 §3](../../../../docs/design/18-session-import.md),
- * [25 B12](../../../../docs/design/25-open-questions.md),
+ * [19 §3](../../../../docs/design/19-session-import.md),
+ * [26 B12](../../../../docs/design/26-open-questions.md),
  * [P11 §3](../../../../docs/design/workplan/28-p11-implementation.md)'s row 10.
  *
  * The gate's row 10 is *"a session exported from this install **loads on another
  * one**, siblings and all"*, and until this there was nothing to load it with —
  * the format was written, the file could be downloaded, and the sentence was
- * unwalkable. [25 E4]'s whole argument for writing the format *with import in
+ * unwalkable. [26 E4]'s whole argument for writing the format *with import in
  * mind* was that the two are different documents; this is the reader that makes
  * that claim checkable rather than aspirational.
  *
@@ -77,7 +77,7 @@ import type { SessionFile } from './types.js';
  * install and two installs with the same session id is a real and immediate
  * confusion rather than a theoretical one.
  *
- * ***Every turn is marked foreign.*** `Turn.foreign` exists for this — [18 §3]'s
+ * ***Every turn is marked foreign.*** `Turn.foreign` exists for this — [19 §3]'s
  * second consequence, *"a foreign identifier has somewhere to go"* — and marking
  * is what keeps *this install made this* answerable afterwards. A turn that
  * arrived with its own `foreign` keeps it: the first install it came from is the
@@ -86,7 +86,7 @@ import type { SessionFile } from './types.js';
  *
  * ***And a second caller*** — [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md),
  * [P13 §0.3](../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4).
- * [25 E4]'s *one format, not N importers* is kept by making every other
+ * [26 E4]'s *one format, not N importers* is kept by making every other
  * source a **producer** of this format that hands its document here, so this
  * reader is the only thing that writes an imported session. The first
  * producer was our own backup (`backup/import.ts`); the second is Aventuras'
@@ -163,7 +163,7 @@ export interface SessionImportOptions {
    * refused `already-here`, with that session's id and name. **The library's
    * rule, applied to a session**: same owner, same source, one object
    * ([P4 §1.3]). Source-relative, never an absolute path, for the
-   * foreign-path doctrine `stampImported` states ([21 §4.1.1]).
+   * foreign-path doctrine `stampImported` states ([22 §4.1.1]).
    *
    * ***An option rather than a field of the format***, and the format's
    * version does not move. The format already carries the value — `origin` is
@@ -348,7 +348,7 @@ export async function importSession(
   const result = await loadSession(context, handle, document, options);
   /**
    * ***And then the chain is warmed, outside this call*** — [P14.11],
-   * [18 §7.5]: *"an imported 2,000-turn chat at the default `span: 20` asks for
+   * [19 §7.5]: *"an imported 2,000-turn chat at the default `span: 20` asks for
    * ~99 summariser calls, one after another, inside the first turn played
    * after import."* Told here rather than by each door, and after a sync as
    * well as a first import, since a sync that appended a hundred turns is the

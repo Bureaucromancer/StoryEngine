@@ -62,7 +62,7 @@ import { fromModelCall, recordUsage } from '../usage/log.js';
  * cross-role fallback: a role nobody bound resolves `unbound` and the call
  * fails. ~~Nothing in this build binds anything but `prose` — no install default,
  * no wizard, no route that would suggest it —~~ *Corrected 2026-09-27, with
- * [25 C15](../../../../docs/design/25-open-questions.md): the first-run offer
+ * [26 C15](../../../../docs/design/26-open-questions.md): the first-run offer
  * does bind `fast` and the others, but only on an install whose admin accepted
  * it.* So asking for the role this *should* use would still mean an assist
  * button that fails on every install that declined it. The finding is bigger
@@ -137,7 +137,7 @@ export type AssistResult =
  * model server that was down reached the route as an exception and the person
  * as a bare 500, and a person who closed the editor left the call running,
  * because the route handed it no signal. Going through `performCall` gives it
- * [21 §4]'s bound, the ladder and the classes, and the route passes the signal
+ * [22 §4]'s bound, the ladder and the classes, and the route passes the signal
  * that ends when the person leaves.
  *
  * *A step definition for a call that is not a step*, because that is what
@@ -168,7 +168,7 @@ const ASSIST_STEP: StepDefinition = {
  * shape that says something untrue about how the feature works.
  *
  * *The draft goes in as JSON.* It is what the object **is**, the schemas are
- * public ([19 §4]), and a model that can read the shape can see that `summary`
+ * public ([20 §4]), and a model that can read the shape can see that `summary`
  * is empty where `name` is not — which is the context §11.1 asks for and which
  * a prose summary of the object would flatten.
  */
@@ -237,7 +237,7 @@ export async function assistField(
   };
   /**
    * ***The role is the account's to choose*** — `task-roles.json`, a stopgap
-   * for [25 C15]. The step says `prose` because that is what it asked for
+   * for [26 C15]. The step says `prose` because that is what it asked for
    * before anyone could say otherwise; the call asks for whichever role the
    * person picked in settings.
    */

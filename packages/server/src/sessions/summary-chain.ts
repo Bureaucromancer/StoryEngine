@@ -7,7 +7,7 @@ import { digest } from './digest.js';
 
 /**
  * The rolling summary, keyed — [07 §5.1](../../../../docs/design/07-branching.md),
- * [25 E1](../../../../docs/design/25-open-questions.md), [P8.0].
+ * [26 E1](../../../../docs/design/26-open-questions.md), [P8.0].
  *
  * **"Rolling" describes the chain, not mutation.** [07 §5.1] is explicit that
  * the forbidden design is the one-record-updated-in-place version, *"and it is
@@ -111,7 +111,7 @@ export const DEFAULT_SUMMARY_POLICY: SummaryPolicy = { span: 20, window: 20 };
 export interface SummarisableTurn {
   id: string;
   /**
-   * The move's words, and since 2026-09-27 its pictures' captions ([25 E15]) —
+   * The move's words, and since 2026-09-27 its pictures' captions ([26 E15]) —
    * so a move that was a picture is summarised as one rather than as nothing.
    */
   input?: { text: string; attachments?: readonly { caption?: string }[] };

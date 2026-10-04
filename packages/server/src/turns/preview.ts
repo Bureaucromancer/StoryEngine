@@ -103,7 +103,7 @@ export interface PreviewRequest {
  * the answer's `stepId` and the call it previewed cannot come apart.
  *
  * *Corrected 2026-09-29, at [P14.5b]*: `role` is which model a step binds,
- * not what it writes, and every Scene step asks `prose` for [25 C15]'s reason.
+ * not what it writes, and every Scene step asks `prose` for [26 C15]'s reason.
  * While the narrator was Scene's first step the two readings agreed; the
  * secret plot's `pre` pass, declared ahead of it, is a `prose`-role call that
  * writes an effect, and the preview measured that instead of the prompt a
@@ -359,7 +359,7 @@ export async function previewAssembly(
 
   /**
    * ***Which of the draft's pictures are here*** — the send rule's *are the
-   * bytes present* ([25 E15]), asked before the plan because the plan is
+   * bytes present* ([26 E15]), asked before the plan because the plan is
    * synchronous. With `roleLayersOf` resolving the model the turn will, the
    * preview's *this picture will be seen* is the turn's answer rather than a
    * guess.

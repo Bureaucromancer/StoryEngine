@@ -166,7 +166,7 @@ Docker's default of ten, so every shipped wrapper allows thirty.
 Everything else is `config.json` in the volume, or the settings page. **The file
 wins over the environment**, because the file is what the settings page writes:
 changing a value in the UI and finding a variable had outranked it would be a bug
-([21 §4](design/21-internal-contracts.md)). The server logs a warning when a
+([22 §4](design/22-internal-contracts.md)). The server logs a warning when a
 variable is set and the file speaks for the same key.
 
 **A settings save writes only what you changed.** Before 2026-09-27 it wrote
@@ -263,7 +263,7 @@ docker compose logs storyengine | head -n 5
 
 **An older build will not open a data directory a newer one has written.** It
 refuses and says both versions; it does not migrate. There is no compatibility
-promise between alpha builds — [21](design/21-internal-contracts.md) licenses the
+promise between alpha builds — [22](design/22-internal-contracts.md) licenses the
 storage tier to change without migration for as long as nothing leaves the
 install, and nothing does ([P6A §1.7](design/workplan/19-p6a-alpha-1.md)).
 
@@ -429,7 +429,7 @@ written agree, or the release stops.
 ## Backing up
 
 **The data directory is the whole of it, and `rsync` is a legitimate strategy** —
-[25 E6](design/25-open-questions.md). Everything StoryEngine keeps is files under
+[26 E6](design/26-open-questions.md). Everything StoryEngine keeps is files under
 the data directory: cards, lorebooks, sessions, turns, connections and accounts.
 
 **Stop the server first.** There is no way to quiesce writes from outside the

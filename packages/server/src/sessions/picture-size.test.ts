@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { pictureSize } from './picture-size.js';
 
 /**
- * ***A header reader, and the places it reads*** — [25 E15](../../../../docs/design/25-open-questions.md)'s
+ * ***A header reader, and the places it reads*** — [26 E15](../../../../docs/design/26-open-questions.md)'s
  * record keeps *"the digest, type, size and dimensions the server read from its
  * own store"*, and R3's per-picture token figure is the first thing that will
  * be computed from the last of those.

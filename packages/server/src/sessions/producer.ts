@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
  * ***What a producer of `storyengine.session-export/1` owes the one reader*** —
  * [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md),
  * [P13 §0.3](../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4),
- * [25 E4](../../../../docs/design/25-open-questions.md).
+ * [26 E4](../../../../docs/design/26-open-questions.md).
  *
  * A producer converts somebody else's story into our format and hands the
  * document to `importSession`; it never writes a session itself, which is what

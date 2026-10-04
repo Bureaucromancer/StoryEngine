@@ -1,8 +1,8 @@
-# 19 — Tech stack
+# 20 — Tech stack
 
 **Status: recommendations, with the load-bearing ones now confirmed.** Runtime,
 schema direction and client framework are settled
-([25 A6–A8](25-open-questions.md)). Nothing here was specified by the
+([26 A6–A8](26-open-questions.md)). Nothing here was specified by the
 requirements, so this document takes positions and shows the reasoning. The
 recommendations are ordered by how much they constrain everything else.
 
@@ -51,7 +51,7 @@ simplicity that motivated Go is gone.
 
 ## 2. Runtime: Node LTS
 
-**CONFIRMED ([25 A8](25-open-questions.md)): current Node LTS. Keep code runtime-agnostic where free, but
+**CONFIRMED ([26 A8](26-open-questions.md)): current Node LTS. Keep code runtime-agnostic where free, but
 target Node.**
 
 **The pin, taken at P1.0, is Node 26** — which is Current at the time of writing
@@ -104,7 +104,7 @@ becomes a goal, which §2 says it isn't.
 
 ## 4. Schema: JSON Schema as source of truth, authored with TypeBox
 
-**CONFIRMED ([25 A7](25-open-questions.md)): TypeBox. JSON Schema is the artefact; TypeScript types are
+**CONFIRMED ([26 A7](26-open-questions.md)): TypeBox. JSON Schema is the artefact; TypeScript types are
 derived from it.**
 
 The direction of derivation is the actual decision, and it turns on constraint 5:
@@ -228,12 +228,12 @@ list has grown long enough that the default matters:
 
 | `fast` work | Where |
 |---|---|
-| Summarisation | [25 E1](25-open-questions.md) |
+| Summarisation | [26 E1](26-open-questions.md) |
 | Extraction and world-state classification | [06 §6](06-modes-and-turn-pipeline.md) |
 | Plot-hook selection | [06 §6.1](06-modes-and-turn-pipeline.md) |
 | Mention resolution, where it is model-assisted | [06 §8.2](06-modes-and-turn-pipeline.md) |
 | Goal completion judgement | [06 §7.3.3](06-modes-and-turn-pipeline.md) |
-| Continuity checking | [24 §2c.2](24-roadmap.md) — feature list, High |
+| Continuity checking | [25 §2c.2](25-roadmap.md) — feature list, High |
 | Field assists and the assistant | [10 §7](10-ui-surfaces.md), [10 §11.1](10-ui-surfaces.md) |
 
 Several of those run **every turn**. Bound to `hi` by accident, they would
@@ -294,7 +294,7 @@ interface ProviderCapabilities {
   supportsStructuredOutput: boolean
   maxPromptChars?: number       // hard: what the endpoint accepts
   usefulPromptChars?: number    // soft: where quality degrades
-  // … completed in [21 §3], including same-role message merging
+  // … completed in [22 §3], including same-role message merging
 }
 ```
 
@@ -341,7 +341,7 @@ detection is heuristic and needs real-world failures to tune against.
 What matters now is that §5.1 makes it cheap when it arrives: with a cap
 declared and prompts assembled from ranked fragments, a retry is *drop the
 lowest fragment and resend*, not a fresh generation round-trip. Recorded in
-[24 §3](24-roadmap.md).
+[25 §3](25-roadmap.md).
 
 ### 5.5 The compatibility surface: OpenAI-compatible chat, and nothing below it
 
@@ -499,7 +499,7 @@ RunPod ComfyUI ride on that work once it exists.
 #### What is not built, and why
 
 **Midjourney is deferred, and the reason is not technical** — recorded at
-[25 E14](25-open-questions.md).
+[26 E14](26-open-questions.md).
 
 **Horde is a maybe.** Its submit-and-poll lifecycle actually suits the detached
 rendition job model ([P9.2](workplan/26-p9-implementation.md)) better than most,
@@ -510,7 +510,7 @@ only thing against it.
 API key make it an appealing zero-configuration path, and its generator ignores
 `request.seed` and substitutes `Math.random()`. That breaks two rules at once:
 `Math.random` outside the randomness service is a build error
-([§14](19-tech-stack.md)), and [06 §10.7](06-modes-and-turn-pipeline.md) makes
+([§14](20-tech-stack.md)), and [06 §10.7](06-modes-and-turn-pipeline.md) makes
 the seed the load-bearing field of a recipe, echoed back and hashed into the
 digest. A Pollinations rendition could never be re-created while the record
 claimed a seed nobody honoured. It needs the seed plumbed through, or it needs a
@@ -518,9 +518,9 @@ way for a rendition to declare itself non-reproducible~~ — which does not exis
 and should not be invented for one endpoint~~.
 
 *That way now exists, and it was built for every endpoint rather than one
-(2026-10-03).* `RenditionProvenance.seedSent` ([21 §7](21-internal-contracts.md))
+(2026-10-03).* `RenditionProvenance.seedSent` ([22 §7](22-internal-contracts.md))
 records whether the seed left the process, gated on the connection's
-`supportsImageSeed` ([21 §3](21-internal-contracts.md)), and the workbench says
+`supportsImageSeed` ([22 §3](22-internal-contracts.md)), and the workbench says
 beside the seed, when it is `false`, that re-creating the picture will not
 reproduce it. It only works one way: `true` means *sent*, never *honoured*. A
 Pollinations adapter — its own request encoding, not a table row — could
@@ -540,7 +540,7 @@ above.
 
 ## 6. Client: React + Vite, with the framework decision deliberately reversible
 
-**CONFIRMED ([25 A6](25-open-questions.md)): React + TypeScript + Vite. TanStack Query / Router / Virtual /
+**CONFIRMED ([26 A6](26-open-questions.md)): React + TypeScript + Vite. TanStack Query / Router / Virtual /
 Table. Tailwind + a headless primitive library (Radix or equivalent).**
 
 Reasoning, in order:
@@ -569,7 +569,7 @@ resolves the open question from the earlier draft: the framework choice is
 ordinary, not architectural, *provided* the extension-UI decision holds.
 
 **Client loading as the application grows** has its own exploration in
-[20](20-client-loading.md). It assumes continued bundle growth through the next
+[21](21-client-loading.md). It assumes continued bundle growth through the next
 phases and compares route boundaries, optional tooling, shared schema costs and
 caching. Implementation is deferred; the preferred first experiment preserves
 this stack. Its §7 names the review trigger and the measurements owed before
@@ -727,7 +727,7 @@ Given the threat model in [09 §4.1](09-server-multiuser-deployment.md):
   and what SillyTavern uses. argon2id is marginally better and costs a native
   module; not worth it here.
 - **httpOnly, SameSite=Lax signed session cookie.** Session records go in the
-  **operational store**, not the index ([21 §5.1](21-internal-contracts.md)) — an
+  **operational store**, not the index ([22 §5.1](22-internal-contracts.md)) — an
   earlier draft put them in the index, which is defined as deletable without
   consequence, and logging every user out is a consequence. Signed stateless
   cookies plus a revocation denylist avoid the table entirely and are probably
@@ -758,7 +758,7 @@ packages/
   client/
   modes/scene/     ⎫ built-in modes, each its own package,
   modes/freeform/  ⎬ consuming sdk exactly as a third party would.
-                   ⎭ Messages joins whenever it is built [24 §3.4].
+                   ⎭ Messages joins whenever it is built [25 §3.4].
 ```
 
 ***Two corrections, 2026-09-11, both at [P7.0](workplan/23-p7-implementation.md).***
@@ -848,7 +848,7 @@ expensive later, and one of them is already a latent bug in
 [09 §3.4](09-server-multiuser-deployment.md).
 
 **Scope: application chrome only.** Not story content, not character cards or
-lorebooks (that is [25 B8](25-open-questions.md), a different problem), not log
+lorebooks (that is [26 B8](26-open-questions.md), a different problem), not log
 output, and not the documentation — see §12.7.
 
 ### 12.1 The real risk is rot, not library choice
@@ -1073,7 +1073,7 @@ correctness requirement, not a convenience. It should cover at least:
 `dice` and `chance` are not speculative: the authored-rules vocabulary already
 needs `<<1d20>>` and `triggerOnRandomChance`
 ([02 §3](02-infinite-worlds.md)), and both first-party reference extensions
-need dice ([24 §4.4](24-roadmap.md)). `weightedPick` covers loot-table shapes,
+need dice ([25 §4.4](25-roadmap.md)). `weightedPick` covers loot-table shapes,
 which is where people would otherwise improvise.
 
 ### 14.3 Implementation

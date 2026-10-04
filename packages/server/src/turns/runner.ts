@@ -170,7 +170,7 @@ export interface TurnPayload {
    */
   attempt?: { turnId: string; text: string };
   /**
-   * A previous turn's draws, to replay — **rewrite**, [19 §14.5], [P6.2].
+   * A previous turn's draws, to replay — **rewrite**, [20 §14.5], [P6.2].
    *
    * Present means *same mechanical outcome, different prose*: the roll that
    * decided a lore entry's appearance is taken off the tape rather than made
@@ -426,7 +426,7 @@ export class TurnRunner {
    * Hands the runner the app's logger.
    *
    * Set rather than injected because `buildServices` runs before `buildApp`,
-   * and the logger is Fastify's ([21 §4.1] — one mechanism, one format). The
+   * and the logger is Fastify's ([22 §4.1] — one mechanism, one format). The
    * alternative was building the runner lazily on first use, which would make
    * "is there a runner?" a question with a timing-dependent answer.
    */
@@ -447,7 +447,7 @@ export class TurnRunner {
 
     /**
      * **Bound once, where the job comes into existence** —
-     * [21 §4.1](../../../../docs/design/21-internal-contracts.md) says that in as many words,
+     * [22 §4.1](../../../../docs/design/22-internal-contracts.md) says that in as many words,
      * and says why: it is what makes *filter by job id* a complete lifecycle
      * rather than a sample of one.
      *
@@ -661,7 +661,7 @@ export class TurnRunner {
      * guidance text is the thing a step may specifically not hand back
      * ([06 §5.2]), and it has to reach `collectCandidates` so the fired hook
      * lands in the slot the preset positioned rather than after everything else
-     * ([25 C13(c)]). *The callback is engine code handed to engine code — the
+     * ([26 C13(c)]). *The callback is engine code handed to engine code — the
      * selector is the one step `planFor` does not build.*
      */
     const hooks: { report: HookSelectorReport | null } = { report: null };
@@ -974,7 +974,7 @@ export class TurnRunner {
     const { history, mode, preset, cast } = inputs;
     let running: Record<string, ChannelState> = inputs.channels;
     /**
-     * ***Which of this move's pictures are in the store*** — [25 E15], asked
+     * ***Which of this move's pictures are in the store*** — [26 E15], asked
      * once per turn because assembly cannot ask the disk. Only the move's own:
      * R1 sends nothing older, so the history's pictures go as their words
      * whether or not their bytes are here.
@@ -1322,7 +1322,7 @@ export class TurnRunner {
      * **First, and that is what buys the guidance slot.** Step candidates are
      * appended after the preset's, so a fired hook returned as a candidate would
      * arrive at the end of the prompt instead of where the author positioned
-     * guidance — [25 C13(c)], and §1.5 raised it as the thing that had no
+     * guidance — [26 C13(c)], and §1.5 raised it as the thing that had no
      * answer. Running before every other step means the words are in hand by the
      * time any of them assembles, and `collectCandidates` fills the slot
      * properly.
@@ -1656,14 +1656,14 @@ export class TurnRunner {
      * *Nothing wanted, no step.* A session with illustration off and no backdrop
      * has nothing for this to decide.
      *
-     * *No `image` binding, no step.* [19 §5.1] leaves `image` **unset** on every
+     * *No `image` binding, no step.* [20 §5.1] leaves `image` **unset** on every
      * install until a matching connection exists, *"because there is no sensible
      * text-model fallback for it"* — so without this gate every turn of every
      * session in the build would log a failed step to discover what the binding
      * already says. It is [P2B]'s dangling posture applied to a step: visible,
      * named, and never a turn that fails obscurely. **And it is what buys the
      * honest `fast` role**, which is the first non-`prose` role any step in this
-     * build has asked for ([25 C15] is why the other three settled).
+     * build has asked for ([26 C15] is why the other three settled).
      *
      * *A setup turn, no step.* There is no prose to be a picture of.
      */
@@ -1850,7 +1850,7 @@ export class TurnRunner {
      */
     const turnsOnPath = storyDepth(history);
     /**
-     * ***What a person armed for this turn*** — [25 C17]'s `armed`, with a
+     * ***What a person armed for this turn*** — [26 C17]'s `armed`, with a
      * producer at last ([P14.5b]): a submission's `push` raises `PUSH_FLAG`.
      * Empty on every other turn, as it has been since P2.
      */
@@ -2162,7 +2162,7 @@ export class TurnRunner {
                   {
                     definition,
                     /**
-                     * **[19 §5.1]'s layers, the session's own among them** —
+                     * **[20 §5.1]'s layers, the session's own among them** —
                      * [P7 §1.9], [P7.3]. `resolveRole` implemented the session and
                      * step overrides from P2B and nothing outside a test handed
                      * them over until P7.3; the preview and impersonation went on
@@ -2723,7 +2723,7 @@ export class TurnRunner {
          * `err: error` serialises the error's own enumerable properties, and a
          * `CallFailed` carries `partialText` and `call` — so a failed step wrote
          * **the whole rendered prompt and the model's partial narration** into
-         * the log. [21 §4.1] says portable object bodies never appear there —
+         * the log. [22 §4.1] says portable object bodies never appear there —
          * *a log is not a backup and user prose is not diagnostic* — and it also
          * says a value a later reader filters on is a field rather than a phrase.
          * A blob of prose is neither.
@@ -2745,7 +2745,7 @@ export class TurnRunner {
             reason,
             message: messageOf(error),
             // The round a lost speaker left behind, by count and id — never the
-            // words, which are prose and never belong in a log ([21 §4.1]).
+            // words, which are prose and never belong in a log ([22 §4.1]).
             ...(partial ? { kept, lost: lost.speaker.id } : {}),
 
             ...(error instanceof CallFailed
@@ -2928,7 +2928,7 @@ export class TurnRunner {
     }
 
     /**
-     * **A goal met, after the loop** — [06 §7.3.3], [P7.6], [25 C12].
+     * **A goal met, after the loop** — [06 §7.3.3], [P7.6], [26 C12].
      *
      * ***Attributed to the **model**, which is the one thing that makes
      * `model-proposed` mean anything here.*** The policy exists because
@@ -3172,7 +3172,7 @@ export class TurnRunner {
    * pressed **Stop** and the turn stopping is what they asked for; a toast
    * saying *your turn failed* is the app reporting their own act back to them
    * as a problem. Every other stop is a class they did not choose, so it is a
-   * `turn.failed` carrying that class — [21 §1.4]'s rule, so what crosses is
+   * `turn.failed` carrying that class — [22 §1.4]'s rule, so what crosses is
    * `rate-limit` and never an endpoint's sentence.
    *
    * ***The session's name is read here rather than passed in, and that is
@@ -3216,7 +3216,7 @@ export class TurnRunner {
               error: failure,
               /**
                * ***The sentence's key, not the sentence*** — [P11.6],
-               * [19 §12.4]. The router composes `{ key, params }` and the
+               * [20 §12.4]. The router composes `{ key, params }` and the
                * client holds the words; a remedy is one more param and travels
                * the same way the class already does.
                *
@@ -3269,7 +3269,7 @@ export class TurnRunner {
             // name different models.
             binding: report.binding,
             answeredAs: null,
-            // Drawn by the step on the turn and recorded on its tape ([19 §14]),
+            // Drawn by the step on the turn and recorded on its tape ([20 §14]),
             // so a `pending` record already states the seed its picture will be
             // made with — which is what lets re-creation be a replay.
             seed: request.seed,
@@ -3595,7 +3595,7 @@ function messageOf(error: unknown): string {
 /**
  * What a step failure is worth saying out loud at.
  *
- * [21 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
+ * [22 §4.1]'s boundary: `error` is what the server could not do, `warn` is what
  * it refused. A cancellation is neither — it is the system doing exactly what
  * was asked — and a step whose author declared `ignore` has said in advance that
  * a failure here is unremarkable.
@@ -3614,7 +3614,7 @@ function levelFor(
  * `err: error` serialises an error's own enumerable properties, and the same
  * `CallFailed` that carries `partialText` and `call` can reach these paths — so
  * the rule the step-failure line already follows applies here too:
- * [21 §4.1] says portable object bodies never appear in a log.
+ * [22 §4.1] says portable object bodies never appear in a log.
  *
  * The stack stays, because these are the *internal* failures — a store that is
  * gone, a setup that threw — where it is the diagnostic rather than noise.

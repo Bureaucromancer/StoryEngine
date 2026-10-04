@@ -10,7 +10,7 @@ import type { ChatMessage } from './types.js';
  * exactly, *"so an import is a session Part A could have produced"*.
  *
  * A turn here is one node however many messages it emits
- * ([25 C11](../../../../../docs/design/25-open-questions.md)): the player's line
+ * ([26 C11](../../../../../docs/design/26-open-questions.md)): the player's line
  * and every reply to it. A foreign chat is a flat list of lines, so the first
  * thing an import has to do is find the rounds in it — and the whole of what
  * this module decides is **where one round ends and the next begins**:

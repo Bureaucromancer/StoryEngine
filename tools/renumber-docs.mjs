@@ -56,6 +56,7 @@ const DESIGN_ORDER = [
   'write-mode',
   'writing-samples',
   'world',
+  'publish',
   'authoring',
   'character-studio',
   'session-import',

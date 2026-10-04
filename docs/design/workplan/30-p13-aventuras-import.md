@@ -75,7 +75,7 @@ directory is one path.
 
 ### 0.3 How this sits with 25 E4
 
-[25 E4](../25-open-questions.md) makes **session** import conditional on an
+[26 E4](../26-open-questions.md) makes **session** import conditional on an
 interchange format and argues against the shape this phase could be mistaken
 for: *"writing a converter per source is what rots."* Part 1 is not session
 import — it is card, lorebook and preset import, which E4's last paragraph calls
@@ -97,7 +97,7 @@ one format, not N importers"* — and Part 2 keeps it by construction:
   untouched. That is the property E4 wanted, and it is the test a per-source
   *importer* fails.
 
-[18 §6](../18-session-import.md) says *"no phase number is proposed"*, and this
+[19 §6](../19-session-import.md) says *"no phase number is proposed"*, and this
 document gives the stories a number anyway. It does so on
 [P12 §1.5](29-p12-implementation.md)'s argument — a roadmap entry holds no
 commitment, and Part 1 is being built — and only as **headings**, so the stage
@@ -113,8 +113,8 @@ commitment the paragraphs above said a number did not make, and it is made by
 the person rather than by this document, which is the order E4 asks for. **The
 shape does not change**: the story converter is still a producer of
 `storyengine.session-export/1` handing its export to `importSession`, and
-deleting it still deletes nothing else. [18 §6](../18-session-import.md) and
-[25 E4](../25-open-questions.md) each record the scheduling where their own
+deleting it still deletes nothing else. [19 §6](../19-session-import.md) and
+[26 E4](../26-open-questions.md) each record the scheduling where their own
 *not scheduled* stood.
 
 ### 0.4 What the survey found in our own tree
@@ -347,7 +347,7 @@ which a rebuild or a correction recovers without anything having been lost.
 - **Aventuras' own lineage view disagrees with its data** — found at P13.11:
   when a child branch forks from main below its parent's fork, Aventuras shows
   main up to the parent's fork. The rebuild follows
-  [18 §2.3.1](../18-session-import.md)'s rule; recorded in `story.ts`. Nothing
+  [19 §2.3.1](../19-session-import.md)'s rule; recorded in `story.ts`. Nothing
   at the pin writes a `system` entry, so those arrive only in older data.
 - **Which Aventuras branches are copies is a guess before migration 029** —
   found at P13.12. With `snapshot_complete` unset, a branch counts as its own
@@ -869,7 +869,7 @@ suggests `com.karelian.aventura` beneath it (`near-miss.ts`).~~
 bytes across chunks and lands a zip or a SQLite database in the import scratch
 root as it arrives (`routes/import-upload.ts`, `storage/upload-landing.ts`),
 under `limits.maxImportUploadMb` — 1024, `live`, applied; the seven-place edit,
-with [21 §4.3](../21-internal-contracts.md)'s live-key count corrected from a
+with [22 §4.3](../22-internal-contracts.md)'s live-key count corrected from a
 stale figure on the way. In order: the declared length, refused before the
 body; `fileSize` on the call and `truncated` after; for a landing declared past
 `maxUploadMb` or undeclared, one in flight server-wide (`503`, `retry-after`);
@@ -931,7 +931,7 @@ because the first cannot carry a zip:
 `live` — a separate cap that can be *lowered*, not `max()` against
 `maxUploadMb`, which would leave no way to tighten an ungated upload. That is a
 seven-place edit: the five [CLAUDE.md] names, the live-key count in
-[21 §4](../21-internal-contracts.md), and `routes/live-config.test.ts`, whose
+[22 §4](../22-internal-contracts.md), and `routes/live-config.test.ts`, whose
 full `limits` literal stops typechecking otherwise. No `SE_*` variable. A line
 in `docs/deploy.md` on a reverse proxy's body size and read timeout, which will
 refuse the upload before the server sees it.
@@ -981,7 +981,7 @@ finding, not a failure.~~
 ~~*Every stage below is a heading so it can be cited and checked, and none of them
 is scheduled.*~~ *Scheduled by the person on 2026-09-29
 ([§0.3](#03-how-this-sits-with-25-e4)); every stage is built in order.* [0.3](#03-how-this-sits-with-25-e4) is the argument;
-[18 §2.3.1](../18-session-import.md) is the survey these stages would build on.
+[19 §2.3.1](../19-session-import.md) is the survey these stages would build on.
 
 ### ~~P13.10 — `importSession` for a producer~~ Done
 
@@ -1057,7 +1057,7 @@ prefixes; a person-chosen mode on the sweep request is the follow-up.
 `import.aventuras.customNarratorPrompt` with its length and not carried, for
 [P13.9](#p139--packs-into-presets-done-recorded)'s reason. *Ended at:* the
 fixture's *Lantern Fork* imports as ten turns in four named lines with its head
-on *Tower*, and a second sweep is all `unchanged` and makes no copy. ~~[18 §2.3.1](../18-session-import.md)'s rebuild — lineage from
+on *Tower*, and a second sweep is all `unchanged` and makes no copy. ~~[19 §2.3.1](../19-session-import.md)'s rebuild — lineage from
 `branches.fork_entry_id` and per-branch positions, never from `parent_id`, which
 is always null — and its pairing table: an action and its narration are one
 `Turn`; an opening narration is a turn with no `input`; an action nobody
@@ -1069,7 +1069,7 @@ that splits a pair re-pairs from the forked action, with
 `import.aventuras.forkSplitPair`. Fields: `foreign = { source: 'aventuras', id }`,
 set before the reader sees it so `foreignise` keeps it; metadata into `cost`,
 **never** into `request`, which would fabricate a call
-([18 §3](../18-session-import.md)'s first consequence); `reasoning` into
+([19 §3](../19-session-import.md)'s first consequence); `reasoning` into
 `output.reasoning`; `suggested_actions` into `suggestions`; branches into
 `branchRefs`; the head from `stories.current_branch_id`.~~
 
@@ -1366,7 +1366,7 @@ refuse); WAL with un-checkpointed frames; and zipped through
 |---|---|---|
 | Aventuras | `c43da108f6b3679950e76afe020f6b26abf0c9ce` (v0.7.11, 39 migrations, `.avt` 1.10.0) | 2026-09-25 |
 
-The earlier pin, [18](../18-session-import.md)'s `8ae0d79a` (v0.7.8), is stale
+The earlier pin, [19](../19-session-import.md)'s `8ae0d79a` (v0.7.8), is stale
 for everything here: `.avt` has gained two versions since, the vault's tables
 have gained columns, and the `retry` entry type 18 §2.3 describes has been
 removed as never written. [01 §2](../01-source-survey.md)'s *library on disk* is

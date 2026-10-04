@@ -8,7 +8,7 @@
  * ***Synthesised rather than a file, and the reason is not size.*** An audio
  * asset would be a binary in a repository whose every other byte is text, it
  * would need a licence line in a project that takes those seriously
- * ([19 §10](../../../../docs/design/19-tech-stack.md)), and it would have to be
+ * ([20 §10](../../../../docs/design/20-tech-stack.md)), and it would have to be
  * fetched — over a LAN, from a server that may be busy generating the turn this
  * is announcing. Two oscillators and an envelope are forty lines, need no
  * network, and are unambiguously ours to ship.

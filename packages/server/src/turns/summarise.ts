@@ -29,7 +29,7 @@ import { roleLayersOf, type AssemblyInputs } from './gather.js';
 
 /**
  * The summariser — [07 §5.1](../../../../docs/design/07-branching.md),
- * [25 E1](../../../../docs/design/25-open-questions.md), [P8.1].
+ * [26 E1](../../../../docs/design/26-open-questions.md), [P8.1].
  *
  * **A step, and [P8 §1.3] is why it cannot also be the extractor.** Two
  * arguments, and the second is the one that is not about cost. `callPurposeFor`
@@ -95,7 +95,7 @@ export const SUMMARISE_STEP: StepDefinition = {
    */
   failure: 'warn',
   /**
-   * `prose`, for [25 C15]'s reason and `turns/suggest.ts`' precedent: nothing in
+   * `prose`, for [26 C15]'s reason and `turns/suggest.ts`' precedent: nothing in
    * this build binds any role but that one and `resolveRole` has no cross-role
    * fallback, so asking for `fast` would make every long session log a failed
    * step. **An install that wants something cheaper says so through the

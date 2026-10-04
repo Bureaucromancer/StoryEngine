@@ -133,7 +133,7 @@ export interface CollectContext {
   modeId: string;
   /**
    * What the player just did — the words, and since 2026-09-27 the pictures on
-   * the move ([25 E15]), each of which becomes a candidate of its own.
+   * the move ([26 E15]), each of which becomes a candidate of its own.
    */
   input?: { text: string; attachments?: readonly TurnAttachment[] };
   guidance?: string;
@@ -1519,7 +1519,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
           if (of === 'output') return words;
           /**
            * ***The move's pictures, after its words and before the reply*** —
-           * [25 E15]. Emitted **whether or not the move had words**: a move that
+           * [26 E15]. Emitted **whether or not the move had words**: a move that
            * was only a picture used to be an empty half, and an empty half is
            * dropped above — which is how a text consumer would have lost the
            * move entirely. Never `current`, so R1's window sends them as their
@@ -1579,7 +1579,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * states beside it and the reason this is not a `Candidate` the selector
        * returns: step candidates are appended after the preset's, so a hook
        * returned that way would arrive at the end of the prompt instead of where
-       * the author positioned guidance ([25 C13(c)]).
+       * the author positioned guidance ([26 C13(c)]).
        *
        * *Absent rather than empty when nothing fired*, so it never reaches
        * `omitWhenEmpty`: a preset that emits its guidance slot over an empty box
@@ -1637,7 +1637,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
       return [
         ...emit(block, context.input?.text ?? '', { kind: 'input' }, undefined, names),
         /**
-         * ***The move's pictures, required as its words are*** — [25 E15].
+         * ***The move's pictures, required as its words are*** — [26 E15].
          * A picture the player is showing *now* is the part of their move a
          * budget must not take, and it is the only kind R1 may send as pixels
          * (`current`). Whether it does is decided per call, by the plan, from
@@ -1874,7 +1874,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
         block,
         channelText(source.channelId, context),
         // The slot's vocabulary and the block's are one vocabulary read from
-        // both ends ([21 §1.1]) — `of` names the slot, `kind` names the source —
+        // both ends ([22 §1.1]) — `of` names the slot, `kind` names the source —
         // so the id crosses and the discriminator is restated.
         { kind: 'channel', channelId: source.channelId },
         undefined,
@@ -1911,7 +1911,7 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
      *
      * **One candidate per fragment, and that is the arm's whole reason for
      * existing.** [04 §8]'s `DifficultyLevel.fragments` are *ranked* precisely so
-     * [19 §5.3]'s cap can *"drop the lowest-ranked rather than cutting
+     * [20 §5.3]'s cap can *"drop the lowest-ranked rather than cutting
      * mid-sentence"*, and a slot that joined them into one string would have
      * discarded that at the point it was built. So the slot fans out, each
      * candidate carrying the block's priority and its own identity.
@@ -2058,7 +2058,7 @@ function wrap(wrapper: string, text: string, names: RenderContext): string {
 }
 
 /**
- * One picture as a candidate — [25 E15], R1.
+ * One picture as a candidate — [26 E15], R1.
  *
  * ***Its text is the picture as words***, because that is what goes whenever
  * the pixels do not; `sentText` is what goes beside them when they do. Never

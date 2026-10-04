@@ -32,7 +32,7 @@ import type {
  * the turn is written**, keeps what it replaced as `OutputMessage.original`,
  * and puts the `changes` and the findings on this step's outcome.
  *
- * ***Style applies; continuity reports, by default.*** [24 §2c.2] decided
+ * ***Style applies; continuity reports, by default.*** [25 §2c.2] decided
  * continuity in so many words — *"emits notices, never effects… a checker
  * confident enough to rewrite the story would be worse than the problem"* — so
  * a finding is a line on the message it is about, with the exact words and a
@@ -219,11 +219,11 @@ export const EDIT_STEP: StepDefinition = {
   ],
   writes: [],
   callKind: 'edit',
-  /** *Every turn, and the step decides* — the trackers' reason ([25 C17]). */
+  /** *Every turn, and the step decides* — the trackers' reason ([26 C17]). */
   when: { when: 'cadence', everyNTurns: 1 },
   /** **`warn`**: a reply the editor could not reach is still the reply. */
   failure: 'warn',
-  /** `prose`, for [25 C15]'s reason; `stepRoles` at this id binds a cheaper model. */
+  /** `prose`, for [26 C15]'s reason; `stepRoles` at this id binds a cheaper model. */
   role: 'prose',
   revises: { enabledBy: [STYLE_ON.id, CONTINUITY_ON.id], hold: HOLD.id },
 };
@@ -322,7 +322,7 @@ export async function edit(input: StepInput, host: StepHost): Promise<StepResult
  *
  * ***No rewrite unless something may rewrite*** (`mayRewrite`, style on or
  * continuity applying): continuity under `notice` *"emits notices, never
- * effects"* ([24 §2c.2]), so a rewrite the model returned anyway is dropped,
+ * effects"* ([25 §2c.2]), so a rewrite the model returned anyway is dropped,
  * and the findings' quotes are matched against the unedited text.
  */
 function revisionOf(

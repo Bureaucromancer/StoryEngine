@@ -39,12 +39,12 @@ import { uuidv7 } from '@storyengine/shared';
  *
  * ***The two that do not, named so their absence is a decision***:
  *
- * - **`turn.awaiting-input`** — conditional on [25 C5]'s suspending step, which
+ * - **`turn.awaiting-input`** — conditional on [26 C5]'s suspending step, which
  *   four phases did not produce. `Turn.status: 'suspended'` exists and nothing
  *   sets it, and `packages/sdk/src/steps.ts` has no suspend verb at all. [09 §3.5]
  *   calls this *"the strongest argument for push"*, so it returns with the step
  *   rather than being quietly dropped.
- * - **`message.received`** — with Messages, which is unscheduled ([24 §3.4]).
+ * - **`message.received`** — with Messages, which is unscheduled ([25 §3.4]).
  *
  * ***And `artifact.ready` is here because this stage built its producer.***
  * [P9 §1.5](../../../../docs/design/workplan/26-p9-implementation.md) owed it and
@@ -106,7 +106,7 @@ const ACTIONABLE: Record<NotificationClass, boolean | 'varies'> = {
  * What a producer hands in.
  *
  * ***No `createdAt`, no `id`, and no English.*** The store mints the first two
- * and [19 §12.5] forbids the third: `params` is the payload of a
+ * and [20 §12.5] forbids the third: `params` is the payload of a
  * `{ key, params }` summary composed at display time, and [09 §3.4] warns that
  * it must carry *everything the sentence needs* — a later composer working from
  * unstructured fields produces *"New event in session 4f2a"*.

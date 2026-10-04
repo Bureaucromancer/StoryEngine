@@ -152,7 +152,7 @@ export default defineConfig({
        * runner is a systemd service, so its `INVOCATION_ID` reaches every
        * process it starts, and this server would believe something restarts it
        * and offer *Restart now* to a browser that nothing would bring back.
-       * Empty is unset — [21 §4]'s rule, which `supervisionOf` follows.
+       * Empty is unset — [22 §4]'s rule, which `supervisionOf` follows.
        */
       env: {
         INVOCATION_ID: '',

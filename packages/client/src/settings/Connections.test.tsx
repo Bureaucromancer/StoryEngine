@@ -781,7 +781,7 @@ describe('the first-run offer', () => {
       expect(writeDefaultBindings).toHaveBeenCalled();
     });
     // Two bindings, not eight: which role gets which is the server's policy
-    // ([19 §5.1]), so a client that posted a whole document could put `prose`
+    // ([20 §5.1]), so a client that posted a whole document could put `prose`
     // on the cheap model without anybody having chosen that.
     expect(writeDefaultBindings.mock.calls[0]?.[0]).toEqual({
       hi: { connectionId: 'house', modelId: 'gpt-hi' },
@@ -934,7 +934,7 @@ describe('what an endpoint can do', () => {
 });
 
 /**
- * ***Makes pictures*** — [polish §25]. The flag [21 §3] says is set per
+ * ***Makes pictures*** — [polish §25]. The flag [22 §3] says is set per
  * connection, and until this control a hand edit was the only place to set it.
  * It rides the same merge the other two overrides do, so what matters is the
  * same two things: it is sent when set, and setting it back to the default
@@ -981,11 +981,11 @@ describe('whether an endpoint makes pictures', () => {
   });
 
   /**
-   * ***Drawing is not seeing*** (merged 2026-10-03). [25 E15]'s per-model
+   * ***Drawing is not seeing*** (merged 2026-10-03). [26 E15]'s per-model
    * *Models that can see pictures* reached this form while the branch was out,
    * and the two questions sit one control apart; answering *Makes pictures*
    * yes on a chat endpoint because a vision model is ticked is the mistake
-   * [21 §3] says the flag exists to stop. So the control lives in a group of
+   * [22 §3] says the flag exists to stop. So the control lives in a group of
    * its own, and the group is not the other one.
    */
   it('asks it under drawing pictures, apart from the models that see them', async () => {
@@ -1636,7 +1636,7 @@ describe('what the endpoint offers', () => {
 });
 
 /**
- * ***Which models see pictures, per model*** — [25 E15]. One endpoint
+ * ***Which models see pictures, per model*** — [26 E15]. One endpoint
  * routinely serves a model that sees and one that does not, and a picture sent
  * to the second is refused — so the form asks per model, starts with none, and
  * saves only models the connection still lists.

@@ -5,13 +5,13 @@
 Characters should remember you between sessions. This document covers memory
 *across* sessions. Memory *within* a long session is settled elsewhere: a
 **rolling summary, built as an immutable chain** ([07 §5.1](07-branching.md),
-[25 E1](25-open-questions.md)), with manual chapterisation a roadmap item
-([24 §3](24-roadmap.md)).
+[26 E1](26-open-questions.md)), with manual chapterisation a roadmap item
+([25 §3](25-roadmap.md)).
 
 Worth noting which way the dependency runs. Semantic retrieval is weak medicine
 for lorebooks and strong medicine here — cross-session memories are numerous,
 keyword-poor, and exactly the case where "what is relevant now?" has no lexical
-answer ([25 E2](25-open-questions.md)). If embeddings are ever built, this
+answer ([26 E2](26-open-questions.md)). If embeddings are ever built, this
 document is their first customer.
 
 ---
@@ -110,7 +110,7 @@ interface SessionMemoryConfig {
 
 **This pattern is not unique to memory.** Marinara's Noodle carryover uses the
 same shape — a toggle pushing activity *into* chats, a separate per-chat toggle
-letting activity flow *back* ([24 §4.6](24-roadmap.md)) — and Messages mode's
+letting activity flow *back* ([25 §4.6](25-roadmap.md)) — and Messages mode's
 autonomous messages are the same idea with the toggles implicit. Three features
 converging on **two opt-in switches governing context flow between separate
 activity streams** suggests the mechanism is worth naming and sharing rather

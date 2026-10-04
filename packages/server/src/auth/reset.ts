@@ -20,7 +20,7 @@ import { createInterface } from 'node:readline';
  *   case refused; see {@link readNewPassword}.
  *
  * Messages here are developer/operator-facing console output, deliberately
- * untranslated ([19 §12.7](../../../../docs/design/19-tech-stack.md)).
+ * untranslated ([20 §12.7](../../../../docs/design/20-tech-stack.md)).
  */
 
 export class ResetAborted extends Error {}

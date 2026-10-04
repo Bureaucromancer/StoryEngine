@@ -54,7 +54,7 @@ describe('turns become passages', () => {
   });
 
   /**
-   * ***A move that was only a picture is a move*** — [25 E15]. Blank words used
+   * ***A move that was only a picture is a move*** — [26 E15]. Blank words used
    * to mean *no input*, and a picture with no words would have vanished from
    * the reading view; and the two text copies, which cannot hold a picture, say
    * it in words rather than dropping it.

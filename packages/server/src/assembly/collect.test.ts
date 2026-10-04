@@ -1990,7 +1990,7 @@ describe('the difficulty and directedness slots', () => {
 
   /**
    * ***One candidate per fragment, which is the arm's reason for existing.***
-   * [04 §8] ranks them so [19 §5.3]'s cap can *"drop the lowest-ranked rather
+   * [04 §8] ranks them so [20 §5.3]'s cap can *"drop the lowest-ranked rather
    * than cutting mid-sentence"*; a slot that joined them into one string would
    * have thrown that away where it was built.
    */
@@ -2760,7 +2760,7 @@ describe('a wrapper names who its block is about', () => {
 });
 
 /**
- * ***Pictures on a move*** — [25 E15], R1. Four claims the collector alone
+ * ***Pictures on a move*** — [26 E15], R1. Four claims the collector alone
  * decides, each written to fail when its line is removed:
  *
  * - a picture on the move being made is **required**, as the move's words are —

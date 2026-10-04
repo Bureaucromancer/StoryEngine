@@ -22,7 +22,7 @@ import { hashPassword, type PasswordHash, verifyPassword } from './secrets.js';
  *
  * **Authoritative state, so a file and never an index row**
  * ([P1 §1.3](../../../../docs/design/workplan/07-p1-implementation.md)). Deleting `index.sqlite` has
- * to stay a non-event ([21 §5](../../../../docs/design/21-internal-contracts.md)), and it
+ * to stay a non-event ([22 §5](../../../../docs/design/22-internal-contracts.md)), and it
  * cannot be if losing it logs everyone out — or worse, loses the only admin.
  *
  * It sits at `data/accounts.json`, **outside every user directory**, so the file
@@ -60,8 +60,8 @@ import { hashPassword, type PasswordHash, verifyPassword } from './secrets.js';
  * 2026-09-16. [P10 §1.5]'s fork is closed: **1.0 needs extensions *loaded*, not
  * *installed***, the first-party reference extension ships inside the image the
  * way a built-in mode does, and acquiring one from outside is
- * [24 §3.2](../../../../docs/design/24-roadmap.md)'s. So this field stays and
- * stays inert on purpose — it is specified ([22 §7]), it costs a boolean, and
+ * [25 §3.2](../../../../docs/design/25-roadmap.md)'s. So this field stays and
+ * stays inert on purpose — it is specified ([23 §7]), it costs a boolean, and
  * the settings surface says what it is rather than rendering it as though it
  * were live. *What changed is that the sentence below stopped being a dangling
  * owner written into code*: the deferral now has a row somebody can find.
@@ -107,7 +107,7 @@ export const Capabilities = Type.Object(
     fileAccess: Type.Union([Type.Literal('none'), Type.Literal('read'), Type.Literal('write')], {
       default: 'none',
     }),
-    /** May enable installed extensions. Installing stays admin-only ([22 §7]). */
+    /** May enable installed extensions. Installing stays admin-only ([23 §7]). */
     enableExtensions: Type.Boolean({ default: false }),
     /**
      * ***May have the server take their backups on a timer*** —
@@ -158,7 +158,7 @@ export const Account = Type.Object(
      *
      * Here at P1 because push notifications are rendered by the server with the
      * app closed, so it must know each user's language
-     * ([19 §12.5](../../../../docs/design/19-tech-stack.md)) — cheap now, a migration later.
+     * ([20 §12.5](../../../../docs/design/20-tech-stack.md)) — cheap now, a migration later.
      */
     locale: Type.Union([Type.String(), Type.Null()]),
     capabilities: Capabilities,

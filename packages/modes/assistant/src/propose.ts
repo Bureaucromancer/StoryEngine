@@ -58,7 +58,7 @@ export const PROPOSE_STEP: StepDefinition = {
   when: { when: 'cadence', everyNTurns: 1 },
   failure: 'warn',
   /**
-   * `prose`, for [25 C15]'s reason and the one `staging.ts` gives: nothing in
+   * `prose`, for [26 C15]'s reason and the one `staging.ts` gives: nothing in
    * this build binds any role but this one, so asking for `fast` would make
    * every assistant turn log a failed step.
    */

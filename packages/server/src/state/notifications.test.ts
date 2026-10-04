@@ -75,7 +75,7 @@ describe('a notification is recorded against a person', () => {
   });
 
   /**
-   * ***No English crosses this boundary*** — [19 §12.5], and the reason the
+   * ***No English crosses this boundary*** — [20 §12.5], and the reason the
    * column is called `params`. The server does not know the reader's language,
    * so what is stored is what a sentence needs rather than the sentence.
    */

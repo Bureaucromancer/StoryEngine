@@ -594,7 +594,7 @@ export const TRACK_STEP: StepDefinition = {
    * scene happened.
    */
   failure: 'warn',
-  /** `prose`, for [25 C15]'s reason, and `stepRoles` binds a cheaper model here. */
+  /** `prose`, for [26 C15]'s reason, and `stepRoles` binds a cheaper model here. */
   role: 'prose',
   /** *Update trackers* — the one on-demand step in this phase ([P14 §1.9.2]). */
   onDemand: { label: 'Update trackers' },
@@ -661,7 +661,7 @@ function charactersOf(cast: readonly StepCastMember[]): { actorId: string; label
  *
  * **One call, not one per tracker**: Marinara's batching
  * (`agent-pipeline.ts:76-142`, agents sharing a model share a call), and
- * [25 C18]'s *"three `post` steps make three calls over the same prose"*
+ * [26 C18]'s *"three `post` steps make three calls over the same prose"*
  * answered for this case. The schema is the enabled trackers' schemas side by
  * side, loosened so that any part may be left out.
  *

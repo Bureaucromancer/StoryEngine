@@ -73,7 +73,7 @@ export const BACKUP_IMPORT_LIMITS: ZipLimits = {
  * and under `users/<handle>/`: each library object's file and its `assets/`,
  * the tags, the prefs, the connections, and each session's file, turns,
  * rendition records and pictures — the renditions' `assets/` and, since
- * 2026-09-27, the `attachments/` a player put on their moves ([25 E15]).
+ * 2026-09-27, the `attachments/` a player put on their moves ([26 E15]).
  * **Not** another account, `state/`, an object's `history/` or a session's
  * snapshots: nothing reads them, so nothing should be held or counted for them.
  */

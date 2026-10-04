@@ -18,7 +18,7 @@ import { fromModelCall, recordUsage, USAGE_SCHEMA, type UsageRecord } from './lo
  *
  * Three claims. **One line per call, appended**, so a spend view built later
  * reads what happened in the order it happened. **The provider's figures or
- * nothing** — a null stays a null, because [21 §1.4]'s *"never estimated"* is
+ * nothing** — a null stays a null, because [22 §1.4]'s *"never estimated"* is
  * the rule `ModelCall` already keeps and a receipt that invented a number would
  * be worse than no receipt. And **it never throws**, because by the time it runs
  * the person has paid and the answer is the thing worth protecting.

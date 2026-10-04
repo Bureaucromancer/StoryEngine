@@ -251,7 +251,7 @@ describe('drafting your own next message', () => {
 
 /**
  * ***`limits.providerTimeoutMs` is `performCall`'s, and this route has no copy
- * of it*** — [21 §4](../../../../docs/design/21-internal-contracts.md),
+ * of it*** — [22 §4](../../../../docs/design/22-internal-contracts.md),
  * [P2C §1.3](../../../../docs/design/workplan/12-p2c-first-real-run.md).
  *
  * §4's row is two sentences this route used to break: the key bounds **silence

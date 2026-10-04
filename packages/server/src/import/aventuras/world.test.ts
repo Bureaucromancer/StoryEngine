@@ -30,7 +30,7 @@ import { produceWorld, resolveWorld, WORLD_TAGS, type WorldProduction } from './
 /**
  * ***A story's world*** —
  * [P13.12](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
- * [18 §2.3.1](../../../../../docs/design/18-session-import.md).
+ * [19 §2.3.1](../../../../../docs/design/19-session-import.md).
  *
  * Two halves, as the file under test has two. **Resolution** is held to
  * Aventuras' own `get*Resolved` (`database.ts`) and its three kinds of branch,

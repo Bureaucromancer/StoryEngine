@@ -9,10 +9,10 @@ import { channelDefinition, channelKey } from '../sessions/channels.js';
 import type { ChannelEffect, ChannelState } from '../sessions/types.js';
 
 /**
- * Turning a proposal into a recorded effect — [21 §1.2](../../../../docs/design/21-internal-contracts.md).
+ * Turning a proposal into a recorded effect — [22 §1.2](../../../../docs/design/22-internal-contracts.md).
  *
  * A step or a model *proposes*; the engine decides. The decision is recorded
- * either way, because [21 §1.2] is explicit that a refused effect stays in the
+ * either way, because [22 §1.2] is explicit that a refused effect stays in the
  * record: the model tried to give itself forty gold and the engine said no, and
  * a system that dropped the attempt would leave the workbench unable to explain
  * why nothing happened.
@@ -92,7 +92,7 @@ export function acceptEffect(
      *
      * This stamped `before` into `after` on a refusal, so a rejected effect
      * recorded that *something* was refused and not *what*. That contradicts the
-     * sentence [21 §1.2](../../../../docs/design/21-internal-contracts.md) uses
+     * sentence [22 §1.2](../../../../docs/design/22-internal-contracts.md) uses
      * to justify recording refusals at all — *"the model tried to give itself
      * forty gold and the engine said no, and a system that dropped the attempt
      * would leave the workbench unable to explain why nothing happened"* — since
@@ -152,7 +152,7 @@ export function acceptEffect(
  * the line an extension's step would cross, and [06 §5.2]'s guidance firewall
  * rests on steps being what they declare.
  *
- * ***Refused, and recorded as every refusal is*** ([21 §1.2]), before the
+ * ***Refused, and recorded as every refusal is*** ([22 §1.2]), before the
  * channel's own policy, because these are about the step rather than the
  * value. *Not the step's failure*, which is how the runner answers a
  * `revisions` it did not declare: an effect is decided one at a time, and the
@@ -228,7 +228,7 @@ function refuse(
   }
 
   /**
-   * **The cause [21 §1.2](../../../../docs/design/21-internal-contracts.md)
+   * **The cause [22 §1.2](../../../../docs/design/22-internal-contracts.md)
    * lists first and nothing had ever produced** — `rejectedReason` is documented
    * as *"validation failure, an engine-computed rule overriding a model
    * proposal, or a policy refusal"*, and until [P7.1] gave `ChannelDefinition` a
@@ -259,7 +259,7 @@ function refuse(
    * to say about a hand edit, and only there.*
    */
   /**
-   * **The loaded values a model may not set on its own** — [06 §8.1], [25 C12],
+   * **The loaded values a model may not set on its own** — [06 §8.1], [26 C12],
    * [P7.2].
    *
    * Checked before the schema, because a proposal that is both loaded *and*

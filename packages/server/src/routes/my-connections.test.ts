@@ -12,11 +12,11 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
  * *Your* connections — [10 §15.1](../../../../docs/design/10-ui-surfaces.md),
- * [19 §5.1](../../../../docs/design/19-tech-stack.md),
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md),
  * [P2B §2.7](../../../../docs/design/workplan/10-p2b-provider-configuration.md),
  * [P10.3].
  *
- * ***The sentence this surface exists for*** is [19 §5.1]'s: *"anyone who wants
+ * ***The sentence this surface exists for*** is [20 §5.1]'s: *"anyone who wants
  * their own key overrides a role without the admin's involvement."* Until this
  * stage the only way to exercise it was to write a JSON file by hand into a
  * directory nothing in the UI mentioned — the reader has existed since P2A and
@@ -207,7 +207,7 @@ describe('what the resolver then sees', () => {
    * than against the route.*** A form that wrote a file the turn pipeline never
    * looked at would pass every test above — so this asks
    * `resolveConnections` the question a turn asks, and checks that what came
-   * back is **first**, which is [19 §5.1]'s *"overrides a role"* in the only
+   * back is **first**, which is [20 §5.1]'s *"overrides a role"* in the only
    * form the code has: personal ahead of system in `usable`.
    */
   it('puts a personal connection ahead of the install’s', async () => {

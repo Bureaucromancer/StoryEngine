@@ -21,7 +21,7 @@
  * phone and a laptop — and it means a preference cannot make you lose something,
  * only stop it interrupting you.
  *
- * **Per user, in `prefs.json`** ([25 B13]), for `ui.theme`'s reason: two people
+ * **Per user, in `prefs.json`** ([26 B13]), for `ui.theme`'s reason: two people
  * sharing a server do not share ears. The server enforces the dotted shape and a
  * size cap and reads no meaning into either half.
  */

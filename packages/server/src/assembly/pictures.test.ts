@@ -11,7 +11,7 @@ import { transcriptOf } from '../turns/steps.js';
 import { moveText, pictureTexts, pictureWords, quoted, scanText } from './pictures.js';
 
 /**
- * ***A picture, in words, everywhere a move is read as text*** — [25 E15], R1.
+ * ***A picture, in words, everywhere a move is read as text*** — [26 E15], R1.
  *
  * Every text consumer — the summariser, memory, the index, the transcript a
  * step reads, the lore scan — used to read `input.text` alone, so a move that

@@ -1,7 +1,7 @@
-# 18 — Session import, and what it would need from us
+# 19 — Session import, and what it would need from us
 
 **Status: feasibility assessment.** It defines nothing, schedules nothing, and
-changes no schema. [25 E4](25-open-questions.md) already holds the position — that
+changes no schema. [26 E4](26-open-questions.md) already holds the position — that
 session import is *conditional on an interchange format* rather than refused — and
 this document is the survey that condition needs in order to be checkable rather
 than merely stated. Where it disagrees with an existing note it says so and does
@@ -40,7 +40,7 @@ session halves of these three products have not moved under the library halves.
 **The position on session import changed on 2026-08-31, and four sites still
 quote the version it replaced.**
 
-[25 E4](25-open-questions.md) was retitled from *"Session import from other
+[26 E4](26-open-questions.md) was retitled from *"Session import from other
 platforms — speculative, not roadmapped"* to *"— conditional on an interchange
 format"*, and its opening line now reads **"Not a commitment, and no longer a
 flat refusal. The condition is the shape, not the appetite."** The four sites
@@ -49,10 +49,10 @@ that cite it were written one to two days earlier and say *closed*:
 - [P4 §4](workplan/16-p4-implementation.md) — *"Chat and session history import —
   closed, not deferred… Confirmed by citation"*, quoting E4's superseded
   *"speculative and unroadmapped"*.
-- [P7 §1.10](workplan/23-p7-implementation.md) — *"[25 E4] already closed chat and
+- [P7 §1.10](workplan/23-p7-implementation.md) — *"[26 E4] already closed chat and
   session import"*.
 - `packages/server/src/import/registries/sillytavern.ts` and
-  `.../marinara.ts` — *"Chat import is closed rather than deferred ([25 E4])"*,
+  `.../marinara.ts` — *"Chat import is closed rather than deferred ([26 E4])"*,
   in the comment above the `recorded` dispositions.
 
 P4 was itself edited on 2026-08-31, at §7.5's `.seactor` repair, so §4's stale
@@ -235,7 +235,7 @@ variable shape, never its templates) arrived at 1.9.0 and `timeAnchors` at
 1.10.0, both additions — so the paragraph's claim held through two more
 revisions.*
 
-**This is the shape [25 E4](25-open-questions.md) argues for, built by somebody
+**This is the shape [26 E4](26-open-questions.md) argues for, built by somebody
 else and working.** One documented target the app owns and versions, additive
 across nine revisions, with the importer explicitly forbidden from depending on
 the exporter — the header comment says so. It is evidence that E4's proposed shape
@@ -332,7 +332,7 @@ checkpoints, the time tracker, images — is §4's list and the phase's decision
 
 **This is the section with a deadline, and the only one addressed to a phase.**
 
-[25 B12](25-open-questions.md) ships session export at 1.0, owned by
+[26 B12](26-open-questions.md) ships session export at 1.0, owned by
 [P11 §1.8](workplan/28-p11-implementation.md), and E4 is explicit that *"a format
 designed with import in mind and a format designed without it are different
 documents, and only one of them can be written at P11."* What follows is that
@@ -498,7 +498,7 @@ schedule them.** The number is for the headings, which
 `tools/citation-targets.test.ts` can only check under a phase name, and for
 P13's Part 1, which is card and lorebook import and was never this document's
 subject. The paragraph above stands for the stories: a number is not a
-commitment, and [25 E4](25-open-questions.md) records the shape they would take.
+commitment, and [26 E4](26-open-questions.md) records the shape they would take.
 
 ***And the stories are scheduled*** — *2026-09-29.* The person scheduled
 P13's Part 2 ([P13 §0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4)):
@@ -527,7 +527,7 @@ on 2026-09-17 the reader arrived beside it (`sessions/import.ts`,
 calls too. *"A reader for a format with no writer"* no longer describes a
 converter aimed at it. This section re-reads §1–§5 against the code as it stands
 and says what a SillyTavern or Marinara importer would cost **now**. It still
-schedules nothing: [25 E4](25-open-questions.md)'s *"not a commitment"* is
+schedules nothing: [26 E4](26-open-questions.md)'s *"not a commitment"* is
 untouched, and whether to build one is a person's decision.
 
 *Sources are still the pins in the table at the top.* Upstream was not
@@ -566,7 +566,7 @@ that already exists**, rather than adding a session arm to the sweep's
    turn `foreign`, refuses a collision (`already-here`), indexes the session and
    carries renditions. §4.2's library-shaped `Writer` would need all of that
    re-derived beside a lock that is not reentrant.
-2. **It is [25 E4](25-open-questions.md)'s posture taken literally.** The
+2. **It is [26 E4](26-open-questions.md)'s posture taken literally.** The
    converter is a pure function from somebody else's file to *our* documented
    format; the thing this project maintains is the format. A converter that
    rots breaks one pure function and its fixture pair — never the session store.
@@ -610,7 +610,7 @@ have no exact home: reported, and imported as story text only if a person says
 so. **Group chats** are the real loss: `Turn.output` has no speaker, so a
 character's `name` survives only as text in the output — acceptable for a
 narrator-mode session, lossy for anything that later wants attribution.
-*P14 §1.1 answers this with an additive `Turn.output.messages`, one attributed message each — [25 C11](25-open-questions.md)'s one node, several messages.*
+*P14 §1.1 answers this with an additive `Turn.output.messages`, one attributed message each — [26 C11](26-open-questions.md)'s one node, several messages.*
 
 ~~*From knowledge of the product, not verified against the pin:*~~
 *Verified at the pin* (`bookmarks.js:186`, `:253`), and with one addition: the
@@ -696,6 +696,6 @@ single-character first** (the most deployed source, the simplest file, and the
 first test of the format by a document we did not write), **Marinara roleplay
 second** (better fidelity, transport already done, but the family pass is the
 larger piece), **group chats last** (a product question before a code one).
-[25 E4](25-open-questions.md)'s objection is answered by §7.2's shape rather
+[26 E4](26-open-questions.md)'s objection is answered by §7.2's shape rather
 than by effort: what this project would own is the format and a pure function
 per source, which is the maintenance E4 said it would accept.

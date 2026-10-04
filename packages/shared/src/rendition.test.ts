@@ -111,7 +111,7 @@ describe('the recipe survives the round trip', () => {
   });
 
   it('survives an evicted asset with the recipe intact', () => {
-    // [25 E3] and §1.4: the hook, not the policy. Dropping `asset` is the whole
+    // [26 E3] and §1.4: the hook, not the policy. Dropping `asset` is the whole
     // of what an eviction policy would ever do, and it must cost nothing else.
     const evicted: Rendition = { ...A_RENDITION, asset: null };
     const read = JSON.parse(JSON.stringify(evicted)) as Rendition;

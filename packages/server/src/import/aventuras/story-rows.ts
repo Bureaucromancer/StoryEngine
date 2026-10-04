@@ -17,7 +17,7 @@ import { integer } from './vault-row.js';
 /**
  * ***One Aventuras story, as rows*** —
  * [P13.11](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
- * [18 §2.3.1](../../../../../docs/design/18-session-import.md).
+ * [19 §2.3.1](../../../../../docs/design/19-session-import.md).
  *
  * **The half of the story producer that knows where the rows came from**, and
  * the only half: `story.ts` turns these into a `storyengine.session-export/1`
@@ -44,7 +44,7 @@ import { integer } from './vault-row.js';
  *
  * **`parent_id` is never selected.** It is declared on `StoryEntry` and every
  * site in Aventuras that writes an entry writes `null` into it
- * ([18 §2.3.1](../../../../../docs/design/18-session-import.md)), so a reader
+ * ([19 §2.3.1](../../../../../docs/design/19-session-import.md)), so a reader
  * that trusted it would rebuild every story as a list of roots. The tree is
  * the branches and the positions, and that is all this reads it from.
  *

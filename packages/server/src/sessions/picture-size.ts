@@ -3,7 +3,7 @@
 
 /**
  * ***How big a stored picture is, read from its header*** —
- * [25 E15](../../../../docs/design/25-open-questions.md)'s record, which lists
+ * [26 E15](../../../../docs/design/26-open-questions.md)'s record, which lists
  * *"the digest, type, size and dimensions the server read from its own store"*.
  *
  * **A header reader, not a decoder**, and that is the server's standing

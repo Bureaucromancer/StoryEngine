@@ -5,7 +5,7 @@
  * Portable types and schemas, shared by server, client and the SDK.
  *
  * Authored as TypeBox; **the published artefact is JSON Schema**
- * (docs/design/19-tech-stack.md §4), emitted to `schemas/` by
+ * (docs/design/20-tech-stack.md §4), emitted to `schemas/` by
  * `pnpm --filter @storyengine/shared emit-schemas` so that third-party tools can
  * validate a card or a package without compiling our types.
  *
@@ -40,11 +40,11 @@ export * from './remedy.js';
 export * from './output-messages.js';
 /**
  * The interchange format, and the event that freezes two records —
- * [25 B12](../../../docs/design/25-open-questions.md), [P11.10].
+ * [26 B12](../../../docs/design/26-open-questions.md), [P11.10].
  */
 export * from './session-export.js';
 /**
- * ***What a backup archive says it is*** — [25 E6](../../../docs/design/25-open-questions.md),
+ * ***What a backup archive says it is*** — [26 E6](../../../docs/design/26-open-questions.md),
  * [P12](../../../docs/design/workplan/29-p12-implementation.md).
  *
  * Beside the interchange formats rather than in `schema/`, and for their reason:
@@ -58,7 +58,7 @@ export * from './backup.js';
 export * from './tags.js';
 // Renditions — internal tier, beside the turn record and governed by the same
 // sentence: a rendition hangs off a turn, travels with the session directory,
-// and graduates to `schema/` when the turn record does ([25 B12]'s freeze).
+// and graduates to `schema/` when the turn record does ([26 B12]'s freeze).
 export * from './rendition.js';
 // What a turn *would* assemble to — the stateless preview's answer ([P3.4]).
 // Beside the record rather than in it: it is never written to disk.

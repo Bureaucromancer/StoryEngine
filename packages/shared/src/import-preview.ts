@@ -35,7 +35,7 @@ import type { ImportDestination, ImportDisposition, ImportNote } from './import.
  * unrecognised fields. See `compatKeys`.
  */
 export interface ImportPreview {
-  /** The file as it arrived. Never a path ([21 §4.1.1]). */
+  /** The file as it arrived. Never a path ([22 §4.1.1]). */
   source: string;
   /**
    * The disposition the commit is expected to report.

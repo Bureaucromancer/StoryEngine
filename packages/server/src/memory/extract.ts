@@ -172,7 +172,7 @@ export function readExtraction(value: unknown): ExtractedMemory[] {
  *
  * §2's *"a second session about the same events does not double the book"*, and
  * the shape of the answer is the whole of what a dedupe can honestly be here:
- * **no embeddings** ([25 E2] puts semantic retrieval post-1.0), so what is left
+ * **no embeddings** ([26 E2] puts semantic retrieval post-1.0), so what is left
  * is the text and the keys. Normalised case and punctuation, because a model
  * asked twice about the same evening produces the same sentence with different
  * commas far more often than it produces a different sentence.
@@ -358,7 +358,7 @@ function renderExchange(input: StepInput): string {
     .slice(-EXTRACT_EVERY_N_TURNS)
     .map((turn) =>
       // The move with its pictures' stand-ins, so a remembered moment that was a
-      // picture is remembered as one ([25 E15]).
+      // picture is remembered as one ([26 E15]).
       [quoted(moveText(turn.input)), turn.output?.text ?? '']
         .filter((line) => line !== '')
         .join('\n'),

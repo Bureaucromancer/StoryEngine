@@ -19,7 +19,7 @@ import { pictureSize } from './picture-size.js';
 import { sessionRoot, withSessionLock } from './store.js';
 
 /**
- * ***Pictures a player attached to a move*** — [25 E15](../../../../docs/design/25-open-questions.md),
+ * ***Pictures a player attached to a move*** — [26 E15](../../../../docs/design/26-open-questions.md),
  * R1: `sessions/<id>/attachments/`.
  *
  * **Not `assets/`, and that is the whole reason this is its own directory.**
@@ -201,7 +201,7 @@ export async function readAttachment(
 
 /**
  * Which of these digests the store holds — the send rule's *are the bytes
- * here* ([25 E15]), answered before assembly because assembly is synchronous.
+ * here* ([26 E15]), answered before assembly because assembly is synchronous.
  * After an import from an export the answer is usually *none*, and the pictures
  * go as their words.
  */
@@ -416,7 +416,7 @@ async function renew(layout: Layout, handle: string, sessionId: string, digest: 
 }
 
 /**
- * ***A redo's pictures: the record's, as it stands*** — [25 E15], *"redo
+ * ***A redo's pictures: the record's, as it stands*** — [26 E15], *"redo
  * carrying attachments, because they are input"*.
  *
  * **Copied, not re-sent.** Until 2026-09-27 a redo's client rebuilt the list

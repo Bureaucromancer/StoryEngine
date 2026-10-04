@@ -32,7 +32,7 @@ import { SUMMARISE_PROMPT } from './summarise.js';
 /**
  * ***The first turn after a long import*** —
  * [P14.11](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
- * [18 §7.5](../../../../docs/design/18-session-import.md)'s cliff.
+ * [19 §7.5](../../../../docs/design/19-session-import.md)'s cliff.
  *
  * *Ends at: a long fixture's first previewed turn derives zero links.* So the
  * fixture is a real door — a SillyTavern chat file through `importChatFile`,

@@ -24,7 +24,7 @@ import type {
  *
  * *It found a gap on the way.* A step could not see an actor's expression set
  * at all: `speakers` carries ids, `StepHost` has no library reader until
- * [22 §4]'s capability API, and being handed the cast by the engine would have
+ * [23 §4]'s capability API, and being handed the cast by the engine would have
  * been the back door [06 §2] refuses. So `StepInput.cast` exists now, gated by
  * `reads: ['cast']` — the contract widening rather than the workaround, which is
  * what [P7] is for.
@@ -37,7 +37,7 @@ import type {
  *
  * **`se.backdrop` is deliberately not written here.** It is `engine-computed`
  * and [P9] fills it: §7.2's three things have three different writers, which is
- * why the section reads like it forces [25 C16] and does not.
+ * why the section reads like it forces [26 C16] and does not.
  */
 
 export const SE_SCENE_STAGE = 'se.scene.stage';
@@ -70,7 +70,7 @@ export const STAGE_STEP: StepDefinition = {
    */
   failure: 'warn',
   /**
-   * `prose`, for [25 C15]'s reason: nothing in this build binds any role but
+   * `prose`, for [26 C15]'s reason: nothing in this build binds any role but
    * this one, so asking for `fast` would make every staged session log a failed
    * step. An install that wants something cheaper says so through `stepRoles`.
    */
@@ -176,10 +176,10 @@ function facesOf(member: StepCastMember): { id: string; label: string }[] {
  * save a log row.
  *
  * **So the gate is here, the cost is an `ok` row on a text-only session's every
- * turn, and the asymmetry is recorded rather than papered over** — [25 C17]. It
+ * turn, and the asymmetry is recorded rather than papered over** — [26 C17]. It
  * is the honest shape of what P7 found: the engine can keep its own steps out of
  * a plan and a mode cannot keep its own out, which is a difference between
- * built-in and declared that [22 §4.1] says should not exist.
+ * built-in and declared that [23 §4.1] says should not exist.
  *
  * *The early return is genuinely free either way*: no call, no effects, no
  * channel read beyond the ~~one boolean~~ two booleans (the second since

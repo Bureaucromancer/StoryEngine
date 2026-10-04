@@ -105,7 +105,7 @@ describe('planning a call', () => {
     expect(call.budget.limit.tokens).toBeGreaterThan(0);
     expect(call.messages.length).toBeGreaterThan(0);
     // The connection travels beside the record rather than inside it: it holds
-    // `apiKey` and `baseUrl` ([21 §1.4]).
+    // `apiKey` and `baseUrl` ([22 §1.4]).
     expect(connection.id).toBe(CONNECTION.id);
     expect(call.resolved.connectionId).toBe(CONNECTION.id);
     expect(call).not.toHaveProperty('connection');
@@ -221,7 +221,7 @@ describe('planning a call', () => {
 });
 
 /**
- * **[19 §5.1]'s override layers, passed at last** — [P7 §1.9], [P7.3].
+ * **[20 §5.1]'s override layers, passed at last** — [P7 §1.9], [P7.3].
  *
  * `resolveRole` has implemented five layers since P2B and three of the four
  * built ones had **no production caller**: session, step and the actor hint.
@@ -297,7 +297,7 @@ describe('a session overriding a model', () => {
 });
 
 /**
- * **[19 §5.1]'s last and weakest layer, reached at last** — [P7 §1.9], [P7.3].
+ * **[20 §5.1]'s last and weakest layer, reached at last** — [P7 §1.9], [P7.3].
  *
  * §1.9 found the actor hint in the same state as the session and step layers —
  * *"never passed either"* — and named the reason: *"today one turn makes one
@@ -498,7 +498,7 @@ describe('asking for a shape in words', () => {
 });
 
 /**
- * ***Pixels or words, decided per call*** — [25 E15], R1's send rule.
+ * ***Pixels or words, decided per call*** — [26 E15], R1's send rule.
  *
  * `planCall` holds the model the call resolved to, and is the only place that
  * does, so it is the only place the rule can be decided without tying a session
@@ -777,7 +777,7 @@ describe('a picture on the move, sent or held', () => {
 
   /**
    * ***The model that decides is the one the call resolved to***, after every
-   * layer — [19 §5.1]'s session and step overrides included. That is the
+   * layer — [20 §5.1]'s session and step overrides included. That is the
    * property that keeps a session from being tied to a model that sees: the
    * binding says *sees*, the session's override says *does not*, and the call
    * goes as words; the other way round, it goes as pixels.

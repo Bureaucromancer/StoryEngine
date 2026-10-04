@@ -104,7 +104,7 @@ export function useAssistFor<F>(
         setRunning((was) => withoutMember(was, path));
         /**
          * **A class into a sentence, on this side rather than on the wire** —
-         * [21 §1.4], and the same split [P11.6] made for a failed turn: the
+         * [22 §1.4], and the same split [P11.6] made for a failed turn: the
          * server sends `not-bound`, the client owns the words, and the remedy
          * is the one thing a person can act on.
          */

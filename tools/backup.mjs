@@ -14,7 +14,7 @@ import { BLOCK, headerName, padding, tarHeader, trailer } from './tar.mjs';
 
 /**
  * Backs up and restores a data directory —
- * [25 E6](../docs/design/25-open-questions.md),
+ * [26 E6](../docs/design/26-open-questions.md),
  * [P11.11](../docs/design/workplan/28-p11-implementation.md).
  *
  * ***E6's whole instruction is "do not build a subsystem".*** *"Files on disk
@@ -74,7 +74,7 @@ import { BLOCK, headerName, padding, tarHeader, trailer } from './tar.mjs';
  * `if (at === '' && DERIVED.test(entry.name))` — a filename test applied only at
  * the data root — and [03 §5.1] puts the index at **`index/index.sqlite`**, one
  * level down, where `at === ''` is false. So every archive this script has ever
- * written carried the index, which is the exact failure [25 E6], [P11.11] and
+ * written carried the index, which is the exact failure [26 E6], [P11.11] and
  * `docs/deploy.md` all exist to prevent: *a stale belief about a newer tree,
  * silently, because a stale index answers queries.* `restore.test.ts` did not
  * catch it because its fixture wrote `index.sqlite` at the **root**, agreeing
@@ -83,7 +83,7 @@ import { BLOCK, headerName, padding, tarHeader, trailer } from './tar.mjs';
  *
  * **`users/<handle>/trash/`** — [03 §10.2]: *"trash is excluded from export and
  * from backup by default… restoring a backup should not resurrect everything the
- * user threw away before taking it."* That sentence cites [25 E6] and has never
+ * user threw away before taking it."* That sentence cites [26 E6] and has never
  * had an enforcer.
  *
  * **`backups/` and `users/<handle>/backups/`** — where the in-app backups land.

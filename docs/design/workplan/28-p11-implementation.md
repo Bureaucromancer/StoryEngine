@@ -80,8 +80,8 @@ the in-app update check, the localisation catalogue extraction sweep
 accessibility audit, and **packaging as all six artifacts**.
 
 **Plus three things [work plan §0.5](01-work-plan.md) moved into 1.0 after this document
-was first written**: session export ([25 B12](../25-open-questions.md)), backup
-and restore with its CI restore test ([25 E6](../25-open-questions.md),
+was first written**: session export ([26 B12](../26-open-questions.md)), backup
+and restore with its CI restore test ([26 E6](../26-open-questions.md),
 [testing](03-testing.md)), and the four packaging artifacts that used to sit at a
 "1.0 bar" nothing owned. §1.8 covers what that does to this phase's size, which
 is the honest question.
@@ -191,18 +191,18 @@ that cannot are the finding, not an omission.
 | 4 | **The workbench on a turn the head has passed** — [10 §3](../10-ui-surfaces.md)'s *current or historical*; [F-05](21-playable-log.md), graded [R1](22-walkthrough-refinements.md) | `useTurn` exists with one component calling it twice. **The reader is built and the affordance is not** | The selection. **Check:** a past turn's blocks, calls and verdicts render, and the panel says which turn it is showing | **[P7B.7](24-p7b-presets-and-prompts.md)** |
 | 5 | **The import quarantine's listing** — the ladder's only surface; [P2 manual gate §3.5](11-p2-manual-gate.md): *"No client code calls it"* | `GET /api/library/errors`, zero client callers | The listing. **Check:** somebody who imported a folder can see what went to `compat` and why | **[P7B.8](24-p7b-presets-and-prompts.md)** |
 | 6 | **Full-text search across your own story** — [10 §14](../10-ui-surfaces.md), *"argued for 1.0"*; `README.md` already promises it to a reader | `GET /api/search` returns objects and turns; zero client callers. [P5 §3](17-p5-implementation.md) calls the absence *"settled rather than deferred"* | The surface — §14.5's index exists. **Check:** the sentence `README.md` prints is true from the browser. *Carries P5's unfixed owner-filter defect* | **P11.1**, decided 2026-09-14 — it and the reading view are read-surfaces over the same data and share a print story, which beats *shipped route with no caller* as a grouping. *P5's unfixed owner-filter defect travels with it* |
-| 7 | **Session export** — [work plan §0.5](01-work-plan.md), [25 B12](../25-open-questions.md), [13 §13](../13-write-mode.md), [18 §3](../18-session-import.md) | Nothing. §1.8 argues it here at length | The format and its writer, with §1.8's four consequences. **Check:** a session exported and loaded on another install | **P11.10 — a stage this document did not have** |
-| 8 | **Backup and restore** — [work plan §0.5](01-work-plan.md), [25 E6](../25-open-questions.md) | Nothing | Quiesce, archive excluding the index, restore and rebuild. **Check:** the CI restore test, which is [testing](03-testing.md)'s | **P11.11 — likewise** |
+| 7 | **Session export** — [work plan §0.5](01-work-plan.md), [26 B12](../26-open-questions.md), [13 §13](../13-write-mode.md), [19 §3](../19-session-import.md) | Nothing. §1.8 argues it here at length | The format and its writer, with §1.8's four consequences. **Check:** a session exported and loaded on another install | **P11.10 — a stage this document did not have** |
+| 8 | **Backup and restore** — [work plan §0.5](01-work-plan.md), [26 E6](../26-open-questions.md) | Nothing | Quiesce, archive excluding the index, restore and rebuild. **Check:** the CI restore test, which is [testing](03-testing.md)'s | **P11.11 — likewise** |
 | 9 | **Home, the arrival surface** — [10 §2.2](../10-ui-surfaces.md) | `/` is a redirect and the wordmark points at the library, both under comments describing a future | The page. **Check:** arrival is not the library's job | **Prototype at [P7B.9](24-p7b-presets-and-prompts.md)**; the full version deferred by direction — see below |
 | 10 | **A visible size indicator on embedded media** — `[OPEN]` at [03 §5.2.2](../03-data-model.md), carried into [04 §11](../04-schemas.md) | Nothing. PNG embedding ships at 1.0, so the failure is reachable | An indicator in the editor. **Check:** a card approaching an unshareable size says so before share time | **Deferred by direction, with its condition named** — see below |
-| 11 | **Extension installation, and therefore the panel** — [P10 §1.5](27-p10-implementation.md): *"no document owns acquiring and enabling an extension on an install"* | The boundary (P7) and the manifest and lifecycle ([22 §6–§7](../22-extensions.md)). No `packages/server/src/extensions/`. [P2A](09-p2a-configuration-surface.md): `enableExtensions` *"appear in no phase list at all"* | Acquire and enable. **Check:** an extension installed by somebody who is not the developer runs | **P10's own fork**, at its revisit — P10.3's cell is explicitly *the panel or its named deferral* |
-| 12 | **Openings, and seed → expand → edit → accept → promote** — [03 §6](../03-data-model.md); **PORT** in [triage](02-triage.md); [25 B9](../25-open-questions.md) resolved it and attached no phase | The schema field only. **`fromSeedId` has shipped since P1 with no writer anywhere** | The opening picker and the expand loop. **Check:** a session begins from a written opening and from an expanded seed, and the expansion promotes back with `fromSeedId` set | **[P7B](24-p7b-presets-and-prompts.md) candidate** (§1.5 there), held on the expand loop's cost |
+| 11 | **Extension installation, and therefore the panel** — [P10 §1.5](27-p10-implementation.md): *"no document owns acquiring and enabling an extension on an install"* | The boundary (P7) and the manifest and lifecycle ([23 §6–§7](../23-extensions.md)). No `packages/server/src/extensions/`. [P2A](09-p2a-configuration-surface.md): `enableExtensions` *"appear in no phase list at all"* | Acquire and enable. **Check:** an extension installed by somebody who is not the developer runs | **P10's own fork**, at its revisit — P10.3's cell is explicitly *the panel or its named deferral* |
+| 12 | **Openings, and seed → expand → edit → accept → promote** — [03 §6](../03-data-model.md); **PORT** in [triage](02-triage.md); [26 B9](../26-open-questions.md) resolved it and attached no phase | The schema field only. **`fromSeedId` has shipped since P1 with no writer anywhere** | The opening picker and the expand loop. **Check:** a session begins from a written opening and from an expanded seed, and the expansion promotes back with `fromSeedId` set | **[P7B](24-p7b-presets-and-prompts.md) candidate** (§1.5 there), held on the expand loop's cost |
 | 13 | **`.sepack` import and export** — [03 §7](../03-data-model.md): *"how objects travel"*; **PORT** in [triage](02-triage.md) | A folder-shape comment. [P4](16-p4-implementation.md)'s *"P11-ish"* is the corpus's only assignment, and this document contains `.sepack` zero times | The bundle format, writer and reader. **Check:** a package moves between installs | **Beside P11.10**, since both freeze a format — and it is P7B.0's fourth kind's missing half |
-| 14 | **The rendition count judgement, and both pacing dials** — [06 §10.4](../06-modes-and-turn-pipeline.md), [06 §10.6](../06-modes-and-turn-pipeline.md) | P9 builds one image per turn and says it *"does not build"* the judgement; *"neither pacing dial is P9's"*. P10 and P11 are the only later phases and both are silent | The judgement and two dials. **Check:** a turn with no moment worth an image gets none, and a session at a low cadence explains its own quiet | **No phase.** *Narrowed:* the storyboard surface is on the feature list ([24 §3.3](../24-roadmap.md)), so only these are unowned 1.0 items |
+| 14 | **The rendition count judgement, and both pacing dials** — [06 §10.4](../06-modes-and-turn-pipeline.md), [06 §10.6](../06-modes-and-turn-pipeline.md) | P9 builds one image per turn and says it *"does not build"* the judgement; *"neither pacing dial is P9's"*. P10 and P11 are the only later phases and both are silent | The judgement and two dials. **Check:** a turn with no moment worth an image gets none, and a session at a low cadence explains its own quiet | **No phase.** *Narrowed:* the storyboard surface is on the feature list ([25 §3.3](../25-roadmap.md)), so only these are unowned 1.0 items |
 | 15 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — specified nearly verbatim, *"a collapsed line while things go well"* | P3.5 built it inside the workbench panel only | The line outside the panel. **Check:** somebody who never opens the workbench can see a turn is running | **Unowned; a [P7B](24-p7b-presets-and-prompts.md) candidate**, held with 16 and [polish §11](06-polish.md) because the three are one story |
 | 16 | **[R4](22-walkthrough-refinements.md) — where the reader's view sits while a turn streams** — [manual testing §10](05-manual-testing.md)'s *"largest genuine blank in the corpus"* | Nothing | **A paragraph in [10](../10-ui-surfaces.md), first.** **Check:** none nameable until that paragraph exists | **Unowned, and the one row §1.1's rule cannot grade** — an item with no specification has no artifact to name |
-| 17 | **The first-party system library's content** — [25 A2e](../25-open-questions.md): *"a full system library ships alongside"* | The mechanism — `SYSTEM_OWNER`, `system/library/`, read-only, loaded for everyone | Content. **Check:** a fresh install has something in it | **Not a hardening item and not code.** Here as content, or explicitly nothing — but not silently nothing |
-| 18 | **A session's model override has no control** — [19 §5.1](../19-tech-stack.md): *"anyone who wants their own key overrides a role without the admin's involvement"* | Everything but the surface. [P7.3](23-p7-implementation.md) built `PUT /sessions/:id/roles`, the resolution layer and the tests, and named where the control goes — *"beside the lore panel's disclosure"* | The panel: the account's usable connections, the role vocabulary, and the step layer under it. **Check:** a session's turn resolves through an override a person set in the browser | **Unowned, and a P11 candidate.** Added 2026-09-14 by [P7B §1.12](24-p7b-presets-and-prompts.md)'s route-caller check, which is the third instrument this section has run |
+| 17 | **The first-party system library's content** — [26 A2e](../26-open-questions.md): *"a full system library ships alongside"* | The mechanism — `SYSTEM_OWNER`, `system/library/`, read-only, loaded for everyone | Content. **Check:** a fresh install has something in it | **Not a hardening item and not code.** Here as content, or explicitly nothing — but not silently nothing |
+| 18 | **A session's model override has no control** — [20 §5.1](../20-tech-stack.md): *"anyone who wants their own key overrides a role without the admin's involvement"* | Everything but the surface. [P7.3](23-p7-implementation.md) built `PUT /sessions/:id/roles`, the resolution layer and the tests, and named where the control goes — *"beside the lore panel's disclosure"* | The panel: the account's usable connections, the role vocabulary, and the step layer under it. **Check:** a session's turn resolves through an override a person set in the browser | **Unowned, and a P11 candidate.** Added 2026-09-14 by [P7B §1.12](24-p7b-presets-and-prompts.md)'s route-caller check, which is the third instrument this section has run |
 | 20 | **[P8](25-p8-implementation.md)'s automatic extractor** — [08 §2](../08-cross-session-memory.md), and [P8 §5](25-p8-implementation.md)'s named fallback cut | The chain, the books, **manual capture** and the toggles. The extractor itself: nothing. `LoreEntry.locked` has a **writer** and no reader | The extraction step, and the two gate rows that travel with it. **Check:** [P8](25-p8-implementation.md)'s C2 — *a hand correction survives the next extraction* — stops being vacuous | **No phase.** Added 2026-09-16 by §0.2's re-run. P10 and P11 are the only later phases and the word appears in **neither** |
 | 19 | **A named node can be created and never renamed or removed** — [07 §6](../07-branching.md): *promoting a swipe is creating a `BranchRef`*, and *deleting one later deletes a name* | Two of three verbs. `POST /sessions/:id/refs` has a control on the play page; `PATCH` and `DELETE …/refs/:refId` have none | The list the names live in — [P6 §1.2](18-p6-implementation.md)'s history strip, not the post-1.0 tree visualiser. **Check:** a name given by mistake can be corrected, and one no longer wanted removed | **Unowned, and a P11 candidate.** Same check, same day. *A create with no undo is not what the visualiser's deferral was about* |
 
@@ -422,16 +422,16 @@ decision, and what this section owes is making the decision unavoidable.
 3. ***P11.10 gained a second record to freeze, named and dated.***
    [P9 §1.1](26-p9-implementation.md) decided `Rendition` is **internal tier** and
    graduates *when the turn record does* — on `turn.ts`'s own sentence, *"session
-   export ([25 B12](../25-open-questions.md)) is the event that ends this
+   export ([26 B12](../26-open-questions.md)) is the event that ends this
    freedom"*. So the format this stage freezes is the turn record **and** the
-   rendition record, [21 §7](../21-internal-contracts.md) is where the second one
+   rendition record, [22 §7](../22-internal-contracts.md) is where the second one
    is written, and §1.8's four consequences apply to both.
 4. ***A miscitation [P9](26-p9-implementation.md) introduced, found by reading its
-   own citation.*** P9.4 wrote *"[25 E4]'s budget is where this is properly
+   own citation.*** P9.4 wrote *"[26 E4]'s budget is where this is properly
    answered"* about the tokens a hand-pressed illustration spends outside any
-   turn's tape. **[25 E4] is session import from other platforms.** There is no
-   budget question in [25](../25-open-questions.md) at all; aggregate spend
-   tracking is **post-1.0** per [24 §3](../24-roadmap.md), which is what
+   turn's tape. **[26 E4] is session import from other platforms.** There is no
+   budget question in [26](../26-open-questions.md) at all; aggregate spend
+   tracking is **post-1.0** per [25 §3](../25-roadmap.md), which is what
    [10 §3](../10-ui-surfaces.md) and `CostSummary`'s docstring both already say.
    Corrected in both places on the day this section was written.
 
@@ -543,10 +543,10 @@ its revisit"* — is closed, and **not by being built**.
 [P10.3](27-p10-implementation.md) took the deferral arm on a distinction four
 audits had passed over: ***1.0 needs extensions **loaded**, not **installed***.
 The first-party reference extension the [work plan](01-work-plan.md) keeps at 1.0
-([24 §4.4](../24-roadmap.md)) ships inside the image the way a built-in mode
+([25 §4.4](../25-roadmap.md)) ships inside the image the way a built-in mode
 does, so it needs no acquiring step at all; *acquiring one from outside* is a
 subsystem — fetch, verify, unpack, register, quota — that no 1.0 goal requires.
-It is now a row in [24 §3.2](../24-roadmap.md) rather than an owner-shaped hole,
+It is now a row in [25 §3.2](../25-roadmap.md) rather than an owner-shaped hole,
 and the three artefacts that presuppose it all stay, visibly inert.
 
 ***That is the first row in this register to close by somebody deciding***, and
@@ -650,17 +650,17 @@ number has moved because neither instrument can see what this audit was for.
 `OWED` watches routes and `'unread'` watches config keys, and the twenty-seven
 items below are overwhelmingly **neither** — they are sentences.
 
-#### The measurement [20 §7](../20-client-loading.md) asked for at this stage
+#### The measurement [21 §7](../21-client-loading.md) asked for at this stage
 
-[20 §7.1](../20-client-loading.md) fired a trigger on 2026-09-15, decided not to
+[21 §7.1](../21-client-loading.md) fired a trigger on 2026-09-15, decided not to
 bring the review forward, and said *"the review point stays P11.0, and the first
 line of its baseline capture is now known."* Here is the rest of that line, from
 one `pnpm build` on this tree:
 
 | | Modules | JavaScript | gzip | CSS | gzip |
 | --- | --- | --- | --- | --- | --- |
-| [20 §1](../20-client-loading.md)'s baseline, at `a54afcc` | — | 676.82 kB | 199.15 kB | — | — |
-| [20 §7.1](../20-client-loading.md), after `react-markdown` | 729 | 909.25 kB | 268.11 kB | 34.06 kB | 6.94 kB |
+| [21 §1](../21-client-loading.md)'s baseline, at `a54afcc` | — | 676.82 kB | 199.15 kB | — | — |
+| [21 §7.1](../21-client-loading.md), after `react-markdown` | 729 | 909.25 kB | 268.11 kB | 34.06 kB | 6.94 kB |
 | **Here, after P10** | **748** | **951.64 kB** | **280.27 kB** | **34.90 kB** | **7.07 kB** |
 
 **P10 cost nineteen modules and 12.16 kB gzip** — notifications, the gallery,
@@ -672,7 +672,7 @@ at a twenty-third is quiet, and the quiet one is the shape of every phase left.
 ***The recommendation is §7's step 5, the deferral arm, and it is a decision
 rather than an omission.*** 280 kB gzip on one route is large and is not
 *measured harm*: nothing in [PLAYABLE](21-playable-log.md) or any sitting
-reports slow arrival, and [20 §6](../20-client-loading.md) is explicit that CI
+reports slow arrival, and [21 §6](../21-client-loading.md) is explicit that CI
 can hold a byte total and cannot hold a timing. **What this audit therefore asks
 of [P11.9](#p119--release-engineering-which-is-the-other-half-of-the-bar) is one
 line in `tools/release.test.ts`'s neighbourhood: a recorded ceiling on the entry
@@ -697,10 +697,10 @@ citations.
 | 1 | **A test whose title claimed a divergence its body never drove** — *is skipped by a rebuild and indexed by the watcher* — owing the reconciliation to `P2.7`, **a stage that was never created**, after [P6B.1](20-p6b-playable.md) had done the reconciling | `packages/server/src/routes/refused-path.test.ts` | Rewritten to the claim P6B.1 actually makes: one folder, **both** producers, the same answer, with the refusal read off the surface [P7B.8](24-p7b-presets-and-prompts.md) built for it |
 | 2 | A phase number run into a section number with the `§` dropped, naming a stage of P4 that does not exist | `packages/server/src/storage/local-source.test.ts` | Rewritten to the section it meant, **described rather than quoted** — the check that found it would refuse its own account |
 | 3–9 | **Seven phase status lines pointing into `05-manual-testing.md`'s old subsections** — §3.3, §3.4 ×5, §3.5 ×2 — after that file grew the two-tier gate and renumbered | P2, P2B, P3, P4, P5 ×3, P6B | Repointed at §1, §3 and §6, which are where those three things live now |
-| 10–16 | Seven more dangling section citations: `[04 §3.4]`, `[02 §8]`, `[P2 §2.13]`, `[P11 §0.4]`, `[P4 §1.4]` pointing at the wrong document, `[P2C §0]` | [05](../05-tagging.md), [19](../19-tech-stack.md), [P6](18-p6-implementation.md), [18](../18-session-import.md), `ImportPanel.tsx`, `openai-compatible.live.test.ts` | Repointed |
+| 10–16 | Seven more dangling section citations: `[04 §3.4]`, `[02 §8]`, `[P2 §2.13]`, `[P11 §0.4]`, `[P4 §1.4]` pointing at the wrong document, `[P2C §0]` | [05](../05-tagging.md), [20](../20-tech-stack.md), [P6](18-p6-implementation.md), [19](../19-session-import.md), `ImportPanel.tsx`, `openai-compatible.live.test.ts` | Repointed |
 
 ***`[P11 §0.4]` is in that list, and it was pointing at this section before this
-section existed.*** [18 §3](../18-session-import.md) cited P11's localisation
+section existed.*** [19 §3](../19-session-import.md) cited P11's localisation
 sweep as §0.4 when the sweep is §1.3, and the number happened to be the next one
 free. *A citation can be wrong in a way that comes true, which is the least
 useful kind of correct.*
@@ -742,7 +742,7 @@ directions, which makes it a property of the register rather than an accident.
 
 | # | The commitment | Where it is committed | The artifact, and the check | Routed to |
 |---|---|---|---|---|
-| 22 | **Session and Turn carry no provenance at all**, and the window shuts when the record freezes | [18 §4.1](../18-session-import.md), [03 §8](../03-data-model.md) — `origin: Provenance` is specified and unimplemented, and `stampImported` does not typecheck against a session | A field on both records before export publishes them. **Check:** `stampImported` accepts a session; `emit-schemas` produces the field | **[P11.10](#p1110--session-export-and-the-format-it-freezes)**, and it is the one item here that costs more by waiting: an edit now, a migration of a frozen portable format afterwards |
+| 22 | **Session and Turn carry no provenance at all**, and the window shuts when the record freezes | [19 §4.1](../19-session-import.md), [03 §8](../03-data-model.md) — `origin: Provenance` is specified and unimplemented, and `stampImported` does not typecheck against a session | A field on both records before export publishes them. **Check:** `stampImported` accepts a session; `emit-schemas` produces the field | **[P11.10](#p1110--session-export-and-the-format-it-freezes)**, and it is the one item here that costs more by waiting: an edit now, a migration of a frozen portable format afterwards |
 | 23 | **Openings, and the seed → expand → edit → accept → promote loop** | [03 §6](../03-data-model.md), **PORT** in [triage](02-triage.md); `fromSeedId` has shipped since P1 with no writer anywhere | The loop, and a control beside the setup's other fields. **Check:** a seed expands, is edited, and the accepted text is what a session opens on | **Unowned.** [P7B §1.11](24-p7b-presets-and-prompts.md) held it *"with that cost named"* — the expand step is a model call and a new interaction, not a surface over a finished route |
 | 24 | **[10 §9](../10-ui-surfaces.md)'s live turn view** — a collapsed in-flight line outside the workbench — with [R4](22-walkthrough-refinements.md) and [polish §11](06-polish.md) | [F-03](21-playable-log.md) from the pre-P6 walk; [P7B §1.11](24-p7b-presets-and-prompts.md) held all three together | One story or none: *"building one third of a scroll-and-progress story is how the other two thirds get built twice"* | **Unowned, and R4 still needs a paragraph in [10](../10-ui-surfaces.md) before it can have one** — which makes this the corpus's oldest genuine blank rather than an unscheduled item |
 | 25 | **The sign-in gallery's type-to-filter** | [12 §7](../12-account-gallery.md), [polish §7](06-polish.md) | §0.3's row 21, restated: one text affordance where there are now two | **Unowned.** Its blocker cleared at [P10.4](27-p10-implementation.md) and nothing noticed |
@@ -1022,7 +1022,7 @@ with a requirement and no builder.
 *Corrected at [P6A](19-p6a-alpha-1.md), which had to count them.* This paragraph
 listed **five** names as those four, by including the unraid template
 ([09 §5.3](../09-server-multiuser-deployment.md)) — which is not one of the six.
-[25 D0b](../25-open-questions.md)'s canonical enumeration is OCI image, tarball,
+[26 D0b](../26-open-questions.md)'s canonical enumeration is OCI image, tarball,
 `.deb`, AUR, Windows service installer and Homebrew formula, and
 [09 §5.4](../09-server-multiuser-deployment.md) calls the template *"a thin
 wrapper over"* Tier 1 rather than an artifact beside it. The old sentence's
@@ -1039,7 +1039,7 @@ an audience.
 
 **Session export is the largest of the three and the one with a dependency.**
 It drags `localActors`, channel state, branch structure and renditions
-([25 B12](../25-open-questions.md)), and it **freezes the turn record** — which
+([26 B12](../26-open-questions.md)), and it **freezes the turn record** — which
 is why [13 §4](../13-write-mode.md) has to be settled before the format is
 fixed, not after. That is a design dependency on a document about a 2.0 feature,
 and it is the sharpest scheduling consequence of the release re-cut. ~~If §2's
@@ -1060,15 +1060,15 @@ not a design session it can block on.
 ***And the freeze acquired a second record, named and dated.***
 [P9 §1.1](26-p9-implementation.md) decided `Rendition` is **internal tier** and
 graduates *when the turn record does* — on `turn.ts`'s own sentence, *"session
-export ([25 B12](../25-open-questions.md)) is the event that ends this freedom"*.
+export ([26 B12](../26-open-questions.md)) is the event that ends this freedom"*.
 So P11.10 freezes the turn record **and** the rendition record
-([21 §7](../21-internal-contracts.md)), the four consequences below apply to
+([22 §7](../22-internal-contracts.md)), the four consequences below apply to
 both, and P9 paid the cost of that answer in advance rather than leaving it to
 this stage: the rendition's tier claim is checked by `emit-schemas` producing no
 diff, so nothing has to be un-published first.
 
 **And it has a second reader nobody in the room represents** — *added
-2026-09-01, from [18 §3](../18-session-import.md).* [25 E4](../25-open-questions.md)
+2026-09-01, from [19 §3](../19-session-import.md).* [26 E4](../26-open-questions.md)
 makes session *import* conditional on an interchange format and says the format
 begins here: *"a format designed with import in mind and a format designed
 without it are different documents, and only one of them can be written at
@@ -1082,7 +1082,7 @@ free while the format is being written:
    anyone deciding to.
 2. **Leave somewhere for a foreign identifier**, tolerating its absence. The
    three surveyed sources supply a message id, a message id, and nothing at all
-   ([18 §2.1](../18-session-import.md)) — and the one with nothing is the most
+   ([19 §2.1](../19-session-import.md)) — and the one with nothing is the most
    widely deployed.
 3. **Export siblings, not the path.** Every read surface today walks
    `walkPath(head)`; serialising that drops every swipe, which
@@ -1101,7 +1101,7 @@ Only the fourth costs more by waiting, and it is the one that looks least like
 this stage's business.
 
 **Backup and restore is the smallest.** Quiesce, archive excluding the index,
-restore and rebuild ([25 E6](../25-open-questions.md)). The part that matters is
+restore and rebuild ([26 E6](../26-open-questions.md)). The part that matters is
 the CI restore test, which belongs to [testing](03-testing.md) rather than here.
 
 **What this means for the phase.** P11 was already the largest and least
@@ -1118,7 +1118,7 @@ scheduling and was not.** Packaging went into §2 as P11.9. Session export and
 backup and restore did not: they were argued here at length, the stage list ran
 P11.0 to P11.9 without either, and §3's ten-row gate had no row for either. Every
 other document in the corpus points here — [work plan §0.5](01-work-plan.md),
-[25 B12](../25-open-questions.md), [25 E6](../25-open-questions.md),
+[26 B12](../26-open-questions.md), [26 E6](../26-open-questions.md),
 [P4](16-p4-implementation.md), [P9](26-p9-implementation.md) and
 [testing](03-testing.md) — so the obligation that was moved into this phase
 *because it had a requirement and no builder* landed one level short of a
@@ -1148,7 +1148,7 @@ carries branch structure and channel state; a package carries an arbitrary
 bundle of library objects, every one of which is already a **portable kind** with
 a schema, a `Provenance` and an id that `stampImported` can key. So the package
 half needs no format decision at all: [04 §9](../04-schemas.md) describes the
-bundle and [18](../18-session-import.md)'s sweep already reads exactly those
+bundle and [19](../19-session-import.md)'s sweep already reads exactly those
 objects. *What P11.10 is actually deciding is the hard part — how a record with
 siblings, absent instrumentation and foreign identifiers survives a round trip —
 and none of those three questions is asked by a bag of actors.*
@@ -1234,7 +1234,7 @@ stage runs both directions and reconciles them, and the two existing registers
 say where they disagreed — twice, in both cases because a placement had been
 made and not re-read.
 
-**One additional review input:** [20 — client loading](../20-client-loading.md)
+**One additional review input:** [21 — client loading](../21-client-loading.md)
 records the early bundle-size baseline and expects growth through the intervening
 phases. Its §7 proposes this audit as the point to measure arrival and navigation
 costs, then decide whether route/tool splitting and serving changes need a stage
@@ -1705,7 +1705,7 @@ list.
   falls through to choosing by value and a closed three-way union renders as a
   free-text box. **`Treatment.hookPacing` is that box today** — the authored
   default [04 §6.1b](../04-schemas.md) writes, over the four levels
-  [25 C7e](../25-open-questions.md) spent a paragraph settling — and it is now
+  [26 C7e](../26-open-questions.md) spent a paragraph settling — and it is now
   one call away from not being. *`positionOptions` in `EntryFields.tsx` was
   rewritten onto it in the same change*, because a helper introduced on a
   no-duplication argument that leaves the duplicate it names standing is the
@@ -1810,7 +1810,7 @@ the first outbound reference that table has ever recorded for a book.
 
 **Two stale comments found on the way, and one of them ships.**
 `shared/src/schema/hook.ts` said the removed `requires` and `onFire` vocabulary
-*"is 2.0"*; [25 C7](../25-open-questions.md) re-scoped it to the **6.0 authoring
+*"is 2.0"*; [26 C7](../26-open-questions.md) re-scoped it to the **6.0 authoring
 tier** ([work plan §0.6](01-work-plan.md)) and the string is a TypeBox
 `description`, so it was emitted into three portable schemas and shipped in the
 build. `play/HookPanel.tsx` said *"there is no treatment editor and no setup
@@ -1822,7 +1822,7 @@ now say where the other six fields live.
 
 ***And the documents, which is where the change started.***
 [03 §4.1](../03-data-model.md)'s **[OPEN]** on hook packs is closed — against
-[25 C7b](../25-open-questions.md), which had already declined them flatly, so two
+[26 C7b](../26-open-questions.md), which had already declined them flatly, so two
 documents had been disagreeing about the same decline — and the decline is
 recorded where the question is asked, with the positive half it never had: the
 three carriers, promotion out of a session, and a **Treatment carrying only
@@ -2023,7 +2023,7 @@ P7/P11 scope* — so this stage is whatever half of that P7 did not take, and
 the revisit should start by finding out which.
 
 ***Found out, 2026-09-16: P7 took none of it, and P7 says so itself.*** That
-document's own dependency list carries the row — *"[25 C3] — impersonation, and
+document's own dependency list carries the row — *"[26 C3] — impersonation, and
 the split P11 asks P7 to make… [P11.4] says 'this stage is whatever half of that
 P7 did not take, and the revisit should start by finding out which.'*
 ***P7's revisit did not know it was asked.***"* And the tree agrees: the word
@@ -2195,7 +2195,7 @@ something play could have discovered: there was nothing to discover.
 fragments, selected by a dial, replaceable by whoever ships the pack — because
 that argument transfers whole and a third literal shape for one idea is a third
 thing for an author to learn. **What does not transfer is the axis.**
-[23 §5.4](../23-randomizers.md) is explicit that a frequency dial stays a
+[24 §5.4](../24-randomizers.md) is explicit that a frequency dial stays a
 *separate channel* from difficulty, *"because folding* how often *into* how
 hard *rebuilds exactly the conflation [06 §7.3.2] exists to prevent"* — so
 `DialAxis` did not grow an arm, `dials.ts` still reads two, and
@@ -2467,7 +2467,7 @@ sweep over the whole client is a sitting rather than a commit.
 ### P11.8 — The localisation sweep
 
 §1.3: extraction into catalogues, the deliberately bad machine-generated French
-for testing ([19 §12.4](../19-tech-stack.md)), and missing keys falling back to
+for testing ([20 §12.4](../20-tech-stack.md)), and missing keys falling back to
 English **silently, per key** — a 60%-translated UI should look bilingual, not
 broken.
 
@@ -2514,14 +2514,14 @@ away from the code it is about. **The cost is one trap per label read** on table
 of a dozen entries, which is not a number anybody will measure.
 
 ***`i18next` is not here, and the deferral has a measurement behind it rather
-than a preference.*** [19 §12.3](../19-tech-stack.md) recommends it and its own
+than a preference.*** [20 §12.3](../20-tech-stack.md) recommends it and its own
 deciding factor is that *"i18next runs on the server too"* — push bodies rendered
 with the app closed. **That need is not real in this build**: [P10.2](27-p10-implementation.md)
 renders every notification on the client, from these tables. What it would cost
 was measured one stage ago — [§1.3](#13-the-i18n-sweep-is-extraction-and-only-the-discipline-made-it-mechanical)'s
 280 kB gzip entry and its recommended ceiling — and `react-i18next` with an ICU
 plugin is a fifth of that again, on the common entry, for a feature no shipped
-locale uses. *That is [20 §7](../20-client-loading.md)'s trigger, knowingly.*
+locale uses. *That is [21 §7](../21-client-loading.md)'s trigger, knowingly.*
 What §12.3 actually buys is ICU plurals, which is real and is not what a
 class-to-word table needs. **So the deferral is a loader, not a format**: §12.2's
 explicit keys are what makes it cheap, because adopting a library later changes
@@ -2559,7 +2559,7 @@ is a paragraph rather than a check. *The boundary is §1.3's own*: the sweep is
 discipline about **classes**.
 
 ***The test French is `fr-x-machine`, and the private-use subtag is the honest
-part.*** [19 §12.4](../19-tech-stack.md) makes machine translation *the primary
+part.*** [20 §12.4](../20-tech-stack.md) makes machine translation *the primary
 mechanism rather than a fallback*, so what has to be right on day one is the
 machinery: per-key fallback, layout under longer strings, and a locale a person
 can actually switch to. Offering it as plain `fr` would promise French and
@@ -2820,8 +2820,8 @@ is cheaper than deciding now.
 ***The record this stage freezes is two records, since 2026-09-16*** (§0.2, §1.8).
 [P9 §1.1](26-p9-implementation.md) decided `Rendition` is internal tier and
 graduates *at this event*, on the sentence `turn.ts`'s own header carries —
-*"session export ([25 B12](../25-open-questions.md)) is the event that ends this
-freedom"*. So [21 §7](../21-internal-contracts.md)'s rendition contract comes with
+*"session export ([26 B12](../26-open-questions.md)) is the event that ends this
+freedom"*. So [22 §7](../22-internal-contracts.md)'s rendition contract comes with
 the turn record, and §1.8's four consequences are asked of both. **P9 paid for
 that answer rather than leaving it here**: the tier claim is checked by
 `emit-schemas` producing no diff, so this stage inherits a record that has never
@@ -2855,7 +2855,7 @@ graduate to `schema/` and the registry"*, and
 **The event arrived; the graduation did not, and that is a decision.**
 
 The old sentence assumed *portable* and *validated on import* were one thing.
-[18 §3](../18-session-import.md) is the argument that they are not: **a registry
+[19 §3](../19-session-import.md) is the argument that they are not: **a registry
 entry would validate a foreign record against our shape**, and consequences 1 and
 2 are both about tolerating shapes we did not write — so the registry would
 enforce exactly what the format exists not to enforce. *The freeze is a promise
@@ -2870,14 +2870,14 @@ real one** — and every fixture in this repository is linear. §1.8 predicted
 exactly that (*"no fixture this build produces would catch it unless the fixture
 branches — so the fixture branches"*), and the fixture branches.
 
-**All three of [18 §3]'s checkable consequences are asserted**: siblings by a
+**All three of [19 §3]'s checkable consequences are asserted**: siblings by a
 count over a branched fixture, a turn with five absent fields surviving
 unchanged, and a foreign identifier from a source this build has never heard of
 carried through. *The last is what makes this a format rather than a dialect.*
 
 ***The fourth consequence is the one that costs more by waiting, and it is
 paid.*** `Session.origin` has been specified in [03 §8](../03-data-model.md)
-since it was written and never implemented; `Turn.foreign` is [18 §3]'s place for
+since it was written and never implemented; `Turn.foreign` is [19 §3]'s place for
 a foreign message id. **Both are optional**, because every session this build has
 ever written has neither — a record that made them mandatory would refuse to
 load every session on every existing install, which is what a *free to move*
@@ -2913,7 +2913,7 @@ arriving unchanged at the stage it was written for.
 format and a download, and [§3](#3-verification--the-p11-exit-gate)'s row 10 is
 *"a session exported from this install **loads on another one**"* — which nothing
 could do, because there was no importer and no stage owned one. **A format with no
-reader makes that row unwalkable rather than merely unwalked**, and [25 E4]'s
+reader makes that row unwalkable rather than merely unwalked**, and [26 E4]'s
 whole argument for writing the format *with import in mind* was that the two are
 different documents; `sessions/import.ts` is what makes that claim checkable.
 
@@ -2952,7 +2952,7 @@ picture — because it was found from a different door.
 
 ***Added 2026-09-14, same finding.*** §1.8 calls it *"the smallest"* and it is:
 quiesce, archive the data directory excluding the index, restore and rebuild
-([25 E6](../25-open-questions.md)).
+([26 E6](../26-open-questions.md)).
 
 **The part that matters is not in this stage.** The CI restore test belongs to
 [testing](03-testing.md), and [work plan §8](01-work-plan.md) lists *"backup and
@@ -2980,7 +2980,7 @@ test that says so runs without a person.
 
 #### Done — 2026-09-17
 
-***[25 E6](../25-open-questions.md)'s whole instruction is "do not build a
+***[26 E6](../26-open-questions.md)'s whole instruction is "do not build a
 subsystem"***, and §1.8 calls this *"the smallest"*. It is: a script, two
 commands, and one test.
 
@@ -3152,7 +3152,7 @@ hook's premise, a hidden channel and GM-only state cannot reach it. *That is the
 structural half §6 asks for, inherited rather than rebuilt.*
 
 ***The dedupe is coarse and errs towards not writing***, which is the right
-direction and is stated so nobody mistakes it for cleverness. [25 E2] puts
+direction and is stated so nobody mistakes it for cleverness. [26 E2] puts
 semantic retrieval post-1.0, so what is left is the text and the keys,
 normalised for case and punctuation — a model asked twice about the same evening
 produces the same sentence with different commas far more often than a different
@@ -3404,14 +3404,14 @@ without anybody able to act on it.
 
 ## 4. Out of scope, deliberately
 
-The branch tree visualiser ([24 §1](../24-roadmap.md)); the file browser
-([25 D3](../25-open-questions.md)) and Tailscale
-([25 D1](../25-open-questions.md)), all three on the feature list; the Character
-Studio ([17](../17-character-studio.md)), which is a committed release at 3.0
+The branch tree visualiser ([25 §1](../25-roadmap.md)); the file browser
+([26 D3](../26-open-questions.md)) and Tailscale
+([26 D1](../26-open-questions.md)), all three on the feature list; the Character
+Studio ([18](../18-character-studio.md)), which is a committed release at 3.0
 rather than a feature-list entry; the prologue
-packages that unblock once export lands ([25 B10](../25-open-questions.md));
-chapterisation and embeddings ([24 §3](../24-roadmap.md),
-[25 E2](../25-open-questions.md)); quality evals of any kind
+packages that unblock once export lands ([26 B10](../26-open-questions.md));
+chapterisation and embeddings ([25 §3](../25-roadmap.md),
+[26 E2](../26-open-questions.md)); quality evals of any kind
 ([testing §4.3](03-testing.md)); and every committed release after 1.0 — the
 Write surface, World, Campaign and the authored-rule tier — which are scheduled
 rather than deferred ([work plan §5](01-work-plan.md)) and whose arrival answers

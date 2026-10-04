@@ -10,7 +10,7 @@ import type { Logger } from './commit.js';
 /**
  * ***The operational store, collected*** (2026-09-27) —
  * [P2 §2.10](../../../../docs/design/workplan/08-p2-implementation.md),
- * [21 §5.1](../../../../docs/design/21-internal-contracts.md).
+ * [22 §5.1](../../../../docs/design/22-internal-contracts.md).
  *
  * P2 §2.10 says a finished turn's *"operational draft may be collected"* and its
  * event rows *"are ephemeral and may be pruned after the terminal record

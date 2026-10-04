@@ -18,7 +18,7 @@ import { saysSomething } from './speakers.js';
  * *natural* or *random* (`generate.routes.ts:942-945`, `:3819-3826`; its client
  * clears the flag after one use). Here the flag is the submission's `push`, and
  * it arms this step — **the first producer `StepCondition.armed` has had**
- * ([25 C17] recorded `armed` as an arm nothing could raise). The runner puts
+ * ([26 C17] recorded `armed` as an arm nothing could raise). The runner puts
  * `push` in the turn's armed set when a submission carries one, and this step's
  * `when` is that flag.
  *
@@ -93,7 +93,7 @@ export const DIRECT_STEP: StepDefinition = {
   when: { when: 'armed', flag: PUSH_FLAG },
   failure: 'warn',
   /**
-   * `prose`, for [25 C15]'s reason and the hook selector's word for word: a
+   * `prose`, for [26 C15]'s reason and the hook selector's word for word: a
    * role nobody bound fails the step, and `stepRoles` at this id is where an
    * install points it at a smaller model.
    */

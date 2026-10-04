@@ -40,7 +40,7 @@ import { listTrash, restoreFromTrash, TrashAddressError } from '../storage/trash
  * than an exception — [P7.3], 2026-09-12.*** The sentence above means an
  * account's role: admin or not, somebody else's decision. A `ModelRole` is one
  * of the eight jobs a turn hands to a model, and binding one is
- * [19 §5.1](../../../../docs/design/19-tech-stack.md)'s *"anyone who wants their
+ * [20 §5.1](../../../../docs/design/20-tech-stack.md)'s *"anyone who wants their
  * own key overrides a role without the admin's involvement"* — the opposite
  * kind of thing. [10 §15.1] puts the bindings editor here by name.
  *
@@ -93,7 +93,7 @@ const PasswordChange = Type.Object(
 );
 
 /**
- * Preferences are **not** validated beyond their shape — [25 B13](../../../../docs/design/25-open-questions.md).
+ * Preferences are **not** validated beyond their shape — [26 B13](../../../../docs/design/26-open-questions.md).
  *
  * `additionalProperties: true` here is the point rather than a shortcut: the
  * server does not know what a preference means, and a newer client must be able
@@ -106,7 +106,7 @@ const PrefsPatch = Type.Object({}, { additionalProperties: true });
 const TrashAddress = Type.Object({ id: Type.String({ minLength: 3, maxLength: 300 }) });
 
 /**
- * A binding is a connection and one of its models — [19 §5.1], and **nothing
+ * A binding is a connection and one of its models — [20 §5.1], and **nothing
  * else, spelled at the schema.**
  *
  * *Stricter than `PUT /api/admin/bindings`, which takes an open object and
@@ -445,7 +445,7 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
    * passes no personal layer, because the question it asks is *what has the
    * install got*. This one asks *what will my turns do*, so it resolves the
    * account's own file over the install defaults against the connections the
-   * account may actually use — which is [19 §5.1]'s order, and the `via` field
+   * account may actually use — which is [20 §5.1]'s order, and the `via` field
    * is the whole point of asking a server rather than a browser.
    *
    * **One request for the whole pane.** The editor needs the resolved table
@@ -496,7 +496,7 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
       /**
        * Which of these rows the calls outside a session use — today only field
        * assist, which asks for `prose` unless its owner chose otherwise
-       * ([25 C15]'s stopgap, `providers/task-roles.ts`). On this response
+       * ([26 C15]'s stopgap, `providers/task-roles.ts`). On this response
        * because it is read against the table above it: the choice is a role,
        * and the row for that role is where its model is.
        */

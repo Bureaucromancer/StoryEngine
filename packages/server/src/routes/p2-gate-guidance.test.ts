@@ -267,7 +267,7 @@ describe('step 17 (a) — guidance appears in the turn record as its own block',
   });
 
   it('names the guidance block in the budget verdict, with the rule that kept it', async () => {
-    // [21 §1.5]: *every* block appears in `decisions`, including the included
+    // [22 §1.5]: *every* block appears in `decisions`, including the included
     // ones — a verdict listing only drops cannot answer "what falls out next".
     // A guidance block silently absent from the verdict would look identical to
     // one that was never considered.

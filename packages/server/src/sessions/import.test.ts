@@ -30,8 +30,8 @@ import type { Turn } from './types.js';
 
 /**
  * ***The round trip, which is what row 10 actually asks for*** —
- * [18 §3](../../../../docs/design/18-session-import.md),
- * [25 B12](../../../../docs/design/25-open-questions.md),
+ * [19 §3](../../../../docs/design/19-session-import.md),
+ * [26 B12](../../../../docs/design/26-open-questions.md),
  * [P11 §3](../../../../docs/design/workplan/28-p11-implementation.md)'s row 10,
  * [P11.10](../../../../docs/design/workplan/28-p11-implementation.md).
  *
@@ -359,7 +359,7 @@ describe('an imported session is a session here', () => {
 
 /**
  * ***A field this build does not know survives the round trip*** — the one
- * test [25 E15] said 1.0 owed, and [04 §2]'s rule that a newer file must
+ * test [26 E15] said 1.0 owed, and [04 §2]'s rule that a newer file must
  * survive a round trip through an older reader.
  *
  * Nested inside `input` on purpose: `input` is where a newer build puts things
@@ -376,7 +376,7 @@ describe('what a newer build wrote', () => {
     /**
      * *Every turn is given a move.* The fixture's turns are channel writes,
      * which carry none, and a move is where the field has to be: `input` is
-     * the part of the record [25 E15] widens, and the part a newer build's
+     * the part of the record [26 E15] widens, and the part a newer build's
      * next widening will land in.
      */
     const move = { actorId: null, kind: 'do', text: 'Knock.', raw: 'Knock.' };

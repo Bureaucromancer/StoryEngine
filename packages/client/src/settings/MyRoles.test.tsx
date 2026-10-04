@@ -322,7 +322,7 @@ describe('an install connection one of yours hides', () => {
 
 /**
  * ***Which of your models writes a field when you ask for help*** — the
- * stopgap for [25 C15] that lets a person point field assist at their quick
+ * stopgap for [26 C15] that lets a person point field assist at their quick
  * model. It picks a **row of the table**, so the model it reports is that row's
  * and nothing is worked out here.
  */

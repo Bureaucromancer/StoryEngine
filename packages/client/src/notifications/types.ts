@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 /**
- * A notification as the client sees it — [21 §8](../../../../docs/design/21-internal-contracts.md),
+ * A notification as the client sees it — [22 §8](../../../../docs/design/22-internal-contracts.md),
  * [P10.2].
  *
  * **Declared here rather than imported from `@storyengine/shared`**, which is

@@ -1,4 +1,4 @@
-# 20 — Client loading as the application grows
+# 21 — Client loading as the application grows
 
 **Status: design exploration; implementation deferred.** Written 2026-09-05
 after the audit of `main` at `a54afcc` reported a 676.82 kB minified JavaScript
@@ -21,7 +21,7 @@ the current phase is a reason to expect that trend to reverse.
 This note gives that future work an address and compares the options. It
 changes no build setting, assigns no new implementation stage, and makes no
 claim that 676.82 kB already causes a usability failure. Read it beside
-[19 §6](19-tech-stack.md), which owns the client stack, and
+[20 §6](20-tech-stack.md), which owns the client stack, and
 [10](10-ui-surfaces.md), which owns the surfaces being loaded. The review
 handoff is [§7](#7-when-to-revisit-and-what-the-work-would-produce).
 
@@ -203,7 +203,7 @@ routes and the benefit of automatic splitting. Revisit it when maintaining
 manual boundaries becomes repetitive. The loading problem alone does not
 require that migration.
 
-[19 §6](19-tech-stack.md) keeps the framework choice reversible. A framework
+[20 §6](20-tech-stack.md) keeps the framework choice reversible. A framework
 change, server rendering or separate applications for Play and Write would be
 much larger decisions: shared navigation, drafts, query caches and deployment
 all have to survive them. Reserve those options for measured limits that the

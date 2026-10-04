@@ -4,7 +4,7 @@
 import { ASSISTANT_MODE } from './mode.js';
 
 /**
- * The entry the host reads — [22 §6], and the shape `mode-loader.ts` validates
+ * The entry the host reads — [23 §6], and the shape `mode-loader.ts` validates
  * at run time because it cannot import the type across the boundary.
  */
 export const modes = [ASSISTANT_MODE];

@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
  * The one file in the server allowed to draw cryptographic randomness.
  *
  * Same exemption as `shared/src/ids.ts` and the same argument: the randomness
- * rule ([19 §14](../../../../docs/design/19-tech-stack.md)) protects **replay and
+ * rule ([20 §14](../../../../docs/design/20-tech-stack.md)) protects **replay and
  * branching** — every draw that can change what happens must be recorded, or a
  * reconstructed branch silently diverges. A password salt and a session key are
  * not draws. Nothing replays them, no narrative outcome depends on them, and
@@ -26,7 +26,7 @@ const scrypt = promisify(scryptCallback) as (
 ) => Promise<Buffer>;
 
 /**
- * scrypt, per [19 §9](../../../../docs/design/19-tech-stack.md).
+ * scrypt, per [20 §9](../../../../docs/design/20-tech-stack.md).
  *
  * argon2id is marginally better and costs a native module. Given a threat model
  * of *access separation among people who already trust each other*

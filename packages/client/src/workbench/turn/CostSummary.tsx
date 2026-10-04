@@ -38,7 +38,7 @@ export function CostSummary({
         {/* *Not priced* rather than *not counted*, and absent reads the same as
             null: a turn from before the field existed was never priced either.
             Null is what every turn says today — no adapter prices a call yet
-            ([25 E16]) — and it must never read as free. */}
+            ([26 E16]) — and it must never read as free. */}
         <MetadataRow label="Money">
           {cost.money === undefined || cost.money === null
             ? 'Not priced'

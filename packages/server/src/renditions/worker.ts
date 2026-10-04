@@ -202,7 +202,7 @@ export interface DispatchResult {
  *
  * ***And an open page is told the picture is coming*** (2026-09-27). The stream
  * carried a `rendition` frame when a picture landed or failed and none while it
- * was pending, so the placeholder [25 E3] decided on appeared only if the page
+ * was pending, so the placeholder [26 E3] decided on appeared only if the page
  * happened to refetch. A turn's prose landed, nothing said a picture was on
  * its way, and thirty seconds later one arrived. The frame goes out after the
  * record is written and before the job starts, so it cannot arrive after the
@@ -304,7 +304,7 @@ function launch(context: RenditionWorkerContext, job: RenditionJob): void {
 
 /**
  * **Try again** — the retry button [06 §10.2] promises, and the re-creation
- * [25 E3] describes.
+ * [26 E3] describes.
  *
  * ***The job is claimed before the record is touched***, and the order is the
  * whole of this function. The record is written by `writeAtomic`, which awaits
@@ -526,7 +526,7 @@ export async function runRendition(
 
     /**
      * ***The seed comes off the record, and the step drew it on the turn***
-     * ([19 §14], [P9.1]).
+     * ([20 §14], [P9.1]).
      *
      * So this function makes no random draw at all — which is what lets a
      * re-creation be a **replay**: the same record, the same seed, the same
@@ -569,19 +569,19 @@ export async function runRendition(
      *   call that bills by the picture. A failed backdrop has no button and is
      *   asked for afresh on the next reply instead — and whether *that* re-ask
      *   falls under the configurable condition below ~~is the owner's open
-     *   question at [25 E7], not something this comment decides~~ was the
-     *   owner's open question at [25 E7]. *Answered there 2026-10-04 on the
+     *   question at [26 E7], not something this comment decides~~ was the
+     *   owner's open question at [26 E7]. *Answered there 2026-10-04 on the
      *   recommended answer, owner deferred: it does not.* A re-ask is a new
      *   request a person's reply makes, not a retry the server times, and it
      *   would fall under the condition only if something asked again without a
      *   reply.
      *
-     * *When that changes*, it changes at [25 E7]'s per-connection queue, where a
+     * *When that changes*, it changes at [26 E7]'s per-connection queue, where a
      * retry is *"visible in progress events"* and has somewhere to be counted —
      * not as a loop around this line.
      *
      * ***And it arrives configurable, or not at all*** — the owner's answer of
-     * 2026-10-03, recorded at [25 E7]. The click this leaves an illustration's
+     * 2026-10-03, recorded at [26 E7]. The click this leaves an illustration's
      * brief rate limit needing was put to them and accepted for now, on the
      * condition that any automatic retry a picture later gets is a policy an
      * operator sets rather than a count chosen here: a config key, with the
@@ -730,7 +730,7 @@ async function intoSession(
 }
 
 /**
- * A provider failure as a class — [21 §1.4]'s rule.
+ * A provider failure as a class — [22 §1.4]'s rule.
  *
  * The provider's own sentence goes to the log; what reaches a surface is
  * something a client can render in the reader's language, which the server does
@@ -834,7 +834,7 @@ export function assetPath(
 /**
  * ***Whether a rendition's pixels are here*** (2026-09-30) — `ready`, with an
  * asset, and the file on disk. A record says what was made; only the disk says
- * what is still there, and [25 E3]'s emptied `assets/` is the ordinary case
+ * what is still there, and [26 E3]'s emptied `assets/` is the ordinary case
  * where the two part: *"deleting one leaves `asset: null` and a picture that
  * can be made again"*. The one reading for the list, which presents such a
  * record as having no pixels, and the retry, which refuses to overwrite pixels

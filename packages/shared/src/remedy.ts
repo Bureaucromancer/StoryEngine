@@ -109,7 +109,7 @@ export function remedyFor(diagnosis: Diagnosis): FailureRemedy {
    * `transient` is only ever produced by a dispatched call, so the runner
    * always has the locality. A **reader** — the transcript, reconstructing a
    * remedy from a turn that failed last week — has the class and nothing else,
-   * because [18 §3](../../../docs/design/18-session-import.md)'s record keeps
+   * because [19 §3](../../../docs/design/19-session-import.md)'s record keeps
    * neither the address nor that day's connectivity. `endpoint-silent` is that
    * reader's honest answer, and it is why the arm exists.
    */

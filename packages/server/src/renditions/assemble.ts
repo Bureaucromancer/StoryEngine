@@ -15,7 +15,7 @@ import type { ProviderCapabilities } from '../providers/types.js';
 /**
  * Where an image prompt comes from —
  * [06 §10.3](../../../../docs/design/06-modes-and-turn-pipeline.md),
- * [19 §5.3](../../../../docs/design/19-tech-stack.md), [P9.1].
+ * [20 §5.3](../../../../docs/design/20-tech-stack.md), [P9.1].
  *
  * ***This module is `providers/prompt-caps.ts`'s first caller, two phases after
  * that file was written.*** [P9 §0.1]'s finding 6 is that the ranked-fragment
@@ -36,7 +36,7 @@ import type { ProviderCapabilities } from '../providers/types.js';
  * **What is deliberately absent is any image.** [06 §10.1a]'s *text in, images
  * out*: a background prompt is built from channel state as **text**, never by
  * conditioning on a location's `reference` picture. That is lore-conditioned
- * renditions, deferred past 1.0 by [24 §3](../../../../docs/design/24-roadmap.md)
+ * renditions, deferred past 1.0 by [25 §3](../../../../docs/design/25-roadmap.md)
  * — and §1.7 names this exact file as where somebody will be tempted, because
  * *"a backdrop of a place is the most plausible excuse anyone will ever have to
  * cross that line: the location entry is right there, it has exactly one
@@ -50,7 +50,7 @@ import type { ProviderCapabilities } from '../providers/types.js';
  * **The treatment's tone reaches a step through its context rather than through
  * `StepInput`**, which is `hookSelector`'s arrangement and for its reason: the
  * payload filter is a vocabulary of *sources a step might not be entitled to*
- * ([22 §3.1]), and a widening of it for one consumer is a pseudo-source the
+ * ([23 §3.1]), and a widening of it for one consumer is a pseudo-source the
  * whole contract then carries. What the runner already read, the runner passes.
  */
 export interface FragmentInputs {
@@ -69,7 +69,7 @@ export interface FragmentInputs {
  * `capPrompt`'s own rule, restated here because these constants are read as
  * priorities and the arithmetic runs the other way.
  *
- * The ordering is [19 §5.3]'s list — *subject, style, quality tags, character
+ * The ordering is [20 §5.3]'s list — *subject, style, quality tags, character
  * reference, negative* — with the subject named by [06 §10.3] as the moment.
  */
 const ILLUSTRATION_RANKS = { moment: 100, actors: 80, tone: 60, place: 40, channels: 20 } as const;
@@ -90,7 +90,7 @@ const BACKDROP_RANKS = { place: 100, tone: 80 } as const;
  * **The moment is `required`**, which is what `capPrompt`'s flag is for: a
  * prompt with everything but its subject is a prompt for nothing, so the capper
  * reports `overCap` rather than quietly cutting it. §10.3 calls the moment *the
- * subject*, and [19 §5.3]'s list opens with the same word.
+ * subject*, and [20 §5.3]'s list opens with the same word.
  */
 export function illustrationFragments(inputs: FragmentInputs): PromptFragment[] {
   const fragments: PromptFragment[] = [];
@@ -181,7 +181,7 @@ export function backdropFragments(inputs: FragmentInputs): PromptFragment[] {
  *
  * ***The three things this adds to `CappedPrompt` are what make the recipe
  * re-runnable***: `fragments` (the input the cap ran over), `separator` (what it
- * joined with), and a `budget` in a shape that survives JSON. [21 §7] states the
+ * joined with), and a `budget` in a shape that survives JSON. [22 §7] states the
  * property they buy: **`capPrompt(fragments, budget, separator).text === text`,
  * for every rendition, forever.**
  *

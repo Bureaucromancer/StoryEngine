@@ -21,7 +21,7 @@ import type { ModelRole } from '../providers/types.js';
  * know the reader's language ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)), so a
  * failure travels as a **class** and never as `ProviderError.message` (English)
  * or `.detail` (the provider's own words). Those go to the log, which
- * [19 §12.7](../../../../docs/design/19-tech-stack.md) keeps deliberately untranslated.
+ * [20 §12.7](../../../../docs/design/20-tech-stack.md) keeps deliberately untranslated.
  *
  * It lives here rather than under `turns/` so that `jobs.ts` and `commit.ts`
  * can name an event without importing the runner.
@@ -170,7 +170,7 @@ export const callFinished = (
   params: {
     stepId,
     // Null rather than zero when the provider does not report. A zero here
-    // would be a measurement nobody made ([21 §1.4]).
+    // would be a measurement nobody made ([22 §1.4]).
     promptTokens: usage?.promptTokens ?? null,
     completionTokens: usage?.completionTokens ?? null,
     ms,

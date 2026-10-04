@@ -8,7 +8,7 @@ import { Rng, swipeReplay, type Tape } from './rng.js';
 import { cryptoSource, seededSource } from './source.js';
 
 /**
- * The RNG service — [19 §14](../../../../docs/design/19-tech-stack.md).
+ * The RNG service — [20 §14](../../../../docs/design/20-tech-stack.md).
  *
  * Two things are being asserted here, and the second is the one that matters
  * later: that the draws are *uniform and complete*, so nobody has a reason to

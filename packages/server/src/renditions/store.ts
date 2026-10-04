@@ -30,7 +30,7 @@ import { PathEscapeError, resolveWithin } from '../storage/paths.js';
  * the caller — a job worker with a status column to set — records it as a failed
  * rendition rather than reporting a success nothing backs.
  *
- * *Which is [21 §5.1]'s test applied honestly rather than by analogy*: **if
+ * *Which is [22 §5.1]'s test applied honestly rather than by analogy*: **if
  * losing it would surprise a user, it is not derived.** Losing the pixels would
  * not — that is what an eviction policy is for. Losing the prompt and the seed
  * would.

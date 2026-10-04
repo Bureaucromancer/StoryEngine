@@ -6,7 +6,7 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     // `StepHost.signal` is an `AbortSignal`, which `lib: ["ES2023"]` does not
     // declare — it is a host global, and the host an extension runs in is a
-    // Node worker ([22 §4.1]). `shared` takes the same types for the same
+    // Node worker ([23 §4.1]). `shared` takes the same types for the same
     // reason, so this adds no dependency the contract did not already have.
     "types": ["node"]
   },

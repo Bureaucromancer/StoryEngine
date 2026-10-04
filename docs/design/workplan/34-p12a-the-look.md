@@ -61,7 +61,7 @@ sitting stays T and its name stays P12A**, both for the reasons the next
 paragraph gives; P15's sitting is **W**.
 
 **Its sitting stays T.** It was registered 2026-09-22; `main`'s own T — pictures
-on a move, [25 E15](../25-open-questions.md) — was registered 2026-09-27 by a
+on a move, [26 E15](../26-open-questions.md) — was registered 2026-09-27 by a
 branch that could not see this one, so it is the later registration and became
 **U** ([manual testing §4](05-manual-testing.md)). **Its name stays P12A, and
 that is a choice rather than a consequence**: the lettering rule the rename
@@ -110,7 +110,7 @@ walked now; only R4 reads the corpus as a whole, and only R4 waits.
 **[10 §1.3](../10-ui-surfaces.md) split its own list to keep this bounded**, and
 the split is load-bearing rather than decorative: the seven items it marks *1.0,
 owned by P12A* are the stages below, the two it marks *not 1.0* are on
-[24](../24-roadmap.md)'s feature list, and **arrival is neither** —
+[25](../25-roadmap.md)'s feature list, and **arrival is neither** —
 [polish §5](06-polish.md) already carries the full home page as nominally 1.0
 and expected immediately before this same cut-over, so the direction says how it
 should look and asks no phase to build it. **Nothing in the direction is unowned**,
@@ -174,7 +174,7 @@ friction to route around.
   ([10 §2.1](../10-ui-surfaces.md)).
 - **Not a theme, and not a second theme.** Light and dark are the two designed
   defaults ([10 §1.2](../10-ui-surfaces.md)); nothing here adds a third or a
-  config file ([25 E10](../25-open-questions.md)).
+  config file ([26 E10](../26-open-questions.md)).
 - **Not the reading view's rebuild.** [10 §12](../10-ui-surfaces.md) shipped at
   P11 and is on the right side of this direction already. ~~It gains the story
   face at P12A.1 and nothing else.~~ *It has the story face already —
@@ -301,7 +301,7 @@ LAN server that may have no route to the internet at all, and a story surface
 whose type depends on a third-party request is a story surface that renders
 differently on the machine it was designed for. **Self-hosting** a face is
 possible and costs bytes measured against
-[20](../20-client-loading.md)'s budget. **A system serif stack** costs nothing,
+[21](../21-client-loading.md)'s budget. **A system serif stack** costs nothing,
 ships today, and is genuinely good on every platform this runs on.
 
 **Start with the stack**, and treat self-hosting as a later decision with a
@@ -468,7 +468,7 @@ edited to match them.*
   explicitly pushable. **If it lands in this window it lands wearing P12A.0's
   tokens and P12A.3's faces**, which is the whole of what the direction asks of
   it — and if it does not, nothing here is late.
-- **A dialable density** ([25 E10](../25-open-questions.md)). Still open, still
+- **A dialable density** ([26 E10](../26-open-questions.md)). Still open, still
   not this.
 - **Radix, or any component dependency.** [polish §6](06-polish.md) drew that
   line and nothing here needs to cross it — a popover with a focus trap is what

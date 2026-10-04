@@ -157,7 +157,7 @@ export const ECHO_STEP: StepDefinition = {
   writes: [ECHO.id],
   contributes: 'effects',
   callKind: 'echo',
-  /** *Every turn, and the step decides* — the trackers' reason ([25 C17]). */
+  /** *Every turn, and the step decides* — the trackers' reason ([26 C17]). */
   when: { when: 'cadence', everyNTurns: 1 },
   failure: 'warn',
   role: 'prose',

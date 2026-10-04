@@ -10,8 +10,8 @@ import type {
 } from '@storyengine/shared';
 
 /**
- * The provider layer's contracts — [21 §2, §3](../../../../docs/design/21-internal-contracts.md)
- * and [19 §5](../../../../docs/design/19-tech-stack.md), as code.
+ * The provider layer's contracts — [22 §2, §3](../../../../docs/design/22-internal-contracts.md)
+ * and [20 §5](../../../../docs/design/20-tech-stack.md), as code.
  *
  * **The wrapper is not ceremony.** It is where model-hint resolution happens,
  * where role bindings resolve to connections, where per-call cost is captured
@@ -21,7 +21,7 @@ import type {
  * to the engine.
  *
  * It is **not** where a raw-completion adapter attaches, because there is not
- * one ([19 §5.5](../../../../docs/design/19-tech-stack.md)): if it speaks
+ * one ([20 §5.5](../../../../docs/design/20-tech-stack.md)): if it speaks
  * OpenAI-compatible chat it works, and if it does not it does not. That is a
  * position, and it is stated in `docs/api.md` rather than left to be
  * discovered.
@@ -31,7 +31,7 @@ import type {
  * The eight roles a step may ask for.
  *
  * **Steps never name a model.** They name a role, and the install binds roles
- * to connections ([19 §5.1](../../../../docs/design/19-tech-stack.md)) — which
+ * to connections ([20 §5.1](../../../../docs/design/20-tech-stack.md)) — which
  * is what makes an install portable, an extension safe to share, and an actor's
  * `modelHint` resolvable as a *request* rather than as a binding.
  */
@@ -51,7 +51,7 @@ export type {
 /**
  * What an endpoint can do, and where it stops.
  *
- * Verbatim from [21 §3](../../../../docs/design/21-internal-contracts.md) — the
+ * Verbatim from [22 §3](../../../../docs/design/22-internal-contracts.md) — the
  * discipline this phase is under is that the contracts become code *as
  * written*, and a deviation goes into the doc first because five later phases
  * are specified against it.
@@ -60,7 +60,7 @@ export interface ProviderCapabilities {
   supportsTools: boolean;
   supportsStructuredOutput: boolean;
   supportsStreaming: boolean;
-  /** Whether consecutive same-role messages are acceptable. [21 §2] */
+  /** Whether consecutive same-role messages are acceptable. [22 §2] */
   mergeSameRole: 'required' | 'preferred' | 'never';
   /**
    * Whether a leading system message is supported at all — some endpoints want
@@ -88,7 +88,7 @@ export interface ProviderCapabilities {
    * limit is a property of that endpoint, and connections are private production
    * config"*.
    *
-   * **It is what makes the `image` role honest.** [19 §5.1] leaves that role
+   * **It is what makes the `image` role honest.** [20 §5.1] leaves that role
    * unset until a matching connection exists *"because there is no sensible
    * text-model fallback for it"*, and without this field a person could bind
    * `image` to their chat endpoint and discover the mistake one turn later. The
@@ -123,7 +123,7 @@ export interface ProviderCapabilities {
    * How many named subjects one picture can hold.
    *
    * ***A capability rather than a sentence in a prompt*** — [06 §10.3] is
-   * explicit: *"it belongs beside `maxPromptChars` in [19 §5.3]'s block rather
+   * explicit: *"it belongs beside `maxPromptChars` in [20 §5.3]'s block rather
    * than in prose to a model. Aventuras caps at one for consistency's sake;
    * Marinara derives both a visible-character limit and a reference-image limit
    * that runs from one to sixteen depending on the backend. **A number that
@@ -211,7 +211,7 @@ export interface GenerationRequest {
    */
   schema?: object;
   /**
-   * ***The bytes of every picture the messages name*** — [25 E15], R1. Keyed by
+   * ***The bytes of every picture the messages name*** — [26 E15], R1. Keyed by
    * digest, as a message's image parts are, and present only when a message has
    * one. **Never persisted**: the record names pictures by digest and this is
    * where they are loaded for the wire, and nowhere else.
@@ -287,7 +287,7 @@ export interface GenerationChunk {
 export interface ImageRequest {
   /** Resolved by the caller from the `image` role — the provider never resolves. */
   modelId: string;
-  /** The assembled, capped prompt. [19 §5.3]'s ranked fragments, as sent. */
+  /** The assembled, capped prompt. [20 §5.3]'s ranked fragments, as sent. */
   prompt: string;
   /**
    * ***The caller's, not the adapter's***, which is what makes the recipe a
@@ -377,7 +377,7 @@ export interface Provider {
    *   CLIP's 77-token window, beside `supportsTools` and `mergeSameRole`. One
    *   record is already answering two questions, and splitting the interface
    *   would not split that.
-   * - **[19 §5.5] makes a second *kind* the larger claim.** It says the chat bet
+   * - **[20 §5.5] makes a second *kind* the larger claim.** It says the chat bet
    *   is reversible at a single seam *because rendering is isolated as one
    *   step*, which is an argument for a second renderer rather than for a second
    *   protocol vocabulary.
@@ -405,7 +405,7 @@ export interface Provider {
  *
  * **Here rather than in `roles.ts`, where it was, because the session record
  * needs it** — [P7.3]. `SessionFile.roles` carries per-session overrides
- * ([19 §5.1](../../../../docs/design/19-tech-stack.md)), and importing them from
+ * ([20 §5.1](../../../../docs/design/20-tech-stack.md)), and importing them from
  * `roles.ts` would pull `connections.ts` and the whole storage layer into the
  * session record's type graph for the sake of two strings. This module is the
  * leaf both sides already depend on.

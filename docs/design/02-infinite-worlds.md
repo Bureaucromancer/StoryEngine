@@ -93,7 +93,7 @@ and one application path for all effects
 
 ### 2.1 Why this is safe, and how it resolves an open question
 
-[25 A2](25-open-questions.md) asks whether a package may ship code, and leans no,
+[26 A2](26-open-questions.md) asks whether a package may ship code, and leans no,
 because importing a package would become a code-execution decision.
 
 Authored rules dissolve that tension, because **rules are data, not code**. A
@@ -106,7 +106,7 @@ sharpens to:
 The security boundary is the closed vocabulary, which is exactly the property
 that makes a declarative rules engine worth having over "let authors write
 JavaScript". It also means shared content gets dramatically more expressive
-without touching the extension-execution question in [25 A1](25-open-questions.md).
+without touching the extension-execution question in [26 A1](26-open-questions.md).
 
 ### 2.2 What this changes in the data model
 
@@ -249,7 +249,7 @@ streaming reply.
 
 Proposed: steps may return a **suspend** outcome carrying an input request; the
 turn job parks, the event stream publishes the request, the answer arrives as an
-intent, and the turn resumes. Recorded in [25](25-open-questions.md) as C5.
+intent, and the turn resumes. Recorded in [26](26-open-questions.md) as C5.
 
 ### 4.3 An evaluation pass before narration
 
@@ -277,7 +277,7 @@ outcomes while writing prose" is the default failure mode otherwise.
 Related, and worth noting as a warning rather than a model: IW's summariser
 reportedly first runs at turn 8 and cannot see the original background or
 anything beyond six turns back. Fixed windows like that are what
-[25 E1](25-open-questions.md)'s rolling summary avoids: the chain covers every
+[26 E1](26-open-questions.md)'s rolling summary avoids: the chain covers every
 turn from the first, and full history stays on disk behind it.
 
 ---
@@ -322,7 +322,7 @@ alongside [triage §6.3](workplan/02-triage.md).
 There is a cheaper way to find out early. Poker needs exactly this mechanism in
 miniature — hole cards are per-actor hidden state, and the call generating a
 character's action must see that character's cards and no one else's. Building
-poker as a first-party reference extension ([24 §4.4](24-roadmap.md)) therefore
+poker as a first-party reference extension ([25 §4.4](25-roadmap.md)) therefore
 settles whether per-actor visibility works at all, on a bounded problem, long
 before anyone attempts it over a whole session's accumulated knowledge.
 
@@ -362,10 +362,10 @@ thing that comes from retrofitting.
 | Change | Where | Size |
 |---|---|---|
 | Add authored rules as a third extensibility tier — **6.0**, the authoring tier ([work plan §0.6](workplan/01-work-plan.md)) | [06](06-modes-and-turn-pipeline.md), [03 §7](03-data-model.md) | Large — the main finding, and the reason it waits |
-| "Packages may ship rules, never code" resolves A2 | [25 A2](25-open-questions.md) | Clarification |
+| "Packages may ship rules, never code" resolves A2 | [26 A2](26-open-questions.md) | Clarification |
 | Channels declarable by authors, not only modes | [06 §4](06-modes-and-turn-pipeline.md) | Moderate |
 | Steps may suspend for player input | [06 §6](06-modes-and-turn-pipeline.md) | Moderate — new C5 |
 | Name the evaluate-before-narrate pattern | [06 §6](06-modes-and-turn-pipeline.md) | Small |
 | Add a mutable Objective block | [03](03-data-model.md), [06](06-modes-and-turn-pipeline.md) | Small |
-| One expression language for templates and rules — **decided when rules are** | [06 §5](06-modes-and-turn-pipeline.md), [19](19-tech-stack.md) | Decision, deferred with §2 |
+| One expression language for templates and rules — **decided when rules are** | [06 §5](06-modes-and-turn-pipeline.md), [20](20-tech-stack.md) | Decision, deferred with §2 |
 | Per-actor knowledge scope as an acceptance test | [triage §6.3](workplan/02-triage.md) | Test, not feature |

@@ -112,7 +112,7 @@ describe('a rendition on the page', () => {
   /**
    * ***[P9 §1.4]'s contingency, asserted.*** An evicted rendition is `ready`
    * with no asset — nothing went wrong, the pixels were reclaimed, and the
-   * recipe is right there ([25 E3]'s *"evict pixels, keep recipes, regenerate on
+   * recipe is right there ([26 E3]'s *"evict pixels, keep recipes, regenerate on
    * demand"*). It must render as regenerable, or adopting an eviction policy
    * later becomes a migration.
    */
@@ -126,7 +126,7 @@ describe('a rendition on the page', () => {
 
   /**
    * The class crossed the wire and the sentence is written on this side —
-   * [21 §1.4]. A provider's own words stay in the log, so the assertion is that
+   * [22 §1.4]. A provider's own words stay in the log, so the assertion is that
    * two different classes produce two different sentences rather than one
    * generic one.
    */

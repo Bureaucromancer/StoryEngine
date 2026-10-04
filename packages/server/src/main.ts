@@ -23,14 +23,14 @@ import { supervisionOf } from './supervision.js';
  * the listener, and say the two things a first-time operator needs to hear —
  * where the server is, and whether it is exposed.
  *
- * **Server output goes through the logger** ([21 §4.1]), which is why the
+ * **Server output goes through the logger** ([22 §4.1]), which is why the
  * startup lines come after `buildApp` rather than before it: one mechanism, one
  * format, one level to turn down. The exception is `--reset-password`, which
  * talks to a person at a terminal and returns before any of this exists —
  * a prompt and its answer are a conversation, not a log.
  *
  * Log output is developer-facing and deliberately untranslated
- * ([19 §12.7](../../../docs/design/19-tech-stack.md)).
+ * ([20 §12.7](../../../docs/design/20-tech-stack.md)).
  */
 
 async function main(): Promise<void> {
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   const app = await buildApp(services);
 
   // Said after the logger exists rather than before, so that everything this
-  // process reports goes through one mechanism ([21 §4.1]) — including the
+  // process reports goes through one mechanism ([22 §4.1]) — including the
   // config path, which is the first thing anyone asks when a setting does not
   // seem to be taking effect.
   //

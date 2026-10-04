@@ -25,7 +25,7 @@ import { labels } from './i18n/catalogue.js';
  * differently, which is the defect this stage is fixing in the first place.
  *
  * ***The sentences are here rather than on the server***, which is
- * [19 §12.4](../../../docs/design/19-tech-stack.md)'s rule and
+ * [20 §12.4](../../../docs/design/20-tech-stack.md)'s rule and
  * [work plan §2](../../../docs/design/workplan/01-work-plan.md)'s: the server sends
  * classes and the client holds words.
  * [P11.8](../../../docs/design/workplan/28-p11-implementation.md) folds this

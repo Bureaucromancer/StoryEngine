@@ -78,7 +78,7 @@ describe('the manifest is data', () => {
   });
 
   it('keeps what it runs separate from what it declares', () => {
-    // [22 §3]'s split: `definition` crosses any boundary unchanged, `run` is
+    // [23 §3]'s split: `definition` crosses any boundary unchanged, `run` is
     // what becomes a dispatch table.
     expect(Object.keys(SCENE_MODE.run)).toEqual([
       PLOT_STEP.id,
@@ -386,7 +386,7 @@ describe('what Scene declares, and what the engine does with it', () => {
 
   /**
    * ***§7.2's three things have three different writers***, and asserting it is
-   * how the section stops reading like it forces [25 C16].
+   * how the section stops reading like it forces [26 C16].
    *
    * A background's pointer is the engine's and [P9] writes it; an expression and
    * a location are judgements about prose and a step writes them; text-only is a
@@ -635,7 +635,7 @@ describe('what the package hands a host', () => {
   });
 
   it('ships exactly one, so the array is a shape rather than a plan', () => {
-    // [22 §6]'s manifest says `modes` and means a list; Scene is one mode and is
+    // [23 §6]'s manifest says `modes` and means a list; Scene is one mode and is
     // expected to stay one. A second arriving here is a design change, not a
     // refactor, and this is where it announces itself.
     expect(modes).toHaveLength(1);

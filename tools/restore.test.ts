@@ -25,7 +25,7 @@ import { writeTarGz } from '../packages/server/src/storage/tar-archive.js';
 
 /**
  * ***An untested restore is not a backup*** —
- * [25 E6](../docs/design/25-open-questions.md),
+ * [26 E6](../docs/design/26-open-questions.md),
  * [work plan §8](../docs/design/workplan/01-work-plan.md),
  * [P11.11](../docs/design/workplan/28-p11-implementation.md).
  *

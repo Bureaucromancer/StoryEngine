@@ -56,7 +56,7 @@ export interface Passage {
      */
     yours: boolean;
     /**
-     * The pictures on the move — [25 E15]. A move that was only a picture is a
+     * The pictures on the move — [26 E15]. A move that was only a picture is a
      * move, so a blank `text` with pictures is kept rather than read as *no
      * input*; the HTML shows them, and the two text copies say them in words.
      */

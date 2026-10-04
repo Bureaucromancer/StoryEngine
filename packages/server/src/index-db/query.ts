@@ -14,7 +14,7 @@ import { ownerKey } from './ingest.js';
  * Everything here is a restatement of what is on disk
  * ([03 §5.1](../../../../docs/design/03-data-model.md)) — **nothing is answerable only from
  * the index**, and a feature that needed something to be would be storing data
- * in the wrong place ([21 §5](../../../../docs/design/21-internal-contracts.md)).
+ * in the wrong place ([22 §5](../../../../docs/design/22-internal-contracts.md)).
  *
  * The merge of a user's library with `system/library/` is a *query*, not a
  * special case, which is the whole reason both have the same layout on disk.
@@ -348,7 +348,7 @@ export function rowsForId(db: DatabaseSync, id: string): IdRow[] {
  * Full-text search across the indexed objects, among the owners a caller may
  * see.
  *
- * FTS5 ([19 §7](../../../../docs/design/19-tech-stack.md)).
+ * FTS5 ([20 §7](../../../../docs/design/20-tech-stack.md)).
  *
  * ***Scoped in the SQL*** (2026-09-27), which is what `searchLoreEntries` and
  * `searchTurns` do and why: the limit is applied by the database, so an owner

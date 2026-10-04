@@ -23,7 +23,7 @@ import {
 
 /**
  * ***Putting an archive back as the install*** —
- * [25 E6](../../../../docs/design/25-open-questions.md),
+ * [26 E6](../../../../docs/design/26-open-questions.md),
  * [P12.11](../../../../docs/design/workplan/29-p12-implementation.md).
  *
  * ***A running server cannot replace its own data directory in place***, and
@@ -59,7 +59,7 @@ export type RestoreRefusal =
 /**
  * What the marker says, and what the next boot acts on.
  *
- * ***`archive` is data-root-relative***, per [21 §4.1]'s foreign-path doctrine
+ * ***`archive` is data-root-relative***, per [22 §4.1]'s foreign-path doctrine
  * and for a second reason of its own: the absolute path contains the data
  * directory, which is the one thing about to be renamed. A relative name still
  * resolves against whichever directory the marker is read from.

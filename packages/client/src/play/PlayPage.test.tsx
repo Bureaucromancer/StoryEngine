@@ -30,7 +30,7 @@ import type { StreamHandlers } from './stream.js';
  * Two of P2's claims are only checkable at this level, which is why they had
  * no test before this file: guidance travels in its own field and does not
  * survive the turn ([06 §5.1]), and a reconnect is a status and not an error
- * ([19 §11]). The third this file used to hold — the raw record behind a
+ * ([20 §11]). The third this file used to hold — the raw record behind a
  * disclosure — left with the disclosure itself: since [P3.2] the record is
  * the workbench's subject, and `dock.test.tsx` owns that claim.
  *
@@ -96,7 +96,7 @@ vi.mock('../api.js', async (importOriginal) => {
     // Since [P11.4] the composer offers a draft of the player's own next
     // message, which is a model call and must never be a real one here.
     impersonateAs: (...a: unknown[]) => impersonateAs(...a) as unknown,
-    // Since [25 E15] the composer uploads pictures as they are attached.
+    // Since [26 E15] the composer uploads pictures as they are attached.
     uploadPicture: (...a: unknown[]) => uploadPicture(...a) as unknown,
     // Since 2026-10-04 one test opens the setup wizard, which drafts on open —
     // four model calls, never real ones here, and never answered: the test is
@@ -351,7 +351,7 @@ describe('the stream', () => {
   });
 
   /**
-   * A reconnect is **not** an error ([19 §11]). The cursor makes the resume
+   * A reconnect is **not** an error ([20 §11]). The cursor makes the resume
    * lossless, so the surface says so quietly — `role="status"`, which a screen
    * reader announces without interrupting, rather than the `alert` a real
    * failure gets.
@@ -787,7 +787,7 @@ describe('the context meter', () => {
 });
 
 /**
- * The two gestures — [07 §7], [19 §14.5–14.6], [P6.2].
+ * The two gestures — [07 §7], [20 §14.5–14.6], [P6.2].
  *
  * What only shows at this level is which request each button makes, and — the
  * one the design states as a rule rather than a preference — that **the reroll
@@ -856,7 +856,7 @@ describe('the two gestures', () => {
   });
 
   it('offers no reroll on a turn that consumed no draws', async () => {
-    // [19 §14.6]'s rule. `TURN` has an empty tape, which is what every turn
+    // [20 §14.6]'s rule. `TURN` has an empty tape, which is what every turn
     // against a book with nothing probabilistic in it has.
     readTranscript.mockResolvedValue({ turns: [TURN] });
     renderPage();
@@ -1653,7 +1653,7 @@ describe('the composer', () => {
 });
 
 /**
- * ***Pictures on a move*** — [25 E15], R1. The composer's half of the one
+ * ***Pictures on a move*** — [26 E15], R1. The composer's half of the one
  * property the feature rests on: every picture carries words, and a move may
  * be only a picture.
  */
@@ -2205,7 +2205,7 @@ describe('pictures on a move', () => {
     });
 
     /**
-     * ***Will the model see it*** — [25 E15]'s *"Play marks each attachment
+     * ***Will the model see it*** — [26 E15]'s *"Play marks each attachment
      * sent as a picture or sent as its description"*, answered before the move
      * goes rather than after.
      *

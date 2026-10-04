@@ -265,7 +265,7 @@ export class ApiError extends Error {
  * had, so three components' sentences had never rendered — and matching the
  * English of `message`, which four settings panels did, so rewording a server
  * sentence would quietly change which one of theirs a person saw. The class is
- * the contract ([21 §1.4]); the prose is the server's own fallback.
+ * the contract ([22 §1.4]); the prose is the server's own fallback.
  */
 export function errorCode(failure: unknown): string | null {
   return failure instanceof ApiError ? failure.code : null;
@@ -505,7 +505,7 @@ export interface ImportReport {
  * **Counts and not items.** A sweep of a real library is thousands of rows, and
  * a list that inlined them would be a page nobody could load in order to find
  * the one they wanted. `root` is the absolute path, which lives on this row and
- * nowhere else ([21 §4.1.1]) — the person who typed it can see it, and no
+ * nowhere else ([22 §4.1.1]) — the person who typed it can see it, and no
  * per-file row repeats it.
  */
 export interface ImportJob {
@@ -736,7 +736,7 @@ export const api = {
     request('POST', '/api/me/notifications/read', { ids }),
 
   /**
-   * ***Your* connections — [10 §15.1], [19 §5.1], [P10.3].**
+   * ***Your* connections — [10 §15.1], [20 §5.1], [P10.3].**
    *
    * The admin twins live on `adminApi` and the shapes are identical, because
    * they are the same thing in two directories: `AdminConnection` is what both
@@ -814,7 +814,7 @@ export const api = {
   ): Promise<BindingsState> => request('PUT', '/api/me/bindings', { bindings, contentHash }),
 
   /**
-   * Which of your roles field assist asks for — a stopgap until [25 C15]
+   * Which of your roles field assist asks for — a stopgap until [26 C15]
    * decides role fallback for everyone. One value, written whole.
    */
   writeMyTaskRoles: (tasks: TaskRoles): Promise<{ tasks: TaskRoles }> =>
@@ -1490,7 +1490,7 @@ export interface NewSession {
    * Absent is its primary; `null` is *start cold*; an id names one.
    *
    * ***A Setup that carries an opening begins on it, always*** — the owner's
-   * decision, [25 B18](../../../docs/design/25-open-questions.md), 2026-10-03: its cast's greetings are not written, **not even
+   * decision, [26 B18](../../../docs/design/26-open-questions.md), 2026-10-03: its cast's greetings are not written, **not even
    * when this is `null`**, because *cold* is one of the Setup's answers about
    * how its story begins rather than a gap the greetings fill. An id the Setup
    * does not hold, or an id sent with no `setup` beside it, is
@@ -1542,7 +1542,7 @@ export interface PublicMode {
    * Whether a new session opens on its cast's greetings — [P14 §1.7]. Optional
    * because a server older than [P14.5] does not say, and not saying is *no*.
    * *Unless it starts from a Setup that carries an opening* (2026-10-03,
-   * [25 B18](../../../docs/design/25-open-questions.md)): that one opens on the Setup's, and `NewSession.opening` says
+   * [26 B18](../../../docs/design/26-open-questions.md)): that one opens on the Setup's, and `NewSession.opening` says
    * why.
    */
   openingTurn?: boolean;
@@ -1965,7 +1965,7 @@ export interface GoalRow {
   current: boolean;
   achieved: boolean;
   /**
-   * The narrator judged this met and it is waiting on a person ([25 C12]).
+   * The narrator judged this met and it is waiting on a person ([26 C12]).
    * Never true at the same time as `achieved`.
    */
   proposed: boolean;
@@ -2378,7 +2378,7 @@ export function readRenditions(
  * strips the query string, so this helper is what credits the route.
  */
 /**
- * A picture on a move — [25 E15], R1. What the upload answers with: the content
+ * A picture on a move — [26 E15], R1. What the upload answers with: the content
  * address the move will name, and what the server's store read from the bytes.
  */
 export interface UploadedPicture {
@@ -2639,7 +2639,7 @@ export interface SubmitTurn {
   /** Its own field, never folded into the action — [06 §5.1]. */
   guidance?: string;
   /**
-   * Pictures on the move, by digest — [25 E15]. The server reads their type
+   * Pictures on the move, by digest — [26 E15]. The server reads their type
    * and size from its own store; a caption is the player's words about one.
    */
   attachments?: readonly { digest: string; caption?: string }[];
@@ -2659,7 +2659,7 @@ export interface SubmitTurn {
    */
   parentTurnId?: string | null;
   /**
-   * Replay this turn's draws — **rewrite** rather than reroll, [19 §14.5].
+   * Replay this turn's draws — **rewrite** rather than reroll, [20 §14.5].
    *
    * A turn id, not a tape: the server reads the draws from its own record.
    */
@@ -2855,7 +2855,7 @@ export interface AccountPatch {
   hiddenFromGallery?: boolean;
 }
 
-/** The tier table and the appliers, sent as data rather than duplicated ([21 §4]). */
+/** The tier table and the appliers, sent as data rather than duplicated ([22 §4]). */
 export interface ConfigView {
   config: Record<string, unknown>;
   path: string;
@@ -2890,7 +2890,7 @@ export interface AdminConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
-  /** Which of `models` can see pictures ([25 E15]). */
+  /** Which of `models` can see pictures ([26 E15]). */
   imageModels?: string[];
   baseUrl?: string;
   /**
@@ -2937,7 +2937,7 @@ export interface ConnectionCapabilities {
   /** Whether this endpoint reports token usage. */
   reportsUsage?: boolean;
   /**
-   * Whether this address also answers image requests — [21 §3], [P9.2].
+   * Whether this address also answers image requests — [22 §3], [P9.2].
    *
    * A fact about the endpoint rather than the protocol: `openai-compatible`
    * names a *chat* API, and whether the URL behind it serves
@@ -2946,7 +2946,7 @@ export interface ConnectionCapabilities {
    */
   rendersImages?: boolean;
   /**
-   * Whether this endpoint takes a seed with a picture — [21 §3], set beside
+   * Whether this endpoint takes a seed with a picture — [22 §3], set beside
    * `rendersImages` since [polish §25]'s merge (2026-10-03).
    *
    * Off unless said, because `seed` is not part of OpenAI's image request and a
@@ -3002,7 +3002,7 @@ export interface ConnectionInput {
   baseUrl?: string;
   models: string[];
   /**
-   * Which of `models` can see pictures ([25 E15]). Omitted keeps what is
+   * Which of `models` can see pictures ([26 E15]). Omitted keeps what is
    * stored, on the key's terms; the server narrows it to `models` either way.
    */
   imageModels?: string[];
@@ -3018,7 +3018,7 @@ export interface RoleRow {
    *
    * `unset` is policy, not a fault: there is no sensible text model for an
    * image, so `image`, `video` and `speech` stay unbound until something can
-   * actually serve them ([19 §5.1]).
+   * actually serve them ([20 §5.1]).
    */
   tier: 'hi' | 'lo' | 'unset';
   ok: boolean;
@@ -3052,7 +3052,7 @@ export interface UsableConnection {
   provider: string;
   scope: 'system' | 'user';
   models: string[];
-  /** Which of `models` can see pictures ([25 E15]). Absent means none. */
+  /** Which of `models` can see pictures ([26 E15]). Absent means none. */
   imageModels?: string[];
   /**
    * ***On an install connection one of your own hides: the label of yours***
@@ -3179,7 +3179,7 @@ export const adminApi = {
    * The first run's two answers, spread across the roles by the *server*.
    *
    * Two bindings rather than eight, because which role gets which is policy
-   * ([19 §5.1]: the expensive model writes, everything else uses the cheap one)
+   * ([20 §5.1]: the expensive model writes, everything else uses the cheap one)
    * and a client free to spread them differently is an install that can end up
    * with `prose` on the cheap model without anybody having chosen that.
    */
@@ -3513,7 +3513,7 @@ export function assistField(body: AssistFieldRequest): Promise<AssistFieldResult
 }
 
 /**
- * ***A session somebody else exported*** — [18 §3], [P11 §3]'s row 10, [P11.10].
+ * ***A session somebody else exported*** — [19 §3], [P11 §3]'s row 10, [P11.10].
  *
  * The document goes in a body rather than a multipart upload, unlike the
  * library's import: a session export is one JSON document the client already

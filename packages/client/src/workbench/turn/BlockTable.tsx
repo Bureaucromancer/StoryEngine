@@ -13,7 +13,7 @@ import { blockSourceAddress } from '../address.js';
 import { labels } from '../../i18n/catalogue.js';
 
 /**
- * ***Pixels or words, and why*** — [25 E15]. A picture's block went as one or
+ * ***Pixels or words, and why*** — [26 E15]. A picture's block went as one or
  * the other unless the budget dropped it, and the workbench is where somebody
  * asks *did the model actually see it*. The reason is the send rule's own, in
  * words.

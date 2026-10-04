@@ -67,7 +67,7 @@ export function SettingsPage(): JSX.Element {
 
       {/*
         Before Preferences and for every account — [10 §15.1] lists it in the
-        user half, and [19 §5.1] is explicit that *"anyone who wants their own
+        user half, and [20 §5.1] is explicit that *"anyone who wants their own
         key overrides a role without the admin's involvement"*. So it is not
         inside the admin conditional, and its query is keyed under `me` rather
         than `admin` so it stays mountable for the people it was written for.
@@ -104,7 +104,7 @@ export function SettingsPage(): JSX.Element {
       <Trash locale={account?.locale ?? undefined} />
 
       {/**
-        ***Beside the trash, and for the trash's reason*** — [25 E6], [P12.6].
+        ***Beside the trash, and for the trash's reason*** — [26 E6], [P12.6].
         It holds sessions as well as library objects, so a drawer inside the
         library would be a library surface answering about something that is not
         a library object; and nobody comes here to browse.

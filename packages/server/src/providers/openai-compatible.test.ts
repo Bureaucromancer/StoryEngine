@@ -978,7 +978,7 @@ describe('why the model stopped', () => {
 
   /**
    * A content filter is a refusal, not a failure: the call worked and the
-   * provider declined. [21 §1.4] gives `ModelCall.outcome` a `refused` value
+   * provider declined. [22 §1.4] gives `ModelCall.outcome` a `refused` value
    * that had no producer until this.
    */
   it('reads a content filter as a refusal', async () => {
@@ -1393,7 +1393,7 @@ describe('asking for a shape', () => {
 });
 
 /**
- * ***A picture on the wire*** — [25 E15], R1.
+ * ***A picture on the wire*** — [26 E15], R1.
  *
  * **The wire test the design asked for before anything else**, because this SDK
  * has dropped a field in silence before ([polish §8]): a picture that never

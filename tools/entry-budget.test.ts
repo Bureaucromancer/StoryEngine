@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * ***A recorded ceiling on the entry bundle*** —
- * [20 §7](../docs/design/20-client-loading.md),
+ * [21 §7](../docs/design/21-client-loading.md),
  * [P11.0](../docs/design/workplan/28-p11-implementation.md),
  * [P11.9](../docs/design/workplan/28-p11-implementation.md).
  *
@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest';
  * neighbourhood — which is why it is in `tools/` and not beside the client, even
  * though what it reads is `packages/client/dist`.
  *
- * ***It is a tripwire, not a target.*** [20 §6](../docs/design/20-client-loading.md)
+ * ***It is a tripwire, not a target.*** [21 §6](../docs/design/21-client-loading.md)
  * is explicit that CI can hold a byte total and cannot hold a timing, and
  * P11.0's own conclusion was that 280 kB gzip on one route is **large and not
  * measured harm** — nothing in any sitting reports slow arrival. So the number
@@ -39,11 +39,11 @@ import { describe, expect, it } from 'vitest';
  * **What is measured is what a first load pays**: the scripts and stylesheets
  * `index.html` itself references. A chunk reached by `import()` later — ~~the
  * workbench~~ *the setup wizard's dialog (`SetupWizard.tsx`,
- * [20 §7.2](../docs/design/20-client-loading.md))*, a locale catalogue — is
+ * [21 §7.2](../docs/design/21-client-loading.md))*, a locale catalogue — is
  * deliberately *not* here, because not being here is the whole point of
  * splitting it. *(Corrected 2026-10-04: the workbench was never one of these
  * chunks — `Shell.tsx` imports it statically, as
- * [20 §2](../docs/design/20-client-loading.md) records — and the wizard's
+ * [21 §2](../docs/design/21-client-loading.md) records — and the wizard's
  * dialog, split off that day, is the one that is.)*
  */
 
@@ -57,7 +57,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * measured rate (nineteen modules, 12.16 kB gzip) — deliberately enough that
  * ordinary work does not trip it and nowhere near enough to absorb a
  * substantial new dependency on the common entry, which is
- * [20 §7](../docs/design/20-client-loading.md)'s own trigger and the thing this
+ * [21 §7](../docs/design/21-client-loading.md)'s own trigger and the thing this
  * is here to make loud.
  *
  * **Raising it is a decision, and it should be made by editing this number with
@@ -70,7 +70,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * entry measured **306.91** before the stage and **314.69** after it: +7.78 kB
  * of the play page's own code — the transcript drawn as a chat, the chat
  * settings, the cast panel's four controls, the creation form's characters and
- * auto-mode — and **no new dependency**, which is the [20 §7] trigger this
+ * auto-mode — and **no new dependency**, which is the [21 §7] trigger this
  * ceiling exists to make loud. The play page is on the common entry, as every
  * route is, so its growth lands here; splitting one page's code into a lazy
  * chunk would be the first `React.lazy` in the client and a loading decision
@@ -87,7 +87,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * old `agentsNotCarried` one with them), **320.25**: the transcript's *Edited:
  * show the original* disclosure and the continuity checklist with its *Apply*
  * (`ChatMessages.tsx`), and the notes, which are on the entry because
- * `note-labels.ts` is. **No new dependency**, which is the [20 §7] trigger.
+ * `note-labels.ts` is. **No new dependency**, which is the [21 §7] trigger.
  * Five kB is P14.5's own margin again, a little under two stages at this
  * phase's rate; what would buy room instead is the first `React.lazy`
  * (P14.5's note above), or moving the note sentences off the entry with the
@@ -104,7 +104,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * `note-labels.ts` (on the entry for P14.5c's reason above), the import
  * panel's *stories* choice, the landed-upload meter and its preview, and the
  * `.avt` sniff. **No new dependency** — neither side touched a manifest —
- * which is the [20 §7] trigger. The same five kB of margin again, and the
+ * which is the [21 §7] trigger. The same five kB of margin again, and the
  * same remedy named twice above and still not taken: the note sentences off
  * the entry with the library surface that is their only reader, which is a
  * loading decision and not a merge's to make.
@@ -117,7 +117,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * draft kept through a late assist, a live frame that no longer freezes; then
  * **330.13** after polish 9, **330.42** after polish 10, and **331.24** with
  * polish 11, which crossed. About five kB in thirty-odd commits, all the
- * client's own code and **no new dependency**, which is the [20 §7] trigger;
+ * client's own code and **no new dependency**, which is the [21 §7] trigger;
  * most of the polish half is the words and the wiring by which a control says
  * what happened — `TwoStep`, `WriteFailed`, `copyText`, a skip link, a radio
  * group's arrows, search's status line. Every route is on the common entry, so
@@ -141,7 +141,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * it P15's own code: the wizard (`SetupFromTurn.tsx`), the *Start a session*
  * button a Setup's page and the wizard share (`StartSession.tsx`), and the
  * session form's Setup picker. **No new dependency** — the branch touched no
- * manifest — which is the [20 §7] trigger. The wizard is the plainest
+ * manifest — which is the [21 §7] trigger. The wizard is the plainest
  * candidate yet for the first `React.lazy`: a dialog nobody sees until they
  * press a button on one turn, and every byte of it on the common entry. It is
  * still a loading decision and not a merge's, so the remedy named four times
@@ -152,7 +152,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * ***Back to 336 on 2026-10-04 — the remedy named five times above, taken.***
  * [P15 §1.11](../docs/design/workplan/33-p15-setup-from-a-turn.md) decided it,
  * on the recommended answer with the owner's decision deferred, and
- * [20 §7.2](../docs/design/20-client-loading.md) records the boundary: the
+ * [21 §7.2](../docs/design/21-client-loading.md) records the boundary: the
  * wizard's dialog is `SetupWizard.tsx`, reached through the client's first
  * `lazy()` from the button that stays on the play page. The entry measured
  * **337.79** with the dialog on it, **335.38** without, and **335.55** once
@@ -184,7 +184,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * the label of a binding to a hidden connection, and the install panel's read
  * of the caller's role answer. The entry measured **335.55** before it and
  * **335.96** after — **+0.41 kB**, all the client's own words and wiring, and
- * **no new dependency**, which is the [20 §7] trigger. It fits, and leaves
+ * **no new dependency**, which is the [21 §7] trigger. It fits, and leaves
  * **0.04 kB**, which no client change will fit inside: the next one meets this
  * ceiling, and the choice it faces is this file's usual one — a raise argued
  * here, or code moved off the entry the way the wizard's was. Choosing which
@@ -243,7 +243,7 @@ describe('what a first load pays for', () => {
   /**
    * ***The locale catalogues are not on the entry, and this is the check that
    * says so*** — [P11.8](../docs/design/workplan/28-p11-implementation.md),
-   * [20 §7](../docs/design/20-client-loading.md).
+   * [21 §7](../docs/design/21-client-loading.md).
    *
    * `i18n/locales.ts` loads each catalogue through a dynamic `import()`
    * precisely so a language nobody in this install has chosen costs nothing at
@@ -263,7 +263,7 @@ describe('what a first load pays for', () => {
   /**
    * ***The setup wizard's dialog is not on the entry, and this is the check
    * that says so*** — [P15 §1.11](../docs/design/workplan/33-p15-setup-from-a-turn.md),
-   * [20 §7.2](../docs/design/20-client-loading.md), 2026-10-04.
+   * [21 §7.2](../docs/design/21-client-loading.md), 2026-10-04.
    *
    * The locale test's argument, for the client's first `lazy()`: **the
    * regression is one line** — `SetupWizard.tsx` imported statically from
@@ -271,7 +271,7 @@ describe('what a first load pays for', () => {
    * dialog back into every first load. The byte ceiling above catches it
    * today, by about two kB (338.19 against 336); it would stop catching it the
    * day a raise put the ceiling past that, and this names it regardless.
-   * [20 §6](../docs/design/20-client-loading.md) asks for exactly this kind of
+   * [21 §6](../docs/design/21-client-loading.md) asks for exactly this kind of
    * guardrail first — *structural*, read off the build graph — and says why
    * the unit tests cannot be it: a rendered mock of a lazy component is a
    * module however it was imported.

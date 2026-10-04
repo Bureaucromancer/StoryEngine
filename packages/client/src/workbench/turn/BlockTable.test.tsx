@@ -9,7 +9,7 @@ import type { AssembledBlock, BlockImage } from '@storyengine/shared';
 import { BlockTable } from './BlockTable.js';
 
 /**
- * ***Pixels or words, and why*** — [25 E15], at the one surface where somebody
+ * ***Pixels or words, and why*** — [26 E15], at the one surface where somebody
  * asks *did the model actually see it*.
  *
  * `views.test.tsx` holds the block table's older claims over whole turn

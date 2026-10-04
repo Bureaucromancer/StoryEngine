@@ -57,7 +57,7 @@ function turn(over: Partial<Turn> = {}): Turn {
 }
 
 /**
- * A turn on which the judge proposed a completion and [25 C12]'s gate refused
+ * A turn on which the judge proposed a completion and [26 C12]'s gate refused
  * it — the shape `pendingAchievement` reads.
  */
 function proposing(id: string, goalId: string): Turn {
@@ -295,7 +295,7 @@ describe('what the panel is shown', () => {
 });
 
 /**
- * [25 C12]'s gate — answered *ask* at [P7.6] and enforced by a three-word field
+ * [26 C12]'s gate — answered *ask* at [P7.6] and enforced by a three-word field
  * rather than a prompt, which is the whole reason the question stopped being
  * worth deferring.
  */
@@ -306,7 +306,7 @@ describe('the confirmation before a completion fires', () => {
   });
 
   /**
-   * ***The gate is the asymmetry and nothing else.*** [25 C12]: *"a missed
+   * ***The gate is the asymmetry and nothing else.*** [26 C12]: *"a missed
    * completion is an annoyance the player resolves manually, a false one ends
    * the story on a turn that did not earn it."* So the model's proposal waits
    * and the person's write does not — same channel, same value, opposite

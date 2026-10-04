@@ -46,7 +46,7 @@ import type { ChannelEffect, PooledHook, SessionFile, Turn } from './types.js';
  *
  * 1. ***A Setup that carries a written opening wins over the cast's greetings,
  *    always.*** **The owner's decision, 2026-10-03, recorded as
- *    [25 B18](../../../../docs/design/25-open-questions.md) and
+ *    [26 B18](../../../../docs/design/26-open-questions.md) and
  *    [P15 §1.7](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).**
  *    Whichever of its openings is chosen — and when the person starts it cold too, because
  *    *start cold* is 03 §6's *"neither"*: somebody who declined the Setup's

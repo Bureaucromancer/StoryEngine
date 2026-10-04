@@ -8,7 +8,7 @@ walked***, so under [manual testing §0](05-manual-testing.md)'s two-tier gate
 this phase is **open**: merged, and not closed — its critical list is
 [sitting W](05-manual-testing.md), unwalked.** One feature,
 filed as a phase for [P12 §1.5](29-p12-implementation.md)'s reason: a roadmap
-entry ([24](../24-roadmap.md)) holds no release commitment, and this was built
+entry ([25](../25-roadmap.md)) holds no release commitment, and this was built
 now.
 
 *2026-10-04: the three questions the merge left open — whether a turn that only
@@ -54,7 +54,7 @@ than a text file."* [03 §7.1](../03-data-model.md) and
 [10 §2.1](../10-ui-surfaces.md) say the same, and [triage](02-triage.md) marks
 Marinara's setup snapshot **PORT, strengthened**. No phase scheduled it.
 
-**[16 §3](../16-authoring.md) goes further and is wrong.** It counts *"a running
+**[17 §3](../17-authoring.md) goes further and is wrong.** It counts *"a running
 session can emit a Setup"* among the two thirds of the play-to-authoring loop
 that *"already exist"*. What exists is [P7.4](23-p7-implementation.md)'s *Save
 as a setup*, which names the **session form's** configuration before a session
@@ -95,7 +95,7 @@ verdict call, silently. It is stamped `'generated'`. The Setup itself may be
 
 ### 0.4 What is not the same feature
 
-[25 B10](../25-open-questions.md)'s *prologue package* is a partly-played
+[26 B10](../26-open-questions.md)'s *prologue package* is a partly-played
 **session** travelling in a package. This is the opposite trade: the history is
 condensed away and what travels is a Setup, which starts clean, reads in a
 library editor, and carries no turn record. Both are worth having; neither
@@ -231,7 +231,7 @@ companion, and a Setup made from any of its turns starts without the character
 the chat was with. Nor is it only chats: any seated actor outside the party is
 left behind, as the seeded session's Mara would be. The wizard's preview says so
 (*The party (nobody but you)*), which is honest and is not a remedy. A Setup
-has no field for a cast that is not a party; [25 B19](../25-open-questions.md)
+has no field for a cast that is not a party; [26 B19](../26-open-questions.md)
 is that question.
 
 ### 1.3 Hidden content stays on the server
@@ -251,7 +251,7 @@ surface that spoils them to the person still playing defeats the feature. So:
 
 ### 1.4 The established-facts lorebook is a precursor, not 16 §3
 
-[16 §3](../16-authoring.md)'s lorebook extraction reads the story bible, which
+[17 §3](../17-authoring.md)'s lorebook extraction reads the story bible, which
 does not exist until 4.0. This phase reuses the memory extractor
 (`memory/extract.ts` — its prompt, schema and reader) over the summary chain
 and the recent turns, and puts the result in front of a person to keep, edit or
@@ -300,7 +300,7 @@ of the Setup's openings is chosen, and even when the person starts it cold with
 written for *this* point of *this* story, with the party already seated, and a
 greeting is an actor's first line in a story that has not started. A Setup with
 no written opening leaves greetings as P14.4 has them.
-[25 B18](../25-open-questions.md) records the decision where the other
+[26 B18](../26-open-questions.md) records the decision where the other
 documents it touches can find it.
 
 **Two edges the decision does not reach, settled at the merge on the
@@ -338,7 +338,7 @@ the play surface's `rerunnable` reads. A Setup's opening has neither, so it is
 already that kind of turn.
 
 **The field is dropped, and the convention is the test.** `Turn` is the frozen
-record ([25 B12](../25-open-questions.md)), and a field on it is a promise every
+record ([26 B12](../26-open-questions.md)), and a field on it is a promise every
 reader keeps forever; one is worth adding only when a consumer genuinely needs
 to tell a Setup's opening from something else. None does. The only reader was
 the redo refusal, and with §1.7 only one kind of opening can be a session's
@@ -434,14 +434,14 @@ spare, so the next client change of any size has to say what it added.
   the second *after* the turn's row of gestures, not in it — that row fades
   unless the turn is hovered or focused, and a failure note inside it vanished
   as soon as somebody followed its advice to go to the composer. *A review
-  finding, 2026-10-04*; [20 §7.2](../20-client-loading.md) records *Remember
+  finding, 2026-10-04*; [21 §7.2](../21-client-loading.md) records *Remember
   this* as the exception still drawn inside the row.
 - **While it loads**, a sentence under the turn's gestures — *Opening the setup
   wizard…* — and not a modal frame. Nothing is covered while the chunk is on
   its way, and a frame the dialog replaced could leave the dialog's focus trap
   remembering one of the frame's own buttons as the place to return focus to,
   gone by the time the dialog closes.
-- **If it never arrives** — [20 §5](../20-client-loading.md)'s upgrade under an
+- **If it never arrives** — [21 §5](../21-client-loading.md)'s upgrade under an
   open tab — a local error boundary says the wizard could not be loaded and
   that a reload is the remedy, and the transcript, the composer and an unsent
   move stay where they were; without the boundary the router's would have
@@ -461,7 +461,7 @@ spare, so the next client change of any size has to say what it added.
   fades* the placement — each shown failing with its mechanism removed. The
   dialog's own tests open it through the button, so through `lazy()`.
 
-[20 §7.2](../20-client-loading.md) records it as the client's first lazy
+[21 §7.2](../21-client-loading.md) records it as the client's first lazy
 boundary, and the shape the next one starts from.
 
 ### 1.12 A Setup has no place for a cast that is not a party — open, as 25 B19
@@ -492,13 +492,13 @@ sentence would stand in for B19's answer rather than be one.
 **What closing it takes is a Setup that holds a cast distinct from its party.**
 [04 §2](../04-schemas.md) makes a new optional field free in format terms — no
 version bump, and readers keep what they do not know (`schema/common.ts` sets
-no `additionalProperties`) — so this is *not* [25 B16](../25-open-questions.md)'s
+no `additionalProperties`) — so this is *not* [26 B16](../26-open-questions.md)'s
 closed-union question. What makes it the owner's is permanence: from the first
 release that exports native objects, a Setup field's name and meaning are fixed
 in every file anyone holds, and how a Setup's cast meets
-[25 B18](../25-open-questions.md)'s greetings rule and this phase's carry-over
+[26 B18](../26-open-questions.md)'s greetings rule and this phase's carry-over
 is a design question rather than a field to add in passing.
-[25 B19](../25-open-questions.md) is the question.
+[26 B19](../26-open-questions.md) is the question.
 
 ---
 
@@ -663,7 +663,7 @@ the About surface and an unreleased one is not a heading it takes.*
   this one was, without the turns behind it, and it travels in a package like
   any other Setup. **Nothing it would spoil is shown**: hooks that have not
   happened and goals hidden from you are carried, and counted, and not described.
-  *(2026-10-04, §1.2's fifth gap and [25 B19](../25-open-questions.md):
+  *(2026-10-04, §1.2's fifth gap and [26 B19](../26-open-questions.md):
   whoever writes the release should say that **the party** is who travels with
   you — a character who was in the scene without ever joining the party, such
   as a chat's character the story never made a companion, does not carry, and

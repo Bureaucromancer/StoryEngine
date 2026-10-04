@@ -93,7 +93,7 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
    * [P14 §2.1](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
    * [P14.8](../../../../../docs/design/workplan/31-p14-scene-and-session-import.md).
    *
-   * These three were `recorded`, with a comment that tracked [25 E4] from
+   * These three were `recorded`, with a comment that tracked [26 E4] from
    * *closed* to *conditional on an interchange format*. The condition was met:
    * P11 wrote the session export, and [P14 §2.1] makes every foreign chat a
    * `SessionExport` that the export's own reader, `importSession`, loads. So a

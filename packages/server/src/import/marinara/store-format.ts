@@ -163,7 +163,7 @@ export function isShardDataFileName(name: string): boolean {
  * The column a table's rows are grouped into shard files by (S:442-485).
  *
  * **The whole map, not only the tables we convert.** Two reasons: a reader that
- * can load any table keeps [18 §2.2]'s claim true — session import needs no new
+ * can load any table keeps [19 §2.2]'s claim true — session import needs no new
  * reading code — and a partial copy of somebody else's table is the kind of
  * vendored fragment that is wrong without being noticeably wrong.
  *

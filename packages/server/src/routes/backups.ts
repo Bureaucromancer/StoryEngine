@@ -71,7 +71,7 @@ function restartMessage(refusal: RestartRefusal): string {
 
 /**
  * ***Taking a backup, and getting it off the machine*** —
- * [25 E6](../../../../docs/design/25-open-questions.md),
+ * [26 E6](../../../../docs/design/26-open-questions.md),
  * [P12.3](../../../../docs/design/workplan/29-p12-implementation.md).
  *
  * **Two registrars from one file, because the halves differ in one word.** The
@@ -710,7 +710,7 @@ export function registerAdminBackupRoutes(app: FastifyInstance, services: AppSer
    * failure has to survive into the next boot to be refused there, and deleting
    * it would turn *this did not work* into *nobody ever asked*. But a marker
    * nothing will act on and nobody can remove is a trap on exactly the install
-   * this feature was built for — [25 E6]'s operator has a shell and
+   * this feature was built for — [26 E6]'s operator has a shell and
    * `docs/deploy.md`'s household one has a web page and nothing else.
    *
    * So: one route, and it is the only door for the state the boot refuses.

@@ -13,7 +13,7 @@ as the results table [manual testing §0](05-manual-testing.md) requires and
 [§3.1](#31-the-critical-list-and-what-a-test-answers) as the critical list.
 **§1.7's update check moved into this phase** and turned two `unread` config keys
 `applied`; **§1.5's fork closed as a deferral** with a row in
-[24 §3.2](../24-roadmap.md) rather than as a build, on a distinction it was
+[25 §3.2](../25-roadmap.md) rather than as a build, on a distinction it was
 missing — *1.0 needs extensions loaded, not installed*; and **the §13 source link
 turned out to need the build to carry its URL**, because a constant cannot be
 right for a fork and the patched-build case is the one §13 exists for. *The phase
@@ -131,7 +131,7 @@ cheap is only true while P10.1 is unwritten.
 | `turn.failed` | ✅ the same |
 | `system.notice` | ✅ **in substance** — `pendingRestart` is computed per request, and *no usable connection* is a state `resolveConnections` already reaches. What is missing is the class, not the knowledge |
 | `artifact.ready` | ❌ **nothing**. `grep -rn "artifact.ready"` over `packages/` returns zero, and [P9](26-p9-implementation.md) was the phase that was going to build it |
-| `turn.awaiting-input` | ❌ **nothing**, and its precondition did not arrive. [25 C5](../25-open-questions.md)'s suspending step does not exist: `turnFinished` accepts `'suspended'` and no step produces it, and `packages/sdk/src/steps.ts` has no suspend verb at all |
+| `turn.awaiting-input` | ❌ **nothing**, and its precondition did not arrive. [26 C5](../26-open-questions.md)'s suspending step does not exist: `turnFinished` accepts `'suspended'` and no step produces it, and `packages/sdk/src/steps.ts` has no suspend verb at all |
 
 ***So §1.4's own rule, applied today, ships ~~three~~ **four** classes rather
 than five.*** That is a smaller P10.1 and a smaller P10.3 — ~~**three preference
@@ -336,7 +336,7 @@ channel; the client renders the in-app part.
 
 The wrinkle this phase inherits: the routing signal the design names — per-user
 presence, Active/Idle/DND/Invisible — **arrives with Messages, which is now
-unscheduled** ([24 §3.4](../24-roadmap.md)). So 1.0
+unscheduled** ([25 §3.4](../25-roadmap.md)). So 1.0
 routes on what it has: connection state, and whether the connected client is
 viewing the session in question. Write it as a presence *input* with one
 implementation rather than as a connection check, so real presence substitutes
@@ -349,7 +349,7 @@ less — [work plan §0.3](01-work-plan.md) records the cost of a seam with no d
 [09 §3.5](../09-server-multiuser-deployment.md) lists five 1.0 classes.
 `turn.complete`, `turn.failed` and `system.notice` have producers today;
 ~~`artifact.ready` gets one at [P9](26-p9-implementation.md)~~;
-`turn.awaiting-input` has one only if [25 C5](../25-open-questions.md)'s
+`turn.awaiting-input` has one only if [26 C5](../26-open-questions.md)'s
 suspending step exists, which [P3 §1.6](15-p3-implementation.md) notes arrives
 early in a different shape — *park, publish, resume-on-intent* — and warns that
 the obvious name is already taken, since `Turn.status: 'suspended'` means a turn
@@ -376,7 +376,7 @@ the fourth class shippable. §0.1 carries the full correction.)*
   nothing suspends — no step in `packages/sdk/src/steps.ts` can, and
   `turnFinished` accepts `'suspended'` with nobody passing it. **The class is
   not shipped**, which is this section's rule rather than an exception to it, and
-  it comes back with [25 C5](../25-open-questions.md).
+  it comes back with [26 C5](../26-open-questions.md).
 - **And one thing the five do not cover**: a rendition that **failed**. The class
   is defined as *completed*, and P9 ships an `interrupted` error because a server
   can restart mid-job. §0.1 argues for widening `artifact.ready` to *settled*
@@ -387,7 +387,7 @@ the fourth class shippable. §0.1 carries the full correction.)*
 ### 1.5 The extensions panel needs installation, and nothing installs
 
 [10 §15.5](../10-ui-surfaces.md) names the blocker plainly. The manifest and the
-lifecycle are specified ([22 §6–§7](../22-extensions.md)) and
+lifecycle are specified ([23 §6–§7](../23-extensions.md)) and
 [P7](23-p7-implementation.md) builds the boundary they run behind, but no
 document owns *acquiring and enabling an extension on an install*.
 
@@ -547,7 +547,7 @@ records, arbitration across a record set, and a cache. What [09 §5.1] asks for 
 one sentence — *"advertise over mDNS as `storyengine.local` once bound beyond
 loopback, so nobody types an IP"* — which is **one host, one A record, one
 name**, and that is a hundred lines of `DataView` against a format fixed in 1987.
-*The other half of the argument is the supply chain*: [19 §10] makes the
+*The other half of the argument is the supply chain*: [20 §10] makes the
 dependency licence manifest a shipped artefact, and a package that opens a
 multicast socket and parses attacker-shaped bytes off the local network is
 exactly the kind worth not having.
@@ -599,7 +599,7 @@ add once producers exist; per-user scoping by ownership, which
 `turn.failed` and `system.notice`.~~ **Four**, once this stage builds
 `artifact.ready`'s producer, which the paragraph below commits it to.
 `turn.awaiting-input` has no suspending step after four more phases and comes
-back with [25 C5](../25-open-questions.md).
+back with [26 C5](../26-open-questions.md).
 
 ***And this stage gains a producer it was not going to have.***
 `artifact.ready` was [P9](26-p9-implementation.md)'s and P9 did not emit it — for
@@ -668,7 +668,7 @@ the badge and the list come from the two JSON routes and the toast needs the
 stream.
 
 **Also landed, because a record's shape is not finally said in a workplan:**
-[21 §8](../21-internal-contracts.md) now carries `Notification`, which §5.1 above
+[22 §8](../22-internal-contracts.md) now carries `Notification`, which §5.1 above
 has been promising a durable home since P2.3 and which no document held.
 
 ### P10.2 — The two delivery channels 1.0 gets
@@ -739,7 +739,7 @@ are not in it.
 
 ***The sound is synthesised.*** Two oscillators and an envelope, because an
 audio asset would be a binary in a text repository, would need a licence line
-([19 §10](../19-tech-stack.md)), and would have to be fetched over a LAN from the
+([20 §10](../20-tech-stack.md)), and would have to be fetched over a LAN from the
 server that is busy making the turn it announces.
 
 ***And a mechanical instrument came with it***, which is the part that outlives
@@ -822,12 +822,12 @@ what is already visible… the sound is still wanted; the toast is not"*, and
 watching. Both are right about their own subject: §9's case is a *message*
 arriving in a chat you are reading, where the sound tells you across the room;
 [09 §3.1] and this phase's §1.3 put routing server-side, where the only honest
-unit is the notification. **Messages is unscheduled** ([24 §3.4]), so nothing at
+unit is the notification. **Messages is unscheduled** ([25 §3.4]), so nothing at
 1.0 produces §9's case — and when it does, the split it needs is a per-channel
 decision in the router rather than a client-side override. Recorded here because
 the next person to read §9 will notice the same thing.
 
-**Your connections.** [19 §5.1]'s *"anyone who wants their own key overrides a
+**Your connections.** [20 §5.1]'s *"anyone who wants their own key overrides a
 role without the admin's involvement"*, which until now meant writing a JSON
 file by hand into a directory the UI never mentioned.
 `routes/connections.ts` grew a second registrar rather than a second module and
@@ -923,7 +923,7 @@ missing — ***1.0 needs extensions **loaded**, not **installed***. The dice
 reference extension the work plan keeps at 1.0 is first-party and ships inside
 the image the way a built-in mode does; acquiring one from outside is a
 subsystem no 1.0 goal requires, and it is now a row in
-[24 §3.2](../24-roadmap.md) rather than an owner-shaped hole. **The three
+[25 §3.2](../25-roadmap.md) rather than an owner-shaped hole. **The three
 artefacts that presuppose it all stay** — the capability, the quota key, the
 manifest — because each is cheap, specified, and *visibly* inert, which is what
 `'unread'` and that docstring are for.
@@ -1126,7 +1126,7 @@ this phase's**: `updates.checkEnabled` and `updates.channel` (§1.7),
 one**~~ — **it reaches two**, 2026-09-17, and the difference is §1.5's fork
 closing as a *deferral* rather than as a build: the update check's two keys are
 `applied`, and `limits.extensionStorageQuotaMb` **stays `unread` on purpose**,
-beside [24 §3.2](../24-roadmap.md)'s row for extension installation. *That is the
+beside [25 §3.2](../25-roadmap.md)'s row for extension installation. *That is the
 tier doing its job rather than the debt going unpaid* — a key that is stored, not
 read, and visibly so, which is what the annotation exists to say.
 
@@ -1204,16 +1204,16 @@ repository and the audience is not.
 ## 4. Out of scope, deliberately
 
 Web Push and outbound webhooks/ntfy/Gotify (with Messages, unscheduled —
-[09 §3.6](../09-server-multiuser-deployment.md), [24 §3.4](../24-roadmap.md)); the service worker that Push
+[09 §3.6](../09-server-multiuser-deployment.md), [25 §3.4](../25-roadmap.md)); the service worker that Push
 implies ([09 §3.7](../09-server-multiuser-deployment.md)); Tailscale at every
-level (feature list at High, [25 D1](../25-open-questions.md)); the file browser
-([25 D3](../25-open-questions.md), roadmap); sharing content between users
-([25 A2e](../25-open-questions.md), deferred deliberately, with the merge path
+level (feature list at High, [26 D1](../26-open-questions.md)); the file browser
+([26 D3](../26-open-questions.md), roadmap); sharing content between users
+([26 A2e](../26-open-questions.md), deferred deliberately, with the merge path
 kept open at [09 §4.3](../09-server-multiuser-deployment.md)); multiplayer and
 shared heads ([09 §8](../09-server-multiuser-deployment.md)); a role system
 ([09 §4.2.1](../09-server-multiuser-deployment.md) — named capabilities, and
 [P2A](09-p2a-configuration-surface.md) already built them); auto-provisioning
-accounts ([25 D2](../25-open-questions.md)); and packaging, all six artifacts of
+accounts ([26 D2](../26-open-questions.md)); and packaging, all six artifacts of
 which [P11](28-p11-implementation.md) now owns ([work plan §0.5](01-work-plan.md)).
 
 ---
@@ -1297,11 +1297,11 @@ written**, which is the outcome the sentence above was trying to prevent.
   argument.
 - ~~**What the container image actually is.** §1.2 decides the bind default
   inverts inside it; nothing yet says what *it* is, and that is a
-  [19](../19-tech-stack.md) question this phase inherits.~~ **Closed by
+  [20](../20-tech-stack.md) question this phase inherits.~~ **Closed by
   [P6A §2](19-p6a-alpha-1.md)**, which answers it — base image, package manager,
   the workspace prune, the volume, the user, the compose file — rather than
   passing it on again. Worth noting that it was routed to
-  [19](../19-tech-stack.md) and [19](../19-tech-stack.md) never grew a section
+  [20](../20-tech-stack.md) and [20](../20-tech-stack.md) never grew a section
   for it: a question forwarded to a document that does not answer it is a
   question with no owner, which is what this bullet was really recording.
 - **Whether §1.8's system-library bullet found an owner.** It is recorded here

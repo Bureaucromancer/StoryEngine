@@ -5,7 +5,7 @@
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "description": "The published extension and mode contract.",
-  "licenseNote": "AGPL-3.0-or-later is deliberate, not inherited. Extensions and modes import this package, which is what makes them combined works and what makes the decision in docs/design/workplan/02-triage.md §1.1 hold. Relicensing this package permissively 'to be friendly to extension authors' would quietly reverse that decision — see docs/design/19-tech-stack.md §10.",
+  "licenseNote": "AGPL-3.0-or-later is deliberate, not inherited. Extensions and modes import this package, which is what makes them combined works and what makes the decision in docs/design/workplan/02-triage.md §1.1 hold. Relicensing this package permissively 'to be friendly to extension authors' would quietly reverse that decision — see docs/design/20-tech-stack.md §10.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
