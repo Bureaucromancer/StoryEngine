@@ -1628,6 +1628,33 @@ describe('a session started from a Setup', () => {
     expect((await startFrom(id)).status).toBe(422);
   });
 
+  /**
+   * ***The story so far reaches the model on turn one*** — [04 §7.2],
+   * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * The root is read off the session's copy of its Setup by the gather, so it
+   * needs no summariser and no window to have been passed: a session started
+   * from a Setup made from a turn knows its own past from its first prompt.
+   * **One real turn through the real runner**, because the three places it
+   * could be dropped — the gather, the runner's collect call, and the slot —
+   * are each a line somebody could forget, as the preview once forgot the goal.
+   */
+  it('sends its story so far to the model on the first turn, as the root of the summary', async () => {
+    const id = await aSetup({ storySoFar: 'Marlow lost the ledger at the docks, and Vera saw.' });
+    const created = await startFrom(id);
+    sessionId = created.body.session.id as string;
+
+    const accepted = await submit();
+    expect(accepted.status).toBe(202);
+    const stream = await server.stream({ url: `/api/sessions/${sessionId}/stream` });
+    await stream.until(finished, 4000);
+    await stream.abort();
+
+    const sent = provider.requests.at(-1)?.messages ?? [];
+    const root = sent.find((message) => message.fromBlocks.includes('se.summary.root'));
+    expect(root?.content).toContain('Marlow lost the ledger at the docks, and Vera saw.');
+  });
+
   it('takes its treatment and its lore', async () => {
     const id = await aSetup({
       treatment: { id: 'treat-1', name: 'Rain City, noir' },
@@ -3276,5 +3303,349 @@ describe('a session whose mode is not installed', () => {
     });
 
     expect(staged.status, JSON.stringify(staged.body)).toBe(200);
+  });
+});
+
+/**
+ * ***A Setup's opening, as the first turn*** — [03 §6](../../../../docs/design/03-data-model.md),
+ * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * `sessions/opening.test.ts` holds the turn's shape over values; what is here
+ * is the route's half — that the turn **arrives**, is the head, is what the
+ * transcript reads back, and that the seat count and the redo door both know
+ * about it.
+ */
+describe('a session started from a Setup with an opening', () => {
+  const hook = (id: string): PlotHook => ({
+    id,
+    title: id,
+    premise: `the premise of ${id}`,
+    magnitude: 'local',
+    involves: [],
+    weight: 1,
+    delivery: 'guidance',
+    once: true,
+  });
+
+  async function aSetup(over: Record<string, unknown> = {}): Promise<string> {
+    const made = {
+      ...newSetup('The Fixer’s Debt'),
+      openings: {
+        written: [
+          { id: 'o-docks', label: 'The docks', text: 'Rain on the docks.' },
+          { id: 'o-office', label: 'The office', text: 'The office, after hours.' },
+        ],
+        seeds: [],
+        primaryWrittenId: 'o-office',
+        primarySeedId: null,
+      },
+      ...over,
+    };
+    const response = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    if (response.status !== 201) throw new Error(`setup create failed: ${String(response.status)}`);
+    return response.body.object.id as string;
+  }
+
+  async function turnsOf(id: string): Promise<any[]> {
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+    return read.body.turns as any[];
+  }
+
+  it('plays the primary opening as the first turn, and makes it the head', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: await aSetup() },
+    });
+
+    expect(created.status).toBe(201);
+    const turns = await turnsOf(created.body.session.id as string);
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({
+      parentTurnId: null,
+      output: { text: 'The office, after hours.' },
+    });
+    // What marks it is what it lacks — no move and no call — since
+    // `Turn.opening` was dropped at the merge (2026-10-03).
+    expect(turns[0].input).toBeUndefined();
+    expect(turns[0].request).toBeUndefined();
+    expect(Object.keys(turns[0])).not.toContain('opening');
+    // The response is the session **after** the append, so a client that opens
+    // it straight away is not looking at a head of null.
+    expect(created.body.session.headTurnId).toBe(turns[0].id);
+  });
+
+  it('plays the one it is asked for, starts cold on null, and refuses one it does not hold', async () => {
+    const id = await aSetup();
+
+    const docks = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: id, opening: 'o-docks' },
+    });
+    expect((await turnsOf(docks.body.session.id as string))[0].output.text).toBe(
+      'Rain on the docks.',
+    );
+
+    const cold = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: id, opening: null },
+    });
+    expect(cold.status).toBe(201);
+    expect(await turnsOf(cold.body.session.id as string)).toEqual([]);
+
+    const missing = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: id, opening: 'o-nowhere' },
+    });
+    // Its own code since the merge — recommended answer, owner deferred,
+    // 2026-10-03 — and not P14.4's `unknown-opening`, whose cause is an
+    // actor's greeting. Mutation: send `unknown-opening` here and this fails.
+    expect(missing.status).toBe(422);
+    expect(missing.body.error).toBe('unknown-setup-opening');
+
+    // An opening with no Setup beside it names nothing either.
+    const orphan = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { opening: 'o-docks' },
+    });
+    expect(orphan.status).toBe(422);
+    expect(orphan.body.error).toBe('unknown-setup-opening');
+  });
+
+  /**
+   * ***A greeting chosen beside a Setup that carries an opening*** —
+   * `conflicting-openings`, recommended answer, owner deferred, 2026-10-03.
+   * The Setup's opening is what the session starts on (25 B18), so the
+   * choice could not be honoured; refused before anything is created, and
+   * without the choice the same body starts. Mutation: delete the check and
+   * the first request is a 201 that quietly ignored the greeting.
+   */
+  it('refuses a greeting chosen beside a setup that carries an opening', async () => {
+    // A real card with the greeting named, so the choice is one P14.4 would
+    // honour anywhere else — the refusal is the Setup's, not a stale form's.
+    const made = newActor('Vera');
+    const vera = {
+      ...made,
+      openings: {
+        ...made.openings,
+        written: [{ id: 'vera-greeting', label: 'Evening', text: '"Evening."' }],
+        primaryWrittenId: 'vera-greeting',
+      },
+    };
+    const card = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: vera,
+    });
+    expect(card.status, JSON.stringify(card.body)).toBe(201);
+    const id = await aSetup({
+      cast: { personaOptions: [], partyDefault: [{ id: vera.id, name: 'Vera' }], narrator: null },
+    });
+    const before = await server.request({ method: 'GET', url: '/api/sessions' });
+
+    const refused = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: id, openings: { [vera.id]: 'vera-greeting' } },
+    });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error).toBe('conflicting-openings');
+    const after = await server.request({ method: 'GET', url: '/api/sessions' });
+    expect(after.body.sessions).toHaveLength((before.body.sessions as unknown[]).length);
+
+    const plain = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: id, openings: {} },
+    });
+    expect(plain.status, JSON.stringify(plain.body)).toBe(201);
+  });
+
+  /**
+   * ***…and ignored where nothing reads `openings`*** — the refusal's scope,
+   * settled at review on 2026-10-03, keeping P14.4's. The map is read only in
+   * a mode that declares `openingTurn`, with somebody cast besides the
+   * persona; anywhere else no greeting would be written, so a choice among
+   * greetings asks for nothing and the Setup's opening plays as it would have.
+   * The contract had said *refused* without the condition (api.md, 25 B18,
+   * P15 §1.7) and the code never did — this pins the code's reading, which is
+   * now the contract's.
+   *
+   * Two such bodies: the very choice the test above refuses, sent in Freeform,
+   * which writes no greetings; and a Scene Setup that seats nobody, whose
+   * choice names a member who is not there — no cast, so P14.4's
+   * `unknown-opening` is not read either. Mutation: hoist the
+   * `conflicting-openings` check above the `openingTurn`/cast guard and both
+   * are 422.
+   */
+  it('ignores a greeting chosen where no greeting would be written', async () => {
+    const made = newActor('Vera');
+    const vera = {
+      ...made,
+      openings: {
+        ...made.openings,
+        written: [{ id: 'vera-greeting', label: 'Evening', text: '"Evening."' }],
+        primaryWrittenId: 'vera-greeting',
+      },
+    };
+    const card = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: vera,
+    });
+    expect(card.status, JSON.stringify(card.body)).toBe(201);
+    const seated = await aSetup({
+      cast: { personaOptions: [], partyDefault: [{ id: vera.id, name: 'Vera' }], narrator: null },
+    });
+
+    const freeform = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        setup: seated,
+        mode: 'storyengine.freeform',
+        modeConfig: { premise: 'Rain.', difficulty: 'even', directedness: 'following' },
+        openings: { [vera.id]: 'vera-greeting' },
+      },
+    });
+    expect(freeform.status, JSON.stringify(freeform.body)).toBe(201);
+    expect((await turnsOf(freeform.body.session.id as string))[0].output.text).toBe(
+      'The office, after hours.',
+    );
+
+    const nobody = await aSetup({
+      cast: { personaOptions: [], partyDefault: [], narrator: null },
+    });
+    const scene = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: nobody, openings: { [vera.id]: 'vera-greeting' } },
+    });
+    expect(scene.status, JSON.stringify(scene.body)).toBe(201);
+    const turns = await turnsOf(scene.body.session.id as string);
+    expect(turns).toHaveLength(1);
+    expect(turns[0].output.text).toBe('The office, after hours.');
+  });
+
+  it('seats the party, makes them members, and spends the hooks on the opening', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        setup: await aSetup({
+          cast: {
+            personaOptions: [{ id: 'marlow', name: 'Marlow' }],
+            partyDefault: [
+              { id: 'marlow', name: 'Marlow' },
+              { id: 'vera', name: 'Vera' },
+            ],
+            narrator: null,
+          },
+          hooks: [hook('hook-ledger'), hook('hook-fresh')],
+          spentHooks: ['hook-ledger'],
+        }),
+      },
+    });
+
+    const session = created.body.session;
+    const id = session.id as string;
+    expect(session.cast).toEqual({ persona: 'marlow', actors: ['vera'] });
+
+    const [opening] = await turnsOf(id);
+    expect(
+      (opening.effects as any[]).map((effect) => [effect.channelId, effect.scopeKey, effect.after]),
+    ).toEqual([
+      ['se.party', 'vera', 'companion'],
+      ['se.hook', 'hook-ledger', 'fired'],
+    ]);
+
+    // Read back through the panel a person sees: the spent hook is spent, and
+    // the other is still waiting in the pool.
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+    const rows = read.body.hooks.rows as { hookId: string; state: string | null }[];
+    expect(rows.find((row) => row.hookId === 'hook-ledger')?.state).toBe('fired');
+    expect(rows.find((row) => row.hookId === 'hook-fresh')?.state).toBeNull();
+  });
+
+  /**
+   * Read by the convention since the merge — no input, no request
+   * (`redoable`, 2026-10-03) — rather than by `Turn.opening`, which is gone.
+   * Mutation: let `redoable` answer `true` and both submissions are accepted.
+   */
+  it('refuses to redo or rewrite an opening, because nothing generated it', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: await aSetup() },
+    });
+    sessionId = created.body.session.id as string;
+    const [opening] = await turnsOf(sessionId);
+
+    for (const field of ['rewriteOf', 'redoOf'] as const) {
+      const refused = await submit({
+        idempotencyKey: `redo-${field}`,
+        headTurnId: opening.id,
+        parentTurnId: null,
+        [field]: opening.id,
+        ...(field === 'redoOf' ? { guidance: 'darker' } : {}),
+      });
+      expect(refused.status, field).toBe(422);
+      expect(refused.body.error, field).toBe('opening-turn');
+    }
+
+    // A swipe passes the refusal above — it is the gesture's to read — and the
+    // gesture refuses it: a Setup's opening is a narrator's line, with no
+    // member to speak it again.
+    // Sent whole rather than through `submit`, whose default input a swipe
+    // would refuse as a clash before reading the turn at all.
+    const swiped = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns`,
+      payload: {
+        idempotencyKey: 'swipe-the-opening',
+        headTurnId: opening.id,
+        rewriteOf: opening.id,
+        fromMessage: 0,
+      },
+    });
+    expect(swiped.status).toBe(422);
+    expect(['narrated-message', 'narrated-session']).toContain(swiped.body.error);
+  });
+
+  it('runs a generating mode’s parts after the opening, as its child', async () => {
+    registerMode(GENERATING_MODE);
+    await server.dispose();
+    await standUp([{ object: { hour: 21 } }, { text: 'Rain.' }]);
+
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: {
+        setup: await aSetup({
+          mode: {
+            id: GENERATING_MODE_ID,
+            config: { premise: 'A city that does not sleep.', difficulty: 'even' },
+          },
+        }),
+      },
+    });
+    const id = created.body.session.id as string;
+    const stream = await server.stream({ url: `/api/sessions/${id}/stream` });
+    await stream.until(finished, 6000);
+    await stream.abort();
+
+    const turns = await turnsOf(id);
+    expect(turns).toHaveLength(2);
+    expect(turns[0].output.text).toBe('The office, after hours.');
+    expect(turns[1].parentTurnId).toBe(turns[0].id);
+    expect(turns[1].output.text).toContain('Rain.');
   });
 });

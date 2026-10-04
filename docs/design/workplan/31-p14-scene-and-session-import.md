@@ -622,6 +622,23 @@ This gives [P11](28-p11-implementation.md)'s *"`fromSeedId` has shipped since P1
 with no writer anywhere… Unowned"* row an owner for the written half. Seeds stay
 unowned.
 
+***And a Setup's opening wins over the greetings — added 2026-10-03, by the
+owner's decision.*** [P15](33-p15-setup-from-a-turn.md), built on a branch while
+this phase was on `main`, plays a **Setup's** written opening as the session's
+first turn, with the party and spent hooks it carries as effects. The two met
+at P15's merge, both writing turn 1. **When a Setup carries a written opening,
+it is the session's first turn and the cast's greetings are not used for that
+session** — whichever of the Setup's openings is chosen, and even when the
+session starts cold. A Setup with no written opening leaves this section as
+written, with one difference in where the turn goes: when that Setup seeds a
+party or spent hooks, its seeding turn is written first and the greetings are
+its children rather than roots, so the head starts on a line where the party
+is seated (a recommended answer, the owner's decision deferred).
+[P15 §1.7](33-p15-setup-from-a-turn.md) has the reasoning and
+[25 B18](../25-open-questions.md) the decision. *P14.4's error code is unchanged
+by it*: `unknown-opening` still means an actor's greeting, and a Setup's missing
+opening has its own ([P15 §1.9](33-p15-setup-from-a-turn.md)).
+
 ### 1.8 The surface
 
 **The transcript is a chat.** For each message:
@@ -1595,6 +1612,12 @@ left open, each where the code carries its argument:
   ST's forms of `{{user}}` and `{{char}}`; with no persona the player is
   *the player*, as the assembler calls them. `lastSelectedChild` has no entry
   for a root, so the head is the whole of which greeting is selected.
+  *(2026-10-03: not for a session started from a Setup that carries a written
+  opening — that opening is turn 1 and no greeting is written, by the owner's
+  decision at [P15](33-p15-setup-from-a-turn.md)'s merge; and beside a Setup
+  that only seeds, the greetings are the seeding turn's children rather than
+  roots, so "the head is the whole of which greeting is selected" holds one
+  level down. §1.7's note above.)*
 
 *Left for [P14.5]:* ~~an empty send under `manual`, with nobody forced, commits
 a turn with no input and no reply~~ — corrected 2026-09-29, at this stage's

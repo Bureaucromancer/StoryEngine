@@ -1475,9 +1475,47 @@ export interface NewSession {
    */
   modeConfig?: Record<string, unknown>;
   /**
+   * ***The Setup to start from*** — [04 §7](../../../docs/design/04-schemas.md),
+   * [P15.4](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * **The route has taken this since [P7.4] and no client ever sent it**, so a
+   * Setup was an object you could make and never play. Everything it carries is
+   * a default a field beside it overrides — which is why a caller starting
+   * *from* a Setup sends this and little else: a form's own defaults sent
+   * alongside would quietly override the Setup the person chose.
+   */
+  setup?: string;
+  /**
+   * Which of the Setup's written openings to begin on — [03 §6], [P15.3].
+   * Absent is its primary; `null` is *start cold*; an id names one.
+   *
+   * ***A Setup that carries an opening begins on it, always*** — the owner's
+   * decision, [25 B18](../../../docs/design/25-open-questions.md), 2026-10-03: its cast's greetings are not written, **not even
+   * when this is `null`**, because *cold* is one of the Setup's answers about
+   * how its story begins rather than a gap the greetings fill. An id the Setup
+   * does not hold, or an id sent with no `setup` beside it, is
+   * `422 unknown-setup-opening` — its own class since the P15 merge, apart
+   * from [P14.4]'s `unknown-opening`, which is about a character's greeting.
+   * (`null` with no `setup` asks for no opening, and gets none.) *A written
+   * opening is one with words*: the route counts an opening whose text is
+   * blank as absent, here and in deciding whether a Setup carries one.
+   */
+  opening?: string | null;
+  /**
    * ***Which written opening each member starts on*** — actor id to opening id,
    * [P14 §1.7], [P14.5]. Absent for a member is their primary; read only by a
-   * mode that writes an opening turn (`PublicMode.openingTurn`).
+   * mode that writes an opening turn (`PublicMode.openingTurn`), and only when
+   * somebody besides the persona is seated — anywhere else the server ignores
+   * the map, its refusals included.
+   *
+   * *Beside a `setup` too* (2026-10-03, at the P15 merge): the route seats a
+   * Setup's party when no `cast` is sent, and a Setup with no opening of its
+   * own begins on that party's greetings — so this chooses among them. Beside
+   * a Setup that carries an opening a choice is **refused**,
+   * `422 conflicting-openings`, since under 25 B18 no greeting is written there
+   * (`opening` above) and a choice the server quietly ignored would be a
+   * story somebody picked and did not get. Empty is no choice, and passes —
+   * which is why `createSession` never sends it.
    */
   openings?: Record<string, string>;
 }
@@ -1503,6 +1541,9 @@ export interface PublicMode {
   /**
    * Whether a new session opens on its cast's greetings — [P14 §1.7]. Optional
    * because a server older than [P14.5] does not say, and not saying is *no*.
+   * *Unless it starts from a Setup that carries an opening* (2026-10-03,
+   * [25 B18](../../../docs/design/25-open-questions.md)): that one opens on the Setup's, and `NewSession.opening` says
+   * why.
    */
   openingTurn?: boolean;
 }
@@ -1625,6 +1666,9 @@ export function createSession(input: NewSession): Promise<{
     ...(input.modeConfig === undefined || Object.keys(input.modeConfig).length === 0
       ? {}
       : { modeConfig: input.modeConfig }),
+    ...(input.setup === undefined || input.setup === '' ? {} : { setup: input.setup }),
+    // `null` travels — it is *start cold*, a choice rather than an absence.
+    ...(input.opening === undefined ? {} : { opening: input.opening }),
     // Only a choice somebody made: absent is every member's primary.
     ...(input.openings === undefined || Object.keys(input.openings).length === 0
       ? {}
@@ -2398,6 +2442,132 @@ export function illustrateTurn(
     'POST',
     `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/illustrate`,
     { purpose },
+  );
+}
+
+/**
+ * ***Make a setup from here*** — [04 §7.2](../../../docs/design/04-schemas.md),
+ * [P15.6](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * The parts the wizard drafts, each its own call with its own outcome. A part
+ * that failed carries a **class**, never prose — [01 §2]'s rule, so the wizard
+ * says what to do about it in its own words.
+ *
+ * ***Two refusals and a remedy since the merge*** (2026-10-03). The server's
+ * draft learned `window-too-small` (its own refusal, a 500 before) and
+ * `truncated` (a reply cut off at its length limit, which is not offered), and
+ * a `call-failed` part now carries the provider failure's `class` and a
+ * `remedy`, as impersonation's refusal does — so the wizard can say *the
+ * endpoint refused the key* rather than *the model did not answer* to every
+ * failure alike. `remedy` is a string for `ApiError.remedy`'s reason: a newer
+ * server's remedy this build has never heard of is answered by
+ * `remedySentence` with nothing rather than a guess. `detail` is the
+ * endpoint's own words, for a log and never a sentence on screen.
+ *
+ * *`summary-truncated` and `summary-no-answer` since review the same day*: a
+ * link of the summary chain that was cut off or came back empty fails every
+ * part, and under the part's own reasons the wizard told a person to steer
+ * the part with a note — which never reaches the summariser.
+ */
+export type SetupPart = 'storySoFar' | 'opening' | 'title' | 'facts';
+export type SetupPartRefusal =
+  | 'role-unbound'
+  | 'role-dangling'
+  | 'window-too-small'
+  | 'call-failed'
+  | 'truncated'
+  | 'no-answer'
+  | 'summary-truncated'
+  | 'summary-no-answer';
+export type SetupPartOutcome<T> =
+  | { ok: true; value: T; model: string | null }
+  | { ok: false; reason: Exclude<SetupPartRefusal, 'call-failed'> }
+  | { ok: false; reason: 'call-failed'; class: string; remedy: string; detail?: string };
+
+/**
+ * ***What the Setup would carry, redacted.*** Names and counts: an unfired
+ * hook's premise and a hidden goal's statement never leave the server, so the
+ * wizard can say *three hooks carry forward* and nothing about them.
+ */
+export interface SetupCarryPreview {
+  mode: string;
+  treatment: string | null;
+  preset: string | null;
+  persona: string | null;
+  party: string[];
+  goals: {
+    carried: 'carried' | 'none' | 'open' | 'concluded';
+    current: { statement: string } | { hidden: true } | null;
+    count: number;
+    hidden: number;
+  };
+  hooks: { carried: number; spent: number };
+  lore: string[];
+}
+
+export interface SetupDraft {
+  carry: SetupCarryPreview;
+  warnings: 'no-summary-slot'[];
+  parts: {
+    storySoFar?: SetupPartOutcome<string>;
+    opening?: SetupPartOutcome<string>;
+    title?: SetupPartOutcome<{ name: string; blurb: string }>;
+    facts?: SetupPartOutcome<{ text: string; keys: string[] }[]>;
+  };
+}
+
+/** Drafts the named parts of a Setup made from this turn. Writes nothing. */
+export function draftSetupFromTurn(
+  sessionId: string,
+  turnId: string,
+  body: {
+    parts: SetupPart[];
+    guidance?: Partial<Record<SetupPart, string>>;
+    openingFrom?: 'scene' | 'verbatim';
+  },
+): Promise<{ draft: SetupDraft }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/setup-draft`,
+    body,
+  );
+}
+
+/**
+ * ***Saves a Setup made from this turn*** — [P15.7](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * What a person kept: the texts, the facts, and which carried groups to keep.
+ * **Nothing about the carry itself travels** — the server recomputes it from the
+ * turn — so a client cannot add a hook or a goal, only leave one out.
+ * `generated` names which fields a model wrote first, keyed by the Setup's own
+ * dotted paths, so the library can say so.
+ */
+export interface SetupFromTurn {
+  texts: {
+    name: string;
+    blurb: string;
+    storySoFar: string;
+    opening: { label: string; text: string };
+  };
+  include: { party: boolean; goals: boolean; hooks: boolean };
+  facts: { text: string; keys: string[] }[];
+  generated?: Partial<
+    Record<
+      'name' | 'blurb' | 'storySoFar' | 'openings.written.0.text',
+      { original: string; model: string | null }
+    >
+  >;
+}
+
+export function saveSetupFromTurn(
+  sessionId: string,
+  turnId: string,
+  body: SetupFromTurn,
+): Promise<{ setup: { id: string; name: string }; lorebook: { id: string; name: string } | null }> {
+  return request(
+    'POST',
+    `/api/sessions/${encodeURIComponent(sessionId)}/turns/${encodeURIComponent(turnId)}/setup`,
+    body,
   );
 }
 

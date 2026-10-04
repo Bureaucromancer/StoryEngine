@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ApiError,
   createSession,
+  errorCode,
   listModes,
   listSessions,
   type LibraryObject,
@@ -130,31 +131,81 @@ const CAST_WORDS = labels('sessions.cast', {
   tooMany: 'This mode seats at most {max}.',
 });
 
-/** A card's written openings, shape-guarded — the library sends the object as it is on disk. */
-function writtenOpenings(actor: LibraryObject | undefined): {
+/** One written opening, as the pickers below need it. */
+interface WrittenOpening {
+  id: string;
+  label: string;
+  text: string;
+}
+
+/**
+ * ***An object's written openings, shape-guarded*** — the library sends the
+ * object as it is on disk, so nothing here trusts it.
+ *
+ * ***One reader for two objects*** (folded at the P15 merge, 2026-10-03). A
+ * card and a Setup carry the same `Openings` shape ([04 §3]), and the merge
+ * brought two readers of it — [P14.5]'s for a card and
+ * [P15.4](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)'s for
+ * a Setup, written the same week under the same name — which disagreed on
+ * small things: which opening is the primary when `primaryWrittenId` names
+ * none of them, what an unlabelled one is called, whether an id may be empty,
+ * and (neither asked) whether a blank one counts. Two answers to one question
+ * is how a picker comes to show one opening as *their usual* while the route
+ * starts on another, so there is one answer, and it is the route's —
+ * `writtenOf` in `sessions/opening.ts`, which the server's own merge made one
+ * reader for both objects the same day.
+ *
+ * ***A written opening is one with words.*** The route drops an opening whose
+ * text is blank before it greets with anything, checks a choice, or decides
+ * whether a Setup carries one — so a blank greeting offered here was a choice
+ * the route refuses as `unknown-opening`, which [P14.5]'s picker offered
+ * because its reader did not ask; and a Setup whose only opening is blank is,
+ * to the route, a Setup with none, whose party's greetings begin it.
+ *
+ * **The primary is the one `primaryWrittenId` names, else the first** — of
+ * the openings that have words, as the route reads it, so a dangling id is
+ * the first opening here too rather than a primary nothing matches. **An
+ * empty id is skipped**: the schema's `Id` refuses one, and a choice could not
+ * name it. What an opening is *called* is `openingName`'s, below, for both.
+ */
+function openingsOf(object: Record<string, unknown> | undefined): {
   primary: string | null;
-  written: { id: string; label: string; text: string }[];
+  written: WrittenOpening[];
 } {
-  const openings = actor?.object['openings'];
+  const openings = object?.['openings'];
   if (typeof openings !== 'object' || openings === null) return { primary: null, written: [] };
   const held = openings as Record<string, unknown>;
   const written = Array.isArray(held['written'])
     ? (held['written'] as unknown[]).flatMap((one) => {
         if (typeof one !== 'object' || one === null) return [];
         const { id, label, text } = one as Record<string, unknown>;
-        return typeof id === 'string'
-          ? [
-              {
-                id,
-                label: typeof label === 'string' ? label : '',
-                text: typeof text === 'string' ? text : '',
-              },
-            ]
+        return typeof id === 'string' && id !== '' && typeof text === 'string' && text.trim() !== ''
+          ? [{ id, label: typeof label === 'string' ? label : '', text }]
           : [];
       })
     : [];
-  const primary = typeof held['primaryWrittenId'] === 'string' ? held['primaryWrittenId'] : null;
-  return { primary: primary ?? written[0]?.id ?? null, written };
+  const primary = written.find((one) => one.id === held['primaryWrittenId']) ?? written[0];
+  return { primary: primary?.id ?? null, written };
+}
+
+/**
+ * ***The greeting choices worth sending*** — for the members who would greet,
+ * each one somebody changed from that member's usual. One rule for both
+ * paths, the form's cast and a Setup's party, because the route reads one
+ * `openings` map for either.
+ */
+function changedGreetings(
+  members: readonly string[],
+  picked: Readonly<Record<string, string>>,
+  actors: readonly LibraryObject[],
+): Record<string, string> {
+  const changed: Record<string, string> = {};
+  for (const id of members) {
+    const choice = picked[id];
+    const usual = openingsOf(actors.find((one) => one.id === id)?.object).primary;
+    if (choice !== undefined && choice !== usual) changed[id] = choice;
+  }
+  return changed;
 }
 
 /** What an opening is called in the picker: its label, or the start of its text. */
@@ -173,6 +224,73 @@ export function modeLabel(mode: Pick<PublicMode, 'id' | 'displayName'>): string 
   return MODE_PLURALS[mode.id] ?? (mode.displayName === '' ? mode.id : mode.displayName);
 }
 
+/**
+ * ***Start cold***, as the opening select spells it — [03 §6]'s third choice.
+ *
+ * A sentinel rather than `null` because a `<select>` holds strings; a NUL
+ * cannot be an opening id somebody typed, so it cannot collide with one.
+ */
+const COLD = '\u0000cold';
+
+/**
+ * ***A Setup's party, as the route seats it*** — `partyDefault`'s ids, the
+ * persona left out, each once, which is `POST /api/sessions`' own reading
+ * ([P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)).
+ * The persona is `personaOptions[0]`, for the reason the route gives: a
+ * session holds one persona, and until there is a control for choosing among
+ * a Setup's the first is the honest default.
+ */
+function partyOf(setup: Record<string, unknown> | undefined): string[] {
+  const cast = setup?.['cast'];
+  if (typeof cast !== 'object' || cast === null) return [];
+  const { personaOptions, partyDefault } = cast as Record<string, unknown>;
+  const idOf = (ref: unknown): string => {
+    const id = typeof ref === 'object' && ref !== null ? (ref as { id?: unknown }).id : undefined;
+    return typeof id === 'string' ? id : '';
+  };
+  const persona = Array.isArray(personaOptions) ? idOf(personaOptions[0]) : '';
+  const ids = Array.isArray(partyDefault) ? partyDefault.map(idOf) : [];
+  return [...new Set(ids.filter((id) => id !== '' && id !== persona))];
+}
+
+/** The mode a Setup names, or `null` for *the install's default* — `''` is unset, as the route reads it. */
+function modeOf(setup: Record<string, unknown> | undefined): string | null {
+  const mode = setup?.['mode'];
+  const id = typeof mode === 'object' && mode !== null ? (mode as { id?: unknown }).id : undefined;
+  return typeof id === 'string' && id !== '' ? id : null;
+}
+
+/**
+ * ***What the form says about a Setup's opening and its characters'
+ * greetings*** — the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md) (2026-10-03), recorded in
+ * [P15](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * `greetingsSetAside` is the decision itself: a Setup that carries an opening
+ * begins on it, always, and its characters' greetings are not written — not
+ * even when *start cold* is chosen, because the Setup is what decides how its
+ * story begins and *cold* is one of its answers. `greetingsBegin` is the other
+ * side of the same rule: a Setup with no opening of its own, in a mode that
+ * writes greetings, begins on its party's, and somebody may choose which.
+ * `legend` names the pickers that side offers. `staleOpening` and
+ * `openedSince` are what a Start refused with `unknown-setup-opening` or
+ * `conflicting-openings` says — see {@link refusal}.
+ */
+const SETUP_WORDS = labels('sessions.setup', {
+  greetingsSetAside:
+    'This setup begins on its own opening, so its characters’ greetings are not used — not even if you start cold.',
+  greetingsBegin: 'This setup has no opening of its own, so its characters’ greetings begin it.',
+  legend: 'How they open',
+  staleOpening:
+    'That opening is no longer in the setup — it was changed after this page read it. Choose again.',
+  openedSince:
+    'This setup has an opening of its own now — it was changed after this page read it — so its characters’ greetings are not used. Start again to begin on its opening.',
+});
+
+/** The route's class for an `opening` the Setup does not hold — `docs/api.md`, `POST /api/sessions`. */
+const SETUP_OPENING_REFUSED = 'unknown-setup-opening';
+/** The route's class for a greeting chosen beside a Setup that carries an opening — the same route. */
+const GREETING_SET_ASIDE = 'conflicting-openings';
+
 /** `{}` is *no wizard ran*, and a key that says so would be a claim. */
 function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<string, unknown> } {
   return Object.keys(answers).length === 0 ? {} : { modeConfig: answers };
@@ -190,8 +308,30 @@ function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<st
  * have to map one to the other, and a mapping written here would be a third
  * description of a field beside the declaration and the derived schema. A path
  * is `/difficulty`, which names the control a person is looking at.*
+ *
+ * ***A Setup's opening that is gone is said by its class*** (2026-10-03, at
+ * the P15 merge). The form only offers openings the Setup listed when the
+ * page read it, so `unknown-setup-opening` reaches it one way: the Setup was
+ * edited — in another tab, say — between that read and the Start. The route's
+ * own sentence (*no such opening*) is true and unhelpful, since the select the
+ * person used is the thing that offered it; this one says what happened and
+ * what to do, and the Start's `onError` clears the stale choice so the next
+ * Start is not the same refusal again. Read by the class rather than the
+ * English, `errorCode`'s rule. *The code is the route's own since the merge*:
+ * P15 and [P14.4] had both answered a missing opening with `unknown-opening`,
+ * for causes in two different objects — a Setup's opening here, a
+ * character's greeting there.
+ *
+ * ***And a greeting chosen for a Setup that has since gained an opening***,
+ * `conflicting-openings` — the route refuses a greeting beside a Setup that
+ * carries an opening, because under 25 B18 none will be written. This
+ * form sends one only for a Setup it read as having none, so that refusal too
+ * means the Setup changed underneath it; the choices are let go so the next
+ * Start begins on the Setup's opening, which is what the route will do.
  */
 function refusal(error: Error): string {
+  if (errorCode(error) === SETUP_OPENING_REFUSED) return SETUP_WORDS.staleOpening;
+  if (errorCode(error) === GREETING_SET_ASIDE) return SETUP_WORDS.openedSince;
   const issues = error instanceof ApiError ? (error.issues ?? []) : [];
   return issues.length === 0 ? error.message : `${error.message} ${issues.join('; ')}`;
 }
@@ -216,8 +356,23 @@ export function SessionsPage(): React.JSX.Element {
   const [mode, setMode] = useState('');
   /** The characters, in the order picked — which is the cast's order, and a `list` round's. */
   const [members, setMembers] = useState<string[]>([]);
-  /** Actor id to the opening chosen for them; absent is their primary. */
+  /**
+   * Actor id to the opening chosen for them; absent is their primary.
+   *
+   * *One map for both paths* — the form's cast and a Setup's party — because
+   * the route reads one `openings` map for either, and a character is the
+   * same card in both: a choice made for them in one is the choice the other
+   * shows, rather than a second answer kept out of sight.
+   */
   const [openings, setOpenings] = useState<Record<string, string>>({});
+  /**
+   * ***The Setup to start from, and which of its openings*** — [P15.4].
+   *
+   * `''` is *no Setup*, the form as it was. `opening` is `''` for the Setup's
+   * primary, {@link COLD} for none, or an opening's id.
+   */
+  const [fromSetup, setFromSetup] = useState('');
+  const [opening, setOpening] = useState('');
   /**
    * **Keyed by field id and not cleared when the mode changes.** Switching modes
    * to look at a wizard and switching back should not lose what was typed, and
@@ -250,6 +405,9 @@ export function SessionsPage(): React.JSX.Element {
   const treatments = useLibrary('treatments');
   const presets = useLibrary('presets');
   const actors = useLibrary('actors');
+  const setups = useLibrary('setups');
+  const startingFrom = (setups.data?.objects ?? []).find((one) => one.id === fromSetup);
+  const setupOpenings = openingsOf(startingFrom?.object);
 
   /**
    * The mode being configured, and the declaration its wizard renders from.
@@ -327,38 +485,98 @@ export function SessionsPage(): React.JSX.Element {
    * persona), and each member's opening only where it is not their usual.
    */
   const seats = chosen?.participants.maxActors ?? 1;
-  const casting = seats > 1;
+  /**
+   * ***The characters picker is the form path's alone*** (2026-10-03, at the
+   * P15 merge). The Setup path sends no `cast` — its party is the Setup's,
+   * seated by the route — so a picker left showing above a chosen Setup would
+   * be a control whose every tick is dropped on the way to the wire, which is
+   * the control that lies [P14.5]'s comment on `CAST_WORDS` rules out. The
+   * Setup's own characters get their pickers beside its opening instead.
+   */
+  const casting = seats > 1 && startingFrom === undefined;
   const seating = casting ? members.filter((id) => id !== persona).slice(0, seats) : [];
-  const chosenOpenings: Record<string, string> = {};
-  for (const id of seating) {
-    const picked = openings[id];
-    const usual = writtenOpenings(actors.data?.objects.find((one) => one.id === id)).primary;
-    if (picked !== undefined && picked !== usual) chosenOpenings[id] = picked;
-  }
+  const library = actors.data?.objects ?? [];
+  const chosenOpenings = changedGreetings(seating, openings, library);
+
+  /**
+   * ***A Setup's characters, and whether they greet*** — the route's rule,
+   * read off the same objects (`POST /api/sessions`, `sessions/opening.ts`).
+   *
+   * Greetings are written for a mode that declares `openingTurn`, by the
+   * members of the Setup's party who have something written — and, under
+   * 25 B18, **only when the Setup carries no opening of its own**. The
+   * mode is the Setup's (or the install's default, for a Setup that names
+   * none), not whatever this form's Mode select holds, because the Setup path
+   * sends no `mode` and the route plays the Setup's.
+   */
+  const setupMode = (modes.data?.modes ?? []).find(
+    (one) => one.id === (modeOf(startingFrom?.object) ?? modes.data?.defaultModeId),
+  );
+  const greeters =
+    setupMode?.openingTurn === true
+      ? partyOf(startingFrom?.object).flatMap((id) => {
+          const actor = library.find((one) => one.id === id);
+          return actor !== undefined && openingsOf(actor.object).written.length > 0 ? [actor] : [];
+        })
+      : [];
+  const carriesOpening = setupOpenings.written.length > 0;
+  const greetingsBegin = greeters.length > 0 && !carriesOpening;
 
   const create = useMutation({
     mutationFn: () =>
-      createSession({
-        ...(name.trim() === '' ? {} : { name }),
-        ...(treatment === '' ? {} : { treatment }),
-        ...(preset === '' ? {} : { preset }),
-        ...(persona === '' ? {} : { persona }),
-        ...(lore.length === 0 ? {} : { lore }),
-        // The effective id, not the state: a form that rendered the default's
-        // wizard and then sent no `mode` would be right only by coincidence.
-        ...(chosen === null ? {} : { mode: chosen.id }),
-        // Spread like every other field here rather than always passed: *not
-        // asked* and *asked and answered with nothing* are different, and only
-        // one of them belongs on the wire.
-        ...spreadSetup(answersFor(chosen, setup)),
-        // The whole cast, persona included, when anybody was picked — the
-        // route's `CastBody` takes both members. Nobody picked sends what it
-        // always did: the persona alone, or nothing.
-        ...(seating.length === 0
-          ? {}
-          : { cast: { persona: persona === '' ? null : persona, actors: seating } }),
-        ...(chosen?.openingTurn === true ? { openings: chosenOpenings } : {}),
-      }),
+      /**
+       * ***From a Setup, the Setup and nothing the form defaulted*** —
+       * [P15.4]. The route layers a parameter over the Setup's value, so
+       * sending this form's own defaults beside it would quietly replace what
+       * the person chose with what the form happened to hold.
+       *
+       * ***And its characters' greetings only when they will be written***
+       * (2026-10-03, at the P15 merge). The two paths stay apart — the Setup
+       * path sends no `cast`, so [P14.5]'s characters picker is the form
+       * path's — but they meet at `openings`, which the route reads for
+       * whoever it seats: a Setup's party, when the Setup has no opening of
+       * its own and its mode writes greetings. Under the owner's decision (25 B18) a
+       * Setup that carries an opening starts on it and the greetings are not
+       * written at all, so a choice among them is not sent; the form says so
+       * beside the Opening select rather than leaving the pickers to vanish
+       * unexplained.
+       */
+      startingFrom !== undefined
+        ? createSession({
+            ...(name.trim() === '' ? {} : { name }),
+            setup: startingFrom.id,
+            ...(opening === '' ? {} : { opening: opening === COLD ? null : opening }),
+            ...(greetingsBegin
+              ? {
+                  openings: changedGreetings(
+                    greeters.map((one) => one.id),
+                    openings,
+                    library,
+                  ),
+                }
+              : {}),
+          })
+        : createSession({
+            ...(name.trim() === '' ? {} : { name }),
+            ...(treatment === '' ? {} : { treatment }),
+            ...(preset === '' ? {} : { preset }),
+            ...(persona === '' ? {} : { persona }),
+            ...(lore.length === 0 ? {} : { lore }),
+            // The effective id, not the state: a form that rendered the default's
+            // wizard and then sent no `mode` would be right only by coincidence.
+            ...(chosen === null ? {} : { mode: chosen.id }),
+            // Spread like every other field here rather than always passed: *not
+            // asked* and *asked and answered with nothing* are different, and only
+            // one of them belongs on the wire.
+            ...spreadSetup(answersFor(chosen, setup)),
+            // The whole cast, persona included, when anybody was picked — the
+            // route's `CastBody` takes both members. Nobody picked sends what it
+            // always did: the persona alone, or nothing.
+            ...(seating.length === 0
+              ? {}
+              : { cast: { persona: persona === '' ? null : persona, actors: seating } }),
+            ...(chosen?.openingTurn === true ? { openings: chosenOpenings } : {}),
+          }),
     onSuccess: (created) => {
       setName('');
       setTreatment('');
@@ -366,6 +584,8 @@ export function SessionsPage(): React.JSX.Element {
       setPersona('');
       setLore([]);
       setSetup({});
+      setFromSetup('');
+      setOpening('');
       setMembers([]);
       setOpenings({});
       /**
@@ -387,6 +607,19 @@ export function SessionsPage(): React.JSX.Element {
           : { sessionId: created.session.id, others: created.sharesTreatmentWith },
       );
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    },
+    onError: (error) => {
+      // The opening chosen is not in the Setup any more (see `refusal`), so
+      // the choice is cleared. Kept, the select would go on holding an id that
+      // none of its options carries — the browser shows the first option and
+      // the next Start sends the stale id again, to the same refusal. Cleared,
+      // the next Start is the Setup's own opening, which is what the select
+      // then shows. What it offers catches up by itself: `useLibrary` polls.
+      if (errorCode(error) === SETUP_OPENING_REFUSED) setOpening('');
+      // The Setup gained an opening since it was read, so the greetings chosen
+      // for its party will not be written: the choices are let go, and the
+      // next Start sends none, which the route takes as the Setup's opening.
+      if (errorCode(error) === GREETING_SET_ASIDE) setOpenings({});
     },
   });
 
@@ -490,7 +723,6 @@ export function SessionsPage(): React.JSX.Element {
               .filter((one) => one.id !== persona)
               .map((actor) => {
                 const picked = members.includes(actor.id);
-                const own = writtenOpenings(actor);
                 return (
                   <div key={actor.id} className="flex flex-wrap items-center gap-3">
                     <CheckboxField
@@ -504,25 +736,14 @@ export function SessionsPage(): React.JSX.Element {
                         );
                       }}
                     />
-                    {picked && chosen?.openingTurn === true && own.written.length > 1 ? (
-                      <label className="flex items-center gap-2 text-sm text-ink-muted">
-                        {CAST_WORDS.opening.replace('{name}', () => actor.name)}
-                        <select
-                          className="rounded-control border border-line bg-surface p-1 text-ink"
-                          value={openings[actor.id] ?? own.primary ?? ''}
-                          onChange={(event) => {
-                            setOpenings({ ...openings, [actor.id]: event.target.value });
-                          }}
-                        >
-                          {own.written.map((opening) => (
-                            <option key={opening.id} value={opening.id}>
-                              {opening.id === own.primary
-                                ? CAST_WORDS.primary.replace('{label}', () => openingName(opening))
-                                : openingName(opening)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                    {picked && chosen?.openingTurn === true ? (
+                      <GreetingPicker
+                        actor={actor}
+                        value={openings[actor.id]}
+                        onChange={(next) => {
+                          setOpenings({ ...openings, [actor.id]: next });
+                        }}
+                      />
                     ) : null}
                   </div>
                 );
@@ -541,138 +762,219 @@ export function SessionsPage(): React.JSX.Element {
 
         <details className="rounded-control border border-line bg-surface px-3 py-2">
           <summary className={`${disclosure.quiet} text-sm`}>
-            {setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
+            {startingFrom !== undefined
+              ? `From the setup “${startingFrom.name}”`
+              : setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
           </summary>
 
           <div className="mt-3 flex flex-col gap-3">
+            {/*
+              ***A Setup is how to start playing*** — [04 §7], [P15.4]. The
+              route has accepted one since [P7.4], and until this select the
+              browser had no way to send it. Choosing one replaces the controls
+              below rather than prefilling them: the Setup says everything they
+              would, and a prefilled form would be a second copy of it that
+              could drift from the object the person picked.
+            */}
             <SelectField
-              label="Mode"
-              // The effective id rather than the state, so the control shows the
-              // mode the Start button would actually create — which is the
-              // install's default until somebody picks otherwise.
-              value={chosen?.id ?? ''}
-              options={(modes.data?.modes ?? []).map(
-                (one) => [one.id, one.displayName] as [string, string],
-              )}
-              onChange={setMode}
-              hint="What kind of story this is. It decides what is asked below, and cannot be changed afterwards."
+              label="Start from a setup"
+              value={fromSetup}
+              options={[
+                ['', 'None — choose everything below'],
+                ...(setups.data?.objects ?? []).map(
+                  (one) => [one.id, one.name] as [string, string],
+                ),
+              ]}
+              onChange={(next) => {
+                setFromSetup(next);
+                setOpening('');
+              }}
+              hint="A saved way to begin — including one made from a point in another session."
             />
 
-            {/*
+            {startingFrom !== undefined ? (
+              <>
+                {carriesOpening ? (
+                  <SelectField
+                    label="Opening"
+                    value={opening}
+                    options={[
+                      [
+                        '',
+                        `Its own — ${openingName(setupOpenings.written.find((one) => one.id === setupOpenings.primary) ?? { label: '', text: '' })}`,
+                      ],
+                      ...setupOpenings.written.map(
+                        (one) => [one.id, openingName(one)] as [string, string],
+                      ),
+                      [COLD, 'None — start cold'],
+                    ]}
+                    onChange={setOpening}
+                    hint="The first thing the story says. Written, not generated, so it is the same every time."
+                  />
+                ) : null}
+                {/* ***The owner's decision (25 B18), said where it applies***
+                    (2026-10-03). Only when there are greetings to set aside — the Setup's mode
+                    writes them and somebody in its party has one — because a
+                    sentence about greetings nobody would have given is noise
+                    beside the one choice that is real. */}
+                {carriesOpening && greeters.length > 0 ? (
+                  <Fine>{SETUP_WORDS.greetingsSetAside}</Fine>
+                ) : null}
+                {greetingsBegin ? (
+                  <fieldset className="flex flex-col gap-2">
+                    <legend className="text-sm font-medium text-ink-muted">
+                      {SETUP_WORDS.legend}
+                    </legend>
+                    <Fine>{SETUP_WORDS.greetingsBegin}</Fine>
+                    {greeters.map((actor) => (
+                      <GreetingPicker
+                        key={actor.id}
+                        actor={actor}
+                        value={openings[actor.id]}
+                        onChange={(next) => {
+                          setOpenings({ ...openings, [actor.id]: next });
+                        }}
+                      />
+                    ))}
+                  </fieldset>
+                ) : null}
+                <Fine>
+                  The mode, treatment, preset, persona, lorebooks, party, goals and hooks all come
+                  from the setup. Open it in the library to change them.
+                </Fine>
+              </>
+            ) : (
+              <>
+                <SelectField
+                  label="Mode"
+                  // The effective id rather than the state, so the control shows the
+                  // mode the Start button would actually create — which is the
+                  // install's default until somebody picks otherwise.
+                  value={chosen?.id ?? ''}
+                  options={(modes.data?.modes ?? []).map(
+                    (one) => [one.id, one.displayName] as [string, string],
+                  )}
+                  onChange={setMode}
+                  hint="What kind of story this is. It decides what is asked below, and cannot be changed afterwards."
+                />
+
+                {/*
               **The wizard, rendered from the mode's declaration and nothing
               else** — [06 §7.3], [P7.4]. `SetupFields` has never heard of any
               mode; it knows a widget vocabulary and a loop, which is what makes
               the stage's exit line — *a wizard for a mode the engine has no
               knowledge of* — true of this page rather than only of the route.
             */}
-            <SetupFields
-              setup={chosen?.setup ?? { kind: 'none' }}
-              answers={setup}
-              onChange={setSetup}
-            />
-
-            <SelectField
-              label="Treatment"
-              value={treatment}
-              options={[
-                ['', 'None'],
-                ...(treatments.data?.objects ?? []).map(
-                  (one) => [one.id, one.name] as [string, string],
-                ),
-              ]}
-              onChange={setTreatment}
-              hint="A treatment brings its own lorebooks and its own framing."
-            />
-
-            {/*
-             * ***The blank option acquired a visible twin at [P7B.0]***, and
-             * keeping both is the decision.
-             *
-             * This list is the library's, so it now carries the shipped packs
-             * as ordinary rows — the mode's own default appears here by its
-             * name for the first time. That does **not** make the blank option
-             * redundant, and the difference is worth the longer label: naming
-             * *Scene* pins this session to that pack, while leaving it blank
-             * says *whatever this mode ships*, which is a different answer the
-             * next time the mode's default changes. Dropping it would take a
-             * choice away and quietly convert every future session into a
-             * pinned one.
-             *
-             * ***And its hint's second half stopped being true at [P7B.2]***
-             * (corrected 2026-09-14). It read ~~*Copied into the session at
-             * creation, and not changeable afterwards*~~; the session panel
-             * switches the pack of a session already running, through
-             * `PUT /api/sessions/:id/preset`. The first half did not move and
-             * is the half worth keeping — it is [03 §8]'s copy, and the reason
-             * editing a pack in the library cannot reach a game in progress.
-             * *[P7B §1.7] named this comment and asked the stage that falsified
-             * it to correct it; P7B.2 missed it and P7B.5's sweep caught it,
-             * which is the order that rule is written to survive.*
-             */}
-            <SelectField
-              label="Preset"
-              value={preset}
-              options={[
-                ['', "The mode's own, whichever it ships"],
-                ...(presets.data?.objects ?? []).map(
-                  (one) => [one.id, one.name] as [string, string],
-                ),
-              ]}
-              onChange={setPreset}
-              hint="Copied into the session at creation. You can switch it later from the session's own panel, and the copy is what keeps a library edit from reaching a game in progress."
-            />
-
-            <SelectField
-              label="Persona"
-              value={persona}
-              options={[
-                ['', 'Nobody in particular'],
-                ...(actors.data?.objects ?? []).map(
-                  (one) => [one.id, one.name] as [string, string],
-                ),
-              ]}
-              onChange={setPersona}
-              hint="Who you are playing. The narrator is told, and addresses you by name."
-            />
-
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-ink-muted">Lorebooks</legend>
-              {(books.data?.objects ?? []).map((book) => (
-                <CheckboxField
-                  key={book.id}
-                  label={book.name}
-                  checked={lore.includes(book.id)}
-                  onChange={(checked) => {
-                    setLore(checked ? [...lore, book.id] : lore.filter((id) => id !== book.id));
-                  }}
+                <SetupFields
+                  setup={chosen?.setup ?? { kind: 'none' }}
+                  answers={setup}
+                  onChange={setSetup}
                 />
-              ))}
-            </fieldset>
 
-            <Fine>These can be changed from the session itself, except the preset.</Fine>
+                <SelectField
+                  label="Treatment"
+                  value={treatment}
+                  options={[
+                    ['', 'None'],
+                    ...(treatments.data?.objects ?? []).map(
+                      (one) => [one.id, one.name] as [string, string],
+                    ),
+                  ]}
+                  onChange={setTreatment}
+                  hint="A treatment brings its own lorebooks and its own framing."
+                />
 
-            {/*
+                {/*
+                 * ***The blank option acquired a visible twin at [P7B.0]***, and
+                 * keeping both is the decision.
+                 *
+                 * This list is the library's, so it now carries the shipped packs
+                 * as ordinary rows — the mode's own default appears here by its
+                 * name for the first time. That does **not** make the blank option
+                 * redundant, and the difference is worth the longer label: naming
+                 * *Scene* pins this session to that pack, while leaving it blank
+                 * says *whatever this mode ships*, which is a different answer the
+                 * next time the mode's default changes. Dropping it would take a
+                 * choice away and quietly convert every future session into a
+                 * pinned one.
+                 *
+                 * ***And its hint's second half stopped being true at [P7B.2]***
+                 * (corrected 2026-09-14). It read ~~*Copied into the session at
+                 * creation, and not changeable afterwards*~~; the session panel
+                 * switches the pack of a session already running, through
+                 * `PUT /api/sessions/:id/preset`. The first half did not move and
+                 * is the half worth keeping — it is [03 §8]'s copy, and the reason
+                 * editing a pack in the library cannot reach a game in progress.
+                 * *[P7B §1.7] named this comment and asked the stage that falsified
+                 * it to correct it; P7B.2 missed it and P7B.5's sweep caught it,
+                 * which is the order that rule is written to survive.*
+                 */}
+                <SelectField
+                  label="Preset"
+                  value={preset}
+                  options={[
+                    ['', "The mode's own, whichever it ships"],
+                    ...(presets.data?.objects ?? []).map(
+                      (one) => [one.id, one.name] as [string, string],
+                    ),
+                  ]}
+                  onChange={setPreset}
+                  hint="Copied into the session at creation. You can switch it later from the session's own panel, and the copy is what keeps a library edit from reaching a game in progress."
+                />
+
+                <SelectField
+                  label="Persona"
+                  value={persona}
+                  options={[
+                    ['', 'Nobody in particular'],
+                    ...(actors.data?.objects ?? []).map(
+                      (one) => [one.id, one.name] as [string, string],
+                    ),
+                  ]}
+                  onChange={setPersona}
+                  hint="Who you are playing. The narrator is told, and addresses you by name."
+                />
+
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="text-sm font-medium text-ink-muted">Lorebooks</legend>
+                  {(books.data?.objects ?? []).map((book) => (
+                    <CheckboxField
+                      key={book.id}
+                      label={book.name}
+                      checked={lore.includes(book.id)}
+                      onChange={(checked) => {
+                        setLore(checked ? [...lore, book.id] : lore.filter((id) => id !== book.id));
+                      }}
+                    />
+                  ))}
+                </fieldset>
+
+                <Fine>These can be changed from the session itself, except the preset.</Fine>
+
+                {/*
               **Save the configuration, not the session** — [04 §7], [P7.4].
               A Setup is how to start playing, and everything above is that; so
               the making surface for the `setups/` kind is this form with a
               second verb rather than a third hand-written editor.
             */}
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                disabled={name.trim() === '' || saveSetup.isPending}
-                onClick={() => {
-                  saveSetup.mutate({ kind: 'setups', object: setupFromForm(form) });
-                }}
-              >
-                Save as a setup
-              </Button>
-              <Fine>
-                {name.trim() === ''
-                  ? 'Name it first — a setup is a library object, and library objects have names.'
-                  : 'Keeps this configuration to start from again.'}
-              </Fine>
-            </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    disabled={name.trim() === '' || saveSetup.isPending}
+                    onClick={() => {
+                      saveSetup.mutate({ kind: 'setups', object: setupFromForm(form) });
+                    }}
+                  >
+                    Save as a setup
+                  </Button>
+                  <Fine>
+                    {name.trim() === ''
+                      ? 'Name it first — a setup is a library object, and library objects have names.'
+                      : 'Keeps this configuration to start from again.'}
+                  </Fine>
+                </div>
+              </>
+            )}
           </div>
         </details>
 
@@ -742,6 +1044,44 @@ export function SessionsPage(): React.JSX.Element {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * ***Which greeting one character opens on*** — [P14.5]'s select, lifted out
+ * at the P15 merge (2026-10-03) when a Setup's party needed the same control.
+ *
+ * **Nothing at all for a character with one greeting or none**: there is no
+ * choice to offer, and [P14 §1.7]'s alternates only exist where there are
+ * several. `value` absent is their usual, which is what the route starts on
+ * when nothing is sent.
+ */
+function GreetingPicker(props: {
+  actor: LibraryObject;
+  value: string | undefined;
+  onChange: (next: string) => void;
+}): React.JSX.Element | null {
+  const own = openingsOf(props.actor.object);
+  if (own.written.length < 2) return null;
+  return (
+    <label className="flex items-center gap-2 text-sm text-ink-muted">
+      {CAST_WORDS.opening.replace('{name}', () => props.actor.name)}
+      <select
+        className="rounded-control border border-line bg-surface p-1 text-ink"
+        value={props.value ?? own.primary ?? ''}
+        onChange={(event) => {
+          props.onChange(event.target.value);
+        }}
+      >
+        {own.written.map((opening) => (
+          <option key={opening.id} value={opening.id}>
+            {opening.id === own.primary
+              ? CAST_WORDS.primary.replace('{label}', () => openingName(opening))
+              : openingName(opening)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

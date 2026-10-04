@@ -31,6 +31,7 @@ const takeFile = vi.fn();
 const libraryErrors = vi.fn();
 const createObject = vi.fn();
 const authState = vi.fn();
+const createSession = vi.fn();
 const listSessions = vi.fn();
 const navigate = vi.fn();
 
@@ -43,6 +44,7 @@ let search: { slug?: string; source?: 'user' | 'system' } = {};
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  createSession: (...a: unknown[]) => createSession(...a) as unknown,
   listSessions: (...a: unknown[]) => listSessions(...a) as unknown,
   api: {
     readObject: (...a: unknown[]) => readObject(...a) as unknown,
@@ -127,6 +129,46 @@ async function askToDelete(): Promise<ReturnType<typeof userEvent.setup>> {
   await user.click(await screen.findByRole('button', { name: 'Delete' }));
   return user;
 }
+
+/**
+ * ***A Setup's page is somewhere to start from*** — [P15.4](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * The route has taken a Setup since [P7.4]; this is the first place in the
+ * browser that sends one, and it goes straight into the session it made.
+ */
+describe('starting a session from a setup', () => {
+  const SETUP_ID = '01a008de-7e08-70d0-899c-f6869d6b9ae0';
+
+  it('starts one from the setup and goes to it', async () => {
+    params = { kind: 'setups', id: SETUP_ID };
+    readObject.mockResolvedValue({
+      ...actor(),
+      id: SETUP_ID,
+      schema: 'storyengine.setup/1',
+      name: 'The Ledger, Lost',
+      object: { schema: 'storyengine.setup/1', id: SETUP_ID, name: 'The Ledger, Lost' },
+    });
+    createSession.mockResolvedValue({ session: { id: 'session-new' } });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Start a session' }));
+
+    expect(createSession).toHaveBeenCalledWith({ setup: SETUP_ID });
+    await vi.waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/play/$sessionId',
+        params: { sessionId: 'session-new' },
+      });
+    });
+  });
+
+  it('is not offered on anything that is not a setup', async () => {
+    renderPage();
+    await screen.findByRole('button', { name: 'Delete' });
+
+    expect(screen.queryByRole('button', { name: 'Start a session' })).toBeNull();
+  });
+});
 
 describe('deleting a library object', () => {
   it('offers Delete on something the user owns', async () => {

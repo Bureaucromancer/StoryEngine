@@ -52,8 +52,9 @@ describe('the shipped help book', () => {
   it('has entries, and every one of them can fire', () => {
     expect(DOCS_LOREBOOK.entries.length).toBeGreaterThanOrEqual(20);
     for (const entry of DOCS_LOREBOOK.entries) {
-      // Keyed rather than constant: twenty-five constant entries would be the
-      // whole budget spent on documentation nobody asked about.
+      // Keyed rather than constant: every entry made constant would be the
+      // whole budget spent on documentation nobody asked about. (No count here
+      // since 2026-10-03 — it said twenty-five when the book held twenty-six.)
       expect(entry.constant, `${entry.name} is constant`).toBe(false);
       expect(entry.keys.length, `${entry.name} has no keys`).toBeGreaterThan(0);
       expect(entry.content.trim(), `${entry.name} is empty`).not.toBe('');

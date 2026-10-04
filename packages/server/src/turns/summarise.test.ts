@@ -312,7 +312,9 @@ describe('whether a turn has a chain', () => {
  * described a lantern.
  *
  * Driven through the step with a host that records what it was asked, because
- * `renderUnits` is private and what matters is the text the model is handed.
+ * ~~`renderUnits` is private and~~ what matters is the text the model is
+ * handed. (`renderUnits` is exported since the [P15] merge, 2026-10-03, for the
+ * setup draft's window; the step is still the reader this test is about.)
  */
 describe('a move with pictures, as the summariser is handed it', () => {
   function asking(): StepHost & { asked: StepCallRequest[] } {

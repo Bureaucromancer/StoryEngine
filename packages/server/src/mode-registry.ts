@@ -225,6 +225,9 @@ export interface PublicMode {
    * `ModeDefinition.openingTurn`, [P14 §1.7], sent at [P14.5] because the
    * creation form offers each member's opening only for a mode that writes
    * one. A choice the mode would never read is a control that does nothing.
+   * *Unless the session starts from a Setup that carries a written opening*
+   * (2026-10-03, [25 B18](../../../docs/design/25-open-questions.md)), which
+   * opens on that instead.
    */
   openingTurn: boolean;
 }

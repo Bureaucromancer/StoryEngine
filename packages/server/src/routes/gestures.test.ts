@@ -9,6 +9,7 @@ import {
   newActor,
   newLoreEntry,
   newLorebook,
+  newSetup,
   uuidv7,
   type OutputMessage,
   type Turn,
@@ -306,6 +307,148 @@ describe('§1.7 — the opening turn at creation', () => {
     expect(assistant.headTurnId).toBeNull();
     const silent = await aSession([await anActor('Lund')]);
     expect(silent.headTurnId).toBeNull();
+  });
+});
+
+/**
+ * ***§1.7 beside a Setup*** — the merge's one account of turn 1
+ * (`sessions/opening.ts`, 2026-10-03), through the route and on Scene, the
+ * mode whose greetings it is about. `sessions/opening.test.ts` holds every
+ * rule over values; what is here is that the route hands it the cast and
+ * writes what it answers.
+ */
+describe('§1.7 beside a Setup — what a session started from one opens on', () => {
+  async function aSetup(over: Record<string, unknown>): Promise<string> {
+    const made = { ...newSetup('The Harbour'), ...over };
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: made,
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    return created.body.object.id as string;
+  }
+
+  /** A Setup seating `actorId`, with `openings` when it carries any. */
+  const seating = (actorId: string, openings?: unknown): Record<string, unknown> => ({
+    cast: { personaOptions: [], partyDefault: [{ id: actorId, name: 'Vera' }], narrator: null },
+    ...(openings === undefined ? {} : { openings }),
+  });
+  const QUAY = {
+    written: [{ id: 'o-quay', label: 'The quay', text: 'Fog on the quay.' }],
+    seeds: [],
+    primaryWrittenId: 'o-quay',
+    primarySeedId: null,
+  };
+
+  async function started(
+    payload: Record<string, unknown>,
+  ): Promise<{ id: string; path: Turn[]; siblings: Record<string, string[]> }> {
+    const created = await server.request({ method: 'POST', url: '/api/sessions', payload });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.session.id as string;
+    const listed = await server.request({ method: 'GET', url: `/api/sessions/${id}/turns` });
+    return {
+      id,
+      path: listed.body.turns as Turn[],
+      siblings: listed.body.siblings as Record<string, string[]>,
+    };
+  }
+
+  /**
+   * ***The owner's decision, 2026-10-03 — [25 B18](../../../../docs/design/25-open-questions.md).*** Mutation: make
+   * `firstTurns`' `setupWins` false and the greeting is written on top of the
+   * opening, so the path is two turns long.
+   */
+  it('opens on the Setup’s opening and writes no greeting, chosen or started cold', async () => {
+    const vera = await anActor('Vera', ['"You came."', '"Late again."']);
+    const setup = await aSetup(seating(vera, QUAY));
+
+    const chosen = await started({ setup });
+    expect(chosen.path).toHaveLength(1);
+    expect(chosen.path[0]?.output?.text).toBe('Fog on the quay.');
+    expect(chosen.siblings).toEqual({});
+
+    // Started cold, the session still writes no greeting: only the seating,
+    // on a turn that says nothing. Mutation: drop `carriesOpening` from the
+    // rule and the greeting is written on top of it.
+    const cold = await started({ setup, opening: null });
+    expect(cold.path).toHaveLength(1);
+    expect(cold.path[0]?.output).toBeUndefined();
+    expect(cold.path[0]?.effects.map((effect) => [effect.channelId, effect.scopeKey])).toEqual([
+      ['se.party', vera],
+    ]);
+    expect(provider.requests).toHaveLength(0);
+  });
+
+  /**
+   * ***Rule 3 — recommended answer, owner deferred, 2026-10-03.*** Mutation:
+   * hang the greetings at the root and the path is the greeting alone, with
+   * Vera never seated.
+   */
+  it('hangs the greetings from what a Setup with no opening seats', async () => {
+    const vera = await anActor('Vera', ['"You came."', '"Late again."']);
+    const { id, path, siblings } = await started({ setup: await aSetup(seating(vera)) });
+
+    expect(path).toHaveLength(2);
+    const [seat, greeting] = path;
+    if (seat === undefined || greeting === undefined) throw new Error('two turns, checked above');
+    expect(seat.output).toBeUndefined();
+    expect(seat.effects.map((effect) => [effect.channelId, effect.scopeKey, effect.after])).toEqual(
+      [['se.party', vera, 'companion']],
+    );
+    expect(greeting.parentTurnId).toBe(seat.id);
+    expect(said(greeting)).toEqual([{ by: 'Vera', text: '"You came."' }]);
+    // The alternate is still a swipe away, a sibling under the seating.
+    expect(siblings[greeting.id]).toHaveLength(2);
+
+    // And the head is seated, read through the panel a person sees.
+    const read = await server.request({ method: 'GET', url: `/api/sessions/${id}` });
+    const rows = read.body.cast as { actorId: string; party: string | null }[];
+    expect(rows.find((row) => row.actorId === vera)?.party).toBe('companion');
+  });
+
+  /**
+   * ***A whole-turn redo of a greeting is refused, a swipe of one is not***
+   * — `refuseOpening`, recommended answer, owner deferred, 2026-10-03.
+   * Mutations: delete the refusal and the two submissions are accepted; drop
+   * its `fromMessage` exemption and the swipe — P14's Swipe on a greeting
+   * line — is refused.
+   */
+  it('refuses a whole-turn redo of a greeting, and swipes one', async () => {
+    const vera = await anActor('Vera', ['"Evening."']);
+    const { id, headTurnId } = await aSession([vera]);
+    const greeting = headTurnId ?? '';
+
+    for (const field of ['rewriteOf', 'redoOf'] as const) {
+      const refused = await submit(id, { headTurnId, parentTurnId: null, [field]: greeting });
+      expect([refused.status, refused.body.error], field).toEqual([422, 'opening-turn']);
+    }
+
+    const swiped = await play(id, { rewriteOf: greeting, fromMessage: 0 }, [
+      { text: '"Well, well."' },
+    ]);
+    expect(swiped.parentTurnId).toBeNull();
+    expect(said(swiped)).toEqual([{ by: 'Vera', text: '"Well, well."' }]);
+  });
+
+  /**
+   * ***A let-them-talk reply is redone***: it answered no move but made a
+   * call, so the convention reads `request` as well as `input`. Mutation: let
+   * `redoable` read `input` alone and this redo is refused.
+   */
+  it('redoes a reply to nothing, which made a call', async () => {
+    const vera = await anActor('Vera', ['"Evening."']);
+    const { id } = await aSession([vera]);
+    const first = await play(id, {}, [{ text: 'Vera pours another glass.' }]);
+    expect(first.input).toBeUndefined();
+    expect(first.request).toBeDefined();
+
+    const again = await play(id, { redoOf: first.id, parentTurnId: first.parentTurnId }, [
+      { text: 'Vera waits.' },
+    ]);
+    expect(again.parentTurnId).toBe(first.parentTurnId);
+    expect(said(again)).toEqual([{ by: 'Vera', text: 'Vera waits.' }]);
   });
 });
 

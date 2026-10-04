@@ -1466,6 +1466,10 @@ export class TurnRunner {
                 layout: commit.sessions.layout,
                 handle: job.account,
                 sessionId: job.sessionId,
+                // The story so far keys the first link and is its context —
+                // [P15.2] — taken from the plan, as the warm and the preview
+                // take it, so all three key one chain. `null` keys it as before.
+                root: summaryPlan.root,
                 policy: summaryPlan.policy,
                 key: summaryPlan.key,
                 report: (report) => {

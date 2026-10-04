@@ -17,7 +17,7 @@ changes on disk while it runs.
 | **Actor** | A character: name, pronouns, aliases, traits, a profile in sections, writing samples, greetings, pictures. Stored as a character card. | As a cast member or as your persona. Read fresh every turn, so edits reach stories in progress. |
 | **Lorebook** | Entries that come into the prompt when their keywords appear. See [Lorebooks and memory](lorebooks-and-memory.md). | Chosen per session, or brought by a treatment — or, for a memory book, brought by a character in the cast. Read fresh every turn. |
 | **Treatment** | How a world is handled: its framing, which goes into every turn, plus its lorebooks, plot hooks, writing samples and tone. Reusable across many stories. | Chosen when a session starts (or later). Its framing and lorebooks are read every turn; its hooks are copied into the session when it starts — a treatment picked later brings its framing and lorebooks, not its hooks. |
-| **Setup** | One particular game: a mode and its answers, a treatment, a preset, a persona and lorebooks, kept together to start from again. | Saved from the start form. The app has no control yet for starting a session from one. |
+| **Setup** | One particular game: a mode and its answers, a treatment, a preset, a persona and lorebooks, kept together to start from again — and, for one made from a story, its party, goals, plot hooks, openings and the story so far. | Saved from the start form, or made from any turn of a story with **Make a setup from here**. Started from the sessions page or from its own page with **Start a session**; a session copies it when it starts, so later edits reach only sessions started afterwards. |
 | **Preset** | The recipe for a prompt: its blocks, their order and budget, and the generation settings. See [Presets and prompts](presets.md). | **Copied** into a session when it starts, so later edits do not reach that session. |
 | **Package** | A bundle of library objects, kept together so they can travel as one file. | Not used by sessions directly. |
 
@@ -69,6 +69,12 @@ lorebook reads as a document, with **Print** and **Copy as Markdown**. Below it:
 At the bottom: **Back to the library**, **Edit** (for your own objects), **Copy to my
 library** (for System objects) and **Delete** (for your own).
 
+A setup's page also has **Start a session**, which starts a session from it — on its
+own opening, when it has one — and opens it straight away. There is nothing to fill in,
+because the setup already says everything a session needs. To start from a setup with a different
+opening, or cold, use the sessions page: see
+[Starting from a setup](playing.md#starting-from-a-setup).
+
 The page shows no pictures. The workbench over it shows the object's provenance, its
 version history and how the index sees it.
 
@@ -87,7 +93,9 @@ digits and hyphens — and **never changes**: renaming the object changes the na
 the file, not the folder.
 
 To keep the start form's choices as a setup, use **Save as a setup** on the sessions
-page — see [Playing a session](playing.md#the-setup).
+page — see [Playing a session](playing.md#the-setup). To keep a point in a story you
+are playing, use **Make a setup from here** on that turn — see
+[Make a setup from here](playing.md#make-a-setup-from-here).
 
 ## Editing
 
@@ -129,7 +137,9 @@ are stored, marked *This editor does not write this field yet.*
 
 - **Treatment** — editable: name, blurb, framing, staging notes, tags and **Plot
   hooks**. Shown as stored: tone, writing samples, lore, cast, openings, pictures.
-- **Setup** — editable: name, blurb, staging notes, tags and plot hooks. Shown as
+- **Setup** — editable: name, blurb, staging notes, tags, plot hooks, **Story so far**
+  (what the model is told had already happened, which a setup made from a story fills
+  in) and **Spent hooks** (the ids of hooks already used, one per line). Shown as
   stored: the mode, treatment, preset, cast, lore, openings and goals.
 - **Package** — editable: name, version and description. Its list of contents is shown
   as stored.

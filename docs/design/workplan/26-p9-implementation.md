@@ -1590,6 +1590,27 @@ so every record's `provenance.binding` was null while its digest named a model.
 The binding rides on the step's report now, so the record and the reuse key
 cannot name different models.
 
+***And a cancellation that never fired — fixed 2026-09-26 in `af5811a0`,
+recorded here 2026-10-03.*** The illustrate route's comment said *"the client's
+disconnect cancels the moment call"* and wired it as `request.raw.on('close')`.
+On a `POST` with a body that event is emitted once Fastify has read the body,
+before the handler runs, and emitted once — so a listener attached after the
+route's two awaited reads never ran, and every moment call ran to the end for a
+page nobody had open, the picture asked for and paid for. Nothing in the suite
+could see it, because `inject` cannot express a client leaving a `POST`.
+`routes/disconnect.ts`'s `disconnectSignal` reads the **response** instead — a
+response that closes without having finished is the client leaving — with a
+`destroyed` check for a client that left during one of the route's own awaits,
+and its tests go over a real socket. *Recorded here late, and on purpose*: until
+this date the fix lived only in [the API reference](../../api.md)'s illustrate
+section and in the helper's own comment, so this stage's record still read as
+if the comment had been true. The same bug was found independently the same
+day on the branch that became [P15](33-p15-setup-from-a-turn.md), whose §0.5
+says why its own fix was dropped at the merge for this one. *No gate row is
+edited*: this stage's proof obligation was component tests and the
+route-callers check, and neither was wrong — the fault was in a claim a comment
+made.
+
 ### P9.5 — The workbench over renditions
 
 Deferred here by name from [P3 §5](15-p3-implementation.md). Renditions are

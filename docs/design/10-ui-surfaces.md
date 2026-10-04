@@ -368,13 +368,13 @@ design note without an owner is precisely the defect
 
 The split is therefore explicit, and it is the last thing this section does:
 
-- **1.0, owned by [P12A](workplan/33-p12a-the-look.md)** — faces, the editable
+- **1.0, owned by [P12A](workplan/34-p12a-the-look.md)** — faces, the editable
   channel HUD, the backdrop's legibility mechanism, the motion vocabulary, the
   section jumps, ~~the story face,~~ and the phone rules below. Each discharges a
   commitment this corpus already made; P12A is where each is sized. *The story
   face left this list on 2026-10-02, at the merge that brought it in: `main`
   had built it the day before ([polish §17](workplan/06-polish.md)), and what
-  [P12A](workplan/33-p12a-the-look.md) keeps of it is the measure check.*
+  [P12A](workplan/34-p12a-the-look.md) keeps of it is the measure check.*
 - **Not 1.0, and not commitments** — the gallery view and per-step setup
   explanation. They are on the feature list ([24](24-roadmap.md))'s priorities,
   and if P12A reaches them they ship early rather than late.
@@ -2415,7 +2415,9 @@ before they are discovered:
   started billing, which records nothing because nothing returned~~ *(struck
   2026-10-03: not since P14. The on-demand step behind* Update trackers
   *(`turns/on-demand.ts`) and the background summary chain
-  (`turns/warm-summaries.ts`) write a line for a failed or cancelled call that
+  (`turns/warm-summaries.ts`)* — and, since the
+  [P15](workplan/33-p15-setup-from-a-turn.md) merge the same day, the setup
+  draft (`turns/condense.ts`) — *write a line for a failed or cancelled call that
   reached the provider, with null figures; the field assist, impersonation,
   Illustrate's moment call and the connection test below still write nothing
   for one. Two rules, then, and no decision yet between them)*. *Since
@@ -2423,7 +2425,11 @@ before they are discovered:
   ([polish §25](workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)),
   both arms — so a test picture is the one image call the log carries, because
   unlike a rendition it leaves no record of its own; its line has no tokens and
-  the role `connection-test`, which no binding can have.
+  the role `connection-test`, which no binding can have. *Since the
+  [P15](workplan/33-p15-setup-from-a-turn.md) merge (2026-10-03) it also covers*
+  **Make a setup from here**: one line per call the draft makes, purpose
+  `setup-draft:<part>`, and `setup-draft:summarise` for each link of the
+  summary chain it had to derive ([21 §1.4](21-internal-contracts.md)).
 
 ### 11.5 Traps
 

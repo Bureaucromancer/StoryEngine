@@ -339,8 +339,13 @@ async function recordEscape(
  * for two fields. Truncated on a word boundary, because a title cut mid-word
  * reads as a bug rather than as a summary — and the whole text is in `content`
  * either way.
+ *
+ * *Exported at [P15.7]* for the facts a Setup made from a turn keeps in its
+ * companion lorebook, which are named the same way and for the same reason.
+ * (One comment, 2026-10-03: the branch stacked a second above this one, and
+ * a doc tool reads only the nearer.)
  */
-function titleFor(text: string): string {
+export function titleFor(text: string): string {
   const oneLine = text.replace(/\s+/g, ' ').trim();
   if (oneLine.length <= 60) return oneLine;
   const cut = oneLine.slice(0, 60);

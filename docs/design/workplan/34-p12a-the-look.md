@@ -1,4 +1,4 @@
-# 33 — P12A implementation plan: the look, and the sentence it has to put back
+# 34 — P12A implementation plan: the look, and the sentence it has to put back
 
 **Status: skeleton, written 2026-09-22**, the day
 [10 §1.3](../10-ui-surfaces.md) was written. ~~Nothing is built.~~ *Part of it
@@ -45,12 +45,28 @@ committed rename and a merge in progress has none. The paragraph two above —
 *its number is also its execution position, so nothing renumbers* — stopped
 being true at this merge.
 
+***Renumbered again 2026-10-03, from 33 to 34***, at the merge that brought
+[P15](33-p15-setup-from-a-turn.md) — *make a setup from here*, built on
+2026-09-26 as "P13" in a document 30 on `claude/nice-davinci-xjdpf6`, a name
+and a number `main` gave the Aventuras import while that branch was out — into
+`main` through the `p15` branch. **It ran before this phase, which has still not opened**, so the
+paragraph above decides it without a new argument: execution order puts P15
+ahead, `PLAN_ORDER` gained its line ahead of this one, `--plan` moved P15's
+document and this one and nothing else, and `--rename` moved both. The
+citations of this document were repointed by hand again — four files, the
+work-plan README, [work plan](01-work-plan.md), [manual testing](05-manual-testing.md)
+and [10](../10-ui-surfaces.md) — for the same reason as last time: the rename
+sits inside a merge in progress, and `--rewrite` needs a committed one. **Its
+sitting stays T and its name stays P12A**, both for the reasons the next
+paragraph gives; P15's sitting is **W**.
+
 **Its sitting stays T.** It was registered 2026-09-22; `main`'s own T — pictures
 on a move, [25 E15](../25-open-questions.md) — was registered 2026-09-27 by a
 branch that could not see this one, so it is the later registration and became
 **U** ([manual testing §4](05-manual-testing.md)). **Its name stays P12A, and
 that is a choice rather than a consequence**: the lettering rule the rename
-note above cites would now say P14A, and renaming a phase is a rewrite of every
+note above cites would now say ~~P14A~~ *P15A since 2026-10-03, when P15
+filed ahead of this phase*, and renaming a phase is a rewrite of every
 citation and note that says P12A — a decision for a person, and not one a merge
 should make on its way past.
 

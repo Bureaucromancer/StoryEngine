@@ -111,6 +111,19 @@ const PLAN_ORDER = [
   ['p13-aventuras-import', 'P13'],
   ['p14-scene-and-session-import', 'P14'],
   ['main-audit', 'main audit'],
+  // **Before P12A, by the same reasoning that put P12A last** (2026-10-03, at
+  // the merge that brought it into a main which already held P13, P14 and the
+  // main audit). Built and written as P13 in document 30 on
+  // `claude/nice-davinci-xjdpf6` on 2026-09-26, and `main` spent both that
+  // name and that number on the Aventuras import while the branch was out; it
+  // lands now, while P12A has still not opened, so it ran before P12A exactly
+  // as the three above it did — the
+  // work-plan README's 2026-10-02 refiling, which moved P12A behind phases that
+  // reached `main` while it had not started. Execution order is the order the
+  // work happened in, never the order a plan was first written; and the letter
+  // is no help either way, since P15 names the phase after P14 and P12A the
+  // one after P12, which is a claim about labels and not about filing.
+  ['p15-setup-from-a-turn', 'P15'],
   // **Last, and by execution rather than by its letter** (2026-10-02, at the
   // merge that brought P13, P14 and the main audit into a main that already
   // held this). It was filed at 30 on a local main on 2026-09-23 and never

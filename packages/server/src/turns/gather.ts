@@ -28,6 +28,7 @@ import { readPool } from '../sessions/pool-shape.js';
 import { storyTurns } from '../sessions/depth.js';
 import { presetOf } from '../sessions/preset-of.js';
 import { resolvableActors } from '../sessions/hook-pool.js';
+import { summaryRootOf, type SummaryRoot } from '../sessions/summary-chain.js';
 import type { PlanContext } from './calls.js';
 import { resolveCast, type CastMember } from './cast.js';
 import { resolveLore, type ResolvedLore } from './lore.js';
@@ -152,6 +153,19 @@ export interface AssemblyInputs {
    * called none.
    */
   dials: Partial<Record<DialAxis, { levelId: string | null; level: DifficultyLevel }>>;
+  /**
+   * What had already happened before the first turn — the summary chain's root,
+   * [04 §7.2](../../../../docs/design/04-schemas.md),
+   * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * **Here for the reason `goals` is here**: a preview and a real turn must not
+   * be able to disagree about it, and it is read off the session's copy of its
+   * Setup, which is this module's to read. *Every assembler gets it, which is
+   * the point* — it costs no call, so a preview, an impersonation and a turn
+   * inside the window show the model the story so far exactly as a turn past
+   * the window does. `null` for a session that did not start from one.
+   */
+  summaryRoot: SummaryRoot | null;
 }
 
 /**
@@ -345,6 +359,7 @@ export async function gatherAssemblyInputs(
       concluded: readConcluded(channels),
     },
     dials: resolveDials(preset, channels, session?.mode?.config),
+    summaryRoot: summaryRootOf(session?.setup),
   };
 }
 
@@ -386,6 +401,7 @@ type FromGather =
   | 'carriers'
   | 'goal'
   | 'dials'
+  | 'summaryRoot'
   | 'chat';
 
 /**
@@ -444,6 +460,17 @@ export function collectFor(
       ? {}
       : { goal: { id: inputs.goals.current.id, statement: inputs.goals.current.statement } }),
     dials: inputs.dials,
+    /**
+     * ***The story so far, read off the Setup copy*** — [P15.2]. Here, once,
+     * for this function's own reason: the branch that added it wrote it into
+     * the runner's, the preview's and impersonation's calls separately, which
+     * is the three-copies shape this function was written to end, and the
+     * merge (2026-10-03) folded it in. No call stands behind it, so every
+     * caller has it exactly as a turn does.
+     */
+    ...(inputs.summaryRoot === null
+      ? {}
+      : { summaryRoot: { text: inputs.summaryRoot.text, setupId: inputs.summaryRoot.setupId } }),
     ...call,
   });
 }

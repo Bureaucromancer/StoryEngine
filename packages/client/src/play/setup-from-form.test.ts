@@ -113,11 +113,18 @@ describe('a Setup made from the session form', () => {
 
   /**
    * *Named rather than dropped.* `partyDefault` is empty because the party is
-   * `se.party` since [P7.3] and seeding it means writing effects — which the
+   * `se.party` since [P7.3] and seeding it means writing effects ~~— which the
    * session-creation path does not do either, so this is one honest gap rather
-   * than two halves that disagree.
+   * than two halves that disagree~~.
+   *
+   * *Corrected 2026-10-03, at the P15 merge*, and the test renamed from *as
+   * the creation path does*: since P15.3 the creation path reads a party —
+   * seats it and makes each member a companion — so this is not a gap both
+   * halves share. The form writes none because what it picks is a cast, not a
+   * party; [P7.4]'s symmetry paragraph records the asymmetry that leaves.
+   * Mutation: write the persona into `partyDefault` and this fails.
    */
-  it('leaves the party empty, as the creation path does', () => {
+  it('writes no party, because what the form picks is a cast', () => {
     expect(setupFromForm(form({ persona: 'actor-vera' })).cast.partyDefault).toEqual([]);
   });
 

@@ -57,6 +57,12 @@ const ONE_OF_EACH: { [K in BlockSource['kind']]: Extract<BlockSource, { kind: K 
    * 2026-09-30, as the mapped type above.)*
    */
   summary: [{ kind: 'summary', linkKey: 'sha256:s', range: [0, 3] }],
+  // The chain's root, [P15.2] — added at the merge (2026-10-03), which is the
+  // mapped type above doing what it was written for: it would not compile.
+  'story-so-far': [
+    { kind: 'story-so-far', setupId: 'st-1' },
+    { kind: 'story-so-far', setupId: null },
+  ],
   schema: [{ kind: 'schema' }],
   samples: [
     {
@@ -164,6 +170,21 @@ describe('every source has an address', () => {
         sampleId: 's-3',
       }).link,
     ).toEqual({ kind: 'lorebooks', id: 'lb-1' });
+  });
+
+  /**
+   * ***The story so far reaches the Setup it was copied from*** —
+   * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
+   * linked at the merge (2026-10-03). The arm carried `setupId` for this
+   * click-through from the start and nothing spent it; a root with no Setup
+   * id behind it has nowhere to go and says so by having no address.
+   */
+  it('links the story so far to its setup, when it names one', () => {
+    expect(blockSourceAddress({ kind: 'story-so-far', setupId: 'st-1' }).link).toEqual({
+      kind: 'setups',
+      id: 'st-1',
+    });
+    expect(blockSourceAddress({ kind: 'story-so-far', setupId: null }).link).toBeUndefined();
   });
 
   /** A carrier this build has never heard of gets the label and no address. */

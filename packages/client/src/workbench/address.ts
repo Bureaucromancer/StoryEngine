@@ -40,12 +40,20 @@ import { labels } from '../i18n/catalogue.js';
  *   a label like anything else.
  * - **round** names a reply this turn already gave ([P14.2]), and links to the
  *   member who gave it; a narrator's line has nobody to link to.
+ * - **story-so-far** names the Setup the session was started from
+ *   ([P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)),
+ *   and links to it — linked at the P15 merge (2026-10-03), which is what
+ *   the arm's `setupId` was carried for: the shared type calls it *"for the
+ *   click-through `presetId` gives a preset block"*, and a reader asking where
+ *   a paragraph of the window came from should land on the object they can
+ *   edit it in. The session holds a copy, so the link can dangle — a Setup
+ *   deleted since — and that is the preset's reading too.
  * - **input / guidance / step / channel / treatment / goal** — no library
  *   object behind them at this phase.
  */
 export interface SourceAddress {
   label: string;
-  link?: { kind: 'actors' | 'presets' | 'treatments' | 'lorebooks'; id: string };
+  link?: { kind: 'actors' | 'presets' | 'treatments' | 'lorebooks' | 'setups'; id: string };
 }
 
 /**
@@ -87,6 +95,15 @@ const SOURCE_LABELS: Readonly<Record<BlockSource['kind'] | 'setting', string>> =
      * and the two labels read as the pair they are.
      */
     summary: 'Earlier turns',
+    /**
+     * ***What had happened before this session's first turn*** — the summary
+     * chain's root, [P15.2], read off the Setup the session was started from.
+     * Labelled at the merge (2026-10-03): the branch wrote the arm while this
+     * map was typed open, and main's closing of it (2026-09-30) is what made
+     * the gap a compile error rather than a bare `story-so-far` in the Source
+     * column. *"Story so far"* because that is the Setup field's own name.
+     */
+    'story-so-far': 'Story so far',
     samples: 'Writing sample',
     channel: 'Channel',
     /**
@@ -165,6 +182,11 @@ export function blockSourceAddress(source: BlockSource): SourceAddress {
   // was a member's and not a narrator's line ([P14.2]).
   if (source.kind === 'round' && source.actorId !== null) {
     return { label, link: { kind: 'actors', id: source.actorId } };
+  }
+  // The Setup the story so far was copied from ([P15.2]) — `null` for a root
+  // whose session carries no Setup id, which has nowhere to go.
+  if (source.kind === 'story-so-far' && source.setupId !== null) {
+    return { label, link: { kind: 'setups', id: source.setupId } };
   }
   // A sample is prose in an object somebody owns, so the block table can click
   // through to it — the same claim the `actor` arm makes. ~~The other two

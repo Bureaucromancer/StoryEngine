@@ -11,6 +11,7 @@ import {
   type SummaryLink,
   type SummarisableTurn,
   type SummaryPolicy,
+  type SummaryRoot,
   type SummaryUnit,
 } from './summary-chain.js';
 
@@ -280,8 +281,23 @@ export async function ensureChain(
   path: readonly SummarisableTurn[],
   summariser: Summariser,
   policy: SummaryPolicy,
+  /**
+   * What had already happened — {@link SummaryRoot}, [P15.2]. It keys the
+   * first link and is handed to it as `previous` — context for the first
+   * stretch, as each link is for the one after it — which is the only
+   * difference a root makes to the chain; it is **not** in `links`, because the
+   * collector is handed it separately and every caller that assembles a prompt
+   * has it whether or not a chain was derived.
+   *
+   * *A default, so every chain written before roots keeps its keys* — and so a
+   * caller can forget it, which the warm and the preview both did until the
+   * merge (2026-10-03). The callers take it from the plan
+   * (`turns/summarise.ts`' `summaryPlanFor`), which carries it beside the key
+   * and the policy so no caller holds two of the three.
+   */
+  root: SummaryRoot | null = null,
 ): Promise<ChainResult> {
-  const planned = planChain(path, summariser.key, policy);
+  const planned = planChain(path, summariser.key, policy, root?.key ?? null);
   const links: SummaryLink[] = [];
   let derived = 0;
 
@@ -314,7 +330,7 @@ export async function ensureChain(
       continue;
     }
 
-    const previous = links.at(-1)?.text ?? null;
+    const previous = links.at(-1)?.text ?? root?.text ?? null;
     const derivation = (async (): Promise<{ link: SummaryLink; fresh: boolean }> => {
       // Registered first, then re-read: see the doc comment for the window this closes.
       const landed = await readSummary(layout, handle, sessionId, plan.key);
@@ -369,6 +385,15 @@ export async function ensureChain(
  * one belongs to a different chain. The turn derives what is missing, so a
  * preview of a turn that will derive reads short by that much, which is the
  * honest reading of *nothing has been asked yet*.
+ *
+ * ***The root is required here*** (2026-10-03, at the [P15] merge). This
+ * planned without it, so for a session started from a Setup with a story so
+ * far it keyed a chain whose first link names no predecessor — a chain the
+ * turn never derives, since `ensureChain` keys the first link off the root —
+ * and the preview read nothing held on a session whose every link was on
+ * disk. *No default*, unlike `ensureChain`'s, which keeps one for the chains
+ * written before roots existed: the one caller this has is the preview, and a
+ * parameter a caller can leave out is how it was left out.
  */
 export async function readHeldChain(
   layout: Layout,
@@ -377,9 +402,10 @@ export async function readHeldChain(
   path: readonly SummarisableTurn[],
   key: string,
   policy: SummaryPolicy,
+  root: SummaryRoot | null,
 ): Promise<SummaryLink[]> {
   const links: SummaryLink[] = [];
-  for (const plan of planChain(path, key, policy)) {
+  for (const plan of planChain(path, key, policy, root?.key ?? null)) {
     const held = await readSummary(layout, handle, sessionId, plan.key);
     if (held === null) break;
     links.push(held);

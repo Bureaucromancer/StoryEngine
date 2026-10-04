@@ -254,6 +254,23 @@ export function unitTextOf(turn: SummarisableTurn): string {
   });
 }
 
+/**
+ * What a summariser is shown of a turn — the two display fields of a
+ * {@link SummaryUnit}, and nothing that is hashed.
+ *
+ * ***One projection for every reader of the story's words*** (2026-10-03, at
+ * the [P15.6] merge). {@link planChain} builds each unit's display fields with
+ * it, and the setup draft (`turns/condense.ts`) builds the turns after the
+ * chain with it — turns inside the window, which are no link's units and have
+ * no key. The draft had its own copy, `{ said: input.text }`, written before a
+ * move could carry pictures; it showed a model a picture move as nothing at
+ * all, where the summariser shows the stand-ins `moveText` writes. Two copies
+ * of *what a turn says* is how two readers of one story come to disagree.
+ */
+export function unitWordsOf(turn: SummarisableTurn): Pick<SummaryUnit, 'said' | 'replied'> {
+  return { said: moveText(turn.input), replied: turn.output?.text ?? '' };
+}
+
 /** `H(SUMMARISER + content(t))`. **Content, never the turn id** — see the header. */
 export function unitKeyOf(summariser: string, turn: SummarisableTurn): string {
   return digest(['unit', summariser, unitTextOf(turn)]);
@@ -266,6 +283,58 @@ export function linkKeyOf(
   unitKeys: readonly string[],
 ): string {
   return digest(['link', summariser, previousKey ?? '', ...unitKeys]);
+}
+
+/**
+ * ***The chain's root: what had already happened before the first turn*** —
+ * [04 §7.2](../../../../docs/design/04-schemas.md),
+ * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * A session started from a Setup made from a turn of another session carries
+ * `storySoFar`, and [07 §5.1]'s formula takes it as link zero:
+ * `summary(1) = f(root, turns)`. **That is a seeded start and not a second
+ * mechanism** — the root is handed to the first link as `previous`, exactly as
+ * every later link is handed the one before it, and the collector emits it as
+ * the oldest candidate in the summary slot.
+ *
+ * *What `previous` means changed under it* (2026-10-03, at the merge into a
+ * `main` that had `e9d1a142`): a link summarises **its own stretch** and is
+ * handed the one before as context only, told not to repeat it. So the root is
+ * the stretch before the first turn and the first link does not retell it —
+ * which is why every reader of the story so far has to read the root and the
+ * links together (`turns/condense.ts`, and the collector's root arm), never the
+ * newest link as though it covered everything.
+ *
+ * `setupId` is carried for the block table's click-through and is **never part
+ * of the key**. Two Setups with the same words are the same start of a story as
+ * far as a summariser can tell, and a key that differed would re-derive a chain
+ * over identical inputs.
+ */
+export interface SummaryRoot {
+  key: string;
+  text: string;
+  setupId: string | null;
+}
+
+/**
+ * The root a session's Setup copy calls for, or `null` when there is none.
+ *
+ * **Keyed by its text alone**, under a tag no other digest here uses, so a root
+ * can never collide with a link or a unit. *Trimmed, and empty is none*: a
+ * Setup whose story so far was cleared back to whitespace is a fresh start,
+ * and a root of nothing would re-key every link for the sake of an empty
+ * paragraph.
+ */
+export function summaryRootOf(
+  setup: { id?: string; storySoFar?: string } | undefined,
+): SummaryRoot | null {
+  const text = setup?.storySoFar?.trim() ?? '';
+  if (text === '') return null;
+  return {
+    key: digest(['root', text]),
+    text,
+    setupId: typeof setup?.id === 'string' && setup.id !== '' ? setup.id : null,
+  };
 }
 
 /**
@@ -294,12 +363,25 @@ export function planChain(
   path: readonly SummarisableTurn[],
   summariser: string,
   policy: SummaryPolicy,
+  /**
+   * The root's key — {@link summaryRootOf} — or `null` for a session that
+   * started fresh.
+   *
+   * **It enters as the first link's `previousKey` and nowhere else**, so a
+   * rooted chain is keyed exactly as an unrooted one from its second link's
+   * point of view: each key still names its predecessor and its units. And
+   * **`null` is the value every existing chain was keyed with**, so a session
+   * without a root derives byte-identical keys to the ones already on disk —
+   * [P15.2]'s proof obligation, and the reason this is a trailing parameter
+   * with a default rather than a change to anybody's call.
+   */
+  rootKey: string | null = null,
 ): PlannedLink[] {
   const span = Math.max(1, Math.floor(policy.span));
   const coverable = Math.max(0, path.length - Math.max(0, Math.floor(policy.window)));
 
   const links: PlannedLink[] = [];
-  let previousKey: string | null = null;
+  let previousKey: string | null = rootKey;
 
   for (let from = 0; from < coverable; from += span) {
     const to = Math.min(from + span, coverable) - 1;
@@ -313,8 +395,7 @@ export function planChain(
       units.push({
         key: unitKeyOf(summariser, turn),
         turnId: turn.id,
-        said: moveText(turn.input),
-        replied: turn.output?.text ?? '',
+        ...unitWordsOf(turn),
       });
     }
 

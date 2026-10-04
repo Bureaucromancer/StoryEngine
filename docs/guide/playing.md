@@ -40,10 +40,12 @@ to begin.
 **Characters** — who is in the scene — appears for modes that seat more than one
 character. Tick characters from your library; the order you tick them in is the
 order of the cast. Scene seats up to 32, Freeform up to 6. If you tick more than the
-mode seats, only the first ones are used.
+mode seats, only the first ones are used. It is hidden when you
+[start from a setup](#starting-from-a-setup), which brings its own party.
 
 In Scene, a character whose card has several openings gets **How *name* opens**,
-choosing which greeting starts the story. The openings are written as the session's
+choosing which greeting starts the story. Only greetings with words in them are
+offered: one left blank on the card is skipped. The openings are written as the session's
 first turn: one character's alternative greetings become versions of that turn you
 can step between, and a group gets one opening message from each member.
 
@@ -52,6 +54,9 @@ can step between, and a group gets one opening message from each member.
 The disclosure under the start form summarises its choices — *Nothing chosen yet —
 the mode default, and no lorebooks* — and opens to:
 
+- **Start from a setup** — one of the setups in your library, or **None — choose
+  everything below**. See [Starting from a setup](#starting-from-a-setup); choosing
+  one replaces every control below.
 - **Mode** — what kind of story this is: Scene (the default), Freeform or Assistant.
   It decides what else is asked, and **it cannot be changed afterwards**.
 - **The mode's own questions.** Freeform asks for a premise and two settings; see
@@ -75,8 +80,35 @@ fact the preset can be switched, and the mode and persona cannot.)
 
 **Save as a setup** keeps these choices as a library object to start from again. It
 needs a name first. It keeps the mode and its answers, the treatment, the preset,
-the persona and the lorebooks — not the characters or their openings. (The app has
-no control yet for starting a session from a saved setup.)
+the persona and the lorebooks — not the characters or their openings. To keep a point
+in a story you are already playing, use
+[Make a setup from here](#make-a-setup-from-here) instead.
+
+### Starting from a setup
+
+Pick it in **Start from a setup**. The disclosure's summary then reads *From the
+setup "…"*, and the mode, treatment, preset, persona, lorebooks, party, goals and plot
+hooks all come from the setup — to change any of them, open it in the library. What
+is left to choose is how it begins:
+
+- **Opening**, when the setup has written openings of its own: **Its own — …** (its
+  main one), any of the others by name, or **None — start cold**. An opening is the
+  story's first turn, written rather than generated, so it is the same every time, and
+  there is no **Redo** on it.
+- **A setup's own opening comes first, always.** In a mode whose characters greet you
+  — a Scene chat — a setup that has an opening begins on it, and its characters'
+  greetings are not used, not even if you choose **None — start cold**. The form says
+  so when there are greetings it is setting aside.
+- A setup with no opening of its own, in a mode that greets you, begins on its
+  characters' greetings instead, and **How they open** lets you choose each one's.
+
+**Start** works as it always does — the session appears at the top of the list. A
+setup's own page has **Start a session** too, which starts and opens it in one step;
+see [The library](library.md#an-objects-page).
+
+The setup's party is seated from the start — in the cast, as companions — the first of
+its goals is the one the story begins on, and a plot hook it lists as already used is
+marked as fired, so it does not happen again.
 
 If the treatment you chose is one you have played before, the page says so: memories
 from the earlier sessions can reach this one, twists included. **Start isolated** stops
@@ -157,6 +189,8 @@ actions for that turn:
   note and the previous attempt in front of the model.
 - **Continue from here** — makes that turn the head. The turns after it leave the page
   but are kept, and your next move starts a new branch from there.
+- **Make a setup from here** — turns the story up to that turn into a setup new
+  sessions can start from. See [Make a setup from here](#make-a-setup-from-here).
 - **Undo** — reverses the **state** that turn changed (a dial, someone's presence, a
   hook firing) by adding a new turn that puts the old values back. It does **not**
   remove the turn's text: to drop a reply, **Continue from here** on the turn before
@@ -184,6 +218,52 @@ remove. Things a session
 writes **outside itself**, such as memories saved to a character's book, are not
 undone by rewinding; the page says so when you move away from a line that wrote
 some.
+
+## Make a setup from here
+
+**Continue from here** keeps the history behind a turn; **Make a setup from here**
+condenses it away. It saves the point you are at as a setup in your library — a
+starting place you can begin from again and again, or hand to someone else in a
+package, without the turns that led there. It is offered on every turn, beside
+**Continue from here**.
+
+It opens a dialog that drafts four things, each with one model call (on the model set
+up for writing), and each one you can edit, steer with a note and **Regenerate**:
+
+- **The story so far** — *What had already happened*, condensed from what you saw in
+  this session up to that turn. A session started from the setup shows it to the model
+  from its first turn, as the oldest part of the story's running summary.
+- **Opening** — *The first thing the story says*: **A new scene, written for someone
+  arriving**, or **This turn's own words**, which copies the turn as it is and makes no
+  call.
+- **Established facts** — what the story has settled: people, places, decisions. Each
+  fact you keep becomes an entry, found by its keys, in a lorebook linked from the
+  setup. A fact with no keys is never found, and is dropped.
+- **Name and blurb.** A setup needs a name.
+
+A part that fails says why and leaves the others as they were. Above them, **What it
+carries** lists the mode, treatment, preset, persona and lorebooks, and three switches:
+**The party**, **Goals** and **Plot hooks**. Switch one off and the setup leaves it out.
+
+**Nothing it would spoil is shown.** A plot hook that has not happened yet is counted,
+not described — *3 still waiting, 2 already used* — and a goal hidden from you reads
+*Begins on a goal that is hidden from you.* They are carried all the same: the setup
+holds them, and a session started from it plays them when their time comes. Hooks
+already used are marked as used, so they do not happen twice.
+
+If this session's prompt pack has no place for a summary, the dialog warns that a
+session started with the same pack will not show the model the story so far; a pack
+with a summary slot will. See [Presets and prompts](presets.md).
+
+**Save as a setup** writes the facts' lorebook first and then the setup, and offers
+**Start a session from it**. The setup is an ordinary one from then on: open it in the
+library to edit its story so far, its name, its plot hooks or anything else the editor
+writes, and every session started afterwards begins from the edited version. See
+[Starting from a setup](#starting-from-a-setup).
+
+What does not carry: who is present or dead (the story so far says it, the cast does
+not), a dial's current value, and changes this session made to its own copy of the
+prompt pack — the setup names the library preset.
 
 ## The panels
 
@@ -236,8 +316,9 @@ pack**). See [Presets and prompts](presets.md#a-sessions-own-copy).
 ### Goals
 
 A story can have an objective, or a chain of them, written into a setup or set by you.
-The app cannot yet start a session from a setup, so in practice you set it here. The panel's heading says where things stand: *Working toward: …*, *Playing on,
-with no objective*, *The story has ended*.
+A session [started from a setup](#starting-from-a-setup) begins on the setup's first
+one; otherwise you set it here. The panel's heading says where things stand:
+*Working toward: …*, *Playing on, with no objective*, *The story has ended*.
 
 - **Set an objective** and **Set** adds one and points play at it. The narrator sees
   the current objective every turn.

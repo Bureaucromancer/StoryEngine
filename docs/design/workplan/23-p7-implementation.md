@@ -2978,6 +2978,14 @@ for.
 dropped: the party is `se.party` since [P7.3], so seeding it means writing
 effects, which needs a turn — it belongs with the setup turn's parts.*
 
+***Answered 2026-09-26 at [P15.3](33-p15-setup-from-a-turn.md), by a different
+turn than the one named.*** A Setup's written opening is the session's first
+turn, written by the engine at creation, and the party rides on it as effects —
+its members seated in the cast and made `companion`. The setup turn's parts
+were never the only turn available; they were the only one that existed.
+*(Answered on a branch, as P13.3, and on `main` from 2026-10-03, when that
+branch merged and its phase was renamed P15 because `main` had spent P13.)*
+
 **Done: the making surface, and it is not a third hand-written editor**
 (2026-09-12). The obvious next move was a `SetupEditorPage` beside the actor's
 and the lorebook's — and this cell's own words rule it out: *"every editor and
@@ -2995,10 +3003,23 @@ thing you create with is the thing you configure with.
 `setup-from-form.ts` writes what `POST /api/sessions` reads back out, and both
 sides are tested against the same field list. A field one wrote that the other
 did not read would be a promise the library keeps and the game does not — and two
-are deliberately absent on both sides for the same reason, `partyDefault`
-(seeding it means writing effects, which needs a turn) and `required` on a lore
+are deliberately absent on both sides for the same reason, ~~`partyDefault`
+(seeding it means writing effects, which needs a turn) and~~ `required` on a lore
 link (the form has no control for the distinction and inventing one would be a
 claim the person did not make).
+
+*Corrected 2026-10-03, at the [P15](33-p15-setup-from-a-turn.md) merge:* one
+now, not two. The reading side has read `partyDefault` since P15.3 (P13.3 on
+its branch) — it seats the members and makes each `companion` on `se.party`,
+on the opening turn or a seeding turn of its own — and `setup-from-form.ts`
+still writes none. **So the asymmetry is real, and it is not closed by writing
+the form's *Characters* into `partyDefault`**: those are a cast, which Start
+seats without making anyone a companion, and a party is the other thing, so a
+saved Setup would start a different session — a seeding turn, and companions
+— from the one the form starts. What stands is plain: a Setup saved from a
+form that picked characters starts with nobody seated. Closing it needs a
+Setup to carry a cast that is not a party, which the schema has no field for;
+that is the owner's to decide, and nothing here guesses it.
 
 *`setups` stays out of `EDITOR_ROUTES` and `NEW_ROUTES`, and `fields.ts` now says
 why:* [10 §5]'s rule is about the **library's** New button, which opens a form

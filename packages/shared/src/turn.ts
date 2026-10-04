@@ -407,6 +407,23 @@ export type BlockSource =
    * navigation affordance no surface asks for yet.
    */
   | { kind: 'summary'; linkKey: string; range: [number, number] }
+  /**
+   * The root of the summary chain: what had already happened before this
+   * session's first turn — [04 §7.2](../../../docs/design/04-schemas.md),
+   * [P15.2](../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * **Its own arm rather than a `summary` with a sentinel range**, because it is
+   * not a link anybody's summariser wrote. It is authored prose — made by the
+   * *make a setup from here* wizard or typed into a Setup by hand — copied into
+   * the session with the Setup it came from, and a reader of the block table
+   * asking *where did this paragraph come from* needs the answer *the Setup*,
+   * not a range of turns that does not exist.
+   *
+   * `setupId` is the id of the Setup the session was started from, for the
+   * click-through `presetId` gives a preset block. The session holds a copy
+   * ([00 §3.1]), so the link can dangle and that is the ordinary reading.
+   */
+  | { kind: 'story-so-far'; setupId: string | null }
   // ~~The two~~ The three a slot can never name, because no preset positions
   // them — `round` joined `preset` and `step` at [P14.2].
   /**
@@ -1691,11 +1708,44 @@ export interface Turn {
    * distinction every optional field on this record draws.
    */
   renditions?: RenditionReport;
+  // ~~`opening?: { id: string }`~~ — [P15.1](../../../docs/design/workplan/33-p15-setup-from-a-turn.md)
+  // added it to mark a Setup's opening turn, and it was dropped before it
+  // reached `main` (2026-10-03, at the merge; recommended answer, owner
+  // deferred): an opening is recognised by what it lacks, `redoable` below,
+  // and this record is frozen, so a field is a promise every reader keeps.
   effects: ChannelEffect[];
   /** Every draw the turn consumed, keyed by site ([19 §14.6]). */
   tape: Tape;
   /** A tombstone the reader skips. */
   removed?: true;
+}
+
+/**
+ * ***Whether a redo or a rewrite can make this turn again*** — a turn that
+ * answered a move (`input`) or made a call (`request`). [P14]'s convention for
+ * telling an opening from a reply, named here so the two readers of it read
+ * one rule: the play surface, which withholds Redo from a turn this answers
+ * `false` for (`rerunnable`, [P14.5]), and the turn route, which refuses one
+ * (`opening-turn`).
+ *
+ * **`false` is every turn nothing made** — a Setup's opening and its
+ * effects-only seeding turn, a cast's greeting, a hand edit's divergence turn,
+ * a turn written by hand with no move, an import's reply to nothing. Each
+ * answered no move and made no call, so there is no tape to replay and no
+ * call to repeat; a reply to nothing in its place would be *let them talk*,
+ * which is a different gesture. *A let-them-talk reply is `true`*: it answers
+ * no move but made a call, and a person may want it again.
+ *
+ * ***A predicate rather than a field***, decided at the
+ * [P15](../../../docs/design/workplan/33-p15-setup-from-a-turn.md) merge
+ * (2026-10-03; recommended answer, owner deferred): `Turn.opening` would have
+ * marked a Setup's opening by name, but with a Setup's opening winning over
+ * the greetings only one kind of opening can be a session's first turn, and
+ * no reader asks which opening a turn was — only whether anything made it,
+ * which the record already says by what it lacks.
+ */
+export function redoable(turn: Pick<Turn, 'input' | 'request'>): boolean {
+  return turn.input !== undefined || turn.request !== undefined;
 }
 
 /**

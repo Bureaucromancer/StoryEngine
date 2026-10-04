@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { uuidv7, type Turn } from '@storyengine/shared';
+import { newSetup, uuidv7, type Turn } from '@storyengine/shared';
 
 import { importChatFile } from '../import/chat-sessions.js';
 import { registerMode } from '../mode-registry.js';
@@ -460,6 +460,86 @@ async function reimported(mode?: string): Promise<string> {
   await server.services.summaryWarm.idle();
   return imported.sessionId;
 }
+
+/**
+ * ***A session started from a story so far is warmed as its turns read it***
+ * — [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md), at
+ * the merge into a `main` that had the warm (2026-10-03).
+ *
+ * The story so far is the chain's root: it keys the first link, and so every
+ * link after it. The warm took its key and policy from `summaryPlanFor` and
+ * never had the root, so on such a session it derived a whole chain nobody
+ * reads — and the turn then derived its own, the cliff the warm exists to
+ * remove, with the warm's bill on top. The preview read the unrooted keys
+ * too, and so showed nothing held on a session whose every link was on disk.
+ *
+ * *Forty-five written turns over Scene's window of twenty is two links.* Warm,
+ * then preview, then one turn: the preview carries both, and the turn asks
+ * the summariser for nothing.
+ */
+describe('a session started from a story so far', () => {
+  it('is warmed under its root, so the preview holds it all and the turn derives nothing', async () => {
+    await bind();
+    const setup = await server.request({
+      method: 'POST',
+      url: '/api/library/setups',
+      payload: {
+        ...newSetup('From the docks'),
+        storySoFar: 'Before any of this, the ledger was lost.',
+      },
+    });
+    expect(setup.status).toBe(201);
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { setup: setup.body.object.id as string },
+    });
+    expect(created.status).toBe(201);
+    const sessionId: string = created.body.session.id;
+
+    let parent = (created.body.session.headTurnId as string | null) ?? null;
+    for (let at = 0; at < 45; at += 1) {
+      const id = uuidv7();
+      await appendTurnToSession(server.services.sessions, 'ned', sessionId, {
+        id,
+        sessionId,
+        parentTurnId: parent,
+        createdAt: new Date(Date.UTC(2026, 9, 3, 0, at)).toISOString(),
+        status: 'complete',
+        input: { actorId: null, kind: 'do', text: `Day ${String(at)}.`, raw: `Day ${String(at)}.` },
+        output: { text: `On day ${String(at)} the tide came in.` },
+        effects: [],
+        tape: [],
+      });
+      parent = id;
+    }
+
+    server.services.summaryWarm.request('ned', sessionId);
+    await server.services.summaryWarm.idle();
+    expect(warms.at(-1)).toMatchObject({ sessionId, state: 'warmed', links: 2, derived: 2 });
+    const held = await listSummaries(server.services.layout, 'ned', sessionId);
+    expect(held.size).toBe(2);
+    expect(counting.summaries).toBe(2);
+
+    // Warm already, so a second warm finds nothing missing and says nothing —
+    // which it can only know by counting the rooted keys it wrote.
+    const said = warms.length;
+    server.services.summaryWarm.request('ned', sessionId);
+    await server.services.summaryWarm.idle();
+    expect(warms).toHaveLength(said);
+
+    // The preview reads the rooted chain the warm wrote — every link of it.
+    const summary = await preview(sessionId);
+    expect(summary.map((block) => block.source.linkKey).sort()).toEqual([...held].sort());
+
+    // And the turn reads it too, asking the summariser for nothing.
+    const turn = await aTurn(sessionId, 'rooted-1');
+    expect(turn.steps?.find((step) => step.stepId === 'se.summary')?.state).toBe('ok');
+    expect(turn.request?.calls?.some((call) => call.stepId === 'se.summary')).toBe(false);
+    expect(counting.summaries).toBe(2);
+    expect(await listSummaries(server.services.layout, 'ned', sessionId)).toEqual(held);
+  });
+});
 
 describe('a session with no summary slot', () => {
   it('warms nothing', async () => {

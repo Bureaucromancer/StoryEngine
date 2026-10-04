@@ -98,8 +98,19 @@ type BlockSource =
   /** ([P8.1](workplan/25-p8-implementation.md); written in 2026-10-01.) One
    *  link of the summary chain: `linkKey` is its content address, `range` the
    *  stretch of story it covers. One candidate per link, so the budgeter drops
-   *  the oldest stretch first. */
+   *  the oldest stretch first — *and since [P15.2] (2026-10-03) the root ahead
+   *  of them, when the session has one: the arm below.* */
   | { kind: "summary"; linkKey: string; range: [number, number] }
+  /** ([P15.1](workplan/33-p15-setup-from-a-turn.md) added it at `f8affa5`,
+   *  [P15.2](workplan/33-p15-setup-from-a-turn.md) emits it at `393f04b`;
+   *  written in here 2026-10-03, at the merge into `main`.) The root of the
+   *  summary chain — the story so far a Setup
+   *  carried ([04 §7.2](04-schemas.md)), authored prose copied into the session
+   *  with the Setup rather than a link anybody's summariser wrote, so a block
+   *  table answers *the Setup* and not a range of turns that does not exist.
+   *  `setupId` is for the click-through `presetId` gives a preset block; the
+   *  session holds a copy, so it can dangle, and that is the ordinary reading. */
+  | { kind: "story-so-far"; setupId: string | null }
   /** ([P7.4](workplan/23-p7-implementation.md); written in 2026-10-01.) The
    *  engine's own JSON instruction, for an endpoint that cannot be handed a
    *  schema — protocol rather than content, and named by no slot. */
@@ -148,7 +159,13 @@ same stage, for a turn's `output.messages` entries. *And at
 here 2026-10-01): `continue`, the nudge the engine puts last, is the fifth —
 which is what `assembly/types.ts` excludes. `schema`, the engine's own JSON
 instruction, is named by no slot either, and the derivation leaves it in: no
-pack arm can produce it, so excluding it would guard nothing.
+pack arm can produce it, so excluding it would guard nothing. *So is
+`story-so-far` (2026-10-03, at the [P15](workplan/33-p15-setup-from-a-turn.md)
+merge)*, for the same reason and with one difference: it has no slot of its
+own, but a slot does record it — the `summary` slot emits the chain's root as
+`story-so-far` and its links as `summary`, so that slot records two kinds
+([04 §8.2](04-schemas.md)). No pack arm names it, and excluding it from the
+derivation would guard nothing.
 
 **`guidance` and `input` were added at P2.5, and their absence was a real
 gap rather than an omission.** [06 §5.1](06-modes-and-turn-pipeline.md) says the guidance
@@ -477,7 +494,7 @@ it"* unkept. They now append one line each to `users/<handle>/usage.jsonl`:
 interface UsageRecord {
   schema: "storyengine.usage/1"
   at: string                                       // when the call returned
-  purpose: string                                  // "impersonate", "assist:<field path>", "illustrate" — open
+  purpose: string                                  // "impersonate", "assist:<field path>", "illustrate", "setup-draft:<part>" — open
   role: ModelRole | "connection-test"              // the second only for a connection test (2026-10-03)
   resolved: { connectionId: string; modelId: string }  // the model that answered, as above
   usage: { promptTokens: number; completionTokens: number } | null
@@ -508,6 +525,16 @@ the bindings files and the role tables are untouched — and additive inside
 `storyengine.usage/1`, which nothing reads yet. A test picture's line has
 `usage: null` and is the one image call the log carries; a rendition's own cost
 still has no field ([25 E16](25-open-questions.md)).
+
+***And so is every call a setup's draft makes*** (2026-10-03, at the
+[P15](workplan/33-p15-setup-from-a-turn.md) merge). The draft's parts are
+calls that write no turn, so each writes a line, purpose `setup-draft:<part>`
+(`storySoFar`, `opening`, `title`, `facts`), with the role it resolved and the
+session it was made from; a link of the summary chain the draft had to derive
+is `setup-draft:summarise` rather than the warm's `summarise`, because what a
+spend view asks first is what pressing the button cost. A call that failed or
+was stopped after it reached the provider writes its line too, as the warm's
+do: it was paid for.
 
 ### 1.5 `BudgetVerdict`
 

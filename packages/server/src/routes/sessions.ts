@@ -11,6 +11,7 @@ import {
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   uuidv7,
+  redoable,
   type Setup,
   type Actor,
   type OutputMessage,
@@ -62,6 +63,13 @@ import {
 import { poolFor, resolvableActors } from '../sessions/hook-pool.js';
 import { swipeGroups, type SwipeGroups } from '../sessions/swipes.js';
 import { promoteSessionHook, type PromoteTarget } from '../sessions/promote.js';
+import {
+  carriesOpening,
+  chooseOpening,
+  firstTurns,
+  openingChoiceRefusal,
+  writeOpening,
+} from '../sessions/opening.js';
 import type { HookSource } from '../sessions/types.js';
 import { goalRows, readableGoals, readConcluded } from '../sessions/goals.js';
 import { hookRows, malformedRows, readPacing } from '../sessions/hooks.js';
@@ -77,6 +85,12 @@ import type { SessionMemoryConfig } from '../memory/config.js';
 import { memoryPanel } from '../memory/panel.js';
 import { readRendition, readRenditions } from '../renditions/store.js';
 import { illustrateTurn } from '../renditions/illustrate.js';
+import {
+  commitSetupFromTurn,
+  draftSetupFromTurn,
+  GENERATED_PATHS,
+  SETUP_PARTS,
+} from '../turns/condense.js';
 import { assetPath, hasPixels } from '../renditions/worker.js';
 import { fileExists, readFileBytes } from '../storage/files.js';
 import { resolveLore } from '../turns/lore.js';
@@ -120,7 +134,6 @@ import { swipeReplay, type Tape } from '../rng/rng.js';
 import type { TurnPayload } from '../turns/runner.js';
 import { resolveCast } from '../turns/cast.js';
 import { readRegistry } from '../tags/store.js';
-import { openingChoiceRefusal, openingTurns, writeOpening } from '../sessions/opening.js';
 
 /**
  * Sessions, turns, and the stream — [P2 §2.10], [09 §3.1], [19 §8].
@@ -174,6 +187,88 @@ const SelectRenditionBody = Type.Object({ renditionId: Type.String({ minLength: 
 const IllustrateBody = Type.Object({
   purpose: Type.Optional(Type.Union([Type.Literal('illustration'), Type.Literal('background')])),
 });
+
+/**
+ * ***Which parts of a Setup to draft, and how*** — [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * `parts` names what to (re)generate, so *Regenerate* on one section is this
+ * request with one part named. `guidance` is a person's steer for a part and is
+ * bounded like the redo's. `openingFrom: 'verbatim'` is the narrator's last
+ * words at the turn, which costs no call.
+ */
+const SetupPart = Type.Union(SETUP_PARTS.map((part) => Type.Literal(part)));
+const SetupDraftBody = Type.Object(
+  {
+    parts: Type.Array(SetupPart, { minItems: 1, maxItems: SETUP_PARTS.length, uniqueItems: true }),
+    guidance: Type.Optional(
+      Type.Partial(
+        Type.Object(
+          Object.fromEntries(SETUP_PARTS.map((part) => [part, Type.String({ maxLength: 2000 })])),
+        ),
+        { additionalProperties: false },
+      ),
+    ),
+    openingFrom: Type.Optional(Type.Union([Type.Literal('scene'), Type.Literal('verbatim')])),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * ***What a person kept*** — [P15.7](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * **Texts, facts and three switches, and nothing the server holds.** The carry
+ * is recomputed from the turn, so there is no field here that could carry a
+ * hook, a goal or a party member — which is the point: a client can only choose
+ * among what the record says, never add to it. Bounded so a Setup stays a thing
+ * a library can hold.
+ */
+const Generated = Type.Object(
+  {
+    original: Type.String({ maxLength: 40000 }),
+    model: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+const SetupCommitBody = Type.Object(
+  {
+    texts: Type.Object(
+      {
+        name: Type.String({ minLength: 1, maxLength: 200 }),
+        blurb: Type.String({ maxLength: 2000 }),
+        storySoFar: Type.String({ maxLength: 40000 }),
+        opening: Type.Object(
+          {
+            label: Type.String({ maxLength: 200 }),
+            text: Type.String({ maxLength: 40000 }),
+          },
+          { additionalProperties: false },
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    include: Type.Object(
+      { party: Type.Boolean(), goals: Type.Boolean(), hooks: Type.Boolean() },
+      { additionalProperties: false },
+    ),
+    facts: Type.Array(
+      Type.Object(
+        {
+          text: Type.String({ minLength: 1, maxLength: 4000 }),
+          keys: Type.Array(Type.String({ minLength: 1, maxLength: 200 }), { maxItems: 20 }),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 200 },
+    ),
+    generated: Type.Optional(
+      Type.Partial(
+        Type.Object(Object.fromEntries(GENERATED_PATHS.map((path) => [path, Generated]))),
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
 
 /**
  * A channel write addresses the **map key**, not the channel id — [P7.1].
@@ -362,6 +457,30 @@ const CreateBody = Type.Object(
      */
     setup: Type.Optional(Type.String({ maxLength: 200 })),
     /**
+     * Which of the Setup's written openings to start with — [03 §6],
+     * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+     *
+     * **Absent is the primary**, which is what *start a session from this
+     * Setup* means; **`null` is start cold**, 03 §6's third choice, and a choice
+     * rather than an absence; an id names one. An id with no Setup beside it, or
+     * one the Setup does not hold, is a 422 rather than a quiet substitution —
+     * a story somebody did not choose is the dangling Setup's failure one field
+     * smaller. ~~`unknown-opening`~~ ***`unknown-setup-opening`*** —
+     * *recommended answer, owner deferred, 2026-10-03*: [P14.4] chose
+     * `unknown-opening` for a greeting naming somebody not cast or an opening
+     * they do not have, and the causes differ — this names a Setup's opening —
+     * so a client reading the code to say what went wrong says the right thing
+     * about each.
+     *
+     * ***A Setup that carries a written opening wins over the cast's
+     * greetings, always*** — the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md), 2026-10-03,
+     * `sessions/opening.ts` rule 1: whichever is chosen here, `null` included,
+     * the greetings below are not written for this session.
+     */
+    opening: Type.Optional(
+      Type.Union([Type.String({ minLength: 1, maxLength: 200 }), Type.Null()]),
+    ),
+    /**
      * The session's **own** hooks — [03 §4.1]'s fourth source, [P7.5].
      *
      * That section calls adding one to a running session *the primary path*, and
@@ -382,7 +501,9 @@ const CreateBody = Type.Object(
     /**
      * ***Which written opening each member starts on*** — actor id to opening
      * id, [P14 §1.7](../../../../docs/design/workplan/31-p14-scene-and-session-import.md),
-     * [P14.4]. Read only by a mode that declares `openingTurn`.
+     * [P14.4]. Read only by a mode that declares `openingTurn`, and only when
+     * somebody besides the persona is cast — the guard on the greeting block
+     * below; anywhere else nothing reads it, its two refusals included.
      *
      * Absent for a member is their primary. In a group this is how an
      * alternate is chosen at all — §1.7: *"siblings across N members would be a
@@ -390,6 +511,21 @@ const CreateBody = Type.Object(
      * the head starts on, every opening still written beside it. A member not
      * in the cast, or an opening that member does not have, is a 422 before
      * anything is created.
+     *
+     * ***Refused beside a Setup that carries a written opening***
+     * (`conflicting-openings`) — *recommended answer, owner deferred,
+     * 2026-10-03*. That Setup's opening is what the session starts on
+     * (25 B18), so a greeting chosen here would be a choice the server
+     * quietly did not honour: the story somebody picked in the form would not
+     * be the one they got, which is the failure `unknown-setup-opening`
+     * exists to refuse. *Refused rather than ignored*, as wizard answers sent
+     * to a mode with no wizard are: the body asks for two first turns, and
+     * only the client that built it knows which it meant. An empty map asks
+     * for nothing and passes, and a mode that writes no greetings, or a
+     * session with nobody cast, reads none of this, as P14.4 has it — the
+     * scope settled at review on 2026-10-03, when the contract had stated the
+     * refusal without it (`sessions.test.ts`, *ignores a greeting chosen where
+     * no greeting would be written*).
      */
     openings: Type.Optional(
       Type.Record(Type.String({ maxLength: 200 }), Type.String({ maxLength: 200 }), {
@@ -1005,6 +1141,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       preset?: string;
       modeConfig?: Record<string, unknown>;
       setup?: string;
+      opening?: string | null;
       /** Checked against `HookInput`, so a hook may arrive without its id. */
       hooks?: (Omit<PlotHook, 'id'> & { id?: string })[];
       cast?: { persona: string | null; actors: string[] };
@@ -1037,6 +1174,27 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       } catch {
         return reply.code(422).send({ error: 'unknown-setup', message: 'No such setup.' });
       }
+    }
+
+    /**
+     * The Setup's opening, resolved before anything is written — [03 §6],
+     * [P15.3]. A named opening that is not there is refused here, while the
+     * refusal still costs nobody a half-made session; its code is its own
+     * (`unknown-setup-opening`, the `opening` field's note says why). An
+     * `opening` of `null` with no Setup asks for no opening, which is what it
+     * gets.
+     */
+    if (from === undefined && typeof body.opening === 'string') {
+      return reply.code(422).send({
+        error: 'unknown-setup-opening',
+        message: 'An opening was chosen with no setup to take it from.',
+      });
+    }
+    const opening = from === undefined ? null : chooseOpening(from.openings, body.opening);
+    if (opening === 'unknown') {
+      return reply
+        .code(422)
+        .send({ error: 'unknown-setup-opening', message: 'That setup has no such opening.' });
     }
 
     /**
@@ -1096,16 +1254,35 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * wizard's job, and until there is a control for it the first is the honest
      * default rather than a refusal to start.
      *
-     * *`partyDefault` is not read here.* The party is `se.party` since [P7.3],
+     * ~~*`partyDefault` is not read here.* The party is `se.party` since [P7.3],
      * and seeding it means writing effects, which needs a turn — so it belongs
      * with the setup turn's parts rather than with the session file. Named
-     * rather than silently dropped.
+     * rather than silently dropped.~~
+     *
+     * ***`partyDefault` is read since [P15.3]***, in two halves. Its members are
+     * **seated** here — a companion has to be in the cast to be in the party,
+     * and [06 §7.2]'s seat count below is held to them — and they are **made
+     * members** by the opening turn, which is the turn the struck paragraph was
+     * waiting for: an opening *is* a turn, so the effects ride on it
+     * (`sessions/opening.ts`). With no opening chosen they ride on a turn of
+     * their own, which a cast's greetings then hang from (that module's rules
+     * 2 and 3, 2026-10-03).
      */
+    const persona = from?.cast.personaOptions[0]?.id ?? null;
     const cast =
       body.cast ??
       (from === undefined
         ? undefined
-        : { persona: from.cast.personaOptions[0]?.id ?? null, actors: [] });
+        : {
+            persona,
+            actors: [
+              ...new Set(
+                from.cast.partyDefault
+                  .map((member) => member.id)
+                  .filter((id) => id !== '' && id !== persona),
+              ),
+            ],
+          });
     const treatment = body.treatment ?? from?.treatment?.id;
     const lore = body.lore ?? from?.lore.map((link) => link.ref.id);
     const misfit = setupMisfit(mode.definition.setup, answers);
@@ -1119,7 +1296,9 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
 
     // What the mode says it can seat ([06 §7.2]) — the first real consumer of
     // `ParticipantPolicy`, which was a declaration nothing read.
-    const actors = body.cast?.actors ?? [];
+    // The cast in effect, so a Setup's seated party is counted as a parameter's
+    // actors are — [P15.3].
+    const actors = cast?.actors ?? [];
     if (actors.length > mode.definition.participants.maxActors) {
       return reply.code(422).send({
         error: 'too-many-actors',
@@ -1169,9 +1348,24 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * nothing left behind. The cast in cast order, the persona out of it:
      * the player does not greet themselves. Only for a mode that declares
      * `openingTurn`, and only when somebody is cast.
+     *
+     * *Read even beside a Setup that carries an opening*, whose session will
+     * write none of them: whether the greetings are written is `firstTurns`'
+     * decision (25 B18, 2026-10-03), made in one place, and a second copy
+     * of the rule here to save one cast read at creation would be two places
+     * for it to drift. What this block does decide is the body: a greeting
+     * chosen beside that Setup is refused (`conflicting-openings`, the field's
+     * note says why).
      */
     let greeting: { members: Actor[]; persona: string | null } | null = null;
     if (mode.definition.openingTurn === true && cast !== undefined && cast.actors.length > 0) {
+      if (carriesOpening(from) && Object.keys(body.openings ?? {}).length > 0) {
+        return reply.code(422).send({
+          error: 'conflicting-openings',
+          message:
+            'That setup has an opening of its own, which the session starts on instead of the cast’s greetings, so a greeting cannot be chosen beside it.',
+        });
+      }
       const resolved = resolveCast(
         services.library,
         account.handle,
@@ -1333,19 +1527,61 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       const warn = sharesTreatmentWith.length === 0 ? {} : { sharesTreatmentWith };
 
       /**
-       * ***The opening turn*** — [P14 §1.7], [P14.4]. Written before the
-       * setup turn is reserved, so a mode that has both generates its world
-       * from the greeting's node rather than beside it; and written directly,
-       * under the session's lock, because it makes no call — there is nothing
-       * to stream and no job to watch, and the reply already carries the
-       * session with its head on the greeting.
+       * ***What the session starts on*** — a Setup's opening and its seeding
+       * ([03 §6], [04 §7.2],
+       * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)),
+       * the cast's greetings ([P14 §1.7], [P14.4]), or both stacked —
+       * decided by `firstTurns`, the one account of turn 1 since the merge.
+       *
+       * ***A Setup that carries a written opening wins over the cast's
+       * greetings, always*** — **the owner's decision, [25 B18](../../../../docs/design/25-open-questions.md),
+       * 2026-10-03.** Whichever opening was chosen, and when *start cold* was:
+       * the session takes the Setup's turn and writes no greeting. A Setup with
+       * no written opening leaves the greetings as P14.4 writes them, hung from
+       * the Setup's seeding turn when it seeds anything, so the head's path
+       * passes through the party and the spent hooks (*recommended answer,
+       * owner deferred, 2026-10-03* — the module says why children and not
+       * copies). `firstTurns` returns nothing when there is nothing to write,
+       * which is every session with no Setup and no greeting, and every Setup
+       * with no opening and nothing to seed beside a cast with nothing
+       * written.
+       *
+       * Written here, synchronously and under the session's lock, because
+       * nothing about it is a model call: there is nothing to stream and no job
+       * to watch, and the reply already carries the session with its head on
+       * the first turn.
+       *
+       * ***Before the mode's parts, and the order is a decision.*** A generating
+       * mode's parts assemble with the opening in their history, so the world
+       * they make agrees with the scene an author wrote — or from the
+       * greeting's node rather than beside it. The other order would mean
+       * waiting on an asynchronous job before the opening could be appended,
+       * and appending it as the parts' child would put a written opening after
+       * a generated one. *No shipped mode declares parts, so this is the
+       * fixture's case, and it is tested there.*
+       *
+       * *After the treatment warning's walk*, which reads the account's
+       * sessions and is indifferent to whether this one has a turn yet.
        */
-      if (greeting !== null) {
-        const opening = openingTurns(session, greeting.members, greeting.persona, body.openings);
-        if (opening !== null) {
-          session =
-            (await writeOpening(services.sessions, account.handle, session.id, opening)) ?? session;
-        }
+      const first = firstTurns({
+        sessionId: session.id,
+        setup:
+          from === undefined
+            ? null
+            : {
+                setup: from,
+                opening,
+                pool: session.hooks ?? [],
+                personaId: session.cast?.persona ?? null,
+              },
+        greetings:
+          greeting === null
+            ? null
+            : { members: greeting.members, user: greeting.persona, choices: body.openings ?? {} },
+      });
+      if (first !== null) {
+        session =
+          (await writeOpening(services.sessions, account.handle, session.id, first)) ?? session;
       }
 
       const parts = setupPlanFor(mode).steps.length;
@@ -1359,6 +1595,8 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         // The session is new, so there is exactly one turn this key can name and
         // a retried create cannot start a second generation.
         idempotencyKey: `setup:${session.id}`,
+        // The opening when there is one — the Setup's or the greeting the
+        // head was put on — so the parts are its child, above.
         headTurnId: session.headTurnId,
       });
       if (reserved.kind !== 'created') {
@@ -2799,6 +3037,159 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
+   * ***Make a setup from here: the draft*** — [04 §7.2], [16 §3],
+   * [P15.6](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * **Writes nothing.** What comes back is for a person to read, edit and keep
+   * or discard — the story so far, an opening, a name and blurb, candidate
+   * facts, each its own call and each with its own outcome — beside a
+   * **redacted** preview of what the Setup would carry. The commit beside this
+   * route recomputes that carry itself, so nothing hidden ever has to make a
+   * round trip through the browser.
+   *
+   * *A part that failed is a 200 with its reason*, not an error, for
+   * illustrate's reason: *nothing is bound to the prose role* and *the
+   * endpoint fell over* are answers to *can you draft this*, and the parts that
+   * succeeded are worth having beside the one that did not.
+   *
+   * ***Cancelled when the browser goes away, read off the response*** —
+   * `disconnectSignal`, which says why the request's own `close` is the wrong
+   * event. ~~`abortOnDisconnect`~~ — the branch's own helper (3d499ca0) was
+   * dropped at the P15 merge (2026-10-03) for main's af5811a0, which is the
+   * same fix and also catches a client that left during the two awaited reads
+   * above (`raw.destroyed`).
+   *
+   * *A cancellation this route caused ends here, silently*, as the illustrate
+   * route's does and for its reason: nobody is left to read an answer, and a
+   * `Cancelled` rethrown to `setErrorHandler` would log an *Unhandled error*
+   * for every wizard closed mid-draft. Added at the merge (2026-10-03) with
+   * the helper, because the branch's draft let a part's `Cancelled` escape.
+   */
+  app.post(
+    '/sessions/:sessionId/turns/:turnId/setup-draft',
+    { schema: { params: TurnRenditionParams, body: SetupDraftBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+      const body = request.body as {
+        parts: (typeof SETUP_PARTS)[number][];
+        guidance?: Partial<Record<(typeof SETUP_PARTS)[number], string>>;
+        openingFrom?: 'scene' | 'verbatim';
+      };
+
+      const signal = disconnectSignal(reply);
+
+      let draft: Awaited<ReturnType<typeof draftSetupFromTurn>>;
+      try {
+        draft = await draftSetupFromTurn(
+          {
+            sessions: services.sessions,
+            accounts: services.accounts,
+            providers: services.providers,
+            config: services.config,
+            /**
+             * ***Read at failure time, as impersonation's is*** — a completed
+             * update check replaces `updates` wholesale, so a value captured
+             * here would be the one from before the draft began. Without it a
+             * part that found nothing answering at a remote endpoint could
+             * only ever say *check that it is running*, never *this server
+             * has no internet*, which is [09 §6.5]'s whole sentence. Wired at
+             * the P15 merge (2026-10-03): the branch's parts carried no remedy
+             * at all, so there was nothing for it to inform.
+             */
+            online: () => services.updates.online,
+          },
+          {
+            account: account.handle,
+            sessionId,
+            turnId,
+            parts: body.parts,
+            ...(body.guidance === undefined ? {} : { guidance: body.guidance }),
+            ...(body.openingFrom === undefined ? {} : { openingFrom: body.openingFrom }),
+            signal,
+          },
+        );
+      } catch (error) {
+        // Anything else, including a failure that merely coincides with the
+        // client leaving, still throws — the illustrate route's line exactly.
+        if (error instanceof Cancelled && signal.aborted) return;
+        throw error;
+      }
+
+      if ('held' in draft) {
+        return reply.code(404).send({ error: 'no-such-turn', message: 'No such turn.' });
+      }
+      return reply.send({ draft });
+    },
+  );
+
+  /**
+   * ***Make a setup from here: the commit*** — [04 §7.2], [16 §3],
+   * [P15.7](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * **Writes the companion lorebook when facts were kept, then the Setup**, and
+   * answers with the two ids and names and nothing else — the Setup holds the
+   * hooks and goals it carried, hidden ones included, and the person who just
+   * made it is still playing the session those came from. Opening it in the
+   * library is an authoring act, and a deliberate one; the answer to *Save* is
+   * not.
+   *
+   * *`201`, because two things now exist that did not.* Library refusals travel
+   * through `respondToLibraryError` as every other library write's do.
+   */
+  app.post(
+    '/sessions/:sessionId/turns/:turnId/setup',
+    { schema: { params: TurnRenditionParams, body: SetupCommitBody } },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      if (!(await mine(services, request, reply))) return;
+
+      const { sessionId, turnId } = request.params as { sessionId: string; turnId: string };
+      const body = request.body as {
+        texts: {
+          name: string;
+          blurb: string;
+          storySoFar: string;
+          opening: { label: string; text: string };
+        };
+        include: { party: boolean; goals: boolean; hooks: boolean };
+        facts: { text: string; keys: string[] }[];
+        generated?: Partial<
+          Record<(typeof GENERATED_PATHS)[number], { original: string; model: string | null }>
+        >;
+      };
+
+      try {
+        const saved = await commitSetupFromTurn(
+          { sessions: services.sessions, accounts: services.accounts, library: services.library },
+          {
+            account: account.handle,
+            sessionId,
+            turnId,
+            texts: body.texts,
+            include: body.include,
+            facts: body.facts,
+            ...(body.generated === undefined ? {} : { generated: body.generated }),
+          },
+        );
+        if (saved.kind === 'no-turn') {
+          return await reply.code(404).send({ error: 'no-such-turn', message: 'No such turn.' });
+        }
+        return await reply.code(201).send({ setup: saved.setup, lorebook: saved.lorebook });
+      } catch (error) {
+        // A path refusal and every library refusal, each with its own status;
+        // anything else is rethrown to the ordinary 500.
+        respondToLibraryError(error, reply);
+        return;
+      }
+    },
+  );
+
+  /**
    * ***Run this recipe again*** — [25 E3], [06 §10.2], [P9.4].
    *
    * ***Gate step 15, and it is structural rather than careful.*** *"Re-create an
@@ -3586,6 +3977,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session to rewrite.' });
         }
+        // A whole-turn rewrite of a turn nothing made — no input, no request —
+        // has nothing to replay; a swipe of one of its lines is the gesture's
+        // business, already read above. See `refuseOpening`.
+        if (body.fromMessage === undefined && !redoable(rewritten)) return refuseOpening(reply);
         /*
          * A rewrite swipe from *k* replays call *k*'s draws, not call 0's —
          * `swipeReplay` (2026-09-29, the [P14.4] review).
@@ -3632,6 +4027,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
             .code(404)
             .send({ error: 'no-such-turn', message: 'No such turn in this session to redo.' });
         }
+        if (body.fromMessage === undefined && !redoable(previous)) return refuseOpening(reply);
         attempt = { turnId: previous.id, text: previous.output?.text ?? '' };
         // A guided redo of a pushed turn is pushed too, for a client that did
         // not send it — the body's own, or a rewrite's record, still wins.
@@ -4327,6 +4723,49 @@ function asAnswers(setup: Setup | undefined): Record<string, unknown> | undefine
   return typeof config === 'object' && config !== null && !Array.isArray(config)
     ? (config as Record<string, unknown>)
     : undefined;
+}
+
+/**
+ * ***An opening is not redone*** — [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
+ * [P15 §1.8](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * Nothing generated it: it is an author's words copied off a Setup, so a
+ * rewrite has no tape to replay and a guided redo has no call to repeat. The
+ * play surface already offers neither; this is the door for a client that
+ * sends one anyway. **422 rather than 404**, because the turn is there — what
+ * is wrong is asking to generate it.
+ *
+ * ***Which turns, since the merge*** — *recommended answer, owner deferred,
+ * 2026-10-03.* ~~A turn carrying `Turn.opening`~~: that field is dropped
+ * (`sessions/opening.ts` says why), and the test is [P14]'s convention instead
+ * — **no `input` and no `request`** (`redoable`), the predicate the play
+ * surface's Redo has been withheld by since [P14.5]. So the refusal covers
+ * every turn of that shape, and that is deliberate rather than a side effect:
+ * a Setup's opening and its effects-only seeding turn, a greeting, a hand
+ * edit's divergence turn, a turn written by hand with no move, an import's
+ * reply to nothing. Each answered no move and made no call, so a whole-turn
+ * redo of it would be a reply to nothing put in its place — which is *let
+ * them talk*, a gesture the composer already has, sent from the parent.
+ * Before the merge `main` refused none of them (a redo of a greeting answered
+ * nothing at the root), and the branch refused only turns that carried the
+ * field. *The code stays `opening-turn`*, after what the convention was
+ * named for and what the API reference already documents; the message says
+ * the wider truth.
+ *
+ * ***A swipe is not refused here*** (`fromMessage`): it regenerates one
+ * member's line with its speaker and the lines before it carried, which is
+ * [P14]'s Swipe on a greeting and has something to make — as does any line a
+ * member spoke on a turn of this shape, an import's or an edit's. The others
+ * are refused by the gesture's own reading of the record: a Setup's opening
+ * is a narrator's line (`narrated-message`, `narrated-session`), and a turn
+ * with no output has no line to swipe (`no-such-message`).
+ */
+function refuseOpening(reply: FastifyReply): FastifyReply {
+  return reply.code(422).send({
+    error: 'opening-turn',
+    message:
+      'That turn answered no move and made no call — an opening, a greeting or a turn written by hand — so there is nothing to redo.',
+  });
 }
 
 /**

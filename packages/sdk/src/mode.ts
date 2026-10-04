@@ -153,6 +153,11 @@ export interface ModeDefinition {
    * mode's behaviour decided by a setting that says something else. Absent
    * means no opening turn, which is every session every mode made before
    * P14.4 — so a mode that says nothing is unchanged.
+   *
+   * *Unless the session starts from a Setup that carries a written opening*
+   * (2026-10-03, the owner's decision,
+   * [25 B18](../../../docs/design/25-open-questions.md)): that session opens on
+   * the Setup's opening, and no greeting is written even here.
    */
   openingTurn?: boolean;
   setup: SetupSchema;

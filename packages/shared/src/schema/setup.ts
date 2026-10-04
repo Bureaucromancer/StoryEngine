@@ -150,6 +150,53 @@ export const Setup = Type.Object(
     hookPacing: Type.Optional(HookPacing),
     stagingNotes: Type.Optional(Type.String()),
 
+    /**
+     * ***What had already happened*** — [04 §7.2](../../../../docs/design/04-schemas.md),
+     * added at [P15.1](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+     *
+     * **Set when a Setup is made from a turn of a running session**, and
+     * hand-writable like any other prose here. A session started from it gets
+     * this as the **root of its rolling summary**: the `summary` slot emits it as
+     * the oldest link from the first turn, and the first link the summariser
+     * derives ~~folds it in~~ *is handed it* as `previous` — [07 §5.1]'s chain
+     * with a seeded start rather than a second mechanism beside it.
+     *
+     * *Corrected 2026-10-03, at the merge into `main`*: `main`'s `e9d1a142` had
+     * put the chain into stretches, so `previous` is context the first link is
+     * told not to repeat, not something it folds in. The root is the stretch
+     * before the first turn: every reader of the story so far reads the root
+     * and the links together, and the root is the first part of the summary
+     * the slot gives up when it is full — the facts that must outlast it live
+     * in the companion lorebook ([04 §7.2](../../../../docs/design/04-schemas.md),
+     * [P15 §1.1](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md)).
+     *
+     * *Optional for `stagingNotes`' reason*: a required field added to a
+     * published `/1` is a `/2` change. Absent is a fresh start, and so is empty
+     * — nobody means *the story so far is nothing* by writing nothing.
+     */
+    storySoFar: Type.Optional(Type.String()),
+    /**
+     * ***Hooks that have already fired before play begins*** — [04 §7.2],
+     * [P15.1].
+     *
+     * **Ids, and the ids of every source's hooks**, not only this Setup's own.
+     * The hook pool is rebuilt from the treatment and the lorebooks when a
+     * session starts, so a treatment's hook that fired before the point this
+     * Setup was made from would otherwise be in the new pool fresh and fire a
+     * second time. A session started from this marks each one `fired` on its
+     * opening turn — through the ordinary effect path, so a rewind past the
+     * opening un-spends them like anything else. *With no opening chosen, on a
+     * turn of their own that a cast's greetings hang from* (2026-10-03, at the
+     * merge — `sessions/opening.ts`), so a greeting's path carries them too.
+     *
+     * *Portable because hook ids are*: [15 §5.1](../../../../docs/design/15-world.md)
+     * obliges every copy of a hook to keep its source's id, so an id written
+     * here names the same hook in a package's treatment on another install. An
+     * id that names nothing in the pool is ignored rather than refused — a
+     * Setup whose treatment was swapped should still start.
+     */
+    spentHooks: Type.Optional(Type.Array(Type.String())),
+
     tags: Type.Array(Type.String()),
     /** See {@link TagIdList} — the registry side of `tags`. */
     tagIds: Type.Optional(TagIdList),

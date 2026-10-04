@@ -1631,7 +1631,9 @@ API only at P2 — the UI is P3's ([P3 §4](design/workplan/15-p3-implementation
 `openingTurn` (added at [P14.5](design/workplan/31-p14-scene-and-session-import.md))
 says whether a new session opens on its cast's written greetings, so a creation
 form offers each member's opening only for a mode that writes one — the
-creation body's `openings` is read by no other.
+creation body's `openings` is read by no other. *Unless the session starts from
+a Setup that carries a written opening, which opens on that instead (2026-10-03,
+[25 B18](design/25-open-questions.md)).*
 
 **What this install can play.** Added at P7.4, and until then nothing could tell
 a client which modes exist — the session form offered *the mode's own preset* and
@@ -1670,7 +1672,7 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, hooks? }`
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, opening?, openings?, hooks? }`
 → `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
@@ -1733,6 +1735,71 @@ cannot reach a running game — the same asymmetry the preset has. `422
 unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
 is a session missing a book and is accepted, but a dangling Setup is a session
 that would be created as something other than what was asked for.
+
+**A Setup's opening is the session's first turn**, since P15.3
+([03 §6](design/03-data-model.md),
+[P15](design/workplan/33-p15-setup-from-a-turn.md)). `opening` chooses which:
+absent is the Setup's primary written opening, a string names one of its written
+openings, and `null` starts cold. *A written opening is one with words*: an
+opening an editor left blank is not one, and a primary that names nothing
+playable falls back to the first that is. The turn carries the opening's text as
+`output`, no `input` and no `request`, and the effects that seed what the Setup
+carries — its `cast.partyDefault` made `companion` on `se.party` (and seated in
+`cast.actors`), and each of its `spentHooks` that the pool holds marked `fired`
+on `se.hook`. A Setup that seeds something with no opening chosen writes the
+same turn without the `output`; a Setup with no opening and nothing to seed
+writes no turn. The session in the `201` is the one **after** the write, so its
+`headTurnId` already names where play begins — the opening, or a greeting below
+the seeding (see the greetings below) — and a generating mode's setup turn is
+that turn's child. *No field on the turn says it was an opening*: the branch
+that built this added `opening: { id }`, and it was dropped at its merge
+(2026-10-03, [P15 §1.8](design/workplan/33-p15-setup-from-a-turn.md)) — a turn
+with no `input` and no `request` is already how the record says nothing made
+it.
+
+**`422 unknown-setup-opening`** for an id the Setup does not hold, or holds with
+no words, and for a string `opening` sent without a `setup`. An `opening: null`
+with no `setup` asks for no opening and gets none. *(Written as `unknown-opening`
+until 2026-10-03, when the branch merged into a `main` whose `openings` below
+already used that code for an actor's greeting; the causes differ, so the codes
+do — [P15 §1.9](design/workplan/33-p15-setup-from-a-turn.md), recommended answer,
+owner deferred. This paragraph also said any `opening` without a `setup` was
+refused; the code never refused `null`.)*
+
+**`openings` chooses each cast member's greeting** — actor id to opening id, at
+most 32, added at [P14.4](design/workplan/31-p14-scene-and-session-import.md)
+and read only by a mode that declares `openingTurn` (`GET /api/modes`), and only
+when somebody is cast besides the persona — a Setup's party counts when no
+`cast` is sent. Anywhere else the map is read by nothing, its refusals below
+included. Such a session opens on an output-only turn holding one message per cast member with a
+written opening, rendered once with the session's names for `{{user}}` and
+`{{char}}`. With one member besides the persona, the primary is written first and
+every alternate as a root beside it, and `openings` picks which the head starts
+on; in a group each member's chosen opening, else the primary, is one message in
+cast order. `422 unknown-opening`, carrying `actorId`, for a member not in the
+cast or an opening that member does not have written — checked before the
+session exists. *(Accepted since P14.4, and not written here until 2026-10-03.)*
+
+**A Setup's opening wins over the cast's greetings, always** — the owner's
+decision, 2026-10-03 ([25 B18](design/25-open-questions.md)). When the Setup
+carries a written opening, the session starts on the Setup's turn — or on no
+turn at all, started cold with nothing to seed — and **no greeting is written**,
+whichever of its openings is chosen, and with `opening: null` too. Two edges, each the recommended answer with the owner's
+decision deferred ([P15 §1.7](design/workplan/33-p15-setup-from-a-turn.md)):
+
+- Where `openings` is read — a mode that declares `openingTurn`, with somebody
+  cast — a non-empty map beside a Setup that carries an opening is **`422
+  conflicting-openings`** rather than ignored: the session would not start on
+  the greeting it names, and only the client knows which first turn it meant.
+  Anywhere else the map is ignored, as P14.4 has it, and an empty map asks for
+  nothing and passes.
+- A Setup with **no** written opening, in a mode that writes greetings, gets them
+  as P14.4 writes them; when that Setup seeds a party or spent hooks, its
+  seeding turn is written first and **the greetings are its children**, so the
+  head's path runs through the seeding rather than beside it.
+
+A redo or rewrite of a turn nothing made — an opening, a greeting — is refused
+on the turn route, `422 opening-turn`; see `redoOf` there.
 
 **`hooks` are the session's own plot hooks**, added at P7.4's successor stage —
 [03 §4.1](design/03-data-model.md)'s fourth source, which that section calls the
@@ -1976,6 +2043,117 @@ it about, arriving through the error path of the route whose whole reason for
 being server-side is that redaction. Nothing is lost by withholding it: the
 client has never held the hook, so there is no *reapply my edits* it could offer,
 and *try again* is the whole of the recovery.
+
+### `POST /api/sessions/:sessionId/turns/:turnId/setup-draft`
+
+`{ parts: ('storySoFar' | 'opening' | 'title' | 'facts')[], guidance?, openingFrom? }`
+→ `200 { draft: { carry, warnings, parts } }`. **The draft of *make a setup from
+here*, and it writes nothing** to the library or the session — P15.6,
+[04 §7.2](design/04-schemas.md), [P15](design/workplan/33-p15-setup-from-a-turn.md).
+`404 no-such-turn` for a turn not in the session.
+
+**Each part is its own call with its own outcome** — `{ ok: true, value, model }`
+or `{ ok: false, reason }`, where `reason` is `role-unbound`, `role-dangling`,
+`window-too-small`, `call-failed`, `truncated`, `no-answer`, `summary-truncated`
+or `summary-no-answer` — so a failed part
+is a `200` beside the parts that succeeded rather than an error that loses them.
+A `call-failed` also carries the provider failure's `class` and a `remedy`, the
+same diagnosis impersonation's refusals carry, and may carry `detail`, the
+endpoint's own words, for a log rather than a sentence on screen. **A part cut
+off at its length limit is `truncated` and not offered**: a story so far or an
+opening that lost its end is missing exactly the part a session would begin
+from. A reply that was refused, empty, or still the wrong shape is `no-answer`.
+*(`window-too-small`, `truncated`, `class`, `remedy` and `detail` were added on
+2026-10-03, at the [P15](design/workplan/33-p15-setup-from-a-turn.md) merge:
+the first was a 500 before, and a cut-off reply was offered as if whole.)*
+`title`'s value is
+`{ name, blurb }`; `facts`' is `{ text, keys }[]`, drafted with the memory
+extractor's own prompt and minus anything a linked book already says. The parts
+run one after another in that fixed order. `guidance` is a person's steer,
+keyed by part and at most 2000 characters each, and reaches only the part it
+names. `openingFrom: 'verbatim'` answers `opening` with the narrator's last words
+at the turn and makes no call.
+
+**What the model is shown is what the player saw**: the transcript up to the
+turn, and the session's own summary chain built from it — its root, when the
+session was itself started from a Setup with a story so far, and its links,
+read together — extended under the session's own summariser key, so links
+already on disk are read rather than re-derived and a link this writes is one
+the runner would have written. *Since the merge (2026-10-03) that is true of a
+session whose moves carried pictures too, and of a summary cut off at its
+length limit, which is not kept, as the runner keeps none.* No hidden channel,
+unfired hook or hidden goal reaches these prompts.
+
+**A link the draft cannot derive fails every part still wanted, and no part is
+asked** (2026-10-03). Each part answers with that link's own outcome — a
+`call-failed` with its `class` and `remedy`, `summary-truncated` or
+`summary-no-answer` for a summary that was not kept, `window-too-small`, or a
+role refusal — so *Try again* asks for the link again. *(The two `summary-`
+reasons since review, 2026-10-03: a link refused under a part's own
+`truncated` or `no-answer` read as the part's reply being cut off, with a note
+as the fix, and guidance never reaches the summariser.)* A story so far drafted from a chain that stops
+short would read as the whole story with its middle missing, and nothing on
+the wizard could show the gap. A part already answered without a call (a
+verbatim opening) keeps its answer.
+
+**What it costs is written down** — one line in the account's `usage.jsonl`
+per call, as every call that writes no turn is: purpose `setup-draft:<part>`
+for a part (`storySoFar`, `opening`, `title`, `facts`), and
+`setup-draft:summarise` for each link of the chain the draft had to derive —
+filed under the wizard rather than the summariser, because what a spend view
+asks first is what pressing the button cost. A call that failed or was stopped
+after it reached the provider is written too: it was paid for. A warm chain
+costs no `setup-draft:summarise` line at all.
+
+**A client that leaves cancels the draft.** The route reads the disconnect off
+the response, as Illustrate's does (`disconnectSignal`), so a part in flight is
+aborted, nothing further is asked for, and nothing is sent back to a socket
+nobody holds — the cancellation it caused ends there, rather than as an error
+logged for every closed tab. A failure that merely coincides with the client
+leaving is still a failure. Usage lines already written stay written.
+
+**`carry` is redacted**: the configuration and the party by name, the goal play
+would begin on as `{ statement }` only when a player may read it (else
+`{ hidden: true }`), and hooks as counts — `{ carried, spent }`. `warnings`
+holds `no-summary-slot` when the session's preset positions no summary, so a
+session started from the Setup with the same pack would never show the model the
+story so far.
+
+The step every part dispatches as is `se.condense`, `prose`-role, so a session's
+`stepRoles` can send it to a different model from the narration.
+
+### `POST /api/sessions/:sessionId/turns/:turnId/setup`
+
+`{ texts: { name, blurb, storySoFar, opening: { label, text } }, include: { party, goals, hooks }, facts: { text, keys }[], generated? }`
+→ `201 { setup: { id, name }, lorebook: { id, name } | null }`. **The commit of
+*make a setup from here*** — P15.7, [04 §7.2](design/04-schemas.md). `404
+no-such-turn` for a turn not in the session; library refusals as every library
+write's. **It makes no model call**, so it records no usage line and has nothing
+for a disconnect to cancel: the texts were drafted, and edited, before it.
+
+**The carry is recomputed from the turn, never read from the request.** The body
+holds what a person decided — the texts, the facts they kept, and which of the
+three carried groups to keep — and no field that could carry a hook, a goal or a
+party member, so a client can leave one out and never add one. The Setup is
+built from the state at the turn as the draft's `carry` described it: the mode,
+treatment, preset and lorebooks by id and name, the persona as its one option,
+the party as `cast.partyDefault`, the goal the story was on first with the
+achieved ones dropped, the unfired hooks the session's Setup or the session
+authored, and every fired hook's id in `spentHooks`. `provenance.source` is
+`session`.
+
+**Facts become a companion lorebook, written first** — named *"<name> —
+established facts"*, `provenance.source: generated` (never `session`, which the
+retriever reads as a memory book and marks advisory), one entry per fact with its
+keys, and linked from the Setup's `lore` as `required`. A fact with no keys is
+dropped, as the memory extractor drops one. If the Setup's write then fails, the
+book is removed. `lorebook` is `null` when no fact was kept.
+
+`generated` names which fields a model wrote first — `name`, `blurb`,
+`storySoFar`, `openings.written.0.text` — each `{ original, model }`, recorded in
+the Setup's `generated` map with `unreviewed: false`: the wizard is the review.
+**The answer carries ids and names only**, because the Setup holds hidden goals
+and hooks and the person saving it is still playing the session they came from.
 
 ### `PUT /api/sessions/:sessionId/lore`
 
@@ -2398,6 +2576,20 @@ alone, and a plain redo names it in neither and gets the prompt it always got.
 The named turn is not required to be a sibling of the one being written; the
 client always sends one, and the record carries the id either way. Usually sent
 with `guidance`; the schema does not couple them.
+
+**A turn nothing made is not redone: `422 opening-turn`.** A `redoOf` or
+`rewriteOf` naming a turn with no `input` and no `request` — a Setup's opening
+or its effects-only seeding turn, a cast's greeting, a hand edit's divergence
+turn, a turn written by hand with no move, an import's reply to nothing — is
+refused, because there is no tape to replay and no call to repeat, and a reply
+to nothing in its place is *let them talk* sent from the parent. A swipe of one
+message (`fromMessage`) is not refused by this: it is the gesture's own reading
+of the record. *Since 2026-10-03, at the
+[P15](design/workplan/33-p15-setup-from-a-turn.md) merge, and wider than
+either side had it*: the branch refused only turns marked `Turn.opening`, a
+field dropped at that merge, and `main` refused none of them — a redo of a
+greeting answered nothing at the root. The play surface withholds **Redo** from
+the same turns, by the same rule (`redoable` in `shared` names it).
 
 **`input.attachments` names pictures already uploaded to this session** —
 at most four, each by digest with an optional caption

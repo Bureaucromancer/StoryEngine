@@ -2145,6 +2145,55 @@ describe('the story above the window', () => {
       { blockId: 'se.summary', source: 'summary', reason: 'empty-source' },
     ]);
   });
+
+  /**
+   * ***The root is link zero*** — [04 §7.2](../../../../docs/design/04-schemas.md),
+   * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * Three claims. It is emitted **with no chain at all**, which is what makes a
+   * session started from a Setup made from a turn know its own past on turn one
+   * rather than on turn twenty-one. It is **oldest, so lowest**, and the links
+   * after it move up by one so the budgeter's order is unchanged. And its
+   * provenance says **the Setup**, not a range of turns nobody's summariser
+   * covered.
+   *
+   * *The second claim was re-argued at the merge* (2026-10-03): once the chain
+   * went into stretches no link restates the root, so first-to-go now costs
+   * what it says. It stays first for the slot's own trade, the distant past
+   * before the recent — the root arm's comment has the argument, and the
+   * priorities below are what pin it.
+   */
+  it('emits the story so far first, before any chain exists, and says where it came from', () => {
+    const summaryRoot = { text: 'The ledger was lost at the docks.', setupId: 'setup-1' };
+
+    const alone = collectCandidates(context({ preset: preset([slot]), summaryRoot }));
+    expect(alone.candidates.map((one) => [one.id, one.text, one.priority])).toEqual([
+      ['se.summary.root', 'The ledger was lost at the docks.', 8],
+    ]);
+    expect(alone.candidates[0]?.source).toEqual({ kind: 'story-so-far', setupId: 'setup-1' });
+    expect(alone.notFilled).toEqual([]);
+
+    const chained = collectCandidates(
+      context({
+        preset: preset([slot]),
+        summaryRoot,
+        summary: [link('a', 0, 19), link('b', 20, 24)],
+      }),
+    );
+    expect(chained.candidates.map((one) => [one.id, one.priority])).toEqual([
+      ['se.summary.root', 8],
+      ['se.summary.a', 9],
+      ['se.summary.b', 10],
+    ]);
+  });
+
+  /** And a session without one is exactly what it was. */
+  it('changes nothing for a session with no root', () => {
+    const { candidates } = collectCandidates(
+      context({ preset: preset([slot]), summary: [link('a', 0, 19)] }),
+    );
+    expect(candidates.map((one) => [one.id, one.priority])).toEqual([['se.summary.a', 8]]);
+  });
 });
 
 /**

@@ -38,6 +38,7 @@ import { provenanceSourceOf } from './panels.js';
 import { ByField } from './ByField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
+import { StartSession } from './StartSession.js';
 import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 import { labels } from '../i18n/catalogue.js';
@@ -286,6 +287,13 @@ function ObjectView(props: {
       <AsStored value={object.object} />
 
       <Controls>
+        {/*
+         * ***A Setup's page is somewhere to start from*** — [10 §2.2]'s *a
+         * Setup above all*, [P15.4]. First, because it is what a Setup is for;
+         * and for either scope, because starting from a shipped Setup changes
+         * nothing about it.
+         */}
+        {kind === 'setups' && !object.shadowed ? <StartSession setupId={object.id} /> : null}
         {/*
          * The kind gate comes from the same place the fields do
          * ([polish §1](../../../../docs/design/workplan/06-polish.md)), and it

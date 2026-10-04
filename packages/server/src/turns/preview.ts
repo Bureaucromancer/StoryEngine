@@ -329,6 +329,9 @@ export async function previewAssembly(
           storyTurns(inputs.history),
           plan.key,
           plan.policy,
+          // The story so far keys the first link (2026-10-03, at the [P15]
+          // merge): without it a Setup-started session read nothing held.
+          plan.root,
         );
 
   const collected = collectFor(inputs, {

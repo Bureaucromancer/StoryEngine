@@ -100,6 +100,23 @@ export interface CollectContext {
    * the same line for it that it draws for lore.
    */
   summary?: readonly SummaryLink[];
+  /**
+   * What had already happened before this session's first turn — the root of
+   * the chain above, [04 §7.2], [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+   *
+   * **Separate from `summary` rather than a link prepended to it**, because the
+   * two are handed in by different parties for different reasons. The chain is
+   * derived — a model call, behind a content address — and a caller that did
+   * not run the summariser rightly passes none. The root is authored prose
+   * copied into the session with its Setup, costs nothing to read, and so every
+   * assembler has it: a preview, an impersonation and a turn well inside its
+   * window all show the model the story so far, where only a turn past the
+   * window has a chain to show.
+   *
+   * *Absent is a session that did not start from a Setup made from a turn*,
+   * which is every session before P15 and most after it.
+   */
+  summaryRoot?: { text: string; setupId: string | null };
   /** With the hash of the bytes that were read, so the source can say which ([P3.0]). */
   persona: { actor: Actor; contentHash: string } | null;
   actors: readonly { actor: Actor; contentHash: string }[];
@@ -1663,15 +1680,59 @@ function fill(block: PresetBlock, context: CollectContext): Candidate[] {
        * only way a reader would accept it: the distant past goes before the
        * recent past.
        */
-      return (context.summary ?? []).flatMap((link, index) =>
-        emit(
-          { ...block, priority: block.priority + index },
-          link.text,
-          { kind: 'summary', linkKey: link.key, range: [link.from, link.to] },
-          `${block.id}.${link.key}`,
-          names,
+      /**
+       * ***The root is link zero*** — [04 §7.2], [P15.2].
+       *
+       * **Oldest, so lowest, so first to go under pressure**, which is the
+       * arithmetic above followed rather than excepted. ~~It reads as a demotion
+       * and is not one: the first derived link was written *from* the root
+       * (`previous` is the root's text, and the summariser is asked for one
+       * continuous summary covering both), so once a chain exists every link
+       * after the root already carries what it said.~~
+       *
+       * *That argument was false by the time this reached `main`* (2026-10-03,
+       * at the merge). `e9d1a142` put the chain into stretches the day after
+       * the branch was written: a link summarises **its own turns** and is handed
+       * the one before as context only, told not to repeat it. So no link
+       * carries what the root said, and giving the root up loses it.
+       *
+       * **It stays first to go, for the reason every link is ordered as it is.**
+       * The root is the oldest stretch of the story, and the trade this slot
+       * makes is the distant past before the recent: a model continuing a story
+       * needs where things stand more than how they began, and a reader would
+       * make the same cut. It is also, as a rule, the largest candidate here — a
+       * whole session condensed, where a link is a paragraph — so the first drop
+       * buys the most room for the recent links. What should outlast it has
+       * other carriers: the facts a person kept when they made the Setup are in
+       * its companion lorebook, whose entries reach the prompt on their keys
+       * whatever this slot lost. Before a chain exists the root is the only
+       * candidate here and nothing competes with it for the slot's share.
+       *
+       * *Its own id suffix, never a link key*, so a block table can tell the
+       * authored start of the story from anything the summariser wrote.
+       */
+      const root =
+        context.summaryRoot === undefined
+          ? []
+          : emit(
+              block,
+              context.summaryRoot.text,
+              { kind: 'story-so-far', setupId: context.summaryRoot.setupId },
+              `${block.id}.root`,
+              names,
+            );
+      return [
+        ...root,
+        ...(context.summary ?? []).flatMap((link, index) =>
+          emit(
+            { ...block, priority: block.priority + root.length + index },
+            link.text,
+            { kind: 'summary', linkKey: link.key, range: [link.from, link.to] },
+            `${block.id}.${link.key}`,
+            names,
+          ),
         ),
-      );
+      ];
     }
 
     case 'samples': {

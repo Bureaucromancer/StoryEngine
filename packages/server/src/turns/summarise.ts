@@ -20,6 +20,7 @@ import {
   type SummarisableTurn,
   type SummaryLink,
   type SummaryPolicy,
+  type SummaryRoot,
   type SummaryUnit,
 } from '../sessions/summary-chain.js';
 import type { Layout } from '../storage/layout.js';
@@ -129,6 +130,14 @@ export interface SummariseContext {
    * answered.
    */
   key: string;
+  /**
+   * What had already happened before the first turn — [P15.2]. It keys the
+   * first link and is handed to it as `previous`, context for the first
+   * stretch as each link is for the next; absent is a session that started
+   * fresh, whose chain is keyed exactly as it always was. The runner passes
+   * {@link ChainPlan.root}, so it is the root the warm and the preview key too.
+   */
+  root?: SummaryRoot | null;
   report: (report: SummariseReport) => void;
 }
 
@@ -208,6 +217,7 @@ export function summarise(context: SummariseContext): {
         path,
         summariser,
         context.policy,
+        context.root ?? null,
       );
       /**
        * ***The held links reach the prompt when the next one fails***
@@ -287,9 +297,13 @@ export function summaryCandidates(
  * A link is written under a content key, served from then on without being
  * asked for again, and handed to the next link as `previous`. So a reply that
  * ran into its length limit mid-sentence was the story above the window for
- * the rest of the session, and every link after it summarised the cut. A long
- * session reaches that limit by design, since each link covers everything
- * before it. A filtered reply came back empty and quietly removed the summary.
+ * the rest of the session, and every link after it summarised the cut. ~~A
+ * long session reaches that limit by design, since each link covers everything
+ * before it.~~ *Not since `e9d1a142` put the chain into stretches the same
+ * day* (noted 2026-10-03): a link covers its own turns, so the limit is
+ * reached by a model that runs long or a reply length set short, not by the
+ * length of the session. A filtered reply came back empty and quietly removed
+ * the summary.
  *
  * Thrown rather than kept, so nothing is written for this link and the next
  * turn asks again: the step is `warn`, and a turn without a summary is the
@@ -323,8 +337,17 @@ export function keptSummary(result: { text: string; outcome?: ModelCall['outcome
  * The player's line is quoted and the reply is not, so a model can tell an
  * instruction from narration without being told which is which — **every line
  * of it** ({@link quoted}), or a picture's stand-in reads as the reply.
+ *
+ * ***Exported for one other reader, the setup draft*** (`turns/condense.ts`,
+ * [P15.6]), which shows a model the turns after the chain — the window — in the
+ * words the summariser shows it the turns inside one. *Two display fields
+ * rather than a whole unit*, because those turns are no link's units and have
+ * no key to give; both build the fields with `unitWordsOf`, so a picture move
+ * reads the same to either. Settled at the merge (2026-10-03): the branch had
+ * exported the function before `main` taught it to quote every line, and a
+ * private copy in the draft would have been the second rendering of one story.
  */
-function renderUnits(units: readonly SummaryUnit[]): string {
+export function renderUnits(units: readonly Pick<SummaryUnit, 'said' | 'replied'>[]): string {
   return units
     .map((unit) => [quoted(unit.said), unit.replied].filter((line) => line !== '').join('\n'))
     .filter((turn) => turn !== '')
@@ -358,29 +381,74 @@ function block(id: string, role: 'system' | 'user', text: string): Candidate {
  * key ([P8 §1.9]). Null is *no chain*: a preview then carries no summary and a
  * turn runs no summariser. A preview that asked these differently from the
  * turn would read a chain the turn does not use, or miss the one it does.
+ *
+ * *The root travels in the plan* (2026-10-03) — see {@link ChainPlan}.
  */
-export function summaryPlanFor(
-  inputs: AssemblyInputs,
-): { key: string; policy: SummaryPolicy } | null {
+export function summaryPlanFor(inputs: AssemblyInputs): ChainPlan | null {
   const window = inputs.mode.definition.assembly.historyWindow;
   const slotted = inputs.preset.blocks.some(
     (block) => block.enabled && block.kind === 'slot' && block.source.of === 'summary',
   );
   if (!slotted || storyDepth(inputs.history) <= window) return null;
 
+  const chain = chainPlanFor(inputs);
+  return chain.ok ? chain.plan : null;
+}
+
+/**
+ * ***Which chain a session's turns read: whose summariser, how it is cut, and
+ * where it starts*** (2026-10-03, at the [P15] merge).
+ *
+ * A link's key is `H(summariser, previous key, unit keys)`, and the first
+ * link's previous key is the root's — so the root names the chain as much as
+ * the key does. It travelled separately: the runner passed it, and the warm
+ * and the preview, which take their key and policy from here, keyed every
+ * Setup-started session's chain without it. The warm filled `summaries/` with
+ * links the turn never asked for, and the preview read none of the turn's.
+ * **Three things that name one chain travel as one value**, so a caller that
+ * has the key has the root.
+ */
+export interface ChainPlan {
+  key: string;
+  policy: SummaryPolicy;
+  /** `inputs.summaryRoot` — {@link SummaryRoot}, or null for a session that started fresh. */
+  root: SummaryRoot | null;
+}
+
+/**
+ * The chain this session's summariser keys, **whether or not a turn would build
+ * one** — {@link summaryPlanFor} without its two gates, and saying *why* when
+ * the role will not resolve.
+ *
+ * ***For the setup draft*** (`turns/condense.ts`, [P15.6]), which reads the
+ * story above the window in a session whose pack positions no summary slot as
+ * well — it warns the person that the Setup would carry a story so far nothing
+ * shows the model, and still needs one to write — and which tells *nothing is
+ * bound* from *bound to a connection that is gone*, because those are two
+ * different things for a person to fix. *The same resolution, not a second
+ * one*: the draft re-derived the key and the policy by hand, which is how a
+ * draft comes to write links under a key the next turn does not read.
+ */
+export function chainPlanFor(
+  inputs: AssemblyInputs,
+): { ok: true; plan: ChainPlan } | { ok: false; reason: 'unbound' | 'dangling' } {
   const role = resolveStepRole(
     roleLayersOf(inputs),
     SUMMARISE_STEP,
     SUMMARISE_STEP.role ?? 'prose',
     undefined,
   );
-  if (!role.ok) return null;
+  if (!role.ok) return { ok: false, reason: role.reason };
   return {
-    key: summariserKey(
-      { connectionId: role.connection.id, modelId: role.modelId },
-      SUMMARISE_PROMPT,
-      inputs.preset.params,
-    ),
-    policy: { ...DEFAULT_SUMMARY_POLICY, window },
+    ok: true,
+    plan: {
+      key: summariserKey(
+        { connectionId: role.connection.id, modelId: role.modelId },
+        SUMMARISE_PROMPT,
+        inputs.preset.params,
+      ),
+      policy: { ...DEFAULT_SUMMARY_POLICY, window: inputs.mode.definition.assembly.historyWindow },
+      root: inputs.summaryRoot,
+    },
   };
 }

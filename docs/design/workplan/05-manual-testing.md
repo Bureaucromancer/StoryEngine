@@ -255,11 +255,13 @@ is below; this is the afternoon.*
    afternoon that changes [P8](25-p8-implementation.md) onward.
 2. **K, entire** — and it is not an afternoon. ~~**This is the only item on this
    list holding a phase open:**~~ ~~**two items on this list now hold a phase
-   open** (2026-09-13)~~ ***three, since 2026-09-15***: under
+   open** (2026-09-13)~~ ~~***three, since 2026-09-15***~~ ***four, since
+   2026-10-03*** — this list's own items, not every open phase in the file: under
    [§0](#the-two-tier-gate)'s model K *is* [P6B](20-p6b-playable.md)'s gate, so
    P6B does not close until K1–K9 have results; **L is
-   [P7](23-p7-implementation.md)'s**; and **M is
-   [P7B](24-p7b-presets-and-prompts.md)'s**, on the same terms.
+   [P7](23-p7-implementation.md)'s**; ~~and~~ **M is
+   [P7B](24-p7b-presets-and-prompts.md)'s**; and **W is
+   [P15](33-p15-setup-from-a-turn.md)'s** (item 11), on the same terms.
    ~~K0 cuts alpha 4 before anything is recorded.~~ *K0 said cut alpha 4, and it
    was cut on 2026-09-09 — before P7's sixty-seven commits and P7B's twelve.
    **L0 and M0 are the same question asked again** and all three sittings want
@@ -299,6 +301,14 @@ is below; this is the afternoon.*
     item 8's walks first puts a real endpoint in front of somebody: twenty
     minutes against R2 and R3, and **V5 is the cheapest way to find out whether
     an R10 candidate is one** — the errand the paragraph below says O waits on.
+11. **W** — added 2026-09-26 on a branch as T, re-lettered at its merge
+    (2026-10-03): [P15](33-p15-setup-from-a-turn.md)'s critical list, *make a
+    setup from here*, and **it holds a phase open** — P15 does not close until
+    W1–W3 have results. It wants a real model
+    ([R2 or R3](#3-standing-prerequisites)) and a session of about thirty turns
+    played against it, so it is cheapest in the sitting that has played one:
+    **after K, beside G**, whose hours produce exactly the session W1 starts
+    from.
 
 **Not next, and deliberately:** G, which wants hours and is PLAYABLE's second
 sitting — K5–K8 are the short form of it, and what they cannot reach is exactly
@@ -306,8 +316,9 @@ what G is for; and I and J, which want a container and a two-hundred-turn
 session respectively.
 
 ***Not on this list at all, and that is the point*** — added 2026-09-16. **O is
-[P9](26-p9-implementation.md)'s gate and it is the fourth item holding a phase
-open**, but it does not appear above because **it cannot be scheduled**: every
+[P9](26-p9-implementation.md)'s gate and it is ~~the fourth item holding a phase
+open~~ another phase held open** *(2026-10-03: the number went stale when W
+joined the list, so the sentence no longer carries one)*, but it does not appear above because **it cannot be scheduled**: every
 row wants [R10](#3-standing-prerequisites), an endpoint that serves the `image`
 role, and no other outstanding prerequisite produces one — R2 is a chat endpoint,
 and K, L, M and N all queue on that. So the four sittings above could be walked
@@ -1179,7 +1190,7 @@ standing list below rather than gating the phase.
 ### T — P12A's critical list — *an afternoon and a phone; the one that unblocks R4*
 
 **Registered 2026-09-22, before a line of the phase is built**, which is a first
-here and is deliberate: [P12A](33-p12a-the-look.md) exists because
+here and is deliberate: [P12A](34-p12a-the-look.md) exists because
 [10 §1.3](../10-ui-surfaces.md) added commitments to the 1.0 corpus that the
 build does not meet, and **R4 reads that corpus**. So this sitting is what stands
 between the two — not because P12A is more important than the beta gate, but
@@ -1190,15 +1201,15 @@ from the week before.
 matters: sitting **O** cannot start because a *thing* is missing
 ([R10](#3-standing-prerequisites)); **T** cannot start because the code is not
 written. **Nothing here is blocked on a prerequisite** — that is
-[P12A §1.2](33-p12a-the-look.md)'s doing, which built a choose-your-own-backdrop
+[P12A §1.2](34-p12a-the-look.md)'s doing, which built a choose-your-own-backdrop
 path precisely so this list does not queue behind R10 with O.
 
 | # | Do | Clears | Result |
 |---|---|---|---|
-| **T0** | **The install.** One account, a session with a cast of three and a few branches, an actor with a portrait and one without, and an image on disk to use as a backdrop. **No image endpoint** — [P12A §1.2](33-p12a-the-look.md) is why. | — | |
+| **T0** | **The install.** One account, a session with a cast of three and a few branches, an actor with a portrait and one without, and an image on disk to use as a backdrop. **No image endpoint** — [P12A §1.2](34-p12a-the-look.md) is why. | — | |
 | **T1** | ***The prose over the worst backdrop you can find.* Only a person can walk it.** A bright, busy image; a long turn; then the backdrop off, and no empty frame where it was. | P12A.2; [10 §2.3](../10-ui-surfaces.md) | |
 | **T2** | ***A face that is wrong, corrected from where it is shown.*** Make the engine's attribution stale, then fix it from the face. [00 §3.6](../00-stance.md)'s test, applied to what this phase added. | P12A.3, P12A.4 | |
-| **T3** | ***Play a session after the panels moved.* Only a person can walk it.** Mid-scene: change the lore selection, check a hook, read the goal, correct a channel. Does [P12A §1.3](33-p12a-the-look.md)'s defence survive contact, or is this the disclosure reflex [10 §1.1](../10-ui-surfaces.md) rejects? | P12A.5 | |
+| **T3** | ***Play a session after the panels moved.* Only a person can walk it.** Mid-scene: change the lore selection, check a hook, read the goal, correct a channel. Does [P12A §1.3](34-p12a-the-look.md)'s defence survive contact, or is this the disclosure reflex [10 §1.1](../10-ui-surfaces.md) rejects? | P12A.5 | |
 | **T4** | **A phone, one session, twenty minutes.** Send, read, use a per-turn control, open the workbench, correct a channel — **every essential action reachable without a hover**. | P12A.8, P12A.5 | |
 | **T5** | **Desk work: reduced motion.** Set the OS preference, walk the five motions. Each *absent*, not merely fast. | P12A.0, P12A.6 | |
 
@@ -1217,7 +1228,7 @@ is not exercised there, and the wire test's endpoint is a fake.
 
 ***Lettered T when it was added, and re-lettered U on 2026-10-02.*** It was
 registered on `main` by a branch that could not see
-[P12A](33-p12a-the-look.md)'s T, registered five days earlier on a local `main`
+[P12A](34-p12a-the-look.md)'s T, registered five days earlier on a local `main`
 that had not been pushed; the two met at the merge, and the later registration
 took the next letter. Its rows, their order and their wording are unchanged
 apart from the letter, and nothing outside this file had cited it. *(2026-10-03:
@@ -1246,7 +1257,7 @@ button is for.
 
 ***Lettered T when it was written, and re-lettered V on 2026-10-03.*** It was
 registered on a branch, cut on 2026-09-26 from the pushed `main`, that could not
-see [P12A](33-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`
+see [P12A](34-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`
 that met the pushed one only on 2026-10-02) or the pictures-on-a-move sitting
 (registered as T on 2026-09-27, after the branch was cut, and re-lettered U on
 2026-10-02). They met at the merge, and the later registration took the next
@@ -1267,6 +1278,52 @@ somebody to the wrong field. It extends the standing list.
 | **V4** | **A local runtime (R3).** With it stopped: *could not be reached*, and **never** *no internet access* — *after about a second, since the merge: a message is asked again twice, as a turn's is, before nothing answering is believed.* Start it with a model that is not yet loaded and press Test: it should wait rather than fail, and answer. If a reasoning model is to hand, try it: an empty reply should read *used the whole test allowance … all worked*, not as a failure. | [09 §6.5](../09-server-multiuser-deployment.md) | |
 | **V5** | **R10, if a candidate is to hand.** Save it with *Makes pictures* → **Yes**, then **Test → Try a picture** with the offered prompt. A picture on the page. *Since the merge (2026-10-03), under a group headed* Drawing pictures*:* **Sends a seed with a picture** *appears once* Makes pictures *says Yes.* Then set *Makes pictures* back to the default and confirm *Try a picture* is gone, and the seed control with it. | R10 | |
 | **V6** | **As a non-admin with `privateConnections`**, Test one of your own connections. It works, and the admin's connections are not offered at all. | [10 §15.1](../10-ui-surfaces.md) | |
+
+### W — P15's critical list — *one sitting against a real model, and a judgement only a reader can make*
+
+**The ~~ninth~~ tenth critical list under [§0](#the-two-tier-gate)'s model**, from
+[P15 §3.1](33-p15-setup-from-a-turn.md) and not edited here. *Make a setup from
+here* is tested end to end on the server — emit a Setup at a turn, start from
+it, and the opening, the party, the spent hook, the goal, the story so far and a
+kept fact all arrive — so what is left is **what no scripted provider can
+answer**: whether a real model's story so far is one a new session can continue
+from, and whether the person still playing was spoiled.
+
+***Lettered T when it was written, and re-lettered W on 2026-10-03*** — and the
+phase it belongs to was P13 then and is P15 now. It was registered on a branch
+cut on 2026-09-26 from the pushed `main`, which could not see
+[P12A](34-p12a-the-look.md)'s T (registered 2026-09-22 on a local `main`), the
+pictures-on-a-move sitting (registered as T on 2026-09-27 and re-lettered U),
+or the connection sitting (written as T on a branch of the same day and
+re-lettered V earlier the same day). They met at the merges, and the latest
+registration took the next free letter. Its rows, their order and their wording
+are unchanged apart from the letter. *One thing the merge changed underneath
+them*, so that whoever walks W1 is not surprised by it: a Setup's own opening
+now wins over a cast's greetings ([P15 §1.7](33-p15-setup-from-a-turn.md)), so
+a session started from a setup made here opens on the setup's opening even in a
+mode that would otherwise open on greetings — which is the opening W1 reads.
+
+| # | What | Why a person |
+|---|---|---|
+| W1 | On a real session of about thirty turns, against a real model, make a setup from a turn in the middle and start a session from it. Read the first two turns: names, situation and party intact, and the opening reading as a **scene** rather than a recap | *Continues the story* is a judgement about prose, and the live tier asserts structure and never prose |
+| W2 | In a session with an unfired plot hook and a hidden goal, open the wizard: it shows neither — hooks as counts, the goal as *hidden from you* — and the new session does not surface either before its time | The one failure this feature must not have, and the half that happens in a model's words rather than in a payload is only visible by reading them |
+| W3 | Start from the same setup twice, and get two independent sessions with the same opening; edit the setup's story so far in the library, and a third session carries the edit | *Start from again and again* is the primary use, and the edit is what makes a setup better than a saved session |
+
+*What this list does not reach, which extends the standing list*: a setup made
+here travelling in a package to a second account and starting there with its
+facts; the no-summary-slot warning on a preset that really has none; and a kept
+fact activating on its key in play rather than in a scripted prompt.
+
+*And one thing seen at the merge and not judged* (2026-10-03): a setup started
+cold, or one with no opening of its own that seats a party or spends a hook,
+begins on a turn that only seeds — no words, no move — and the transcript draws
+it as an empty row carrying only its hover actions (*Continue from here*, *Make
+a setup from here*, *Undo*, and *Remember this* when the session has a cast),
+above the greetings in a Scene chat. It was so on the
+branch for a cold start; the merge's greetings-as-its-children
+([P15 §1.7](33-p15-setup-from-a-turn.md)) made it reachable from a Scene
+session too. Whether it should be drawn at all is a reader's call, and no row
+here was edited for it.
 
 ## 5. Already discharged, and by what
 
@@ -1336,7 +1393,8 @@ a claim nobody made.*
 | **P11** | ~~10~~ **13** | **2 (in part), 3, 4 (in part), 5 (in part), 6 (in part), 7 (in part), 9 (in part), 10 (in part), 11 (in part), 13** — landed 2026-09-17 | **merged 2026-09-17 at `b572c4c`, and open; the list is unwalked** | **Planned rather than sketched, 2026-09-17** ([P11 §3.1](28-p11-implementation.md)), the seventh gate to split under [§0](#the-two-tier-gate), and **the only one whose phase has nothing after it** — so clause (ii) is re-read there rather than applied: what this gate compounds into is the **beta declaration** rather than a later phase. ***~~Five~~ Six criticals, two of them desk work***, which is unusual and is a property of a gate mostly asking *did the thing get built*: **R1** the item-by-item read of [§0.1](28-p11-implementation.md)'s list; **R2** a real session read, printed and copied; **R3** the assistant asked about your own library ([R2](#3-standing-prerequisites)); **R4** the 1.0 corpus read capability by capability, which **is** the beta claim; **R5** recording that row 13 is answered, which **unblocks R4**; and — added 2026-09-22 with [P11.2](28-p11-implementation.md)'s hook stage — **R6** a hook written on a carrier and one saved back out of a session, which is the first authoring surface a portable field has had. ***What a built P11 proves is most of its own list*** — the reading view's model, the editor contract over the key set rather than over the editors somebody remembered, *not a second chat* asserted from both sides, the trash and its sweep, the catalogue's per-key fallback, the tarball packed twice and compared, a session exported and imported through a reader sharing no state with the writer. ***What it does not have is named rather than absorbed***: [10 §11.2b]'s image slots, [10 §11.2c]'s entry travel, the assistant's **docs lorebook**, and — the one to argue about — ~~**row 8's Playwright suite, which no stage was asked to build**~~. Three are features with an argument; the fourth was infrastructure the gate assumed. All four are in [§10](#10-deferred-with-an-owner) so that R4's reader meets them as known absences. ***Row 8 built 2026-09-17***, the same day the record named it: the argument was withdrawn rather than won, the suite is [§5](#5-already-discharged-and-by-what)'s **P11 8** row, and **three of the seven journeys turned out to say something other than what they had been read as saying** — which is the case this row had been making all along with nothing anybody could act on. **Three absences stood**, and by the end of the same day two more were built: [10 §11.2c]'s entry travel — selection, export, import, and `VersionSource`'s `import` arm's first writer — and [10 §11.2b]'s image slots, which turned out to be **unreachable rather than unbuilt**, because a lorebook's container is a folder and nothing had ever written into one. **And the last of the four went the same day**: the docs lorebook, twenty-five keyed entries attached by one line, which is what *"needs no new machinery"* turned out to mean. **Nothing stands** — the four named absences are four closed rows, and none of them closed by being argued about |
 | **P12** | 5 + ~~5~~ **7** | **most of both halves** — `backup/archive.test.ts`, `backup/schedule.test.ts`, `backup/restore.test.ts`, `storage/tar-archive.test.ts`, `tools/tar-seam.test.ts`, `routes/backups.test.ts`, `settings/ImportBackup.test.tsx`, `settings/AdminBackups.test.tsx`, and `tools/restore.test.ts` repaired | **merged 2026-09-23 at `671950f`, and open; the list is unwalked — sitting S** | **The eighth gate to split under [§0](#the-two-tier-gate)**, and the shortest, because the phase is one feature. ***What no test here can witness is the two things the criterion keeps***: a **server rebuilding its index from an archive** (S1 — a search answering is the only observable proof), and a **supervisor restarting a process** after a self-restore, with the moved-aside directory intact beside the new one (S2). ***The phase found two defects in what [P11.11](28-p11-implementation.md) shipped rather than being blocked by them***: the index exclusion never fired, and long member names were being cut — and **the second table this file's first honesty condition requires is [P12 §3](29-p12-implementation.md), whose rows were not edited**. *The one thing the remainder cannot reach is size*: nothing here has archived a genuinely large library, and whether that is quick enough to be pleasant is a sitting behind a corpus rather than behind a build. ***Built and merged 2026-09-23, all fourteen stages, and the critical list never walked*** — **the seventh phase to be merged and left open**, which is the split [P7](23-p7-implementation.md)'s row first recorded and the rule §7 states. *Two of the five criticals are the ones no test can witness and they are unchanged by the build*; what changed is the remainder, which grew **two rows** for two surfaces the plan did not name: `DELETE /api/admin/restore`, because a failed restore keeps its marker so the next boot can refuse it and a marker nobody can remove is a trap on an install with no shell, and the **manifest read** that stands in for the preview [P12.9](29-p12-implementation.md) was written to build — [P4 §1.4](16-p4-implementation.md) having already settled that a sweep commits and reports. **The gate's own five rows were not edited**, which is this file's first honesty condition and the reason the two additions are in the remainder rather than in the list |
 | **P7B** | ~~12~~ **17** | **2, 3, 4, 7, 8, 9, 11, 16, 17** — §5 | **M, pending** | Written to [§0](#the-two-tier-gate) from the start: ~~three~~ **four** critical-list candidates named in [P7B §3](24-p7b-presets-and-prompts.md), the rest to a sitting here on the day it closes. ***Five rows and four stages added 2026-09-14*** by a second sweep reading the code against the design notes rather than the design notes against the phases ([P11 §0.1](28-p11-implementation.md)) — the setup and package editors, the workbench on a turn the head has passed, the import quarantine's listing, and home as a changelog-only prototype. **Its gate row 17 is the one worth naming here**: *nothing in the suite asserts that a shipped route has a caller*, and five of this phase's items were routes green in CI with no caller for up to six phases (§9). *What no critical list in this phase can reach is the class it exists for* — a walk can say these surfaces arrived, never whether an eighteenth is missing. ***Written and green 2026-09-14, and it found an eighteenth, a nineteenth and a twentieth on its first run*** ([P7B §1.12](24-p7b-presets-and-prompts.md)) — which is the answer to the clause before it, arriving from a test rather than from a walk. ~~**The ten stages are all committed; the critical list is walked on the day the phase closes and nothing below records a walk**~~ ***Merged into `main` 2026-09-15 at `e7d6dee`, and open*** — the same split P7's row above records, for the same reason: §7's rule is that a phase closes when its critical list is walked, and P7B's is not. **Sitting M**, four criticals and a judgement sitting: **M1** the pack demo end to end; **M2** the mid-session switch against compare and a rewind; **M3** the hand edit under an open panel; **M4** the workbench saying which turn it is showing; **M5** several turns on a browser-authored pack, judged. Nine rows answered by tests and in §5, three walked-but-not-critical folded into **M6** because they want the same install, and **M7** is the desk work. *Every row of M wants a live endpoint, which no earlier critical list had to admit*. ***Row 7's answer was false until 2026-09-27***: the framing never reached a prompt, and the tests it cited did not look ([P7B §3.2](24-p7b-presets-and-prompts.md)) |
-| **P12A** | 9 stages | ~~none yet~~ **P12A.1's face pairing** — `theme.test.ts`'s *the two faces*, from [polish §17](06-polish.md) | **T, registered 2026-09-22; ~~nothing built~~** *P12A.1, and P12A.0's typeface token, were built on `main` on 2026-10-01 at [polish §17](06-polish.md) (`04e45a5`), before the phase opened. What is left of P12A.1 is its measure check ([P12A](33-p12a-the-look.md)). No row of T is about the face, and each wants a stage that is still unbuilt, so T is still unwalkable.* | **The ninth gate to split under [§0](#the-two-tier-gate), and the first registered before its phase opens.** Six rows, five of them a person and one desk work, and **none of them blocked on a prerequisite** — [P12A §1.2](33-p12a-the-look.md) spends a stage decision on keeping it that way. *Why a phase exists here at all*: [10 §1.3](../10-ui-surfaces.md) was written on 2026-09-22 and put commitments into the 1.0 corpus that the build does not meet, and [releases §0](04-repo-and-releases.md) makes beta a completeness gate against that corpus — so **R4 waits on T**, and R1, R2, R3 and R5 do not. *What the list deliberately cannot reach*: whether a generated backdrop reads well, which is [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)'s errand and travels with R10 rather than holding this phase open |
+| **P15** | 3 + 3 | **most of both halves** — `sessions/opening.test.ts`, `sessions/setup-from-turn.test.ts` (the no-hidden-content property), `sessions/summary-chain-property.test.ts` (a golden no-root key), `routes/setup-from-turn.test.ts` (the round trip), `play/SetupFromTurn.test.tsx`, `play/SessionsPage.test.tsx` | **built 2026-09-26 on `claude/nice-davinci-xjdpf6`, ~~not merged~~ *merged through `p15` 2026-10-03, and open*; the list is unwalked — sitting ~~T~~ W** | **The ~~ninth~~ tenth gate to split under [§0](#the-two-tier-gate)**, and one feature like P12. *What the suite cannot reach is prose*: whether a real model's story so far is one a session can continue from (W1), and whether a spoiler reached the person still playing through a model's words rather than a payload (W2). ***The round trip is automated rather than owed*** — emit at a turn, start from the Setup, play a turn — and was run against two mutations before it was trusted. **The gate's three rows were not edited**; the three remainder rows are [P15 §3.2](33-p15-setup-from-a-turn.md)'s. *Written as P13 with sitting T, on a branch that could not see `main`'s P13 and P14 or P12A's T; renamed, re-lettered and counted again at the merge, 2026-10-03 — [P15](33-p15-setup-from-a-turn.md)'s status says how* |
+| **P12A** | 9 stages | ~~none yet~~ **P12A.1's face pairing** — `theme.test.ts`'s *the two faces*, from [polish §17](06-polish.md) | **T, registered 2026-09-22; ~~nothing built~~** *P12A.1, and P12A.0's typeface token, were built on `main` on 2026-10-01 at [polish §17](06-polish.md) (`04e45a5`), before the phase opened. What is left of P12A.1 is its measure check ([P12A](34-p12a-the-look.md)). No row of T is about the face, and each wants a stage that is still unbuilt, so T is still unwalkable.* | **The ninth gate to split under [§0](#the-two-tier-gate), and the first registered before its phase opens.** Six rows, five of them a person and one desk work, and **none of them blocked on a prerequisite** — [P12A §1.2](34-p12a-the-look.md) spends a stage decision on keeping it that way. *Why a phase exists here at all*: [10 §1.3](../10-ui-surfaces.md) was written on 2026-09-22 and put commitments into the 1.0 corpus that the build does not meet, and [releases §0](04-repo-and-releases.md) makes beta a completeness gate against that corpus — so **R4 waits on T**, and R1, R2, R3 and R5 do not. *What the list deliberately cannot reach*: whether a generated backdrop reads well, which is [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)'s errand and travels with R10 rather than holding this phase open |
 
 **Two things this table makes plain and no single document did.** Every gate
 from P3 onward is unwalked — and until this table existed, each phase document

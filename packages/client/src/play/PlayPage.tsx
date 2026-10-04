@@ -6,7 +6,7 @@ import { control, link, page, reveal } from '../ui/classes.js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
-import { outputMessagesOf, remedyFor, uuidv7 } from '@storyengine/shared';
+import { outputMessagesOf, redoable, remedyFor, uuidv7 } from '@storyengine/shared';
 import type { StepFailureReason, TextSpan } from '@storyengine/shared';
 
 import {
@@ -87,6 +87,7 @@ import { LorePanel } from './LorePanel.js';
 import { SessionPanel } from './SessionPanel.js';
 import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
+import { SetupFromTurn } from './SetupFromTurn.js';
 import { RenameSession } from './RenameSession.js';
 import { sessionLabel } from './session-label.js';
 import { Note, SectionTitle } from '../ui/Text.js';
@@ -1806,8 +1807,16 @@ function TurnView({
   // hand edit ([03 §8.1]) is the one that exists today — so there is nothing to
   // attempt again. ***Unless it made a call*** ([P14.5]): a chat's *let them
   // talk* answers no move and is still a reply a person may want again.
-  // A greeting made none, and its alternates are its siblings already.
-  const rerunnable = turn.input !== undefined || turn.request !== undefined;
+  // A greeting made none, and its alternates are its siblings already; nor
+  // did a Setup's opening ([P15.3]), which an author wrote — the route
+  // refuses a redo naming one, and this is the surface agreeing.
+  //
+  // ***`redoable`, the route's own predicate*** (2026-10-03, at the P15
+  // merge): the rule was written out here and again in the route, and
+  // `shared` now names it once so the button and the refusal cannot come to
+  // disagree. The branch's `Turn.opening` marker is gone with it — an
+  // opening is known by what it lacks, as a greeting already was.
+  const rerunnable = redoable(turn);
   /**
    * ***Every turn of a chat is drawn as one*** — [P14.5]. A turn whose output
    * names no speakers — written before P14, narrated, or embodied under
@@ -1973,6 +1982,12 @@ function TurnView({
         >
           Continue from here
         </Button>
+        {/* ***Make a setup from here*** — [P15.8]. Beside *Continue from here*
+            because it is the other answer to the same wish: continuing keeps
+            the history behind this turn, and this condenses it into somewhere
+            new sessions start from. Any turn, including an opening — a point
+            worth starting from again is not only ever one somebody typed. */}
+        <SetupFromTurn sessionId={sessionId} turnId={turn.id} busy={busy} />
         {/* ***Illustrate*** — [06 §10.6], [P9.4]. *"A manual **Illustrate**
             action on any message in the history, which is the same step invoked
             by hand — additive, never replacing."* Beside the other per-message

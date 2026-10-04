@@ -13,11 +13,18 @@ import { openIndex, type OpenedIndex } from '../index-db/open.js';
 import { Layout } from '../storage/layout.js';
 import { walkPath } from './segments.js';
 import { appendTurnOnly, createSession, readTurns, type SessionContext } from './store.js';
-import { ensureChain, listSummaries, readSummary, type Summariser } from './summaries.js';
+import {
+  ensureChain,
+  listSummaries,
+  readHeldChain,
+  readSummary,
+  type Summariser,
+} from './summaries.js';
 import {
   linkKeyOf,
   planChain,
   summariserKey,
+  summaryRootOf,
   unitKeyOf,
   type SummaryPolicy,
 } from './summary-chain.js';
@@ -328,6 +335,189 @@ describe('the chain shares a prefix by construction', () => {
     expect(linkKeyOf('S', null, ['u1', 'u2'])).not.toBe(linkKeyOf('S', null, units));
     // Length-prefixed, so a boundary cannot be moved without changing the key.
     expect(linkKeyOf('S', null, ['u1u2', 'u3'])).not.toBe(linkKeyOf('S', null, ['u1', 'u2u3']));
+  });
+});
+
+/**
+ * ***A chain with a root*** — [04 §7.2](../../../../docs/design/04-schemas.md),
+ * [P15.2](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * A session started from a Setup made from a turn carries the story so far, and
+ * the chain takes it as link zero. **Three claims, and the first is the one that
+ * protects everybody who is not using the feature**: a session with no root keys
+ * its chain byte-for-byte as it did before P15, so no summary on anybody's disk
+ * is orphaned by the change.
+ */
+describe('a chain with a root', () => {
+  /**
+   * ***A golden key, which is the only honest form of "unchanged".*** Comparing
+   * `planChain(path, S, policy)` with `planChain(path, S, policy, null)` would be
+   * comparing the code with itself. This value was computed from the build at
+   * P15.1 — before the parameter existed — and again after it, and the two
+   * agreed; a change that moved the no-root key would strand every chain
+   * already written, which is what this pins.
+   */
+  it('keys a chain with no root exactly as it was keyed before roots existed', () => {
+    const path = Array.from({ length: 40 }, (_, at) => ({
+      id: `t${String(at)}`,
+      input: { text: `turn ${String(at)}` },
+      output: { text: `and then, at turn ${String(at)}, something happened` },
+    }));
+    const [first] = planChain(path, 'S', POLICY);
+    expect(first?.previousKey).toBeNull();
+    expect(first?.key).toBe('1dda78bf2f0059613c63fe9371f71af321518a0914f722c448872dec40bbaffc');
+    expect(planChain(path, 'S', POLICY, null)).toEqual(planChain(path, 'S', POLICY));
+  });
+
+  /**
+   * **The converse, for the reason this file is a pair**: a root that did not
+   * reach the keys would pass every sharing assertion and hand two different
+   * stories' sessions one another's summaries.
+   */
+  it('keys a disjoint chain under a different root, and every link moves', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 21, max: 120 }),
+        fc.string({ minLength: 1 }),
+        fc.string({ minLength: 1 }),
+        (length, one, other) => {
+          fc.pre(one.trim() !== '' && other.trim() !== '' && one.trim() !== other.trim());
+          const path = aLine(length);
+          const rootOne = summaryRootOf({ storySoFar: one });
+          const rootOther = summaryRootOf({ storySoFar: other });
+          const a = planChain(path, 'S', POLICY, rootOne?.key ?? null).map((link) => link.key);
+          const b = planChain(path, 'S', POLICY, rootOther?.key ?? null).map((link) => link.key);
+          const bare = new Set(planChain(path, 'S', POLICY).map((link) => link.key));
+
+          expect(a.length).toBeGreaterThan(0);
+          expect(a.filter((key) => b.includes(key))).toEqual([]);
+          expect(a.filter((key) => bare.has(key))).toEqual([]);
+        },
+      ),
+    );
+  });
+
+  /** The fork property, unchanged by a root: a rooted line shares its prefix too. */
+  it('shares the prefix across a fork under the same root', () => {
+    const root = summaryRootOf({ storySoFar: 'Marlow lost the ledger at the docks.' });
+    const prefix = aLine(80);
+    const left = planChain(aLine(120, prefix, ' (left)'), 'S', POLICY, root?.key ?? null);
+    const right = planChain(aLine(120, prefix, ' (right)'), 'S', POLICY, root?.key ?? null);
+
+    expect(left[0]?.previousKey).toBe(root?.key);
+    expect(left.slice(0, 3).map((link) => link.key)).toEqual(
+      right.slice(0, 3).map((link) => link.key),
+    );
+    expect(left[4]?.key).not.toBe(right[4]?.key);
+  });
+
+  /**
+   * ***Who the root is, and who it is not.*** Keyed by its words alone, so the
+   * Setup's id never reaches a key; trimmed, and empty is no root at all.
+   */
+  it('reads the root off a Setup copy, keyed by its words and never by the Setup', () => {
+    const one = summaryRootOf({ id: 'setup-a', storySoFar: '  The ledger is gone.  ' });
+    const twin = summaryRootOf({ id: 'setup-b', storySoFar: 'The ledger is gone.' });
+
+    expect(one).toEqual({ key: twin?.key, text: 'The ledger is gone.', setupId: 'setup-a' });
+    expect(twin?.setupId).toBe('setup-b');
+    expect(summaryRootOf({ id: 'setup-a', storySoFar: '   ' })).toBeNull();
+    expect(summaryRootOf({ id: 'setup-a' })).toBeNull();
+    expect(summaryRootOf(undefined)).toBeNull();
+    // A root is not a link and not a unit, so it cannot collide with either.
+    expect(one?.key).not.toBe(linkKeyOf('S', null, []));
+  });
+
+  /**
+   * **On disk, the root is `previous` for the first derived link and nothing
+   * after it** — the scripted summariser writes what it was handed into the
+   * text, so the file says whether the root arrived.
+   */
+  it('hands the root to the first link it derives, and only the first', async () => {
+    const session = await createSession(context, ACCOUNT, { name: 'rooted' });
+    let parent: string | null = null;
+    for (let at = 0; at < 60; at += 1) {
+      const turn = turnOf(session.id, parent, at);
+      await appendTurnOnly(context, ACCOUNT, session.id, turn);
+      parent = turn.id;
+    }
+    const path = walkPath(await readTurns(context, ACCOUNT, session.id), parent);
+    const root = summaryRootOf({ storySoFar: 'Before any of this, the ledger was lost.' });
+    const summariser = scriptedSummariser('S');
+
+    const chain = await ensureChain(
+      context.layout,
+      ACCOUNT,
+      session.id,
+      path,
+      summariser,
+      POLICY,
+      root,
+    );
+
+    expect(chain.links).toHaveLength(2);
+    expect(chain.links[0]?.previousKey).toBe(root?.key);
+    expect(chain.links[0]?.text).toContain('Before any of this, the ledger was lost.');
+    expect(chain.links[1]?.text).toContain(chain.links[0]?.text ?? '<missing>');
+
+    // Warm, and rooted: the second pass reads both links by key.
+    const again = await ensureChain(
+      context.layout,
+      ACCOUNT,
+      session.id,
+      path,
+      summariser,
+      POLICY,
+      root,
+    );
+    expect(again.derived).toBe(0);
+    expect(summariser.calls).toBe(2);
+  });
+
+  /**
+   * ***The preview's reader keys the same rooted chain*** (2026-10-03, at the
+   * merge). `readHeldChain` planned without a root, so it looked for a first
+   * link naming no predecessor — a chain `ensureChain` never writes for a
+   * rooted session — and a preview read nothing held on a session whose every
+   * link was on disk. Asked with the root it reads the whole chain; asked
+   * without, the root's absence is visible as an empty one, which is the pair:
+   * a reader that ignored its root would pass the first line and fail the
+   * second.
+   */
+  it('reads back the rooted chain only when asked with its root', async () => {
+    const session = await createSession(context, ACCOUNT, { name: 'rooted, read back' });
+    let parent: string | null = null;
+    for (let at = 0; at < 60; at += 1) {
+      const turn = turnOf(session.id, parent, at);
+      await appendTurnOnly(context, ACCOUNT, session.id, turn);
+      parent = turn.id;
+    }
+    const path = walkPath(await readTurns(context, ACCOUNT, session.id), parent);
+    const root = summaryRootOf({ storySoFar: 'Before any of this, the ledger was lost.' });
+    const derived = await ensureChain(
+      context.layout,
+      ACCOUNT,
+      session.id,
+      path,
+      scriptedSummariser('S'),
+      POLICY,
+      root,
+    );
+
+    const rooted = await readHeldChain(
+      context.layout,
+      ACCOUNT,
+      session.id,
+      path,
+      'S',
+      POLICY,
+      root,
+    );
+    expect(rooted.map((link) => link.key)).toEqual(derived.links.map((link) => link.key));
+    expect(rooted).toHaveLength(2);
+    expect(
+      await readHeldChain(context.layout, ACCOUNT, session.id, path, 'S', POLICY, null),
+    ).toEqual([]);
   });
 });
 

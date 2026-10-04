@@ -273,6 +273,51 @@ describe('the session write bodies', () => {
     expect(seen.map((each) => each.body)).toEqual([{}, {}]);
   });
 
+  /**
+   * ***A Setup, and which opening*** — [P15.4]. `null` is *start cold* and
+   * has to reach the route as itself; absent is *the primary*, so the two may
+   * not collapse into one spelling on the wire.
+   */
+  it('sends the Setup it starts from, and an opening only when one was chosen', async () => {
+    const seen = capture();
+
+    await createSession({ setup: 'setup-1' });
+    await createSession({ setup: 'setup-1', opening: 'o-docks' });
+    await createSession({ setup: 'setup-1', opening: null });
+    await createSession({ setup: '' });
+
+    expect(seen.map((each) => each.body)).toEqual([
+      { setup: 'setup-1' },
+      { setup: 'setup-1', opening: 'o-docks' },
+      { setup: 'setup-1', opening: null },
+      {},
+    ]);
+  });
+
+  /**
+   * ***A greeting chosen travels, beside a Setup as beside a cast*** — [P14.5],
+   * and since the P15 merge (2026-10-03) for a Setup's party too, when the
+   * Setup has no opening of its own. *Only a choice somebody made*: an empty
+   * map would be the client asserting that every member's usual was picked,
+   * which is what absent already means.
+   */
+  it('sends a greeting chosen, beside a setup or a cast, and never an empty choice', async () => {
+    const seen = capture();
+
+    await createSession({ setup: 'setup-1', openings: { 'actor-vera': 'open-2' } });
+    await createSession({
+      cast: { persona: null, actors: ['actor-vera'] },
+      openings: { 'actor-vera': 'open-2' },
+    });
+    await createSession({ setup: 'setup-1', openings: {} });
+
+    expect(seen.map((each) => each.body)).toEqual([
+      { setup: 'setup-1', openings: { 'actor-vera': 'open-2' } },
+      { cast: { persona: null, actors: ['actor-vera'] }, openings: { 'actor-vera': 'open-2' } },
+      { setup: 'setup-1' },
+    ]);
+  });
+
   it('renames a session through the patch that archives, with the id escaped', async () => {
     const seen = capture();
 

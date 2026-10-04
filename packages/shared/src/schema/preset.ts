@@ -144,7 +144,10 @@ export type ActorScope = Static<typeof ActorScope>;
  * `round`, `note` and `continue`***, five in all, which is what the server's
  * `assembly/types.ts` derives (2026-10-01). By meaning rather than by shape: an
  * `{ of }` here is what its block records as `{ kind }`, except that the two
- * dial arms record one `difficulty` source, and `schema` is recorded by no slot.
+ * dial arms record one `difficulty` source, and `schema` is recorded by no slot —
+ * ***and (2026-10-03, at the P15 merge) the `summary` slot records two kinds***:
+ * the chain's root, a Setup's story so far, as `story-so-far`, and its links as
+ * `summary` ([04 §7.2](../../../../docs/design/04-schemas.md)).
  */
 export const SlotSource = Type.Union(
   [

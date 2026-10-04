@@ -88,9 +88,12 @@ export interface UsageRecord {
   at: string;
   /**
    * What the call was for — `impersonate`, `assist:<field path>`, `illustrate`,
-   * `summarise`, `connection-test:text`, `connection-test:image`. An open string
-   * rather than a union, because the next call path to need a line should not
-   * need a migration to write one.
+   * `summarise`, `connection-test:text`, `connection-test:image`, and since the
+   * P15 merge (2026-10-03) `setup-draft:<part>` and `setup-draft:summarise` for
+   * *make a setup from here* (`turns/condense.ts` says why a link it derives is
+   * filed under the wizard rather than `summarise`). An open string rather than
+   * a union, because the next call path to need a line should not need a
+   * migration to write one — which is how those two arrived.
    */
   purpose: string;
   /** The role the call resolved — or, for a connection test, which resolved none, {@link CONNECTION_TEST_ROLE}. */

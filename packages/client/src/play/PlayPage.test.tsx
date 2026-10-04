@@ -10,7 +10,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NO_LORE_REPORT } from '@storyengine/shared';
 import type { AssembledBlock, ImageWithheld } from '@storyengine/shared';
 
-import { ApiError, type PendingInput, type TurnPreview, type TurnRecord } from '../api.js';
+import {
+  ApiError,
+  type ChatSettings,
+  type PendingInput,
+  type TurnPreview,
+  type TurnRecord,
+} from '../api.js';
 import type { StreamHandlers } from './stream.js';
 
 /**
@@ -1029,6 +1035,95 @@ describe('the two gestures', () => {
       expect(screen.getAllByRole('button', { name: 'Redo with guidance' })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'Redo' })).toHaveLength(1);
     });
+
+    /**
+     * ***A Setup's opening is read, continued from, and never redone*** —
+     * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md). An
+     * author wrote it and nothing generated it, so there is nothing to attempt
+     * again; the route refuses a redo naming one, and this is the surface
+     * agreeing rather than offering a button that fails.
+     *
+     * ***Known by what it lacks, not by a marker*** (2026-10-03, at the P15
+     * merge). The branch stamped the turn `opening: { id }` and withheld redo
+     * on that; main had meanwhile settled [P14.4]'s greeting turns on *no
+     * input and no request*, which a Setup's opening also is. One rule reads
+     * both, so the fixture carries no marker and the turn below is an opening
+     * by the same two absences a greeting is.
+     */
+    it('shows an opening as narration, with continue and without redo', async () => {
+      const opening: TurnRecord = {
+        ...TURN,
+        id: 'turn-open',
+        output: { text: 'Rain on the docks.' },
+      };
+      delete opening.input;
+      readTranscript.mockResolvedValue({
+        turns: [opening, { ...ROLLED, parentTurnId: 'turn-open' }],
+      });
+      renderPage();
+      await screen.findByText('Rain on the docks.');
+
+      expect(screen.getAllByRole('button', { name: 'Redo' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Redo with guidance' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Continue from here' })).toHaveLength(2);
+      // [P15.8]: a point worth starting from again is not only one somebody
+      // typed, so the opening offers it too.
+      expect(screen.getAllByRole('button', { name: 'Make a setup from here' })).toHaveLength(2);
+    });
+  });
+});
+
+/**
+ * ***Make a setup from here, on a chat's turn as on prose*** —
+ * [P15.8](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
+ *
+ * The branch placed the button before [P14.5] drew a chat's turns as
+ * messages; the merge auto-placed it in main's action row, which sits after
+ * `ChatMessages` inside the same turn item rather than inside the prose
+ * branch. That reading of the markup is what this pins (2026-10-03): a turn
+ * drawn as a chat — its speaker named, its words a message — offers the button
+ * too, because a point worth starting from again is not only ever narrated.
+ */
+describe('making a setup from a turn', () => {
+  const CHAT: ChatSettings = {
+    voice: 'embodied',
+    dispatch: 'per-actor',
+    speakers: {
+      policy: 'natural',
+      allowSelfResponses: false,
+      namesInHistory: 'groups',
+      maxPerRound: 3,
+    },
+    note: null,
+    hidden: {},
+    prompts: { instruction: true, cards: {} },
+  };
+
+  it('is offered on a turn drawn as a chat', async () => {
+    readSession.mockResolvedValue({
+      session: { ...SESSION, cast: { persona: null, actors: ['actor-vera'] } },
+      activeJob: null,
+      chat: CHAT,
+    });
+    readTranscript.mockResolvedValue({
+      turns: [
+        {
+          ...TURN,
+          output: {
+            text: '"You came."',
+            messages: [{ speaker: { id: 'actor-vera', name: 'Vera' }, text: '"You came."' }],
+          },
+          request: { calls: [] },
+        },
+      ],
+    });
+    renderPage();
+
+    const turn = (await screen.findByText('"You came."')).closest('li');
+    if (turn === null) throw new Error('the message is not inside a turn item');
+    // Drawn as a chat, not as prose: the speaker is named on the message.
+    expect(within(turn).getByText('Vera')).toBeTruthy();
+    expect(within(turn).getByRole('button', { name: 'Make a setup from here' })).toBeTruthy();
   });
 });
 

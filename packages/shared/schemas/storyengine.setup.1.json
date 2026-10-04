@@ -629,6 +629,15 @@
     "stagingNotes": {
       "type": "string"
     },
+    "storySoFar": {
+      "type": "string"
+    },
+    "spentHooks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "tags": {
       "type": "array",
       "items": {

@@ -38,7 +38,7 @@ import { LOREBOOK_SCHEMA, newLoreEntry, type Lorebook, type LoreEntry } from '@s
  * moved would orphan every session that named the book.
  *
  * **Every entry is `constant: false` and keyed.** A constant entry would be in
- * every assistant prompt, which for twenty-five entries is the whole budget
+ * every assistant prompt, which for twenty-six entries is the whole budget
  * spent on documentation nobody asked about — and §7.4's own claim is that
  * *keyword activation plus the budgeter already do the work*.
  */
@@ -50,7 +50,8 @@ export const DOCS_LOREBOOK_ID = '0199c000-0000-7000-8000-00000000d0c5';
 
 /**
  * The shelves — §11.2b's folders, used here for what folders are for: a reader
- * opening this book sees eleven headings rather than twenty-five entries.
+ * opening this book sees eleven headings rather than twenty-six entries
+ * (twenty-five until 2026-10-03, when *make a setup from here* joined them).
  */
 const FOLDERS: readonly { id: string; name: string }[] = [
   { id: 'lore', name: 'Lorebooks' },
@@ -382,6 +383,32 @@ const ENTRIES: readonly LoreEntry[] = [
     description: 'How to read a failed turn, and the four commonest causes.',
     content:
       'A failed turn is a turn: it commits, it is in the transcript, and it says why. The workbench over it carries the step that failed and what the provider said.\n\nThe common ones, in the order they are worth checking:\n\n1. **Nothing bound** — the role the step asked for resolved to nothing usable. `prose` is the one a story turn needs.\n2. **The endpoint is unreachable** — wrong base URL, or the server is not running.\n3. **The credential is wrong or missing** — for an endpoint that wants one.\n4. **The model id is not one that endpoint serves** — the connection lists them; a typo is a 404 from the provider.\n\nItems 2 to 4 can be checked without taking another turn: **Test** on the connection says which of them it is.\n\nA turn that failed before assembly ever ran says so with *this turn made no request*, which is a different fault from one that asked and was refused.',
+  }),
+  /**
+   * ***Make a setup from here*** — [P15](../../../docs/design/workplan/33-p15-setup-from-a-turn.md),
+   * added 2026-10-03 at its merge. In the *sessions* folder rather than the
+   * library's, because the question arrives from inside a story — *can I start
+   * again from this point* — and the setup is the answer rather than the
+   * subject. Keyed on the words somebody uses before they know the feature's
+   * name, and never on `setup` alone, which the kinds entry above already owns.
+   */
+  entry({
+    id: '0199c000-0000-7000-8000-00000000001a',
+    name: 'Starting again from a point in a story',
+    folderId: 'sessions',
+    keys: [
+      'make a setup',
+      'setup from here',
+      'start from here again',
+      'save this point',
+      'story so far',
+      'start from a setup',
+      'setup opening',
+    ],
+    description:
+      'Making a setup from any turn of a session, what it carries and hides, and how a session started from a setup begins.',
+    content:
+      "**Make a setup from here**, on any turn beside *Continue from here*, saves that point as a **setup** in your library: somewhere new sessions start, again and again, without the turns that led there. *Continue from here* keeps the history; this condenses it away.\n\nA dialog drafts **the story so far**, an **opening**, a **name and blurb**, and the **facts** the story established — each its own call on the writing model, each editable and regenerable on its own. Kept facts become a lorebook linked from the setup. The party, the current goal and the plot hooks carry too, each with a switch to leave it out.\n\n**Nothing it would spoil is shown.** Hooks that have not happened are counted, not described, and a goal hidden from you says only that it is hidden. They are carried all the same, and hooks already used are marked so they do not happen twice.\n\nA session started from the setup — on the sessions page, or **Start a session** on the setup's own page — shows the model the story so far from its first turn, as the oldest part of its running summary, which needs a preset with a summary slot. **A setup's own opening is always its first turn**: in a chat whose characters would greet you, their greetings are not used when the setup has an opening of its own, even if you start it cold. A setup with no opening begins on the greetings instead. An opening was written, not generated, so it cannot be redone.",
   }),
 ];
 

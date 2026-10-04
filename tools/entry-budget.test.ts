@@ -121,7 +121,29 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * take: the first `React.lazy`, or the note sentences off the entry with the
  * library surface that is their only reader.
  */
-const JS_CEILING_KB = 336;
+/*
+ * ***Raised to 342 on 2026-10-03, at the merge of main into P15*** —
+ * [P15](../docs/design/workplan/33-p15-setup-from-a-turn.md), *make a setup
+ * from here*, built against 310 on a branch cut on 2026-09-26, before any of
+ * the four raises above, and so never weighed against them. Main's side of
+ * the merge (`21d8048a`) measured **333.76**; merged, the entry measured
+ * **337.05**, and **337.58** once the merge's own client work was in — the
+ * session form's greetings for a Setup's party and the sentence for 25 B18's
+ * rule, the refusals for an opening a Setup no longer holds and for a greeting
+ * beside one that gained an opening, the workbench's link from the story so
+ * far to its Setup — and **337.79** after review's two sentences for a
+ * summary link the draft could not keep. **+4.03 kB** in all, nearly all of
+ * it P15's own code: the wizard (`SetupFromTurn.tsx`), the *Start a session*
+ * button a Setup's page and the wizard share (`StartSession.tsx`), and the
+ * session form's Setup picker. **No new dependency** — the branch touched no
+ * manifest — which is the [20 §7] trigger. The wizard is the plainest
+ * candidate yet for the first `React.lazy`: a dialog nobody sees until they
+ * press a button on one turn, and every byte of it on the common entry. It is
+ * still a loading decision and not a merge's, so the remedy named four times
+ * above is named a fifth, with a candidate this time. About four kB of
+ * margin, roughly what each raise above has left.
+ */
+const JS_CEILING_KB = 342;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

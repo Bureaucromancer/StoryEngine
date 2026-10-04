@@ -341,6 +341,13 @@ welcome and no longer blocked on an undecided question, only on a sequenced one.
 The [04 §7](04-schemas.md) split makes it clean: a prologue is a *session*
 travelling in a package, not a variant of Setup. *[03 §7]*
 
+*Its nearest neighbour was built on 2026-09-26 and is not it.*
+[P15](workplan/33-p15-setup-from-a-turn.md)'s *make a setup from here* makes the
+opposite trade — the history is condensed into a Setup's story so far and what
+travels starts clean, with no turn record at all ([04 §7.2](04-schemas.md)). It
+answers *I want to start from this point again*; a prologue answers *I want you
+to have played what I played*. B10 stays open, and unchanged.
+
 **B13. Where per-user UI preferences live. — RESOLVED on the third answer, at
 [P2A §2.2](workplan/09-p2a-configuration-surface.md).** A separate per-user
 `prefs.json`, which is what
@@ -498,6 +505,56 @@ of files people hold. And the `world` arm widens a closed portable union inside
 its version, which is B16's question exactly. So the rename lands before that
 release or ships as a migration, and how the arm arrives waits on B16's answer.
 *[15](15-world.md), [04 §9](04-schemas.md), [work plan §0.2](workplan/01-work-plan.md)*
+
+**B18. A Setup's opening and a cast's greetings both want turn 1 — which plays?
+— RESOLVED 2026-10-03 by the owner: the Setup's opening, always.** Two phases
+built a written opening into session creation without seeing each other.
+[P14.4](workplan/31-p14-scene-and-session-import.md) (on `main`, 2026-09-30)
+plays the cast's **greetings** — actors' written openings, in a mode that
+declares `openingTurn`, chosen per actor by `openings`.
+[P15.3](workplan/33-p15-setup-from-a-turn.md) (on a branch, 2026-09-26, merged
+2026-10-03) plays a **Setup's** written opening, chosen by `opening`, with the
+party and spent hooks the Setup carries as effects on the same turn. Each is
+turn 1, and they met at P15's merge.
+
+**When a Setup carries a written opening, the Setup's opening is the session's
+first turn, and the cast's greetings are not used for that session** — not
+beside it, not as siblings, and not when the person starts the Setup cold with
+`opening: null`. A Setup with no written opening leaves greetings as P14.4
+has them, hung from the Setup's own seeding turn when it seeds a party or spent
+hooks. The reason is what each opening is for: a Setup's is written for one
+point of one story with its party already seated — and a Setup made *from a
+turn* is that story's continuation — while a greeting is an actor's first line
+in a story that has not begun. Combining them would put a character's
+how-we-meet beside a scene in which the meeting happened long ago.
+
+*Six smaller answers came with it, each the recommended one with the owner's
+decision deferred, the first five recorded in full at
+[P15 §1.7–§1.9](workplan/33-p15-setup-from-a-turn.md) and the last in
+[the API reference](../api.md)'s `POST /api/sessions`:* **no field on the
+frozen turn record marks an opening** — the branch's `Turn.opening` was dropped,
+because a turn with no `input` and no `request` is already how B12's frozen
+record says *nothing generated this*, and with this answer only one kind of
+opening can be turn 1; **a Setup's missing opening is refused with a code of its
+own**, `unknown-setup-opening`, leaving `unknown-opening` to mean an actor's
+greeting, because the two causes need different sentences; **a greeting chosen
+beside a Setup that carries an opening is refused** (`conflicting-openings`)
+rather than silently not honoured, wherever `openings` is read at all — a mode
+that declares `openingTurn`, with somebody cast; elsewhere no greeting would be
+written and the map is ignored, as P14.4 ignores it; and **the greetings a Setup without an
+opening gets are children of its seeding turn** rather than roots beside it, so
+the party and the spent hooks are in force on the line play starts on;
+**a whole-turn redo or rewrite is refused for every turn with no `input` and no
+`request`** (`opening-turn`) — a Setup's opening and its seeding turn, a
+greeting, a divergence turn, an import's reply to nothing — because each made
+no call and a redo would only be *let them talk* from the parent, while **a
+swipe of one line is not**, since P14's Swipe on a greeting has something to
+make; and **an opening with no words is no opening**, on both halves — a
+Setup whose only written openings are blank carries none and leaves the
+greetings in place, an id naming a blank one is `unknown-setup-opening`, and a
+blank greeting is never offered or played.
+*[03 §6](03-data-model.md), [04 §7.2](04-schemas.md),
+[P14 §1.7](workplan/31-p14-scene-and-session-import.md), [the API reference](../api.md)*
 
 ---
 

@@ -270,7 +270,15 @@ export class SummaryWarmer {
     if (plan === null) return;
 
     const path = summarisablePath(transcriptOf(inputs.history));
-    const planned = planChain(path, plan.key, plan.policy);
+    /**
+     * ***Rooted as the turn is*** (2026-10-03, at the [P15] merge). A session
+     * started from a Setup with a story so far keys its first link off that
+     * root, so a warm that planned without it counted every link missing,
+     * derived a chain no turn reads, and left the turn to derive its own.
+     * `plan.root` is the turn's root by construction — the runner passes the
+     * same field of the same plan.
+     */
+    const planned = planChain(path, plan.key, plan.policy, plan.root?.key ?? null);
     const held = await listSummaries(sessions.layout, handle, sessionId);
     const missing = planned.filter((link) => !held.has(link.key)).length;
     // Warm already: nothing to derive, and so nothing to say.
@@ -346,6 +354,7 @@ export class SummaryWarmer {
       path,
       summariser,
       plan.policy,
+      plan.root,
     );
 
     if (chain.failure === undefined) {

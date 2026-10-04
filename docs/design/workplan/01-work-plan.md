@@ -1579,13 +1579,16 @@ both moved to the roadmap.
 
 ***Written 2026-09-22 at the same sitting as [10 §1.3](../10-ui-surfaces.md), and
 it is the phase between P12 and the beta declaration.*** Skeleton:
-[P12A](33-p12a-the-look.md). *Written as P11A, on a branch cut before
+[P12A](34-p12a-the-look.md). *Written as P11A, on a branch cut before
 [P12](29-p12-implementation.md) existed, and renamed when P12 — backups, which
-has no row in this section — merged first on 2026-09-23. Filed at 33 since
-2026-10-02, after [P13](30-p13-aventuras-import.md),
+has no row in this section — merged first on 2026-09-23. Filed at 33
+~~since~~ *from* 2026-10-02, after [P13](30-p13-aventuras-import.md),
 [P14](31-p14-scene-and-session-import.md) and the
 [main audit](32-main-audit.md), which have no rows here either and all ran
-before it; it is still the last phase before beta is said.*
+before it; it is still the last phase before beta is said.* *(2026-10-03: and
+at 34 since then, behind [P15](33-p15-setup-from-a-turn.md) — make a setup from
+here — which has no row here either, was built while this phase had not opened,
+and merged first; the same reasoning, one more phase.)*
 
 **Why there is a phase after the beta-hardening phase**, since that reads as a
 contradiction and the answer is mechanical. A directive to push the client

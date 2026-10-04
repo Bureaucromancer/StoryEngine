@@ -32,7 +32,10 @@ Your **library** is your story material. It holds six kinds of object:
 
 A treatment is how a world is handled — its lorebooks hold the world itself; a setup is
 one playthrough's starting arrangement in it. If you find yourself copying a treatment to
-change who is in it, you wanted a setup. (The app cannot yet start a session from a setup.)
+change who is in it, you wanted a setup. You start a session from one on the sessions
+page or from the setup's own page, and you can make one from any point of a story you
+are playing — the story so far, condensed, becomes where new sessions begin. See
+[Make a setup from here](playing.md#make-a-setup-from-here).
 
 Every object is a folder of files on the server's disk, which you can edit by hand while
 the server runs. Every save keeps the version it replaced (the newest 50 per object, unless
