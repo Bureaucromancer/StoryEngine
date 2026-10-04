@@ -91,10 +91,27 @@ export interface ProviderCapabilities {
    * **It is what makes the `image` role honest.** [20 §5.1] leaves that role
    * unset until a matching connection exists *"because there is no sensible
    * text-model fallback for it"*, and without this field a person could bind
-   * `image` to their chat endpoint and discover the mistake one turn later. The
-   * binding surface reads it, the runner's gate reads it, and both say so
-   * plainly rather than failing obscurely — [P2B]'s dangling posture, applied to
-   * a capability.
+   * `image` to their chat endpoint and discover the mistake one turn later.
+   * ~~The binding surface reads it, the runner's gate reads it, and both say so
+   * plainly rather than failing obscurely~~ The runner's gate reads it and says
+   * so plainly rather than failing obscurely — [P2B]'s dangling posture, applied
+   * to a capability.
+   *
+   * *(Corrected 2026-10-04: the binding surface never read it.* The role table
+   * offers every connection's models for `image`, with nothing beside them to
+   * say which connections make pictures, so the half of this paragraph that
+   * promised a person would be stopped at the binding was never true. What
+   * reads the flag is the rendition worker's gate; `connectionFor` in `app.ts`,
+   * which sends a queued picture to the first usable connection that says it,
+   * whichever one the binding names — the guide's *Pictures are the exception*;
+   * the connection Test route; and, since [polish §25], the client's connection
+   * form, which sets it, and the Test panel beside it, which offers a picture
+   * only where it is set. A role table that read it is still owed, and
+   * [polish §25] says why it was not built there: what an `image` row with no
+   * connection to offer should look like is an argument of its own. Polish
+   * §25 recorded the disagreement at its merge on 2026-10-03 and left this
+   * sentence standing, which is how a known-false line outlived the day it
+   * was found.)*
    */
   rendersImages: boolean;
   /**

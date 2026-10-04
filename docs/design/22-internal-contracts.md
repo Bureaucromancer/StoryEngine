@@ -738,7 +738,18 @@ answers `/images/generations` is a fact about that endpoint — so it is set per
 connection, which is where this section already says a limit belongs. It is also
 what keeps the `image` role honest: [20 §5.1](20-tech-stack.md) leaves that role
 unset until a matching connection exists, and without this a person could bind it
-to their chat endpoint and find out one turn later.
+to their chat endpoint and find out one turn later. *(Corrected 2026-10-04: with
+it, they still can.* Nothing on the binding side reads the flag — the role table
+offers every connection's models for `image` — and what does read it is the
+rendition worker's gate, the account's picture connection (the first usable one
+that says it makes pictures, whichever the binding names), the connection Test
+route, and since
+[polish §25](workplan/06-polish.md#25-a-connection-can-be-tried-without-taking-a-turn)
+the connection form that sets it. The field makes the `image` role
+*answerable*, not yet *honest at the binding*; a role table that read it is
+owed, and polish §25 says why it was left. `ProviderCapabilities.rendersImages`'
+docstring in `providers/types.ts` carried the same claim in as many words and is
+corrected the same day.)*
 
 **`maxNamedSubjects` is undeclared rather than defaulted**, for the reason the two
 prompt caps are. [06 §10.3](06-modes-and-turn-pipeline.md) puts it here in as

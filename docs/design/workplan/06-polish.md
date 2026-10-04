@@ -1018,7 +1018,11 @@ flag. Nothing in the client does: the role table offers every connection for
 the `image` role. Filtering it is a role-table change with its own argument
 about what an unset `image` role should look like, and is left for that. *Still
 so at the merge (2026-10-03)*: the form now sets the flag, and the role table
-still does not read it.
+still does not read it. *(2026-10-04: the disagreement is now half fixed, on the
+side that could be fixed in a sentence.* The docstring and
+[22 §3](../22-internal-contracts.md) are corrected to say the role table does
+not read the flag and to name what does. The role table itself still offers
+every connection for `image`, and the filter stays owed here.)
 
 **Proved against doubles only.** Every test of the button, the routes and the
 form runs against `FakeProvider` or a stub transport — the real adapter over a

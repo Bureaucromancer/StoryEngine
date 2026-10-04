@@ -21,7 +21,9 @@ through [P15](docs/design/workplan/33-p15-setup-from-a-turn.md) of the
 [work plan](docs/design/workplan/01-work-plan.md) — P13's whole-install
 Aventuras import and P14's Scene and session import merged on 2026-09-29 and
 2026-09-30, and P15's Setup made from a turn on 2026-10-03 — with **several
-phases' exit gates still awaiting a person**, P15's among them;
+phases' exit gates still awaiting a person**, those three among them
+([manual testing](docs/design/workplan/05-manual-testing.md)'s sittings X, Y
+and W);
 [the work plan's index](docs/design/workplan/README.md) records each phase's
 state rather than glossing it. *(This paragraph said "through P7" until
 2026-10-03, seven phases after it stopped being true, and "through P14" until
