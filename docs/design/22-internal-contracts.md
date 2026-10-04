@@ -1445,7 +1445,7 @@ interface Notification {
   class: NotificationClass
   /** Whether there is something to do. Fixed per class, except where noted. */
   actionable: boolean
-  /** What a `{ key, params }` summary is composed from. No English (19 §12.5). */
+  /** What a `{ key, params }` summary is composed from. No English (20 §12.5). */
   params: Record<string, string | number | boolean>
   sessionId: string | null
   turnId: string | null

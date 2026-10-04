@@ -910,7 +910,7 @@ does, it is bounded, and it needs no schema change — `rendersImages` has been 
 stored capability since [22 §3](../22-internal-contracts.md), and
 `supportsImageSeed` since the merge before this one — and no new contract: two
 routes in the model fetch's family, an optional field on two internal classes
-nothing in 21 specifies, and one more value in a field 21 does specify, the
+nothing in 22 specifies, and one more value in a field 22 does specify, the
 usage line's `role` ([22 §1.4](../22-internal-contracts.md), recorded there),
 which is additive inside `storyengine.usage/1` and read by nothing yet.
 [Item 8](#8-five-sampler-settings-the-adapter-drops) is the precedent for
@@ -1127,7 +1127,7 @@ merged the same day, read the rule the other way: its *no new contract* covered
 two whole routes and optional fields on classes
 [22](../22-internal-contracts.md) does not specify. On §25's reading, two
 optional fields on existing responses,
-neither specified by 21, are not a new contract, and that is the reading taken
+neither specified by 22, are not a new contract, and that is the reading taken
 here; that row is struck and noted rather than left disagreeing. And
 [P10](27-p10-implementation.md), whose P10.3 built *Your connections*, is
 merged, so a stage heading there would claim more than this is — §25's

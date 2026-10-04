@@ -268,7 +268,7 @@ function refuse(
    * going to be allowed to set would send somebody looking for a typo.
    *
    * **Only `model` and `step`, which is the same line `engine-computed`
-   * draws.** A person setting a status to `dead` is the manual path 25 C12
+   * draws.** A person setting a status to `dead` is the manual path 26 C12
    * calls *always-available*, and the engine setting one is a computation that
    * has already been decided. What is under-fired is the model's casual
    * killing.

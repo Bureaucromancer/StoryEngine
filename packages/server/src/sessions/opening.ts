@@ -230,7 +230,7 @@ export function chooseOpening(
 }
 
 /**
- * ***Whether a Setup carries a written opening*** — the question 25 B18
+ * ***Whether a Setup carries a written opening*** — the question 26 B18
  * turns on (rule 1 above), asked of what the Setup holds rather than of what
  * was chosen from it, because a person who starts a Setup cold has still
  * started a Setup that has one.
@@ -455,7 +455,7 @@ export function firstTurns(request: FirstTurnsRequest): { turns: Turn[]; head: s
   const from = request.setup;
   const setup = from === null ? null : setupTurn(request.sessionId, from, createdAt);
 
-  // Rule 1, 25 B18: the Setup's opening wins, chosen or declined. An
+  // Rule 1, 26 B18: the Setup's opening wins, chosen or declined. An
   // opening being written counts as carrying one even if the caller's Setup
   // somehow lists none, so the two can never both be turn 1.
   const setupWins = from !== null && (from.opening !== null || carriesOpening(from.setup));

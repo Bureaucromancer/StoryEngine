@@ -150,7 +150,7 @@ export interface CallContext {
    * [P7 §1.9], threaded at [P7.3].
    *
    * **`resolveRole` has implemented these since P2B and nothing outside a test
-   * has ever passed them**, which is what 19 §5.1's table means by *"plumbed
+   * has ever passed them**, which is what 20 §5.1's table means by *"plumbed
    * into `resolveRole` and never passed"*. The layering was a description of a
    * function rather than of what runs; this is the line that makes the two the
    * same.
@@ -420,7 +420,7 @@ export function planCall(
    *
    * The step override is keyed by `definition.id` and looked up here rather than
    * declared on the step, which is a correction §1.9 needs: that section says the
-   * step layer's *"surface is the mode or preset declaration"*, and 19 §5.1 opens
+   * step layer's *"surface is the mode or preset declaration"*, and 20 §5.1 opens
    * with **"Nothing in a mode, step or extension refers to a provider or a model
    * id — which is what makes an install portable, an extension safe to share"*.
    * A `Binding` names a `connectionId`, which exists on one install only. *A

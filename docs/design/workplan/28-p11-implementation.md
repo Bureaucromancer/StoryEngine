@@ -1043,7 +1043,7 @@ It drags `localActors`, channel state, branch structure and renditions
 is why [13 §4](../13-write-mode.md) has to be settled before the format is
 fixed, not after. That is a design dependency on a document about a 2.0 feature,
 and it is the sharpest scheduling consequence of the release re-cut. ~~If §2's
-audit finds 17 unsettled when this stage arrives, the stage blocks on 17 rather
+audit finds 13 unsettled when this stage arrives, the stage blocks on 13 rather
 than guessing.~~
 
 ***Read on 2026-09-16 (§0.2), and it is an afternoon rather than a block.***

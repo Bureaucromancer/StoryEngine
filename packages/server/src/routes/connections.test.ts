@@ -1676,7 +1676,7 @@ describe('a key', () => {
    * *session override* layer, and the noun collides honestly: it is the same
    * concept as a role binding at a different scope. It is **not** on the
    * credential surface this test guards, and it must not be admin-only, because
-   * 19 §5.1 is explicit that *"anyone who wants their own key overrides a role
+   * 20 §5.1 is explicit that *"anyone who wants their own key overrides a role
    * without the admin's involvement"*.
    *
    * **What makes it safe is not its name but `usable`.** `resolveRole` looks an

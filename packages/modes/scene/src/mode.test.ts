@@ -48,7 +48,7 @@ import { SCENE_PRESET } from './preset.js';
  * *`validate` arrives through `@storyengine/sdk` rather than from
  * `@storyengine/shared` directly. Both are permitted by the boundary graph; one
  * is permitted by the package manifest, which lists a single dependency because
- * that is the claim 19 §10 makes about a built-in mode.*
+ * that is the claim 20 §10 makes about a built-in mode.*
  */
 
 describe('the manifest is data', () => {

@@ -324,7 +324,7 @@ function spreadSetup(answers: Record<string, unknown>): { modeConfig?: Record<st
  *
  * ***And a greeting chosen for a Setup that has since gained an opening***,
  * `conflicting-openings` — the route refuses a greeting beside a Setup that
- * carries an opening, because under 25 B18 none will be written. This
+ * carries an opening, because under 26 B18 none will be written. This
  * form sends one only for a Setup it read as having none, so that refusal too
  * means the Setup changed underneath it; the choices are let go so the next
  * Start begins on the Setup's opening, which is what the route will do.
@@ -504,7 +504,7 @@ export function SessionsPage(): React.JSX.Element {
    *
    * Greetings are written for a mode that declares `openingTurn`, by the
    * members of the Setup's party who have something written — and, under
-   * 25 B18, **only when the Setup carries no opening of its own**. The
+   * 26 B18, **only when the Setup carries no opening of its own**. The
    * mode is the Setup's (or the install's default, for a Setup that names
    * none), not whatever this form's Mode select holds, because the Setup path
    * sends no `mode` and the route plays the Setup's.
@@ -535,7 +535,7 @@ export function SessionsPage(): React.JSX.Element {
        * path sends no `cast`, so [P14.5]'s characters picker is the form
        * path's — but they meet at `openings`, which the route reads for
        * whoever it seats: a Setup's party, when the Setup has no opening of
-       * its own and its mode writes greetings. Under the owner's decision (25 B18) a
+       * its own and its mode writes greetings. Under the owner's decision (26 B18) a
        * Setup that carries an opening starts on it and the greetings are not
        * written at all, so a choice among them is not sent; the form says so
        * beside the Opening select rather than leaving the pickers to vanish
@@ -812,7 +812,7 @@ export function SessionsPage(): React.JSX.Element {
                     hint="The first thing the story says. Written, not generated, so it is the same every time."
                   />
                 ) : null}
-                {/* ***The owner's decision (25 B18), said where it applies***
+                {/* ***The owner's decision (26 B18), said where it applies***
                     (2026-10-03). Only when there are greetings to set aside — the Setup's mode
                     writes them and somebody in its party has one — because a
                     sentence about greetings nobody would have given is noise

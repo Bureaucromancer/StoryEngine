@@ -133,7 +133,7 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * the four raises above, and so never weighed against them. Main's side of
  * the merge (`21d8048a`) measured **333.76**; merged, the entry measured
  * **337.05**, and **337.58** once the merge's own client work was in — the
- * session form's greetings for a Setup's party and the sentence for 25 B18's
+ * session form's greetings for a Setup's party and the sentence for 26 B18's
  * rule, the refusals for an opening a Setup no longer holds and for a greeting
  * beside one that gained an opening, the workbench's link from the story so
  * far to its Setup — and **337.79** after review's two sentences for a

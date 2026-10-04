@@ -225,7 +225,7 @@ describe('planning a call', () => {
  *
  * `resolveRole` has implemented five layers since P2B and three of the four
  * built ones had **no production caller**: session, step and the actor hint.
- * 19 §5.1's table exists precisely so *"the order above is not read as a
+ * 20 §5.1's table exists precisely so *"the order above is not read as a
  * description of what runs"* — and for two of those layers it described a
  * function nobody called. These are the tests that make the description true.
  *

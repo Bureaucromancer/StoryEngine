@@ -4,7 +4,7 @@
 `claude/epic-hypatia-p1h6my`; the phase is open, and every stage is built.
 Part 1 — P13.1 to P13.9, P13.9 closed `recorded` — and Part 2 — P13.10 to
 P13.15, scheduled by the person on 2026-09-29
-([§0.3](#03-how-this-sits-with-25-e4)), P13.14 closed `recorded` — are each
+([§0.3](#03-how-this-sits-with-26-e4)), P13.14 closed `recorded` — are each
 cited below by commit, and on `main` since 2026-09-30.
 **Neither gate is walked** ([§3](#3--the-exit-gate)); a green suite closes a
 stage, not a phase. *Both critical lists are registered in
@@ -22,9 +22,9 @@ a producer's re-import is refused `already-here` naming the session, and a chat
 door's, which asks for `extend`, extends it. Written 2026-09-26 on
 `claude/epic-hypatia-p1h6my`, from a survey of Aventuras at `c43da108`
 (2026-09-25). Part 1 is planned to the stage; ~~**Part 2 is headed and not
-scheduled**, for the reasons [§0.3](#03-how-this-sits-with-25-e4) gives~~
+scheduled**, for the reasons [§0.3](#03-how-this-sits-with-26-e4) gives~~
 **Part 2 was headed and not scheduled, and is now scheduled**, as
-[§0.3](#03-how-this-sits-with-25-e4) records.
+[§0.3](#03-how-this-sits-with-26-e4) records.
 [§0.4](#04-what-the-survey-found-in-our-own-tree)'s findings against shipped
 code are fixed, and [§0.5](#05-found-in-passing-and-not-fixed-here) records what
 the work that fixed them found and left.
@@ -73,7 +73,7 @@ files today, one export dialog at a time, and still cannot hand us their packs
 at all. The backup zip is one button in Aventuras' settings, and the config
 directory is one path.
 
-### 0.3 How this sits with 25 E4
+### 0.3 How this sits with 26 E4
 
 [26 E4](../26-open-questions.md) makes **session** import conditional on an
 interchange format and argues against the shape this phase could be mistaken
@@ -102,7 +102,7 @@ document gives the stories a number anyway. It does so on
 [P12 §1.5](29-p12-implementation.md)'s argument — a roadmap entry holds no
 commitment, and Part 1 is being built — and only as **headings**, so the stage
 names are checkable by `tools/citation-targets.test.ts`. ~~The stories stay not
-scheduled; 18 §6 records the reading.~~
+scheduled; 19 §6 records the reading.~~
 
 ***Scheduled by the person, 2026-09-29.*** Asked to build P13's remaining parts,
 the person answered *yes to everything for part 2*, with its two open questions
@@ -980,7 +980,7 @@ finding, not a failure.~~
 
 ~~*Every stage below is a heading so it can be cited and checked, and none of them
 is scheduled.*~~ *Scheduled by the person on 2026-09-29
-([§0.3](#03-how-this-sits-with-25-e4)); every stage is built in order.* [0.3](#03-how-this-sits-with-25-e4) is the argument;
+([§0.3](#03-how-this-sits-with-26-e4)); every stage is built in order.* [0.3](#03-how-this-sits-with-26-e4) is the argument;
 [19 §2.3.1](../19-session-import.md) is the survey these stages would build on.
 
 ### ~~P13.10 — `importSession` for a producer~~ Done
@@ -1368,6 +1368,6 @@ refuse); WAL with un-checkpointed frames; and zipped through
 
 The earlier pin, [19](../19-session-import.md)'s `8ae0d79a` (v0.7.8), is stale
 for everything here: `.avt` has gained two versions since, the vault's tables
-have gained columns, and the `retry` entry type 18 §2.3 describes has been
+have gained columns, and the `retry` entry type 19 §2.3 describes has been
 removed as never written. [01 §2](../01-source-survey.md)'s *library on disk* is
 the survey in full.

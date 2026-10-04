@@ -138,7 +138,7 @@ export const STATUS_CHANNEL: ChannelDefinition = {
    * annoyance corrected in one click; a false one silently removes someone from
    * the story, and every subsequent turn is then assembled around their
    * absence."* So a model proposing a terminal status is refused and recorded,
-   * and a person applies it — which is 25 C12's *under-firing plus
+   * and a person applies it — which is 26 C12's *under-firing plus
    * always-available manual completion*, exactly.
    *
    * *Both terminal values, not just `dead`.* A character wrongly written out as

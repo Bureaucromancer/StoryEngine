@@ -429,7 +429,7 @@ undecided — three answers with three different navigation costs, laid out in
 [18 §6](18-character-studio.md). **This section is where that gets answered, and
 it has to be answered before 3.0's scope is checkable**: a panel and a
 top-level place of its own are not the same release. It is named here rather
-than left in 24 because it is a surface argument, and surface arguments are
+than left in 18 because it is a surface argument, and surface arguments are
 settled here.
 
 **The count is a fact about what ships, not a principle**, and it is worth saying

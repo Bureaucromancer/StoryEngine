@@ -210,7 +210,7 @@ function main(): void {
   console.log(
     '\nWhat this can and cannot say: an empty or absurd result over a corpus\n' +
       'somebody here wrote confirms what the fixtures were built to contain and\n' +
-      'nothing else (16 §6, amended 2026-08-30). The reading that decides the\n' +
+      'nothing else (11 §6, amended 2026-08-30). The reading that decides the\n' +
       'premise is the one taken over books real authors wrote.',
   );
 }

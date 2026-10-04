@@ -68,7 +68,7 @@ describe('what counts as a mention', () => {
   /**
    * **The rule is whole-word, and this is the case that makes it worth being
    * one.** Substring matching pairs *art* with *harbour* and *the docks* with
-   * *the dockside*, which is the "absurd lists" outcome 16 §6 is watching for —
+   * *the dockside*, which is the "absurd lists" outcome 11 §6 is watching for —
    * arrived at by the matcher rather than by the books.
    */
   it('does not match inside a longer word', () => {
@@ -116,7 +116,7 @@ describe('what counts as a mention', () => {
    * from what a reader might expect. §5.3 rejects a stop-list because it is
    * *invisible* invented policy; a book whose keys are common words gets a long
    * list, and that is the file being what it is. It is also exactly the signal
-   * 16 §6 is looking for, so suppressing it would break the instrument.
+   * 11 §6 is looking for, so suppressing it would break the instrument.
    */
   it('matches a one-letter key, because the alternative is invisible policy', () => {
     const vague = entry('A Place', { keys: ['a'], content: 'Somewhere.' });

@@ -515,7 +515,7 @@ const CreateBody = Type.Object(
      * ***Refused beside a Setup that carries a written opening***
      * (`conflicting-openings`) — *recommended answer, owner deferred,
      * 2026-10-03*. That Setup's opening is what the session starts on
-     * (25 B18), so a greeting chosen here would be a choice the server
+     * (26 B18), so a greeting chosen here would be a choice the server
      * quietly did not honour: the story somebody picked in the form would not
      * be the one they got, which is the failure `unknown-setup-opening`
      * exists to refuse. *Refused rather than ignored*, as wizard answers sent
@@ -1351,7 +1351,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      *
      * *Read even beside a Setup that carries an opening*, whose session will
      * write none of them: whether the greetings are written is `firstTurns`'
-     * decision (25 B18, 2026-10-03), made in one place, and a second copy
+     * decision (26 B18, 2026-10-03), made in one place, and a second copy
      * of the rule here to save one cast read at creation would be two places
      * for it to drift. What this block does decide is the body: a greeting
      * chosen beside that Setup is refused (`conflicting-openings`, the field's
@@ -2381,7 +2381,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
    * that does not exist (`PATCH /sessions/:id` accepts only `name`)."* This is
    * that route, in the pattern the cast and lore routes already use.
    *
-   * **The step layer is here too, which §1.9 routes elsewhere and 19 §5.1
+   * **The step layer is here too, which §1.9 routes elsewhere and 20 §5.1
    * forbids elsewhere.** That section opens with *"Nothing in a mode, step or
    * extension refers to a provider or a model id — which is what makes an
    * install portable, an extension safe to share"*, and a `Binding` names a

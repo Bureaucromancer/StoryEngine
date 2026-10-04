@@ -216,7 +216,7 @@ interface ChannelDefinition {
 sketch was missing `version` and `visibility` outright, wrote `owner` without
 `PackageId` — which §4.1 immediately below says 1.0 owes from the first channel
 definition, *"because widening it afterwards is a migration over every stored
-channel"* — and named an `UpdatePolicy` alias that exists nowhere. 21 §1.3 said
+channel"* — and named an `UpdatePolicy` alias that exists nowhere. 22 §1.3 said
 it differed by *"one field"* and it differed by four.
 
 **Left to the phase, that reconciliation happens after the type ships.** P7.0
@@ -227,7 +227,7 @@ the wrong shape. So this section is corrected against what shipped rather than
 the other way round; where the two still differ is a *schedule*, stated next.
 
 ~~**Four members are specified here and deliberately absent from the shipped
-type**: `schema`, `init: InitPolicy`, `migrate` (21 §1.3's, not shown above) and
+type**: `schema`, `init: InitPolicy`, `migrate` (22 §1.3's, not shown above) and
 `surface?: WidgetSpec`. [22 §6](22-internal-contracts.md) defers `InitPolicy` and
 `WidgetSpec` because they *"want the mode contract built first"* — that contract
 is the SDK, and P7.1 is the stage that designs them against their first real
@@ -1544,7 +1544,7 @@ carries no credential — a step asks for a call by role and the host resolves t
 connection ([20 §5.1](20-tech-stack.md)) — and randomness arrives as a host
 capability whose draws land on the turn tape
 ([20 §14](20-tech-stack.md)). An extension that goes around either is
-*misbehaving rather than prevented*, exactly the status 22 §4.0 gives `HostApi`
+*misbehaving rather than prevented*, exactly the status 23 §4.0 gives `HostApi`
 itself.
 
 **So the enforcement is named rather than assumed**: the lint rule that bans

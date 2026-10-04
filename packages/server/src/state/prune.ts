@@ -14,7 +14,7 @@ import type { Logger } from './commit.js';
  *
  * P2 §2.10 says a finished turn's *"operational draft may be collected"* and its
  * event rows *"are ephemeral and may be pruned after the terminal record
- * exists"*, and 21 §5.1 calls this *a small operational store*. Nothing ever
+ * exists"*, and 22 §5.1 calls this *a small operational store*. Nothing ever
  * deleted a row from it. A turn's draft is the whole turn record with every
  * call's blocks and messages, so the history window's text is in it twice, and
  * a reply of twenty seconds leaves a hundred or more event rows beside it:

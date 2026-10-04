@@ -520,14 +520,14 @@ it**. That is [00 §3.3](00-stance.md) — dangling references are survivable,
 visible and non-blocking — applied to navigation, and it makes the hole legible
 instead of silent.
 
-### 6.3 Reconciling with 16, which refuses a second surface by name
+### 6.3 Reconciling with 11, which refuses a second surface by name
 
 [11 §5](11-lorebooks-as-a-format.md) is unambiguous: *"No second surface, no
 mode, no promotion in the navigation. Everything here happens inside the
 library."* Three points, in this order, because the first is the one that
 matters:
 
-1. **16's refusal is about a kind.** Its argument is that a lorebook is one of
+1. **11's refusal is about a kind.** Its argument is that a lorebook is one of
    six kinds and elevating one above its siblings is a category error. **Write
    elevates an activity, not an object.** The Manuscript kind gets exactly what a
    lorebook gets — a panel, the detail route, the backlink panel — and nothing
@@ -728,11 +728,11 @@ and that is a query rather than something to store.
 | Thumbnails | Embedded media — exists. |
 | Tags never reaching the model | Exists on actors, books and entries, and none is injected. Worth restating as a promise, because NovelCrafter makes it explicitly and users rely on it. |
 
-**One deliberate divergence from 16, and it must be declared rather than
+**One deliberate divergence from 11, and it must be declared rather than
 slipped.** [11 §5](11-lorebooks-as-a-format.md) computes a lorebook's mentions
 *at render and deliberately never indexes them*. **A ninety-thousand-word
 manuscript is not a lorebook**, and a heatmap over it does want the index. The
-rule 16 was protecting — no derived document, no parallel representation to fall
+rule 11 was protecting — no derived document, no parallel representation to fall
 out of date — is kept: the index stays derived and rebuildable
 ([03 §5.1](03-data-model.md)), which was always the actual invariant.
 

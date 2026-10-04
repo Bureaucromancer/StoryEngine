@@ -164,7 +164,7 @@ describe('a model may not kill somebody on its own', () => {
   });
 
   it('lets a person do it, which is the always-available manual path', () => {
-    // 25 C12: *"Under-firing plus always-available manual completion is the
+    // 26 C12: *"Under-firing plus always-available manual completion is the
     // position regardless."* The channel write route is that path.
     const effect = acceptEffect('t1', proposal('dead', { kind: 'user' }), {});
 

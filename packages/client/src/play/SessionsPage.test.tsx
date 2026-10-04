@@ -1018,7 +1018,7 @@ describe('a setup’s opening and its characters’ greetings', () => {
   /**
    * ***A Setup that gained an opening since the page read it*** — the route
    * refuses a greeting beside it (`conflicting-openings`), because under
-   * the owner's decision (25 B18) none will be written. The page says why, and lets the party's
+   * the owner's decision (26 B18) none will be written. The page says why, and lets the party's
    * choices go so the next Start is the one the route will take.
    */
   it('says the setup has its own opening now, and sends no greeting next time', async () => {

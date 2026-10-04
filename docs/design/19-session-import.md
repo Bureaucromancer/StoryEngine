@@ -501,7 +501,7 @@ subject. The paragraph above stands for the stories: a number is not a
 commitment, and [26 E4](26-open-questions.md) records the shape they would take.
 
 ***And the stories are scheduled*** — *2026-09-29.* The person scheduled
-P13's Part 2 ([P13 §0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4)):
+P13's Part 2 ([P13 §0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-26-e4)):
 the commitment the paragraph above withheld is now given, by the person and not
 by the numbering. The shape is unchanged — a producer of
 `storyengine.session-export/1` for Aventuras' stories, handing its export to

@@ -101,7 +101,7 @@ export const SILLYTAVERN_DISPOSITIONS: Readonly<Record<string, ImportDisposition
    * which runs after the library objects are written so a chat resolves
    * against the cards that came in beside it (`sweep.ts`).
    *
-   * *What 18's survey found bears on this row still, and is answered rather than
+   * *What 19's survey found bears on this row still, and is answered rather than
    * waived*: an ST message carries no id, and a turn's id is therefore a hash of
    * its account, its family, its parent and its content ([P14 §2.4]) rather
    * than anything the file says. The same chat imported twice is the same

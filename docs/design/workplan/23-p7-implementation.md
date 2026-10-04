@@ -506,7 +506,7 @@ draws `modes/scene/` and `modes/adventure/` — and **Adventure no longer exists
 Freeform and Campaign as peer modes, moving `freeform` from a preset id inside
 `mode.config` to being the `mode.id` itself, and says that move *"is free today
 and would not have been later — P7 has not built either mode."* P7.9 builds
-Freeform and no stage says where it lands. One line in 19 §10, and a package name
+Freeform and no stage says where it lands. One line in 20 §10, and a package name
 in a stage.
 
 #### The async conversion is sixteen signatures, not one — and it carries a determinism risk
@@ -904,7 +904,7 @@ about. Each is a line or two to collect and awkward to discover mid-stage.*
 **§1.3 cites [06 §9](../06-modes-and-turn-pipeline.md) and
 [23](../23-extensions.md) in one breath to settle the hop, and they contradict
 each other about randomness specifically.** 06 §9 still says an extension in a
-worker *"cannot reach an unrecorded random source"*; 22 §4.0 retracts exactly that
+worker *"cannot reach an unrecorded random source"*; 23 §4.0 retracts exactly that
 phrasing — *"wrong, and wrong in the direction that matters… A Node worker thread
 is not a sandbox."* If the worker does not enforce recorded randomness, the
 enforcement is a lint rule plus the extension test kit's replay-determinism check,
@@ -917,8 +917,8 @@ at P2 draws inside a step"* still stands unamended at
 in the server's source and are **the first files a P7.0 implementer opens** —
 `steps.ts` *is* the contract being moved. A docstring that contradicts the plan is
 how a stage re-derives a decision the phase already made. Also in the same
-neighbourhood: `22 §4` cites `[20 §11]` for the RNG, and 19 §11 is *Dev mode* —
-randomness is 19 §14. The renumber preserved a section number that was already
+neighbourhood: `23 §4` cites `[20 §11]` for the RNG, and 20 §11 is *Dev mode* —
+randomness is 20 §14. The renumber preserved a section number that was already
 wrong, and it is the one citation a P7.0 implementer would follow to learn what
 `RandomApi` owes.
 
@@ -1025,12 +1025,12 @@ reason for a partial op, so `EffectOp`'s arms stay unimplemented by decision.
 Item 10 named one test in a block of three and the complaint was about all three.
 Two items — 3 and 8 — were discharged earlier, in the stage that needed them.*
 
-1. ~~**The four retired-sentence homes and the `[20 §11]` citation** — 22 §4,
+1. ~~**The four retired-sentence homes and the `[20 §11]` citation** — 23 §4,
    `turns/steps.ts:128`, `turns/steps.test.ts:220-221`, and §P7.0's own cell.
-   **22 §4 now owes three corrections rather than one**: the retired sentence,
+   **23 §4 now owes three corrections rather than one**: the retired sentence,
    `blocks` → `Candidate`, and the full effect → `EffectProposal` (§1.2), plus
    the `[20 §11]` citation, which points at *Dev mode* where it means randomness
-   at 19 §14.~~ **Done 2026-09-11.** All four homes and the citation. 22 §4's
+   at 20 §14.~~ **Done 2026-09-11.** All four homes and the citation. 23 §4's
    blockquote now records the three divergences as *settled* rather than as
    deliberately unreconciled, and its `StepResult` sketch carries `Candidate` and
    `EffectProposal`. *One thing was added rather than corrected: the sketch still
@@ -1038,10 +1038,10 @@ Two items — 3 and 8 — were discharged earlier, in the stage that needed them
    two parameters, `message` is singular, `config` has no home, `suspend` and
    `diagnostics` are unbuilt — and those are now listed there with a date, so the
    next reader does not rediscover them and mistake a sketch for the contract.*
-2. ~~**06 §9 against 22 §4.0** on whether a worker enforces recorded randomness.~~
+2. ~~**06 §9 against 23 §4.0** on whether a worker enforces recorded randomness.~~
    **Done 2026-09-11, and 06 §9 was wrong about more than randomness.** That
    paragraph made *two* claims structural — no credential and no unrecorded
-   random source — and 22 §4.0 retracts both by the same argument: a Node worker
+   random source — and 23 §4.0 retracts both by the same argument: a Node worker
    can `require('node:crypto')` and `require('node:fs')`, and connection
    credentials are **files under the data directory**, not environment values. So
    neither is unreachable. What is structural is that neither is *handed over*:
@@ -1060,7 +1060,7 @@ Two items — 3 and 8 — were discharged earlier, in the stage that needed them
    across a hop it is a local constructor and only the draws are messages — and
    the eight methods behind it are `SiteRng`'s, asynchronous. See
    `rng/random.ts`.
-4. ~~**19 §10's tree**, which still draws `modes/adventure`.~~ **Done
+4. ~~**20 §10's tree**, which still draws `modes/adventure`.~~ **Done
    2026-09-11.** It draws `modes/freeform/` — which also answers the *"P7.9
    builds Freeform and no stage says where it lands"* gap §0.1a opened — and
    records the shipped package name, the one-level-deeper nesting and its cost.
@@ -1343,7 +1343,7 @@ performance question with no measurements yet"* — **it is not one**, and the
 mitigation is cheap chosen up front and a data-corruption bug found late.
 
 ~~**And the two documents this section cites in one breath disagree about
-randomness.**~~ ***Settled 2026-09-11 in 22 §4.0's favour, and the answer weakens
+randomness.**~~ ***Settled 2026-09-11 in 23 §4.0's favour, and the answer weakens
 this section's lean.*** 06 §9 promised a worker prevents reaching an unrecorded
 random source and has been corrected: a Node worker can `require('node:crypto')`,
 so it prevents nothing. **The hop relocates recorded randomness, it does not
@@ -1371,11 +1371,11 @@ the policy is, and scheduling them apart makes the dial invent its own prefill
 path.
 
 ***Three corrections, 2026-09-10.*** **The heading's "exactly one" is no longer
-its source's word**: 21 §1.3 records that *"a second consumer has since appeared,
+its source's word**: 22 §1.3 records that *"a second consumer has since appeared,
 and it is the same shape"* — illustration pacing
 ([06 §10.6](../06-modes-and-turn-pipeline.md)) — added four days *before* §0.1
 was written. It arrives after P7 and so does not move the dependency, which is
-21's own point; but it is the check on this section's *designed against one real
+22's own point; but it is the check on this section's *designed against one real
 need* argument coming back clean, and the section should carry it.
 
 **`InitPolicy` is a name with a one-line comment behind it, not a type awaiting a
@@ -1831,7 +1831,7 @@ what the assembler produces once the budgeter has ruled, and a step cannot
 produce one because it does not know what fits. A step's effect is an
 `EffectProposal` with no `before`, no `applied` and no id, because only the
 engine can record a refusal. Both were the engine's shapes against
-[23 §4](../23-extensions.md)'s, and in both the engine was right — so **22 is the
+[23 §4](../23-extensions.md)'s, and in both the engine was right — so **23 is the
 document that gets corrected**, which is now a cold-list item rather than an open
 question.
 
@@ -2057,7 +2057,7 @@ quarantine survivable; `ChannelState.degraded` is the inert type waiting for it.
 **`MINUTES_PER_TURN`**, a placeholder whose docstring defers it to a stage that
 already shipped, and which is the smallest possible instance of this stage's whole
 question: a channel whose reducer is engine code with a mode-shaped parameter.
-~~And **`06 §4`'s `ChannelDefinition` sketch disagrees with 21 §1.3's** — 06 lacks
+~~And **`06 §4`'s `ChannelDefinition` sketch disagrees with 22 §1.3's** — 06 lacks
 `version` and `visibility` and names an `UpdatePolicy` alias that does not exist —
 so the phase that publishes the type through the SDK has to pick, and picking
 after it ships means a published contract disagreeing with its own design note.~~
@@ -2068,8 +2068,8 @@ this cell said so and filed the work one stage too late. 06 §4's sketch is
 corrected against what shipped: `version` and `visibility` added, `owner` widened
 to `PackageId` (which §4.1 immediately below it already required from the first
 definition written), and the phantom `UpdatePolicy` alias replaced by the literal
-union. It differed by **four** things rather than the *"one field"* 21 §1.3
-claimed, and 21 §1.3 is corrected too. What remains between the sketch and the
+union. It differed by **four** things rather than the *"one field"* 22 §1.3
+claimed, and 22 §1.3 is corrected too. What remains between the sketch and the
 package — `schema`, `init`, `migrate`, `surface` — is a schedule rather than a
 disagreement, and it is P7.1's; both documents now say which is which.
 
@@ -2518,7 +2518,7 @@ see the record-shape decision below and §1.6)*.
 
 **Done: [20 §5.1]'s override layers are passed.** `resolveRole` has implemented
 five layers since P2B and §1.9 found **three of the four built ones had no
-production caller** — session, step and the actor hint. The table in 19 §5.1
+production caller** — session, step and the actor hint. The table in 20 §5.1
 exists precisely so *"the order above is not read as a description of what
 runs"*, and for two of those layers it described a function nobody called.
 `SessionFile.roles` and `SessionFile.stepRoles` carry them, the runner passes
@@ -2550,7 +2550,7 @@ about which model narrates.*
 roles` is registered outside `/api/admin/`** — a default-deny name match, written
 *"so a fifth route on this surface is covered by existing, not by somebody
 remembering"*. `PUT /sessions/:id/roles` matches it and must not be admin-only:
-19 §5.1 is explicit that *"anyone who wants their own key overrides a role
+20 §5.1 is explicit that *"anyone who wants their own key overrides a role
 without the admin's involvement"*. **Named as an exception rather than fixed by
 loosening the pattern** — loosening would un-cover routes nobody has written yet,
 which is the same argument `eslint.config.js` makes for naming one file per
@@ -4217,7 +4217,7 @@ happened rather than a silent side effect.
 ***What is not done.*** **Authoring one is [P11]'s** — 10 §11.3's image slots,
 in the editors-are-not-dumb-forms sweep. P7 gets *imported* expressions, which is
 enough to select from and not enough to author. And **generating one is 3.0's**,
-by `17-character-studio.md`'s own placement.
+by `18-character-studio.md`'s own placement.
 
 ---
 

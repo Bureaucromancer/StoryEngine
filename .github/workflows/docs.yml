@@ -19,7 +19,7 @@
 # opens a path under `docs/` and fails unless the `docs` project or the step
 # below runs it. Today that is the `docs` project (links, labels, citation
 # targets) and `config.test.ts`, which parses the configuration tables in
-# 21 §4 — a docs-only edit to that table is a change to what the tests say the
+# 22 §4 — a docs-only edit to that table is a change to what the tests say the
 # configuration must be, and it has to be checked against the code here.
 #
 # A push touching `docs/` and code runs both workflows; `ci.yml` runs

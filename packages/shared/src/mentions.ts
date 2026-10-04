@@ -110,7 +110,7 @@ function textsOf(value: unknown): string[] {
  * triggers, and to a reader they are the aliases a concept goes by. The name is
  * the third, and §5.3 names it first.
  *
- * Both key lists rather than only `keys`, because 16 §2 makes its argument about
+ * Both key lists rather than only `keys`, because 11 §2 makes its argument about
  * the pair and the book page's own search already covers both — the two surfaces
  * disagreeing about which words name an entry would be the drift this repository
  * keeps paying for elsewhere.

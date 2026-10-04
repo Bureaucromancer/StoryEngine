@@ -1847,7 +1847,7 @@ Four properties worth fixing now:
   interval; it now has a pass a minute after the start, and skips a pass when
   the wall clock has jumped. And a session's prompts and prose outlived its
   purge in the operational store, which kept every turn's draft and events;
-  those are collected now, a day after the turn (21 §5.1).
+  those are collected now, a day after the turn (22 §5.1).
 - **Trash is excluded from export and from backup by default**
   ([26 E6](26-open-questions.md)) — restoring a backup should not resurrect
   everything the user threw away before taking it. ***This sentence had no

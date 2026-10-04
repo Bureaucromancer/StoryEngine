@@ -185,7 +185,7 @@ const SetupWizard = lazy(() =>
  * ***It guards the dialog's render as well as its load, and says which***
  * (2026-10-04, in review). The boundary wraps everything the wizard draws, so
  * an exception thrown while rendering it, once the chunk is in, lands here too
- * — and 20 §5's sentence holds for a bug as much as for a missing file, so it
+ * — and 21 §5's sentence holds for a bug as much as for a missing file, so it
  * is caught rather than handed on to the router's card. What differs is the
  * advice: *only a `WizardChunkError` is told to reload*. Telling somebody whose
  * dialog hit a bug that StoryEngine was probably updated, and to reload, would
@@ -194,7 +194,7 @@ const SetupWizard = lazy(() =>
  * ***No Try again, and no Reload button, each for its reason.*** `lazy` caches
  * the rejection as it caches a success, so a retry through the same
  * declaration fails the same way without asking the network; and the likelier
- * cause on a self-hosted install is the one 20 §5 names — an upgrade replaced
+ * cause on a self-hosted install is the one 21 §5 names — an upgrade replaced
  * the server while this tab was open, and the chunk this tab knows by name is
  * gone — which only a reload answers. A button that reloads would also discard
  * a move typed and not sent, which is not persisted, so the sentence says what

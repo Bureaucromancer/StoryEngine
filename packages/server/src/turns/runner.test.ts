@@ -349,7 +349,7 @@ async function runNextTurn(): Promise<Turn> {
 /*
  * *And [P14.5c]'s editor and echo chamber make six*, both off by default and
  * both the same one-read `ok`: the editor after the narrator (first of the
- * `post` steps), the chorus last of Scene's. 25 C17's dead rows are now four.
+ * `post` steps), the chorus last of Scene's. 26 C17's dead rows are now four.
  */
 const SCENE_STEPS = [
   'se.scene.plot',

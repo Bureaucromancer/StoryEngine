@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * the chunk *arrives*; this file holds the two states the boundary adds, which
  * nothing reached before the dialog was split off: the sentence while the
  * chunk is on its way, and a load that fails — **an upgrade under an open tab**
- * is the case 20 §5 names, and the one that matters is that it costs the page
+ * is the case 21 §5 names, and the one that matters is that it costs the page
  * nothing beside the button. `SetupFromTurn.crash.test.tsx` holds the third,
  * a chunk that arrives and then fails as it draws.
  *

@@ -3423,7 +3423,7 @@ describe('a session started from a Setup with an opening', () => {
   /**
    * ***A greeting chosen beside a Setup that carries an opening*** —
    * `conflicting-openings`, recommended answer, owner deferred, 2026-10-03.
-   * The Setup's opening is what the session starts on (25 B18), so the
+   * The Setup's opening is what the session starts on (26 B18), so the
    * choice could not be honoured; refused before anything is created, and
    * without the choice the same body starts. Mutation: delete the check and
    * the first request is a 201 that quietly ignored the greeting.
@@ -3475,7 +3475,7 @@ describe('a session started from a Setup with an opening', () => {
    * a mode that declares `openingTurn`, with somebody cast besides the
    * persona; anywhere else no greeting would be written, so a choice among
    * greetings asks for nothing and the Setup's opening plays as it would have.
-   * The contract had said *refused* without the condition (api.md, 25 B18,
+   * The contract had said *refused* without the condition (api.md, 26 B18,
    * P15 §1.7) and the code never did — this pins the code's reading, which is
    * now the contract's.
    *

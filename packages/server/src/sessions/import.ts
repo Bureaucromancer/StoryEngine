@@ -85,7 +85,7 @@ import type { SessionFile } from './types.js';
  * twice claim it came from the middle.
  *
  * ***And a second caller*** — [P13.10](../../../../docs/design/workplan/30-p13-aventuras-import.md),
- * [P13 §0.3](../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4).
+ * [P13 §0.3](../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-26-e4).
  * [26 E4]'s *one format, not N importers* is kept by making every other
  * source a **producer** of this format that hands its document here, so this
  * reader is the only thing that writes an imported session. The first

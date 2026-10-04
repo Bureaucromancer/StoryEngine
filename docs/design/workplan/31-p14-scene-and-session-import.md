@@ -40,7 +40,7 @@ Part A exists so that an imported chat lands in a mode that plays the way the
 chat did. §0.6 shows the reversal restores the design rather than departing
 from it.
 
-**Sources are pinned**, as 18's are, and at the same commits. Both were fetched
+**Sources are pinned**, as 19's are, and at the same commits. Both were fetched
 and read for this document, including the code that *runs* a chat, not only
 the shapes it stores.
 
@@ -92,7 +92,7 @@ chat file** whose `chat_metadata.main_chat` names the chat it came from. It also
 pushes the new name onto `extra.branches` of the fork message in the parent.
 `createNewBookmark` (checkpoints, `:253`) does the same with
 `extra.bookmark_link`. A branch of a branch names the branch. **Both sources
-therefore need the same family reconstruction.** 18 §2.1's *"a flat file"* is
+therefore need the same family reconstruction.** 19 §2.1's *"a flat file"* is
 true of one file and false of what a person actually has.
 
 ### 0.2 `chat_metadata.integrity` identifies a family, not a chat
@@ -1196,7 +1196,7 @@ they are the general case throughout (00 §2.10).
 
 #### P14.0 — Corrections and the record
 
-- 18 §7 corrected to §0.
+- 19 §7 corrected to §0.
 - [P7B §0.3](24-p7b-presets-and-prompts.md) and the `store.ts:1937` docstring
   corrected (§0.6).
 - **The record.** `Turn.output.messages` (§1.1); the session fields (§1.2);

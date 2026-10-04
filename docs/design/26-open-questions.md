@@ -1420,7 +1420,7 @@ prices what is left and proposes an order, and schedules nothing.
 
 ***Scheduled for Aventuras, 2026-09-29*** — by the person, for
 [P13](workplan/30-p13-aventuras-import.md)'s Part 2
-([§0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4)). This
+([§0.3](workplan/30-p13-aventuras-import.md#03-how-this-sits-with-26-e4)). This
 is a commitment for **one producer**, Aventuras' stories, and not for session
 import from other platforms in general: the paragraphs above stand for every
 other source, and the producer keeps the *one reader* shape this entry
@@ -2195,7 +2195,7 @@ editor keeps stored capability overrides across model edits, which would leave
 the list naming models that are gone, and
 [P2B §6.2](workplan/10-p2b-provider-configuration.md) already warns that the
 first capability to grow an object reopens the aliasing question. It is the
-first capability to depart from 21 §3's per-endpoint premise, and it should say so
+first capability to depart from 22 §3's per-endpoint premise, and it should say so
 when it lands.
 
 **This is C15's trigger.** C15 says to decide role fallback *"with the first

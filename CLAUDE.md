@@ -57,7 +57,7 @@ Real-call tests are gated on environment, per developer, via a gitignored
 - `STORYENGINE_LIVE_MODEL` — a model id that endpoint serves
 - `STORYENGINE_LIVE_API_KEY` — only if the endpoint needs one
 - `STORYENGINE_LIVE_VISION_MODEL` — optional: a model on the same endpoint that
-  sees pictures; set, the live suite also sends one picture (25 E15)
+  sees pictures; set, the live suite also sends one picture (26 E15)
 
 `pnpm test:live` loads `.env` and runs the `live` vitest project
 (`**/*.live.test.ts`). With the variables unset the suite skips, so `pnpm test`

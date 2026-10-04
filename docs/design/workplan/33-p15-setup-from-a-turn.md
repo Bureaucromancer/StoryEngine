@@ -249,14 +249,14 @@ surface that spoils them to the person still playing defeats the feature. So:
   and summary links built from it. It never reads `renderedChannels`, which
   includes hidden channels.
 
-### 1.4 The established-facts lorebook is a precursor, not 16 §3
+### 1.4 The established-facts lorebook is a precursor, not 17 §3
 
 [17 §3](../17-authoring.md)'s lorebook extraction reads the story bible, which
 does not exist until 4.0. This phase reuses the memory extractor
 (`memory/extract.ts` — its prompt, schema and reader) over the summary chain
 and the recent turns, and puts the result in front of a person to keep, edit or
 drop. It is the **offered, never automatic, reviewed before it lands** half of
-16 §3 with a cheaper reader under it — and when the bible lands, it is the
+17 §3 with a cheaper reader under it — and when the bible lands, it is the
 reader that changes.
 
 ### 1.5 An opening is a turn, written by the engine
@@ -464,7 +464,7 @@ spare, so the next client change of any size has to say what it added.
 [21 §7.2](../21-client-loading.md) records it as the client's first lazy
 boundary, and the shape the next one starts from.
 
-### 1.12 A Setup has no place for a cast that is not a party — open, as 25 B19
+### 1.12 A Setup has no place for a cast that is not a party — open, as 26 B19
 
 **Recommended answer, owner deferred — 2026-10-04: the asymmetry stays as
 documented, and is recorded as an open question so it is not lost.** The merge

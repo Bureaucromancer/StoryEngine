@@ -149,11 +149,11 @@ export interface StepDefinition {
  * **This is the shape a step returns, and publishing it settles a divergence
  * the boundary document recorded and left open**
  * ([23 §4](../../../docs/design/23-extensions.md),
- * [P7 §1.2](../../../docs/design/workplan/23-p7-implementation.md)). 22 has a
+ * [P7 §1.2](../../../docs/design/workplan/23-p7-implementation.md)). 23 has a
  * step handing back `blocks: AssembledBlock[]`; the engine has it handing back
  * candidates, and the engine is right — a *block* is what the assembler
  * produces once the budgeter has ruled, and a step cannot produce one because
- * it does not know what fits. So the contract takes the step's shape and 22 is
+ * it does not know what fits. So the contract takes the step's shape and 23 is
  * the document that gets corrected.
  */
 export interface Candidate {
@@ -222,7 +222,7 @@ export interface CandidateImage {
  * `before`, `applied` or an id.
  *
  * **The second divergence [23 §4] recorded, settled the same way**: a step
- * *proposes* and the engine decides, so the proposal carries no verdict. 22
+ * *proposes* and the engine decides, so the proposal carries no verdict. 23
  * described a step returning full effects; the engine's narrower shape is the
  * one that makes [22 §1.2](../../../docs/design/22-internal-contracts.md)'s
  * *a refused effect stays in the record* enforceable, because only the engine
@@ -651,7 +651,7 @@ export interface StepCallRequest {
    * Which actor this call speaks for — [20 §5.1](../../../docs/design/20-tech-stack.md),
    * [P7 §1.9], added at [P7.3].
    *
-   * **The last and weakest resolution layer had no way to be reached.** 19 §5.1
+   * **The last and weakest resolution layer had no way to be reached.** 20 §5.1
    * orders the layers *install default → role binding → session override → step
    * override → actor hint*, and `resolveRole` has applied a hint since P2B — but
    * §1.9 found it *"never passed either"*, and named the reason: *"today one

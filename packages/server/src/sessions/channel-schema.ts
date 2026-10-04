@@ -11,7 +11,7 @@ import { createValidator, type ValidateFunction } from '@storyengine/shared';
  * [P7.1](../../../../docs/design/workplan/23-p7-implementation.md).
  *
  * **Two callers, two answers, and they are not the same rule.** A *proposal*
- * that fails its schema is refused and recorded as refused — 21 §1.2 lists
+ * that fails its schema is refused and recorded as refused — 22 §1.2 lists
  * *"validation failure"* first among `rejectedReason`'s causes and nothing had
  * ever produced one. A value *already in state* that fails is a different
  * situation: nobody is proposing anything, the value was legal when it was
@@ -149,5 +149,5 @@ function issuesOf(validate: ValidateFunction): string[] {
  * into this one.
  *
  * *What ships here is the rung with an unambiguous home: validation on the way
- * **in**, where 21 §1.2 already names the outcome.*
+ * **in**, where 22 §1.2 already names the outcome.*
  */

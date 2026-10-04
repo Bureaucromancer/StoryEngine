@@ -103,7 +103,7 @@ export function supervisionOf(
   pid: number,
 ): Supervision {
   // An empty value is an unset variable — `docker compose`'s `environment:`
-  // forwards a host variable that does not exist as an empty string, and 21 §4
+  // forwards a host variable that does not exist as an empty string, and 22 §4
   // already states that rule for the config ones.
   const declared = (env['SE_SUPERVISED'] ?? '').trim().toLowerCase();
   if (declared === '1' || declared === 'true' || declared === 'yes') {

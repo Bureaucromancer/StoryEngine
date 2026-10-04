@@ -1512,7 +1512,7 @@ export interface NewSession {
    * Setup's party when no `cast` is sent, and a Setup with no opening of its
    * own begins on that party's greetings — so this chooses among them. Beside
    * a Setup that carries an opening a choice is **refused**,
-   * `422 conflicting-openings`, since under 25 B18 no greeting is written there
+   * `422 conflicting-openings`, since under 26 B18 no greeting is written there
    * (`opening` above) and a choice the server quietly ignored would be a
    * story somebody picked and did not get. Empty is no choice, and passes —
    * which is why `createSession` never sends it.

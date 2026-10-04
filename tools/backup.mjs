@@ -449,7 +449,7 @@ async function restoreUnderLock(archive, dataDir) {
   }
 
   // A timestamp rather than a random id: this repository draws nothing it does
-  // not record (19 §14), and a name only has to be unique among restores staged
+  // not record (20 §14), and a name only has to be unique among restores staged
   // here, of which the journal check above allows one at a time.
   const id = `cli-${new Date().toISOString().replaceAll(/[:.]/g, '-')}`;
   const work = join(dataDir, '.restore', id);

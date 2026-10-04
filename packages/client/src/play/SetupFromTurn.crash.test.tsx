@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  *
  * The boundary around the wizard catches more than its load: once the chunk is
  * in, anything thrown while rendering the dialog reaches it too. That is
- * deliberate — 20 §5's *a failed inspector should leave the page beside it
+ * deliberate — 21 §5's *a failed inspector should leave the page beside it
  * usable* holds for a bug as much as for a missing file — and what this file
  * holds is the advice. *Reload to fetch the new version* is right for a chunk
  * an upgrade removed and wrong for a bug, which a reload repeats, so only a

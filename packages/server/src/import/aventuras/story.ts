@@ -20,7 +20,7 @@ import type { AventurasBranch, AventurasEntry, AventurasStoryRows } from './stor
  * ***An Aventuras story, as a `storyengine.session-export/1` document*** —
  * [P13.11](../../../../../docs/design/workplan/30-p13-aventuras-import.md),
  * [19 §2.3.1](../../../../../docs/design/19-session-import.md),
- * [P13 §0.3](../../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-25-e4).
+ * [P13 §0.3](../../../../../docs/design/workplan/30-p13-aventuras-import.md#03-how-this-sits-with-26-e4).
  *
  * ***A producer, not an importer*** — [26 E4]'s *one format, not N importers*,
  * kept by construction. This module returns a document and writes nothing; the

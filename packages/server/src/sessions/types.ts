@@ -226,12 +226,12 @@ export interface SessionFile {
    * *"Overrides layer on top in a fixed order: install default → role binding →
    * **session override** → **step override** → actor hint."* `resolveRole` has
    * implemented all of that since P2B and **nothing outside a test has ever
-   * passed either of these two** — which is what 19 §5.1's own table means by
+   * passed either of these two** — which is what 20 §5.1's own table means by
    * *"plumbed into `resolveRole` and never passed"*.
    *
    * **Here rather than in a mode or a preset, and that is a correction.**
    * [P7 §1.9] says the step override's *"surface is the mode or preset
-   * declaration, not a panel"* — but 19 §5.1 opens with **"Steps never name a
+   * declaration, not a panel"* — but 20 §5.1 opens with **"Steps never name a
    * model… Nothing in a mode, step or extension refers to a provider or a model
    * id — which is what makes an install portable, an extension safe to share"**.
    * A `Binding` names a `connectionId`, which exists only on one install, so a

@@ -68,7 +68,7 @@ describe('what counts as supervised', () => {
 
   /**
    * ***`docker compose`'s `environment: [SE_SUPERVISED]` forwards a host
-   * variable that does not exist as an empty string*** — 21 §4's rule for the
+   * variable that does not exist as an empty string*** — 22 §4's rule for the
    * config variables, and it matters more here: an empty value read as a yes
    * would offer the trap to exactly the deployment that cannot survive it.
    */
