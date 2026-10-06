@@ -660,3 +660,80 @@ describe('an event the watcher cannot handle', () => {
     },
   );
 });
+
+/**
+ * ***A release*** (2026-10-06) — what removing an account runs its move inside.
+ *
+ * An account's directory leads to library objects all the way down, so the
+ * watcher holds folders open inside it, and on Windows the rename that removes
+ * the account refuses while it does. `released` stops the watcher for the work,
+ * then looks at the disk the way a start does and starts again. Each test is a
+ * half of that which could be dropped without anything else noticing: the stop,
+ * the look, the start, the queue, and the shutdown that must win.
+ */
+describe('a release lets go of everything, and takes up again', () => {
+  const pause = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
+
+  async function writeForeign(slug: string, name: string): Promise<string> {
+    const path = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, slug);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(newLorebook(name)));
+    return path;
+  }
+
+  it('watches nothing during the work, and catches up with it after', async () => {
+    let during = '';
+    await watcher.released(async () => {
+      during = await writeForeign('rain-city', 'Rain City');
+      // Long past the settle window: a watcher still running would have
+      // answered by now, and an event is what this says there was none of.
+      await pause(400);
+    });
+
+    expect(events.filter((event) => event.path === during)).toEqual([]);
+    // In the index all the same — the reconcile's doing, not the watcher's.
+    expect(listObjects(library.db, { owners: [library.owner] }).map((row) => row.name)).toEqual([
+      'Rain City',
+    ]);
+
+    // And watching again afterwards.
+    const after = await writeForeign('harbour', 'The Harbour');
+    await seenBy(after);
+  });
+
+  it('runs one release at a time', async () => {
+    const order: string[] = [];
+    const work = (name: string) => async (): Promise<void> => {
+      order.push(`${name} in`);
+      await pause(150);
+      order.push(`${name} out`);
+    };
+
+    await Promise.all([watcher.released(work('first')), watcher.released(work('second'))]);
+
+    // Interleaved, the second would run with the first's stop still in force
+    // and the first's start then arriving in the middle of the second's move.
+    expect(order).toEqual(['first in', 'first out', 'second in', 'second out']);
+  });
+
+  it('ends stopped when stopped during the work', async () => {
+    let finish = (): void => undefined;
+    const released = watcher.released(
+      () =>
+        new Promise<void>((done) => {
+          finish = done;
+        }),
+    );
+    await pause(50);
+    const stopping = watcher.stop();
+    finish();
+    await Promise.all([released, stopping]);
+
+    // A shutdown arriving mid-release is the server closing. The release ends
+    // by starting the watcher again, so a stop that closed first and did not
+    // wait would leave it holding the data directory open past the end.
+    const after = await writeForeign('rain-city', 'Rain City');
+    await pause(400);
+    expect(events.filter((event) => event.path === after)).toEqual([]);
+  });
+});

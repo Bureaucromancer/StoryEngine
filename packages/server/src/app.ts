@@ -670,8 +670,14 @@ async function assembleWithState(
    * Declared below it, a first pass that ran before this line was reached
    * would have met the binding in its temporal dead zone, and the sweep now
    * has a pass shortly after the start.
+   *
+   * ***Handed the watcher's `released`*** (2026-10-06), because removing an
+   * account renames a tree the watcher holds open, and on Windows that refuses.
    */
-  const accounts = new Accounts(layout);
+  const accounts = new Accounts(
+    layout,
+    watcher === null ? {} : { releasing: (work) => watcher.released(work) },
+  );
 
   /**
    * ***The retention sweep*** — [03 §10.2], [P11.7].

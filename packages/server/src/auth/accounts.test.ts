@@ -267,6 +267,35 @@ describe('remove', () => {
     // not blocking the write that fixes it.
     expect(await accounts.find('mara')).toBeNull();
   });
+
+  /**
+   * ***The watcher is let go of for the move, and for nothing else***
+   * (2026-10-06). On Windows a folder the library watcher holds open inside
+   * `users/<handle>/` makes the rename refuse, so the move runs inside the
+   * watcher's `released`. A refusal is decided before it — the last admin, a
+   * handle that is not there — and must not cost a stopped watcher and a
+   * reconcile to arrive at.
+   */
+  it('runs the move, and only the move, inside what it was handed to release', async () => {
+    const around: string[] = [];
+    const releasing = new Accounts(layout, {
+      releasing: async (work) => {
+        around.push(`before: ${String(await fileExists(layout.userRoot('mara')))}`);
+        const result = await work();
+        around.push(`after: ${String(await fileExists(layout.userRoot('mara')))}`);
+        return result;
+      },
+    });
+    await alsoUser('mara');
+
+    await expect(releasing.remove('ned')).rejects.toMatchObject({ code: 'last-admin' });
+    await expect(releasing.remove('nobody')).rejects.toMatchObject({ code: 'not-found' });
+    expect(around).toEqual([]);
+
+    await releasing.remove('mara');
+    expect(around).toEqual(['before: true', 'after: false']);
+    expect(await releasing.find('mara')).toBeNull();
+  });
 });
 
 describe('changePassword, and what it deliberately does not inherit', () => {

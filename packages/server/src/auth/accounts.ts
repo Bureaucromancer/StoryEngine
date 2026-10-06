@@ -325,6 +325,24 @@ export function isListedInGallery(
   return account.enabled && account.hiddenFromGallery !== true;
 }
 
+export interface AccountsOptions {
+  /**
+   * ***Runs the move of a removed account's directory*** (2026-10-06) — the
+   * library watcher's `released`, when there is a watcher.
+   *
+   * An account's directory leads to library objects all the way down, so the
+   * watcher holds folders open inside it, and on Windows a folder with one held
+   * open inside it cannot be renamed: the removal answered a bare 500.
+   * **Around the move and nothing else**, which is why it is handed in rather
+   * than wrapped round the route: a removal the store refuses — the last admin,
+   * a handle that is not there — must not stop the watcher to find that out.
+   *
+   * Absent, the move runs as it is. That is `--reset-password`'s store, and
+   * any built without a watcher.
+   */
+  releasing?: <T>(work: () => Promise<T>) => Promise<T>;
+}
+
 /**
  * The account store.
  *
@@ -366,8 +384,12 @@ export class Accounts {
    */
   readonly #writes = new KeyedQueue();
 
-  constructor(layout: Layout) {
+  /** See {@link AccountsOptions.releasing}. */
+  readonly #releasing: AccountsOptions['releasing'];
+
+  constructor(layout: Layout, options: AccountsOptions = {}) {
     this.#layout = layout;
+    this.#releasing = options.releasing;
   }
 
   /** Runs one read-change-write against the file, after every earlier one. */
@@ -709,10 +731,12 @@ export class Accounts {
       // broken state rather than letting them leave it. (`fileExists` is a
       // stat, which does not care that this one is a directory.)
       if (await fileExists(this.#layout.userRoot(handle))) {
-        await moveTree(
-          this.#layout.userRoot(handle),
-          this.#layout.removedDestination(handle, uuidv7()),
-        );
+        const move = (): Promise<void> =>
+          moveTree(
+            this.#layout.userRoot(handle),
+            this.#layout.removedDestination(handle, uuidv7()),
+          );
+        await (this.#releasing === undefined ? move() : this.#releasing(move));
       }
 
       await this.#write({

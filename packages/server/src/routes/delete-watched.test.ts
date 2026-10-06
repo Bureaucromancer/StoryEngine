@@ -1,16 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LOREBOOK_SCHEMA, newLorebook } from '@storyengine/shared';
 
+import { findById } from '../index-db/query.js';
 import { blankCardPixels } from '../library.js';
 import { storeAsset } from '../library/assets.js';
 import { listDirectoryNames } from '../storage/files.js';
-import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
+import { userOwner } from '../storage/layout.js';
+import {
+  makeTestServer,
+  ownObjects,
+  setUpAdmin,
+  type TestServer,
+  watchedIndex,
+} from '../test-server.js';
 
 /**
  * ***Delete, with the watcher running*** (2026-10-06).
@@ -178,5 +186,48 @@ describe('delete, with the watcher running', () => {
     expect(
       (await server.request({ method: 'GET', url: `/api/sessions/${sessionId}` })).status,
     ).toBe(404);
+  });
+});
+
+/**
+ * ***Removing an account*** (2026-10-06) — the one move the narrowing above
+ * could not free. An account's directory leads to library objects all the way
+ * down, so its folders stay watched, and the rename to `removed/` answered a
+ * bare 500 on Windows. It now runs inside the watcher's `released`: stopped for
+ * the move, then reconciled and started again. `watcher.test.ts` holds each
+ * half of that on both platforms; this is the route, and the Windows leg is the
+ * one that can fail it.
+ */
+describe('removing an account, with the watcher running', () => {
+  it('moves the directory, forgets its objects, and goes on watching', async () => {
+    const layout = server.services.library.layout;
+    await server.services.accounts.create({
+      handle: 'mara',
+      password: 'another long password',
+      role: 'user',
+    });
+    const book = newLorebook('The Harbour');
+    const theirs = layout.objectFile(userOwner('mara'), LOREBOOK_SCHEMA, 'harbour');
+    await mkdir(dirname(theirs), { recursive: true });
+    const seen = watchedIndex(server, theirs);
+    await writeFile(theirs, JSON.stringify(book));
+    // Indexed, which is to say watched: the condition the rename met.
+    await seen;
+    expect(findById(server.services.index.db, book.id)).not.toBeNull();
+
+    const removed = await server.request({ method: 'DELETE', url: '/api/admin/accounts/mara' });
+
+    expect(removed.status).toBe(204);
+    expect(await listDirectoryNames(layout.removedRoot)).toEqual([expect.stringMatching(/^mara-/)]);
+    // The reconcile after the move, doing what the watcher's unlinks would
+    // have: nothing in the index points into a folder that has gone.
+    expect(findById(server.services.index.db, book.id)).toBeNull();
+
+    // Watching again, the account's own handle included.
+    const mine = layout.objectFile(userOwner('ned'), LOREBOOK_SCHEMA, 'rain-city');
+    await mkdir(dirname(mine), { recursive: true });
+    const indexed = watchedIndex(server, mine);
+    await writeFile(mine, JSON.stringify(newLorebook('Rain City')));
+    await indexed;
   });
 });

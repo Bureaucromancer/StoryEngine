@@ -14,6 +14,7 @@ import type { Layout } from '../storage/layout.js';
 import { PathEscapeError } from '../storage/paths.js';
 import { takeInForeignEdit } from './foreign-edit.js';
 import { clearFileError, matureTombstones, recordUnusableName, removeFile } from './ingest.js';
+import { reconcileIndex } from './reconcile.js';
 
 /**
  * The watcher — **foreign writes only**.
@@ -125,6 +126,8 @@ export class LibraryWatcher {
   #queue: Promise<void> = Promise.resolve();
   /** Set by `stop()`, after which no event is queued. */
   #stopped = false;
+  /** One release at a time — see {@link LibraryWatcher.released}. */
+  #releases: Promise<void> = Promise.resolve();
 
   /** Post-construction subscribers — see {@link LibraryWatcher.observe}. */
   readonly #observers = new Set<(event: WatchEvent) => void>();
@@ -330,10 +333,101 @@ export class LibraryWatcher {
    * index under it.
    */
   async stop(): Promise<void> {
+    // After any release in progress, not before it: a release ends by starting
+    // the watcher again, so the stop that waited for it is what closes that.
+    await this.#releases;
+    await this.#halt();
+  }
+
+  async #halt(): Promise<void> {
     this.#stopped = true;
     await this.#watcher?.close();
     this.#watcher = null;
     await this.#queue;
+  }
+
+  /**
+   * ***Runs `work` with every handle let go*** (2026-10-06) — for a move of a
+   * tree the watcher has to keep watching, which is an account's.
+   *
+   * **Removing an account renames `users/<handle>/`**, and on Windows a folder
+   * cannot be renamed while anything inside it is held open — and a watched
+   * folder is held open. Narrowing the watcher to what leads to an object
+   * (`Layout.leadsToObjects`) freed the object, session and trash moves,
+   * because none of those trees leads to an object. An account's does, all the
+   * way down, so the removal answered a bare 500.
+   *
+   * ***Stopped and started, rather than unwatched.*** chokidar's `unwatch`
+   * closes the one path it is given and not the folders below it, and leaves
+   * the path on an ignore list that a re-created account of the same handle
+   * would then be invisible behind. Stopping closes everything by
+   * construction, and starting is the path every boot takes.
+   *
+   * ***Reconciled before it starts again, in the order a boot uses***, because
+   * a hand edit made while nothing was watching is otherwise never seen until
+   * the file changes again. `reconcileIndex` is the look a start takes for
+   * exactly that, and it also forgets what the move took away — the removed
+   * account's objects and sessions, which the watcher would have heard leave.
+   * The other order would let the watcher and the check ingest one file at
+   * once ([reconcile.ts] says why that loses).
+   *
+   * **On every platform, not only Windows.** Linux would rename the tree under
+   * a running watcher, and then deliver an unlink for every file in it; this is
+   * one code path, exercised on both legs of CI, with one answer.
+   *
+   * One at a time, and a watcher that is not running is not started by one. A
+   * `stop()` arriving during the work waits for it, and closes what it started.
+   */
+  async released<T>(work: () => Promise<T>): Promise<T> {
+    const turn = this.#releases.then(() => this.#releasedNow(work));
+    this.#releases = turn.then(
+      () => undefined,
+      () => undefined,
+    );
+    return turn;
+  }
+
+  async #releasedNow<T>(work: () => Promise<T>): Promise<T> {
+    if (this.#watcher === null) return work();
+    await this.#halt();
+    try {
+      return await work();
+    } finally {
+      await this.#resume();
+    }
+  }
+
+  /**
+   * The far side of a release. **Its failures are said rather than thrown**:
+   * the work has happened by now, and an account whose folder has moved must
+   * still lose its record — `Accounts.remove` writes that after the move — or
+   * it is left in the state that method's own comment calls broken.
+   */
+  async #resume(): Promise<void> {
+    try {
+      await reconcileIndex(this.#db, this.#layout, {
+        keepHistoryPerObject: this.#options.keepHistoryPerObject ?? 50,
+      });
+    } catch (error) {
+      this.#log?.error(
+        {
+          event: 'watcher.reconcile-failed',
+          message: error instanceof Error ? error.message : String(error),
+        },
+        'The index could not be checked after the watcher was released',
+      );
+    }
+    try {
+      await this.start();
+    } catch (error) {
+      this.#log?.error(
+        {
+          event: 'watcher.restart-failed',
+          message: error instanceof Error ? error.message : String(error),
+        },
+        'The watcher could not start again; foreign edits go unseen until a restart',
+      );
+    }
   }
 
   /**

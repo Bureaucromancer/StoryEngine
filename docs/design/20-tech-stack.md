@@ -630,7 +630,10 @@ mechanical part.
   and every session watched, deleting an object that had ever been saved, a
   session with turns, or restoring either from the trash failed with `EPERM`.
   Linux's inotify pins nothing, which is why only the development platform saw
-  it. Removing an account is still that rename over a watched tree.
+  it. Removing an account renames a tree that does lead to objects, so it runs
+  its move inside `LibraryWatcher.released`: the watcher stops, the move
+  happens, the index is reconciled the way a start reconciles it, and the
+  watcher starts again.
 - **`write-file-atomic`** for every canonical write (temp + rename). SillyTavern
   already uses it; the failure it prevents is a truncated character card.
 - **`png-chunks-extract` + `png-chunk-text`** — the pair SillyTavern's card
