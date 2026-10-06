@@ -32,12 +32,23 @@ coverage/
 # exists to prevent (§1.5).
 packages/server/build-info.json
 
-# Not source, and not needed to build.
+# Not source, and not needed to build — with the one exception below it.
 .git/
 .github/
 .claude/
 docs/
 deploy/
 *.md
+
+# **Except the changelog, which the client builds in.** `home/log.ts` imports it
+# with `?raw` (since 8d20a2b2, 2026-09-15), so Home and the workbench's release
+# table show the notes of the build they are part of. The line above took it out
+# of the context, and the image's `pnpm build` then fails to resolve the import —
+# which nothing saw, because no image was built between that commit and this
+# line, and this machine has no daemon to build one. Last match wins, so the
+# exception has to come after `*.md`. `tools/release.test.ts` holds every file a
+# package imports from outside `packages/` to this file's answer.
+!CHANGELOG.md
+
 .DS_Store
 Thumbs.db

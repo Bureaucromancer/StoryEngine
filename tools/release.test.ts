@@ -2,9 +2,9 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, join } from 'node:path';
+import { delimiter, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -264,12 +264,105 @@ describe('the release workflow', () => {
 });
 
 /**
- * The build context excludes what must not reach an image — [P6A.4].
+ * Whether Docker leaves `path` out of the build context — its own reading of
+ * `.dockerignore`, not a regex over the file's lines.
  *
- * Two of these are about size and one is not. A developer's `build-info.json`
- * arriving in the context would claim the image is a build it is not, which is
- * the single lie [§1.5] exists to prevent; `data/` is the user's and is
- * canonical ([03 §5]).
+ * ***Why the reading and not the lines*** (2026-10-06). The first two tests
+ * below ask whether a line is present, and that can only ever prove an
+ * exclusion. What got through was the other direction: `*.md` took
+ * `CHANGELOG.md` out of the context, the client imports it, and every assertion
+ * here stayed green for three weeks while the next image build was certain to
+ * fail. Asking what is *kept* needs the rules applied, so this applies them the
+ * way moby's `patternmatcher` does:
+ *
+ * - a pattern loses a leading and a trailing slash and is anchored at the
+ *   context root, so `*.md` is the root's markdown and not
+ *   `packages/server/src/storage/README.md`;
+ * - `*` and `?` stop at a slash, and `**` crosses any number of them;
+ * - a pattern that matches a parent directory matches everything under it, so
+ *   `data` covers `data/sessions/…`;
+ * - the last matching line wins, and a `!` line puts a path back.
+ *
+ * Not a general implementation — no escapes and no character classes, neither
+ * of which the file uses. The controls in the third test are what keep it
+ * honest: a reading that kept everything would pass the fourth on its own.
+ */
+function dockerExcludes(dockerignore: string, path: string): boolean {
+  const rules = dockerignore
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'))
+    .map((line) => {
+      const negated = line.startsWith('!');
+      const pattern = (negated ? line.slice(1).trim() : line).replace(/^\/+|\/+$/g, '');
+      const source = pattern.replace(/\*\*\/|\*\*|\*|\?|[.+^${}()|[\]\\]/g, (token) => {
+        if (token === '**/') return '(?:.*/)?';
+        if (token === '**') return '.*';
+        if (token === '*') return '[^/]*';
+        if (token === '?') return '[^/]';
+        return `\\${token}`;
+      });
+      return { negated, pattern: new RegExp(`^${source}$`) };
+    });
+
+  const parts = path.split('/');
+  let excluded = false;
+  for (const rule of rules) {
+    // A rule that cannot change the answer is skipped, as moby skips it — an
+    // exclusion when the path is already out, a `!` when it is already in.
+    if (rule.negated !== excluded) continue;
+    let hit = rule.pattern.test(path);
+    for (let depth = 1; !hit && depth < parts.length; depth += 1) {
+      hit = rule.pattern.test(parts.slice(0, depth).join('/'));
+    }
+    if (hit) excluded = !rule.negated;
+  }
+  return excluded;
+}
+
+/**
+ * Every file a package's source imports from outside `packages/`, repo-relative.
+ *
+ * A package's own files reach the image through the context's `packages/`;
+ * what can go missing is a file reached *out* of it, the way `home/log.ts`
+ * reaches `CHANGELOG.md` with `?raw`. Tests are skipped because `tsc -b` and
+ * `vite build` never read them, and `node_modules` and `dist` because they are
+ * not source.
+ */
+function importsOutsidePackages(): string[] {
+  const found = new Set<string>();
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(path);
+        continue;
+      }
+      if (!/\.(?:[cm]?[jt]s|tsx)$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) continue;
+      const imports = readFileSync(path, 'utf8').matchAll(
+        /(?:\bfrom\s*|\bimport\s*\(?\s*)['"](\.\.?\/[^'"]+)['"]/g,
+      );
+      for (const [, specifier = ''] of imports) {
+        const target = relative(root, resolve(dirname(path), specifier.replace(/\?.*$/, '')))
+          .split(sep)
+          .join('/');
+        if (!target.startsWith('packages/')) found.add(target);
+      }
+    }
+  };
+  walk(join(root, 'packages'));
+  return [...found].sort();
+}
+
+/**
+ * The build context excludes what must not reach an image — [P6A.4] — and
+ * keeps what the build reads, which is the half it got wrong.
+ *
+ * Two of the exclusions are about size and one is not. A developer's
+ * `build-info.json` arriving in the context would claim the image is a build it
+ * is not, which is the single lie [§1.5] exists to prevent; `data/` is the
+ * user's and is canonical ([03 §5]).
  */
 describe('the docker build context', () => {
   const ignored = read('.dockerignore');
@@ -283,6 +376,49 @@ describe('the docker build context', () => {
 
   it('excludes a local build identity, so the image writes its own', () => {
     expect(ignored).toMatch(/^packages\/server\/build-info\.json$/m);
+  });
+
+  it('is read the way Docker reads it, which these controls hold the reading to', () => {
+    for (const path of [
+      'data/sessions/one/turns/0001.jsonl',
+      'config.json',
+      '.env',
+      'captures/live-tests/one.json',
+      'packages/server/build-info.json',
+      'node_modules/vitest/package.json',
+      'packages/client/node_modules/react/index.js',
+      'packages/client/dist/index.html',
+      'packages/server/tsconfig.tsbuildinfo',
+      'README.md',
+      'docs/design/21-client-loading.md',
+    ]) {
+      expect(dockerExcludes(ignored, path), path).toBe(true);
+    }
+    for (const path of [
+      'package.json',
+      'pnpm-lock.yaml',
+      'packages/client/src/home/log.ts',
+      // `*.md` is the root's markdown: a star stops at a slash.
+      'packages/server/src/storage/README.md',
+    ]) {
+      expect(dockerExcludes(ignored, path), path).toBe(false);
+    }
+  });
+
+  /**
+   * ***What the build reads from outside a package is in the context*** — and
+   * `CHANGELOG.md` was not, from 8d20a2b2 (2026-09-15) until 2026-10-06.
+   *
+   * The scan has to find the changelog. A scan that matched nothing would let
+   * the loop below agree about nothing, so its finding the one import known to
+   * exist is part of the assertion, not a courtesy.
+   */
+  it('keeps every file a package imports from outside packages/', () => {
+    const reached = importsOutsidePackages();
+    expect(reached).toContain('CHANGELOG.md');
+    for (const path of reached) {
+      expect(dockerExcludes(ignored, path), `${path} is imported, and excluded`).toBe(false);
+    }
   });
 });
 

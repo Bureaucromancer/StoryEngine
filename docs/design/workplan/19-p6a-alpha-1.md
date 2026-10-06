@@ -229,7 +229,17 @@ gate that is already met:
   and the whole git history go to the daemon on every build. *Written at
   [P6A.4], and `tools/release.test.ts` reads it: `data/`, `captures/`, the local
   secrets and a local `build-info.json` are asserted excluded, because two of
-  the stage's eight mutations were exactly those lines.*
+  the stage's eight mutations were exactly those lines.* *(2026-10-06: and
+  nothing asserted what had to be **kept**. `*.md`, filed under "not needed to
+  build", took `CHANGELOG.md` out of the context the day `home/log.ts` began
+  importing it (`8d20a2b2`, 2026-09-15), and every image built after that would
+  have failed `pnpm build` on the unresolved import — none was, so nothing
+  noticed for three weeks. `!CHANGELOG.md` puts it back, and
+  `tools/release.test.ts` now applies the file the way Docker does and holds
+  every file a package imports from outside `packages/` to it. Verified without
+  a daemon by assembling the context from `git ls-files` under the old and new
+  rules: the old one fails `pnpm build` with exactly that import, the new one
+  builds, deploys, imports all three modes and serves the client.)*
 - **No version anywhere.** All five `package.json` files are `0.0.0`, no route
   reports a build identifier, and there is no build-time define. The only git tag
   in the repository is `p1`, a bare phase marker — which means the on-tag CI
