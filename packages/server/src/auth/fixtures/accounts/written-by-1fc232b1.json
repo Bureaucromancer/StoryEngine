@@ -1,0 +1,54 @@
+{
+  "schema": "storyengine.accounts/1",
+  "accounts": [
+    {
+      "handle": "ada",
+      "displayName": "Ada",
+      "passwordHash": "a695322287a5d410d2e816ab1133dff74f136a9e8ff718a76de6109f2482b8c416779c863a2d7b58d5a3846bdb8b5098b1f828dae4bbd75c790c6d54bf3b8394",
+      "salt": "dec0c461d5a6ff21360c7916cfab5a86",
+      "role": "admin",
+      "enabled": true,
+      "locale": "en-CA",
+      "capabilities": {
+        "privateConnections": true,
+        "fileAccess": "none",
+        "enableExtensions": false,
+        "scheduledBackups": false
+      },
+      "createdAt": 1791301064603
+    },
+    {
+      "handle": "bea",
+      "displayName": "Bea",
+      "passwordHash": "2d284d1b9678180920c28d8ff3616ae92bc2ada1de5c59137fe7814808ff57564b9bdce4dc162b951d9ae4304f721532d2a36be4a11268d5f5d21defbae02ae5",
+      "salt": "c4935329bd9f588c411023bf81acd024",
+      "role": "user",
+      "enabled": true,
+      "locale": null,
+      "capabilities": {
+        "privateConnections": false,
+        "fileAccess": "read",
+        "enableExtensions": false,
+        "scheduledBackups": true
+      },
+      "createdAt": 1791301064632,
+      "hiddenFromGallery": true
+    },
+    {
+      "handle": "cal",
+      "displayName": "Cal",
+      "passwordHash": "cdefa244068a96a7e7155da0582b9e124ed1e3c133cfb17a073f231a45d84e80fb90962af769995e0a1246e5a083aaa694c64a24ee52fc0531bad8bc78b2c4d2",
+      "salt": "7a5d3dffaa95c9a620035f8c1590a3d5",
+      "role": "user",
+      "enabled": false,
+      "locale": "fr-FR",
+      "capabilities": {
+        "privateConnections": true,
+        "fileAccess": "write",
+        "enableExtensions": true,
+        "scheduledBackups": false
+      },
+      "createdAt": 1791301064662
+    }
+  ]
+}

@@ -272,6 +272,21 @@ data directory*. **Exporting is never gated**; only scheduling is.
 `users/<handle>/backup.json` is validated and schema'd, which is `tags.json`'s
 side of the line `layout.ts` draws against `prefs.json`.
 
+***Corrected 2026-10-06: "default false" was the schema's word, and nothing
+reads it.*** The capability landed **required**, and the validator runs with
+`useDefaults` off, so every `accounts.json` written before it (every tagged
+release, alpha 1 to alpha 4) fails validation. `accounts.ts` is the one store
+that refuses to start rather than degrade, so the server stops at its first
+`needsSetup`. The development install found it with a month-old file. The
+comment on `hiddenFromGallery` in the same schema had already warned that a
+required field would brick every existing install on upgrade. **Not migrated, by
+decision**: too few long-lived installs to carry one, and each takes a one-line
+hand edit, `"scheduledBackups": false` in every account's `capabilities`. What
+landed instead is `auth/accounts-upgrade.test.ts`: files this store wrote,
+frozen and hash-pinned, that must keep starting the server and signing their
+accounts in. The floor it holds starts at this stage's shape, so the next stage
+that moves it has to do so on purpose.
+
 ### P12.5 — Three config keys and the schedule
 
 `backup.frequency`, `backup.onStart`, `backup.contents`, each a six-place edit
