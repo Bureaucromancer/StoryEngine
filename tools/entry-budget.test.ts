@@ -191,7 +191,20 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * is a loading decision and not a polish entry's, so it is named rather than
  * taken.
  */
-const JS_CEILING_KB = 336;
+/*
+ * ***Raised to 341 on 2026-10-06, at [polish §27] — the next change, meeting
+ * it as the paragraph above said it would.*** Delete from the shelf: a column
+ * of `DeleteObject` on the library's rows, the control learning to name its
+ * object and to stay where it was asked from, and the ownership gate lifted
+ * out of the read page so both read one. HEAD measured **335.96** — the same
+ * bundle, byte for byte, that §26 left — and the change **336.06**: **+0.10
+ * kB**, all the client's own code, and **no new dependency**, which is the
+ * [21 §7] trigger. The owner chose the raise over a split, on the recommended
+ * answer: five kB of margin, as every raise above left, and the remedy named
+ * six times stays named — the note sentences off the entry with the library
+ * surface that is their only reader, or a second `lazy()`.
+ */
+const JS_CEILING_KB = 341;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

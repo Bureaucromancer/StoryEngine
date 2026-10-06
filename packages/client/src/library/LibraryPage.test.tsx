@@ -27,6 +27,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listLibrary = vi.fn();
 const createObject = vi.fn();
+const deleteObject = vi.fn();
 const navigate = vi.fn();
 
 /** Mutable so a test can put the page under a kind filter. */
@@ -45,9 +46,13 @@ const patchPrefs = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api.js')>()),
+  // The *used by* count a row's question shows ([polish §27]). Not on `api`,
+  // so the spread above would hand the real one a fetch jsdom does not have.
+  readUsedBy: () => Promise.resolve({ usedBy: [] }),
   api: {
     listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
     createObject: (...a: unknown[]) => createObject(...a) as unknown,
+    deleteObject: (...a: unknown[]) => deleteObject(...a) as unknown,
     // Added at P5.0: the table formats an *Updated* column, so it reads the
     // account's locale like every other surface that formats a timestamp. The
     // mock replaces the whole `api` object, so an absent method is not a
@@ -500,6 +505,12 @@ describe('the Lorebooks panel', () => {
     return [...document.querySelectorAll('tbody span')].filter((node) => node.textContent === text);
   }
 
+  /**
+   * Every header, the last one included — which since [polish §27] is every
+   * shelf's *Actions*, read here by its screen-reader name. It is the shared
+   * machinery's column rather than a panel's choice ([polish §4]: *one set of
+   * badges, filters, sorting and actions*), so it closes every list below.
+   */
   function headers(): string[] {
     return [...document.querySelectorAll('th')].map((node) => node.textContent);
   }
@@ -510,7 +521,7 @@ describe('the Lorebooks panel', () => {
     renderPage();
     await settled();
 
-    expect(headers()).toEqual(['Name', 'Entries', 'Tags', 'Source', 'Updated']);
+    expect(headers()).toEqual(['Name', 'Entries', 'Tags', 'Source', 'Updated', 'Actions']);
   });
 
   it('leaves a kind with no panel of its own exactly as it was', async () => {
@@ -518,7 +529,7 @@ describe('the Lorebooks panel', () => {
     renderPage();
     await settled();
 
-    expect(headers()).toEqual(['Name', 'Kind', 'Source']);
+    expect(headers()).toEqual(['Name', 'Kind', 'Source', 'Actions']);
   });
 
   /**
@@ -887,5 +898,110 @@ describe('searching a shelf', () => {
 
     expect(screen.getByLabelText('Sort by')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
+  });
+});
+
+/**
+ * ***Delete, from the shelf*** — [polish §27], 2026-10-06.
+ *
+ * [10 §5] lists delete among the library's verbs, and until this the only way
+ * to it was each object's page. The row carries the read page's own control
+ * behind the read page's own gate, so what is claimed here is the row's half:
+ * which rows offer it, that a column of them can be told apart, that the shelf
+ * is where the person stays, and that the object's cached copies go with it.
+ */
+describe('deleting from the shelf', () => {
+  const ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
+
+  // `clearAllMocks` keeps a queued `…Once`, so a test that failed before its
+  // held answer was asked for would hand it to the next test's first list —
+  // one fault reported twice, the second time somewhere it is not.
+  afterEach(() => {
+    listLibrary.mockReset();
+  });
+
+  /** Clicks, then lets the promise chain behind the click run out. */
+  async function press(name: string): Promise<void> {
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  }
+
+  it('offers it on your own rows, and not on the system’s or a shadowed copy', async () => {
+    listLibrary.mockResolvedValue({
+      objects: [
+        object('Rain City'),
+        {
+          ...object('Scene'),
+          id: '01a008de-7e08-70d0-899c-f6869d6b9aec',
+          source: 'system' as const,
+        },
+        // The losing copy of a duplicated id. Its Delete would move the
+        // *other* file — the winner, which every write resolves the id to.
+        { ...object('Rain City, copied'), slug: 'rain-city-copy', shadowed: true },
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(
+      screen
+        .getAllByRole('button', { name: /^Delete / })
+        .map((button) => button.getAttribute('aria-label')),
+    ).toEqual(['Delete Rain City']);
+  });
+
+  it('asks, moves it to the trash, and leaves the person on the shelf they were reading', async () => {
+    search = { kind: 'lorebooks' };
+    // The shelf's second answer is held, so the moment between the delete
+    // landing and the row leaving can be looked at.
+    let answer: (value: unknown) => void = () => undefined;
+    listLibrary.mockResolvedValueOnce({ objects: [object('Rain City')] }).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    deleteObject.mockResolvedValue(undefined);
+    const client = renderPage();
+    await settled();
+    // What a visit to the editor and the read page would have left cached.
+    client.setQueryData(['editor', 'lorebooks', ID], { id: ID });
+    client.setQueryData(['library', 'lorebooks', ID, 'winner'], { id: ID });
+
+    await press('Delete Rain City');
+    expect(deleteObject).not.toHaveBeenCalled();
+    expect(screen.getByText('Move “Rain City” to trash?')).toBeTruthy();
+
+    await press('Delete');
+    expect(deleteObject).toHaveBeenCalledWith('lorebooks', ID, 'sha256:9');
+    // Asked again at once rather than at the next poll…
+    expect(listLibrary).toHaveBeenCalledTimes(2);
+    // …and the question holds until it answers, rather than closing onto a
+    // Delete for an object already in the trash.
+    expect(screen.queryByRole('button', { name: 'Delete Rain City' })).toBeNull();
+
+    await act(async () => {
+      answer({ objects: [] });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByText('Rain City')).toBeNull();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(client.getQueryData(['editor', 'lorebooks', ID])).toBeUndefined();
+    expect(client.getQueryData(['library', 'lorebooks', ID, 'winner'])).toBeUndefined();
+  });
+
+  it('says why when it is refused, and the row stays', async () => {
+    deleteObject.mockRejectedValue(new Error('The object has changed since it was read.'));
+    renderPage();
+    await settled();
+
+    await press('Delete Rain City');
+    await press('Delete');
+
+    expect(screen.getByRole('alert').textContent).toBe('The object has changed since it was read.');
+    expect(screen.getByRole('button', { name: 'Delete Rain City' })).toBeTruthy();
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

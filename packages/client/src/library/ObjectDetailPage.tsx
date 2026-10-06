@@ -38,6 +38,7 @@ import { provenanceSourceOf } from './panels.js';
 import { ByField } from './ByField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
+import { mutable } from './mutable.js';
 import { StartSession } from './StartSession.js';
 import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
@@ -120,31 +121,6 @@ function ObjectDetail(props: {
   }
 
   return <ObjectView object={query.data} kind={props.kind} locale={locale} search={props.search} />;
-}
-
-/**
- * Whether this page may offer to *change* what it is showing — the one gate
- * behind both Edit and Delete.
- *
- * One predicate rather than two spellings, which is
- * [polish §1](../../../../docs/design/workplan/06-polish.md)'s closing note taken at its
- * word: the Edit condition was written out inline, Delete grew a second and
- * shorter hand-written copy of it, and the two had already drifted by the time
- * they were put side by side.
- *
- * **They had drifted on `shadowed`, and that was the bug.** Delete asked only
- * about `source`. But two files can hold one id, this page can be addressed at
- * either through `?source=&slug=`, and every *write* route resolves an id to
- * the winner regardless — so Delete on the losing copy moved a folder other
- * than the one on screen. That is F19 with the stakes raised from *shows the
- * wrong object* to *removes the wrong object*, and no server-side check can
- * catch it, because from the server's side the request is perfectly
- * well-formed. The affordance is withheld rather than made to lie; resolving a
- * duplicate stays a file-system job until there is a surface for it
- * ([03 §5.1](../../../../docs/design/03-data-model.md)).
- */
-function mutable(object: LibraryObject): boolean {
-  return object.source === 'user' && !object.shadowed;
 }
 
 function ObjectView(props: {

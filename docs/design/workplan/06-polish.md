@@ -1184,3 +1184,57 @@ words rather than this entry raising it.
 
 **What needs a person:** [sitting Z](05-manual-testing.md#z--a-connection-that-hides-another--ten-minutes-a-text-editor-and-a-second-account)
 — a file copied by hand, read on both rows by somebody who did not make it.
+
+## 27. Delete from the shelf
+
+*Filed and built 2026-10-06, on the owner's request.* [10 §5](../10-ui-surfaces.md)
+lists **delete** among the library's verbs and says it belongs to any kind a
+user owns, and [P4.4](16-p4-implementation.md) built it — on each object's read
+page and in its editors, and nowhere else. Tidying a shelf meant opening every
+object on it in turn: a page load to reach Delete, and another to come back.
+
+**What shipped.**
+
+- **A Delete on every row of your own**, in a trailing column every panel gets
+  — [§4](#4-per-kind-library-surfaces-all-kinds-stops-being-a-browsing-view)'s
+  *one set of badges, filters, sorting and actions*, so it is the shared
+  machinery's column and not a panel's choice. The column's heading is
+  *Actions* to a screen reader and blank to the eye.
+- **The read page's own control**, `DeleteObject`: the two-step of
+  [§20](#20-destructive-actions-ask-once-the-same-way-everywhere), the move to
+  the trash, the *used by* count beside the question, and the refusal said in
+  place. It learned two things for a row. `named`: [§23](#23-the-keyboard-and-the-screen-reader-get-there-too)'s
+  rule, since a column of buttons that are all *Delete* is a list nobody can
+  choose from — so the trigger is *Delete Rain City* to a screen reader and the
+  question is *Move “Rain City” to trash?* for everybody. And `stay`: a row is
+  not a page, and leaving after the delete would have sent somebody from
+  `/library?kind=treatments` to every kind at once. It stays, drops the
+  object's cached editor and read entries that nothing is watching, and keeps
+  the question open until the shelf's refetch has taken the row away.
+- **The read page's own gate**, lifted out of `ObjectDetailPage` into
+  `library/mutable.ts` so both read one predicate: nothing on a system object,
+  and nothing on a shadowed copy, whose id resolves to the *other* file of the
+  two on every write — the drift that predicate's own comment records.
+
+**What it cost the entry bundle**: **+0.10 kB** gzip, 335.96 to 336.06, which
+met §26's ceiling as §26 said the next change would. **Raised to 341 on the
+owner's decision** (the recommended answer: five kB of margin, as every raise
+in `tools/entry-budget.test.ts` has left), argued in that file; the remedy it
+has named six times — the first split off the entry for the library surface's
+note sentences — stays named.
+
+**Proved against** `LibraryPage.test.tsx` (*deleting from the shelf*: which
+rows offer it, the names, the trash with the hash the row was shown, the
+person kept on the shelf, the cached entries gone, the question held until the
+row leaves, a refusal said with the row left standing) and
+`ObjectDetailPage.test.tsx` (the shadowed copy, through the lifted predicate).
+Nine mutations, each seen red and restored: the stay branch removed, each of
+the two cache removals dropped, the refetch not awaited, the trigger and the
+question each unnamed, the gate letting a shadowed copy through, the row
+ignoring the gate, and the row not asking to stay.
+
+**What the changelog will say**, parked here for §25's reason:
+
+- **Delete from the library list** — every object of your own has a Delete on
+  its row, which asks first and moves it to the trash without leaving the
+  shelf.

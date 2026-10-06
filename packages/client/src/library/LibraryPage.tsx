@@ -14,8 +14,10 @@ import { TagChip } from '../ui/TagChip.js';
 import { link, page, table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
+import { DeleteObject } from './DeleteObject.js';
 import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
+import { mutable } from './mutable.js';
 import { QuarantinePanel } from './QuarantinePanel.js';
 import {
   emptyMessage,
@@ -513,12 +515,19 @@ function ObjectTable(props: {
                     {column.header}
                   </th>
                 ))}
+                {/* The row's actions. Named for a screen reader and blank to
+                    the eye, as `ComparePage`'s first column is: a heading
+                    saying *Actions* over one button per row says nothing the
+                    buttons do not. */}
+                <th scope="col" className={table.th}>
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {folders.map((folder) => (
                 <tr key={`folder:${folder.tag.id}`} className={table.row}>
-                  <td className={table.cell} colSpan={panel.columns.length + 1}>
+                  <td className={table.cell} colSpan={panel.columns.length + 2}>
                     <button
                       type="button"
                       className="flex items-center gap-2 text-sm text-ink"
@@ -610,6 +619,30 @@ function ObjectRow(props: {
           {column.cell(props.object, props.locale, props.hidden)}
         </td>
       ))}
+      <td className={table.cell}>
+        {/*
+         * ***Delete, from the shelf*** (2026-10-06, [polish §27]) — [10 §5]
+         * lists delete among the library's verbs and says it belongs to any
+         * kind a user owns, and until now the only way to it was through each
+         * object's page, one object and two page loads at a time.
+         *
+         * **The read page's control and the read page's gate**, not a row's
+         * own: `DeleteObject` is the two-step, the trash, the *used by* count
+         * and the refused-412 sentence, and `mutable` is what withholds it from
+         * the system's objects and from a shadowed copy — which on the shelf
+         * is a row whose id names the *other* file. `named`, because this is a
+         * column of them; `stay`, because the shelf is where the person is.
+         */}
+        {kind !== null && mutable(props.object) ? (
+          <DeleteObject
+            kind={kind}
+            id={props.object.id}
+            contentHash={props.object.contentHash}
+            named={props.object.name}
+            stay
+          />
+        ) : null}
+      </td>
     </tr>
   );
 }

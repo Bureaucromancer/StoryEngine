@@ -30,7 +30,10 @@ import { TwoStep } from '../ui/TwoStep.js';
  * file. The two-step and the refused-412 sentence were each found wrong once
  * while this lived beside the header it started in; a copy in each editor
  * would be three places for the next such finding to hide, and three
- * confirmations that could drift apart in wording.
+ * confirmations that could drift apart in wording. ***Four since 2026-10-06***
+ * — every row of the shelf one of your own ([polish §27]), which is what
+ * `named` and `stay` are for, and the argument for one control held: the row
+ * was a fourth place for the same sentences to drift.
  */
 export function DeleteObject(props: {
   kind: LibraryKind;
@@ -45,6 +48,26 @@ export function DeleteObject(props: {
    * for their edits in the trash.
    */
   unsaved?: boolean;
+  /**
+   * ***The object's name, where several of these stand together*** — the
+   * shelf, one per row (2026-10-06, [polish §27]).
+   *
+   * Polish §23's rule: a table of buttons that are all *Delete* is a list
+   * nobody can choose from. So it names the trigger for a screen reader, and
+   * the question for everybody, since the question is what both answers are
+   * described by and *Move to trash?* in row nine says nothing about row nine.
+   * A page about one object leaves it out, and asks as it always has.
+   */
+  named?: string;
+  /**
+   * ***Stay where the delete was asked from*** — the shelf (2026-10-06).
+   *
+   * The pages about one object leave, because what they showed is gone. A row
+   * on the shelf is not a page: leaving would send somebody from
+   * `/library?kind=treatments` to every kind at once for the crime of tidying
+   * up, and the list they were reading is the one thing still worth showing.
+   */
+  stay?: boolean;
   /** Position only — an `ms-auto`. */
   className?: string;
 }): JSX.Element {
@@ -56,6 +79,29 @@ export function DeleteObject(props: {
     setError(null);
     try {
       await api.deleteObject(props.kind, props.id, props.contentHash);
+      if (props.stay === true) {
+        /**
+         * **The object's own entries go, and only the ones nothing watches.**
+         * The editor's base is the ghost the comment below describes, and a
+         * read page visited earlier is the same ghost under the other prefix;
+         * neither is mounted on the shelf. An *active* entry under that prefix
+         * — the workbench, open on this very object — is left to the refetch,
+         * which answers it with the 404 that is now true, where removing it
+         * would orphan the observer showing it.
+         *
+         * **Awaited, so the row is gone before the question closes.** The
+         * shelf's refetch is what removes the row; settled first, the question
+         * would close onto a Delete button for an object already in the
+         * trash, for as long as the list took to come back.
+         */
+        queryClient.removeQueries({ queryKey: ['editor', props.kind, props.id], type: 'inactive' });
+        queryClient.removeQueries({
+          queryKey: ['library', props.kind, props.id],
+          type: 'inactive',
+        });
+        await queryClient.invalidateQueries({ queryKey: ['library'] });
+        return;
+      }
       /**
        * ***Leave first, then refetch*** (2026-09-27).
        *
@@ -139,9 +185,8 @@ export function DeleteObject(props: {
        */}
       <TwoStep
         label="Delete"
-        question={
-          props.unsaved === true ? 'Move to trash? Unsaved edits are not kept.' : 'Move to trash?'
-        }
+        {...(props.named === undefined ? {} : { name: `Delete ${props.named}` })}
+        question={question(props.named, props.unsaved === true)}
         variant="dangerOutline"
         aside={<ReferenceCount kind={props.kind} id={props.id} />}
         // Cleared on asking rather than on the next attempt: a stale message
@@ -153,6 +198,17 @@ export function DeleteObject(props: {
       />
     </span>
   );
+}
+
+/**
+ * The question, whole — built here rather than in the JSX, because a sentence
+ * split across children is what the assembly rule reports. The name is quoted:
+ * objects are called things like *Vera Solano, edited a third time*, and a
+ * question that runs into its own subject stops reading as one.
+ */
+function question(named: string | undefined, unsaved: boolean): string {
+  const ask = named === undefined ? 'Move to trash?' : `Move “${named}” to trash?`;
+  return unsaved ? `${ask} Unsaved edits are not kept.` : ask;
 }
 
 /**
