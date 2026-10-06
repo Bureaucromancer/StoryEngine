@@ -94,6 +94,79 @@ describe('library owners', () => {
   });
 });
 
+describe('what the watcher looks at', () => {
+  /**
+   * `leadsToObjects` is the watcher's whole scope (2026-10-06): a path it
+   * refuses is never watched, and on Windows a watched folder is a directory
+   * handle that stops its ancestors being renamed — which is what a delete is.
+   * Both halves matter. Admit too little and a hand edit is never seen; admit
+   * too much and the delete of an object with history fails with `EPERM`.
+   */
+  const under = (...segments: string[]): string => join(DATA, ...segments);
+  const book = ['users', 'ned', 'library', 'lorebooks', 'rain-city'];
+
+  it('admits every step on the way to an object file, and the file', () => {
+    for (const path of [
+      DATA,
+      under('system'),
+      under('system', 'library'),
+      under('system', 'library', 'actors'),
+      under('system', 'library', 'actors', 'vera'),
+      under('system', 'library', 'actors', 'vera', 'card.png'),
+      under('users'),
+      under('users', 'ned'),
+      under('users', 'ned', 'library'),
+      under('users', 'ned', 'library', 'lorebooks'),
+      under(...book),
+      under(...book, 'lorebook.json'),
+      // A folder this build will not resolve still has to reach the handler,
+      // which is what reports it as unusable ([P6B.1]).
+      under('users', 'ned', 'library', 'lorebooks', 'con', 'lorebook.json'),
+    ]) {
+      expect(layout.leadsToObjects(path), path).toBe(true);
+    }
+  });
+
+  it('refuses everything inside an object folder but the object', () => {
+    for (const path of [
+      under(...book, 'history'),
+      under(...book, 'history', 'v'),
+      under(...book, 'history', 'index.jsonl'),
+      under(...book, 'assets'),
+      under(...book, 'assets', 'map.png'),
+      // An atomic write's temporary, and another kind's filename.
+      under(...book, 'lorebook.json.4021'),
+      under(...book, 'card.png'),
+    ]) {
+      expect(layout.leadsToObjects(path), path).toBe(false);
+    }
+  });
+
+  it('refuses everything that is not a library', () => {
+    for (const path of [
+      layout.indexRoot,
+      layout.stateRoot,
+      layout.accountsFile,
+      layout.configFile,
+      layout.backupsRoot,
+      layout.removedRoot,
+      under('system', 'connections'),
+      under('users', 'ned', 'sessions'),
+      under('users', 'ned', 'sessions', '01a0158c', 'turns'),
+      under('users', 'ned', 'trash'),
+      under('users', 'ned', 'trash', 'lorebooks', 'rain-city-01a1', 'history'),
+      layout.userBackupsRoot('ned'),
+      under('users', 'ned', 'tags.json'),
+      under('users', 'ned', 'library', 'not-a-kind'),
+      under('users', '-ned', 'library'),
+      resolve('/elsewhere'),
+      `${DATA}-evil`,
+    ]) {
+      expect(layout.leadsToObjects(path), path).toBe(false);
+    }
+  });
+});
+
 describe('handles are hostile input', () => {
   // A handle becomes a directory name under `users/`, and the path is the owner
   // ([09 §4.3](../../../../docs/design/09-server-multiuser-deployment.md)). The cost of

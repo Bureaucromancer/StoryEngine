@@ -622,7 +622,15 @@ mechanical part.
   was never watched, and a tree copied into the library faster than it was
   discovered lost every hand edit under it until the next start's reconcile.
   The patch moves the watch ahead of the read in `_handleDir` and nothing else;
-  it goes when a release of chokidar does the same.
+  it goes when a release of chokidar does the same. *Scoped, 2026-10-06:* it
+  watches only the paths that lead to a library object file
+  (`Layout.leadsToObjects`), not the whole data directory. On Windows every
+  watched folder is a directory handle held open, and a folder with a handle
+  held inside it cannot be renamed — so with `history/`, `assets/`, the trash
+  and every session watched, deleting an object that had ever been saved, a
+  session with turns, or restoring either from the trash failed with `EPERM`.
+  Linux's inotify pins nothing, which is why only the development platform saw
+  it. Removing an account is still that rename over a watched tree.
 - **`write-file-atomic`** for every canonical write (temp + rename). SillyTavern
   already uses it; the failure it prevents is a truncated character card.
 - **`png-chunks-extract` + `png-chunk-text`** — the pair SillyTavern's card

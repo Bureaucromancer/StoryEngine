@@ -11,7 +11,7 @@ import { type FSWatcher, watch } from 'chokidar';
 import { selfWrites, type SelfWriteRegistry } from '../storage/atomic.js';
 import { appendLine, statFile, unlinkFile } from '../storage/files.js';
 import type { Layout } from '../storage/layout.js';
-import { isContained, PathEscapeError } from '../storage/paths.js';
+import { PathEscapeError } from '../storage/paths.js';
 import { takeInForeignEdit } from './foreign-edit.js';
 import { clearFileError, matureTombstones, recordUnusableName, removeFile } from './ingest.js';
 
@@ -68,6 +68,25 @@ export interface WatcherOptions {
  * root, which no layout path is. See {@link LibraryWatcher.start}.
  */
 const PROBE_PREFIX = '.watcher-probe-';
+
+function isProbe(layout: Layout, path: string): boolean {
+  return dirname(path) === layout.dataRoot && basename(path).startsWith(PROBE_PREFIX);
+}
+
+/**
+ * ***Everything the watcher looks at*** (2026-10-06): what leads to an object,
+ * and its own delivery probe.
+ *
+ * **The probe is the half that is easy to lose.** It sits at the data root and
+ * leads to no object, so the layout's rule alone refuses it — and nothing
+ * fails when it does: `start()` waits out its whole ladder for an event that
+ * cannot come and gives up quietly, which is the behaviour it keeps for a root
+ * whose events genuinely never arrive. A function of its own so the pair can
+ * be asked about without starting anything.
+ */
+export function watches(layout: Layout, path: string): boolean {
+  return isProbe(layout, path) || layout.leadsToObjects(path);
+}
 
 export interface WatchEvent {
   /**
@@ -196,29 +215,26 @@ export class LibraryWatcher {
       // row that later reads open. The audited resolver refuses such a path
       // when asked; not following the link means it is never even offered.
       followSymlinks: false,
-      // What the watcher must never watch: its own index (whose SQLite/WAL
-      // writes would otherwise feed the event queue on every ingest), the
-      // operational store, and the two root files that are not content —
-      // accounts and config should not even be stat'ed on someone's behalf.
-      // `isContained` rather than string matching: the previous predicate
-      // compared mixed separators and never matched on Windows, which is the
-      // development platform. It matches the root itself, so it covers single
-      // files as well as directories.
+      // ***Only what leads to an object*** (2026-10-06), which is `watches`
+      // above. ~~What the watcher must never watch~~ was a list — the index,
+      // the operational store, accounts, config, and at
+      // [P12.2](../../../../docs/design/workplan/29-p12-implementation.md)
+      // the backups — and a list is the wrong shape for it, because everything
+      // it did not name was watched and discarded: sessions, the trash, and
+      // every object's `history/` and `assets/`. On Windows each of those is a
+      // directory handle held open, and **a held handle inside a folder is a
+      // folder that cannot be renamed** — so every delete of an object that had
+      // ever been saved, and of every session with turns, failed with `EPERM`.
       //
-      // ***And the backups*** ([P12.2](../../../../docs/design/workplan/29-p12-implementation.md)).
-      // An archive is not an object, so `parseObjectPath` would answer `null`
-      // and nothing would be indexed either way — but that is the wrong test.
-      // `awaitWriteFinish` **stats a file repeatedly until it stops growing**,
-      // so a half-gigabyte install archive means minutes of polling for an
-      // answer known in advance, on every scheduled backup. `selfWrites` is not
-      // the mechanism here: its TTL is two seconds and it exists for small
-      // atomic writes, not for a stream that is open for as long as this one.
-      ignored: (path) =>
-        isContained(this.#layout.indexRoot, path) ||
-        isContained(this.#layout.stateRoot, path) ||
-        isContained(this.#layout.accountsFile, path) ||
-        isContained(this.#layout.configFile, path) ||
-        this.#layout.isBackupPath(path),
+      // Each reason the list gave still holds, and now holds by default: the
+      // index's SQLite/WAL writes would feed the event queue on every ingest;
+      // accounts and config should not even be stat'ed on someone's behalf;
+      // and `awaitWriteFinish` **stats a file repeatedly until it stops
+      // growing**, so a half-gigabyte backup archive would be minutes of
+      // polling for an answer known in advance. `isContained` underneath
+      // rather than string matching, still: the list's first predicate
+      // compared mixed separators and never matched on Windows.
+      ignored: (path) => !watches(this.#layout, path),
     });
 
     watcher.on('add', (path) => {
@@ -299,7 +315,7 @@ export class LibraryWatcher {
   }
 
   #isProbe(path: string): boolean {
-    return dirname(path) === this.#layout.dataRoot && basename(path).startsWith(PROBE_PREFIX);
+    return isProbe(this.#layout, path);
   }
 
   /** Resolves once every event seen so far has been handled. */

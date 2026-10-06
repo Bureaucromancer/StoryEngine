@@ -470,13 +470,10 @@ export class Layout {
   /**
    * Whether a path is inside either backups directory.
    *
-   * ***Two callers, and they want it for opposite reasons.*** The archive
-   * walker excludes these paths because an archive of the archives makes every
-   * generation carry every one before it. The watcher
-   * (`index-db/watcher.ts`) excludes them because chokidar's
-   * `awaitWriteFinish` would otherwise poll a half-gigabyte file for the whole
-   * time it is being written — and `selfWrites` is not the answer there, being
-   * a two-second TTL built for small atomic writes.
+   * The archive walker excludes these paths because an archive of the archives
+   * makes every generation carry every one before it. ~~Two callers~~ — the
+   * watcher was the second, and it now watches only what
+   * {@link leadsToObjects} admits, which a backup never is (2026-10-06).
    *
    * **By portable path rather than by `isContained`**, because the per-user
    * directories are one per account rather than one root, and a predicate that
@@ -742,6 +739,59 @@ export class Layout {
     if (filename !== OBJECT_FILENAMES[schemaId]) return null;
 
     return { owner, schemaId, slug, path };
+  }
+
+  /**
+   * ***Whether a path is on the way to an object file*** — the data root, a
+   * directory one can sit beneath, or the file {@link parseObjectPath} accepts —
+   * and so whether the watcher should look at it at all (2026-10-06).
+   *
+   * **The watcher used to watch the whole data directory and discard what it
+   * could not index**, which on Linux costs only events. On Windows, which is
+   * the development platform, it cost every delete: chokidar holds a directory
+   * handle open on every folder it watches, and Windows refuses to rename a
+   * folder while something inside it is held open. So the move to the trash
+   * failed with `EPERM` for any object that had ever been saved — the first
+   * save makes `history/` — and for any lorebook with a picture in `assets/`,
+   * and for every session with a `turns/` folder. A never-edited object
+   * deleted, which is why it read as unreliable rather than as broken.
+   *
+   * ***Nothing the watcher indexes was lost by narrowing it***, because the test
+   * is the same one the handler already applied after the fact: a path
+   * `parseObjectPath` refuses was answered `ignored` and nothing else. This asks
+   * it before chokidar opens anything, and adds the one fact `parseObjectPath`
+   * cannot give — that `users/ned/library/actors` is not an object but leads to
+   * some.
+   *
+   * *Lexical, like `parseObjectPath`, and for the same reason*: chokidar asks
+   * before it has stat'ed a path, so the answer cannot depend on whether the
+   * thing is a file. The slug segment is not tested, because a folder named
+   * `con` has to reach the handler to be reported as unusable ([P6B.1]).
+   */
+  leadsToObjects(path: string): boolean {
+    if (!isContained(this.dataRoot, path)) return false;
+    const relative = relativeWithin(this.dataRoot, path);
+    if (relative === null) return true;
+
+    const parts = relative.split('/');
+    let rest: string[];
+    if (parts[0] === 'system') {
+      rest = parts.slice(1);
+    } else if (parts[0] === 'users') {
+      if (parts[1] === undefined) return true;
+      if (!isValidHandle(parts[1])) return false;
+      rest = parts.slice(2);
+    } else {
+      return false;
+    }
+
+    const [library, directory, slug, filename] = rest;
+    if (library === undefined) return true;
+    if (library !== 'library') return false;
+    if (directory === undefined) return true;
+    if (!Object.values(LIBRARY_DIRECTORIES).some((dir) => dir === directory)) return false;
+    if (slug === undefined || filename === undefined) return true;
+    return this.parseObjectPath(path) !== null;
   }
 }
 

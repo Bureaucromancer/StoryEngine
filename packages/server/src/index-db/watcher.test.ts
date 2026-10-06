@@ -20,7 +20,7 @@ import { listVersions, readVersionPayload } from '../storage/history.js';
 import { listFileErrors, ownerKey } from './ingest.js';
 import { findById, listObjects } from './query.js';
 import { makeTestLibrary, type TestLibrary } from './test-library.js';
-import { LibraryWatcher, type WatcherOptions, type WatchEvent } from './watcher.js';
+import { LibraryWatcher, type WatcherOptions, type WatchEvent, watches } from './watcher.js';
 
 /**
  * The watcher, driven by real filesystem events.
@@ -249,14 +249,44 @@ describe('the watcher ignores its own writes', () => {
     );
   });
 
-  it('ignores files that are not library objects', async () => {
-    const assets = library.layout.assetsRoot(library.owner, LOREBOOK_SCHEMA, 'rain-city');
-    await mkdir(assets, { recursive: true });
-    await writeFile(`${assets}/map.png`, 'not an object');
+  it('never looks inside an object folder, a session or the trash', async () => {
+    // ~~Ignores files that are not library objects~~ — asserted as an
+    // `ignored` event for `assets/map.png`, which is to say the folder was
+    // watched (2026-10-06). On Windows a watched folder is a handle held
+    // inside the object's, and the object's could then not be renamed into the
+    // trash: every delete of an object with history or pictures failed with
+    // `EPERM`, as did every session's with turns. *Not watched* means no event
+    // at all, so a real object is the fence, as for the engine's own files.
+    const folder = library.layout.objectRoot(library.owner, LOREBOOK_SCHEMA, 'rain-city');
+    const outside = [
+      join(folder, 'assets', 'map.png'),
+      join(folder, 'history', 'v', 'replaced.json'),
+      join(library.layout.userRoot('ned'), 'sessions', 'harbour', 'turns', 'one.json'),
+      join(library.layout.trashRoot('ned'), 'lorebooks', 'old-01a1', 'lorebook.json'),
+    ];
+    for (const path of outside) {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, 'not for the watcher');
+    }
 
-    await eventually(() => events.some((event) => event.path.endsWith('map.png')));
-    expect(events.find((event) => event.path.endsWith('map.png'))?.type).toBe('ignored');
-    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(0);
+    const fence = library.layout.objectFile(library.owner, LOREBOOK_SCHEMA, 'rain-city');
+    await writeFile(fence, JSON.stringify(newLorebook('Rain City')));
+    await seenBy(fence);
+
+    expect(events.filter((event) => outside.includes(event.path))).toEqual([]);
+    expect(listObjects(library.db, { owners: [library.owner] })).toHaveLength(1);
+  });
+
+  it('still looks at its own delivery probe', () => {
+    // The probe leads to no object, so the layout's rule alone would refuse
+    // it, and nothing would say so: `start()` would wait out its whole ladder
+    // and give up quietly. Asked of the predicate because the symptom is a
+    // slower start, which is not a thing to time.
+    const root = library.layout.dataRoot;
+    expect(watches(library.layout, join(root, '.watcher-probe-0'))).toBe(true);
+    expect(watches(library.layout, join(root, '.watcher-probe-11'))).toBe(true);
+    // Only at the root, where `start()` writes it.
+    expect(watches(library.layout, join(root, 'users', '.watcher-probe-0'))).toBe(false);
   });
 });
 
