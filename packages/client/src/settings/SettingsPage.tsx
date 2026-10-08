@@ -7,11 +7,13 @@ import { AboutBuild } from '../about/AboutBuild.js';
 import { UpdateBadge } from '../about/UpdateBadge.js';
 import { useAuthState } from '../queries.js';
 import { page } from '../ui/classes.js';
+import { OpenDockButton } from '../workbench/OpenDockButton.js';
 import { AdminAccounts } from './AdminAccounts.js';
 import { AdminBackups } from './AdminBackups.js';
 import { Backups } from './Backups.js';
 import { AdminConnections, MyConnections } from './Connections.js';
 import { AdminInstall } from './AdminInstall.js';
+import { SettingsAnchor, useJumpToHash } from './contents.js';
 import { MyRoles } from './MyRoles.js';
 import { NotificationPrefs } from './NotificationPrefs.js';
 import { Trash } from './Trash.js';
@@ -37,10 +39,22 @@ import { UserSettings } from './UserSettings.js';
  * `/api/admin` prefix, and it stays the answer for anyone who types the URL: a
  * UI-level check is a trivial bypass, which is the same argument [09 §4.5] makes
  * about capabilities.
+ *
+ * ***Every section stands in an anchor, and the workbench lists them***
+ * (2026-10-07, [10 §3](../../../../docs/design/10-ui-surfaces.md)). Thirteen
+ * sections on one route had made the page a long scroll, and the answer kept
+ * §15's one route: the dock shows this page's contents and a row jumps to a
+ * section, as the dock lists a changelog's releases over home. The anchors and
+ * the list come from one table, [contents.tsx](./contents.tsx), and the jump
+ * follows the address's hash, so `/settings#backups-section` lands in the
+ * same place from the dock, from a pasted link or after a reload.
+ * `SettingsPage.test.tsx` holds the anchors to the list for each kind of
+ * account, so a section added here and not there fails.
  */
 export function SettingsPage(): JSX.Element {
   const auth = useAuthState();
   const account = auth.data?.account ?? null;
+  useJumpToHash(account?.role);
 
   return (
     // A `div`, not a landmark — the shell owns the routed app's one `<main>`
@@ -49,21 +63,32 @@ export function SettingsPage(): JSX.Element {
     // coincidence, a third spelling of a width this tooling surface never
     // chose ([10 §1.2]).
     <div className={`${page.tooling} flex flex-col gap-10`}>
-      <h1 className="text-title text-ink">Settings</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-title text-ink">Settings</h1>
+        {/* The page's contents are in the dock, and this points at them —
+            `OpenDockButton` says why a page keeps a way to what the dock
+            shows over it. */}
+        <OpenDockButton>Contents…</OpenDockButton>
+      </div>
 
       {/* First, because prominence was the ask; for everyone, because the data
           is `auth/state`'s rather than the admin route's — so *absent is
           absent* below is untouched by a version on the page. */}
-      <AboutBuild build={auth.data?.build} />
-      {/*
-        Beneath the build it is about, and **admin-only** — [09 §6.5]: a regular
-        user cannot fix the server's networking, and a warning they can only be
-        alarmed by is noise. It reads `admin/notices`, so it sits outside the
-        `AboutBuild` block above, which is deliberately everyone's.
-      */}
-      <UpdateBadge isAdmin={account?.role === 'admin'} />
+      <SettingsAnchor of="build">
+        <AboutBuild build={auth.data?.build} />
+        {/*
+          Beneath the build it is about, and **admin-only** — [09 §6.5]: a regular
+          user cannot fix the server's networking, and a warning they can only be
+          alarmed by is noise. It reads `admin/notices`, so it sits outside the
+          `AboutBuild` block above, which is deliberately everyone's. Inside the
+          build's anchor, because a jump to the build should land on both.
+        */}
+        <UpdateBadge isAdmin={account?.role === 'admin'} />
+      </SettingsAnchor>
 
-      <UserSettings />
+      <SettingsAnchor of="you">
+        <UserSettings />
+      </SettingsAnchor>
 
       {/*
         Before Preferences and for every account — [10 §15.1] lists it in the
@@ -72,9 +97,13 @@ export function SettingsPage(): JSX.Element {
         inside the admin conditional, and its query is keyed under `me` rather
         than `admin` so it stays mountable for the people it was written for.
       */}
-      <MyRoles />
+      <SettingsAnchor of="roles">
+        <MyRoles />
+      </SettingsAnchor>
 
-      <Preferences />
+      <SettingsAnchor of="preferences">
+        <Preferences />
+      </SettingsAnchor>
 
       {/*
         After Preferences and still in the user half — [10 §15.1] and [09 §3.5],
@@ -82,7 +111,9 @@ export function SettingsPage(): JSX.Element {
         about one person's ears, so it sits with the theme rather than with the
         install.
       */}
-      <NotificationPrefs />
+      <SettingsAnchor of="notifications">
+        <NotificationPrefs />
+      </SettingsAnchor>
 
       {/*
         ***Absent when the capability is off***, which is this page's own
@@ -92,7 +123,11 @@ export function SettingsPage(): JSX.Element {
         be refused. The route refuses too, for [09 §4.5]'s reason: a UI-level
         check is a trivial bypass and is never the boundary.
       */}
-      {account?.capabilities.privateConnections === true ? <MyConnections /> : null}
+      {account?.capabilities.privateConnections === true ? (
+        <SettingsAnchor of="myConnections">
+          <MyConnections />
+        </SettingsAnchor>
+      ) : null}
 
       {/*
         ***The drawer delete has been filling since P4.4*** —
@@ -101,7 +136,9 @@ export function SettingsPage(): JSX.Element {
         it holds their sessions and their objects, and an admin reading it would
         be reading somebody's deleted stories.
       */}
-      <Trash locale={account?.locale ?? undefined} />
+      <SettingsAnchor of="trash">
+        <Trash locale={account?.locale ?? undefined} />
+      </SettingsAnchor>
 
       {/**
         ***Beside the trash, and for the trash's reason*** — [26 E6], [P12.6].
@@ -113,35 +150,47 @@ export function SettingsPage(): JSX.Element {
         gated — `scheduledBackups` governs the *server* writing them on a timer,
         which is a different question and is asked inside this panel.
       */}
-      <Backups
-        capable={account?.capabilities.scheduledBackups === true}
-        locale={account?.locale ?? undefined}
-      />
+      <SettingsAnchor of="backups">
+        <Backups
+          capable={account?.capabilities.scheduledBackups === true}
+          locale={account?.locale ?? undefined}
+        />
+      </SettingsAnchor>
 
       {account?.role === 'admin' ? (
-        <section className="flex flex-col gap-8" aria-labelledby="administration">
-          <h2 id="administration" className="text-section text-ink">
-            Administration
-          </h2>
-          <AdminAccounts />
-          {/*
+        <SettingsAnchor of="administration">
+          <section className="flex flex-col gap-8" aria-labelledby="administration">
+            <h2 id="administration" className="text-section text-ink">
+              Administration
+            </h2>
+            <SettingsAnchor of="accounts">
+              <AdminAccounts />
+            </SettingsAnchor>
+            {/*
             A third section under Administration rather than a tab or a route of
             its own — [P2B §6]. The admin half is a single conditional, which is
             what makes *absent is absent* a mechanism: these hooks never mount
             for a non-admin, so that browser issues no request that could be
             refused. A separate route would need the guard respelled.
           */}
-          <AdminConnections />
-          <AdminInstall />
-          {/**
+            <SettingsAnchor of="connections">
+              <AdminConnections />
+            </SettingsAnchor>
+            <SettingsAnchor of="install">
+              <AdminInstall />
+            </SettingsAnchor>
+            {/**
             ***After the settings form rather than before it***, because the
             install's schedule *is* three config keys and the form above derives
             its controls from the schema. This panel is the list and the two
             buttons; a second copy of the schedule here would be a second thing
             to keep true.
           */}
-          <AdminBackups locale={account.locale ?? undefined} />
-        </section>
+            <SettingsAnchor of="installBackups">
+              <AdminBackups locale={account.locale ?? undefined} />
+            </SettingsAnchor>
+          </section>
+        </SettingsAnchor>
       ) : null}
     </div>
   );

@@ -96,6 +96,7 @@ export function Shell(): JSX.Element {
 
   const mainRef = useRef<HTMLElement | null>(null);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const hash = useRouterState({ select: (state) => state.location.hash });
   /**
    * Every page starts at its top, by hand.
    *
@@ -109,10 +110,20 @@ export function Shell(): JSX.Element {
    * upgrade when a surface earns it is the router's element scroll
    * restoration; until a list outgrows a couple of screens, that is machinery
    * for a problem this app does not have.
+   *
+   * ***Except an address that names a place in the page*** (2026-10-07). A
+   * hash — `/settings#trash-section` — is the page saying where to be, and the
+   * page goes there in an effect of its own (`settings/contents.tsx`). React
+   * runs a child's effects before its parent's, so this reset ran *after* the
+   * jump and undid it whenever the path changed with the hash: a link from
+   * another page, a reload, a pasted address. Same-page jumps never change the
+   * path, which is how they hid it. So the top is for addresses with no hash;
+   * keyed on the hash as well, so leaving one on the same page (`/settings`
+   * again from the header) comes back to the top.
    */
   useEffect(() => {
-    if (mainRef.current !== null) mainRef.current.scrollTop = 0;
-  }, [pathname]);
+    if (hash === '' && mainRef.current !== null) mainRef.current.scrollTop = 0;
+  }, [pathname, hash]);
 
   return (
     // `h-dvh`, not `min-h-dvh`: the shell claims the viewport, which is what
@@ -270,15 +281,26 @@ export function Shell(): JSX.Element {
             [10 §3]. Two panels sharing 375px is two unusable panels, and the
             design already settled this: on a phone the workbench is the main
             view. The outlet is hidden rather than unmounted, so nothing
-            refetches when the dock closes again. */}
+            refetches when the dock closes again.
+
+            ***`relative`, so the page's absolutely positioned descendants are
+            this box's*** (2026-10-07). Without a positioned ancestor between
+            them and here, every `sr-only` label on a long page — a dozen on
+            Settings — was positioned against the document instead, escaped
+            this element's clipping, and made the *window* scrollable by the
+            page's whole height: 2,512px of it in a 455px window. Nothing showed
+            it until something scrolled the window — a jump to a section did,
+            and took the header off the screen with it. The comment on the
+            scroll reset above says the window no longer scrolls; this is what
+            makes that true. */}
         <main
           ref={mainRef}
           id="main"
           tabIndex={-1}
           className={
             workbenchOpen || assistantOpen
-              ? 'min-w-0 flex-1 overflow-y-auto focus:outline-none max-sm:hidden print:overflow-visible'
-              : 'min-w-0 flex-1 overflow-y-auto focus:outline-none print:overflow-visible'
+              ? 'relative min-w-0 flex-1 overflow-y-auto focus:outline-none max-sm:hidden print:overflow-visible'
+              : 'relative min-w-0 flex-1 overflow-y-auto focus:outline-none print:overflow-visible'
           }
         >
           <Outlet />

@@ -519,6 +519,56 @@ describe('the home subject', () => {
 });
 
 /**
+ * The settings page's contents — 2026-10-07. Asserted here for the home
+ * subject's reason: the claim is which route reaches which subject, and this
+ * file drives the real router. `workbench/settings/subject.test.tsx` owns what
+ * the list holds. The page's own reads are left unanswered here; its sections
+ * say so in their own place, and the dock is what is under test.
+ */
+describe('the settings subject', () => {
+  async function overSettings(): Promise<void> {
+    await act(async () => {
+      await router.navigate({ to: '/settings' });
+    });
+    await screen.findByRole('heading', { name: 'Settings', level: 1 });
+  }
+
+  it('lists the page’s sections over `/settings`, and not after leaving it', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overSettings();
+
+    const dock = await screen.findByRole('complementary');
+    const contents = await within(dock).findByRole('navigation', { name: 'Settings contents' });
+    expect(within(contents).getByRole('link', { name: 'Trash' })).toBeTruthy();
+    // A plain account: the administration half is absent from the list as it
+    // is from the page.
+    expect(within(contents).queryByRole('link', { name: 'Administration' })).toBeNull();
+
+    await overLibrary();
+    expect(within(dock).queryByRole('navigation', { name: 'Settings contents' })).toBeNull();
+  });
+
+  it('puts the section a row names in the address, and marks that row alone', async () => {
+    prefsStore = { 'ui.workbench-open': true };
+    renderApp();
+    await overSettings();
+
+    const dock = await screen.findByRole('complementary');
+    const contents = await within(dock).findByRole('navigation', { name: 'Settings contents' });
+    await userEvent.click(within(contents).getByRole('link', { name: 'Trash' }));
+
+    await waitFor(() => {
+      expect(router.state.location.hash).toBe('trash-section');
+    });
+    expect(within(contents).getByRole('link', { name: 'Trash' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(contents.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+  });
+});
+
+/**
  * The splitter — [P3.1a]'s exit criterion is the first test: one drag is one
  * write, at the width the pointer let go, because the prefs store serialises
  * writes through a `KeyedQueue` and a PATCH per pointermove would queue

@@ -118,7 +118,21 @@ vi.mock('../api.js', async (importOriginal) => ({
   },
 }));
 
+/**
+ * ***The address's hash, which the page follows*** (2026-10-07). The page reads
+ * it through the router's `useLocation`, and this file renders the page alone,
+ * so the router is the real one except for that hook. `hash` is set by the test
+ * that needs it, and cleared before every test.
+ */
+let hash = '';
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  useLocation: (options?: { select?: (location: { hash: string }) => unknown }) =>
+    options?.select === undefined ? { hash } : options.select({ hash }),
+}));
+
 const { SettingsPage } = await import('./SettingsPage.js');
+const { SECTIONS, settingsContents } = await import('./contents.js');
 
 function account(role: 'admin' | 'user') {
   return {
@@ -134,6 +148,7 @@ function account(role: 'admin' | 'user') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  hash = '';
   listMyConnections.mockResolvedValue({ connections: [] });
   readMe.mockResolvedValue({ account: account('user') });
   updateMe.mockResolvedValue({ account: account('user') });
@@ -1000,5 +1015,124 @@ describe('a config save the file has moved under', () => {
     });
     expect(port.getAttribute('min')).toBe('1');
     expect(port.getAttribute('max')).toBe('65535');
+  });
+});
+
+/**
+ * ***The page's contents, and the anchors they jump to*** — 2026-10-07,
+ * `contents.tsx`.
+ *
+ * The workbench lists `settingsContents`; the page draws a `SettingsAnchor`
+ * around each section. These are the tests that keep the two one list: what
+ * the page actually draws, in its order, for each kind of account the page
+ * treats differently, and the words each row uses.
+ */
+describe('the contents', () => {
+  function anchorsDrawn(): string[] {
+    return [...document.querySelectorAll<HTMLElement>('[data-settings-anchor]')].map(
+      (element) => element.dataset['settingsAnchor'] ?? '',
+    );
+  }
+
+  function listed(contents: ReturnType<typeof settingsContents>): string[] {
+    return [
+      ...contents.yours.map((entry) => entry.key),
+      ...(contents.administration === null
+        ? []
+        : [
+            contents.administration.entry.key,
+            ...contents.administration.sections.map((entry) => entry.key),
+          ]),
+    ];
+  }
+
+  function renderAs(who: ReturnType<typeof account>): void {
+    authState.mockResolvedValue({
+      setupRequired: false,
+      account: who,
+      minPasswordLength: 8,
+      build: ALPHA,
+    });
+    readMe.mockResolvedValue({ account: who });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SettingsPage />
+      </QueryClientProvider>,
+    );
+  }
+
+  it('draws exactly what it lists, for an account without connections of its own', async () => {
+    const who = {
+      ...account('user'),
+      capabilities: { ...account('user').capabilities, privateConnections: false },
+    };
+    renderAs(who);
+    await screen.findByText('You');
+
+    expect(anchorsDrawn()).toEqual(listed(settingsContents(who)));
+    expect(anchorsDrawn()).not.toContain('myConnections');
+    expect(anchorsDrawn()).not.toContain('administration');
+  });
+
+  it('draws exactly what it lists, for an account with connections of its own', async () => {
+    renderAs(account('user'));
+    await screen.findByText('You');
+
+    expect(anchorsDrawn()).toEqual(listed(settingsContents(account('user'))));
+    expect(anchorsDrawn()).toContain('myConnections');
+  });
+
+  it('draws exactly what it lists, for an administrator', async () => {
+    renderAs(account('admin'));
+    await screen.findByRole('heading', { name: 'Administration' });
+
+    expect(anchorsDrawn()).toEqual(listed(settingsContents(account('admin'))));
+  });
+
+  /**
+   * **A row reads as what it jumps to**, so each title is the first heading
+   * inside its anchor, word for word — once the sections that load have
+   * loaded, because those draw their heading only then. *This build* is the
+   * one exception, its heading being the build's own name.
+   */
+  it('names each section with the words of its own heading', async () => {
+    renderAs(account('admin'));
+    await screen.findByRole('heading', { name: 'Connections' });
+    await screen.findByRole('heading', { name: 'Your connections' });
+
+    for (const key of anchorsDrawn()) {
+      if (key === 'build') continue;
+      const anchor = document.querySelector(`[data-settings-anchor="${key}"]`);
+      const heading = anchor?.querySelector('h2, h3');
+      expect(heading?.textContent.trim(), key).toBe(SECTIONS[key as keyof typeof SECTIONS].title);
+    }
+  });
+
+  it('goes to the section the address names, and hands it focus', async () => {
+    hash = SECTIONS.trash.anchor;
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderAs(account('user'));
+
+    await waitFor(() => {
+      expect(document.activeElement?.id).toBe(SECTIONS.trash.anchor);
+    });
+    expect(scrolled.mock.contexts).toContain(document.getElementById(SECTIONS.trash.anchor));
+  });
+
+  /**
+   * An address can name a section this page does not draw for this account —
+   * an administrator's link opened by somebody who is not one — and the page
+   * stays where it is rather than throwing or guessing.
+   */
+  it('stays put for a section it does not draw', async () => {
+    hash = SECTIONS.accounts.anchor;
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderAs(account('user'));
+    await screen.findByText('You');
+
+    expect(document.getElementById(SECTIONS.accounts.anchor)).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    expect(scrolled).not.toHaveBeenCalled();
   });
 });

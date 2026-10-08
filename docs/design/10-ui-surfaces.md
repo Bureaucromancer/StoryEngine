@@ -665,6 +665,26 @@ shares.
 visible: a control here that changed something, or a subject that survived
 leaving `/`.
 
+***Over settings, the panel shows the page's contents*** — 2026-10-07, at the
+owner's request, because the page had grown to thirteen sections on one route.
+§15 keeps it one route (two halves, the admin half absent rather than
+disabled), so the answer was a way to jump rather than a way to split: the panel
+lists every section the page draws for this account, and a row moves the page
+to it. **The same test, passed the same way.** The main view's subject is *the
+settings page*, and the panel's is *every section of that page*: the same
+subject at list scale. Which row is marked is the address's hash
+(`/settings#trash-section`). The list comes from a table the page draws its
+anchors from (`settings/contents.tsx`), it issues no request and writes
+nothing, and it is gone when the route is.
+**One thing it does change, and why that is not the exception:** on a phone,
+where the dock *is* the view, choosing a section closes the dock so that the
+section can be read. That is the dock's own open state, which every subject's
+*Close* already changes, and nothing about the subject.
+**Jump, not tab:** the sections stay on one page, and the
+address is the jump — a link to a section can be pasted, reloaded or opened
+from another page and lands in the same place, focused, so a keyboard carries on
+from there.
+
 **A table rather than a picker, which is a departure worth the sentence.** The
 turn picker is a `<select>` because a scrollable list of turns in a column two
 hundred pixels wide would be a second transcript competing with the first.
@@ -2885,6 +2905,13 @@ and never says where the granting happens. This section is that where.
 about themselves; admins additionally get *Administration* about the install. One
 route, one navigation entry, the admin half absent rather than disabled for
 people who do not have it.
+
+*2026-10-07: one route held, and the length answered by contents rather than by
+pages.* At thirteen sections the page outgrew scrolling. The workbench lists its
+sections over it (§3), and *Contents…* beside the title opens the dock. Each
+section has an address of its own, `/settings#<section>-section`, which lands on
+that section and focuses it. Splitting into pages remains open for later and
+needs no part of this undone.
 
 ### 15.1 The user half: settings about yourself
 

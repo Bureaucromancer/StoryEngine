@@ -5,10 +5,9 @@ import type { JSX } from 'react';
 
 import { findRelease } from '@storyengine/shared';
 
-import { usePatchPrefs, usePrefs, useAuthState } from '../queries.js';
-import { Button } from '../ui/Button.js';
+import { useAuthState } from '../queries.js';
 import { Note, SectionTitle } from '../ui/Text.js';
-import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
+import { OpenDockButton } from '../workbench/OpenDockButton.js';
 import { ChangelogDocument } from './ChangelogDocument.js';
 import { CHANGELOG, NEWEST } from './log.js';
 import { NO_RELEASES, releaseTitle, showingLine, type Showing } from './labels.js';
@@ -58,7 +57,12 @@ export function HomeRelease({ release }: { release?: string }): JSX.Element {
         <SectionTitle as="h2" id="release">
           {releaseTitle(shown, locale)}
         </SectionTitle>
-        <ReleaseHistoryButton />
+        {/* The way to the release index, which the dock holds: `OpenDockButton`
+            says why a page points at it, and why a second press closes nothing.
+            On the heading line rather than on the page, because a button for the
+            history drawn before there is a history would open a dock still
+            saying it is loading. */}
+        <OpenDockButton variant="quiet">All releases…</OpenDockButton>
       </div>
       <Note>{showingLine(showing)}</Note>
       {/* **The Quiet family, for this block only** — [10 §1.2]'s three
@@ -72,47 +76,5 @@ export function HomeRelease({ release }: { release?: string }): JSX.Element {
         <ChangelogDocument body={shown.body} />
       </article>
     </section>
-  );
-}
-
-/**
- * The way to the release index — `LibraryPage.tsx`'s `ImportButton`, for the
- * same reason and with the same shape.
- *
- * **Its whole job is to open the dock**, which is why it patches the preference
- * rather than routing anywhere: [P3 §1.2] is explicit that the panel's open
- * state is a preference and deliberately **not** the URL, because a
- * URL-addressable panel is a place and [10 §3] spent its argument on the panel
- * not being one. The panel's *subject* is in the address; its *visibility* is
- * not, and the two are different facts.
- *
- * It exists at all because a history reachable only by knowing that Ctrl+`
- * opens a panel which happens to list releases over this route is not pointed
- * at by anything. Deliberately not disabled or hidden once the dock is open:
- * the button is where somebody looks for the history, and a control that
- * vanishes once it has worked is a control you cannot find twice.
- *
- * *In this chunk rather than on the page* (2026-10-07) because it sits on the
- * release's heading line, and a button for the history drawn before there is
- * a history to show would open a dock still saying it is loading.
- */
-function ReleaseHistoryButton(): JSX.Element {
-  const prefs = usePrefs();
-  const patchPrefs = usePatchPrefs();
-  const open = workbenchOpenFromPrefs(prefs.data?.prefs);
-
-  return (
-    <Button
-      type="button"
-      size="compact"
-      variant="quiet"
-      aria-expanded={open}
-      aria-controls={open ? 'workbench' : undefined}
-      onClick={() => {
-        if (!open) patchPrefs.mutate(workbenchOpenPatch(true));
-      }}
-    >
-      All releases…
-    </Button>
   );
 }

@@ -31,6 +31,7 @@ import { ImportSubject } from './import/ImportSubject.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
 import { LiveSubject } from './live/LiveSubject.js';
 import { PreviewSubject } from './turn/PreviewSubject.js';
+import { SettingsSubject } from './settings/SettingsSubject.js';
 import { TurnSubject } from './turn/TurnSubject.js';
 import { Note } from '../ui/Text.js';
 
@@ -43,7 +44,8 @@ import { Note } from '../ui/Text.js';
  * inspector, [P3.2]. Over a library object it is `LibrarySubject` — the raw
  * truth of that object, [P3.3]. Over home it is `ReleaseSubject` — every
  * release of the changelog the page is showing one of, [home, revised]. Over
- * everything else, an honest empty state.
+ * settings it is `SettingsSubject` — every section of the page, a row jumping
+ * to one (2026-10-07). Over everything else, an honest empty state.
  *
  * **Non-modal is the load-bearing property, and it is achieved by omission.**
  * No `aria-modal`, no `useFocusTrap` — that hook must never be attached here:
@@ -96,6 +98,10 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
   // argument for why that is not [10 §3]'s second exception. Matched last in
   // the chain below because `/` is the least specific address in the app.
   const home = useMatch({ from: '/', shouldThrow: false });
+  // Settings: the page's contents, which it had grown long enough to need
+  // (2026-10-07). A reader by `ReleaseSubject`'s test; `SettingsSubject` says
+  // why.
+  const settings = useMatch({ from: '/settings', shouldThrow: false });
   const asideRef = useRef<HTMLElement | null>(null);
   const prefs = usePrefs();
   const patchPrefs = usePatchPrefs();
@@ -157,6 +163,8 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
           />
         ) : libraryList !== undefined ? (
           <ImportSubject />
+        ) : settings !== undefined ? (
+          <SettingsSubject onClose={onClose} />
         ) : home !== undefined ? (
           <ChangelogLoad>
             <Suspense fallback={<Note role="status">Loading this build’s releases…</Note>}>

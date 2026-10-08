@@ -5,7 +5,7 @@ import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useId, useMemo, useState, type JSX } from 'react';
 
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
-import { useAuthState, useLibrary, usePatchPrefs, usePrefs, useTags } from '../queries.js';
+import { useAuthState, useLibrary, useTags } from '../queries.js';
 import { formatCount } from '../format.js';
 import { parseKinds } from '../search-lists.js';
 import { Button } from '../ui/Button.js';
@@ -13,7 +13,7 @@ import { SelectorBar, selectionHref } from '../ui/SelectorBar.js';
 import { TagChip } from '../ui/TagChip.js';
 import { link, page, table } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
-import { workbenchOpenFromPrefs, workbenchOpenPatch } from '../workbench/prefs.js';
+import { OpenDockButton } from '../workbench/OpenDockButton.js';
 import { DeleteObject } from './DeleteObject.js';
 import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
@@ -49,8 +49,8 @@ import { useFocusOnReveal } from '../ui/useFocusOnReveal.js';
  * bulk path and belongs to the whole library, so it is reached from above the
  * filter — ~~`ImportPanel` is above the filter~~ *amended at the merge: the
  * panel moved into the workbench dock ([P4 §7.12]) and what stands here is the
- * `ImportButton` that opens it, because an entry point has to survive the
- * move.* Making one thing is kind-scoped — it needs to know *what* to make —
+ * button that opens it (`OpenDockButton`, *Import…*), because an entry point
+ * has to survive the move.* Making one thing is kind-scoped — it needs to know *what* to make —
  * so it sits below the filter and reads it. When the filter becomes six panels
  * ([polish §4]), the way in stays where it is and the form is already the
  * Actors panel's.
@@ -90,7 +90,10 @@ export function LibraryPage(): JSX.Element {
     <div className={page.tooling}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-title text-ink">Library</h1>
-        <ImportButton />
+        {/* The way to import, now that the panel lives in the dock: an entry point
+            has to survive the move, because [10 §5] says the empty library
+            *"points at import"*. `OpenDockButton` carries the rest. */}
+        <OpenDockButton>Import…</OpenDockButton>
       </div>
       <SelectorBar
         label="Filter by kind"
@@ -233,42 +236,6 @@ function NewObjectButton(props: { noun: string; route: NewRoute }): JSX.Element 
       }}
     >
       {`New ${props.noun}`}
-    </Button>
-  );
-}
-
-/**
- * The way to import, now that the panel lives in the dock.
- *
- * **An entry point has to survive the move.** [10 §5] says the empty library
- * *"points at import"*, and a feature reachable only by knowing that Ctrl+`
- * opens a panel which happens to show it over this route is not pointed at by
- * anything. So the page keeps a control, and the control's whole job is to open
- * the dock — which is why it patches the preference rather than routing
- * anywhere: [P3 §1.2] is explicit that the panel's open state is a preference
- * and deliberately **not** the URL, because a URL-addressable panel is a place,
- * and §3 spent its argument on the panel not being one.
- *
- * Deliberately not disabled or hidden when the dock is already open: the button
- * is where somebody looks for import, and a control that vanishes once it has
- * worked is a control you cannot find twice.
- */
-function ImportButton(): JSX.Element {
-  const prefs = usePrefs();
-  const patchPrefs = usePatchPrefs();
-  const open = workbenchOpenFromPrefs(prefs.data?.prefs);
-
-  return (
-    <Button
-      type="button"
-      size="compact"
-      aria-expanded={open}
-      aria-controls={open ? 'workbench' : undefined}
-      onClick={() => {
-        if (!open) patchPrefs.mutate(workbenchOpenPatch(true));
-      }}
-    >
-      Import…
     </Button>
   );
 }

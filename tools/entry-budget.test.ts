@@ -234,6 +234,16 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * whole first load. 21 §7.3 records the change in shape; 21 §4.4's chunking
  * question is still open.
  */
+/*
+ * ***Not raised on 2026-10-07, at the settings page's contents*** — saying out
+ * loud what it added, as this file asks. The workbench lists the settings page's
+ * sections over it, the page draws an anchor around each section and follows
+ * the address's hash to one, and the three *open the dock* buttons became one
+ * component. The shell also changed: `main` is now the containing block for
+ * what its page positions, and a hash keeps the shell's scroll reset off. The
+ * entry measured **298.46** before and **299.63** after: **+1.17 kB**, all the
+ * client's own code, and **no new dependency**. It fits, and leaves **4.37**.
+ */
 const JS_CEILING_KB = 304;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */

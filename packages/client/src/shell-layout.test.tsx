@@ -3,7 +3,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { newActor } from '@storyengine/shared';
@@ -245,6 +245,54 @@ describe('one main view', () => {
     await screen.findByRole('heading', { name: 'Settings', level: 1 });
 
     expect(main.scrollTop).toBe(0);
+  });
+
+  /**
+   * ***Except to an address that names a place*** (2026-10-07). The page goes
+   * there in its own effect, which React runs before this shell's — so a reset
+   * keyed on the path alone undid every jump that arrived with a path change.
+   * jsdom draws nothing and `scrollIntoView` is a stub here, so what is held is
+   * the mechanism: the shell leaves the offset alone, and the page's jump
+   * happened (focus is on the section it names).
+   *
+   * The falsifying mutation: drop the `hash === ''` condition from the reset
+   * in `Shell.tsx`, and the offset is zeroed under the jump.
+   */
+  it('leaves main where an address with a hash put it', async () => {
+    renderApp();
+    await act(async () => {
+      await router.navigate({ to: '/library', search: {} });
+    });
+    await screen.findByRole('heading', { name: 'Library', level: 1 });
+
+    const main = document.querySelector('main');
+    if (main === null) throw new Error('the shell rendered no main');
+    main.scrollTop = 500;
+
+    await act(async () => {
+      await router.navigate({ to: '/settings', hash: 'trash-section' });
+    });
+    await screen.findByRole('heading', { name: 'Settings', level: 1 });
+
+    await waitFor(() => {
+      expect(document.activeElement?.id).toBe('trash-section');
+    });
+    expect(main.scrollTop).toBe(500);
+  });
+
+  /**
+   * ***`main` is the containing block of what its page positions*** — so an
+   * `sr-only` label far down a long page is clipped by `main`'s scrolling
+   * rather than stretching the document and making the window scroll under
+   * the header. jsdom computes no layout, so the class is the whole of what
+   * can be held here; the measurement that found it (2,512px of document in a
+   * 455px window) is in `Shell.tsx`, beside the class.
+   */
+  it('makes main the box its page positions against', () => {
+    renderApp();
+
+    const main = document.querySelector('main');
+    expect(main?.className.split(' ')).toContain('relative');
   });
 });
 
