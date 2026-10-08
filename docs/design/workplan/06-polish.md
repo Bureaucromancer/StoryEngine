@@ -828,6 +828,14 @@ pressed; Priority drops a stored number on a typo.*~~ Each now says what
 happened. One the review did not have: `docs/deploy.md` called notifications
 *the one thing plain HTTP costs you*, and the clipboard is the second.
 
+*(2026-10-07: the first-Save answer broke `e2e/journeys.spec.ts`, which waited
+for* No changes to save. *on the page a create lands on. Nothing said so for
+six days. Polish 10 was the first commit after the journeys' last green run,
+and billing refused every CI job from that day until the repository went
+public. The first real run, on alpha 5's tag commit, found it. The journey now
+asserts the settled state as it is: the new object's own editor, Save
+disabled, and* Saved. *A mutation that restores the old notice turns it red.)*
+
 ## 23. The keyboard and the screen reader get there too
 
 **Landed 2026-10-01 at polish 11 (`73be6b6`).** ~~*Nine header controls before

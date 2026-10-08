@@ -264,12 +264,24 @@ test('the seven journeys, in the order a person walks them', async ({ page }) =>
   await expect(name).toBeVisible();
   await name.fill('Vera Solano');
   await page.getByRole('button', { name: 'Save' }).click();
-  // **The settled state rather than a toast.** The editor answers a save by
+  // **The settled state rather than a toast.** ~~The editor answers a save by
   // disabling the control and saying there is nothing left to write, which is a
   // claim about what is on disk; a flash of *Saved.* would be a claim about the
   // last few hundred milliseconds, and asserting one is how a test comes to
-  // depend on a message somebody is free to remove.
-  await expect(page.getByText('No changes to save.')).toBeVisible();
+  // depend on a message somebody is free to remove.~~ *Corrected 2026-10-07:*
+  // polish 10 (`5cd08382`) made the first Save on a *New …* page answer on the
+  // page it lands on — *Saved.*, where it had said *No changes to save.*, which
+  // that commit called *"true and … not an answer"* — and this step waited for
+  // the old sentence through every run after it, which billing kept from
+  // happening until 2026-10-07. *Saved.* there is not the flash the struck
+  // sentence warned against: it is the landing page's first notice and stays
+  // until the next edit. So the settled state is three things, each a claim the
+  // others cannot make. The address is the new actor's own editor, so the draft
+  // became a file with an id. Save is disabled, so nothing is left to write.
+  // And the strip says *Saved.*, the editor's own answer.
+  await expect(page).toHaveURL(/\/library\/actors\/[0-9a-f-]{36}\/edit$/);
+  await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await expect(page.getByRole('status').filter({ hasText: /^Saved\.$/ })).toBeVisible();
 
   // **And it is on the shelf**, which is the journey's actual claim and the one
   // the editor's own state cannot make.
