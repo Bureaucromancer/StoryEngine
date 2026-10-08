@@ -30,7 +30,7 @@
 # minutes, ubuntu ~19, journeys ~2). September's month ran out on the 27th and
 # October's six hours into the 1st, and from then every job on main was refused
 # before it started and reported red in five seconds. The repository went
-# public on 2026-10-03, partly for this (docs/design/workplan/04-repo-and-releases.md
+# public on 2026-10-07 (decided 2026-10-03), partly for this (docs/design/workplan/04-repo-and-releases.md
 # §0.1a), and public repositories' standard runners are not metered, so both
 # platforms run on every change again, as testing §6 has always said they should.
 #

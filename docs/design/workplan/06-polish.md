@@ -1031,7 +1031,7 @@ picture test — and none against a live endpoint: the machine this was merged o
 has none configured. Which sentence a real 401, a real 404 and a real stall
 produce is sitting V's to say.
 
-**What the changelog will say**, parked here because
+*(Taken into the alpha 5 entry of the [changelog](../../../CHANGELOG.md), 2026-10-07.)* **What the changelog will say**, parked here because
 `changelog.test.ts` refuses an `## Unreleased` section:
 
 - **A connection can be tried.** *Test* on any connection sends one short
@@ -1176,7 +1176,7 @@ against `tools/entry-budget.test.ts`'s ceiling of 336, which leaves 0.04 — so
 the next client change meets that ceiling, and the file says so in its own
 words rather than this entry raising it.
 
-**What the changelog will say**, parked here for §25's reason:
+*(Taken into the alpha 5 entry of the [changelog](../../../CHANGELOG.md), 2026-10-07.)* **What the changelog will say**, parked here for §25's reason:
 
 - **A connection of yours that shares an install connection's id says so** — on
   your row, on the install's row where you can see it, and in *Which models
@@ -1233,7 +1233,7 @@ the two cache removals dropped, the refetch not awaited, the trigger and the
 question each unnamed, the gate letting a shadowed copy through, the row
 ignoring the gate, and the row not asking to stay.
 
-**What the changelog will say**, parked here for §25's reason:
+*(Taken into the alpha 5 entry of the [changelog](../../../CHANGELOG.md), 2026-10-07.)* **What the changelog will say**, parked here for §25's reason:
 
 - **Delete from the library list** — every object of your own has a Delete on
   its row, which asks first and moves it to the trash without leaving the

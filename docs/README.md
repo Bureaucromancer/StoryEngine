@@ -16,8 +16,9 @@
   that closes this sentence for good.***
 - **[deploy.md](deploy.md)** — running a built one: the image, the compose file
   and the unraid template, since P6A.4. The package is private, and the page
-  opens by saying so. The repository is public since 2026-10-03; the build is
-  not ([releases §0.1a](design/workplan/04-repo-and-releases.md)).
+  opens by saying so. The repository is public since 2026-10-07; the image is
+  not, and from alpha 5 each tag's tarball is a download
+  ([releases §0.1a](design/workplan/04-repo-and-releases.md)).
 - **[design/](design/)** — preliminary design notes. Positions to argue with,
   most of them written before any code existed. Start at
   [design/README.md](design/README.md).

@@ -1314,6 +1314,9 @@ already assume is to hand.
 
 ### 3.5 What the changelog will say
 
+*(Taken into the alpha 5 entry of the [changelog](../../../CHANGELOG.md),
+2026-10-07, condensed.)*
+
 *Parked here, as [P12 §2.1](29-p12-implementation.md) parks its own, until the
 next tag is cut.* **Added** — *A whole Aventuras install in one import*: sweep
 its config folder by path, upload the folder, its backup zip or the bare

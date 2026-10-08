@@ -569,6 +569,13 @@ wearing the same name.
 
 ## 2.1 — What the changelog will say
 
+*(Taken into the alpha 5 entry of the [changelog](../../../CHANGELOG.md),
+2026-10-07, condensed, and under **Added** whatever this says was fixed: alpha 4
+carried none of P12, so its fixes are part of the feature to a reader of that
+entry. The entry leads with what this section never says — P12.4's
+`scheduledBackups` capability is required, so an `accounts.json` from alpha 1 to
+4 needs the one-line edit before this build starts.)*
+
 ***Written here rather than in `CHANGELOG.md`, and the reason is a test.***
 `packages/shared/src/changelog.test.ts` asserts that **every `##` heading in
 that file is one the About surface can parse** — *"so there is nothing to decide

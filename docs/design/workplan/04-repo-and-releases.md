@@ -108,10 +108,10 @@ Two things follow that are worth stating rather than inferring:
   story for strangers' installs. [P6A §4](19-p6a-alpha-1.md) lists them together
   for that reason.
 
-### 0.1a The repository went public; the build did not (2026-10-03)
+### 0.1a The repository went public; the image did not (decided 2026-10-03, switched 2026-10-07)
 
-**The repository is public from 2026-10-03, for reasons of licensing and CI,
-not readiness.** Nothing above is reversed by it, and nothing in it is a
+**The repository is public from 2026-10-07 — decided on 2026-10-03 — for
+reasons of licensing and CI, not readiness.** Nothing above is reversed by it, and nothing in it is a
 release: the image stays a private package, `latest` moves nowhere, no GitHub
 Release exists, the `v1.0.0-alpha.*` tags remain builds the project made for
 itself, and no one is promised support, a data story or a migration. The
@@ -159,6 +159,18 @@ the deploy guide's icon sentence, `updates.ts` and its test, the update badge,
 and say what holds while private and what holds once public, so they need no
 such pass.
 
+***The switch landed on 2026-10-07***, on the owner's instruction, in the
+session that cut alpha 5 and just before its tag. So alpha 5 is the first tag on
+a public repository, and the first whose tarball is a public download (the
+upload bullet below). The correction pass ran then: the heading above, the
+README, the deploy guide, the docs index and `ci.yml` now give the switch's date
+beside the decision's. The steps below were taken the same day, each said where
+it stands, and two more with them:
+- Secret scanning with push protection and Dependabot alerts are on.
+- Workflows on a pull request from any outside contributor wait for approval.
+- Two rulesets protect `main` against force-push and deletion, and `v*` tags
+  against being moved or deleted, so *never move a `v*` tag* is now enforced.
+
 **What the owner does at the switch, and what waits on it** (2026-10-04):
 
 - **Turn on private vulnerability reporting**, right after the visibility
@@ -170,15 +182,22 @@ such pass.
   beforehand: `gh api repos/Bureaucromancer/StoryEngine/private-vulnerability-reporting`
   answers 404 while the repository is private, and should answer
   `{"enabled":true}` after. `SECURITY.md` says what a reporter does in the gap.
-- **Decide the tarball's upload before the next `v*` tag.** The heading's *the
-  build did not* holds only until then. `release.yml`'s tarball job ends in
-  `actions/upload-artifact`, and on a public repository a run's artifacts can
-  be downloaded by anyone signed in to GitHub, for ninety days unless
-  `retention-days` says otherwise. The step has never run: the job arrived at
-  P11.9, after alpha 4. Keep the upload and say so here, give it a short
-  retention, or drop the step. The workflow's comment above the step says the
-  same, and [the deploy guide](../../deploy.md)'s *Cutting a release* warns the
-  person cutting the tag.
+  **Done 2026-10-07**, minutes after the switch, and it answers
+  `{"enabled":true}`.
+- ~~**Decide the tarball's upload before the next `v*` tag.**~~ **Decided at
+  alpha 5, 2026-10-07, by the owner: the upload is kept as it is.** The
+  heading's *the build did not* held only until then, and now holds for the
+  image alone. `release.yml`'s tarball job ends in `actions/upload-artifact`,
+  and on a public repository a run's artifacts can be downloaded by anyone
+  signed in to GitHub — for the default ninety days, since no `retention-days`
+  is set. So from alpha 5 **each tag's tarball is a public download** for that
+  long, while the GHCR image stays a private package. It is the first artifact
+  this project has put in front of strangers, and nothing else above changes
+  with it: no GitHub Release, no `latest`, no support. The two alternatives
+  that were offered — a short retention, or dropping the step, which costs no
+  proof because the pack, the comparison and the boot all run before it — are
+  where to start if this is revisited. The workflow's comment above the step
+  says the same.
 
 **Two policies for a public repository — recommended answer, owner deferred,
 2026-10-04**, recorded here so they can be overruled in one place. The README

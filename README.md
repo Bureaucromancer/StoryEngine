@@ -3,11 +3,13 @@
 A self-hosted, multi-user engine for character-driven interactive fiction.
 
 **Status: a work in progress, public but not released.** This repository has
-been public since 2026-10-03, for reasons of licensing and CI rather than
-readiness ([releases §0.1a](docs/design/workplan/04-repo-and-releases.md)).
-Nothing here is a release. There are no published builds — the container image
-is a private package, and the `v1.0.0-alpha.*` tags are builds the project made
-for itself — nothing is supported, data formats may change without a migration,
+been public since 2026-10-07 (decided 2026-10-03), for reasons of licensing and
+CI rather than readiness ([releases §0.1a](docs/design/workplan/04-repo-and-releases.md)).
+Nothing here is a release. The container image is a private package, the
+`v1.0.0-alpha.*` tags are builds the project made for itself, and from alpha 5
+each tag's Linux tarball is a workflow artifact anyone signed in to GitHub can
+download for ninety days — a build, not a release. Nothing is supported, data
+formats may change without a migration,
 and issues and pull requests may go unanswered. **It is not accepting
 contributions for now**, so a pull request will not be merged; forks are
 welcome, under the AGPL ([Licence](#licence)). A security problem goes
@@ -51,10 +53,13 @@ moved to the fix. The image is private, so nothing pulls it without a login
 [P6A §3](docs/design/workplan/19-p6a-alpha-1.md) steps 3 through 12, which
 need a machine with Docker and an unraid host. It is a build the
 project makes for itself, not a distribution: the registry package is private
-— the repository was too, until 2026-10-03 — and
+— the repository was too, until 2026-10-07 — and
 [releases §0.1](docs/design/workplan/04-repo-and-releases.md) says why that is
 the point for the build rather than a stage on the way to something. Alphas 2
-to 4 followed on 2026-09-07, -08 and -09, under the same terms.
+to 4 followed on 2026-09-07, -08 and -09, under the same terms, and alpha 5 on
+2026-10-07, the first tag on a public repository: its image is as private as
+the others, and its tarball is not
+([releases §0.1a](docs/design/workplan/04-repo-and-releases.md)).
 
 **The UI browses, plays, reads and configures.** Sign in and browse all six
 kinds of library object, or fill the library from a SillyTavern, Marinara or
@@ -114,8 +119,9 @@ one person sits down with an imported library and plays, and the design gets
 tested by use rather than completed on paper. Alpha 1 is being cut before it,
 under the rule [P6A §5](docs/design/workplan/19-p6a-alpha-1.md) sets: *it may
 be cut before PLAYABLE; it does not go public before it.* The repository went
-public before it anyway, on 2026-10-03, knowingly and for the reasons
-[releases §0.1a](docs/design/workplan/04-repo-and-releases.md) gives; the build
+public before it anyway — decided on 2026-10-03 and switched on 2026-10-07 —
+knowingly and for the reasons
+[releases §0.1a](docs/design/workplan/04-repo-and-releases.md) gives; the image
 did not, and PLAYABLE is still the checkpoint ahead.
 
 Start with [`docs/guide/`](docs/guide/README.md) if you want to use it as it is

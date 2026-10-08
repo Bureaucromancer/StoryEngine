@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Account, TurnPreview } from '../api.js';
+import { NEWEST } from '../home/log.js';
 import type { StreamHandlers } from '../play/stream.js';
 import {
   OBJECT_ID,
@@ -445,7 +446,14 @@ describe('the library subject', () => {
  * that drives the real router, and the claim is about which route reaches which
  * subject rather than about what the subject renders (`workbench/home/
  * subject.test.tsx` owns that).
+ *
+ * ~~`'1.0-alpha 4'` as the newest row~~ **The newest row is {@link NEWEST}'s**
+ * (2026-10-07, at alpha 5): which release is newest is `changelog.test.ts`'s
+ * claim, and a literal here made every cut a hidden edit to a test about
+ * routing. `1.0-alpha 4` stays as the row that exists, since it always will.
  */
+const NEWEST_NAME = NEWEST?.name ?? '';
+
 describe('the home subject', () => {
   it('lists the releases over `/`, and does not follow you off it', async () => {
     prefsStore = { 'ui.workbench-open': true };
@@ -471,7 +479,7 @@ describe('the home subject', () => {
     const dock = await screen.findByRole('complementary');
     const releases = await within(dock).findByRole('region', { name: 'Releases' });
     expect(
-      within(releases).getByRole('link', { name: '1.0-alpha 4' }).getAttribute('aria-current'),
+      within(releases).getByRole('link', { name: NEWEST_NAME }).getAttribute('aria-current'),
     ).toBe('page');
 
     await overHome('1.0.0-alpha.1');
@@ -479,11 +487,12 @@ describe('the home subject', () => {
       within(releases).getByRole('link', { name: '1.0-alpha 1' }).getAttribute('aria-current'),
     ).toBe('page');
     // **The regression this pins.** Under the router's default the newest row's
-    // empty search is a *subset* of every address, so `1.0-alpha 4` stayed lit
-    // alongside whichever release was actually chosen — two current rows, and
-    // no test would have noticed if only presence were asserted.
+    // empty search is a *subset* of every address, so `1.0-alpha 4` — then the
+    // newest — stayed lit alongside whichever release was actually chosen — two
+    // current rows, and no test would have noticed if only presence were
+    // asserted.
     expect(
-      within(releases).getByRole('link', { name: '1.0-alpha 4' }).getAttribute('aria-current'),
+      within(releases).getByRole('link', { name: NEWEST_NAME }).getAttribute('aria-current'),
     ).toBeNull();
     expect(releases.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
   });
@@ -504,7 +513,7 @@ describe('the home subject', () => {
 
     expect(releases.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     expect(
-      within(releases).getByRole('link', { name: '1.0-alpha 4' }).getAttribute('aria-current'),
+      within(releases).getByRole('link', { name: NEWEST_NAME }).getAttribute('aria-current'),
     ).toBe('page');
   });
 });

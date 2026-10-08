@@ -17,6 +17,156 @@ the string by the rule in [releases §7.1](docs/design/workplan/04-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
+## 1.0.0-alpha.5 — 1.0-alpha 5 — 2026-10-07
+
+Four weeks after alpha 4, and the first tag since the repository went public.
+Most of what the work plan calls P7 to P15 is in it — modes as packages, a
+prompt pack you can open, memory, pictures, notifications, backups, three
+importers and a Setup made from any turn — and so is the audit of `main` that
+followed them. **Read the first section before upgrading**: an install from an
+earlier alpha will not start until one file is edited, and its trash starts
+being emptied.
+
+### Before you upgrade
+
+- **Add `"scheduledBackups": false` to every account's `capabilities` in
+  `accounts.json`**, at the root of the data directory, before starting this
+  build. Every alpha so far wrote that file without it, this build requires it,
+  and the server refuses to start rather than guess (*"is not a valid accounts
+  file"*). There is no migration, by decision: too few installs to carry one.
+- **The trash is emptied for the first time.** `trash.retentionDays` (30) was
+  never read before. A sweep now runs at every start and daily, so anything
+  deleted more than thirty days ago goes on the first start. Set it to `0`
+  first to keep everything.
+- **Everyone is signed out once.** A sign-in is now bound to the account it was
+  made for, and older cookies are refused.
+- **More model calls, by default.** Past twenty turns a session summarises
+  what leaves its window — one call per turn, before the reply — and memory
+  extraction runs every eighth turn. Both are on for existing sessions.
+- **What reaches the model changed, deliberately**, in ways
+  [the audit](docs/design/workplan/32-main-audit.md) §7 lists: blocks placed
+  after the history are sent where they sit rather than hoisted into the opening
+  prompt, and a treatment's framing reaches the prompt at last. A Scene session
+  from an earlier build goes on playing the way it was first played.
+- **The server talks to the network on its own now**: a daily update check
+  against GitHub's releases (`updates.checkEnabled: false` stops it), and,
+  bound beyond loopback, `storyengine.local` over mDNS on UDP 5353
+  (`server.mdnsName: ""` turns it off).
+- **A container made from the old unraid template lacks `SE_SUPERVISED=1`**,
+  so it offers neither *Restart now* nor a restore. Add the variable, or take
+  the new template.
+- The search index rebuilds once (version 12) and the state store migrates, on
+  the first start. The HTTP API is stricter in places — an unknown field in a
+  turn's `input` is a `400` — and [the API reference](docs/api.md) has the
+  routes.
+
+### Added
+
+- **The prompt pack is something you can open.** Each mode's pack is a library
+  object with an editor — blocks in order, slots, budgets, difficulty — and a
+  running session has a settings panel to switch its pack, set reply length
+  and temperature, or edit its own copy. Turns already taken keep the blocks
+  they were built from. Treatments, setups and packages have editors too, so
+  all six kinds do.
+- **Modes are packages, and there are three**: Scene; Freeform — a premise, a
+  difficulty and how far the narrator steers, with `do`, `say`, `think` and
+  `story` moves; and an assistant that proposes edits you apply. **Scene is a
+  chat now**: one character or a group, each answering in its own message,
+  with SillyTavern's reply strategies and a *Smart* one, swipes, continue, edit
+  and hide. Its trackers, secret plot and editors are agents, all off until
+  you switch them on.
+- **Hooks, goals and the cast each have a panel.** A hook can be paced, forced,
+  written mid-session, or saved out to a treatment, setup or lorebook. A goal
+  the model thinks is met, and a death it proposes, both wait for you.
+- **A long session keeps its past as a chain of summaries**, and **a character
+  remembers across sessions**: *Remember this* on any turn writes to that
+  character's memory book, and an extractor proposes more. It only ever adds,
+  so nothing you wrote is rewritten.
+- **Pictures.** *Illustrate* any turn, or every turn, and Scene can draw its
+  backdrop, from a connection marked *Makes pictures*. A turn never waits for
+  its picture, and the recipe outlives the pixels. **A move can carry
+  pictures** — up to four, captioned. A model that sees pictures gets them and
+  any other gets the caption, so a picture never ties a session to one model.
+- **Backups from the browser**, your own or the whole install's, `full` or
+  `redacted`, and on a schedule where an administrator allows it. Two ways
+  back, kept apart by name: *Import* merges into the running server, and
+  *Restore* replaces the install across a restart and keeps what it replaced.
+- **Imports, and a way out.** A whole Aventuras install at once — its library
+  and, if you tick *stories*, its stories as sessions. SillyTavern and Marinara
+  roleplay chats, single or group, as Scene sessions you can update from the
+  source. A session exports as one file and comes back with its branches.
+  Every object can be downloaded, or exported as a SillyTavern card or an
+  Aventuras file, and the export says what it lost.
+- **Make a setup from here.** Any turn offers it beside *Continue from here*: a
+  dialog drafts the story so far, an opening and the facts established, you
+  choose what carries, and new sessions start from it. Nothing it would spoil
+  is shown. *The party* is who travels — a chat character who never joined it
+  does not.
+- **Around the story**: a reading view that prints and copies; search with
+  snippets; *Assist* on every editor field; *Impersonate*; notifications, with
+  sound; connections of your own, and *Test* on any connection, which says
+  which field to fix; *Restart now* where something will restart the server; a
+  sign-in gallery, off by default; a trash, *Used by*, and *Delete* on every
+  row of the library; French, machine-translated and unreviewed; and `/`,
+  which shows this changelog.
+- **A Linux tarball** beside the image, with a systemd unit and an install
+  script.
+
+### Changed
+
+- **The look.** The story is set in a book face and the interface in the
+  system's, the action colour is indigo, the header folds on a phone, the
+  per-turn controls exist on a touch screen, the story prints, and a
+  destructive action asks once, the same way everywhere. The composer grows as
+  you type: Enter sends, Shift+Enter is a new line.
+- **Imports read their sources the way those programs do**, so importing again
+  gives a different and better result — SillyTavern presets in the order it
+  sends them, and a card's own name where its prose says `{{char}}`.
+- **Enter makes a new line in the editors' long fields** instead of saving, and
+  a failure says what to do rather than naming a category.
+
+### Fixed
+
+Against alpha 4 — fixes to what is new since are part of it above, and
+[the audit](docs/design/workplan/32-main-audit.md) §7 has the long list.
+
+- **Delete, restore from the trash and removing an account work on Windows.**
+  Anything ever saved — an object with history, a session with turns — failed
+  with a bare 500, because the file watcher held every folder under the data
+  root open. Linux, Docker and unraid never saw it.
+- **A story survives a full disk.** An append after a torn line was swallowed,
+  and the story with it.
+- **One upload cannot take the server down**, and **one data directory has one
+  server**: a second refuses to start, naming it.
+- **The index agrees with the disk** after a killed first start, an unreadable
+  file, or a hand edit made while the server was down.
+- **A finished turn that fails to save is saved again**, and a reload or a
+  reconnect mid-turn rebuilds it.
+- **A session started in the browser has a persona**, so the narrator stops
+  addressing *the player*.
+- **Lore keys and names match whole words**, in every script.
+- **Marinara 2.4 imports**, where it was refused as newer than this build.
+
+### Known
+
+- **No compatibility promise between alpha builds**, and this is the first that
+  exports native objects. An older build refuses, whole, a file that uses what
+  this one added inside a portable schema — the `background` picture role, or a
+  pack slot that reads a tracker or a setup answer. That is accepted for the
+  alphas ([26 B16](docs/design/26-open-questions.md)). Packages still export as
+  `storyengine.package/1`; World will rename them and go on reading the old
+  name.
+- **The image is still private, and the tarball is not.** Each tag's tarball is
+  a workflow artifact on a public repository — a download for anyone signed in
+  to GitHub, for ninety days
+  ([releases §0.1a](docs/design/workplan/04-repo-and-releases.md)). There is no
+  GitHub Release and no `latest`.
+- **Most of this has not been walked by a person.** Eleven phases, P6B to P15,
+  are merged and held open on sittings nobody has sat
+  ([manual testing](docs/design/workplan/05-manual-testing.md), L to Z), and
+  several want hardware or an endpoint this project has not had: nobody has
+  watched a generated picture arrive. PLAYABLE has still not run.
+
 ## 1.0.0-alpha.4 — 1.0-alpha 4 — 2026-09-09
 
 The build the walk gets walked against. Alpha 3 made the retrieval half

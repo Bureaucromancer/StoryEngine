@@ -1130,7 +1130,10 @@ demonstration above is still a person's: pull, token, admin, a session, from a
 machine with Docker; [P6A §3](19-p6a-alpha-1.md) says what the suite and the
 workflow have proved of it. Alpha 2 followed on 2026-09-07, alpha 3 on
 2026-09-08, and **alpha 4 on 2026-09-09 — cut as [sitting K](05-manual-testing.md)'s
-K0, because a finding recorded against a dirty tree is not attributable**. **The phase closed on its merge — the precedent the project made a
+K0, because a finding recorded against a dirty tree is not attributable**.
+Alpha 5 followed on 2026-10-07, after four weeks of merges: the first tag on a
+public repository, and the first to run the tarball job P11.9 added.
+**The phase closed on its merge — the precedent the project made a
 rule on 2026-09-09** — and steps 3 through 12 stand as
 [sitting I](05-manual-testing.md), where the first install has already turned
 three of them into halves.*

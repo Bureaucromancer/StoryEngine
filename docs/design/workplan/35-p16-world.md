@@ -112,6 +112,12 @@ old name adds files the legacy read must cover — so if one is planned, P16.0
 moves ahead of P12A on its own, and this document is refiled by
 `tools/renumber-docs.mjs`, never by hand.
 
+*(2026-10-07: alpha 5 was cut before P12A and before P16.0, by the owner's
+decision to record the cost rather than move the stage. It exports
+`storyengine.package/1` and `.sepack` files, so P16.0's legacy read now covers
+files a tagged release handed out, not only those dev builds wrote. Whether
+P16.0 still moves ahead of P12A is left to the owner, and nothing was refiled.)*
+
 ### 0.2 What the code is today — audited 2026-10-04
 
 Read before costing anything below. Ten facts, each a reason a stage is cheaper

@@ -649,6 +649,11 @@ No gate row was edited.
 
 ## 2.1 — What the changelog will say
 
+*(Taken into the alpha 5 entry of the [changelog](../../../CHANGELOG.md),
+2026-10-07, condensed, with the party caveat. Illustrate's cancellation is not
+listed on its own: alpha 4 had no Illustrate to fix, so it is part of the
+feature that entry adds.)*
+
 *Written at P15.9, here rather than in `CHANGELOG.md`, for
 [P12 §2.1](29-p12-implementation.md)'s reason: that file's headings are parsed by
 the About surface and an unreleased one is not a heading it takes.*

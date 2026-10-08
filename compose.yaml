@@ -18,7 +18,7 @@
 
 services:
   storyengine:
-    image: ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.4
+    image: ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.5
     # Pinned, deliberately: this file is the build you can go back to. The
     # `testing` channel follows every tagged alpha (releases §4) — change the
     # tag to `testing` to follow it, as the unraid template does. `latest` names

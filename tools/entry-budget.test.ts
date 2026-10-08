@@ -204,6 +204,18 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * six times stays named — the note sentences off the entry with the library
  * surface that is their only reader, or a second `lazy()`.
  */
+/*
+ * ***Not raised on 2026-10-07, at alpha 5 — and the change was not code.***
+ * `CHANGELOG.md` is on the entry (`home/log.ts` imports it `?raw`, P7B.9), so
+ * every release's entry is weighed here. Alpha 5's — a month of phases in about
+ * nine kilobytes of prose — measured **336.08** before and **339.59** after:
+ * **+3.51 kB**, and **1.41** left. Kept short to fit rather than raising, but
+ * it is the first growth this file has seen that will **recur on schedule**:
+ * every tag adds its notes, and the next one will meet this ceiling. The remedy
+ * is the one named above in a new place — the changelog is read only on `/`, so
+ * it can leave the entry with the page — and choosing it is a loading decision,
+ * named here rather than taken in a release commit.
+ */
 const JS_CEILING_KB = 341;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */

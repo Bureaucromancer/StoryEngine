@@ -520,6 +520,14 @@ question**: `storyengine.world/1` is a new schema id, which an older build
 refuses whole whatever is decided about unions, so P16.3's review says which
 builds can read the file it writes. This entry stays open, and the owner's.)*
 
+*(2026-10-07, at alpha 5 — the release this entry was due before. **The owner
+took the third answer, for the alphas only.** Alpha 5 ships the three arms as
+they are, and its [changelog](../../CHANGELOG.md) entry's *Known* says that an
+older build refuses, whole, a file that uses them. The changelog stands in for
+*say so where exports are offered*, which no export surface does yet. The entry
+stays open for beta, where opening the unions or bumping the version is still
+the choice, and the `world` arm still waits on it.)*
+
 **B17. Are the portable Package and the continuity World one object? —
 RESOLVED 2026-10-03 by the owner: yes, World replaces Package, and ~~the design is
 owed~~ the design was written 2026-10-04 — [15](15-world.md),
@@ -2154,7 +2162,10 @@ silently:***
 - **No SDK helper for a move's words plus its pictures.** The server has it
   (`assembly/pictures.ts`); publishing it is P7's contract work.
 
-***What the changelog will say***, parked here until the next tag is cut, as
+*(Taken into the alpha 5 entry of the [changelog](../../CHANGELOG.md),
+2026-10-07, condensed. Its "nothing needs doing by hand" was not true by then:
+P12.4's `accounts.json` edit leads that entry.)* ***What the changelog will
+say***, parked here until the next tag is cut, as
 [P12 §2.1](workplan/29-p12-implementation.md) parks its own: *Pictures on a
 move* — attach up to four, caption each, and a model that can see pictures is
 shown them, while one that cannot gets the caption, so using a picture never

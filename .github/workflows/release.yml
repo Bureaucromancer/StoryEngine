@@ -362,15 +362,21 @@ jobs:
       # the one artifact that would be public, and not by anybody's decision.
       # docs/design/workplan/04-repo-and-releases.md §0.1a's heading says the
       # repository went public and the build did not, and its body now says the
-      # second half holds only until this step runs. This step has never run:
-      # the job arrived at P11.9, after the last tag (alpha 4, 2026-09-09).
+      # second half holds only until this step runs. ~~This step has never run:
+      # the job arrived at P11.9, after the last tag (alpha 4, 2026-09-09).~~
+      # *It first runs at alpha 5 (2026-10-07), the job having arrived at P11.9.*
       #
-      # **Whoever cuts the next tag decides this deliberately**, and
+      # ~~**Whoever cuts the next tag decides this deliberately**, and
       # docs/deploy.md's *Cutting a release* asks for it as a step before the
       # tag: keep the upload and say so in §0.1a, set a short `retention-days`,
-      # or drop the step. Dropping it costs no proof, because every check above (the pack,
-      # the comparison and the boot) runs before it. Nothing here was changed by
-      # writing this down.
+      # or drop the step.~~ **Decided at alpha 5, by the owner: kept as it is**
+      # (2026-10-07) — the upload, with the default ninety days, on the day the
+      # repository itself went public. So the tarball is a public download and
+      # the image is still a private package, and §0.1a says so rather than
+      # leaving its heading to imply otherwise. The two alternatives stay cheap
+      # if this is ever revisited: a `retention-days` here, or the step removed,
+      # which costs no proof, because every check above (the pack, the
+      # comparison and the boot) runs before it.
       - uses: actions/upload-artifact@v4
         with:
           name: storyengine-${{ steps.names.outputs.version }}-linux

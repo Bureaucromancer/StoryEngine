@@ -4,16 +4,18 @@
 unraid template that [P6A](design/workplan/19-p6a-alpha-1.md) ships — what exists,
 not what is planned.
 
-> **If you are not the maintainer, this page will not work for you yet.** The
-> image is not published, so nothing below pulls without the maintainer's
-> login, and no tarball has been built. The repository has been public since
-> 2026-10-03, for reasons of licensing and CI rather than readiness
-> ([releases §0.1a](design/workplan/04-repo-and-releases.md)); running
-> StoryEngine yourself means building it from source — the
+> **If you are not the maintainer, most of this page will not work for you
+> yet.** The image is not published, so nothing below pulls without the
+> maintainer's login. From alpha 5 each tag's tarball is a workflow artifact on
+> the tag's Release run, downloadable for ninety days by anyone signed in to
+> GitHub ([A tarball](#a-tarball-and-a-systemd-unit)). The repository has been
+> public since 2026-10-07 (decided 2026-10-03), for reasons of licensing and CI
+> rather than readiness ([releases §0.1a](design/workplan/04-repo-and-releases.md));
+> otherwise running StoryEngine yourself means building it from source — the
 > [README](../README.md#running-it) — and it is unsupported and unreleased.
 
 **Alpha 1 is a build this project made for itself.** ~~The repository is private,~~
-*The repository is public since 2026-10-03;* the registry package is private,
+*The repository is public since 2026-10-07;* the registry package is private,
 and the unraid template is committed rather than submitted. That is a deliberate position rather than a stage on the way to
 something: publishing the image is a decision to publish the repository at the
 same instant, because AGPL §13's source link has to resolve for whoever is
@@ -348,8 +350,9 @@ and an install script beside it. Before the workflow uploads it, it unpacks it
 somewhere fresh and starts it, and an archive whose server does not answer is
 not uploaded. The upload is a workflow artifact on the run's page, readable by
 whoever can read the repository, which on a public repository is anyone signed
-in to GitHub. *(2026-10-04: whether to keep it that way is undecided, and
-[Cutting a release](#cutting-a-release) step 3 asks for it before the next tag.)*
+in to GitHub, for ninety days. *(2026-10-04: whether to keep it that way was
+undecided. Decided at alpha 5, 2026-10-07: kept, and
+[releases §0.1a](design/workplan/04-repo-and-releases.md) says so.)*
 
 ```bash
 tar xzf storyengine-1.0.0-alpha.2-linux.tar.gz
@@ -403,16 +406,12 @@ otherwise identical build stops being identical.
    date — `## 1.0.0-alpha.1 — 1.0-alpha 1 — 2026-…` — because the workflow looks
    for the version at the start of the line. The names, and how they follow
    from the string, are [releases §7.1](design/workplan/04-repo-and-releases.md)'s.
-3. ***Decide the tarball's upload first*** *(added 2026-10-04)*. Once the
-   repository is public, the tarball job's `actions/upload-artifact` step makes
-   `storyengine-<version>-linux` a download for anyone signed in to GitHub, for
-   ninety days unless `retention-days` is set, while the image stays a private
-   package. Nobody has decided that, and the step has never run. Before the
-   next `v*` tag, keep the upload and record it in
-   [releases §0.1a](design/workplan/04-repo-and-releases.md), give it a short
-   `retention-days`, or drop the step. The comment above the step in
-   `release.yml` says why each is reasonable. Once decided, this step can go.
-4. Commit, then tag `v<version>` and push the tag. The tag moves `testing` too.
+3. Commit, then tag `v<version>` and push the tag. The tag moves `testing` too.
+
+*(A third step stood here from 2026-10-04 to 2026-10-07 — decide whether the
+tarball's upload stays, before the first tag on a public repository. It was
+decided at alpha 5: the upload stays as it is, and
+[releases §0.1a](design/workplan/04-repo-and-releases.md) records it.)*
 
 `.github/workflows/release.yml` fires on `v*` — filtered, because ~~the only other
 tag in this repository is `p1` and phase tags are a habit here~~ phase branches

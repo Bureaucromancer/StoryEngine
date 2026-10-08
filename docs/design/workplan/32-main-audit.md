@@ -306,6 +306,14 @@ Windows leg there is work to do at once.
 
 ## 7. What the next release's changelog entry should say
 
+*(Taken into the alpha 5 entry of the [changelog](../../../CHANGELOG.md),
+2026-10-07, condensed, with three corrections. It leads with the
+`accounts.json` edit and the trash's first sweep, neither of which is below.
+Its **Fixed** keeps only what alpha 4 shipped, since most lines here fix code
+no tag had carried — backups, pictures, Restart now. And *Fixed: releases*' "the
+image builds" was true only from `1fc232b1`, five days after this section was
+written.)*
+
 The changelog is written when a release is cut ([releases §7](04-repo-and-releases.md)),
 and an `## Unreleased` section is a decision the changelog's parser asks for
 rather than takes, so the entry waits here. Nothing has been tagged since

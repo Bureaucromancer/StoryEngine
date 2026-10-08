@@ -33,6 +33,11 @@ const CHANGELOG = readFileSync(
   'utf8',
 );
 
+/** The version the root `package.json` claims — the build this file ships in. */
+const { version: VERSION } = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../../package.json', import.meta.url)), 'utf8'),
+) as { version: string };
+
 describe('the changelog this build ships', () => {
   const log = parseChangelog(CHANGELOG);
 
@@ -41,8 +46,17 @@ describe('the changelog this build ships', () => {
     expect(log.releases.length).toBeGreaterThanOrEqual(4);
   });
 
+  /**
+   * ~~`toBe('1.0.0-alpha.4')`~~ **The newest release is the build's own
+   * version** (2026-10-07, at alpha 5). The literal held for exactly as long as
+   * nothing was cut, and then made every cut a third place to type the version
+   * — which [releases §7.1] and docs/deploy.md's *Cutting a release* both say
+   * is two. There is no `## Unreleased` section (the test below holds that), so
+   * the top heading and `package.json` can only disagree when a cut is half
+   * made, and that is the failure worth having.
+   */
   it('is newest first, which is the order the file is written in', () => {
-    expect(log.releases[0]?.version).toBe('1.0.0-alpha.4');
+    expect(log.releases[0]?.version).toBe(VERSION);
     expect(log.releases.at(-1)?.version).toBe('1.0.0-alpha.1');
   });
 
@@ -52,12 +66,17 @@ describe('the changelog this build ships', () => {
    * them. A splitter keyed on a blank line would have folded the whole of
    * alpha.3 into alpha.4's body and failed nothing at all — the page would have
    * shown one enormous release and the list would have shown three.
+   *
+   * ~~`const [newest, next] = log.releases`~~ *Found by version since alpha 5*,
+   * when alpha.4 stopped being the newest and the wart stayed where it was.
    */
   it('ends a release at the next heading even with no blank line before it', () => {
-    const [newest, next] = log.releases;
+    const at = log.releases.findIndex((release) => release.version === '1.0.0-alpha.4');
+    const [wart, next] = log.releases.slice(at, at + 2);
 
-    expect(newest?.body).not.toContain('## 1.0.0-alpha.3');
-    expect(newest?.body.endsWith('scrolled out of sight.')).toBe(false);
+    expect(wart?.version).toBe('1.0.0-alpha.4');
+    expect(wart?.body).not.toContain('## 1.0.0-alpha.3');
+    expect(wart?.body.endsWith('scrolled out of sight.')).toBe(false);
     expect(next?.version).toBe('1.0.0-alpha.3');
     expect(next?.body.startsWith('#')).toBe(false);
   });

@@ -40,7 +40,7 @@
     CHANNEL. This template follows the testing channel: every tagged alpha
     moves it, so unraid's update check offers each one. To stay on one build,
     change the repository tag to that build's version, such as
-    ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.4. There is no latest.
+    ghcr.io/bureaucromancer/storyengine:1.0.0-alpha.5. There is no latest.
 
     FIRST RUN. The container binds 0.0.0.0, because a container's own loopback
     is unreachable however you map the port. That means the create-the-first-
