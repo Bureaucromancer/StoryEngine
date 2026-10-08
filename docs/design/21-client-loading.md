@@ -10,6 +10,8 @@ browser performance profile was taken for this note.
 *2026-10-04: one boundary is built — the setup wizard's dialog, the client's
 first `lazy()`, recorded at [§7.2](#72-the-first-lazy-boundary-the-setup-wizards-dialog-2026-10-04).
 Everything else here is still exploration, and §6's baseline was never taken.*
+*2026-10-07: a second — the changelog and its renderer, at
+[§7.3](#73-the-changelog-leaves-the-entry-and-takes-its-renderer-2026-10-07).*
 
 **The planning assumption is continued growth.** The client has reached this
 size with much of the intended application still ahead of it. Modes, richer
@@ -386,6 +388,10 @@ entry, and puts only the renderer in a chunk `/` fetches. It is exactly §4.2's
 surface [10 §1.1](10-ui-surfaces.md) files as Quiet, which should be a sentence
 rather than a spinner.
 
+*Taken on 2026-10-07, one step wider than written, and not because of a
+complaint — [§7.3](#73-the-changelog-leaves-the-entry-and-takes-its-renderer-2026-10-07)
+says why the text had to go with it.*
+
 ### 7.2 The first lazy boundary: the setup wizard's dialog (2026-10-04)
 
 **What forced it was the tripwire, not a complaint.** `tools/entry-budget.test.ts`
@@ -478,3 +484,90 @@ retained across an upgrade. This is one optional tool off the entry, and the
 precedent it sets is the sizing — the dialog, not the button; one boundary,
 not a subdivision — and the two states every later boundary owes, drawn where
 they stay visible and with focus handed back when one is dismissed.
+
+### 7.3 The changelog leaves the entry, and takes its renderer (2026-10-07)
+
+**What forced it was a release, and it would have kept forcing it.** Home
+renders `CHANGELOG.md` from a build-time `?raw` import
+([P7B §1.3](workplan/24-p7b-presets-and-prompts.md)), and until this date the
+text, its parse and the renderer were all on the common entry. Alpha 5's notes
+alone weighed **+3.51 kB** against `tools/entry-budget.test.ts`'s ceiling and
+left 1.41: the first growth that test had seen that **recurs on schedule**,
+because every tag adds its notes. §7.1's contingency moved only the renderer and
+left the text on the entry, because the workbench's list of releases read it
+there, and the text is the half that grows. So both readers moved.
+
+**The boundary.** Everything that reads the changelog is one chunk,
+`home/readers.ts`: home's release (`home/HomeRelease.tsx`: the lookup, the
+heading, *All releases…*, the rendered document) and the workbench's list
+(`workbench/home/ReleaseSubject.tsx`). Each is `lazy()` at its call site,
+`HomePage.tsx` and `Workbench.tsx`, and both go through that one module. They
+always arrive together, because the dock's subject is home's only over `/`. The
+text's module, `home/log.ts`, is reached only from that chunk, so **the one
+parse holds** and the page and the panel still read one object. What stays on
+the entry is what needs neither the text nor the renderer: home's title and the
+line under it, and the dock's frame. *Still build-time*: a chunk is part of the
+build, not a resource, so P7B §1.3's argument that the changelog is *this
+build's* is untouched.
+
+**Measured with the entry-budget test's compressor**, gzip level 9, over
+everything `index.html` pulls:
+
+| | Entry JavaScript | Off the entry |
+| --- | --- | --- |
+| Before (`9e5cc798`, alpha 5) | **339.58 kB** | the wizard, the machine French |
+| Three chunks, one per reader plus the text | 299.57 kB | `HomeRelease`, `ReleaseSubject`, `log` |
+| **One chunk, `readers`** | **298.46 kB** | `readers`, about 47 kB on its own |
+
+The ceiling came down from 341 to **304**, to leave the five kB of margin every
+raise in that file left, rather than forty for the next change to spend without
+saying so.
+
+**What else moved, recorded rather than tuned.** With a second `import()` of
+shared code in the client, the bundler stopped leaving shared modules on the
+entry and began putting them into files of their own, which `index.html`
+preloads. The wizard alone had not caused this. As three reader chunks, the
+first load fetched nine JavaScript files; as one, it fetches five (the entry,
+the bundler's runtime and three shared chunks). The budget counts all of them,
+so the figure above is the whole first load, and it is about a kilobyte smaller
+than the single file was. Whether to group shared code deliberately is §4.4's
+question, and it is still open.
+
+**The states, §7.2's, without the wizard's *Dismiss*.** Nothing here was opened
+by a button, and nothing here can be closed.
+
+- *Pending* is a sentence where the content will be: *Loading this build's
+  changelog…* under home's title, and *Loading this build’s releases…* in the
+  dock. Each is a `status`.
+- *Failure* is a local boundary, `home/ChangelogLoad.tsx`, shared by both
+  readers. It guards the render as well as the load. **Only a failed load is
+  told to reload**: the factory both readers are declared with,
+  `lazyChangelogReader`, wraps the import's rejection in an error type of its
+  own. Home keys its boundary on the release the address names, so a document
+  that failed to draw does not stay the failure once another is chosen. The
+  chunk is cached by then, so the remount draws at once. Without the boundary,
+  the router's `RouteErrorCard` would replace the page, and in the dock the
+  failure would reach the shell.
+- *No retry control*, for §7.2's reasons, which hold unchanged.
+
+**The guardrail reads the build for what it carries**, not only for what it
+calls its files. A static import of `readers.ts` is one regression, but a
+static import of `log.ts` or `ChangelogDocument.tsx` from anywhere the entry
+reaches would bring the text or the renderer back while a `readers-*` chunk
+went on existing beside it. So *keeps the changelog and its renderer off the
+entry* looks for the changelog's preamble and for `allowedElements`, the
+renderer option that minification keeps, in every file `index.html` pulls.
+Each marker is asserted present somewhere first, so one that stops appearing
+fails the test by name. Mutation-checked five ways, each restored afterwards:
+
+- home's release imported statically;
+- the dock's list imported statically;
+- the renderer imported statically from the shell;
+- the rejection left unwrapped;
+- home without its boundary.
+
+The first three fail the structural check and the ceiling; the last two fail
+`ChangelogLoad.test.tsx` and `HomePage.load.test.tsx`. Checked in a browser
+against the built server, on a throwaway install: the setup page fetched only
+the entry's files, `readers` arrived once on reaching `/`, the dock's list
+followed with no second request, and choosing an older release redrew at once.

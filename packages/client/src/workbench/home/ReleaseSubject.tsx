@@ -28,7 +28,10 @@ import { Note, SubsectionTitle } from '../../ui/Text.js';
  * relationship `TurnPicker` has to `TurnSubject` and the reason a picker is
  * allowed in this panel at all. It holds no state: the selection is in the
  * address, the list is derived from a string the bundle already contains, and it
- * issues no request of its own.
+ * issues no request of its own. *(2026-10-07: the string is in a chunk now, and
+ * so is this component — `Workbench.tsx` loads it with `lazy()`,
+ * [21 §7.3](../../../../../docs/design/21-client-loading.md). Fetching part of
+ * the build is not a request for data, so the sentence stands.)*
  *
  * *What would make it the second exception*, said plainly so the line stays
  * visible: a control here that changed something, or a subject that survived

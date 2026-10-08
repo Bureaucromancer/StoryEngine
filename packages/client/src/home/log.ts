@@ -28,6 +28,18 @@ import source from '../../../../CHANGELOG.md?raw';
  * Module scope rather than a `useMemo` because the input is a constant folded
  * into the bundle: there is no render at which it could differ, and a hook
  * would be a cache keyed on something that cannot change.
+ *
+ * ***Still build-time, and no longer on the entry*** (2026-10-07,
+ * [21 §7.3](../../../../docs/design/21-client-loading.md)). Both readers are
+ * `lazy()` now — [HomeRelease](./HomeRelease.tsx) and the workbench's
+ * `ReleaseSubject`, both through [readers.ts](./readers.ts) — so this module is
+ * reached only from that one chunk. **The one parse holds**: a module is
+ * evaluated once however it is reached. And the string is
+ * still the one this build was made from, folded into a file beside the entry
+ * rather than into it — a chunk is part of the build, not a resource, so the
+ * argument above is untouched. **Nothing on the entry may import this
+ * statically**, or the text is back on every first load; the entry-budget test
+ * looks for the text in the entry's files and fails if it finds it.
  */
 export const CHANGELOG: Changelog = parseChangelog(source);
 

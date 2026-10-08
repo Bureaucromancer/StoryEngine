@@ -23,6 +23,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * The page acquired providers along with the *All releases…* control, which
  * patches a preference. `LibraryPage.test.tsx`'s harness: the dock's open state
  * is a store rather than a spy, because the claim is a round trip through it.
+ *
+ * ***Found rather than got*** (2026-10-07): the release is a `lazy()` chunk now
+ * ([21 §7.3](../../../../docs/design/21-client-loading.md)), so every assertion
+ * about it waits for it to arrive, and an assertion that something is *absent*
+ * waits for the release first — or it would pass against the loading sentence.
+ * The title and the line under it are on the page before the chunk, and the
+ * first test says so by not waiting. `HomePage.load.test.tsx` holds the
+ * sentence and the failure.
  */
 
 let prefsStore: Record<string, unknown> = {};
@@ -68,12 +76,12 @@ describe('the arrival page', () => {
     expect(screen.getByText(/not built yet/)).toBeTruthy();
   });
 
-  it("shows this build's changelog, read from the real file", () => {
+  it("shows this build's changelog, read from the real file", async () => {
     renderHome();
 
     // The version heading comes from the parsed file, so it is the build's.
     expect(NEWEST?.version).toMatch(/^1\.0\.0-alpha/);
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain(NEWEST?.name);
+    expect((await screen.findByRole('heading', { level: 2 })).textContent).toContain(NEWEST?.name);
   });
 
   /**
@@ -81,49 +89,52 @@ describe('the arrival page', () => {
    * reach the screen as four literal characters inside a `<pre>`; the assertion
    * is both halves — real headings, and no leftover syntax.
    */
-  it('renders the release as a document rather than as its source', () => {
+  it('renders the release as a document rather than as its source', async () => {
     const { container } = render(
       <QueryClientProvider client={new QueryClient()}>
         <HomePage />
       </QueryClientProvider>,
     );
 
+    const sections = (await screen.findAllByRole('heading', { level: 3 })).map(
+      (node) => node.textContent,
+    );
     expect(container.querySelector('pre')).toBeNull();
-    const sections = screen.getAllByRole('heading', { level: 3 }).map((node) => node.textContent);
     expect(sections).toContain('Added');
     expect(sections).toContain('Fixed');
     expect(container.textContent).not.toContain('### Added');
     expect(container.querySelectorAll('li').length).toBeGreaterThan(3);
   });
 
-  it('shows one release, not the whole file', () => {
+  it('shows one release, not the whole file', async () => {
     renderHome();
 
     const older = CHANGELOG.releases[2];
 
-    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
+    expect(await screen.findAllByRole('heading', { level: 2 })).toHaveLength(1);
     expect(screen.queryByText(new RegExp(older?.name ?? 'nothing'))).toBeNull();
   });
 
-  it('does not render the preamble, which addresses a reader of the repository', () => {
+  it('does not render the preamble, which addresses a reader of the repository', async () => {
     renderHome();
 
+    await screen.findByRole('heading', { level: 2 });
     expect(screen.queryByText(/Every release tag has an entry here/)).toBeNull();
   });
 });
 
 describe('which release the address names', () => {
-  it('shows the newest, and says that is what it is', () => {
+  it('shows the newest, and says that is what it is', async () => {
     renderHome();
 
-    expect(screen.getByText('The newest release in this build’s changelog.')).toBeTruthy();
+    expect(await screen.findByText('The newest release in this build’s changelog.')).toBeTruthy();
   });
 
-  it('shows an older one when the address names it', () => {
+  it('shows an older one when the address names it', async () => {
     const older = CHANGELOG.releases.at(-1);
     renderHome(older?.version);
 
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain(older?.name);
+    expect((await screen.findByRole('heading', { level: 2 })).textContent).toContain(older?.name);
     expect(screen.getByText('An earlier release. This build is a later one.')).toBeTruthy();
   });
 
@@ -133,10 +144,10 @@ describe('which release the address names', () => {
    * shared from a newer install names a release this one has never heard of —
    * an expected end for a link, not an error card.
    */
-  it('falls back to the newest for a release it does not have, and says so', () => {
+  it('falls back to the newest for a release it does not have, and says so', async () => {
     renderHome('9.9.9');
 
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain(NEWEST?.name);
+    expect((await screen.findByRole('heading', { level: 2 })).textContent).toContain(NEWEST?.name);
     expect(
       screen.getByText(
         'The address named a release this build’s changelog does not have, so this is the newest one instead.',
@@ -144,10 +155,10 @@ describe('which release the address names', () => {
     ).toBeTruthy();
   });
 
-  it('treats the newest named explicitly as the newest, not as an older one', () => {
+  it('treats the newest named explicitly as the newest, not as an older one', async () => {
     renderHome(NEWEST?.version);
 
-    expect(screen.getByText('The newest release in this build’s changelog.')).toBeTruthy();
+    expect(await screen.findByText('The newest release in this build’s changelog.')).toBeTruthy();
   });
 });
 
@@ -214,19 +225,19 @@ describe('the reading column', () => {
    * the whole of the decision — `ui/classes.ts`'s `page` docstring carries the
    * argument and nothing else would go red if the class were dropped.
    */
-  it('gives the prose the story measure without making the page a reading one', () => {
+  it('gives the prose the story measure without making the page a reading one', async () => {
     const { container } = render(
       <QueryClientProvider client={new QueryClient()}>
         <HomePage />
       </QueryClientProvider>,
     );
 
-    const article = container.querySelector('article');
+    const article = await screen.findByRole('article');
 
-    expect(article?.className).toContain('max-w-reading');
-    expect(article?.className).toContain('text-story');
+    expect(article.className).toContain('max-w-reading');
+    expect(article.className).toContain('text-story');
     // The page column is still the shell's, not the story column's.
     expect(container.querySelector('.max-w-4xl')).toBeTruthy();
-    expect(within(article!).getAllByRole('heading', { level: 3 }).length).toBeGreaterThan(0);
+    expect(within(article).getAllByRole('heading', { level: 3 }).length).toBeGreaterThan(0);
   });
 });

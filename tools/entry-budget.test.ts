@@ -216,7 +216,25 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * it can leave the entry with the page — and choosing it is a loading decision,
  * named here rather than taken in a release commit.
  */
-const JS_CEILING_KB = 341;
+/*
+ * ***Lowered to 304 the same day — the changelog and its renderer off the
+ * entry, at [21 §7.3](../docs/design/21-client-loading.md).*** The paragraph
+ * above named it, and this is it taken. Home's release and the workbench's list
+ * of releases are one `lazy()` chunk now (`home/readers.ts`), and the renderer
+ * went with them: [21 §7.1]'s pre-argued contingency for `react-markdown`,
+ * taken one step wider than written, because the text is what grows. HEAD
+ * measured **339.58** and the change **298.46**: **−41.12 kB**, and the readers'
+ * chunk is about 47 on its own, fetched on arrival at `/` and nowhere else. The
+ * ceiling comes down to leave five kB of margin, as every raise above left,
+ * rather than forty for the next change to spend without saying so. *What else
+ * moved, and is counted here*: with a second `import()` of shared code the
+ * bundler began putting the modules the entry shares with the lazy chunks into
+ * files of their own that `index.html` preloads — four besides the entry — and
+ * this file weighs everything `index.html` pulls, so the number above is the
+ * whole first load. 21 §7.3 records the change in shape; 21 §4.4's chunking
+ * question is still open.
+ */
+const JS_CEILING_KB = 304;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;
@@ -315,6 +333,50 @@ describe('what a first load pays for', () => {
     ).not.toEqual([]);
     for (const name of entryAssets('.js')) {
       expect(name.startsWith('SetupWizard-'), name).toBe(false);
+    }
+  });
+
+  /**
+   * ***The changelog and its renderer are not on the entry, and this is the
+   * check that says so*** — [21 §7.3](../docs/design/21-client-loading.md),
+   * 2026-10-07.
+   *
+   * The wizard's argument a third time, with one difference: **the regression
+   * is not only a static import of the chunk's module.** `home/readers.ts` is
+   * the boundary, but `home/log.ts` or `ChangelogDocument.tsx` imported
+   * statically from anywhere the entry reaches would put the text or the
+   * renderer back while `readers-*` went on existing beside it. So this reads
+   * the built files for what they carry rather than for what they are called:
+   * the changelog's own preamble, and `allowedElements` — the renderer's
+   * option `ChangelogDocument` passes, a property name minification keeps.
+   * Each is asserted present somewhere first, so a marker that stopped
+   * appearing fails here by name rather than passing because nothing matched.
+   */
+  it('keeps the changelog and its renderer off the entry', () => {
+    const changelog = 'Every release tag has an entry here';
+    expect(
+      readFileSync(join(HERE, '..', 'CHANGELOG.md'), 'utf8'),
+      'the marker is no longer in CHANGELOG.md: choose another line of its preamble',
+    ).toContain(changelog);
+
+    const chunks = readdirSync(join(DIST, 'assets')).filter((name) => name.endsWith('.js'));
+    const carrying = (marker: string): string[] =>
+      chunks.filter((name) => readFileSync(join(DIST, 'assets', name), 'utf8').includes(marker));
+    const text = carrying(changelog);
+    const renderer = carrying('allowedElements');
+    expect(text, 'no chunk carries the changelog: it is not in the build at all').not.toEqual([]);
+    expect(renderer, 'no chunk carries the renderer: the marker no longer finds it').not.toEqual(
+      [],
+    );
+    expect(
+      chunks.filter((name) => name.startsWith('readers-')),
+      'no chunk named readers-* in dist/assets: the changelog readers are not a chunk of their own',
+    ).not.toEqual([]);
+
+    for (const name of entryAssets('.js')) {
+      expect(text.includes(name), `${name} carries the changelog`).toBe(false);
+      expect(renderer.includes(name), `${name} carries the renderer`).toBe(false);
+      expect(name.startsWith('readers-'), name).toBe(false);
     }
   });
 });

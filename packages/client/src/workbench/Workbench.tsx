@@ -2,9 +2,10 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { Link, useMatch, useNavigate } from '@tanstack/react-router';
-import { useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
+import { Suspense, useRef, useState, type CSSProperties, type JSX, type RefObject } from 'react';
 
 import { isLibraryKind, type TurnRecord } from '../api.js';
+import { ChangelogLoad, lazyChangelogReader } from '../home/ChangelogLoad.js';
 import {
   useAuthState,
   useLiveTurn,
@@ -26,7 +27,6 @@ import {
   workbenchSizePatch,
 } from './prefs.js';
 import { ForceFire } from './ForceFire.js';
-import { ReleaseSubject } from './home/ReleaseSubject.js';
 import { ImportSubject } from './import/ImportSubject.js';
 import { LibrarySubject } from './library/LibrarySubject.js';
 import { LiveSubject } from './live/LiveSubject.js';
@@ -158,7 +158,11 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
         ) : libraryList !== undefined ? (
           <ImportSubject />
         ) : home !== undefined ? (
-          <ReleaseSubject selected={home.search.release} />
+          <ChangelogLoad>
+            <Suspense fallback={<Note role="status">Loading this build’s releases…</Note>}>
+              <ReleaseSubject selected={home.search.release} />
+            </Suspense>
+          </ChangelogLoad>
         ) : (
           <EmptySubject />
         )}
@@ -166,6 +170,18 @@ export function Workbench({ onClose }: { onClose: () => void }): JSX.Element {
     </aside>
   );
 }
+
+/**
+ * ***The list of releases, fetched when the dock is first open over home*** —
+ * [21 §7.3](../../../../docs/design/21-client-loading.md), 2026-10-07. It reads
+ * the changelog, and the changelog is off the common entry; `ChangelogLoad.tsx`
+ * carries the argument. *Through `home/readers.ts`, home's own chunk*, because
+ * the subject is home's only over `/`, where home's release is being fetched
+ * anyway: one chunk, one request, and one parse of the text both read.
+ */
+const ReleaseSubject = lazyChangelogReader<{ selected: string | undefined }>(() =>
+  import('../home/readers.js').then((module) => module.ReleaseSubject),
+);
 
 /**
  * The splitter — [P3.1a]'s drag, and the reason the size is *patched on the
