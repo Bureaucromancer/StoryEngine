@@ -17,6 +17,47 @@ the string by the rule in [releases §7.1](docs/design/workplan/04-repo-and-rele
 and never written without it. A heading here opens with the string, because the
 release workflow reads it there, and carries the name and the date after it.
 
+## 1.0.0-alpha.6 — 1.0-alpha 6 — 2026-10-08
+
+A day after alpha 5, for one thing asked of it: the settings page had become a
+long scroll, and now it has contents. **Upgrading from alpha 5 needs nothing.**
+From an earlier alpha, alpha 5's *Before you upgrade* still applies — above
+all the one-line `accounts.json` edit, without which the server will not start.
+
+### Added
+
+- **Settings has contents, in the workbench.** Open the dock over Settings —
+  *Contents…* beside the title does it — and it lists every section the page
+  shows you; choosing one takes the page there. The administration half is
+  listed only for an administrator, and *Your connections* only where you may
+  have them. On a phone, where the open dock covers the page, choosing a
+  section closes it.
+- **Every section of Settings has an address** — `/settings#trash-section` and
+  the like — so a link to one can be shared, bookmarked or reloaded and lands
+  in the same place, with the keyboard's focus on that section.
+
+### Changed
+
+- **The first load is about 40 kB smaller, compressed.** The changelog and the
+  renderer that draws it now load with the home page rather than with every
+  page, so the sign-in screen, the library and Settings no longer fetch a
+  document they do not show. Home says so in a line while its release loads.
+
+### Fixed
+
+- **A long page could scroll the whole window and take the header with it.**
+  Labels meant only for screen readers, deep in a long page, were positioned
+  against the document instead of the page's own scrolling area, so the
+  document grew to the page's full length. Anything that scrolled the window —
+  find-in-page, or a jump to a section — moved the header off the screen. The
+  page's area contains them now, and the window does not scroll.
+
+### Known
+
+- **Alpha 5's Known section stands**: no compatibility promise between alpha
+  builds; the image is private and each tag's tarball a public download for
+  ninety days; and most of what alpha 5 added has not been walked by a person.
+
 ## 1.0.0-alpha.5 — 1.0-alpha 5 — 2026-10-07
 
 Four weeks after alpha 4, and the first tag since the repository went public.
