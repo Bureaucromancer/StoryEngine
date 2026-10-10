@@ -9,7 +9,7 @@ links here to answer it.
 Versions are [semantic](https://semver.org), with the caveat
 [releases §7](docs/design/workplan/04-repo-and-releases.md) states plainly: before
 1.0 they mean little, and **the data formats carry the real compatibility
-story**. Package and card schema versions are independent of the application's
+story**. World and card schema versions are independent of the application's
 ([03 §7](docs/design/03-data-model.md)).
 
 Each build also has a name — _1.0-alpha 1_, _1.0-beta 1_, _1.0_ — derived from

@@ -22,6 +22,7 @@ import {
   type Treatment,
   isKnownSchema,
   schemaIdOf,
+  upgradeLegacySchema,
   validate,
 } from '@storyengine/shared';
 
@@ -59,7 +60,6 @@ import { blankCardPixels, create, read, update, type LibraryContext } from '../l
 import { contentHashOf } from '../index-db/ingest.js';
 import { codecFor } from '../storage/card/index.js';
 import { fileExists, writeFileBytes } from '../storage/files.js';
-import { userOwner } from '../storage/layout.js';
 import { resolveWithin } from '../storage/paths.js';
 import type { BlobStore } from '../storage/card/envelope.js';
 import { sniff } from '../auth/avatars.js';
@@ -1012,7 +1012,15 @@ class Writer {
    * as its `source`, and the import ledger records the job — so *where did this
    * come from* is answered by the things that exist to answer it.
    */
-  async #native(candidate: ImportCandidate): Promise<ImportItemReport> {
+  async #native(given: ImportCandidate): Promise<ImportItemReport> {
+    /**
+     * ***A body in a kind's old name is that kind*** — [P16 §1.1]. A Package
+     * downloaded as stored before P16.0, or one out of a backup taken then,
+     * says `storyengine.package/1`, which `validate` would pass as a kind it has
+     * never heard of and the arm below would refuse as `unknown-schema`. It is
+     * a World, and arrives as one.
+     */
+    const candidate = { ...given, payload: upgradeLegacySchema(given.payload) };
     const checked = validate(candidate.payload);
     if (!checked.valid) return refusedItem(candidate, 'does-not-validate');
 
@@ -1079,7 +1087,10 @@ class Writer {
     const { library, handle } = this.#request;
     try {
       const row = read(library, handle, id, schemaId);
-      const root = library.layout.assetsRoot(userOwner(handle), schemaId, row.slug);
+      // The folder the object is in, read off its path rather than built from
+      // its slug: a World still in `packages/` keeps its pictures there
+      // ([P16 §1.1]), and `worlds/<slug>` may be another World's.
+      const root = resolveWithin(library.layout.folderOf(row.path), 'assets');
       for (const path of candidate.assets) {
         // Within the object's own folder whatever the archive calls it: the
         // source refused `..` already, and this is the door that would not

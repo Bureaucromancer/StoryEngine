@@ -224,7 +224,7 @@ some.
 **Continue from here** keeps the history behind a turn; **Make a setup from here**
 condenses it away. It saves the point you are at as a setup in your library — a
 starting place you can begin from again and again, or hand to someone else in a
-package, without the turns that led there. It is offered on every turn, beside
+world, without the turns that led there. It is offered on every turn, beside
 **Continue from here**.
 
 It opens a dialog that drafts four things, each with one model call (on the model set

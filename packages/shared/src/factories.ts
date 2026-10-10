@@ -5,7 +5,7 @@ import { uuidv7 } from './ids.js';
 import { type Actor, ACTOR_SCHEMA, CONVENTIONAL_SECTION_IDS } from './schema/actor.js';
 import type { Openings, Provenance } from './schema/common.js';
 import { type Lorebook, LOREBOOK_SCHEMA, type LoreEntry } from './schema/lorebook.js';
-import { type Package, PACKAGE_SCHEMA } from './schema/package.js';
+import { type World, WORLD_SCHEMA } from './schema/world.js';
 import { type Preset, PRESET_SCHEMA } from './schema/preset.js';
 import { type Treatment, TREATMENT_SCHEMA } from './schema/treatment.js';
 import { type Setup, SETUP_SCHEMA } from './schema/setup.js';
@@ -285,21 +285,22 @@ export function newPreset(name: string): Preset {
 }
 
 /**
- * An empty package — the sixth kind, which had no factory (F18).
+ * An empty World — the sixth kind, which had no factory as a Package (F18).
  *
- * Empty is the honest default and not a placeholder: a package with no contents
- * is a container that has not been filled, and filling it is the *export* half
- * of P4. What this proves in the round-trip fixtures is the envelope — that a
- * Package survives a write and a read like every other kind — which is the
- * thing all six are checked for. It says nothing about the container's job,
- * because that job does not exist yet.
+ * Empty is the honest default and not a placeholder: a World with no contents
+ * is a set nobody has filled yet, and [P16.1]'s editor is where it gets filled.
+ * What this proves in the round-trip fixtures is the envelope — that a World
+ * survives a write and a read like every other kind — which is the thing all
+ * six are checked for.
  *
- * `version` is the package's own, not a schema version: two people can ship
- * `v2` of the same bundle ([04 §7](../../../docs/design/04-schemas.md)).
+ * `version` is the World's own, not a schema version: two people can ship
+ * `v2` of the same set ([04 §7](../../../docs/design/04-schemas.md)).
+ *
+ * ***Renamed from `newPackage` at [P16.0]***, with the kind.
  */
-export function newPackage(name: string): Package {
+export function newWorld(name: string): World {
   return {
-    schema: PACKAGE_SCHEMA,
+    schema: WORLD_SCHEMA,
     id: uuidv7(),
     name,
     version: '1.0.0',

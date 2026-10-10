@@ -24,19 +24,20 @@ import {
   RESERVED_SECTION_PREFIX,
 } from './actor.js';
 import { Lorebook, LOREBOOK_SCHEMA } from './lorebook.js';
-import { Package, PACKAGE_SCHEMA } from './package.js';
 import { Preset, PRESET_SCHEMA } from './preset.js';
 import { Treatment, TREATMENT_SCHEMA } from './treatment.js';
 import { Setup, SETUP_SCHEMA } from './setup.js';
+import { World, WORLD_SCHEMA } from './world.js';
 
 /**
  * The registry — docs/design/04-schemas.md §9.
  *
  * **Every portable object self-describes with a `schema` field, so containers
  * never enumerate kinds** ([work plan §2](../../../../docs/design/workplan/01-work-plan.md)). This maps that
- * string to a validator, which is the whole mechanism: a Package walks its
+ * string to a validator, which is the whole mechanism: a World walks its
  * contents, asks the registry about each entry's `schema`, validates what it
- * recognises and carries the rest through untouched.
+ * recognises and carries the rest through untouched. (A Package did, until the
+ * kind was renamed at [P16.0].)
  *
  * It is also why the library routes at P1.5 are one handler set rather than six.
  */
@@ -101,7 +102,7 @@ export const PORTABLE_SCHEMAS = {
   [TREATMENT_SCHEMA]: Treatment,
   [SETUP_SCHEMA]: Setup,
   [PRESET_SCHEMA]: Preset,
-  [PACKAGE_SCHEMA]: Package,
+  [WORLD_SCHEMA]: World,
 } as const satisfies Record<string, TSchema>;
 
 export type PortableSchemaId = keyof typeof PORTABLE_SCHEMAS;
@@ -110,10 +111,11 @@ export type PortableSchemaId = keyof typeof PORTABLE_SCHEMAS;
  * The folder each kind lives in, per [03 §5.1](../../../../docs/design/03-data-model.md).
  * Plural, matching the storage layout.
  *
- * Package is here too. It is a transport container rather than something you
- * play with, but §5.1 gives it a `packages/` folder in the library like any
- * other kind — a received bundle is a thing you keep, and the layout treats it
- * as one.
+ * World is here too, in `worlds/` — the folder Package had as `packages/`
+ * until [P16.0] renamed the kind. It is a set rather than something you play
+ * with, but §5.1 gives it a folder in the library like any other kind — a set
+ * somebody named is a thing they keep, and the layout treats it as one. The old
+ * folder is still read: {@link LEGACY_LIBRARY_DIRECTORIES}.
  */
 export const LIBRARY_DIRECTORIES = {
   [ACTOR_SCHEMA]: 'actors',
@@ -121,8 +123,47 @@ export const LIBRARY_DIRECTORIES = {
   [TREATMENT_SCHEMA]: 'treatments',
   [SETUP_SCHEMA]: 'setups',
   [PRESET_SCHEMA]: 'presets',
-  [PACKAGE_SCHEMA]: 'packages',
+  [WORLD_SCHEMA]: 'worlds',
 } as const;
+
+/**
+ * ***Folders a kind used to live in, and is still read from*** — [P16 §1.1].
+ *
+ * `packages` is the World's folder before the rename, and it is read for as
+ * long as anything might hold it, which is indefinitely: installs made before
+ * P16.0 have one, and the backups they took carry it. **Nothing writes here**:
+ * every write of a World writes `worlds/`, and the first write to an object
+ * found in `packages/` moves its folder there (`library.ts`). An object nobody
+ * writes stays where it is and is read as a World every time, which is correct
+ * rather than a backlog.
+ *
+ * **A separate table rather than a second entry in `LIBRARY_DIRECTORIES`**,
+ * because that one is a bijection everything else relies on — the routes read
+ * a folder name as a kind, the registry test holds its keys to
+ * `PORTABLE_SCHEMAS`, and a kind with two folders would be a kind with two URLs.
+ * Every reader that has to see the old folder — the layout's path parser, the
+ * index's rebuild and reconcile, the backup reader, the trash — asks this table
+ * by name, so the legacy read is greppable and so is its removal, if one day
+ * there is one.
+ */
+export const LEGACY_LIBRARY_DIRECTORIES: Readonly<Record<string, PortableSchemaId>> = {
+  packages: WORLD_SCHEMA,
+};
+
+/**
+ * The kind a library folder name holds, current or legacy, or null.
+ *
+ * One function so the two tables are read in one order everywhere: the current
+ * name first, and the legacy one only when it is not a current one.
+ */
+export function kindOfDirectory(directory: string): PortableSchemaId | null {
+  for (const [schemaId, current] of Object.entries(LIBRARY_DIRECTORIES)) {
+    if (current === directory) return schemaId as PortableSchemaId;
+  }
+  return Object.hasOwn(LEGACY_LIBRARY_DIRECTORIES, directory)
+    ? (LEGACY_LIBRARY_DIRECTORIES[directory] ?? null)
+    : null;
+}
 
 export interface ValidationIssue {
   path: string;

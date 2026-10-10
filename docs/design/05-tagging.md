@@ -134,7 +134,8 @@ validates what it writes, and it may, precisely *because* it is not the bag. B13
 is upheld here rather than amended.
 
 **Not a portable schema.** `schema/` means portable, versioned, emitted, and
-carryable inside a Package. A registry of one person's colour choices crosses no
+carryable inside a World (a Package, before
+[P16.0](workplan/35-p16-world.md)). A registry of one person's colour choices crosses no
 install boundary. It lives in the internal tier beside the turn record, and
 carries an inline version string the way the preferences document does.
 

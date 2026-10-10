@@ -195,7 +195,8 @@ destroys reproducibility.
 ### 3.2 Content and production settings never mix
 
 The single most important boundary in the data model. Shareable content —
-actors, treatments, lorebooks, packages — must **never** carry connections, API
+actors, treatments, lorebooks, Worlds (packages, before
+[P16.0](workplan/35-p16-world.md)) — must **never** carry connections, API
 keys, endpoint URLs, model bindings, or per-install feature toggles. Importing a
 stranger's package must not be able to repoint your provider, flip your content
 rating, or switch on generation against your paid image endpoint.

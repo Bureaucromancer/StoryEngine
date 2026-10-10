@@ -551,6 +551,16 @@ both names. [06 §4.1](06-modes-and-turn-pipeline.md) separates the two senses
 named, additive exception. [P16](workplan/35-p16-world.md) runs after P12A and
 before beta, and its critical list is sitting AA. **B14 and B15 above are
 answered by it, B10 by consequence; B16 is not, and the arm waits on it.**
+***(2026-10-10: [P16.0](workplan/35-p16-world.md) landed on branch `p16`.)*** The
+kind is World in its schema id (`storyengine.world/1`), the registry, the folder
+and file (`library/worlds/<slug>/world.json`), the routes (`/library/worlds/*`)
+and the panel, as [P16 §1.1](workplan/35-p16-world.md)'s migration: a
+`storyengine.package/1` body, a `library/packages/` folder, a backup taken
+before the rename and a Package in the trash are each read as a World, and an
+object's first write moves it. The export envelope, `storyengine.package-export/1`
+as `.sepack.json`, is unchanged until P16.3. **B16 stays open and the owner's**,
+and the `world` arm still waits on it; membership, contribution and transport are
+P16.1 to P16.3.
 *What follows is the entry as it was decided, kept for the reasoning.*
 The `worlds` branch argued on 2026-09-14 that a Package ([04 §9](04-schemas.md))
 and a World ([15](15-world.md)) are one thing seen from two sides — a named set
@@ -571,7 +581,8 @@ before any continuities exist still holds of that half. ~~Nothing is built or
 designed yet: a design step rewrites [15](15-world.md) and
 [04 §9](04-schemas.md) against it, and until then both describe what this
 decided against, each with a dated note saying so.~~ *Designed 2026-10-04, as the
-head of this entry says; nothing is built.* The branch's text is the
+head of this entry says; ~~nothing is built~~ the rename is built since
+2026-10-10, and the rest is not.* The branch's text is the
 material for that step, adopted as nobody's yet: its rewrite of 15 and its new
 *16 — Publish* are in `162b4a61` (whose subject says *renames only*), its P8A
 plan in `d8656c68`, and the code rename in `448c53e3`, all reachable through the

@@ -25,6 +25,7 @@ import { presentRoleRow, roleTable } from '../providers/roles.js';
 import { ASSIST_ROLES, readTaskRoles, writeTaskRoles } from '../providers/task-roles.js';
 import { ingestFile } from '../index-db/ingest.js';
 import { reindexSession, withSessionLock } from '../sessions/store.js';
+import { fileExists } from '../storage/files.js';
 import { userOwner } from '../storage/layout.js';
 import { listTrash, restoreFromTrash, TrashAddressError } from '../storage/trash.js';
 
@@ -381,11 +382,21 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
           reindexSession(services.sessions, account.handle, back.sessionId),
         );
       } else {
-        await ingestFile(
-          services.index.db,
-          services.layout,
-          services.layout.objectFile(userOwner(account.handle), back.schemaId, back.slug),
+        // Every file the folder could hold its object under: one for every kind
+        // but the World, whose restored folder holds `world.json` — or, when a
+        // legacy restore met a body it could not rewrite, the `package.json` it
+        // came back with ([P16 §1.1]). Reading only the current name would leave
+        // that one to the watcher.
+        const owner = userOwner(account.handle);
+        const files = services.layout.objectFilesIn(
+          services.layout.kindRoot(owner, back.schemaId),
+          back.schemaId,
+          back.slug,
         );
+        for (const [index, file] of files.entries()) {
+          if (index > 0 && !(await fileExists(file))) continue;
+          await ingestFile(services.index.db, services.layout, file);
+        }
       }
     } catch (error) {
       request.log.warn(

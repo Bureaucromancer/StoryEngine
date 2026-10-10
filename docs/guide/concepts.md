@@ -28,7 +28,8 @@ Your **library** is your story material. It holds six kinds of object:
 - **Setups** — one particular game: a mode, a treatment, a preset, a persona and lorebooks,
   kept together.
 - **Presets** — the recipe for a prompt.
-- **Packages** — a bundle of objects that travels as one file.
+- **Worlds** — a named set of objects, kept together so it can travel as one file. Called
+  *packages* before this version; one an earlier version made opens as a world.
 
 A treatment is how a world is handled — its lorebooks hold the world itself; a setup is
 one playthrough's starting arrangement in it. If you find yourself copying a treatment to

@@ -355,7 +355,7 @@ describe('making an actor', () => {
     ['presets', 'New preset'],
     ['treatments', 'New treatment'],
     ['setups', 'New setup'],
-    ['packages', 'New package'],
+    ['worlds', 'New world'],
   ])('offers a New control on %s, naming the kind', async (kind, control) => {
     search = { kind };
     renderPage();

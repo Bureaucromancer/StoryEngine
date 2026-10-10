@@ -3,8 +3,21 @@
 **Status: skeleton, written 2026-10-04**, the day
 [15](../15-world.md) was rewritten under the owner's decision of 2026-10-03
 ([26 B17](../26-open-questions.md)) and [16](../16-publish.md) was written beside
-it. Nothing is built. Format follows [P1](07-p1-implementation.md); citations
+it. ~~Nothing is built.~~ Format follows [P1](07-p1-implementation.md); citations
 follow the corpus convention.
+
+***Opened 2026-10-10, by the owner's word, ahead of P12A*** — on the bare branch
+`p16`, cut from `main` at `ad47e39` (alpha 6). §0.1 filed this phase after
+[P12A](34-p12a-the-look.md) by a decision with its reversal written beside it —
+*a release cut before P12A* — and alphas 5 and 6 were both cut before either
+phase opened; the 2026-10-07 note left *whether P16.0 still moves ahead of P12A*
+to the owner, and the owner's answer was to start the whole phase. **So it runs
+first, and by `PLAN_ORDER`'s rule — execution order is filing order — it files
+first too**: the refile is `tools/renumber-docs.mjs`'s, at the merge, as
+[P15](33-p15-setup-from-a-turn.md)'s was, rather than inside a phase whose own
+document thirty-six files cite. §0.1's one scheduling claim about another
+phase's gate is unchanged: R4 waits on both. §2 records each stage as it is
+built.
 
 **P16 delivers the half of [15](../15-world.md) that is 1.0's**: World as a
 working kind that **replaces Package** — the kind itself, renamed as a migration;
@@ -148,6 +161,11 @@ or dearer than it looks:
 5. **No reader.** Nothing in the build imports a `.sepack.json`, and the guide's
    import page says so. *That is why the rename strands nothing anyone was
    given*: the only files in that format are ones dev installs wrote since P11.10.
+   *(2026-10-10: no longer only dev installs — alphas 5 and 6 shipped the export,
+   so tagged releases have handed `.sepack.json` files out. Still nothing reads
+   one, so the rename strands none of them; P16.3's reader of the frozen envelope
+   is what they are waiting for, as §0.1's 2026-10-07 note already says of the
+   legacy read.)*
 6. **`LoreScope`** is `global | linked` and read by nothing ([P5.7]).
    `newLorebook` writes `global`, and so does the SillyTavern importer for
    **every standalone book** — `applyScope` in `import/sillytavern/lorebook.ts`
@@ -484,6 +502,66 @@ taken before the stage imports as Worlds; and tests pin each of it — the store
 form's read, the backup alias and the trash's legacy kind, each failing with its
 alias removed, and one that makes a World named like a legacy Package before the
 Package's first edit, which fails if the move reuses the taken slug.
+
+**Built 2026-10-10, on `p16`.** What shipped is §1.1, with five things §1.1 did
+not say, each found by reading the code the rename touched rather than the plan:
+
+- ***Both names in both folders.*** The layout reads a World from `worlds/` or
+  `packages/` (`LEGACY_LIBRARY_DIRECTORIES`) under `world.json` or `package.json`
+  (`LEGACY_OBJECT_FILENAMES`) — the cross product rather than the two pure
+  shapes, because the move is three steps (the new body written over the old
+  file in place, the folder renamed, the file renamed) and **every state it can
+  stop in then reads**. Admitting only the two pure shapes would make a crash
+  between the renames a World that vanished, and nothing in this engine rewrites a
+  user's folders at start to rescue one. The upgrade is `upgradeLegacySchema`,
+  called at every door a stored or archived body comes through — the index's
+  ingest, a version's payload, the backup reader, the native import arm and a
+  write's own body — and **deliberately not inside `validate`**, which answers an
+  unknown id with *valid* and would have left every caller reading `schema`
+  afterwards looking at the old one.
+- ***Every path into an object's folder is read off the object's path.***
+  History, assets, a hand edit's snapshot, an import's carried pictures and
+  delete all built the folder from `(kind, slug)`, which named the same folder
+  for every object until a kind had two. For a Package still in `packages/` it
+  named `worlds/<slug>` — nothing, or **another World made since under the same
+  name**, whose history would have been listed and whose folder a delete would
+  have trashed. `Layout.folderOf` is the one door; a legacy object deleted after
+  the stage goes to `trash/packages/` (`trashDestinationFor`), so the trash keeps
+  *an entry under a folder holds that folder's file*.
+- ***The index's version is 13.*** An index an older build wrote holds each
+  Package as a row of the old kind, and nothing re-reads a file whose size and
+  time have not changed — so without the bump every untouched Package would have
+  stayed a row no route names. The rescan is the cost, as at 9 and 11.
+- ***An import over an unmoved Package finds it unchanged.*** `identifyNative`
+  compared the arriving object's encoding with the hash of the old bytes, which
+  can never match once one side says the new id; a legacy prior is compared by
+  its upgraded encoding instead, so a backup taken before the stage, imported
+  over the install it came from, writes nothing.
+- ***A move keeps the folder's name rather than re-slugifying it***
+  (`resolveFreeFolder`), so a hand-named folder in `packages/` arrives in
+  `worlds/` under the name it had, suffixed only on a collision.
+
+**The export route is `/library/worlds/:id/export`, and its file is unchanged** —
+`storyengine.package-export/1`, `.sepack.json` — for §1.1's last bullet. The old
+paths answer 404, and §6 still holds that as the revisit's question.
+
+**Tests.** `routes/world-migration.test.ts` starts a P16 server on a data
+directory as a pre-P16 build left it — a Package with members and a history —
+and holds the panel listing, the history, the first edit's move, the fresh slug
+beside a World made since (which **fails if the move reuses the taken slug**),
+delete into `trash/packages/` and restore back as a World, the backlink, and an
+index an older build wrote (which fails without the version bump);
+`storage/layout.test.ts` the legacy parse in all four shapes and the watcher's
+scope; `storage/trash.test.ts` a Package trashed before the stage — listed,
+expired, restored as `world.json` under its id and history, under a fresh name
+when taken, and a body it cannot read left as it was;
+`import/storyengine/reader.test.ts` a pre-P16 archive importing as Worlds and an
+unmoved Package found unchanged; `schema/registry.test.ts` the old id read and
+never registered. ***Each alias was removed in turn and its tests watched
+fail***, 2026-10-10: the layout's legacy folder (all 7 migration cases), the
+backup reader's (both archive cases), the trash's legacy kind (all 5 of its
+cases), the ingest's upgrade (all 7 migration cases), and the move taking the old
+slug unchecked (the fresh-slug case).
 
 ### P16.1 — Membership: the panel, the editor, and sessions as members
 

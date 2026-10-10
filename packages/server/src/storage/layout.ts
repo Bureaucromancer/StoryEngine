@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { relative as relativePath, sep } from 'node:path';
+import { basename, dirname, relative as relativePath, sep } from 'node:path';
 
 import {
   ACTOR_SCHEMA,
+  kindOfDirectory,
+  LEGACY_LIBRARY_DIRECTORIES,
   LIBRARY_DIRECTORIES,
   LOREBOOK_SCHEMA,
-  PACKAGE_SCHEMA,
   type PortableSchemaId,
   PRESET_SCHEMA,
   TREATMENT_SCHEMA,
   SETUP_SCHEMA,
   slugify,
+  WORLD_SCHEMA,
 } from '@storyengine/shared';
 
 import { listDirectoryNames, listEntryNames } from './files.js';
@@ -71,20 +73,45 @@ export const OBJECT_FILENAMES = {
   [TREATMENT_SCHEMA]: 'treatment.json',
   [SETUP_SCHEMA]: 'setup.json',
   [PRESET_SCHEMA]: 'preset.json',
-  // [03 §5.1](../../../../docs/design/03-data-model.md) gives packages a folder and defers
-  // its contents to §7, which describes the *format* rather than the on-disk
-  // shape. A stored package holds **references** to its contents — `{ schema,
-  // id, name }` envelopes — and this file is the whole object; the copies exist
-  // only in the exported `.sepack.json`, which `packaging/export.ts` resolves
-  // from them ([04 §9], corrected 2026-10-04; until then this comment said a
-  // stored package held embedded copies, which it never did). The arrangement
-  // was left to `.sepack` import and export, which [P4 §4] put out of scope and
-  // placed around P11: P11.10 built the export, and [P16.3] builds the import.
-  // This comment said "settled at P4" until P4.0 read it: P4 imports other
-  // people's formats and deliberately not our own. The folder becomes `worlds/`
-  // at [P16.0].
-  [PACKAGE_SCHEMA]: 'package.json',
+  // [03 §5.1](../../../../docs/design/03-data-model.md) gives the World a folder and
+  // defers its contents to §7, which describes the *format* rather than the
+  // on-disk shape. A stored World holds **references** to its members —
+  // `{ schema, id, name }` envelopes — and this file is the whole object; the
+  // copies exist only in the exported file, which `packaging/export.ts`
+  // resolves from them ([04 §9], corrected 2026-10-04; until then this comment
+  // said a stored package held embedded copies, which it never did).
+  // ***`package.json` until [P16.0]***, when the kind was renamed: the old name
+  // is still read, and never written — {@link LEGACY_OBJECT_FILENAMES}.
+  [WORLD_SCHEMA]: 'world.json',
 } as const satisfies Record<PortableSchemaId, string>;
+
+/**
+ * ***Names a kind's file had before a rename, and is still read under*** —
+ * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md).
+ *
+ * `package.json` is the World's before P16.0. **Read in either of the kind's
+ * folders, current or legacy, and written in neither**: a World is
+ * `worlds/<slug>/world.json` once anything writes it, and the first write to
+ * one found under an old name moves it there (`library.ts`, `relocateLegacy`).
+ *
+ * ***Both names in both folders, rather than each name in its own***, and the
+ * reason is the move rather than tidiness. The move is a folder rename and then
+ * a file rename, and a crash between the two leaves `worlds/<slug>/package.json`
+ * — the new folder holding the old name. Admitting only the two pure shapes would
+ * make that World invisible, and nothing in this engine rewrites a user's
+ * folders at start to rescue it; admitting the cross product makes every state
+ * the move can stop in a World that reads, and the next write finishes the job.
+ */
+export const LEGACY_OBJECT_FILENAMES: Readonly<
+  Partial<Record<PortableSchemaId, readonly string[]>>
+> = {
+  [WORLD_SCHEMA]: ['package.json'],
+};
+
+/** Every name a kind's object file is read under: the current one first. */
+export function objectFilenames(schemaId: PortableSchemaId): readonly string[] {
+  return [OBJECT_FILENAMES[schemaId], ...(LEGACY_OBJECT_FILENAMES[schemaId] ?? [])];
+}
 
 /**
  * A handle is a directory name under `users/`, so it is checked before it is
@@ -641,6 +668,26 @@ export class Layout {
   }
 
   /**
+   * ***Where a deleted object's folder lands, given the folder it was in*** —
+   * the trash organised the way the live tree *was*, for an object whose folder
+   * is not its kind's current one ([P16 §1.1]).
+   *
+   * A Package's folder trashed after P16.0 without ever being written goes to
+   * `trash/packages/`, beside the ones trashed before it, so the trash keeps the
+   * one invariant its restore depends on: **an entry under a kind's folder holds
+   * that folder's file**. `trash/worlds/` holding a `package.json` would restore
+   * into `library/worlds/` under the old file name, which reads, but is the move
+   * done halfway by a path that is not a write.
+   */
+  trashDestinationFor(handle: string, objectFolder: string, suffix: string): string {
+    const directory = basename(dirname(objectFolder));
+    if (kindOfDirectory(directory) === null) {
+      throw new PathEscapeError('traversal', objectFolder, "not in a library kind's folder");
+    }
+    return resolveWithin(this.trashRoot(handle), directory, `${basename(objectFolder)}-${suffix}`);
+  }
+
+  /**
    * Where a deleted session's folder lands.
    *
    * `trash/sessions/<id>-<suffix>` — beside the library kinds rather than inside
@@ -660,6 +707,85 @@ export class Layout {
   /** `…/library/actors`, `…/library/lorebooks`, and so on. */
   kindRoot(owner: LibraryOwner, schemaId: PortableSchemaId): string {
     return resolveWithin(this.libraryRoot(owner), LIBRARY_DIRECTORIES[schemaId]);
+  }
+
+  /**
+   * ***Every folder a kind's objects may be found in*** — its own first, then
+   * any it had before a rename ([P16 §1.1]). For the World that is `worlds/`
+   * and the legacy `packages/`; for every other kind it is the one folder.
+   *
+   * For the readers that walk a kind rather than build a path to one object —
+   * the index's rebuild and its start-up reconcile — because a walk of the
+   * current folder alone is how a Package made before P16.0 would stop being
+   * indexed the first time an index was rebuilt.
+   */
+  kindRoots(owner: LibraryOwner, schemaId: PortableSchemaId): string[] {
+    const legacy = Object.entries(LEGACY_LIBRARY_DIRECTORIES)
+      .filter(([, kind]) => kind === schemaId)
+      .map(([directory]) => resolveWithin(this.libraryRoot(owner), directory));
+    return [this.kindRoot(owner, schemaId), ...legacy];
+  }
+
+  /**
+   * An object file in a given kind folder under a given name — the audited join
+   * for a walk over {@link kindRoots} and {@link objectFilenames}, which has a
+   * root and a name in hand rather than a kind. Throws `PathEscapeError` for a
+   * slug this build will not use, exactly as {@link objectFile} does, so the
+   * walkers' unusable-name rule applies to a legacy folder unchanged.
+   */
+  objectFileIn(kindRoot: string, slug: string, filename: string): string {
+    return resolveWithin(kindRoot, slug, filename);
+  }
+
+  /**
+   * Every file in one folder of a kind that could be its object, under the
+   * names {@link objectFilenames} gives — one for every kind but the World,
+   * whose folder may hold its current name or its old one ([P16 §1.1]).
+   * The walkers read whichever of these exist.
+   */
+  objectFilesIn(kindRoot: string, schemaId: PortableSchemaId, slug: string): string[] {
+    return objectFilenames(schemaId).map((filename) => this.objectFileIn(kindRoot, slug, filename));
+  }
+
+  /**
+   * ***The folder an indexed object actually lives in*** — the parent of the
+   * path the index holds for it, which is the one fact about a stored object
+   * that is never derived ([P16 §1.1]).
+   *
+   * **Everything that reaches *into* an object's folder — its history, its
+   * assets, the folder itself on delete — asks this rather than
+   * {@link objectRoot}.** The two agreed for every object until P16.0, because a
+   * kind had one folder and its slug was its folder's name; a World found under
+   * `packages/` breaks that, and `objectRoot(owner, WORLD, slug)` names
+   * `worlds/<slug>` — which may be nothing, or may be **a different World** that
+   * was given the same name after the upgrade. That second case is why this is
+   * not a convenience: a history listed, an asset stored or a folder trashed
+   * there would be another object's.
+   *
+   * Contained, and refused otherwise: the index's paths were checked when they
+   * were indexed, and this checks again that the answer is an object folder
+   * under the data root rather than trusting a row.
+   */
+  folderOf(objectPath: string): string {
+    const parsed = this.parseObjectPath(objectPath);
+    if (parsed === null) {
+      throw new PathEscapeError(
+        'traversal',
+        objectPath,
+        'not an object file in this data directory',
+      );
+    }
+    // Rebuilt through the audited resolver rather than taken as `dirname`:
+    // `parseObjectPath` is lexical and accepts a slug this build would refuse
+    // to name — `con`, a trailing space — and every path into a folder has
+    // always gone through the name rules, which is what turns such a folder
+    // into a 422 naming the segment rather than a quiet read of nothing (F22).
+    // The kind folder is the one the object was found in, current or legacy.
+    return resolveWithin(
+      this.libraryRoot(parsed.owner),
+      basename(dirname(dirname(objectPath))),
+      parsed.slug,
+    );
   }
 
   objectRoot(owner: LibraryOwner, schemaId: PortableSchemaId, slug: string): string {
@@ -732,13 +858,16 @@ export class Layout {
     // `assets/…` and anything else below the object folder is not the object.
     if (deeper.length > 0) return null;
 
-    const entry = Object.entries(LIBRARY_DIRECTORIES).find(([, dir]) => dir === directory);
-    if (!entry) return null;
-    const schemaId = entry[0] as PortableSchemaId;
+    // The current folder or a legacy one ([P16 §1.1]): `packages/` is the
+    // World's before the rename, and still read.
+    const schemaId = kindOfDirectory(directory);
+    if (schemaId === null) return null;
 
-    if (filename !== OBJECT_FILENAMES[schemaId]) return null;
+    if (!objectFilenames(schemaId).includes(filename)) return null;
 
-    return { owner, schemaId, slug, path };
+    const legacy =
+      LIBRARY_DIRECTORIES[schemaId] !== directory || OBJECT_FILENAMES[schemaId] !== filename;
+    return { owner, schemaId, slug, path, legacy };
   }
 
   /**
@@ -789,7 +918,7 @@ export class Layout {
     if (library === undefined) return true;
     if (library !== 'library') return false;
     if (directory === undefined) return true;
-    if (!Object.values(LIBRARY_DIRECTORIES).some((dir) => dir === directory)) return false;
+    if (kindOfDirectory(directory) === null) return false;
     if (slug === undefined || filename === undefined) return true;
     return this.parseObjectPath(path) !== null;
   }
@@ -800,6 +929,14 @@ export interface ParsedObjectPath {
   schemaId: PortableSchemaId;
   slug: string;
   path: string;
+  /**
+   * ***Found under a folder or a file name the kind no longer writes*** —
+   * [P16 §1.1]: a World in `packages/`, or named `package.json`. Read like any
+   * other, and the reason the first write moves it rather than writing in place.
+   * Absent is false, so a caller that builds one of these for a current path
+   * need not say so.
+   */
+  legacy?: boolean;
 }
 
 /**
@@ -824,6 +961,21 @@ function relativeWithin(root: string, path: string): string | null {
  * user's directories, so this runs exactly once per object and is the only place
  * a slug is chosen.
  *
+ * ***~~The engine never moves the user's directories~~ — true until
+ * [P16.0](../../../../docs/design/workplan/35-p16-world.md), 2026-10-10.*** The
+ * rename of Package to World is the first place it does: the first write to a
+ * World still in `library/packages/` moves its folder, history and assets with
+ * it, to `library/worlds/`, and a restore of one from the trash lands there too
+ * ([P16 §1.1]). **The slug is still not re-derived** — the folder keeps the name
+ * it was born with when that name is free in `worlds/`, through
+ * {@link resolveFreeFolder}, and takes a numeric suffix only when a World made
+ * after the upgrade already holds it, because slugs are allocated per kind
+ * folder and two objects named alike in two folders were never a conflict until
+ * one of them had to move. The id goes with it unchanged, and the id is what
+ * the index, the links and every route address. *Nothing else moves*: a name
+ * change is still a write inside the file, and every other kind's folder is
+ * still where it was born.
+ *
  * De-duplication is a numeric suffix against what is actually on disk rather
  * than against the index, because the index is derived and a folder someone
  * copied in by hand is just as real as one we wrote. Reading the directory is
@@ -831,7 +983,22 @@ function relativeWithin(root: string, path: string): string | null {
  * with anything.
  */
 export async function resolveFreeSlug(directory: string, name: string): Promise<string> {
-  const base = slugify(name);
+  return resolveFreeFolder(directory, slugify(name));
+}
+
+/**
+ * ***A folder name free within `directory`, starting from one already chosen***
+ * — {@link resolveFreeSlug} without the `slugify`, for the one caller that has
+ * a slug rather than a name: a World leaving `packages/` for `worlds/`
+ * ([P16 §1.1]).
+ *
+ * **Not re-slugified, deliberately.** The folder was named by a build that
+ * slugified it, or by a person who did not — and either way it is the name the
+ * object has had on disk since it was made, which a move should keep rather
+ * than tidy. `vera_notes` stays `vera_notes`; only a collision changes it, and
+ * then by the same numeric suffix a create would add.
+ */
+export async function resolveFreeFolder(directory: string, base: string): Promise<string> {
   const taken = await existingEntries(directory);
 
   if (!taken.has(base.toLowerCase())) return base;
@@ -843,7 +1010,7 @@ export async function resolveFreeSlug(directory: string, name: string): Promise<
     if (!taken.has(candidate.toLowerCase())) return candidate;
   }
 
-  throw new Error(`Could not find a free slug for ${JSON.stringify(name)} in ${directory}`);
+  throw new Error(`Could not find a free slug for ${JSON.stringify(base)} in ${directory}`);
 }
 
 /**

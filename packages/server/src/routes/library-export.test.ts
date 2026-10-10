@@ -3,6 +3,8 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { newActor, newWorld } from '@storyengine/shared';
+
 import { aventurasScenario } from '../import/fixtures/test-aventuras.js';
 import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
 
@@ -78,7 +80,8 @@ describe('downloading a library object', () => {
     // The primitive: no conversion, so the schema and the id are the stored ones.
     expect(response.body).toMatchObject({ schema: 'storyengine.treatment/1', id: treatmentId });
     expect(response.headers['content-disposition']).toContain('Ash-Harbour.json');
-    // A package resolves references and can come up short; an object is itself.
+    // A World's export resolves references and can come up short; an object is
+    // itself. (*A package* until P16.0 renamed the kind.)
     expect(response.headers['x-storyengine-missing']).toBeUndefined();
   });
 
@@ -88,6 +91,97 @@ describe('downloading a library object', () => {
       url: '/api/library/treatments/nope/download',
     });
     expect(response.status).toBe(404);
+  });
+});
+
+/**
+ * ***A World, exported, at the kind's new address and only there*** —
+ * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16.0](../../../../docs/design/workplan/35-p16-world.md).
+ *
+ * Two halves of one decision, and each is checked because each could regress
+ * without the other noticing. **The old paths are not kept**: the only caller of
+ * `/library/packages/*` was the client that ships with this server, which moved
+ * in the same change, so the generic `:kind` routes answer the old name as any
+ * folder they do not know — `unknown-kind`, listing the kinds they do, which is
+ * what [the API reference](../../../../docs/api.md) now says of it. An alias left
+ * behind by accident would be a second door that reference denies exists.
+ *
+ * **And the file the new address writes is the old file**: §1.1 leaves
+ * `storyengine.package-export/1` and its `.sepack.json` name exactly as P11.10
+ * made them, because [P16.3](../../../../docs/design/workplan/35-p16-world.md)
+ * defines the World's format once and reads this one beside it. Renaming the envelope with the route would be the first of two
+ * formats written inside one phase, so a World's export still says *package*
+ * in its schema id and its extension, and this pins that it does — until P16.3
+ * changes it on purpose and changes this with it.
+ */
+describe('exporting a World', () => {
+  it('no longer answers at the Package’s address', async () => {
+    const listed = await server.request({ method: 'GET', url: '/api/library/packages' });
+    expect(listed.status).toBe(404);
+    expect(listed.body).toMatchObject({ error: 'unknown-kind' });
+    // The refusal names the kind that replaced it, so a stale caller is told where to go.
+    expect((listed.body as { message: string }).message).toContain('worlds');
+
+    // The export route was the one non-generic path, and it moved rather than forked.
+    const world = newWorld('Rain City');
+    await server.request({ method: 'POST', url: '/api/library/worlds', payload: world });
+    const old = await server.request({
+      method: 'GET',
+      url: `/api/library/packages/${world.id}/export`,
+    });
+    expect(old.status).toBe(404);
+  });
+
+  /**
+   * ***Only a World leaves by this door*** (2026-10-10). The writer reads its
+   * id with no kind, so an actor's id here exported the actor as a bundle of
+   * nothing — the route now asks first.
+   */
+  it('answers 404 for an id that is not a World', async () => {
+    const actor = newActor('Vera');
+    await server.request({ method: 'POST', url: '/api/library/actors', payload: actor });
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/worlds/${actor.id}/export`,
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it('writes the unchanged .sepack envelope for a World made through the API', async () => {
+    const actor = newActor('Vera');
+    await server.request({ method: 'POST', url: '/api/library/actors', payload: actor });
+    const world = {
+      ...newWorld('Rain City'),
+      contents: [{ schema: 'storyengine.actor/1', id: actor.id, name: 'Vera' }],
+    };
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/library/worlds',
+      payload: world,
+    });
+    expect(created.status).toBe(201);
+
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/worlds/${world.id}/export`,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-disposition']).toContain('Rain-City.sepack.json');
+    expect(response.headers['x-storyengine-missing']).toBe('0');
+    expect(response.body).toMatchObject({
+      schema: 'storyengine.package-export/1',
+      manifest: {
+        id: world.id,
+        name: 'Rain City',
+        contents: [{ id: actor.id, schema: 'storyengine.actor/1', name: 'Vera' }],
+      },
+    });
+    // Resolved rather than referenced, which is what makes it a bundle.
+    expect((response.body as { objects: { id: string }[] }).objects.map((one) => one.id)).toEqual([
+      actor.id,
+    ]);
   });
 });
 

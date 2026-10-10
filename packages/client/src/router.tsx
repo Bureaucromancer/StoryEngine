@@ -13,12 +13,12 @@ import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage
 import { HomePage } from './home/HomePage.js';
 import { NewPresetPage, PresetEditorPage } from './editor/PresetEditorPage.js';
 import {
-  NewPackagePage,
   NewSetupPage,
   NewTreatmentPage,
-  PackageEditorPage,
+  NewWorldPage,
   SetupEditorPage,
   TreatmentEditorPage,
+  WorldEditorPage,
 } from './editor/kinds.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
@@ -510,15 +510,27 @@ const newSetupRoute = createRoute({
   path: '/library/setups/new',
   component: localised(NewSetupPage),
 });
-const packageEditorRoute = createRoute({
+/**
+ * ***`/library/worlds/…` since [P16.0]***, and `/library/packages/…` is not
+ * kept beside it — the line [P16 §1.1](../../../docs/design/workplan/35-p16-world.md)
+ * takes for the server's routes, on the ground that their only caller is the
+ * client that ships with them. **A page address has one more caller, a
+ * bookmark, which that ground does not cover**, and it is not redirected: an
+ * old editor address matches no route, and an old object address
+ * (`/library/packages/<id>`) reaches `objectRoute` and says it does not name a
+ * known kind. That is the cost of the line, and §6 of the same plan holds the
+ * old routes open as a revisit question rather than a settled one — a
+ * redirect for `packages` is the answer if real bookmarks turn up.
+ */
+const worldEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/library/packages/$id/edit',
-  component: localised(PackageEditorPage),
+  path: '/library/worlds/$id/edit',
+  component: localised(WorldEditorPage),
 });
-const newPackageRoute = createRoute({
+const newWorldRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/library/packages/new',
-  component: localised(NewPackagePage),
+  path: '/library/worlds/new',
+  component: localised(NewWorldPage),
 });
 
 const routeTree = rootRoute.addChildren([
@@ -535,8 +547,8 @@ const routeTree = rootRoute.addChildren([
   newTreatmentRoute,
   setupEditorRoute,
   newSetupRoute,
-  packageEditorRoute,
-  newPackageRoute,
+  worldEditorRoute,
+  newWorldRoute,
   sessionsRoute,
   playRoute,
   compareRoute,

@@ -99,8 +99,21 @@ import type { DatabaseSync } from 'node:sqlite';
  * (`findPriorImport`): a session row caches no body, so there is nothing to
  * extract from, and the alternative — opening every `session.json` an account
  * holds to answer *is this here* — is the walk this index exists to replace.
+ *
+ * **13 is 9's shape a third time** (2026-10-10, [P16.0]): no table changed, and
+ * what a Package's file derives to did. Package is renamed World
+ * ([P16 §1.1](../../../../docs/design/workplan/35-p16-world.md)), and a
+ * `packages/<slug>/package.json` that an older build indexed as a row of kind
+ * `storyengine.package/1`, with that id in its body, is now a row of kind
+ * `storyengine.world/1` whose body the ingest has upgraded. **Nothing re-reads a
+ * file that has not changed** — the start-up check compares size and time, and
+ * a Package nobody has edited since the upgrade is exactly such a file — so
+ * without the bump every one of them would stay a row of a kind no route names:
+ * missing from the Worlds panel, its members' *Used by* still counting it under
+ * the old kind, and the first edit refused because the row the write reads is
+ * not in the kind its URL claims. One rescan is the whole cost, again.
  */
-export const INDEX_SCHEMA_VERSION = 12;
+export const INDEX_SCHEMA_VERSION = 13;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for

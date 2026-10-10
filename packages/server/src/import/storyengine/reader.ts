@@ -4,11 +4,13 @@
 import type { ImportItemReport, ImportNote } from '@storyengine/shared';
 import {
   BACKUP_MANIFEST_MEMBER,
+  LEGACY_LIBRARY_DIRECTORIES,
   LIBRARY_DIRECTORIES,
   isKnownSchema,
   readBackupManifest,
   schemaIdOf,
   type PortableSchemaId,
+  upgradeLegacySchema,
 } from '@storyengine/shared';
 
 import { codecFor } from '../../storage/card/index.js';
@@ -41,13 +43,22 @@ import type { FileSource, SourceItem, SourceReader, SourceSurvey } from '../sour
  * pass and this is that pass.
  */
 
-/** The member names that are a library object, by kind. */
-const KIND_OF: ReadonlyMap<string, PortableSchemaId> = new Map(
-  Object.entries(LIBRARY_DIRECTORIES).map(([schemaId, directory]) => [
-    directory,
-    schemaId as PortableSchemaId,
-  ]),
-);
+/**
+ * The member names that are a library object, by kind.
+ *
+ * ***And the folders a kind had before a rename*** — [P16 §1.1]. An archive
+ * taken before P16.0 holds `library/packages/<slug>/package.json`, and without
+ * the legacy name here each one is an `unknownKind` row, skipped: the backup
+ * would import everything but the person's Packages. With it they arrive as
+ * Worlds, because the body is upgraded below before its kind is compared, and
+ * the library writes them where Worlds go.
+ */
+const KIND_OF: ReadonlyMap<string, PortableSchemaId> = new Map([
+  ...Object.entries(LIBRARY_DIRECTORIES).map(
+    ([schemaId, directory]) => [directory, schemaId as PortableSchemaId] as const,
+  ),
+  ...Object.entries(LEGACY_LIBRARY_DIRECTORIES),
+]);
 
 export class BackupReader implements SourceReader {
   readonly kind = 'storyengine-backup' as const;
@@ -150,7 +161,12 @@ export class BackupReader implements SourceReader {
       const bytes = await this.#files.read(path);
       if (bytes === null) continue;
 
-      const body = filename === 'card.png' ? readActorCard(bytes) : readJson(bytes);
+      // A body in a kind's old name is that kind ([P16 §1.1]): a Package's
+      // `storyengine.package/1` reads as the World it is, so the check below
+      // compares it with its folder as one.
+      const body = upgradeLegacySchema(
+        filename === 'card.png' ? readActorCard(bytes) : readJson(bytes),
+      );
       if (body === null) {
         yield {
           outcome: 'observed',

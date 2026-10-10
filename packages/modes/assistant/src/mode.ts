@@ -113,12 +113,27 @@ export const ASSISTANT_CONTEXT: ChannelDefinition = {
    * *the actor* about what the person calls an actor. A kind this does not
    * name goes as written. `null`, which the panel writes where nothing is
    * open, renders nothing (`renderChannelValue`).
+   *
+   * ***(2026-10-10, [P16.0](../../../../docs/design/workplan/35-p16-world.md))***
+   * ~~`packages` → *the package*~~ — the kind is a World now, its folder
+   * `worlds` and the page's word *world*, so a World open in the library is
+   * *the world*. **`packages` stays as a second name for it**, and that is
+   * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md)'s *read both,
+   * write the new one* rather than tidiness left undone: the panel writes this
+   * channel only when what it sees changes, and a session reopened on a page
+   * with nothing open writes nothing at all (`useDisclosedContext` in the
+   * client's `AssistantPanel.tsx`), so an assistant session whose last write was
+   * made on a Package's page before the upgrade still holds `packages` as its
+   * value, and without the alias its next turn would tell the model *packages* —
+   * the folder name of a kind that no longer exists — where every other kind
+   * gets a word. Nothing writes `packages` from now on, so the alias costs one
+   * comparison and can never be wrong.
    */
   render:
     'What they have open{% if where %}, in {{ where }}{% endif %}: ' +
     '{% case kind %}{% when "actors" %}the actor{% when "lorebooks" %}the lorebook' +
     '{% when "treatments" %}the treatment{% when "setups" %}the setup' +
-    '{% when "presets" %}the preset{% when "packages" %}the package' +
+    '{% when "presets" %}the preset{% when "worlds", "packages" %}the world' +
     '{% when "session" %}the session{% else %}{{ kind }}{% endcase %}' +
     '{% if name %} “{{ name }}”{% endif %}{% if id %} (id {{ id }}){% endif %}.',
 };

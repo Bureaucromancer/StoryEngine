@@ -8,9 +8,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  newPackage,
   newSetup,
   newTreatment,
+  newWorld,
   TREATMENT_SCHEMA,
   type PlotHook,
 } from '@storyengine/shared';
@@ -42,9 +42,10 @@ import { descriptorFor, type SimpleKind } from './SimpleEditorPage.js';
  * the first save conflict, inside a dialog whose entire offer is *reapply my
  * edits*.
  *
- * *The package editor is here for the same reason the six-kind loop in
+ * *The World editor is here for the same reason the six-kind loop in
  * [contract.test.tsx](./contract.test.tsx) is*: a claim about which kinds have
- * an affordance is worth nothing without a kind that must not have it.
+ * an affordance is worth nothing without a kind that must not have it. (It was
+ * the package editor until [P16.0] renamed the kind; the reason did not move.)
  */
 
 const ACCOUNT: Account = {
@@ -73,10 +74,10 @@ const WAR = newHook('The Flower Kingdom declares war');
 const TREATMENT_ID = '01a008de-7e08-70d0-899c-0000000000a0';
 const BARE_TREATMENT_ID = '01a008de-7e08-70d0-899c-0000000000a1';
 const SETUP_ID = '01a008de-7e08-70d0-899c-0000000000a2';
-const PACKAGE_ID = '01a008de-7e08-70d0-899c-0000000000a3';
+const WORLD_ID = '01a008de-7e08-70d0-899c-0000000000a3';
 const BROKEN_HOOKS_ID = '01a008de-7e08-70d0-899c-0000000000a4';
 const IDLESS_HOOK_ID = '01a008de-7e08-70d0-899c-0000000000a5';
-const HOOKED_PACKAGE_ID = '01a008de-7e08-70d0-899c-0000000000a6';
+const HOOKED_WORLD_ID = '01a008de-7e08-70d0-899c-0000000000a6';
 
 const OBJECTS: Record<string, Record<string, unknown>> = {
   [TREATMENT_ID]: {
@@ -95,9 +96,9 @@ const OBJECTS: Record<string, Record<string, unknown>> = {
     ...(newSetup('A night at the docks') as unknown as Record<string, unknown>),
     id: SETUP_ID,
   },
-  [PACKAGE_ID]: {
-    ...(newPackage('The harbour set') as unknown as Record<string, unknown>),
-    id: PACKAGE_ID,
+  [WORLD_ID]: {
+    ...(newWorld('The harbour set') as unknown as Record<string, unknown>),
+    id: WORLD_ID,
   },
   /**
    * ***Three hand-edited files, because the storage thesis invites them.***
@@ -116,9 +117,9 @@ const OBJECTS: Record<string, Record<string, unknown>> = {
     id: IDLESS_HOOK_ID,
     hooks: [{ title: 'No id at all' }],
   },
-  [HOOKED_PACKAGE_ID]: {
-    ...(newPackage('The harbour set') as unknown as Record<string, unknown>),
-    id: HOOKED_PACKAGE_ID,
+  [HOOKED_WORLD_ID]: {
+    ...(newWorld('The harbour set') as unknown as Record<string, unknown>),
+    id: HOOKED_WORLD_ID,
     hooks: 'none',
   },
 };
@@ -239,14 +240,14 @@ describe('a carrier whose hooks a hand edit broke', () => {
 
   /**
    * ***And the guard is about what this page dereferences, not about what the
-   * schema permits.*** A package does not author hooks, so a `hooks` a hand edit
+   * schema permits.*** A World does not author hooks, so a `hooks` a hand edit
    * left on one still goes through the opaque fallback and still renders — and a
    * guard that refused it would be inventing a validity rule for a kind that has
    * no such field.
    */
-  it('opens a package with a stray hooks field, because nothing draws it', async () => {
+  it('opens a world with a stray hooks field, because nothing draws it', async () => {
     renderApp();
-    await openEditor('packages', HOOKED_PACKAGE_ID);
+    await openEditor('worlds', HOOKED_WORLD_ID);
 
     expect(screen.queryByRole('region', { name: 'Plot hooks' })).toBeNull();
   });
@@ -401,15 +402,15 @@ describe('the carriers that author their own hooks', () => {
   });
 
   /**
-   * ***The kind that must not have one.*** A Package carries the objects that
-   * hold hooks and holds none itself ([03 §4.1]), so a hook list here would be
-   * the fifth source that section declines by name — and an assertion that only
-   * ever looked at the two kinds with the flag would not notice a flag set on
-   * all three.
+   * ***The kind that must not have one.*** A World carries the objects that
+   * hold hooks and holds none itself ([03 §4.1]; a Package did, before [P16.0]
+   * renamed the kind), so a hook list here would be the fifth source that
+   * section declines by name — and an assertion that only ever looked at the
+   * two kinds with the flag would not notice a flag set on all three.
    */
-  it('gives a package no hook editor at all', async () => {
+  it('gives a world no hook editor at all', async () => {
     renderApp();
-    await openEditor('packages', PACKAGE_ID);
+    await openEditor('worlds', WORLD_ID);
 
     expect(screen.queryByRole('region', { name: 'Plot hooks' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add a hook' })).toBeNull();
@@ -533,7 +534,7 @@ describe('reapplying my edits onto a newer carrier', () => {
   });
 
   /**
-   * ***And a kind without the flag is left exactly as it was.*** A package's
+   * ***And a kind without the flag is left exactly as it was.*** A World's
    * draft has no `hooks`, and a merge that wrote one would be inventing a key
    * out of a page that never showed the field — which no schema would then
    * accept.

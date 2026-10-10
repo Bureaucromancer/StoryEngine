@@ -19,7 +19,7 @@ changes on disk while it runs.
 | **Treatment** | How a world is handled: its framing, which goes into every turn, plus its lorebooks, plot hooks, writing samples and tone. Reusable across many stories. | Chosen when a session starts (or later). Its framing and lorebooks are read every turn; its hooks are copied into the session when it starts — a treatment picked later brings its framing and lorebooks, not its hooks. |
 | **Setup** | One particular game: a mode and its answers, a treatment, a preset, a persona and lorebooks, kept together to start from again — and, for one made from a story, its party, goals, plot hooks, openings and the story so far. | Saved from the start form, or made from any turn of a story with **Make a setup from here**. Started from the sessions page or from its own page with **Start a session**; a session copies it when it starts, so later edits reach only sessions started afterwards. |
 | **Preset** | The recipe for a prompt: its blocks, their order and budget, and the generation settings. See [Presets and prompts](presets.md). | **Copied** into a session when it starts, so later edits do not reach that session. |
-| **Package** | A bundle of library objects, kept together so they can travel as one file. | Not used by sessions directly. |
+| **World** | A named set of library objects, kept together so they can travel as one file. Called a *package* before this version — see [Files on disk](#files-on-disk) for what happens to one an earlier version made. | Not used by sessions directly. |
 
 The difference between a treatment and a setup is the one worth learning: a treatment
 is how a world is handled and told (its lorebooks hold the world itself), reusable
@@ -31,7 +31,7 @@ it, you wanted a setup.
 **Library**, in the header, lists your objects together with the System ones.
 
 - **The kind bar** — **All kinds**, **Actors**, **Lorebooks**, **Treatments**,
-  **Setups**, **Presets**, **Packages**. A click shows one kind; **Select several**, or
+  **Setups**, **Presets**, **Worlds**. A click shows one kind; **Select several**, or
   Ctrl-click (⌘-click), adds and removes kinds.
 - **Sort by** — **Name**, **Recently updated**, and for lorebooks **Entry count**.
 - **Search** opens **Search this shelf**, which matches names and tags on the shelf
@@ -104,7 +104,7 @@ are playing, use **Make a setup from here** on that turn — see
 *Saved.*), **History** and **Delete**, with **As stored** — the saved version, not your
 unsaved form — below it; those last three appear once the object has been saved.
 Pressing Enter in a single-line box such as **Name** saves. In the treatment, setup and
-package editors the other text boxes take Enter as a new line.
+world editors the other text boxes take Enter as a new line.
 
 Leaving an editor with unsaved changes asks first: **Keep editing** or **Leave without
 saving**. Unsaved edits were never saved, so there is no version of them in the history
@@ -129,7 +129,7 @@ editor does not replace it) and has:
 A character's greetings, lorebook links, pictures and expressions, and model hint
 cannot be edited in the app yet; they come with an imported card.
 
-### Treatments, setups and packages
+### Treatments, setups and worlds
 
 These share one editor, built from each kind's fields. Text fields are text boxes,
 lists are one item per line, and fields the editor cannot yet write are shown as they
@@ -141,7 +141,7 @@ are stored, marked *This editor does not write this field yet.*
   (what the model is told had already happened, which a setup made from a story fills
   in) and **Spent hooks** (the ids of hooks already used, one per line). Shown as
   stored: the mode, treatment, preset, cast, lore, openings and goals.
-- **Package** — editable: name, version and description. Its list of contents is shown
+- **World** — editable: name, version and description. Its list of contents is shown
   as stored.
 
 **Plot hooks**, on treatments, setups and lorebooks, are hooks a session starts with: a
@@ -221,7 +221,7 @@ be gated on a character's tags — see
 - **Treatments, setups and presets** have **Tags**, one per line, and a **Tag ids** box,
   which is internal: leave it alone.
 - **Lorebooks** have no tag control in the editor; their tags come with an import or a
-  hand edit. **Packages** have no tags.
+  hand edit. **Worlds** have no tags.
 
 **Manage tags…**, under a character's **Tags** box, opens the tag manager. It lists your
 tags with their order, **Colour**, folder setting and how many objects use them:
@@ -263,7 +263,7 @@ cover. Pictures on an entry are cropped to a centred square. A book must be save
 before pictures can be added, and they are never sent to a model.
 
 A character's card image is shown in its editor but cannot be replaced there. Pictures
-on treatments, setups and packages are shown as stored. A picture you upload but never
+on treatments, setups and worlds are shown as stored. A picture you upload but never
 save is removed by a later save of that book, once the picture is a day old.
 
 ## Copies, deleting and the trash
@@ -290,7 +290,7 @@ What counts:
   hooks name;
 - **treatments** count their lorebooks, cast and hook characters;
 - **lorebooks** count the characters their hooks name;
-- **packages** count their contents.
+- **worlds** count their contents.
 
 A session's treatment and preset do not count.
 
@@ -310,12 +310,21 @@ Your library lives in the data directory, at `users/<handle>/library/<kind>/<fol
 | --- | --- |
 | Actor | `card.png` — a character card: a PNG with the character's data inside |
 | Lorebook | `lorebook.json`, with an `assets/` folder for its pictures |
-| Treatment, setup, preset, package | `treatment.json`, `setup.json`, `preset.json`, `package.json` |
+| Treatment, setup, preset, world | `treatment.json`, `setup.json`, `preset.json`, `world.json` |
 
 Each folder also gets a `history/` folder once the object has been changed. Your trash
 is `users/<handle>/trash/`, your tags
 `users/<handle>/tags.json`, and the shipped objects `system/library/` — an administrator
 can put folders there by hand to share them, read-only, with every account.
+
+**A package from an earlier version.** Worlds were called packages before this
+version, and lived at `library/packages/<folder>/package.json`. That folder is still
+read: each package in it shows under **Worlds** as a world, and nothing moves it while
+nobody changes it. The first save to it — an edit, or a version put back from its
+history — moves the whole folder, history and pictures included, to `library/worlds/`,
+under the same folder name unless a world made since already has that name, in which
+case it gets a number on the end. A package deleted before the upgrade is still in your
+trash, and **Put it back** returns it as a world.
 
 **Editing by hand while the server runs is supported.** The change is noticed within a
 moment, shows in the browser within a couple of seconds, and the state it replaced is

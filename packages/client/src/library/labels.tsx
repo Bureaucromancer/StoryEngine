@@ -19,7 +19,7 @@ export const KIND_LABELS: Record<LibraryKind, string> = labels('library.kind', {
   treatments: 'Treatments',
   setups: 'Setups',
   presets: 'Presets',
-  packages: 'Packages',
+  worlds: 'Worlds',
 });
 
 /**
@@ -37,7 +37,7 @@ export const KIND_WORDS: Record<LibraryKind, string> = labels('library.kind-word
   treatments: 'treatment',
   setups: 'setup',
   presets: 'preset',
-  packages: 'package',
+  worlds: 'world',
 });
 
 /**

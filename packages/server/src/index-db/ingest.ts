@@ -10,6 +10,7 @@ import {
   LOREBOOK_SCHEMA,
   schemaIdOf,
   type PortableSchemaId,
+  upgradeLegacySchema,
   validate,
   type LoreEntry,
 } from '@storyengine/shared';
@@ -34,6 +35,15 @@ import { clearLinks, referencesIn, writeLinks } from './links.js';
  * uuid before the mark matures moves the surviving row to the new path. One
  * mechanism, one caller: there is no rename special case anywhere else in the
  * system, and a rename through the API is an ordinary write.
+ *
+ * ***~~The engine never renames a user's folders~~ — it does once, from
+ * [P16.0](../../../../docs/design/workplan/35-p16-world.md) (2026-10-10)***: the
+ * first write to a World still in `packages/` moves its folder to `worlds/`
+ * (`library.ts`, `relocateLegacy`). **It still needs no special case here.** The
+ * write path moves the folder and then ingests the new path itself, and the old
+ * row goes as the vanished duplicate an add already drops; the watcher's view
+ * of the same move is the foreign rename this paragraph describes, and lands on
+ * the same row.
  *
  * **Duplicate ids** ([P1 §1.2](../../../../docs/design/workplan/07-p1-implementation.md)). Folders
  * are copy-pasteable, which is a feature, so two files may claim one uuid. The
@@ -164,7 +174,16 @@ export type Acceptance =
 export function acceptObject(parsed: ParsedObjectPath, bytes: Uint8Array): Acceptance {
   let payload: unknown;
   try {
-    payload = decodeObject(parsed, bytes);
+    /**
+     * ***A body in a kind's old name is read as the kind*** — [P16 §1.1]. A
+     * Package's `package.json` says `storyengine.package/1`, and is a World:
+     * upgraded here, before the kind check below compares it with its folder,
+     * so the index holds — and every read serves — the World's id, while the
+     * content hash stays the hash of the bytes on disk, which is what a write
+     * has to present. Wherever the file is, which is what lets a legacy body in
+     * `worlds/` (a hand copy, a restore) read as well as one in `packages/`.
+     */
+    payload = upgradeLegacySchema(decodeObject(parsed, bytes));
   } catch (error) {
     return { ok: false, reason: 'unparsable', detail: messageOf(error) };
   }
@@ -403,11 +422,17 @@ export function recordUnusableName(
   slug: string,
   error: PathEscapeError,
   now: number,
+  /**
+   * The folder the slug was found in, when it is not the kind's current one —
+   * a World's legacy `packages/` ([P16 §1.1]). Defaults to the current folder,
+   * which is every caller's until P16.0.
+   */
+  kindRoot: string = layout.kindRoot(owner, schemaId),
 ): void {
   // `kindRoot` is audited and `slug` came from one `readdir` entry or one path
   // segment, so it holds no separator: a plain join cannot escape, and the
   // audited resolver is exactly what refused this name a moment ago.
-  const folder = join(layout.kindRoot(owner, schemaId), slug);
+  const folder = join(kindRoot, slug);
   db.prepare(
     `insert into file_error (path, owner, schema_id, slug, reason, detail, seen_at)
        values (?, ?, ?, ?, ?, ?, ?)

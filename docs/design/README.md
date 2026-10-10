@@ -206,14 +206,15 @@ they still have to exist before code does.
   rather than containing it. A lorebook is the world; a treatment is how it is
   handled here ([04 §6](04-schemas.md) records why the name changed from
   *Setting*).
-- **Package** — a shareable bundle of actors, treatments, lorebooks, presets and
-  mode config; the "full game setup" export. *(Renamed **World** at
-  [P16](workplan/35-p16-world.md): a durable named set of library objects and
-  sessions, stored as references and published as copies — [15](15-world.md).
-  Not to be confused with a first-party namespace such as `storyengine.lore`,
-  which the code also calls a package — [15 §6](15-world.md).)*
+- **World** — a durable named set of library objects and sessions, stored as
+  references and published as copies ([15](15-world.md), [04 §9](04-schemas.md)).
+  *Called **Package** until [P16.0](workplan/35-p16-world.md) renamed the kind
+  (2026-10-10) — then a shareable bundle of actors, treatments, lorebooks, presets
+  and mode config, the "full game setup" export. Not to be confused with a
+  first-party namespace such as `storyengine.lore`, which the code also calls a
+  package — [15 §6](15-world.md).*
 - **Session** — one running story/chat. Sessions are created *from* treatments and
-  packages by copy, and never hold a live link back to them.
+  Worlds by copy, and never hold a live link back to them.
 - **Mode** — the thing that defines how a turn is built and what state it owns.
 - **Channel** — a named, typed slice of session state owned by a mode or
   extension (HP, quests, clock, weather, relationship, …).

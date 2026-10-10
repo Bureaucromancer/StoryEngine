@@ -12,6 +12,8 @@ import {
   type ImportNote,
   type PortableSchemaId,
   type TagList,
+  upgradeLegacySchema,
+  WORLD_SCHEMA,
 } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
@@ -382,7 +384,16 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***A package, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10].
+   * ***A World, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10].
+   *
+   * ***At `/library/worlds/:id/export` from [P16.0]***, with the kind; the old
+   * `/library/packages/*` paths are not kept, because the only caller is the
+   * client that ships with this server ([P16 §1.1], and §6 lists it as the
+   * revisit's question). **The file it writes is unchanged** — still
+   * P11.10's frozen `storyengine.package-export/1` envelope, as `.sepack.json`
+   * — because [P16.3] defines the World's format once and reads this one beside
+   * it; renaming the envelope here and reshaping it there would be two formats
+   * written inside one phase.
    *
    * **`.sepack` is this stage's rather than a stage of its own**, and §1.9's
    * argument was not scheduling: an envelope is one of [19 §3]'s four
@@ -395,19 +406,31 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * document would be a note to the importer about the exporter's library.
    */
   app.get(
-    '/library/packages/:id/export',
+    '/library/worlds/:id/export',
     { schema: { params: Type.Object({ id: Type.String({ minLength: 1 }) }) } },
     async (request, reply) => {
       const account = await requireAccount(request, reply);
       if (!account) return;
 
+      const id = (request.params as { id: string }).id;
+      /**
+       * ***A World, and only a World, at this address*** (2026-10-10). The
+       * writer reads its id with no kind, so `/library/packages/<actor id>`
+       * exported an actor as a bundle of nothing — harmless while the path
+       * said *package* and nobody built one, and a lie once the path says
+       * *worlds*. Asked here rather than in the writer, which [P16.3] replaces
+       * and P16.0 leaves alone.
+       */
+      if (!exists(services.library, account.handle, id, WORLD_SCHEMA)) {
+        return reply.code(404).send({ error: 'not-found', message: 'That world is not there.' });
+      }
       const result = exportPackage(
         { library: services.library, build: services.build },
         account.handle,
-        (request.params as { id: string }).id,
+        id,
       );
       if (result === null) {
-        return reply.code(404).send({ error: 'not-found', message: 'That package is not there.' });
+        return reply.code(404).send({ error: 'not-found', message: 'That world is not there.' });
       }
 
       return reply
@@ -1061,7 +1084,7 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
    * moment somebody edited a line of the character's description.
    *
    * *Any kind, unlike `/avatar`*: [04 §3] puts `media` on treatments, lorebooks
-   * and packages too, and a route that named actors would grow a second arm for
+   * and Worlds too, and a route that named actors would grow a second arm for
    * the first one of those to carry a picture. **[P9] is the next consumer** —
    * a rendition's asset needs serving the same way, and `MediaSelection`'s two
    * arms are already the one shape both go through.
@@ -1244,7 +1267,13 @@ function objectFromBody(body: unknown): unknown {
   if (typeof body !== 'object' || body === null) return null;
   const inner: unknown = (body as { object?: unknown }).object;
   const object: unknown = inner ?? body;
-  return typeof object === 'object' && object !== null ? object : null;
+  // ***A body in a kind's old name is that kind, from the door in*** —
+  // [P16 §1.1]. `create` and `update` upgrade too, and this is the door in
+  // front of them: the create route's own "is this a schema I know" check ran
+  // first and answered a `storyengine.package/1` body *unrecognised*, so a
+  // Package somebody had downloaded before the rename could be saved over a
+  // World with `PUT` and not posted as one.
+  return typeof object === 'object' && object !== null ? upgradeLegacySchema(object) : null;
 }
 
 /**
@@ -1433,3 +1462,19 @@ const AssistBody = Type.Object({
   guidance: Type.Optional(Type.String({ maxLength: 2000 })),
   current: Type.Optional(Type.String({ maxLength: 100_000 })),
 });
+
+/** Whether an id is an object of a kind this caller can read — the not-found arm of `read`, as a test. */
+function exists(
+  library: AppServices['library'],
+  handle: string,
+  id: string,
+  inKind: PortableSchemaId,
+): boolean {
+  try {
+    read(library, handle, id, inKind);
+    return true;
+  } catch (error) {
+    if (error instanceof LibraryError && error.code === 'not-found') return false;
+    throw error;
+  }
+}

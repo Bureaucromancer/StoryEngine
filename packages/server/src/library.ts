@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { basename, dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { deflateSync } from 'node:zlib';
 
@@ -9,9 +10,11 @@ import encodeChunks from 'png-chunks-encode';
 import {
   ACTOR_SCHEMA,
   isKnownSchema,
+  LIBRARY_DIRECTORIES,
   mediaRowsIn,
   type PortableSchemaId,
   schemaIdOf,
+  upgradeLegacySchema,
   uuidv7,
   validate,
   type ValidationIssue,
@@ -37,7 +40,7 @@ import { writeAtomic } from './storage/atomic.js';
 import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
 import { readAsset } from './library/assets.js';
 import type { BlobStore } from './storage/card/envelope.js';
-import { moveTree, readFileBytes } from './storage/files.js';
+import { fileExists, moveTree, readFileBytes, renamePath } from './storage/files.js';
 import { KeyedQueue } from './storage/keyed-queue.js';
 import {
   listVersions,
@@ -50,6 +53,7 @@ import {
 import {
   type Layout,
   type LibraryOwner,
+  resolveFreeFolder,
   resolveFreeSlug,
   SYSTEM_OWNER,
   userOwner,
@@ -78,6 +82,16 @@ import {
  *   the file; the folder keeps the slug it was born with
  *   ([P1 §1.1](../../../docs/design/workplan/07-p1-implementation.md)). There is no rename route
  *   and there is nothing here that moves a directory.
+ *
+ *   ***~~Nothing here moves a directory~~ — one thing does, from
+ *   [P16.0](../../../docs/design/workplan/35-p16-world.md) (2026-10-10).*** The
+ *   first write to a World still in the kind's old folder or under its old file
+ *   name — a Package made before the rename — moves its folder to
+ *   `library/worlds/`, history and assets with it, under the slug it had when
+ *   that is free and a numeric suffix when a World made since holds it
+ *   ({@link relocateLegacy}). It is a migration finishing rather than a rename:
+ *   a name change still moves nothing, and nor does any write to an object in
+ *   its kind's own folder.
  */
 
 export class LibraryError extends Error {
@@ -601,6 +615,9 @@ export async function create(
   inKind?: PortableSchemaId,
   from?: CreateFrom,
 ): Promise<StoredObject> {
+  // A body in a kind's old name is written as the kind ([P16 §1.1]): every
+  // write writes the new form, whoever sent the old one.
+  object = upgradeLegacySchema(object);
   const schemaId = assertValidObject(object);
   if (inKind !== undefined && schemaId !== inKind) {
     // `POST /library/lorebooks` with an actor body used to create an actor: the
@@ -727,6 +744,10 @@ export async function update(
    */
   extraBlobs?: BlobStore,
 ): Promise<StoredObject> {
+  // The same door as `create`'s ([P16 §1.1]), and here it matters more: a
+  // version restored from a history written before the rename holds the old
+  // id, and this is the path a restore writes through.
+  object = upgradeLegacySchema(object);
   const schemaId = assertValidObject(object);
 
   // Everything from the hash check to the write runs on the object's queue —
@@ -830,7 +851,9 @@ export async function update(
       return {
         object: current.body,
         contentHash: asSent.contentHash,
-        path: asSent.path,
+        // Where the object is, which a World still under its old name is not
+        // where `encodeObject` would put it ([P16 §1.1]). A no-op moves nothing.
+        path: current.path,
         slug: current.slug,
         owner,
         shadowed: current.shadowed,
@@ -852,32 +875,112 @@ export async function update(
         )
       : asSent;
 
+    /**
+     * ***A World still under its old folder or file name*** — [P16 §1.1].
+     * `encodeObject` named the path the kind's *current* layout gives this slug,
+     * `worlds/<slug>/world.json`, and for an object that lives in `packages/`
+     * that is not where it is: it may be nothing, or it may be **another World**
+     * made after the upgrade under the same name, whose file this write would
+     * have replaced. So the bytes go where the object is, and the move follows.
+     */
+    const legacy = context.layout.parseObjectPath(current.path)?.legacy === true;
+    const writtenAt = legacy ? current.path : path;
+
     // Write, then snapshot the replaced state (held in memory), then index.
     // The write first: snapshotting first left a phantom history entry when
     // the write failed. Snapshot before the index update: the replacement
     // happened at the rename, and the index is rebuildable — an ingest failure
     // must not cost the history entry for a write that is already on disk.
-    await (context.write ?? writeAtomic)(path, bytes);
+    await (context.write ?? writeAtomic)(writtenAt, bytes);
 
+    // The folder the object is in, which is not always the one its kind and
+    // slug would name ([P16 §1.1]); a legacy object's history is snapshotted
+    // where it is and travels with the folder below.
     await snapshotReplaced({
-      objectRoot: context.layout.objectRoot(owner, schemaId, current.slug),
+      objectRoot: context.layout.folderOf(current.path),
       payload: current.body,
       source: change.source,
       reason: change.reason,
       keepPerObject: context.keepHistoryPerObject,
     });
 
-    await ingestFile(context.db, context.layout, path);
+    const landed = legacy
+      ? await relocateLegacy(context, owner, schemaId, current.path)
+      : { path, slug: current.slug };
+
+    await ingestFile(context.db, context.layout, landed.path);
 
     return {
       object: stamped,
       contentHash,
-      path,
-      slug: current.slug,
+      path: landed.path,
+      slug: landed.slug,
       owner,
       shadowed: current.shadowed,
     };
   });
+}
+
+/**
+ * ***The first write's move*** — [P16 §1.1](../../../docs/design/workplan/35-p16-world.md),
+ * and the one place this engine moves a user's directory.
+ *
+ * Called with the new bytes already written over the legacy file in place and
+ * the replaced state already in that folder's history, so **every state this
+ * can stop in is a World that reads**, which is the whole design of the order:
+ *
+ * 1. *(done by the caller)* `packages/<slug>/package.json` holds the new body.
+ * 2. The folder moves to `worlds/<free>` — one rename, history and assets with
+ *    it. The layout reads `package.json` in `worlds/` as well as in `packages/`
+ *    precisely so that stopping here is not a vanished World.
+ * 3. The file is renamed `world.json` — one rename.
+ *
+ * **The slug is kept when it is free in `worlds/` and suffixed when it is not**
+ * ({@link resolveFreeFolder}): slugs are allocated per kind folder, so a World
+ * made after the upgrade may already be `worlds/rain-city` while this one waits
+ * in `packages/rain-city`, and the move must neither fail nor land on it. The id
+ * goes unchanged, and the id is what everything addresses. The free name is
+ * found and claimed on **the kind's create queue**, inside the object's own —
+ * a create of a World named the same, racing this move, would otherwise resolve
+ * the same free name, and a POSIX rename onto an empty directory succeeds
+ * without a word. *Nesting is safe because nothing takes an object's queue from
+ * inside a kind's.*
+ *
+ * **A folder already in `worlds/` holding the old file name** — a move that
+ * stopped after step 2, a restore, a hand copy — skips the folder move and only
+ * renames the file. **And a `world.json` already beside it** is left alone: the
+ * index is showing the two as one id twice, and renaming over one would destroy
+ * the other to tidy a name. The World stays readable under the old name, and the
+ * duplicate is the person's to resolve where the library already shows it.
+ */
+async function relocateLegacy(
+  context: LibraryContext,
+  owner: LibraryOwner,
+  schemaId: PortableSchemaId,
+  legacyPath: string,
+): Promise<{ path: string; slug: string }> {
+  const kindRoot = context.layout.kindRoot(owner, schemaId);
+  const legacyFolder = context.layout.folderOf(legacyPath);
+
+  // The layout already accepted this path, so its parent's name is a kind
+  // folder, current or legacy, and that name is the whole question.
+  const inKindFolder = basename(dirname(legacyFolder)) === LIBRARY_DIRECTORIES[schemaId];
+  const folder = inKindFolder
+    ? legacyFolder
+    : await writes.run(`kind:${kindRoot}`, async () => {
+        const slug = await resolveFreeFolder(kindRoot, basename(legacyFolder));
+        const destination = context.layout.objectRoot(owner, schemaId, slug);
+        await moveTree(legacyFolder, destination);
+        return destination;
+      });
+
+  const slug = basename(folder);
+  const target = context.layout.objectFile(owner, schemaId, slug);
+  const carried = join(folder, basename(legacyPath));
+  if (basename(legacyPath) === basename(target)) return { path: target, slug };
+  if (await fileExists(target)) return { path: carried, slug };
+  await renamePath(carried, target);
+  return { path: target, slug };
 }
 
 /**
@@ -900,11 +1003,8 @@ export async function restoreVersion(
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
 
-  const objectRoot = context.layout.objectRoot(
-    userOwner(handle),
-    current.schemaId as PortableSchemaId,
-    current.slug,
-  );
+  // The folder the object is in — its history is there ([P16 §1.1]).
+  const objectRoot = context.layout.folderOf(current.path);
   const record = (await listVersions(objectRoot)).find((version) => version.id === versionId);
   if (!record) {
     throw new LibraryError('not-found', `No version with id ${versionId}.`);
@@ -938,13 +1038,10 @@ export async function versionsOf(
   inKind?: PortableSchemaId,
 ): Promise<{ current: IndexedObject; versions: VersionRecord[] }> {
   const current = read(context, handle, id, inKind);
-  const owner = current.owner === 'system' ? SYSTEM_OWNER : userOwner(handle);
-  const objectRoot = context.layout.objectRoot(
-    owner,
-    current.schemaId as PortableSchemaId,
-    current.slug,
-  );
-  return { current, versions: await listVersions(objectRoot) };
+  // Where the object is rather than where its kind and slug would put it: a
+  // World still in `packages/` has its history there, and `worlds/<slug>` may
+  // be another World's ([P16 §1.1]).
+  return { current, versions: await listVersions(context.layout.folderOf(current.path)) };
 }
 
 /** One version's snapshotted object, by record id. */
@@ -960,17 +1057,14 @@ export async function versionPayload(
   if (!record) {
     throw new LibraryError('not-found', `No version with id ${versionId}.`);
   }
-  const owner = current.owner === 'system' ? SYSTEM_OWNER : userOwner(handle);
-  const objectRoot = context.layout.objectRoot(
-    owner,
-    current.schemaId as PortableSchemaId,
-    current.slug,
-  );
-  const object = await readVersionPayload(objectRoot, record.digest);
+  const object = await readVersionPayload(context.layout.folderOf(current.path), record.digest);
   if (object === null) {
     throw new LibraryError('not-found', `The payload for version ${versionId} is missing.`);
   }
-  return { record, object };
+  // A version taken before the rename holds the old id, and stays in the
+  // history for good after the move: read as the kind it is ([P16 §1.1]), so a
+  // viewer and a diff only ever see the World.
+  return { record, object: upgradeLegacySchema(object) };
 }
 
 /**
@@ -988,12 +1082,9 @@ export async function amendVersion(
   if (current.owner === 'system') {
     throw new LibraryError('read-only', 'System library objects cannot be edited.');
   }
-  const objectRoot = context.layout.objectRoot(
-    userOwner(handle),
-    current.schemaId as PortableSchemaId,
-    current.slug,
-  );
-  const updated = await patchVersion(objectRoot, versionId, patch);
+  // Not a write of the object, so it moves nothing; it reaches the history
+  // where the object is ([P16 §1.1]).
+  const updated = await patchVersion(context.layout.folderOf(current.path), versionId, patch);
   if (!updated) {
     throw new LibraryError('not-found', `No version with id ${versionId}.`);
   }
@@ -1056,7 +1147,7 @@ export async function readCardPixels(
  * turn's worth of pictures, thrown away for a text edit.
  *
  * *Any kind, unlike the avatar above.* An actor is the first carrier and not
- * the only one: [04 §3] puts `media` on treatments, lorebooks and packages too,
+ * the only one: [04 §3] puts `media` on treatments, lorebooks and Worlds too,
  * and a route that named actors would have to grow a second arm for the first
  * one of those to get a picture. Which is [P9]'s, and is the same lookup.
  */
@@ -1203,11 +1294,17 @@ export async function remove(
       }
     }
 
-    const schemaId = current.schemaId as PortableSchemaId;
-    await moveTree(
-      context.layout.objectRoot(userOwner(handle), schemaId, current.slug),
-      context.layout.trashDestination(handle, schemaId, current.slug, uuidv7()),
-    );
+    /**
+     * ***The folder the object is in, to the trash folder of the folder it was
+     * in*** — [P16 §1.1]. Built from the kind and the slug until P16.0, which
+     * was the same answer while every kind had one folder; for a World still in
+     * `packages/` it named `worlds/<slug>`, which may be **another World** made
+     * since under the same name — and this would have trashed that one and left
+     * the Package on disk with its row tombstoned. A legacy folder goes to
+     * `trash/packages/`, where a restore knows to move it on.
+     */
+    const folder = context.layout.folderOf(current.path);
+    await moveTree(folder, context.layout.trashDestinationFor(handle, folder, uuidv7()));
     removeFile(context.db, context.layout, current.path);
   });
 }

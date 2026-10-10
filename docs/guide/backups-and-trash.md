@@ -148,7 +148,8 @@ import also appears in the library's import panel under **Earlier imports**.
 
 What an import does and does not do:
 
-- **Library objects** come in with their pictures, matched by their identity.
+- **Library objects** come in with their pictures, matched by their identity. A
+  backup from an earlier version brings its packages in as worlds.
 - **Tags** come in; where a tag already exists here, the existing one is kept.
 - **Sessions** come in with their turns and pictures, and are **never replaced**,
   whatever you chose above: a session already here, or one that is in your trash, is
@@ -278,11 +279,15 @@ a turn is running in it.
 Settings → **Trash** lists what you have deleted, newest first, with when it was
 deleted and when it will be removed. Sessions appear by their id, and objects by
 their folder name — the name of the object's folder on disk, which is not
-necessarily its current name — under the kind's folder word, such as `actors`.
+necessarily its current name — under the kind, such as *actor* or *session*.
 **Put it back** returns the item under its old name, with its
 version history, and it shows up in search again. If something has taken that name
 since, you see *Something with that name is already there. Rename it first, then put
 this one back.*
+
+A package deleted under an earlier version, before worlds were called worlds, is listed
+as a *world*. **Put it back** returns it as one, in the worlds folder — under a numbered
+folder name if a world has taken its name since, rather than refusing.
 
 Deleted things are removed once they are older than `trash.retentionDays` (30 by
 default; `0` keeps them for ever). The sweep runs about a minute after the server

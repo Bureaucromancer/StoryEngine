@@ -231,8 +231,23 @@ correct, and would turn this route into a way to read the install's rule.
 ## Library
 
 `:kind` is a **folder name**, not a schema id: `actors`, `lorebooks`, `treatments`,
-`setups`, `presets`, `packages`. An unknown kind is `404` and the message lists
+`setups`, `presets`, `worlds`. An unknown kind is `404` and the message lists
 the known ones.
+
+***`worlds` was `packages` until [P16.0](design/workplan/35-p16-world.md)***
+(2026-10-10), when the kind was renamed — `storyengine.package/1` became
+`storyengine.world/1`, the folder `library/worlds/`, the file `world.json`.
+**The old segment is not kept**: `/api/library/packages/*` is the unknown-kind
+`404` above, because the only caller was the client that ships with this server
+([P16 §1.1](design/workplan/35-p16-world.md)). The old *data* is kept: a World
+still stored as `library/packages/<slug>/package.json` is listed, read and
+written under `worlds` like any other — its first write moves the folder to
+`worlds/`, under a fresh slug if a World already holds its own, and keeps the id
+([03 §5.1](design/03-data-model.md)) — and a body that says
+`storyengine.package/1`, sent to `POST` or `PUT` under `worlds`, is accepted as a
+World and written as `storyengine.world/1`. **Reads answer the new id**: a body
+is upgraded at every door it comes in through, so a `GET` returns
+`storyengine.world/1` for a file that still says otherwise on disk.
 
 **And it is checked.** Posting an object to the wrong kind is `400`, naming both
 what you sent and where you sent it — both halves came from the caller, so
@@ -1151,8 +1166,8 @@ copy's page offered the winner's bytes under the loser's name.
 
 **The primitive, and it converts nothing.** Everything under `/export/` below is
 a *writer*, and a writer loses something by definition; this loses nothing
-because nothing is converted. It carries no `x-storyengine-missing`: a package
-resolves references and can come up short, and an object is just itself.
+because nothing is converted. It carries no `x-storyengine-missing`: a World's
+export resolves references and can come up short, and an object is just itself.
 
 Until this route existed, nothing in the build downloaded a library object except
 a `.sepack` — a strange absence in a surface whose whole claim
@@ -1204,20 +1219,31 @@ build, which is what `export/writers.test.ts` asserts and the first real exercis
 [00 §2.4](design/00-stance.md)'s *nothing is lost and re-export is possible* has
 had.
 
-### `GET /api/library/packages/:id/export`
+### `GET /api/library/worlds/:id/export`
 
-**A package with the objects it names, as a `.sepack`** → `200`,
-`application/json`, as `<package name>.sepack.json`. The contents are resolved
+**A World with the objects it names, as a `.sepack`** → `200`,
+`application/json`, as `<World name>.sepack.json`. The contents are resolved
 and carried whole, so the file works on an install that has none of them.
 
+***At this address from [P16.0](design/workplan/35-p16-world.md)***
+(2026-10-10); it was `GET /api/library/packages/:id/export`, which is not kept.
+**The file is unchanged**: still P11.10's frozen `storyengine.package-export/1`
+envelope — `schema`, `exportedBy`, a `manifest` of the World's id, name, version
+and contents, and the `objects` — with the same `.sepack.json` name.
+[P16.3](design/workplan/35-p16-world.md) defines the World's own format once,
+writes it, and reads this one beside it; renaming the envelope at the rename and
+reshaping it at P16.3 would be two formats written in one phase
+([P16 §1.1](design/workplan/35-p16-world.md)). *No build reads a `.sepack.json`
+yet* — the import panel does not take one.
+
 **What it could not include is counted in `x-storyengine-missing`**: an id the
-package names and the library no longer has is left out of the file, and the
+World names and the library no longer has is left out of the file, and the
 header says how many — *reported, not dropped*, in a header for the notes'
-reason above. The detail page says the count under its *Export this package*
-link; before 2026-09-28 nothing read it.
+reason above. The detail page says the count under its *Export this world*
+link (*Export this package* until P16.0); before 2026-09-28 nothing read it.
 
 The id alone: no `?source=&slug=`, so the page offers this only on the copy
-an id resolves to. `404 {"error":"not-found"}` for a package that is not
+an id resolves to. `404 {"error":"not-found"}` for a World that is not
 there.
 
 ### `GET /api/library/:kind/:id/avatar`
@@ -1235,7 +1261,7 @@ object's `contentHash`: the two differ, and the digest is the right one because
 a picture does not change when the prose beside it does.
 
 **Any kind, unlike `/avatar`.** [04 §3](design/04-schemas.md) puts `media` on
-treatments, lorebooks and packages as well as on actors, so the route is keyed
+treatments, lorebooks and Worlds as well as on actors, so the route is keyed
 the same way the rest of the library is.
 
 - `404` when the object has no entry with that id.
@@ -4358,7 +4384,7 @@ proof obligation arriving for free.
 | 422 | `unknown-input-kind` | A turn submission whose `input.kind` is not one this session's mode declares ([06 §1], [P7.9]). Carries `accepted`, the mode's list. **A refusal rather than a coercion to `do`**, because the kinds change what the prompt says — narrating a `think` as a `do` would put the player's private thought in the scene, which is the one failure the kind exists to prevent |
 | 404 | `no-session` / `no-such-hook` / `no-such-object` | Promoting a pooled hook out of a session ([03 §4.1]): the session is gone, this pool has no hook with that id, or the library object being promoted to has been deleted. **Three answers rather than one**, because they send a person to three different places and the union of them helps nobody |
 | 409 | `already-there` | The promotion target already carries a hook with this id. **Never a second copy and never a fresh id** — [15 §5](design/15-world.md) makes the id the only thing that links two firings of one hook across sessions, so re-minting it is the move that cannot be undone |
-| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. *Package* here is a first-party engine namespace (`storyengine.cast` and its siblings), never the library kind, which becomes a World ([06 §4.1] separates the two, 2026-10-04). **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
+| 404 | `no-such-channel` | A channel write to a key this session's mode does not enable ([06 §4.1], [P7.9]). The registry is process-wide and a session is not: a channel owned by a *mode* belongs to a session playing it, and one owned by a *package* — cast, hooks, goals, lore, suggestions — is available everywhere. *Package* here is a first-party engine namespace (`storyengine.cast` and its siblings), never the library kind, which ~~becomes~~ is a World since [P16.0](design/workplan/35-p16-world.md) ([06 §4.1] separates the two, 2026-10-04). **A 404 rather than a 422**, because *that exists but not for you* would leak which modes the build ships from a session route |
 | 503 | `setup-required` | No accounts exist yet |
 | 500 | `internal` | Something the server did not expect. The message is deliberately uninformative — the detail is in the log, where it can name a filesystem path safely |
 

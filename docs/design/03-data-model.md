@@ -22,7 +22,7 @@ Eight persistent kinds. Everything else is a sub-structure of one of them.
 | **Treatment** | yes | Tone, framing and *links*. Carries no world facts of its own. |
 | **Setup** | yes | How to start playing: mode, treatment, cast, preset, opening. The "full game" definition. |
 | **Preset** | yes | Prompt templates, budgets, generation params, authored variables. |
-| **Package** | yes | An arbitrary bundle of the above, for moving them between installs. |
+| **World** | yes | A named set of the above, and of sessions, held as references — kept, started from, and moved between installs as one file. *Package until [P16.0](workplan/35-p16-world.md).* |
 | **Session** | no | One running story. Lives under its owner. |
 | **Connection** | **never** | Provider endpoint + credentials. Local, private, never exported. |
 
@@ -30,11 +30,11 @@ The line between the portable kinds and `Connection` is the content/production
 seam from [00 §3.2](00-stance.md). It is enforced by the type system: portable
 kinds have no field that could hold a connection.
 
-**Setup and Package are deliberately separate**, and an earlier draft conflated
-them. A Setup is *what a game is*; a Package is *how objects travel*. Sharing a
-full game means putting a Setup in a Package — but the Setup is an ordinary
-library object, useful for your own reuse without any of the transport
-machinery. See §7.
+**Setup and World are deliberately separate**, and an earlier draft conflated
+them. A Setup is *what a game is*; a World is *the set it belongs to, and how
+objects travel*. Sharing a full game means putting a Setup in a World — but the
+Setup is an ordinary library object, useful for your own reuse without any of the
+transport machinery. See §7.
 
 *(2026-10-04: **Package is renamed World** at [P16.0](workplan/35-p16-world.md) —
 [26 B17](26-open-questions.md), [15](15-world.md) — and the count stays eight. A
@@ -42,6 +42,10 @@ World is the same portable set, stored as references and published as copies, an
 it gains two jobs a Package never had: sessions among its members, and being read
 when a session starts in it. The split above survives the rename word for word:
 a Setup is what a game is, and a World is the set it draws from.)*
+*(**2026-10-10: renamed** — P16.0 landed on branch `p16`, and the table and the
+paragraph above say World where they said Package. The two new jobs are
+[P16.1](workplan/35-p16-world.md)'s and [P16.2](workplan/35-p16-world.md)'s; at
+P16.0 a World does what a Package did, under the new name and folder.)*
 
 ---
 
@@ -526,7 +530,10 @@ Notes on why:
   "nothing dereferences yet" — a reasonable interim, but the reason it exists is
   that scenarios came before unified actors. With actors unified and
   session-local actors available (§2.3), inline snapshots are unnecessary:
-  the cast links to actors, and a Package embeds copies of them (§7).
+  the cast links to actors, and ~~a Package embeds copies of them~~ a World's
+  published file carries copies of them (§7) — *corrected 2026-10-10, at
+  [P16.0](workplan/35-p16-world.md)'s rename: the stored container never held
+  copies, which §7.2's correction of 2026-10-04 already says.*
 - **This dissolves the `keyLocations` problem.** Marinara's consumption design
   spends a full section on when to materialise a scenario's key locations into
   lorebook entries and how to avoid competing with a linked lorebook. If a
@@ -564,7 +571,9 @@ when the vocabulary arrives.)*
 
 **Treatments are the primary home.** A Setup may add its own on top, a session may
 add its own while running ([06 §6.1](06-modes-and-turn-pipeline.md)), and a
-package carries all of them by carrying the objects.
+package carries all of them by carrying the objects. *(A World, since
+[P16.0](workplan/35-p16-world.md) renamed the kind; the sentence holds of it
+unchanged.)*
 
 **Lorebooks may also carry hooks, optionally** — and the reason is better than
 convenience. A hook is often *about* a specific piece of world content: "the
@@ -850,7 +859,7 @@ disposable index**.
       treatments/
       presets/              #   default preset per mode
       setups/               #   onboarding sample
-      packages/
+      worlds/               #   packages/ before P16.0 — still read, as below
     connections/            # admin-managed. Usable by all, readable by none.
   users/
     <handle>/
@@ -861,7 +870,9 @@ disposable index**.
         treatments/   <slug>/treatment.json    + cover.png
         presets/    <slug>/preset.json
         setups/     <slug>/setup.json
-        packages/   <slug>/...             (see §7)
+        worlds/     <slug>/world.json      (see §7)
+        packages/   <slug>/package.json    # before P16.0: read as a World, never written
+                                           #   — the first write moves it to worlds/
       trash/                  # deleted objects awaiting the retention window §10.2
       backup.json             # this account's backup schedule. [P12.4]
       usage.jsonl             # what model calls that make no turn spent. Append-only. [10 §11.4]
@@ -887,6 +898,21 @@ before it, so the growth is in the number of backups taken rather than in the
 library. The install's sits at the data root rather than inside a user
 directory, for `accounts.json`'s reason — it holds everybody's work and, when it
 is a full archive, their password hashes.
+
+***`worlds/` was `packages/` until [P16.0](workplan/35-p16-world.md)***,
+2026-10-10, and both are in the tree because both are read. The kind was renamed
+as a migration ([P16 §1.1](workplan/35-p16-world.md)), not by a rewrite at
+start: a folder under `packages/` — or a `package.json` under either name, which
+is what a move stopped between its two renames leaves — is read as a World every
+time, and nothing touches it until somebody writes it. **The first write moves
+it**, history and assets with it, to `worlds/`: under its own slug when that is
+free there, and under a fresh one when a World made after the upgrade already
+holds it, because slugs are allocated per kind folder and the two were never in
+conflict until one had to move. The id goes with it unchanged, and the id is what
+the index, the links and every route address. A Package trashed before the
+rename stays at `trash/packages/` and is listed, restored — into `worlds/`, by
+the same rule — and expired like any other entry (§10.2). **It is the first
+place the engine moves a user's directory**, and so far the only one.
 
 ***~~`memories/`~~ is gone from the tree above, 2026-09-16 at P8.2.*** It sat
 there from the first draft, beside `library/` and outside everything the index
@@ -1173,7 +1199,11 @@ deliberately rather than accepting a library default.
 
 The same split applies to every multi-file kind: folders live, a
 custom-extension zip for exchange — `.sepack` for packages, and the same
-treatment for any lorebook or treatment that carries assets.
+treatment for any lorebook or treatment that carries assets. *(2026-10-10: the
+kind is the World since [P16.0](workplan/35-p16-world.md); its exchange file
+is still P11.10's `.sepack.json`, and whether the World's own is this zip is
+[16 §5.2](16-publish.md)'s open question, decided before
+[P16.3](workplan/35-p16-world.md) writes it.)*
 
 ### 5.3 Asset manifest
 
@@ -1337,7 +1367,10 @@ acceptable, and the reason the layout above matters.
 ## 6. Openings
 
 Requested as two types, each with primary and secondary alternatives. Defined
-once and reused on Actor, Treatment and Package.
+once and reused on Actor, Treatment and ~~Package~~ Setup. *(Corrected
+2026-10-10, at [P16.0](workplan/35-p16-world.md)'s rename: no Package carried
+openings and no World does — `Openings` is on the actor, treatment and setup
+schemas, and the Setup split (§7) is where a game's start went.)*
 
 > **Definition: [04 §3](04-schemas.md).**
 
@@ -1394,9 +1427,17 @@ touches can find it.
 
 ---
 
-## 7. Setup and Package — two jobs, split
+## 7. Setup and World — two jobs, split
 
-> **Definitions: [04 §7](04-schemas.md) (Setup), [04 §9](04-schemas.md) (Package).**
+> **Definitions: [04 §7](04-schemas.md) (Setup), [04 §9](04-schemas.md) (World).**
+
+***Setup and Package until [P16.0](workplan/35-p16-world.md)***, 2026-10-10,
+which renamed the kind and nothing in this section's reasoning: the World is the
+container below with a new name and folder, and the jobs [15](15-world.md) gives
+it beyond travelling — membership, sessions among the members, contribution at
+session creation — are later stages'. **The file it travels as is not renamed
+yet**: still `storyengine.package-export/1`, as `.sepack.json`, until
+[P16.3](workplan/35-p16-world.md) defines the World's own.
 
 An earlier draft had a single `Package` doing both jobs: it carried an `entry`
 block defining the game *and* the bundling machinery for moving objects. Splitting
@@ -1405,10 +1446,10 @@ them makes both simpler, and the split is worth stating as a rule:
 | | |
 |---|---|
 | **Setup** | *What a game is.* Mode, treatment, cast, preset, opening. An ordinary library object. |
-| **Package** | *How objects travel.* An arbitrary bundle, for moving anything between installs. |
+| **World** | *How objects travel.* A named set, for keeping together and for moving anything between installs. |
 
-**Sharing a full game is putting a Setup in a Package.** The Setup is the game;
-the Package is the envelope.
+**Sharing a full game is putting a Setup in a World.** The Setup is the game;
+the World is the envelope.
 
 ### 7.1 Why Setup is a plain object
 
@@ -1425,16 +1466,17 @@ the Package is the envelope.
   play-first-share-afterwards snapshot becomes "emit a Setup from this running
   session" — a real object rather than a text file.
 
-### 7.2 Why Package gets simpler, and stabler
+### 7.2 Why the container gets simpler, and stabler
 
-Reduced to a container, Package has almost no surface of its own:
+Reduced to a container, the World — a Package, when this was argued — has almost
+no surface of its own:
 
 - **Contents are self-describing.** Each object carries its own `schema`, so the
-  package does not enumerate kinds — and therefore does not change when a new
+  World does not enumerate kinds — and therefore does not change when a new
   portable kind appears, as Setup just did. This is why
   [04 §1](04-schemas.md) can now treat it as stable rather than `/0`.
-- **No `entry` field.** A package holding one or more Setups is startable; that
-  *is* the mechanism. A package with no Setup is a content drop — *"here are five
+- **No `entry` field.** A World holding one or more Setups is startable; that
+  *is* the mechanism. A World with no Setup is a content drop — *"here are five
   characters and a lorebook"* — which is a perfectly reasonable thing to share
   and had nowhere to live before.
 - **Contents are embedded copies, resolved on import** into the recipient's
@@ -1460,15 +1502,16 @@ Reduced to a container, Package has almost no surface of its own:
   costing anything at exchange time: a Treatment stays independent of any one
   lorebook (§4) and is still shareable as one self-contained artefact, because
   the bundled form is produced on demand rather than being the storage shape.
-- On disk a package is a folder, zipped as `.sepack` for exchange
-  (§5.2.3). *What [P11.10](workplan/28-p11-implementation.md) shipped is
+- On disk a World is a folder — `library/worlds/<slug>/world.json`, and
+  `library/packages/<slug>/package.json` read as one (§5.1) — zipped as
+  `.sepack` for exchange (§5.2.3). *What [P11.10](workplan/28-p11-implementation.md) shipped is
   `.sepack.json`, one JSON document — a manifest beside each object's stored JSON,
   and no pixels — so the zip is not built; whether the World's file is that or a
   zip of the members' folders is [16 §5.2](16-publish.md)'s open question
   (2026-10-04).*
 
-**[OPEN]** Can a package ship an extension/mode *implementation*, or only declare
-a dependency on one? Shipping code makes packages far more powerful and makes
+**[OPEN]** Can a World ship an extension/mode *implementation*, or only declare
+a dependency on one? Shipping code makes Worlds far more powerful and makes
 importing one a code-execution decision. Strong lean: **declare only** at 1.0
 ([26 A2](26-open-questions.md)).
 
@@ -1830,7 +1873,12 @@ view ([10 §5](10-ui-surfaces.md)). Pointing the same query at the delete
 confirmation costs nothing:
 
 > Delete **Vera Kohl**?
-> Referenced by **12 sessions**, **3 treatments** and **1 package**.
+> Referenced by **12 sessions**, **3 treatments** and **1 world**.
+
+*(The last count said **1 package** until [P16.0](workplan/35-p16-world.md)
+renamed the kind, 2026-10-10. Lower-case because it is the build's sentence —
+`UsedBy.tsx` names kinds in running copy that way — where this corpus would
+write a World.)*
 
 That is the whole feature. It converts a decision made blind into one made
 informed, and it uses a query that has to exist anyway.

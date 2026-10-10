@@ -5,10 +5,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   LOREBOOK_SCHEMA,
-  PACKAGE_SCHEMA,
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   TREATMENT_SCHEMA,
+  WORLD_SCHEMA,
 } from '@storyengine/shared';
 
 import { referencesIn } from './links.js';
@@ -68,9 +68,9 @@ describe('what an object points at', () => {
     expect(new Set(found)).toEqual(new Set(['book-1', 'actor-vera']));
   });
 
-  it('reads a package’s contents', () => {
-    const found = referencesIn(PACKAGE_SCHEMA, {
-      id: 'package-1',
+  it('reads a World’s contents, which were a Package’s', () => {
+    const found = referencesIn(WORLD_SCHEMA, {
+      id: 'world-1',
       contents: [{ id: 'actor-vera' }, { id: 'book-1' }],
     });
     expect(new Set(found)).toEqual(new Set(['actor-vera', 'book-1']));

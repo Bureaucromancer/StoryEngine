@@ -345,43 +345,50 @@ describe('taking an object with you', () => {
   });
 
   /**
-   * The package route takes an id and nothing narrower, so from a shadowed
-   * copy it would bundle the winner — offered nowhere rather than wrongly.
+   * The World's export route takes an id and nothing narrower, so from a
+   * shadowed copy it would bundle the winner — offered nowhere rather than
+   * wrongly. (The package's, until [P16.0] renamed the kind and its route.)
    */
-  it('offers a package bundle only on the copy its id resolves to', async () => {
-    params = { kind: 'packages', id: ACTOR_ID };
-    const pack = {
-      schema: 'storyengine.package/1',
+  it('offers a world bundle only on the copy its id resolves to', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    const world = {
+      schema: 'storyengine.world/1',
       name: 'Harbour set',
       slug: 'harbour-set',
-      object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+      object: { schema: 'storyengine.world/1', id: ACTOR_ID, name: 'Harbour set' },
     };
-    readObject.mockResolvedValue(actor(pack));
+    readObject.mockResolvedValue(actor(world));
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Export this package' })).toBeTruthy();
+    expect(hrefOf('Export this world')).toBe(`/api/library/worlds/${ACTOR_ID}/export`);
+    // ***Still the Package's file*** ([P16 §1.1]: the envelope is not touched
+    // at P16.0), and the page says so rather than letting the kind's new name
+    // imply a new format.
+    expect(
+      screen.getByText('A .sepack.json file, the same format a package exported to.'),
+    ).toBeTruthy();
   });
 
-  it('withholds the package bundle on a shadowed copy', async () => {
-    params = { kind: 'packages', id: ACTOR_ID };
+  it('withholds the world bundle on a shadowed copy', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
     search = { source: 'user', slug: 'harbour-set-2' };
     readObject.mockResolvedValue(
       actor({
-        schema: 'storyengine.package/1',
+        schema: 'storyengine.world/1',
         name: 'Harbour set',
         slug: 'harbour-set-2',
         shadowed: true,
-        object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+        object: { schema: 'storyengine.world/1', id: ACTOR_ID, name: 'Harbour set' },
       }),
     );
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Export this package' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Export this world' })).toBeNull();
     // The object itself still downloads, as that copy.
-    expect(hrefOf('Download this package')).toBe(
-      `/api/library/packages/${ACTOR_ID}/download?source=user&slug=harbour-set-2`,
+    expect(hrefOf('Download this world')).toBe(
+      `/api/library/worlds/${ACTOR_ID}/download?source=user&slug=harbour-set-2`,
     );
   });
 });
@@ -432,9 +439,10 @@ describe('an object whose file could not be read', () => {
  * ***What the answer said, said*** (2026-09-28) — gap round A5.4 and A5.5.
  *
  * These were plain links, so the answer went to the browser: an export's notes
- * and a package's missing count were headers nothing read, and a refused
- * download was a JSON body saved as the file. A plain click is fetched now,
- * and each test here is one thing the page could not say before.
+ * and a package's missing count (a World's, since [P16.0]) were headers
+ * nothing read, and a refused download was a JSON body saved as the file. A
+ * plain click is fetched now, and each test here is one thing the page could
+ * not say before.
  */
 describe('what a download or an export says', () => {
   /** jsdom has no object URLs and no real downloads, so both are captured. */
@@ -481,26 +489,26 @@ describe('what a download or an export says', () => {
     expect(saved).toEqual(['Vera-Kohl.json']);
   });
 
-  it('says how many objects a package export could not include', async () => {
+  it('says how many objects a world export could not include', async () => {
     captureSaves();
-    params = { kind: 'packages', id: ACTOR_ID };
+    params = { kind: 'worlds', id: ACTOR_ID };
     readObject.mockResolvedValue(
       actor({
-        schema: 'storyengine.package/1',
+        schema: 'storyengine.world/1',
         name: 'Harbour set',
         slug: 'harbour-set',
-        object: { schema: 'storyengine.package/1', id: ACTOR_ID, name: 'Harbour set' },
+        object: { schema: 'storyengine.world/1', id: ACTOR_ID, name: 'Harbour set' },
       }),
     );
-    takeFile.mockResolvedValue(taken({ fileName: 'Harbour-set.sepack', missing: 2 }));
+    takeFile.mockResolvedValue(taken({ fileName: 'Harbour-set.sepack.json', missing: 2 }));
     renderPage();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('link', { name: 'Export this package' }));
+    await user.click(await screen.findByRole('link', { name: 'Export this world' }));
 
-    expect(takeFile).toHaveBeenCalledWith(`/api/library/packages/${ACTOR_ID}/export`);
+    expect(takeFile).toHaveBeenCalledWith(`/api/library/worlds/${ACTOR_ID}/export`);
     expect((await screen.findByRole('status')).textContent).toBe(
-      '2 objects this package names are not in your library, so the file does not carry them.',
+      '2 objects this world names are not in your library, so the file does not carry them.',
     );
   });
 

@@ -7,12 +7,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, PACKAGE_SCHEMA, PRESET_SCHEMA } from '@storyengine/shared';
+import { ACTOR_SCHEMA, LOREBOOK_SCHEMA, PRESET_SCHEMA, WORLD_SCHEMA } from '@storyengine/shared';
 
 import {
   isValidHandle,
   Layout,
+  LEGACY_OBJECT_FILENAMES,
   OBJECT_FILENAMES,
+  objectFilenames,
+  resolveFreeFolder,
   resolveFreeSlug,
   SYSTEM_OWNER,
   userOwner,
@@ -85,7 +88,7 @@ describe('library owners', () => {
     // ([03 §5.2](../../../../docs/design/03-data-model.md)).
     expect(OBJECT_FILENAMES[ACTOR_SCHEMA]).toBe('card.png');
     expect(OBJECT_FILENAMES[PRESET_SCHEMA]).toBe('preset.json');
-    expect(OBJECT_FILENAMES[PACKAGE_SCHEMA]).toBe('package.json');
+    expect(OBJECT_FILENAMES[WORLD_SCHEMA]).toBe('world.json');
   });
 
   it('keeps assets inside the object folder', () => {
@@ -164,6 +167,128 @@ describe('what the watcher looks at', () => {
     ]) {
       expect(layout.leadsToObjects(path), path).toBe(false);
     }
+  });
+});
+
+/**
+ * ***The kind that was Package, read under both names*** — [P16 §1.1]. Each
+ * assertion below fails with its alias removed: the folder from
+ * `LEGACY_LIBRARY_DIRECTORIES`, the file name from `LEGACY_OBJECT_FILENAMES`.
+ */
+describe('a World under the names it had as a Package (P16.0)', () => {
+  const library = ['users', 'ned', 'library'];
+  const at = (...segments: string[]): string => join(DATA, ...library, ...segments);
+
+  it('writes the new names and reads the old ones', () => {
+    expect(layout.kindRoot(ned, WORLD_SCHEMA)).toBe(at('worlds'));
+    expect(layout.objectFile(ned, WORLD_SCHEMA, 'rain-city')).toBe(
+      at('worlds', 'rain-city', 'world.json'),
+    );
+    expect(LEGACY_OBJECT_FILENAMES[WORLD_SCHEMA]).toEqual(['package.json']);
+    expect(objectFilenames(WORLD_SCHEMA)).toEqual(['world.json', 'package.json']);
+    // Every other kind has the one name, and nothing to read beside it.
+    expect(objectFilenames(LOREBOOK_SCHEMA)).toEqual(['lorebook.json']);
+  });
+
+  it('walks the old folder after the new one, for the World and no other kind', () => {
+    expect(layout.kindRoots(ned, WORLD_SCHEMA)).toEqual([at('worlds'), at('packages')]);
+    expect(layout.kindRoots(SYSTEM_OWNER, WORLD_SCHEMA)).toEqual([
+      join(DATA, 'system', 'library', 'worlds'),
+      join(DATA, 'system', 'library', 'packages'),
+    ]);
+    expect(layout.kindRoots(ned, LOREBOOK_SCHEMA)).toEqual([at('lorebooks')]);
+  });
+
+  it('parses a Package where it was left as a World, and says it is legacy', () => {
+    const path = at('packages', 'rain-city', 'package.json');
+    expect(layout.parseObjectPath(path)).toEqual({
+      owner: ned,
+      schemaId: WORLD_SCHEMA,
+      slug: 'rain-city',
+      path,
+      legacy: true,
+    });
+    const system = join(DATA, 'system', 'library', 'packages', 'rain-city', 'package.json');
+    expect(layout.parseObjectPath(system)?.schemaId).toBe(WORLD_SCHEMA);
+  });
+
+  it('parses the current shape as current', () => {
+    const path = at('worlds', 'rain-city', 'world.json');
+    expect(layout.parseObjectPath(path)).toEqual({
+      owner: ned,
+      schemaId: WORLD_SCHEMA,
+      slug: 'rain-city',
+      path,
+      legacy: false,
+    });
+  });
+
+  it('reads either name in either folder, so every state the move can stop in reads', () => {
+    // The move is a folder rename and then a file rename (`library.ts`,
+    // `relocateLegacy`). Stopped between them, the new folder holds the old
+    // name, and that has to be a World rather than a vanished one.
+    for (const path of [
+      at('worlds', 'rain-city', 'package.json'),
+      at('packages', 'rain-city', 'world.json'),
+    ]) {
+      expect(layout.parseObjectPath(path), path).toMatchObject({
+        schemaId: WORLD_SCHEMA,
+        legacy: true,
+      });
+    }
+  });
+
+  it('reads no other kind under the old file name, and nothing below the object', () => {
+    for (const path of [
+      at('lorebooks', 'rain-city', 'package.json'),
+      at('packages', 'rain-city', 'lorebook.json'),
+      at('packages', 'rain-city', 'history', 'index.jsonl'),
+      at('packages', 'rain-city', 'assets', 'map.png'),
+    ]) {
+      expect(layout.parseObjectPath(path), path).toBeNull();
+    }
+  });
+
+  it('lets the watcher see the old folder, and nothing in it but the object', () => {
+    for (const path of [
+      at('packages'),
+      at('packages', 'rain-city'),
+      at('packages', 'rain-city', 'package.json'),
+      at('worlds', 'rain-city', 'world.json'),
+    ]) {
+      expect(layout.leadsToObjects(path), path).toBe(true);
+    }
+    for (const path of [
+      at('packages', 'rain-city', 'history'),
+      at('packages', 'rain-city', 'assets'),
+    ]) {
+      expect(layout.leadsToObjects(path), path).toBe(false);
+    }
+  });
+
+  it("finds an object's folder from its path, not from its kind and slug", () => {
+    // `objectRoot(ned, WORLD, 'rain-city')` names `worlds/rain-city`, which may
+    // be another World: the folder a legacy object is in is read off its path.
+    const legacy = at('packages', 'rain-city', 'package.json');
+    expect(layout.folderOf(legacy)).toBe(at('packages', 'rain-city'));
+    expect(layout.objectRoot(ned, WORLD_SCHEMA, 'rain-city')).toBe(at('worlds', 'rain-city'));
+    expect(() => layout.folderOf(at('packages', 'rain-city', 'history', 'x.json'))).toThrow(
+      PathEscapeError,
+    );
+    expect(() => layout.folderOf(resolve('/elsewhere/world.json'))).toThrow(PathEscapeError);
+  });
+
+  it('trashes a folder into the trash folder of the folder it was in', () => {
+    const suffix = '0199a1b2-0000-7000-8000-000000000000';
+    expect(layout.trashDestinationFor('ned', at('packages', 'rain-city'), suffix)).toBe(
+      join(DATA, 'users', 'ned', 'trash', 'packages', `rain-city-${suffix}`),
+    );
+    expect(layout.trashDestinationFor('ned', at('worlds', 'rain-city'), suffix)).toBe(
+      join(DATA, 'users', 'ned', 'trash', 'worlds', `rain-city-${suffix}`),
+    );
+    expect(() => layout.trashDestinationFor('ned', at('elsewhere', 'x'), suffix)).toThrow(
+      PathEscapeError,
+    );
   });
 });
 
@@ -249,6 +374,18 @@ describe('slug resolution', () => {
 
   it('escapes a reserved device name before de-duplicating it', async () => {
     await expect(resolveFreeSlug(dir, 'Con')).resolves.toBe('con_');
+  });
+
+  /**
+   * ***A folder that already has a name keeps it when it moves*** — the
+   * legacy World's move ([P16 §1.1]), which starts from a slug rather than a
+   * name and must not tidy one a person chose.
+   */
+  it('keeps a moving folder its name when free, and suffixes it when taken', async () => {
+    await expect(resolveFreeFolder(dir, 'Rain_City notes')).resolves.toBe('Rain_City notes');
+    await mkdir(join(dir, 'rain-city'));
+    await expect(resolveFreeFolder(dir, 'rain-city')).resolves.toBe('rain-city-2');
+    await expect(resolveFreeFolder(dir, 'Rain-City')).resolves.toBe('Rain-City-2');
   });
 });
 

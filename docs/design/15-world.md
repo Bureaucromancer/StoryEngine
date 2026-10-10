@@ -96,7 +96,13 @@ exist is designed against a guess.
 its file. The rename is [P16.0](workplan/35-p16-world.md), a migration with a
 path that reads the old name for as long as anything might hold it — **nothing
 on disk is renamed by this note**, and until that stage ships the code, the
-library and the guide all say Package and are right to.
+library and the guide all say Package and are right to. *(**2026-10-10: it has
+shipped** — P16.0 landed on branch `p16`, and the code, the library's Worlds
+panel, the routes and the guide say World. What still says package is what this
+phase leaves for later on purpose: the export envelope, `.sepack.json` and
+`storyengine.package-export/1`, which [P16.3](workplan/35-p16-world.md) owns;
+the namespace and workspace senses (§6); and `Provenance.source`'s `'package'`
+literal ([P16 §1.7](workplan/35-p16-world.md)).)*
 
 **Where this rewrite departs from the branch**, so that nobody reads one for the
 other:
@@ -259,7 +265,7 @@ five, and [16](16-publish.md) is a flow inside the library, not a fourth surface
 
 | | Holds | Why |
 |---|---|---|
-| **Stored** — `library/worlds/<slug>/world.json` from [P16.0](workplan/35-p16-world.md); `library/packages/<slug>/package.json` until then | **references** — the `{ schema, id, name }` envelopes a stored Package's `contents` already holds | The objects live in the library and are edited there. A World holding copies would be a second representation of every object in it — [00 §2.8](00-stance.md)'s derived data persisted as truth, at the scale of a set |
+| **Stored** — `library/worlds/<slug>/world.json` from [P16.0](workplan/35-p16-world.md); `library/packages/<slug>/package.json` until then — *and after it, read as a World until that object's first write moves it (2026-10-10)* | **references** — the `{ schema, id, name }` envelopes a stored Package's `contents` already holds | The objects live in the library and are edited there. A World holding copies would be a second representation of every object in it — [00 §2.8](00-stance.md)'s derived data persisted as truth, at the scale of a set |
 | **Wire** — the published file ([16](16-publish.md)) | **the objects**, each as it is stored | *"The only reliable way to ship something working to someone whose library you know nothing about"* ([03 §7.2](03-data-model.md)), unchanged |
 
 **Embedding is a fact about the file; linking is a fact about the store.** Get it
@@ -666,7 +672,7 @@ separate rather than replace:**
 
 | Sense | What it is | What happens to it |
 |---|---|---|
-| **The content bundle** | The portable kind — `storyengine.package/1`, the Packages panel, `.sepack`, and [06 §4.1](06-modes-and-turn-pipeline.md)'s `owner` arm for authored content | **Becomes World** at [P16.0](workplan/35-p16-world.md) |
+| **The content bundle** | The portable kind — `storyengine.package/1`, the Packages panel, `.sepack`, and [06 §4.1](06-modes-and-turn-pipeline.md)'s `owner` arm for authored content | **Becomes World** at [P16.0](workplan/35-p16-world.md) — *all but `.sepack`, which is the export envelope and [P16.3](workplan/35-p16-world.md)'s ([P16 §1.1](workplan/35-p16-world.md): the envelope is not touched at P16.0). Became, 2026-10-10.* |
 | **A first-party namespace** | An engine subsystem that is not a mode and answers for the state it writes — `storyengine.lore`, `storyengine.cast`, `storyengine.hooks`, `storyengine.goals`, `storyengine.suggest`, `storyengine.renditions`, `storyengine.memory`, each owning a channel | **Unchanged, and never a World.** [06 §4.1](06-modes-and-turn-pipeline.md) names it *first-party namespace*; the code's comments call these *packages* and mean this sense |
 | **The workspace package** | `packages/server`, `packages/sdk`, a mode as a package — pnpm's word ([20 §10](20-tech-stack.md)) | **Untouched**, and unrelated to either |
 

@@ -208,13 +208,21 @@ const ENTRIES: readonly LoreEntry[] = [
   }),
   entry({
     id: '0199c000-0000-7000-8000-00000000000b',
-    name: 'Actors, treatments, setups, presets, packages — which is which',
+    name: 'Actors, treatments, setups, presets, Worlds — which is which',
     folderId: 'library',
-    keys: ['treatment', 'setup', 'package', 'what kind', 'object kinds', 'difference between'],
+    keys: [
+      'treatment',
+      'setup',
+      'world',
+      'package',
+      'what kind',
+      'object kinds',
+      'difference between',
+    ],
     description:
       "A one-line answer for each of the library's kinds and the split that is easiest to get wrong.",
     content:
-      '- **Actor** — a character. A card, importable from and exportable to the formats other tools use.\n- **Lorebook** — a collection of entries that activate on keywords. The unit other tools trade.\n- **Treatment** — the *world and the story*: what this fiction is, independent of any one playthrough.\n- **Setup** — the *particular game*: this cast, in this situation, of that treatment.\n- **Preset** — the recipe for assembling a prompt.\n- **Package** — a bundle of library objects, kept together so they can travel as one file.\n\n**The Treatment/Setup split is the one with no prior anywhere else**, and it is the one worth learning: a treatment is reusable across playthroughs and a setup is one of them. If you find yourself copying a treatment to change who is in it, you wanted a setup.',
+      '- **Actor** — a character. A card, importable from and exportable to the formats other tools use.\n- **Lorebook** — a collection of entries that activate on keywords. The unit other tools trade.\n- **Treatment** — the *setting and the story*: what this fiction is, independent of any one playthrough.\n- **Setup** — the *particular game*: this cast, in this situation, of that treatment.\n- **Preset** — the recipe for assembling a prompt.\n- **World** — a named set of library objects, kept together so they can travel as one file. (It was called a Package before P16; a Package made by an earlier build opens as a World.)\n\n**The Treatment/Setup split is the one with no prior anywhere else**, and it is the one worth learning: a treatment is reusable across playthroughs and a setup is one of them. If you find yourself copying a treatment to change who is in it, you wanted a setup.',
   }),
   entry({
     id: '0199c000-0000-7000-8000-00000000000c',

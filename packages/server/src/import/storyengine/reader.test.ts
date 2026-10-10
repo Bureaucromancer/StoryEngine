@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -9,12 +9,15 @@ import {
   newActor,
   newLoreEntry,
   newLorebook,
+  newWorld,
   type EmbeddedMedia,
   type PortableSchemaId,
+  WORLD_SCHEMA,
 } from '@storyengine/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { backupContextOf, findBackup, takeBackup } from '../../backup/archive.js';
+import { ingestFile } from '../../index-db/ingest.js';
 import { create, read, readMedia, remove, update } from '../../library.js';
 import { storeAsset } from '../../library/assets.js';
 import { makePng, pixelBytes } from '../../storage/card/test-png.js';
@@ -247,6 +250,70 @@ describe('a backup as an import source', () => {
  * 1×1 card with every expression answering *the bytes are missing*, and a
  * book's gallery named files that were not there. The review said `created`.
  */
+/**
+ * ***An archive taken before Package was renamed World*** — [P16 §1.1]. It
+ * holds `library/packages/<slug>/package.json`, saying `storyengine.package/1`,
+ * and the reader knows `packages` as the World's old folder. **The first case
+ * fails with that alias removed** — each Package is then an `unknownKind` row,
+ * skipped — and with the body's upgrade removed, a `wrongKind` one.
+ */
+describe('a backup holding Packages, from before P16.0', () => {
+  /** A Package's folder as a pre-P16.0 build wrote it, in the live library. */
+  async function plantPackage(slug: string): Promise<{ id: string; path: string }> {
+    const world = newWorld('Rain City');
+    const folder = join(server.dataDir, 'users', 'ned', 'library', 'packages', slug);
+    await mkdir(folder, { recursive: true });
+    const path = join(folder, 'package.json');
+    await writeFile(
+      path,
+      `${JSON.stringify({ ...world, schema: 'storyengine.package/1' }, null, 2)}\n`,
+    );
+    return { id: world.id, path };
+  }
+
+  it('imports each Package as a World, written where Worlds go', async () => {
+    const planted = await plantPackage('rain-city');
+    const files = await archiveOf();
+    // Gone from this install, so the archive is the only copy.
+    await rm(join(server.dataDir, 'users', 'ned', 'library', 'packages'), {
+      recursive: true,
+      force: true,
+    });
+
+    const report = await importInto(files, 'skip');
+    const item = report.items.find((one) => one.source.includes('/packages/rain-city/'));
+    expect(item?.disposition, JSON.stringify(item)).toBe('converted');
+
+    const world = read(server.services.library, 'ned', planted.id, WORLD_SCHEMA);
+    expect((world.body as { schema: string }).schema).toBe(WORLD_SCHEMA);
+    const written = JSON.parse(
+      await readFile(
+        join(server.dataDir, 'users', 'ned', 'library', 'worlds', 'rain-city', 'world.json'),
+        'utf8',
+      ),
+    ) as { schema: string; id: string };
+    expect(written).toMatchObject({ schema: WORLD_SCHEMA, id: planted.id });
+  });
+
+  /**
+   * ***Over the library it came from, with the Package not yet moved*** — the
+   * file on disk still says the old id and the object arriving has been read as
+   * a World, so their bytes can never match. It is the same object, and an
+   * import over it writes nothing (`identifyNative`).
+   */
+  it('finds an unmoved Package unchanged, rather than different from itself', async () => {
+    const planted = await plantPackage('rain-city');
+    await ingestFile(server.services.index.db, server.services.layout, planted.path);
+    const files = await archiveOf();
+
+    const report = await importInto(files, 'skip');
+    const item = report.items.find((one) => one.source.includes('/packages/rain-city/'));
+    expect(item?.disposition, JSON.stringify(item)).toBe('unchanged');
+    // And nothing moved: an import that wrote nothing is not a write.
+    await expect(readFile(planted.path, 'utf8')).resolves.toContain('storyengine.package/1');
+  });
+});
+
 describe('what comes back with an object', () => {
   /** Six bytes of GIF header: an image a browser would take, and not a card. */
   const GIF = Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);

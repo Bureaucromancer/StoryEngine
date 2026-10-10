@@ -582,7 +582,7 @@ export interface TakenFile {
   fileName: string | null;
   /** What an export left out — empty for a download, which converts nothing. */
   notes: Pick<ImportNote, 'key' | 'params'>[];
-  /** How many objects a package names and its file does not carry. */
+  /** How many objects a World names and its export does not carry. */
   missing: number;
 }
 
@@ -941,8 +941,9 @@ export const api = {
    * give below — a `fetch` rebuilds what the browser already does — and for
    * these routes it does not hold, because the answer says things the page
    * has to read. An export names what it left out in
-   * `x-storyengine-export-notes`; a package counts the objects it could not
-   * include in `x-storyengine-missing`; and a refusal is a JSON body, which a
+   * `x-storyengine-export-notes`; a World's export (a package's, until
+   * [P16.0]) counts the objects it could not include in
+   * `x-storyengine-missing`; and a refusal is a JSON body, which a
    * browser following a link saves as the file. None of the three reached
    * anybody.
    *

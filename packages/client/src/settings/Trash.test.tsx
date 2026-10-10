@@ -107,6 +107,64 @@ describe('the dates', () => {
 });
 
 /**
+ * ***Each row names its kind in a word, and a Package deleted before the rename
+ * is named a world*** — [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md),
+ * 2026-10-10.
+ *
+ * The server keeps `packages/` as a legacy trash kind so such an entry is
+ * listed, restorable and expired, and the restore writes it into
+ * `library/worlds/`. The row said its folder name until then, and `packages` is
+ * the name of a kind this build no longer has — on the row whose button turns
+ * it into a World. The other rows moved from folder names to words in the same
+ * change, so the legacy one is not the only row that reads differently.
+ */
+describe('the kind on each row', () => {
+  it('is a word, and a legacy package is a world', async () => {
+    readTrash.mockResolvedValue({
+      entries: [
+        {
+          id: 'lorebooks/rain-city',
+          kind: 'lorebooks',
+          name: 'Rain City',
+          deletedAt: 1,
+          expiresAt: null,
+        },
+        {
+          id: 'packages/harbour-set',
+          kind: 'packages',
+          name: 'Harbour set',
+          deletedAt: 1,
+          expiresAt: null,
+        },
+        { id: 'worlds/tide-set', kind: 'worlds', name: 'Tide set', deletedAt: 1, expiresAt: null },
+        {
+          id: 'sessions/night-one',
+          kind: 'sessions',
+          name: 'Night one',
+          deletedAt: 1,
+          expiresAt: null,
+        },
+        { id: 'campaigns/later', kind: 'campaigns', name: 'Later', deletedAt: 1, expiresAt: null },
+      ],
+      retentionDays: 30,
+    });
+    renderPanel();
+
+    const kindOf = async (name: string): Promise<string[]> => {
+      const row = (await screen.findByText(name)).closest('li');
+      return [...(row?.querySelectorAll('p, span') ?? [])].map((node) => node.textContent);
+    };
+    expect(await kindOf('Rain City')).toContain('lorebook');
+    expect(await kindOf('Harbour set')).toContain('world');
+    expect(await kindOf('Harbour set')).not.toContain('packages');
+    expect(await kindOf('Tide set')).toContain('world');
+    expect(await kindOf('Night one')).toContain('session');
+    // A folder this build has no word for is shown as itself, not hidden.
+    expect(await kindOf('Later')).toContain('campaigns');
+  });
+});
+
+/**
  * ***A trash that could not be read is not an empty one*** — polish 10
  * (2026-10-01). Both said *Nothing has been deleted*, the one sentence on the
  * page a person acts on by giving up looking.

@@ -69,7 +69,7 @@ const KIND_WORDS: Readonly<Record<string, readonly [string, string]>> = {
   treatments: ['treatment', 'treatments'],
   presets: ['preset', 'presets'],
   setups: ['setup', 'setups'],
-  packages: ['package', 'packages'],
+  worlds: ['world', 'worlds'],
 };
 
 function nameFor(kind: string, count: number): string {

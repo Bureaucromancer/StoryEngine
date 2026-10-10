@@ -571,10 +571,10 @@ describe('library kinds', () => {
     expect([...LIBRARY_KINDS].sort()).toEqual([
       'actors',
       'lorebooks',
-      'packages',
       'presets',
       'setups',
       'treatments',
+      'worlds',
     ]);
   });
 
@@ -590,6 +590,22 @@ describe('library kinds', () => {
     // A server's string, never read through the prototype (2026-09-27): this
     // was the `Object` constructor rather than nothing.
     expect(kindOfSchema('constructor')).toBeNull();
+  });
+
+  /**
+   * ***The kind's old name is the server's to read, not this side's*** —
+   * [P16 §1.1](../../../docs/design/workplan/35-p16-world.md). A body stored as
+   * `storyengine.package/1` is upgraded in memory wherever the server reads
+   * one (`upgradeLegacySchema`: the library, the index's ingest, the import
+   * reader), so no schema id this client is handed carries the old name, and a
+   * mapping here would be a second legacy read nothing exercises. The one
+   * place the old name does arrive is a trash entry's *folder*, which
+   * `settings/Trash.tsx` names by itself.
+   */
+  it('knows the World by its new name only', () => {
+    expect(kindOfSchema('storyengine.world/1')).toBe('worlds');
+    expect(kindOfSchema('storyengine.package/1')).toBeNull();
+    expect(isLibraryKind('packages')).toBe(false);
   });
 });
 

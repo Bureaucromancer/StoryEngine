@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -278,5 +278,106 @@ describe('restoring', () => {
 
     expect(taken).toEqual([id]);
     expect(restored).toEqual({ ok: false, reason: 'not-found' });
+  });
+});
+
+/**
+ * ***A Package trashed before P16.0*** — [P16 §1.1]. `trash/packages/` is no
+ * longer a library folder, and every case below fails with the legacy trash kind
+ * removed: unlisted, refused as an address, and never expired — a folder on disk
+ * for good that nobody can see or restore.
+ */
+describe('a Package trashed before the kind was renamed World', () => {
+  const PACKAGE_ID = '0199c000-0000-7000-8000-0000000000aa';
+
+  /** A Package's folder as a pre-P16.0 delete left it: its file, and its history. */
+  async function trashedPackage(name: string, at: number): Promise<string> {
+    const suffix = uuidAt(at);
+    const folder = join(layout.trashRoot('ned'), 'packages', `${name}-${suffix}`);
+    await mkdir(join(folder, 'history'), { recursive: true });
+    await writeFile(
+      join(folder, 'package.json'),
+      `${JSON.stringify({ schema: 'storyengine.package/1', id: PACKAGE_ID, name: 'Rain City', contents: [] }, null, 2)}\n`,
+    );
+    await writeFile(join(folder, 'history', 'index.jsonl'), '');
+    return `packages/${name}-${suffix}`;
+  }
+
+  const worlds = (): string => join(dataDir, 'users', 'ned', 'library', 'worlds');
+
+  it('is listed, under the folder it is in', async () => {
+    const id = await trashedPackage('rain-city', Date.now());
+    const listed = await listTrash(layout, 'ned', 30);
+    expect(listed.map((entry) => entry.id)).toEqual([id]);
+    expect(listed[0]?.kind).toBe('packages');
+    expect(listed[0]?.name).toBe('rain-city');
+  });
+
+  it('is expired by the sweep like anything else', async () => {
+    const now = Date.now();
+    const id = await trashedPackage('rain-city', now - 31 * DAY);
+    await expect(sweepTrash(layout, 'ned', 30, now)).resolves.toEqual([id]);
+    await expect(listTrash(layout, 'ned', 30)).resolves.toEqual([]);
+  });
+
+  it('restores into the World folder as world.json, with its id, its history, and nothing old left', async () => {
+    const id = await trashedPackage('rain-city', Date.now());
+    const outcome = await restoreFromTrash(layout, 'ned', id);
+    expect(outcome).toEqual({
+      ok: true,
+      path: join(worlds(), 'rain-city'),
+      restored: { kind: 'object', schemaId: 'storyengine.world/1', slug: 'rain-city' },
+    });
+
+    const body = JSON.parse(await readFile(join(worlds(), 'rain-city', 'world.json'), 'utf8')) as {
+      schema: string;
+      id: string;
+      name: string;
+    };
+    expect(body).toMatchObject({
+      schema: 'storyengine.world/1',
+      id: PACKAGE_ID,
+      name: 'Rain City',
+    });
+    await expect(stat(join(worlds(), 'rain-city', 'package.json'))).rejects.toThrow();
+    await expect(stat(join(worlds(), 'rain-city', 'history', 'index.jsonl'))).resolves.toBeTruthy();
+    await expect(listTrash(layout, 'ned', 30)).resolves.toEqual([]);
+  });
+
+  /**
+   * ***A World made since holds the name.*** Slugs are frozen, so renaming that
+   * World frees nothing, and the refusal every other kind gives here would
+   * strand the Package in the trash for good.
+   */
+  it('takes a fresh name rather than refusing when a World already has its own', async () => {
+    await mkdir(join(worlds(), 'rain-city'), { recursive: true });
+    await writeFile(join(worlds(), 'rain-city', 'world.json'), 'the other World');
+    const id = await trashedPackage('rain-city', Date.now());
+
+    const outcome = await restoreFromTrash(layout, 'ned', id);
+    expect(outcome).toMatchObject({
+      ok: true,
+      restored: { kind: 'object', schemaId: 'storyengine.world/1', slug: 'rain-city-2' },
+    });
+    await expect(readFile(join(worlds(), 'rain-city', 'world.json'), 'utf8')).resolves.toBe(
+      'the other World',
+    );
+    await expect(readFile(join(worlds(), 'rain-city-2', 'world.json'), 'utf8')).resolves.toContain(
+      PACKAGE_ID,
+    );
+  });
+
+  it('leaves a body it cannot read under its old name rather than rewriting it', async () => {
+    const suffix = uuidAt(Date.now());
+    const folder = join(layout.trashRoot('ned'), 'packages', `broken-${suffix}`);
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, 'package.json'), '{ not json');
+
+    const outcome = await restoreFromTrash(layout, 'ned', `packages/broken-${suffix}`);
+    expect(outcome).toMatchObject({ ok: true, restored: { slug: 'broken' } });
+    await expect(readFile(join(worlds(), 'broken', 'package.json'), 'utf8')).resolves.toBe(
+      '{ not json',
+    );
+    await expect(stat(join(worlds(), 'broken', 'world.json'))).rejects.toThrow();
   });
 });

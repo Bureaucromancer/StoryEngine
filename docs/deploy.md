@@ -287,7 +287,7 @@ so rather than pointing at a link that is not there.
 
 Settings → About states the licence boundary in the same words for everybody:
 the program and anything that imports its SDK are AGPL-3.0; **what you write is
-yours**. Actors, treatments, lorebooks, presets, sessions and packages are data
+yours**. Actors, treatments, lorebooks, presets, sessions and worlds are data
 this program produced, not derivative works of it.
 
 ## Channels

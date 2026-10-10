@@ -16,7 +16,6 @@ import {
   writeFileBytes,
 } from '../storage/files.js';
 import { listVersions, readVersionPayload } from '../storage/history.js';
-import { userOwner, type LibraryOwner } from '../storage/layout.js';
 import { resolveAssetPath } from '../storage/paths.js';
 
 /**
@@ -103,31 +102,28 @@ export function digestOf(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 }
 
-function ownerOf(row: { owner: string }, handle: string): LibraryOwner {
-  return row.owner === 'system' ? { kind: 'system' } : userOwner(handle);
-}
-
 interface ObjectRow {
-  owner: string;
-  schemaId: string;
-  slug: string;
+  /** The object file's path, as the index holds it — its folder is this one's parent. */
+  path: string;
 }
 
 /**
  * The object's folder, checked to be inside the data directory where it lands,
  * which is the check every read of the object file already makes
  * (`layout.assertReal`). {@link assetFile} then holds the assets to this folder.
+ *
+ * ***The folder the object is in, read off its path*** ([P16 §1.1], 2026-10-10).
+ * It was built from the row's kind and slug, which named the same folder for
+ * every object until a kind had two: a World still in `packages/` would have had
+ * its pictures stored in, read from and swept out of `worlds/<slug>/assets` —
+ * nothing, or **another World's**, made since under the same name.
  */
 async function objectFolder(
   context: LibraryContext,
-  handle: string,
+  _handle: string,
   row: ObjectRow,
 ): Promise<string> {
-  const root = context.layout.objectRoot(
-    ownerOf(row, handle),
-    row.schemaId as PortableSchemaId,
-    row.slug,
-  );
+  const root = context.layout.folderOf(row.path);
   await context.layout.assertReal(root);
   return root;
 }

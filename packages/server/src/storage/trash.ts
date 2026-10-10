@@ -4,12 +4,20 @@
 import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { LIBRARY_DIRECTORIES, uuidv7, type PortableSchemaId } from '@storyengine/shared';
+import {
+  kindOfDirectory,
+  LEGACY_LIBRARY_DIRECTORIES,
+  LIBRARY_DIRECTORIES,
+  upgradeLegacySchema,
+  uuidv7,
+  type PortableSchemaId,
+} from '@storyengine/shared';
 
 import type { Logger } from '../state/commit.js';
 import { watchWallClock, type WallClockWatch } from '../wall-clock.js';
-import type { Layout } from './layout.js';
-import { moveTree } from './files.js';
+import { writeJsonAtomic } from './atomic.js';
+import { objectFilenames, resolveFreeFolder, type Layout, userOwner } from './layout.js';
+import { moveTree, readFileBytes } from './files.js';
 import { KeyedQueue } from './keyed-queue.js';
 
 /**
@@ -101,9 +109,25 @@ export function splitTrashEntry(entry: string): { name: string; suffix: string }
   return match === null ? null : { name: match[1] ?? '', suffix: match[2] ?? '' };
 }
 
-/** The directories the trash is organised into — the live tree's, plus sessions. */
+/**
+ * The directories the trash is organised into — the live tree's, plus sessions.
+ *
+ * ***And the folders a kind used to have*** — [P16 §1.1]. A Package deleted
+ * before P16.0 sits at `trash/packages/<slug>-<uuid>`, and the backup alias
+ * never reaches it, because no archive carries the trash. With `packages` gone
+ * from `LIBRARY_DIRECTORIES`, such an entry would never be listed,
+ * `splitTrashId` would refuse its address, and the sweep would never expire it
+ * — a folder on disk for good that nobody can see or restore, which is the
+ * stranding a migration exists not to cause. So the legacy folder stays a
+ * trash kind for as long as the legacy read lives: listed, restored into the
+ * kind's current folder, and expired, where it lies.
+ */
 function trashKinds(): string[] {
-  return [...Object.values(LIBRARY_DIRECTORIES as Record<PortableSchemaId, string>), 'sessions'];
+  return [
+    ...Object.values(LIBRARY_DIRECTORIES as Record<PortableSchemaId, string>),
+    ...Object.keys(LEGACY_LIBRARY_DIRECTORIES),
+    'sessions',
+  ];
 }
 
 /**
@@ -251,6 +275,21 @@ async function restoreNow(layout: Layout, handle: string, id: string): Promise<R
   if (!(await exists(from))) return { ok: false, reason: 'not-found' };
 
   const name = splitTrashEntry(entry)?.name ?? entry;
+
+  /**
+   * ***An entry from a folder a kind no longer has*** — [P16 §1.1]. A Package
+   * trashed before P16.0 comes back as a World, in `library/worlds/`: a
+   * restore is a write, and every write writes the new form. **Under its old
+   * slug if that is free and a fresh one if not** — never `occupied`, because
+   * slugs are frozen and renaming the World that took the name frees nothing,
+   * so the refusal the current kinds give would strand it in the trash for
+   * good.
+   */
+  const legacyKind = Object.hasOwn(LEGACY_LIBRARY_DIRECTORIES, kind)
+    ? (LEGACY_LIBRARY_DIRECTORIES[kind] ?? null)
+    : null;
+  if (legacyKind !== null) return restoreLegacy(layout, handle, from, legacyKind, name);
+
   const to =
     kind === 'sessions'
       ? layout.sessionRoot(handle, name)
@@ -293,12 +332,75 @@ async function restoreNow(layout: Layout, handle: string, id: string): Promise<R
   if (kind === 'sessions') {
     return { ok: true, path: to, restored: { kind: 'session', sessionId: name } };
   }
-  const schemaId = (Object.entries(LIBRARY_DIRECTORIES) as [PortableSchemaId, string][]).find(
-    ([, directory]) => directory === kind,
-  )?.[0];
+  const schemaId = kindOfDirectory(kind);
   // `splitTrashId` admitted only the library's directories and `sessions`.
-  if (schemaId === undefined) throw new Error(`No kind keeps its objects in ${kind}.`);
+  if (schemaId === null) throw new Error(`No kind keeps its objects in ${kind}.`);
   return { ok: true, path: to, restored: { kind: 'object', schemaId, slug: name } };
+}
+
+/**
+ * ***A legacy entry, restored into its kind's current folder*** — [P16 §1.1].
+ *
+ * Two steps, in the order that leaves a readable object if it stops between
+ * them: the folder moves into `library/worlds/` under a free name, and then the
+ * file it carried — `package.json`, saying `storyengine.package/1` — is
+ * rewritten as `world.json` under the kind's id, exactly as the first write's
+ * move leaves one (`library.ts`, `relocateLegacy`). The layout reads the old
+ * file name in the new folder, so a restore interrupted after the move is a
+ * World that reads rather than one that vanished.
+ *
+ * **The body is changed in its `schema` and nothing else**, and written in the
+ * library's own JSON form (`writeJsonAtomic` is the same two spaces and newline
+ * `encodeObject` writes), so restoring a Package is the rename and no more. A
+ * file that will not parse is left as it is, under its old name: it is
+ * somebody's damaged object, the library lists it as a file error where it
+ * lands, and rewriting what cannot be read is how a restore would lose it.
+ *
+ * *Not snapshotted into history*: the change is the format's, not the person's,
+ * and the version before it would be the same object under its old name.
+ */
+async function restoreLegacy(
+  layout: Layout,
+  handle: string,
+  from: string,
+  schemaId: PortableSchemaId,
+  name: string,
+): Promise<RestoreOutcome> {
+  const owner = userOwner(handle);
+  const kindRoot = layout.kindRoot(owner, schemaId);
+  const slug = await resolveFreeFolder(kindRoot, name);
+  const to = layout.objectRoot(owner, schemaId, slug);
+
+  try {
+    await moveTree(from, to);
+  } catch (error) {
+    // The look-and-rename race `restoreNow` answers, for this branch: gone is
+    // gone, and a place taken between the look and the rename is a refusal
+    // rather than the overwrite a rename onto an empty directory would be.
+    if (!(await exists(from))) return { ok: false, reason: 'not-found' };
+    if (await exists(to)) return { ok: false, reason: 'occupied' };
+    throw error;
+  }
+
+  const current = layout.objectFile(owner, schemaId, slug);
+  if (!(await exists(current))) {
+    for (const legacyName of objectFilenames(schemaId).slice(1)) {
+      const carried = layout.objectFileIn(kindRoot, slug, legacyName);
+      const bytes = await readFileBytes(carried);
+      if (bytes === null) continue;
+      let body: unknown;
+      try {
+        body = JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        break;
+      }
+      await writeJsonAtomic(current, upgradeLegacySchema(body));
+      await rm(carried, { force: true });
+      break;
+    }
+  }
+
+  return { ok: true, path: to, restored: { kind: 'object', schemaId, slug } };
 }
 
 /**

@@ -109,11 +109,19 @@ function Licence(props: { source: string | undefined }): JSX.Element {
         <strong>Code extensions and modes are AGPL-3.0 too</strong>, because they import the SDK and
         run inside this process.
       </p>
+      {/*
+        [09 §8](../../../../docs/design/09-server-multiuser-deployment.md)'s
+        content half, which named *packages* as a kind of content until
+        [P16.0] renamed the kind World (2026-10-10). The list names what the
+        library calls its kinds, so it says *worlds* now; *a package of rules*
+        meant the same kind, and is said of a world rather than left naming a
+        kind this build no longer has.
+      */}
       <p>
         <strong>What you write is yours.</strong> Actors, treatments, lorebooks, presets, sessions
-        and packages — including the rules you author in them — are data this program produced, not
-        derivative works of it. Nobody’s characters become AGPL by being written here, and a package
-        of rules can be licensed however its author likes, or not at all.
+        and worlds — including the rules you author in them — are data this program produced, not
+        derivative works of it. Nobody’s characters become AGPL by being written here, and a world
+        and the rules in it can be licensed however its author likes, or not at all.
       </p>
     </div>
   );

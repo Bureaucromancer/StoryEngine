@@ -181,12 +181,12 @@ if anything looks missing.
 
 | What | Becomes |
 | --- | --- |
-| A downloaded object (`.json`), or a downloaded character (`.png`) | The same object, under its own identity. Importing it where it already is, unchanged, counts as **Already here**. If you have edited it since the download, the import puts the downloaded version back without asking, and your edited one stays in its history. |
+| A downloaded object (`.json`), or a downloaded character (`.png`) | The same object, under its own identity. Importing it where it already is, unchanged, counts as **Already here**. If you have edited it since the download, the import puts the downloaded version back without asking, and your edited one stays in its history. A package downloaded from an earlier version arrives as a world. |
 | An unpacked backup folder | Your own library objects from it. Sessions, tags and settings are listed and left behind; to bring them, import from the backup archive itself with Settings → **Backups** → **Import from a backup**, which lists archives in the install's data directory (see [Moving an archive to another install](backups-and-trash.md#moving-an-archive-to-another-install)). |
 | A session export (`.session.json`) | Load it on the sessions page — see below. |
 
-Backup archives (`.tar.gz`) and package files (`.sepack.json`) cannot be imported through
-this panel.
+Backup archives (`.tar.gz`) and the `.sepack.json` files **Export this world** writes
+cannot be imported through this panel.
 
 ## Chats and sessions
 
@@ -236,8 +236,8 @@ Every object's page in the library has links for taking it with you:
   Under each link, what the conversion could not carry is listed after the download: cast
   members no longer in your library, plot hooks with nowhere to go, linked lorebooks to
   export separately, sections folded into one description.
-- **Export this package** — for a package, one `.sepack.json` holding it and the objects
-  it names.
+- **Export this world** — for a world, one `.sepack.json` holding it and the objects it
+  names: the same file **Export this package** wrote in earlier versions.
 
 There is no export of a character as a SillyTavern card. A character imported from a
 SillyTavern PNG keeps that file's original card data inside its PNG, unchanged, so another

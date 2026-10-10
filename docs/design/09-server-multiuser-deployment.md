@@ -530,13 +530,21 @@ So:
 ```
 /data/system/library/        shipped with the app. Read-only. Loads for everyone.
 /data/users/<handle>/
-  library/                   actors, lorebooks, treatments, packages, presets
+  library/                   actors, lorebooks, treatments, setups, presets, worlds
+                             (packages/ before P16.0 — still read, moved by a write)
   sessions/
   connections/
   memories/
   prefs.json
   tags.json                  the tag registry (25)
 ```
+
+*(2026-10-10: `worlds` replaced `packages` on the library line at
+[P16.0](workplan/35-p16-world.md), which renamed the kind and still reads the old
+folder; `setups` was missing from the line and is added in the same change. The
+block is a sketch of ownership rather than the tree — `memories/` has been gone
+since P8.2, as [03 §5.1](03-data-model.md) records, and that section is the
+layout.)*
 
 - **Every user has a complete, independent library.** No `owner` field, no
   `visibility` field — **the path is the owner.** Adding those fields now would
@@ -1321,10 +1329,11 @@ project asks copyleft of one category and nothing of the other
 - **Code extensions and modes are AGPL-3.0.** They import the SDK and run in our
   process.
 - **Content is the author's own** — actors, treatments, lorebooks, presets,
-  sessions, and packages including their authored rules. These are data the
+  sessions, and Worlds including their authored rules. These are data the
   program produces, not derivative works of it. Nobody's characters become AGPL
-  by being authored here, and a package of rules can be licensed however its
-  author likes, or not at all.
+  by being authored here, and a World of rules can be licensed however its
+  author likes, or not at all. *(Packages until [P16.0](workplan/35-p16-world.md)
+  renamed the kind, 2026-10-10.)*
 
 Saying both halves clearly and in the same place is the cheapest available
 defence against the misreading that copyleft is creeping into people's stories.

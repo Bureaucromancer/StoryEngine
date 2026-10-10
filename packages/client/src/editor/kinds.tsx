@@ -4,7 +4,7 @@
 import { getRouteApi } from '@tanstack/react-router';
 import type { JSX } from 'react';
 
-import { PACKAGE_SCHEMA, SETUP_SCHEMA, TREATMENT_SCHEMA } from '@storyengine/shared';
+import { SETUP_SCHEMA, TREATMENT_SCHEMA, WORLD_SCHEMA } from '@storyengine/shared';
 
 import { NewSimplePage, SimpleEditorLoader, type SimpleKind } from './SimpleEditorPage.js';
 
@@ -26,7 +26,13 @@ import { NewSimplePage, SimpleEditorLoader, type SimpleKind } from './SimpleEdit
 const TREATMENTS: SimpleKind = {
   kind: 'treatments',
   schemaId: TREATMENT_SCHEMA,
-  blurb: 'How a world is handled here. Its framing is injected into every turn.',
+  /*
+   * ***"Setting", not "world"*** (2026-10-10, [P16.0]): this said *how a world
+   * is handled here*, which was the material's word until the kind took it —
+   * a World is now the set on its own panel, and a treatment's blurb that said
+   * *world* would read as one of them.
+   */
+  blurb: 'How a setting is handled here. Its framing is injected into every turn.',
   backLabel: 'Back to the treatment',
   unsavedHeading: 'This treatment has unsaved changes',
   conflictTitle: 'The treatment changed while you were editing',
@@ -91,37 +97,62 @@ const SETUPS: SimpleKind = {
     'Added to whatever the treatment already carries, not instead of them — a session started from this setup gets both.',
 };
 
-const PACKAGES: SimpleKind = {
-  kind: 'packages',
-  schemaId: PACKAGE_SCHEMA,
-  blurb: 'A bundle of library objects, kept together so they can travel as one.',
-  backLabel: 'Back to the package',
-  unsavedHeading: 'This package has unsaved changes',
-  conflictTitle: 'The package changed while you were editing',
-  storedCaption: "The saved package, not the form's working state — what a reload would find.",
-  nameRefusal: 'A package needs a name.',
-  notFound: 'There is no such package in your library.',
+/**
+ * ***The kind that was `PACKAGES` until [P16.0]***
+ * ([P16 §1.1](../../../../docs/design/workplan/35-p16-world.md)): the same
+ * fields, the same editor, a new name and a new folder. Every sentence below
+ * said *package* until 2026-10-10.
+ *
+ * **The blurb says what a World is for and stops there.** A World is a named
+ * set of library objects and sessions ([15 §1](../../../../docs/design/15-world.md)),
+ * and the three things it is for — membership, starting new sessions from it,
+ * travelling as one file — are what the line names. *What it does not offer is
+ * a way to pick the members*: that editor is [P16.1]'s, and until it lands the
+ * `contents` list arrives here the way it always has, shown as stored and not
+ * writable (`SimpleEditorPage`'s *usable, not complete*). A blurb inviting
+ * somebody to add things to a set, on a page that cannot add anything, would
+ * promise what the page does not do — so the line describes the set and leaves
+ * the picker to the stage that builds it, which will rewrite this sentence when
+ * it does.
+ */
+const WORLDS: SimpleKind = {
+  kind: 'worlds',
+  schemaId: WORLD_SCHEMA,
+  blurb: 'A named set of library objects, kept together so it can travel as one file.',
+  backLabel: 'Back to the world',
+  unsavedHeading: 'This world has unsaved changes',
+  conflictTitle: 'The world changed while you were editing',
+  storedCaption: "The saved world, not the form's working state — what a reload would find.",
+  nameRefusal: 'A world needs a name.',
+  notFound: 'There is no such world in your library.',
   unopenable: (problem) =>
-    `This package cannot be opened in the editor because ${problem}. Fix the file on disk, then reload this page.`,
-  untitled: { draft: 'New package', saved: 'Untitled package' },
-  editorRoute: '/library/packages/$id/edit',
+    `This world cannot be opened in the editor because ${problem}. Fix the file on disk, then reload this page.`,
+  untitled: { draft: 'New world', saved: 'Untitled world' },
+  editorRoute: '/library/worlds/$id/edit',
   /**
    * ***No `hooks` here, and the absence is the decision***
    * ([03 §4.1](../../../../docs/design/03-data-model.md)).
    *
-   * A Package has no hooks of its own — it carries the objects that do, and
+   * A World has no hooks of its own — it carries the objects that do, and
    * §4.1 says so in as many words: *"a package carries all of them by carrying
-   * the objects."* A hook list on this page would be a fifth source of hooks
-   * attached to the one kind whose whole job is to hold other kinds, which is
-   * the *"hook pack"* the same section declines by name. It is written down
-   * rather than merely omitted because an omission reads the same whether it
-   * was decided or forgotten.
+   * the objects"* (written when the kind was Package; [P16.0] renamed the kind
+   * and left the reasoning exactly where it was). A hook list on this page would
+   * be a fifth source of hooks attached to the one kind whose whole job is to
+   * hold other kinds, which is the *"hook pack"* the same section declines by
+   * name. It is written down rather than merely omitted because an omission
+   * reads the same whether it was decided or forgotten.
+   *
+   * ***And the World's contribution does not change it*** — [15 §5.3], whose
+   * summary row in 15 §5 says a new session in a World copies its books, offers
+   * its treatment, and copies *"the hooks those carry"*: the members' hooks,
+   * which is the same sentence from the session's side. The hooks still live
+   * on the members.
    */
 };
 
 const treatmentRoute = getRouteApi('/library/treatments/$id/edit');
 const setupRoute = getRouteApi('/library/setups/$id/edit');
-const packageRoute = getRouteApi('/library/packages/$id/edit');
+const worldRoute = getRouteApi('/library/worlds/$id/edit');
 
 export function TreatmentEditorPage(): JSX.Element {
   return <SimpleEditorLoader kind={TREATMENTS} id={treatmentRoute.useParams().id} />;
@@ -137,9 +168,9 @@ export function NewSetupPage(): JSX.Element {
   return <NewSimplePage kind={SETUPS} />;
 }
 
-export function PackageEditorPage(): JSX.Element {
-  return <SimpleEditorLoader kind={PACKAGES} id={packageRoute.useParams().id} />;
+export function WorldEditorPage(): JSX.Element {
+  return <SimpleEditorLoader kind={WORLDS} id={worldRoute.useParams().id} />;
 }
-export function NewPackagePage(): JSX.Element {
-  return <NewSimplePage kind={PACKAGES} />;
+export function NewWorldPage(): JSX.Element {
+  return <NewSimplePage kind={WORLDS} />;
 }

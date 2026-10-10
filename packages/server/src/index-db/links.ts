@@ -5,10 +5,10 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import {
   LOREBOOK_SCHEMA,
-  PACKAGE_SCHEMA,
   PRESET_SCHEMA,
   SETUP_SCHEMA,
   TREATMENT_SCHEMA,
+  WORLD_SCHEMA,
 } from '@storyengine/shared';
 
 /**
@@ -19,13 +19,13 @@ import {
  *
  * **Two surfaces, one query, and [P4 §6.6] said so first**: *"whichever phase
  * builds that panel pays both."* The delete confirmation's *referenced by 12
- * sessions, 3 treatments and 1 package* and the object page's *Used by* are the
+ * sessions, 3 treatments and 1 World* and the object page's *Used by* are the
  * same question asked at two moments, and the reason they were one debt is that
  * building either separately produces two answers that can disagree about what a
  * reference is.
  *
  * ***A reference is a link somebody authored, not a mention.*** A setup naming a
- * treatment, a session's chosen cast, a treatment's lorebooks, a package's
+ * treatment, a session's chosen cast, a treatment's lorebooks, a World's
  * contents — each is a field whose whole purpose is to point. **What is
  * deliberately not here** is text that happens to contain a name: a lore entry
  * mentioning *Vera* is not a reference to the actor, and counting it would make
@@ -86,7 +86,12 @@ export function referencesIn(schemaId: string, payload: unknown): string[] {
     // A treatment is where hooks primarily live, so this is the arm the edge
     // was most conspicuously missing from.
     found.push(...hookActorIds(object['hooks']));
-  } else if (schemaId === PACKAGE_SCHEMA) {
+  } else if (schemaId === WORLD_SCHEMA) {
+    // A World's members, sessions among them from [P16.1]: each envelope's id
+    // is an edge, so every member's *used by* names the Worlds holding it and
+    // the delete confirmation counts them without blocking ([P16 §1.2]). The
+    // index holds the upgraded body, so a Package not yet moved is read here
+    // as the World it is.
     found.push(...asArray(object['contents']).map((one) => idOf(one)));
   } else if (schemaId === LOREBOOK_SCHEMA) {
     /**
@@ -262,7 +267,7 @@ export function writeLinks(
                                                             owner = excluded.owner`,
   );
   for (const toId of toIds) {
-    // A file pointing at itself is not a use of itself, and a package whose
+    // A file pointing at itself is not a use of itself, and a World whose
     // contents include its own envelope is a real shape.
     if (toId === from.id) continue;
     insert.run(from.kind, from.id, from.name, from.owner, toId);

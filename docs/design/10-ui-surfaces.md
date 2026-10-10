@@ -398,7 +398,7 @@ responsive and genuinely usable, not phone-first.
 | Surface | What it is |
 |---|---|
 | **Play** | Scene, Freeform and later Campaign ([06 §7](06-modes-and-turn-pipeline.md)), plus the affordances that make starting and managing a story quick (§2.2) |
-| **Library** | Actors, lorebooks, treatments, setups, presets, packages — one panel per kind (§5), browse, edit, organise, import, export |
+| **Library** | Actors, lorebooks, treatments, setups, presets, Worlds — one panel per kind (§5), browse, edit, organise, import, export |
 | **Workbench** | Not a surface. An inspector panel that expands over whichever surface you are in — §3 |
 
 Plus the **reading view** (§12) — the story as prose, with the machinery
@@ -1127,7 +1127,7 @@ Where it should differ:
   choice rather than by default. If per-kind panels arrive and the mixed table
   goes, what several kinds show has to be re-answered here.
 - **Links are visible and bidirectional.** From a lorebook: which treatments,
-  actors and packages reference this. From an actor: which lorebooks it links.
+  actors and Worlds reference this. From an actor: which lorebooks it links.
   Missing links show as missing, inline, non-blocking ([00 §3.3](00-stance.md)).
   **Specified in §5.2** — the inbound direction carries a relationship the
   schemas deliberately leave unencoded, so it is not left to the page.
@@ -1268,7 +1268,10 @@ it and pretending otherwise is how it gets ignored.
 
 [03 §1](03-data-model.md) defines eight persistent kinds. Someone arriving from
 SillyTavern has priors for exactly two of them — a character card and world info
-— and no prior at all for Treatment, Setup, Preset or Package. Every one of those
+— and no prior at all for Treatment, Setup, Preset or ~~Package~~, *and a
+misleading one for World — the Package's name since
+[P16.0](workplan/35-p16-world.md), 2026-10-10 — because SillyTavern's World Info
+spends the word on what is here a lorebook*. Every one of those
 splits is *correct* and none should be undone; the Treatment/Setup split in
 particular is what Marinara's own scenario design identified and never built
 ([04 §7](04-schemas.md)). But correct is not the same as learnable.
@@ -1285,13 +1288,15 @@ while the world lived in the lorebook. And it cost the one property the library
 is actually for: saying plainly what the thing on disk is called.
 
 **So: the panels are named for the kinds.** Actors, Lorebooks, Treatments,
-Setups, Presets, Packages — six panels, no demotions, no presented subset, real
+Setups, Presets, Worlds — six panels, no demotions, no presented subset, real
 names. *(2026-10-04: **Packages becomes Worlds** at
 [P16.0](workplan/35-p16-world.md), because the kind is renamed —
 [15 §3](15-world.md). It is not the *Worlds* this section withdrew above: that
 was a friendlier alias for Treatment, sitting next to *Lorebooks* while the world
 lived in the lorebook; this is a panel named for the kind it shows, which is the
-rule this paragraph states.)* Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
+rule this paragraph states.)* *(**2026-10-10: became** — P16.0 landed on branch
+`p16`, and the sixth panel, its route and its editor say Worlds where they said
+Packages.)* Per [§2.1](#21-the-library-is-the-model-play-is-the-product) the library
 is the model, and a model with a friendlier alias for two of its six types is not
 a model.
 
@@ -1335,7 +1340,7 @@ delivered as a view, where it costs no schema.
 **On a lorebook's page, a *Used by* section.** Grouped by kind, treatments first
 and rendered as cards with their `blurb` rather than as table rows, because
 "the three ways to play this world" is the thing a person came to see and a row
-in a list does not read as one. Actors, setups and packages follow as ordinary
+in a list does not read as one. Actors, setups and Worlds follow as ordinary
 rows.
 
 **With a *New treatment on this world* action in that section**, creating a
@@ -1590,7 +1595,7 @@ table exists. It is schema work, a query and a surface, and it is not this
 section's to unblock.
 
 One addition that costs no field: **a *played alongside* line** — which other
-lorebooks appear beside this one in the same Treatment's or Package's links.
+lorebooks appear beside this one in the same Treatment's or World's links.
 Co-occurrence computed rather than compatibility declared, so it is always
 current and cannot decay, which is why [11 §4.2](11-lorebooks-as-a-format.md)
 refuses the field version. Free once the link table exists, and impossible
@@ -1624,7 +1629,8 @@ Both sources use wizards and both wizards are good. Worth taking:
   shared *after* playing rather than by remembering to record it beforehand. Here
   it is stronger, because the snapshot is a real **Setup** object
   ([04 §7](04-schemas.md)) rather than a text file — editable, re-runnable, and
-  shareable by dropping it in a package.
+  shareable by dropping it in a World (a package, before
+  [P16.0](workplan/35-p16-world.md)).
 
 Where it differs: **the wizard is declared, not coded.** `ModeDefinition.setup`
 ([06 §2](06-modes-and-turn-pipeline.md)) is a schema the shell renders, so an
@@ -2376,7 +2382,7 @@ write path, no assist — is the model for the first pass.
 ### 11.3 Image slots
 
 Wherever an image can appear — actor avatar, sprites, gallery, treatment cover,
-lorebook entry art, package cover — the same four affordances: **upload,
+lorebook entry art, World cover — the same four affordances: **upload,
 generate, crop, replace.**
 
 **Cropping is non-destructive at the editing layer.** Marinara stores a

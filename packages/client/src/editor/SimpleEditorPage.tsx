@@ -19,7 +19,8 @@ import { Note } from '../ui/Text.js';
 /**
  * An editor that is entirely the schema's shape — [P7B.3], [P7B.6].
  *
- * **The treatment, setup and package editors are this component three times.**
+ * **The treatment, setup and World editors are this component three times** —
+ * the World's was the package editor until [P16.0] renamed the kind.
  * That is not a shortcut, it is the result the shell was built for: a preset
  * needed a hand-written block list because
  * [04 §8.1](../../../../docs/design/04-schemas.md)'s two block kinds edit
@@ -42,7 +43,7 @@ import { Note } from '../ui/Text.js';
  * ***The bar is [P7B §0.4]'s, and saying it plainly is part of the work:
  * usable, not complete.*** *Create, rename, delete, and the durable core …
  * with everything else visible and read-only* is [10 §11.2d]'s minimum on the
- * P1 precedent. A treatment's cast rows and a package's member list arrive here
+ * P1 precedent. A treatment's cast rows and a World's member list arrive here
  * **shown as stored and not writable**, which is a real limit and a stated one:
  * `SchemaFields` renders such a field with the sentence *this editor does not
  * write this field yet* rather than dropping it, because a field silently
@@ -93,8 +94,8 @@ export interface SimpleKind {
    *
    * **`true` is the only value, because *off* is the field's absence.** A kind
    * that wrote `hooks: false` would be making a claim about a kind that has no
-   * hooks at all, which `PACKAGES` is: a package carries objects, and the hooks
-   * it travels with belong to them.
+   * hooks at all, which `WORLDS` is (`PACKAGES` until [P16.0]): a World carries
+   * objects, and the hooks it travels with belong to them.
    */
   hooks?: true;
   /**
@@ -148,7 +149,7 @@ function nameOf(draft: Draft): string {
  * read surface can live with and a write surface cannot.
  *
  * **Gated on the flag, because the check is about what this page *dereferences*
- * rather than about what the schema permits.** A package's `hooks`, if a hand
+ * rather than about what the schema permits.** A World's `hooks`, if a hand
  * edit put one there, still goes through `SchemaFields` and still renders
  * opaquely, and refusing to open the editor over it would be this guard
  * inventing a validity rule the kind does not have.
@@ -217,7 +218,7 @@ export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
      * only a loss.
      *
      * Everything outside `hooks` keeps the field rule, including `hooks` itself
-     * on a kind that does not author it — a package's draft has no such field,
+     * on a kind that does not author it — a World's draft has no such field,
      * and a merge that wrote one would be inventing a key from a page that
      * never showed it.
      */

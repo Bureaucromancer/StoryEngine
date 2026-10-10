@@ -54,7 +54,11 @@ export async function takeInForeignEdit(input: {
       : outcome.reason === 'invalid';
   if (previous && changed) {
     await snapshotReplaced({
-      objectRoot: layout.objectRoot(parsed.owner, parsed.schemaId, parsed.slug),
+      // The folder the file is in, not the one its kind and slug would name:
+      // a hand edit to a World still in `packages/` keeps its history beside it
+      // rather than writing into `worlds/<slug>`, which may be another World's
+      // ([P16 §1.1]).
+      objectRoot: layout.folderOf(parsed.path),
       payload: previous.body,
       source: { kind: 'external' },
       reason: '',

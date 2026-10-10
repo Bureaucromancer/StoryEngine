@@ -7,11 +7,11 @@ import {
   LOREBOOK_SCHEMA,
   TREATMENT_SCHEMA,
   newActor,
-  newPackage,
   newPreset,
   newSetup,
   newTreatment,
   newLorebook,
+  newWorld,
   PORTABLE_SCHEMAS,
 } from '@storyengine/shared';
 
@@ -123,7 +123,7 @@ const EDITOR_ROUTES = {
   presets: '/library/presets/$id/edit',
   treatments: '/library/treatments/$id/edit',
   setups: '/library/setups/$id/edit',
-  packages: '/library/packages/$id/edit',
+  worlds: '/library/worlds/$id/edit',
 } as const satisfies Partial<Record<LibraryKind, string>>;
 
 /**
@@ -159,7 +159,7 @@ const NEW_OBJECTS: Record<
   presets: { noun: 'preset', make: (name) => newPreset(name) },
   treatments: { noun: 'treatment', make: (name) => newTreatment(name) },
   setups: { noun: 'setup', make: (name) => newSetup(name) },
-  packages: { noun: 'package', make: (name) => newPackage(name) },
+  worlds: { noun: 'world', make: (name) => newWorld(name) },
 };
 
 /**
@@ -177,7 +177,7 @@ const NEW_ROUTES = {
   presets: '/library/presets/new',
   treatments: '/library/treatments/new',
   setups: '/library/setups/new',
-  packages: '/library/packages/new',
+  worlds: '/library/worlds/new',
 } as const satisfies Record<EditorKind, string>;
 
 /**
@@ -224,7 +224,7 @@ const REQUIRED_FIELDS: Record<EditorKind, readonly string[]> = {
   presets: ['name'],
   treatments: ['name'],
   setups: ['name'],
-  packages: ['name'],
+  worlds: ['name'],
 };
 
 /**
@@ -344,7 +344,7 @@ function asNode(value: unknown): SchemaNode | undefined {
  *
  * Through `isKnownSchema` rather than a hand-rolled key test, because that
  * predicate is the registry's own answer to *do we know this kind* and an
- * unknown one is not an error ([04 §2]) — a package may legitimately carry a
+ * unknown one is not an error ([04 §2]) — a World may legitimately carry a
  * kind a newer build wrote. Undefined here means the page falls back to no
  * field list rather than to a broken one.
  */

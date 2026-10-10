@@ -3,7 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newLorebook, newPackage, PACKAGE_EXPORT_SCHEMA } from '@storyengine/shared';
+import { newActor, newLorebook, newWorld, PACKAGE_EXPORT_SCHEMA } from '@storyengine/shared';
 
 import { exportPackage } from './export.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
@@ -21,6 +21,10 @@ import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
  * *The stale-reference case is the second one*, and it is the one with a
  * judgement in it: a package outlives an object it names, and both of the
  * obvious answers are worse than reporting it.
+ *
+ * ***A World from [P16.0]***, the kind renamed; **the envelope is not**, and
+ * the `PACKAGE_EXPORT_SCHEMA` assertion below is the pin that the stage left it
+ * alone — [P16.3] defines the World's own format and reads this one beside it.
  */
 
 let server: TestServer;
@@ -39,7 +43,7 @@ async function create(kind: string, payload: unknown): Promise<void> {
   expect(response.status).toBe(201);
 }
 
-describe('exporting a package', () => {
+describe('exporting a World, in the envelope P16.3 replaces', () => {
   it('carries the objects it names rather than their ids', async () => {
     const vera = newActor('Vera');
     const book = newLorebook('Harbour lore');
@@ -47,13 +51,13 @@ describe('exporting a package', () => {
     await create('lorebooks', book);
 
     const bundle = {
-      ...newPackage('A night at the docks'),
+      ...newWorld('A night at the docks'),
       contents: [
         { schema: vera.schema, id: vera.id, name: 'Vera' },
         { schema: book.schema, id: book.id, name: 'Harbour lore' },
       ],
     };
-    await create('packages', bundle);
+    await create('worlds', bundle);
 
     const result = exportPackage(
       { library: server.services.library, build: null },
@@ -86,13 +90,13 @@ describe('exporting a package', () => {
     await create('actors', vera);
 
     const bundle = {
-      ...newPackage('A night at the docks'),
+      ...newWorld('A night at the docks'),
       contents: [
         { schema: vera.schema, id: vera.id, name: 'Vera' },
         { schema: vera.schema, id: '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a99', name: 'Gone' },
       ],
     };
-    await create('packages', bundle);
+    await create('worlds', bundle);
 
     const result = exportPackage(
       { library: server.services.library, build: null },

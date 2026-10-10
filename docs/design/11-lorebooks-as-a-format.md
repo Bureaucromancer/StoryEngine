@@ -41,7 +41,8 @@ a reader who never runs a model at all.
 
 A lorebook is the only library kind whose object is a **collection**. An Actor is
 one document with fields. A Treatment is tone plus links. A Preset is machinery,
-a Setup is a starting configuration, a Package is a manifest. A Lorebook is a
+a Setup is a starting configuration, a World — a Package, before
+[P16.0](workplan/35-p16-world.md) — is a manifest. A Lorebook is a
 record with a corpus inside it — and the library, which addresses objects, is
 therefore off by one level for exactly this kind and no other.
 
@@ -318,7 +319,7 @@ books by design, and reopening that reopens the ownership question
 [26 B2](26-open-questions.md) closed. It also loses on its own terms: a declared
 list **decays silently** as both books change, where a derived one cannot. The
 honest version is co-occurrence — which other books appear beside this one in the
-same Treatment's or Package's links — which is a query rather than a field, and
+same Treatment's or World's links — which is a query rather than a field, and
 is specified in [10 §5.3](10-ui-surfaces.md). The escape hatch already exists
 besides: `tags`, `description` and `metadata` all travel, and *works with IDT
 Core* as a tag is exactly what tags are for.

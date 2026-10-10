@@ -339,13 +339,14 @@ function ObjectView(props: {
  * and a format whose target application cannot read its own export back gets
  * that said under it rather than implied away. Aventuras is exactly that case.
  *
- * **Plain anchors**, on the package export's reasoning directly above: these are
- * files, and a file is what a link is for.
+ * **Plain anchors**, on the World export's reasoning directly above (the
+ * package export's, until [P16.0] renamed the kind): these are files, and a
+ * file is what a link is for.
  *
  * ***Still anchors, and a plain click is fetched*** (2026-09-28) — gap round
  * A5.4. A link hands the answer to the browser, and these answers say things
  * the page has to: an export names what it left out
- * (`x-storyengine-export-notes`), a package counts what it could not include
+ * (`x-storyengine-export-notes`), a World counts what it could not include
  * (`x-storyengine-missing`), and a refusal is a JSON body the browser saved as
  * the file. The seven export sentences in `note-labels.ts` had never rendered,
  * and a failed download looked like a successful one. So a plain click fetches
@@ -407,29 +408,47 @@ function TakeItWithYou(props: { kind: LibraryKind; object: LibraryObject }): JSX
       {/*
         ***A bundle that travels*** — [04 §9](../../../../docs/design/04-schemas.md),
         [P11 §1.9], [P11.10]. [P7B.6](../../../../docs/design/workplan/24-p7b-presets-and-prompts.md)
-        shipped the package editor with *"the honest limit"* written beside it —
+        shipped the package editor — the World's, since [P16.0] renamed the
+        kind — with *"the honest limit"* written beside it —
         *the editor lands able to make and describe a bundle and not to send
         one* — and this is the send. **A plain anchor, because it is a file.**
 
         *Not on a shadowed copy* (2026-09-27): the route takes an id and
         nothing narrower, so from this copy's page it would bundle the winner —
-        a different package, under this one's heading. Read-only addresses stop
+        a different World, under this one's heading. Read-only addresses stop
         at single objects; a bundle resolves what it names by id anyway.
 
         *In this section since 2026-09-28*, where the other two doors are, so
         the one answer the page is showing is under the one link it belongs to.
+
+        ***A World's export since 2026-10-10, and still the Package's file*** —
+        [P16.0](../../../../docs/design/workplan/35-p16-world.md),
+        [P16 §1.1]. The kind was renamed and its route with it
+        (`/library/worlds/:id/export`; the old path is not kept), so the link
+        names the kind the page is about. **The file it hands over is not
+        renamed**: §1.1's *the envelope is not touched here* leaves
+        `storyengine.package-export/1` and its `.sepack.json` exactly as they
+        were, because renaming the envelope now and reshaping it at P16.3 would
+        be two formats written inside one phase. So the line under the link
+        says which file this is — somebody who sent a package's `.sepack.json`
+        last month is sending the same thing today, and a label promising a
+        *world file* would be promising P16.3's format before it exists. When
+        P16.3 lands its format, that line is the one to change.
       */}
-      {kind === 'packages' && !object.shadowed ? (
+      {kind === 'worlds' && !object.shadowed ? (
         <span className="flex flex-col">
           <a
-            href={`/api/library/packages/${id}/export`}
+            href={`/api/library/worlds/${id}/export`}
             className={link.inline}
-            onClick={follow('package')}
+            onClick={follow('world')}
             download
           >
-            Export this package
+            Export this world
           </a>
-          {answer('package')}
+          <span className="text-xs text-ink-subtle">
+            A .sepack.json file, the same format a package exported to.
+          </span>
+          {answer('world')}
         </span>
       ) : null}
 
@@ -543,8 +562,8 @@ function takeFailureLine(failure: unknown): string {
  */
 function missingLine(count: number): string {
   return count === 1
-    ? '1 object this package names is not in your library, so the file does not carry it.'
-    : `${String(count)} objects this package names are not in your library, so the file does not carry them.`;
+    ? '1 object this world names is not in your library, so the file does not carry it.'
+    : `${String(count)} objects this world names are not in your library, so the file does not carry them.`;
 }
 
 function picturesStayLine(count: number): string {
@@ -566,7 +585,7 @@ const SINGULAR: Readonly<Record<LibraryKind, string>> = labels('library.kind.sin
   treatments: 'treatment',
   setups: 'setup',
   presets: 'preset',
-  packages: 'package',
+  worlds: 'world',
 });
 
 /**

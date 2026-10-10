@@ -179,7 +179,8 @@ itself says these and a walker is where they would be lost:
   drops every edge silently; that paragraph is this flow's specification as much
   as the table's.
 - **Every level, not the first.** `packaging/export.ts` resolves exactly one
-  level — the contents a Package already declares — which is why the omission of
+  level — the contents a ~~Package~~ World already declares (renamed at
+  [P16.0](workplan/35-p16-world.md), 2026-10-10) — which is why the omission of
   the hook rows cost nothing for three phases: *the walker does not exist either*.
   [P16.3](workplan/35-p16-world.md) builds it, and against the table as it stands
   rather than as anybody remembers it.
@@ -251,7 +252,13 @@ reader P11.10 built as a new session, and **a World lands naming what landed**.
 own format and reads the frozen `storyengine.package-export/1` beside it, so a
 `.sepack.json` written before the rename imports as a World. Nothing reads one
 today, so nothing anyone holds is stranded by the rename; the legacy read is for
-the files dev installs have written since P11.10, and it is kept.
+the files dev installs have written since P11.10, and it is kept. *(2026-10-10:
+two corrections of scope, neither of the design. **"Before the rename" means
+before P16.3**: [P16.0](workplan/35-p16-world.md) renamed the kind and left the
+export writing this envelope unchanged, as [P16 §1.1](workplan/35-p16-world.md)
+decided, so a P16.0 build writes it too. **And not only dev installs**: alpha 5
+and alpha 6, tagged after this was written, shipped the export, so the frozen
+format is in files a release handed out.)*
 
 ### 5.2 [OPEN] Whether the World's file is JSON or a zip
 
@@ -291,7 +298,9 @@ exists when a set of modes wants a layout the others cannot give them
 
 **It is reachable from three places, and all three are the same flow**: an
 object's detail page, a selection in a library panel, and a World's own page —
-where it replaces today's *Export this package* link. **Sessions reach it through
+where it replaces today's *Export this package* link — *Export this world*
+since [P16.0](workplan/35-p16-world.md) renamed the kind (2026-10-10), still
+writing the same `.sepack.json`. **Sessions reach it through
 a World**, added from the session list or from the World's editor
 ([15 §3.2](15-world.md)), because a selection spanning the library and Play is a
 gesture neither surface has. Home does not carry it:
