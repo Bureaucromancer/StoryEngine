@@ -13,6 +13,7 @@ import { SelfWriteRegistry } from '../storage/atomic.js';
 import { SYSTEM_OWNER } from '../storage/layout.js';
 import { ingestFile, matureTombstones, ownerKey, removeFile, TOMBSTONE_TTL_MS } from './ingest.js';
 import { startMaturation } from './maturation.js';
+import { usedBy } from './links.js';
 import { INDEX_SCHEMA_VERSION, PENDING_VERSION } from './migrations.js';
 import { openIndex } from './open.js';
 import { findById, listObjects, search, snapshot } from './query.js';
@@ -344,6 +345,48 @@ describe('an index whose rebuild never finished', () => {
     expect(version()).toBe(PENDING_VERSION);
     await running;
     expect(version()).toBe(INDEX_SCHEMA_VERSION);
+  });
+});
+
+/**
+ * ***An index the build before this one wrote*** — version 14,
+ * [P16.3b](../../../../docs/design/workplan/35-p16-world.md), 2026-10-10.
+ *
+ * 14 changed no table; it changed what files derive to, which `migrations.ts`
+ * calls 9's shape. *That is the bump that is easy to forget*, because nothing
+ * fails without it on a fresh install — only on an upgraded one, where an
+ * actor nobody has saved since is a file nothing re-reads. So this builds what
+ * an index at 13 held for one actor whose lore names a book: the actor's row,
+ * and **no link from it** (13 had no Actor arm), under version 13. Opened by
+ * this build it must ask for the rebuild, and the rebuild must give the book's
+ * *Used by* the actor. Leave the constant at 13 and the open reports the file
+ * current, and the book stays used by nobody.
+ */
+describe('an index an older build wrote', () => {
+  it('is rebuilt at 14, and a lorebook’s Used by gains the actors that link it', async () => {
+    expect(INDEX_SCHEMA_VERSION).toBe(14);
+    const book = newLorebook('Rain City');
+    await library.saveObject(book, 'rain-city');
+    const vera = { ...newActor('Vera Solano'), lore: [{ id: book.id, name: book.name }] };
+    await library.saveObject(vera, 'vera-solano');
+    const owners = [ownerKey(library.owner)];
+    expect(usedBy(library.db, book.id, owners).map((use) => use.fromId)).toEqual([vera.id]);
+
+    // What 13 held: the same rows, with no actor's links, under its version.
+    library.db.prepare('delete from object_link where from_kind = ?').run(ACTOR_SCHEMA);
+    library.db.exec('pragma user_version = 13');
+    library.index.close();
+
+    const reopened = await openIndex({ path: library.layout.indexFile });
+    try {
+      expect(reopened.migration).toMatchObject({ from: 13, to: 14, rebuildRequired: true });
+      await rebuild(reopened.db, library.layout);
+      expect(usedBy(reopened.db, book.id, owners)).toEqual([
+        { fromKind: ACTOR_SCHEMA, fromId: vera.id, fromName: 'Vera Solano' },
+      ]);
+    } finally {
+      reopened.close();
+    }
   });
 });
 

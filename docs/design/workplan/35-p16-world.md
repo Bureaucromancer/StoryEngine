@@ -549,7 +549,10 @@ not say, each found by reading the code the rename touched rather than the plan:
 - ***The index's version is 13.*** An index an older build wrote holds each
   Package as a row of the old kind, and nothing re-reads a file whose size and
   time have not changed — so without the bump every untouched Package would have
-  stayed a row no route names. The rescan is the cost, as at 9 and 11.
+  stayed a row no route names. The rescan is the cost, as at 9 and 11. *(14 since
+  P16.3b, the same day, when the index came to read the walker's table: an
+  install upgrading from alpha 6 rescans once either way, and a `p16` data
+  directory indexed at 13 rescans again, for the links 13 never held.)*
 - ***An import over an unmoved Package finds it unchanged.*** `identifyNative`
   compared the arriving object's encoding with the hash of the old bytes, which
   can never match once one side says the new id; a legacy prior is compared by
@@ -992,6 +995,37 @@ version 14.
 
 **Ends when** the index and the walker agree with no listed differences.
 *Independent; may move to a follow-up*.
+
+**Built 2026-10-10, on `p16`**, by a builder, a reviewer and a fixer. **It ends
+as written**: `referencesIn` is the walker's reader's ids, a session indexes the
+ids `sessionEdges` reads, and `links.test.ts`'s parity case holds on every
+portable kind and on a session **with no listed differences**. Through the route
+the panel calls: a lorebook's *Used by* names the actors that link it, a
+treatment's counts the sessions played under it, and an actor's counts the
+sessions whose hook pool names them — the index is refreshed on every head move,
+so a hook firing updates it. The index's version is 14.
+
+- **What the index stops linking, measured rather than assumed.** Old against new
+  over every position of every kind and twenty-eight value shapes: the new
+  reader links more (an actor's lore, a session's treatment and hook pool, bare
+  `Ref`s and wrappers where the old one wanted one shape), and loses only
+  hand-edit shapes no writer produces — a `Ref` that also carries its own `ref`
+  key. Kept as one reading of the table rather than two; `links.ts` records the
+  shapes.
+- **A `Ref` that resolves only by name** links its id as written, as before: an
+  index that resolved by name would make one file's links depend on files nothing
+  re-derives. The walker finds it by name; the index does not. Said in both.
+- **A book's world scope is not a link**, before or after — it is a fact about
+  the book, read by `booksScopedTo` from the book's own row.
+- *The review found the row's own claim false, and the stage pins the row as
+  printed rather than as it should read*: 04 §9.1's Session row follows a pooled
+  arrival's subject only while unfired, because *a fired arrival's subject is in
+  the cast*. It is not in `cast.actors`, which is what the row reads: firing
+  writes only the hook's channel, and an arrived character joins the cast a turn
+  is played with through `resolveCast`'s union with channel state. So the
+  session drops out of the arrived character's *Used by*, and out of a publish of
+  that session. The test that pins it says *as row 13 stands*; the correction
+  follows in a commit of its own.
 
 #### P16.3c — The zip writer and the World file
 

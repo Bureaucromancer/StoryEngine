@@ -5,9 +5,10 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import type { TurnLocation } from '../sessions/segments.js';
 import { scanText } from '../assembly/pictures.js';
+import { sessionEdges } from '../library/references.js';
 import type { SessionFile, Turn } from '../sessions/types.js';
 import { inTransaction } from '../storage/transaction.js';
-import { clearLinks, writeLinks } from './links.js';
+import { clearLinks, idsOf, writeLinks } from './links.js';
 
 /**
  * Sessions and turns in the index — [20 §7.1](../../../../docs/design/20-tech-stack.md),
@@ -125,14 +126,50 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
    * hides from a list rather than removing: telling somebody an actor is unused
    * when four archived sessions are built on them is the same lie a search that
    * skipped archives would tell.
+   *
+   * ***Read by the walker's reader since [P16.3b]*** (2026-10-10) —
+   * [04 §9.1](../../../../docs/design/04-schemas.md)'s Session row, through
+   * `sessionEdges` in `library/references.ts`, so the index and a publish agree
+   * about what a session names by construction rather than by two lists
+   * agreeing. ~~The list was written here, three fields long~~ — persona,
+   * actors, lore — and the row names two things it did not. **The treatment it
+   * plays under**, so a treatment's *Used by* counts the sessions played under
+   * it, and the delete confirmation says so before the treatment goes. **And the
+   * actors its hook pool names**, the owner's answer of 2026-10-10 at P16.3's
+   * plan: every pooled hook's `involves`, and its `introduces.actor` only while
+   * the hook has not fired — the walker's rule, because it is the walker's
+   * function. *Shape-guarded, which the list was not*: a hand-edited
+   * `cast.actors` holding a `{ id }` would have reached `writeLinks` as an object
+   * SQLite cannot bind, and one holding a string would have spread into its
+   * characters; `sessionEdges` reads an id string, or a `Ref`'s id, or nothing.
+   *
+   * ***So this row now changes when a hook fires, and nothing new had to make
+   * that true.*** Fired is the head's `se.hook#<id>` channel, and a session's
+   * channels change only where its head moves — `advanceHead` on every appended
+   * turn, the engine's and a person's channel edit alike, and `moveHead` on a
+   * branch switch — and both write through here, as every write of
+   * `session.json` does (`sessions/store.ts`'s, and `chat-write`'s, `hidden`'s
+   * and the importer's through its `indexWrittenSession`). Rewinding past the
+   * firing brings the link back, because `moveHead` rebuilds the channels this
+   * reads; a hand edit to the file is read at the next start's consistency
+   * check, as any other is.
+   *
+   * ***What it does not see, stated rather than decided here.*** The rule's
+   * reason, in `sessionEdges` and in 04 §9.1 — *"a fired arrival's subject has
+   * arrived already and is in the cast, which the row reaches anyway"* — is
+   * true of the cast a turn is played with, which `resolveCast` unions from the
+   * roster and whoever the channels name, and not of the `cast` field the row
+   * reads: firing an arrival writes `se.hook` and adds nobody to `cast.actors`.
+   * So once the hook fires, the subject's *Used by* stops naming the session
+   * unless the roster or another hook names them — and the walker leaves them
+   * out of a publish for the same reason, so the two still agree. It is the
+   * row's question, not the index's, and P16.3b changes neither.
    */
-  writeLinks(db, { kind: 'session', id: session.id, name: session.name, owner }, [
-    ...(session.cast?.persona === null || session.cast?.persona === undefined
-      ? []
-      : [session.cast.persona]),
-    ...(session.cast?.actors ?? []),
-    ...(session.lore ?? []),
-  ]);
+  writeLinks(
+    db,
+    { kind: 'session', id: session.id, name: session.name, owner },
+    idsOf(sessionEdges(session)),
+  );
 }
 
 /**

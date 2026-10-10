@@ -1365,6 +1365,16 @@ of one query, alongside the delete confirmation's reference counts
 ([04 §9.1](04-schemas.md)). Anything that makes the index cheaper or staler is
 therefore a decision about all three at once.
 
+*(2026-10-10, [P16.3b](workplan/35-p16-world.md): **the dependency runs the other
+way now, and the panel says what it always meant to.** The closure is not a
+consumer of the index's query; since P16.3 both read 04 §9.1 through one reader,
+`library/references.ts` — the publish walker directly, the index through it —
+and a test holds the two to the same answer. Until then the index read a narrower
+table of its own, with no arm for an actor, so a lorebook's* Used by *never
+listed the actors that link it, though the paragraph above names them; it does
+now, and a treatment's counts the sessions played under it, and an actor's the
+sessions whose hooks name them.)*
+
 ### 5.3 The Lorebooks panel, and the book as a document
 
 **§5 says each panel carries the columns, sort and empty state its kind actually

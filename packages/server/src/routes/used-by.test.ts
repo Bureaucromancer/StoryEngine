@@ -3,7 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newLorebook, newSetup, newTreatment } from '@storyengine/shared';
+import { ACTOR_SCHEMA, newActor, newLorebook, newSetup, newTreatment } from '@storyengine/shared';
 
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
@@ -132,5 +132,157 @@ describe('who points at an object', () => {
     expect(removed.status).toBe(204);
 
     expect(await usedBy()).toEqual([]);
+  });
+});
+
+/**
+ * ***Who points at an object, read off 04 §9.1's table*** —
+ * [04 §9.1](../../../../docs/design/04-schemas.md),
+ * [10 §5.2](../../../../docs/design/10-ui-surfaces.md),
+ * [P16.3b](../../../../docs/design/workplan/35-p16-world.md).
+ *
+ * The index reads the publish walker's reader since P16.3b, and these are the
+ * three answers that grew when it did — each asked of the route the client's
+ * *Used by* panel and delete confirmation read (`readUsedBy` in the client's
+ * `api.ts`), each made through the routes that make the referring thing, for
+ * the reason the case above gives: the deciding and the counting are written
+ * in opposite directions, and only the route sees whether they meet.
+ */
+describe('who points at an object, as 04 §9.1 names it', () => {
+  async function linksOf(
+    kind: string,
+    id: string,
+  ): Promise<{ fromKind: string; fromId: string; fromName: string }[]> {
+    const response = await server.request({
+      method: 'GET',
+      url: `/api/library/${kind}/${id}/links`,
+    });
+    expect(response.status).toBe(200);
+    return response.body.usedBy as { fromKind: string; fromId: string; fromName: string }[];
+  }
+
+  async function startSession(payload: Record<string, unknown>): Promise<string> {
+    const created = await server.request({ method: 'POST', url: '/api/sessions', payload });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    return created.body.session.id as string;
+  }
+
+  /**
+   * ***Row 5, and [10 §5.2]'s own list*** — *"Actors, setups and Worlds follow
+   * as ordinary rows."* An actor's `lore` is bare `Ref`s, and until P16.3b the
+   * index read nothing on an actor, so the book an actor depends on said it was
+   * used by nobody — the direction the delete confirmation must not lie in.
+   */
+  it('a lorebook’s Used by names the actors that link it', async () => {
+    const book = newLorebook('Harbour lore');
+    await server.request({ method: 'POST', url: '/api/library/lorebooks', payload: book });
+    const marlow = { ...newActor('Marlow'), lore: [{ id: book.id, name: book.name }] };
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/actors',
+      payload: marlow,
+    });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+
+    expect(await linksOf('lorebooks', book.id)).toEqual([
+      { fromKind: ACTOR_SCHEMA, fromId: marlow.id, fromName: 'Marlow' },
+    ]);
+  });
+
+  /**
+   * ***A session's treatment, which `indexSession` never wrote.*** A treatment
+   * played as three stories reported none of them, so the delete confirmation
+   * offered to bin it as used by nothing. *Counts*, not names: two sessions
+   * with one name are two uses, and a session started without it is none.
+   */
+  it('a treatment’s Used by counts the sessions played under it', async () => {
+    const treatment = newTreatment('Harbour nights');
+    await server.request({ method: 'POST', url: '/api/library/treatments', payload: treatment });
+
+    const first = await startSession({ name: 'Rain City', treatment: treatment.id });
+    const second = await startSession({ name: 'Rain City', treatment: treatment.id });
+    await startSession({ name: 'Elsewhere' });
+
+    const used = await linksOf('treatments', treatment.id);
+    expect(used.map((one) => [one.fromKind, one.fromId]).sort()).toEqual(
+      [
+        ['session', first],
+        ['session', second],
+      ].sort(),
+    );
+  });
+
+  /**
+   * ***The pool's actors, and the rule that moves with play*** — row 13's
+   * second clause, the owner's answer of 2026-10-10. A pooled hook names its
+   * `involves` for as long as it is in the pool, and its `introduces.actor`
+   * only while the hook has not fired: the walker's rule, and the index's,
+   * because they are one function.
+   *
+   * **Fired through the door a person uses** — the hook panel's channel write,
+   * which appends a turn like any other — so this also proves the index is
+   * refreshed when a hook fires rather than only when the session is next
+   * saved for some other reason: the session is written once, here, and the
+   * link goes with it.
+   *
+   * ***The second half pins the row as 04 §9.1 prints it, and the row is
+   * questioned*** (2026-10-10, at P16.3b's review). Its reason for stopping at
+   * the firing — *the subject has arrived and is in the cast, which the row
+   * reaches anyway* — holds for the cast a turn is played with (`resolveCast`
+   * unions the roster with whoever the channels name) and not for the `cast`
+   * field the row reads: firing adds nobody to `cast.actors`. So the assertion
+   * after the firing is the session dropping out of the keeper's *Used by*, and
+   * out of the count the delete confirmation shows, **at the moment the keeper
+   * enters the story** — under-counting, which `usedBy`'s docstring calls the
+   * direction that makes [03 §10.1]'s confirmation lie. It is asserted because
+   * it is what the row says and the walker does, not because it is settled: the
+   * decision is the owner's, on 04 §9.1's row 13, and if it goes the other way
+   * this assertion and `links.test.ts`'s session parity case flip with it. See
+   * `sessionEdges`' and `indexSession`'s notes.
+   */
+  it('an actor named by a session’s unfired arrival hook lists that session; once fired it does not, as row 13 stands', async () => {
+    const keeper = newActor('The keeper');
+    await server.request({ method: 'POST', url: '/api/library/actors', payload: keeper });
+    const session = await startSession({ name: 'Night one' });
+
+    const added = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${session}/hooks`,
+      payload: {
+        hook: {
+          id: 'hook-stranger',
+          title: 'The stranger at the door',
+          premise: 'Somebody knocks who should not know the way.',
+          magnitude: 'personal',
+          involves: [{ id: vera, name: 'Vera' }],
+          weight: 1,
+          delivery: 'seed',
+          once: true,
+          introduces: {
+            actor: { id: keeper.id, name: 'The keeper' },
+            entrances: [],
+            primaryEntranceId: null,
+          },
+        },
+      },
+    });
+    expect(added.status, JSON.stringify(added.body)).toBe(200);
+
+    const bySession = (used: { fromKind: string; fromId: string }[]) =>
+      used.filter((one) => one.fromKind === 'session' && one.fromId === session);
+    expect(bySession(await linksOf('actors', keeper.id))).toHaveLength(1);
+    expect(bySession(await linksOf('actors', vera))).toHaveLength(1);
+
+    const fired = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${session}/channels/${encodeURIComponent('se.hook#hook-stranger')}`,
+      payload: { value: 'fired' },
+    });
+    expect(fired.status, JSON.stringify(fired.body)).toBe(200);
+    expect(fired.body.effect.applied).toBe(true);
+
+    expect(bySession(await linksOf('actors', keeper.id))).toEqual([]);
+    // `involves` is not the subject: a fired hook that involved Vera still names her.
+    expect(bySession(await linksOf('actors', vera))).toHaveLength(1);
   });
 });

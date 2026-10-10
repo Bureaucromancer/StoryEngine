@@ -82,6 +82,28 @@ describe('what an object points at', () => {
   });
 
   /**
+   * ***Row 5, which this function had no arm for*** — [P16.3b], 2026-10-10.
+   * An actor's `lore` is bare `Ref`s ([04 §4]), and until the index read the
+   * walker's table it read nothing on an actor at all, so a lorebook's *Used by*
+   * never named the actors whose lore links it. *Every shape the reader takes*:
+   * a `Ref`, a bare id, a wrapper a hand edit put where the schema says bare —
+   * and a `Ref` with a name and no id, which is no link, because the index
+   * stores ids as written and never resolves a name.
+   */
+  it('reads an actor’s lore, which it once read nothing of', () => {
+    const found = referencesIn(ACTOR_SCHEMA, {
+      id: 'actor-vera',
+      lore: [
+        { id: 'book-1', name: 'Harbour' },
+        'book-2',
+        { ref: { id: 'book-3', name: 'Docks' } },
+        { id: '', name: 'Only a name' },
+      ],
+    });
+    expect(found).toEqual(['book-1', 'book-2', 'book-3']);
+  });
+
+  /**
    * ***A lorebook's entries are inside it, not pointed at by it.*** This is the
    * kind where a generic walk over every `{ id, name }`-shaped value looks most
    * principled and is most wrong: it would produce a table where a book
@@ -278,7 +300,7 @@ describe('the actors a hook names', () => {
  * through each field its rows read — and a session, which reaches the index
  * through `indexSession` rather than `referencesIn`.
  *
- * ***The differences are listed, and the list is exact.*** The case fails if a
+ * ~~***The differences are listed, and the list is exact.*** The case fails if a
  * listed difference is not there as surely as if an unlisted one is, so it
  * cannot outlive the thing it describes. As of P16.3a there are three, all of
  * them the index under-counting what 04 §9.1 says is a reference: **an actor's
@@ -287,7 +309,19 @@ describe('the actors a hook names', () => {
  * cast and the books and not the treatment), and **a session's hook pool**
  * (the owner's answer of 2026-10-10 made its actors a row; the index never read
  * the pool). P16.3b points the index at the walker's reader and this table
- * empties.
+ * empties.~~
+ *
+ * ***There are none, and the case says so*** — [P16.3b], 2026-10-10. The index
+ * reads the walker's reader now (`referencesIn` is `edgesOf`'s ids, and
+ * `indexSession` writes `sessionEdges`'), so the three listed differences went
+ * the way the list said they would: removed knowingly, in the stage that
+ * removed them. **What keeps this from being a tautology** is that the session
+ * half goes through the database — `indexSession`'s write, read back out of
+ * `object_link` — and that the portable half fails the day somebody gives
+ * `referencesIn` an arm of its own again, which is how the three differences
+ * came to exist. The session carries a fired arrival beside an unfired one, so
+ * the walker's *only while unfired* rule is held to the index too: the fired
+ * hook's subject is in neither list.
  */
 describe('the index and the walker agree about what a reference is', () => {
   const ref = (id: string) => ({ id, name: id });
@@ -356,17 +390,8 @@ describe('the index and the walker agree about what a reference is', () => {
     ['preset', PRESET_SCHEMA, { id: 'preset-1', blocks: [{ id: 'block-1', name: 'System' }] }],
   ];
 
-  const KNOWN: Record<string, { walkerOnly: string[]; indexOnly: string[] }> = {
-    setup: { walkerOnly: [], indexOnly: [] },
-    treatment: { walkerOnly: [], indexOnly: [] },
-    lorebook: { walkerOnly: [], indexOnly: [] },
-    // No Actor arm in `referencesIn` — row 5.
-    actor: { walkerOnly: ['book-1', 'book-2'], indexOnly: [] },
-    world: { walkerOnly: [], indexOnly: [] },
-    preset: { walkerOnly: [], indexOnly: [] },
-    // No `treatment` and no hook pool in `indexSession` — row 13.
-    session: { walkerOnly: ['treatment-1', 'actor-a', 'actor-b'], indexOnly: [] },
-  };
+  /** Agreement: nothing either one names that the other does not. */
+  const NONE = { walkerOnly: [], indexOnly: [] };
 
   function differences(walker: string[], index: string[]) {
     return {
@@ -379,16 +404,16 @@ describe('the index and the walker agree about what a reference is', () => {
     ...new Set(edges.flatMap((edge) => (edge.ref.id === null ? [] : [edge.ref.id]))),
   ];
 
-  it('on every portable kind, except where listed', () => {
+  it('on every portable kind, with no exceptions', () => {
     for (const [name, schemaId, body] of bodies) {
-      expect(
-        differences(walkerIds(edgesOf(schemaId, body)), referencesIn(schemaId, body)),
-        name,
-      ).toEqual(KNOWN[name]);
+      const walker = walkerIds(edgesOf(schemaId, body));
+      expect(differences(walker, referencesIn(schemaId, body)), name).toEqual(NONE);
+      // Not two empty lists agreeing: every body but the preset's names something.
+      if (name !== 'preset') expect(walker.length, name).toBeGreaterThan(0);
     }
   });
 
-  it('on a session, except where listed', async () => {
+  it('on a session, with no exceptions — its treatment and its pool included', async () => {
     const opened = await openIndex({ path: ':memory:' });
     try {
       const session = {
@@ -398,11 +423,19 @@ describe('the index and the walker agree about what a reference is', () => {
         createdAt: '2026-10-10T00:00:00.000Z',
         updatedAt: '2026-10-10T00:00:00.000Z',
         headTurnId: null,
-        channels: {},
+        // `h-2` has fired: neither reader follows its `introduces.actor` past
+        // that, and both still follow its `involves`. *The row as 04 §9.1
+        // prints it, questioned at P16.3b's review* — firing put
+        // `actor-arrived` in no `cast.actors`, so nothing either reader
+        // follows names them now; see `used-by.test.ts`.
+        channels: { 'se.hook#h-2': { value: 'fired' } },
         treatment: 'treatment-1',
         lore: ['book-1'],
         cast: { persona: 'actor-you', actors: ['actor-vera'] },
-        hooks: [{ hook: hook('h-1', 'actor-a', 'actor-b'), source: { kind: 'session' } }],
+        hooks: [
+          { hook: hook('h-1', 'actor-a', 'actor-b'), source: { kind: 'session' } },
+          { hook: hook('h-2', 'actor-c', 'actor-arrived'), source: { kind: 'session' } },
+        ],
       } as unknown as SessionFile;
       indexSession(opened.db, 'user:ned', session);
       const indexed = (
@@ -410,7 +443,19 @@ describe('the index and the walker agree about what a reference is', () => {
           .prepare("select to_id from object_link where from_kind = 'session' and from_id = ?")
           .all(session.id) as { to_id: string }[]
       ).map((row) => row.to_id);
-      expect(differences(walkerIds(sessionEdges(session)), indexed)).toEqual(KNOWN['session']);
+      expect(differences(walkerIds(sessionEdges(session)), indexed)).toEqual(NONE);
+      // Spelled out, so agreement cannot be two readers both reading nothing.
+      expect(new Set(indexed)).toEqual(
+        new Set([
+          'treatment-1',
+          'book-1',
+          'actor-you',
+          'actor-vera',
+          'actor-a',
+          'actor-b',
+          'actor-c',
+        ]),
+      );
     } finally {
       opened.close();
     }

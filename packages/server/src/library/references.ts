@@ -31,9 +31,12 @@ import { readHookState } from '../sessions/hooks.js';
  * hook rows were owed for five phases, and *"the only reason that has cost
  * nothing is that the walker does not exist either."* It exists now, and the
  * rows it reads are the rows 04 prints — not the rows anybody remembers, and not
- * `index-db/links.ts`'s `referencesIn`, which disagrees with the table in three
+ * `index-db/links.ts`'s `referencesIn`, which ~~disagrees with the table in three
  * places (no Actor arm, no session `treatment`, no session hook pool) and is
- * re-pointed at this module at P16.3b rather than trusted here.
+ * re-pointed at this module at P16.3b rather than trusted here~~ *disagreed with
+ * the table in those three places until [P16.3b] (2026-10-10) re-pointed it, and
+ * `indexSession` with it, at this module*: the index's *Used by* is this
+ * module's ids now, so the walker and the index read one table.
  *
  * ***Thirteen rows, and one of them is a query*** — as the table stands after
  * the owner's answers of 2026-10-10 at [P16.3]'s plan. Rows 1–11 and 13 are
@@ -55,7 +58,8 @@ import { readHookState } from '../sessions/hooks.js';
  * {@link refLike}, which accepts **a `Ref`, a `{ ref }` wrapper, or a bare id
  * string** wherever it looks, and records which it found in the pointer: the
  * schema says which shape a field holds, and hand-edited files say otherwise
- * often enough that `links.ts` already learned the tolerance (its `entryRef`).
+ * often enough that `links.ts` already learned the tolerance (its `entryRef`,
+ * retired at [P16.3b] in this module's favour, its lesson kept in `links.ts`).
  *
  * ***Pure, shape-guarded, and it never throws.*** It is handed whatever a file
  * held — the index validates library bodies, but a session file is validated by
@@ -100,7 +104,9 @@ import { readHookState } from '../sessions/hooks.js';
  *   `renditionSelection`, `lastSelectedChild` and `hidden` name turns; and the
  *   actor ids that key `channels` (`se.status#<actorId>`) and `prompts.cards`
  *   describe the cast rather than choosing it — the cast is `cast`, which is
- *   followed.
+ *   followed. *Questioned 2026-10-10, at [P16.3b]*: a fired arrival's subject
+ *   reaches the cast a turn is played with only through these keys, since
+ *   firing adds nobody to `cast` — see {@link sessionEdges}'s note.
  * - **Memory books.** A session's cast reaches its memory books only through
  *   `resolveLore`, which *queries* the library for them; nothing names one. The
  *   walker never calls it — see `packaging/closure.ts`.
@@ -190,6 +196,15 @@ export function edgesOf(schemaId: string, body: unknown): OutboundRef[] {
  * in the cast, which the links above reach already. *Resolved as `Ref`s*, id
  * then name, like every other hook row: they were copied from a treatment, a
  * setup or a book, and carry whatever that object's refs carried.
+ *
+ * *Questioned 2026-10-10, at [P16.3b], and left as the row says.* "In the cast"
+ * is true of the cast a turn is played with — `resolveCast` unions the roster
+ * with whoever the channels name — and not of the `cast` field the links above
+ * read: firing an arrival writes `se.hook` and adds nobody to `cast.actors`. So
+ * a fired arrival's subject is reached only if the roster or another hook names
+ * them. 04 §9.1's row says the same as this paragraph, so the disagreement is
+ * the row's to settle; the index reads this function and agrees with it either
+ * way (`index-db/sessions.ts`).
  *
  * ***Fired is read where the session keeps it***: the head's `se.hook#<id>`
  * channel, through `readHookState` — the reader the hook filter itself uses —
@@ -300,8 +315,10 @@ function treatmentEdges(object: Record<string, unknown>): OutboundRef[] {
 
 /**
  * Row 5 — an actor's lore, **bare `Ref`s**, which the table says out loud and
- * `referencesIn` has no arm for at all: the index's *Used by* on a lorebook
- * omits the actors that link it until P16.3b.
+ * `referencesIn` ~~has no arm for at all: the index's *Used by* on a lorebook
+ * omits the actors that link it until P16.3b~~ *had no arm for until [P16.3b]
+ * (2026-10-10) made it read this one, so a lorebook's Used by names the actors
+ * that link it now.*
  */
 function actorEdges(object: Record<string, unknown>): OutboundRef[] {
   const out: OutboundRef[] = [];

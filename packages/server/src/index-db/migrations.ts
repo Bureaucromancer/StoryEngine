@@ -112,8 +112,26 @@ import type { DatabaseSync } from 'node:sqlite';
  * missing from the Worlds panel, its members' *Used by* still counting it under
  * the old kind, and the first edit refused because the row the write reads is
  * not in the kind its URL claims. One rescan is the whole cost, again.
+ *
+ * **14 is 9's shape a fourth time** (2026-10-10, [P16.3b]): no table changed,
+ * and what files derive to in `object_link` did — **two *Used by* answers
+ * grow**. `referencesIn` and `indexSession` now read
+ * [04 §9.1](../../../../docs/design/04-schemas.md)'s table through the
+ * publish walker's own reader (`library/references.ts`), and the table names
+ * what the index never did. *An actor's `lore[]`* — so a lorebook's *Used by*
+ * gains the actors that link it, which [10 §5.2] has always listed and this
+ * index has never held. *A session's `treatment`, and the actors its hook pool
+ * names* — every pooled hook's `involves`, and its `introduces.actor` while the
+ * hook has not fired — so a treatment's *Used by* counts the sessions played
+ * under it, and an actor's counts the sessions whose hooks name them. 9's
+ * argument word for word: an actor or a session nobody has saved since the
+ * upgrade is a file nothing re-reads, and without the bump every lorebook on an
+ * upgraded install would go on reporting no actors — and the delete
+ * confirmation ([03 §10.1](../../../../docs/design/03-data-model.md)) counting
+ * fewer users than it has — until each actor happened to be saved. One rescan
+ * is the whole cost, a fourth time.
  */
-export const INDEX_SCHEMA_VERSION = 13;
+export const INDEX_SCHEMA_VERSION = 14;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for
