@@ -118,15 +118,23 @@ const SETUPS: SimpleKind = {
  * ***Rewritten at [P16.1], as the struck paragraph said it would be.*** The
  * page now picks members (`members: true` below, drawn by `MembersField`), and
  * sessions are among them — so the line says *and sessions*, which is what it
- * held back while nothing could put one there. **It still does not say a new
+ * held back while nothing could put one there. ~~**It still does not say a new
  * session can start from it**: that is [P16.2]'s, not built yet, and the
  * struck paragraph's rule is the same rule one stage on — a blurb promising
- * what the page does not do. P16.2 rewrites this again when it lands.
+ * what the page does not do. P16.2 rewrites this again when it lands.~~
+ *
+ * ***Rewritten at [P16.2], and now it names all three.*** A World's page
+ * starts a session in it, and the session form offers it as a choice — its
+ * books and its treatment filled in for the person to change, the session
+ * added to the World ([P16 §1.3](../../../../docs/design/workplan/35-p16-world.md)).
+ * The struck paragraphs' rule did not change — the line says only what a
+ * World can be used for today — and today includes this.
  */
 const WORLDS: SimpleKind = {
   kind: 'worlds',
   schemaId: WORLD_SCHEMA,
-  blurb: 'A named set of library objects and sessions, kept together so it can travel as one file.',
+  blurb:
+    'A named set of library objects and sessions, kept together so new sessions can start from it and it can travel as one file.',
   backLabel: 'Back to the world',
   unsavedHeading: 'This world has unsaved changes',
   conflictTitle: 'The world changed while you were editing',

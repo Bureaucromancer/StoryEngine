@@ -1449,7 +1449,8 @@ export interface NewSession {
    * what it is. `sessionLabel` is what renders the gap in the meantime.
    */
   name?: string;
-  treatment?: string;
+  /** `null` is *no treatment*, overriding a Setup's or a World's ([P16.2]). */
+  treatment?: string | null;
   lore?: string[];
   preset?: string;
   /**
@@ -1511,6 +1512,21 @@ export interface NewSession {
    * alongside would quietly override the Setup the person chose.
    */
   setup?: string;
+  /**
+   * ***A World to start in*** — [P16.2](../../../docs/design/workplan/35-p16-world.md),
+   * [P16 §1.3](../../../docs/design/workplan/35-p16-world.md).
+   *
+   * **A default one rung below the Setup's, and the session joins it.** The
+   * route fills `lore` with the World's lorebook members (beside a Setup's,
+   * when there is one) and `treatment` with its treatment when it holds exactly
+   * one — but only where the caller sent nothing, so a caller that sends its
+   * own `lore` and `treatment` is the one deciding. That is how the session
+   * form uses it: it shows the World's contribution as ticked books and a
+   * chosen treatment, lets the person change them, and sends what it shows
+   * beside this. The World's page sends this alone, and the route fills in
+   * everything. A World that is not there is `422 unknown-world`.
+   */
+  world?: string;
   /**
    * Which of the Setup's written openings to begin on — [03 §6], [P15.3].
    * Absent is its primary; `null` is *start cold*; an id names one.
@@ -1663,7 +1679,18 @@ export function createSession(input: NewSession): Promise<{
     // the wire honest about the fact that nothing was chosen.
     ...(input.name === undefined || input.name.trim() === '' ? {} : { name: input.name }),
     ...(input.treatment === undefined ? {} : { treatment: input.treatment }),
-    ...(input.lore === undefined || input.lore.length === 0 ? {} : { lore: input.lore }),
+    /**
+     * ***Empty travels beside a World*** — [P16.2]. Everywhere else an empty
+     * list is left off, because absent means *unset* and the route then has
+     * nothing to fill it from. Beside `world` it does have something: an absent
+     * `lore` is the World's books, so a person who unticked every one of them
+     * would get them all back. There the empty list is the choice, and it is
+     * sent as one ([00 §3.1]'s *prefill, never binding*).
+     */
+    ...(input.lore === undefined ||
+    (input.lore.length === 0 && (input.world === undefined || input.world === ''))
+      ? {}
+      : { lore: input.lore }),
     ...(input.preset === undefined ? {} : { preset: input.preset }),
     /**
      * **`actors: []` because the route's `CastBody` requires both members**, not
@@ -1693,6 +1720,7 @@ export function createSession(input: NewSession): Promise<{
       ? {}
       : { modeConfig: input.modeConfig }),
     ...(input.setup === undefined || input.setup === '' ? {} : { setup: input.setup }),
+    ...(input.world === undefined || input.world === '' ? {} : { world: input.world }),
     // `null` travels — it is *start cold*, a choice rather than an absence.
     ...(input.opening === undefined ? {} : { opening: input.opening }),
     // Only a choice somebody made: absent is every member's primary.

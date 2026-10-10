@@ -590,6 +590,16 @@ the result in the session's own list. *The check that proves it*, which
 not selected there. If a book reaches the prompt without appearing in that list,
 the stage rebuilt P5.7.
 
+***(2026-10-10: built on branch `p16`, the arm excepted.*** Starting a session
+in a World — from its page, or as a choice on the new-session form — copies its
+lorebook members into `session.lore`, uses its treatment when it holds exactly
+one, and copies the hooks they carry; the request's own `lore` and `treatment`
+override all of it, as they override a Setup's. `routes/world-contribution.test.ts`
+is the check above, with a `global` book outside the World keyed on a word the
+input says, and it holds. **The `world` arm below is not built**: it waits on
+[26 B16](26-open-questions.md), and [P16.2](workplan/35-p16-world.md) records it as
+waiting.)*
+
 **`LoreScope` gains one arm — `{ kind: 'world', worldIds: string[] }` — and it is
 the only arm anything reads.** It is a book's own statement, carried with the
 book, that it belongs to sessions started in those Worlds: at creation in one of

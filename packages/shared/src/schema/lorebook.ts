@@ -91,6 +91,20 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  * builds them — the default with the copy from a World's members, this union's
  * `world` arm on 26 §B16's answer — and rewrites this paragraph then; until it
  * does, what the two bullets say about today's behaviour is still true.)*
+ *
+ * ***(2026-10-10, [P16.2] — built, and the two bullets above are history.)***
+ * **§B14 is no**, and nothing here narrows a chosen book. **§B15 is built**:
+ * `newLorebook` writes `{ kind: 'linked', actorIds: [] }`, and so does the
+ * SillyTavern importer for every standalone book; a book that says `global` —
+ * an older one, or a native file that carries it — keeps saying it, because a
+ * format carries what it is given, and `global` admits nothing. **A World
+ * contributes books to a session by its members**, copied into `session.lore`
+ * at creation (`library/worlds.ts`), which is the "something above the session"
+ * the paragraph before them anticipated — designed, as it asked, rather than
+ * inferred from this union. **The `world` arm is still not here**: it is the
+ * union widening inside its version, which is 26 §B16's question, open and the
+ * owner's, and P16.2 records it as waiting rather than landing it around the
+ * answer.
  */
 export const LoreScope = Type.Union(
   [

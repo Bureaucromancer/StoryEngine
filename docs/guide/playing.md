@@ -56,6 +56,9 @@ can step between, and a group gets one opening message from each member.
 The disclosure under the start form summarises its choices — *Nothing chosen yet —
 the mode default, and no lorebooks* — and opens to:
 
+- **Start in a world** — one of your worlds, or **No world**. See
+  [Starting in a world](#starting-in-a-world); it fills in the lorebooks and the
+  treatment below, for you to change. Shown only when you have a world.
 - **Start from a setup** — one of the setups in your library, or **None — choose
   everything below**. See [Starting from a setup](#starting-from-a-setup); choosing
   one replaces every control below.
@@ -66,7 +69,7 @@ the mode default, and no lorebooks* — and opens to:
   nothing until the selection changes, so in each one pick another option and then
   the one you want — even when it was already showing. Until you do, **Start** is
   refused with *That is not what this mode asked for.*
-- **Treatment** — the world and story this session is in, with its framing,
+- **Treatment** — the setting and story this session is in, with its framing,
   lorebooks and plot hooks. See [Concepts](concepts.md#the-library).
 - **Preset** — how prompts are put together: the mode's own, or one from your library.
   The session keeps its own **copy**, so editing the library preset later does not
@@ -85,6 +88,31 @@ needs a name first. It keeps the mode and its answers, the treatment, the preset
 the persona and the lorebooks — not the characters or their openings. To keep a point
 in a story you are already playing, use
 [Make a setup from here](#make-a-setup-from-here) instead.
+
+### Starting in a world
+
+Pick it in **Start in a world**. Its lorebooks are ticked under **Lorebooks**, after
+any you had already ticked and in the order the world holds them, and its treatment
+is chosen if it holds exactly one; if it holds several, they are listed first and
+none is chosen — you pick. **All of it is yours to change before Start**: untick a
+book and it stays unticked, choose another treatment or **None**, and the session
+starts with what the form shows. A book the world names that is no longer in your
+library is listed as *(not in your library)*. Choosing another world, or **No
+world**, takes back only what the previous world filled in.
+
+The new session **joins the world** — it appears among the world's members, and its
+page says **In these worlds**. What it copied is now the session's own: editing the
+world afterwards changes nothing in a session already started. A lorebook is in a
+session because the session's list names it, never because of anything the book
+says about itself.
+
+With a **setup** chosen as well, the setup decides, and the world adds under it: its
+lorebooks join the setup's, and its treatment is used only if the setup names none.
+The form says which.
+
+A world's own page has **Start a session in this world**, which starts and opens it
+in one step with exactly what the world holds, and **Choose first…**, which opens
+this form with the world already picked.
 
 ### Starting from a setup
 

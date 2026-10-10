@@ -68,6 +68,17 @@ export interface LibrarySearch {
  */
 export interface SessionsSearch {
   mode?: string;
+  /**
+   * ***A World to start the new session in*** — [P16.2](../../../docs/design/workplan/35-p16-world.md).
+   *
+   * What a World's page links to as *Choose first…*: the session form, with
+   * that World chosen and its books and treatment filled in for the person to
+   * change. **Checked only as a non-empty string**, for `mode`'s reason one
+   * field up — the Worlds are the account's, which the router cannot know — and
+   * the page drops an id that is not one of the person's own Worlds rather than
+   * choosing nothing loudly.
+   */
+  world?: string;
 }
 
 /**
@@ -82,7 +93,11 @@ export function validateLibrarySearch(search: Record<string, unknown>): LibraryS
 
 export function validateSessionsSearch(search: Record<string, unknown>): SessionsSearch {
   const modes = parseList(search['mode']);
-  return modes.length === 0 ? {} : { mode: modes.join(',') };
+  const world = typeof search['world'] === 'string' ? search['world'].trim() : '';
+  return {
+    ...(modes.length === 0 ? {} : { mode: modes.join(',') }),
+    ...(world === '' ? {} : { world }),
+  };
 }
 
 /**

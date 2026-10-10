@@ -418,7 +418,9 @@ write path beside a password hash, not merely prefer a different file.*
 **B14. May a lorebook's `scope` narrow a book the session already chose? —
 ~~OPEN~~ ANSWERED 2026-10-04: no, and it stays no — recommended answer, owner
 deferred ([15 §5.3](15-world.md)). Deliberately not decided at [P5.7], and it is
-the question that survives the reversal.**
+the question that survives the reversal.** *(2026-10-10: P16.2 built
+contribution on it — a World's books are copied into `session.lore` and nothing
+narrows them; no code reads `scope` to quiet a chosen book.)*
 
 *The answer, first, because the design that reopened it is written now.*
 [15 §5.3](15-world.md) gives `scope` a consumer — a `world` arm read once, at
@@ -463,7 +465,10 @@ reintroduces exactly the silence
 **B15. What should a new lorebook's `scope` be? — ~~OPEN, and only *because* B14
 is~~ ANSWERED 2026-10-04: `{ kind: 'linked', actorIds: [] }`, the narrowest honest
 value — recommended answer, owner deferred ([15 §5.3](15-world.md), built at
-[P16.2](workplan/35-p16-world.md)).** *The condition below arrived*:
+[P16.2](workplan/35-p16-world.md)).** ***(2026-10-10: built, on branch `p16`** —
+`newLorebook` and the SillyTavern importer's every standalone book write it, and
+the Lorebooks panel's *Linked* badge is drawn only for a book linked to somebody.
+The `world` arm is not built; it waits on B16.)* *The condition below arrived*:
 `scope` regains a consumer in the `world` arm, so the default is decided first
 rather than inherited. An empty `linked` means *this book has not said where it
 applies*, is read by nothing, and behaves as today's default does for a book
@@ -486,8 +491,21 @@ and a field nobody sets should not default to the widest answer. There is also
 no surface for changing it; a book's scope is visible only in *As stored*.
 *[04 §5](04-schemas.md), [03 §3.4](03-data-model.md)*
 
-**B16. A closed portable union widened inside its version — OPEN, for the owner,
-and due before the first release that exports native objects.** Three arms have
+**B16. A closed portable union widened inside its version — ~~OPEN, for the
+owner, and due before the first release that exports native objects~~ RESOLVED
+2026-10-10 by the owner, for beta: open the unions.** *The answer first.* Of the
+three choices below, the owner took **open the unions** — an arm a build does not
+know is kept and ignored, as `ActorRole` and `CallKind` already are — on being
+asked at [P16](workplan/35-p16-world.md)'s revisit, where the `world` arm on
+`LoreScope` was waiting on it. It is the only answer that keeps
+[04 §2](04-schemas.md)'s round-trip rule for a union that grows. **How it lands**:
+`LoreScope` opens with the `world` arm, at [P16.2](workplan/35-p16-world.md); the
+three unions already widened — `MediaRole`, and the preset block source's two
+arms — open under the same rule, owed before beta and recorded in
+[P16 §1.3](workplan/35-p16-world.md) beside the arm. A build from before the
+opening still refuses a file that uses an arm it lacks, whole: opening a union
+helps every build *after* it, which is why it is due before the release that would
+otherwise freeze the closed shape. *What follows is the entry as it was asked.* Three arms have
 been added to closed unions in published schemas without a version bump:
 `MediaRole`'s `background` in `actor/1` (P7.9), and the preset block source's
 `{ of: 'state' }` (P14) and `{ of: 'setup' }` (the audit's T-c, 2026-10-01) in

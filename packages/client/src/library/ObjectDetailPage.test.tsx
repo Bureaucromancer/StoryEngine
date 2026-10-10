@@ -170,6 +170,83 @@ describe('starting a session from a setup', () => {
   });
 });
 
+/**
+ * ***A World's page is somewhere to start from too*** —
+ * [P16.2](../../../../docs/design/workplan/35-p16-world.md). The route does the
+ * contribution, so the page sends the World and nothing else and goes into the
+ * session it made; *Choose first…* is the session form with the World chosen.
+ * Your own only — starting in a World writes the session into it.
+ */
+describe('starting a session in a world', () => {
+  const WORLD_ID = '01a008de-7e08-70d0-899c-f6869d6b9aef';
+
+  function aWorld(overrides: Record<string, unknown> = {}) {
+    return actor({
+      id: WORLD_ID,
+      schema: 'storyengine.world/1',
+      name: 'Harbour set',
+      slug: 'harbour-set',
+      object: { schema: 'storyengine.world/1', id: WORLD_ID, name: 'Harbour set', contents: [] },
+      ...overrides,
+    });
+  }
+
+  it('starts one in the world and goes to it', async () => {
+    params = { kind: 'worlds', id: WORLD_ID };
+    readObject.mockResolvedValue(aWorld());
+    createSession.mockResolvedValue({ session: { id: 'session-new' } });
+    const invalidated = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+    renderPage();
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Start a session in this world' }),
+    );
+
+    expect(createSession).toHaveBeenCalledWith({ world: WORLD_ID });
+    await vi.waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/play/$sessionId',
+        params: { sessionId: 'session-new' },
+      });
+    });
+    // The new session is on the list, and the World — this page's own object —
+    // gained it as a member, so both are refetched rather than left stale.
+    expect(invalidated).toHaveBeenCalledWith({ queryKey: ['sessions'] });
+    expect(invalidated).toHaveBeenCalledWith({ queryKey: ['library'] });
+    invalidated.mockRestore();
+  });
+
+  it('offers to choose first, on the session form with the world chosen', async () => {
+    params = { kind: 'worlds', id: WORLD_ID };
+    readObject.mockResolvedValue(aWorld());
+    renderPage();
+
+    const choose = await screen.findByRole('link', { name: 'Choose first…' });
+    expect(choose.getAttribute('data-to')).toBe('/play');
+    expect(JSON.parse(choose.getAttribute('data-search') ?? '{}')).toEqual({ world: WORLD_ID });
+  });
+
+  it('is not offered on a system world, which the session could not join', async () => {
+    params = { kind: 'worlds', id: WORLD_ID };
+    readObject.mockResolvedValue(aWorld({ source: 'system' }));
+    renderPage();
+    await screen.findByRole('heading', { name: 'Harbour set' });
+
+    expect(screen.queryByRole('button', { name: 'Start a session in this world' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Choose first…' })).toBeNull();
+  });
+
+  it('is not offered on a shadowed copy, whose id starts another world', async () => {
+    params = { kind: 'worlds', id: WORLD_ID };
+    search = { source: 'user', slug: 'harbour-set-2' };
+    readObject.mockResolvedValue(aWorld({ shadowed: true, slug: 'harbour-set-2' }));
+    renderPage();
+    await screen.findByRole('heading', { name: 'Harbour set' });
+
+    expect(screen.queryByRole('button', { name: 'Start a session in this world' })).toBeNull();
+  });
+});
+
 describe('deleting a library object', () => {
   it('offers Delete on something the user owns', async () => {
     renderPage();

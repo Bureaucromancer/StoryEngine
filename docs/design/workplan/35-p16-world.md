@@ -396,6 +396,17 @@ its answer:
 | **Bump the version** | As `storyengine.lorebook/2`, whose only change is the arm, read-compatible with `/1` and upgraded in memory; every lorebook a P16 build writes is then `/2` |
 | **Accept** | Additively, inside `/1`, with the sentence on every surface that exports a book: an older build refuses one that names a World |
 
+***The first row, by the owner's answer of 2026-10-10.*** `LoreScope` opens —
+an arm a build does not know is kept and ignored rather than failing the book —
+and the `world` arm lands inside `/1` beside it, at P16.2. **The open arm is part
+of the exception §1.6's check names**, because opening the union is how the arm
+lands; the check is widened to admit exactly that and nothing else. *The other
+three unions B16 named* — `MediaRole`'s, and the preset block source's two arms
+— open under the same answer; they are B16's and owed before beta, not this
+phase's, and touching the actor and preset artefacts is precisely what §1.6
+pins against, so they land in a change of their own that re-pins it with a line
+saying why.
+
 **So P16.2 lands the copy from membership and the two defaults first, and the arm
 second**, and if B16 is still open when the copy and the defaults are done, the
 stage records the arm as waiting and the phase does not close on it — the arm is
@@ -426,6 +437,10 @@ are this phase's:
   as [P4 §7.17](16-p4-implementation.md)'s import preview holds nothing.
 
 ### 1.5 The wire shape is decided before P16.3 writes it
+
+***Decided 2026-10-10, by the owner: the zip*** — [16 §5.2](../16-publish.md)'s
+lean, a stored zip of the members' own folders, so an actor travels as its card
+and a lorebook with its pictures. P16.3 builds the writer the server did not have.
 
 [16 §5.2](../16-publish.md) leaves one question open on purpose: whether the
 World's file is P11.10's JSON envelope renamed, which cannot carry an actor's
@@ -671,6 +686,45 @@ test is green. *If B16 is still open*, the stage ends at the copy and the
 defaults, and the arm and its scope surface are recorded here as waiting, with
 the phase open on them.
 
+**The copy and the defaults, built 2026-10-10, on `p16`.** B16 was answered the
+same day (*open the unions*, §1.3's first row), so the arm is this stage's too and
+follows in a commit of its own; what is recorded here is the half that never
+waited on it.
+
+- **`world` on `POST /sessions`** (`library/worlds.ts`, `worldContribution`): a
+  default one rung below a Setup's, as §1.3 lays it out — the caller's `lore`
+  and `treatment` first, then the Setup's, then the World's: its lorebook members
+  joining the Setup's books in the World's order, its treatment **only when it
+  holds exactly one**. The hooks those carry are pooled as every carrier's are.
+  **`treatment: null` is *none*, said out loud**, and overrides every rung —
+  absent had always meant *take the default*, and until a World could supply one
+  there was never a default to refuse. The session then joins the World through
+  `addMembers`, after it exists and unable to undo it: a World that refuses the
+  write costs the membership, logged, not the session. A World that is not there
+  is `422 unknown-world`, for the Setup's reason.
+- **The form and the page**: *Start in a world* on the new-session form ticks the
+  World's books after any already ticked and chooses its one treatment, all of it
+  editable, and sends what it shows — an empty list and a `null` treatment
+  included, because absent beside a World would be read as the World's; a World's
+  page has *Start a session in this world*, straight in, and *Choose first…*, the
+  form with `?world=` set. A book the World names and the library no longer holds
+  is ticked and said, as the server would copy it.
+- **The defaults**: `newLorebook` and every standalone SillyTavern book write
+  `{ kind: 'linked', actorIds: [] }`; `lorebook.test.ts` pins the chat-bound case
+  and a plain one. The Lorebooks panel's *Linked* badge is drawn only for a book
+  linked to somebody, and its scope filter reads *Global*, *Linked to characters*,
+  *Linked to nobody*.
+- **The request bound on `lore` is 512**, from 64, on the create and lore routes:
+  a World's books arrive as an explicit list when a form shows them.
+
+**§1.3's check passes** — `routes/world-contribution.test.ts` starts a session in
+a World whose library also holds a `global` book keyed on a word the input says,
+and finds the World's book in `session.lore` on disk and alone in the preview's
+books and blocks. **§1.6's test is green** (§3.3, row 5). *An independent review of
+the client found one defect, fixed before the commit*: a World deleted in another
+tab after it was chosen left its books and treatment selected and no longer drawn,
+so Start would have sent what the form did not show.
+
 ### P16.3 — Publish
 
 [16](../16-publish.md), built: the walker against [04 §9.1](../04-schemas.md)'s
@@ -734,7 +788,7 @@ govern.
 
 | # | Answered by | Date | Result |
 |---|---|---|---|
-| | | | |
+| 5 | Claude, at the desk, on branch `p16` with P16.0 to P16.2 built | 2026-10-10 | **Passes.** `world-release-check.test.ts`, 7 of 7: the actor, treatment, setup and preset artefacts are as they were at `ad47e39`; the lorebook's is too, `LoreScope` included, because the `world` arm waits on [26 B16](../26-open-questions.md); the emitted set is those five and the World's. Written into [work plan §0.2](01-work-plan.md) the same day. *Rows 1–4 are a person's and are not answered.* |
 
 ## 4. Not this phase: accrual and the story bible — gated on PLAYABLE
 
@@ -784,9 +838,12 @@ shaped around them.
 
 Written now so the revisit has a list rather than a blank page.
 
-- **[26 B16](../26-open-questions.md)'s answer**, which decides how P16.2's arm
-  lands, and whether it lands inside this phase at all.
-- **JSON or zip** ([16 §5.2](../16-publish.md), §1.5) — before P16.3.
+- ~~**[26 B16](../26-open-questions.md)'s answer**, which decides how P16.2's arm
+  lands, and whether it lands inside this phase at all.~~ ***Answered 2026-10-10
+  by the owner: open the unions*** — the arm lands additively inside
+  `storyengine.lorebook/1`, with `LoreScope` opened beside it (§1.3's first row).
+- ~~**JSON or zip** ([16 §5.2](../16-publish.md), §1.5) — before P16.3.~~
+  ***Answered 2026-10-10 by the owner: the zip*** (§1.5).
 - **Whether the old routes need to answer.** §1.1 drops them on the ground that
   the client is the only caller; anything that turns out to have bookmarked one is
   the evidence that reverses it.

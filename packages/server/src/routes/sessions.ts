@@ -21,6 +21,7 @@ import {
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
+import { addMembers, worldContribution, type WorldContribution } from '../library/worlds.js';
 import { walkPath } from '../sessions/segments.js';
 import {
   childrenByParent,
@@ -416,9 +417,21 @@ const CreateBody = Type.Object(
      *
      * `lore` is extras *beyond* whatever the treatment already links ([03 §7]),
      * so both may be given, and giving neither is the pre-P5.6 session.
+     *
+     * ***`treatment: null` is "none", said out loud*** (2026-10-10, [P16.2]).
+     * Absent means *take the default* — the Setup's, then a World's only one —
+     * and until a World could supply a treatment there was never a default to
+     * refuse; a form showing *None* beside a World that holds one treatment had
+     * no way to send it. `null` is that way, and it overrides every rung, as the
+     * lore route's `treatment: null` already means.
+     *
+     * ***And up to 512 books***, from 64 (2026-10-10, [P16.2]): a World's books
+     * arrive here as an explicit list when a form shows them, and a World is a
+     * set somebody fills from a whole library — the bound is on the request, not
+     * on how much somebody owns. The lore route below takes the same.
      */
-    treatment: Type.Optional(Type.String({ maxLength: 200 })),
-    lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 })),
+    treatment: Type.Optional(Type.Union([Type.String({ maxLength: 200 }), Type.Null()])),
+    lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 512 })),
     /**
      * The wizard's answers — [06 §7.3], [P7.4].
      *
@@ -456,6 +469,35 @@ const CreateBody = Type.Object(
      * a running game ([00 §3.1]) — the same asymmetry the preset has.
      */
     setup: Type.Optional(Type.String({ maxLength: 200 })),
+    /**
+     * ***A World to start in*** — [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md),
+     * [P16.2], [15 §3.2](../../../../docs/design/15-world.md).
+     *
+     * **What it contributes is copied once, here, and is a default every other
+     * field overrides** — the Setup's layering one rung further down: the
+     * caller's `lore` and `treatment` first, then the Setup's, then the World's.
+     * Its lorebook members join the Setup's books (both are the session's
+     * books, so the two are a union rather than a choice), and its treatment is
+     * used **only when it holds exactly one**, because the first of several
+     * would be the server choosing a story; the form offers them all. A person
+     * who unticked one of the World's books in the form sends the rest as
+     * `lore`, and the server does not put it back: prefill, never binding
+     * ([00 §3.1]).
+     *
+     * ***This is not P5.7 again***, and the difference is the whole of
+     * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md): a World is a
+     * subset somebody named, and its books land in `session.lore` — on disk,
+     * editable, the one list the retriever reads — rather than being admitted by
+     * a query that re-decides each turn. Nothing reaches the prompt that is not
+     * selected there.
+     *
+     * **And the session joins the World** — written on the World, the one place
+     * membership lives (P16 §1.2), after the session exists. Refused when the
+     * World is not there, for the Setup's reason: the World decides what the
+     * session starts with, so a dangling one would start something other than
+     * what was asked for.
+     */
+    world: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     /**
      * Which of the Setup's written openings to start with — [03 §6],
      * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
@@ -765,7 +807,8 @@ const PresetBody = Type.Object(
 const LoreBody = Type.Object(
   {
     treatment: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
-    lore: Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 }),
+    // 512 rather than 64 since [P16.2], for the create body's reason.
+    lore: Type.Array(Type.String({ maxLength: 200 }), { maxItems: 512 }),
   },
   { additionalProperties: false },
 );
@@ -1145,9 +1188,10 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       /** Checked against `HookInput`, so a hook may arrive without its id. */
       hooks?: (Omit<PlotHook, 'id'> & { id?: string })[];
       cast?: { persona: string | null; actors: string[] };
-      treatment?: string;
+      treatment?: string | null;
       lore?: string[];
       openings?: Record<string, string>;
+      world?: string;
     };
 
     /**
@@ -1190,6 +1234,21 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         message: 'An opening was chosen with no setup to take it from.',
       });
     }
+    /**
+     * The World, read beside the Setup and for the same two reasons — it is a
+     * default the parameters below override, and a dangling one is refused
+     * rather than ignored ([P16.2]; the `world` field's note says why).
+     */
+    let world: WorldContribution | undefined;
+    if (body.world !== undefined) {
+      try {
+        world = worldContribution(services.library, account.handle, body.world);
+      } catch (error) {
+        if (!(error instanceof LibraryError)) throw error;
+        return reply.code(422).send({ error: 'unknown-world', message: 'No such world.' });
+      }
+    }
+
     const opening = from === undefined ? null : chooseOpening(from.openings, body.opening);
     if (opening === 'unknown') {
       return reply
@@ -1283,8 +1342,18 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               ),
             ],
           });
-    const treatment = body.treatment ?? from?.treatment?.id;
-    const lore = body.lore ?? from?.lore.map((link) => link.ref.id);
+    // The parameter, then the Setup's, then the World's ([P16.2]) — and the
+    // World's books join the Setup's rather than lose to them, because both are
+    // simply the session's books; the caller's own list still wins outright.
+    const treatment =
+      body.treatment === null
+        ? undefined
+        : (body.treatment ?? from?.treatment?.id ?? world?.treatment ?? undefined);
+    const lore =
+      body.lore ??
+      (from === undefined && world === undefined
+        ? undefined
+        : [...new Set([...(from?.lore.map((link) => link.ref.id) ?? []), ...(world?.lore ?? [])])]);
     const misfit = setupMisfit(mode.definition.setup, answers);
     if (misfit !== null) {
       return reply.code(422).send({
@@ -1472,6 +1541,39 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               }),
         }),
       });
+
+      /**
+       * ***The session joins the World it was started in*** — [P16.2],
+       * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md): the same
+       * write *Add to a World* makes, on the World and nowhere else, since the
+       * session carries no World of its own.
+       *
+       * **After the session exists, and not able to undo it.** The session is
+       * the thing asked for and it is already on disk; a World deleted or
+       * refusing a write in the moment since it was read costs the membership,
+       * which is one click to add again, and is said in the log rather than
+       * turned into a failed start that left a session behind anyway.
+       */
+      if (world !== undefined) {
+        try {
+          await addMembers(services.library, account.handle, world.world.id, [
+            {
+              schema: 'storyengine.session/1',
+              id: session.id,
+              ...(session.name === '' ? {} : { name: session.name }),
+            },
+          ]);
+        } catch (error) {
+          request.log.warn(
+            {
+              event: 'world.memberNotAdded',
+              world: world.world.id,
+              message: error instanceof Error ? error.message : String(error),
+            },
+            'The session was started, and could not be added to its world',
+          );
+        }
+      }
 
       /**
        * **A mode that generates makes its world on the session's first turn** —

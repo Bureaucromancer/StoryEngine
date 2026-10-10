@@ -167,6 +167,17 @@ the continuity half whenever that is built, against the same five schemas. How t
 arm itself lands inside `storyengine.lorebook/1` is
 [26 B16](../26-open-questions.md)'s question, which is the owner's.
 
+***Answered 2026-10-10, at [P16.2](35-p16-world.md), on branch `p16` — it
+passes.*** `packages/shared/src/schema/world-release-check.test.ts` pins the
+actor, treatment, setup and preset artefacts by content as they stood at
+`ad47e39` (alpha 6), and the lorebook's with `properties.scope` taken out; it
+holds `LoreScope` to the two arms `/1` shipped with plus, at most, the named
+`world` arm; and it holds the emitted set to those five and the World's. All
+seven cases pass with P16.0 to P16.2 built: **no other portable schema changed,
+and the one exception is unused** — the `world` arm waits on B16, so the lorebook
+artefact is byte-identical too. The World's own artefact replaced the Package's
+([P16 §1.1](35-p16-world.md)) and is the one it does not pin.
+
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**
 

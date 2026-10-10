@@ -295,6 +295,30 @@ describe('the session write bodies', () => {
   });
 
   /**
+   * ***A World, and an empty list beside it*** — [P16.2]. Beside `world` an
+   * absent `lore` is the World's books, filled in by the route, so a person
+   * who unticked all of them has to reach the route as `[]` or they would get
+   * every one back. Without a World the old rule holds: empty is left off.
+   */
+  it('sends the World, and an emptied book list beside it as a choice', async () => {
+    const seen = capture();
+
+    await createSession({ world: 'w-harbour' });
+    await createSession({ world: 'w-harbour', lore: [] });
+    await createSession({ world: 'w-harbour', lore: ['book-rain'], treatment: 'treat-wet' });
+    await createSession({ lore: [] });
+    await createSession({ world: '', lore: [] });
+
+    expect(seen.map((each) => each.body)).toEqual([
+      { world: 'w-harbour' },
+      { world: 'w-harbour', lore: [] },
+      { world: 'w-harbour', lore: ['book-rain'], treatment: 'treat-wet' },
+      {},
+      {},
+    ]);
+  });
+
+  /**
    * ***A greeting chosen travels, beside a Setup as beside a cast*** — [P14.5],
    * and since the P15 merge (2026-10-03) for a Setup's party too, when the
    * Setup has no opening of its own. *Only a choice somebody made*: an empty

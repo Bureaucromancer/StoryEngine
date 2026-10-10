@@ -99,26 +99,27 @@ export function newLorebook(name: string): Lorebook {
     name,
     description: '',
     /**
-     * **The widest value in the union, and that is an open question rather
-     * than a considered default** — [26 §B15](../../../docs/design/26-open-questions.md).
+     * ***Linked to nobody — the narrowest value in the union*** —
+     * [26 §B15](../../../docs/design/26-open-questions.md), recommended answer,
+     * owner deferred (overrule it there), built at
+     * [P16.2](../../../docs/design/workplan/35-p16-world.md), 2026-10-10.
      *
-     * It is harmless today because nothing reads `scope`: a lorebook reaches a
-     * session by being selected and by nothing else ([03 §3.4]). It was not
-     * harmless when [P5.7] briefly gave the field behaviour — this default, plus
-     * the SillyTavern importer's identical fallback, is what put every book a
-     * person owned into every session's prompt. Anything that gives `scope` a
-     * consumer again has to decide this line first, because a field nobody sets
-     * should not default to the most permissive answer it can hold.
+     * ~~The widest value in the union, and that is an open question rather
+     * than a considered default~~ — this was `{ kind: 'global' }` until P16.2.
+     * It was harmless while nothing read `scope`: a lorebook reaches a session by
+     * being selected and by nothing else ([03 §3.4]). It was not harmless when
+     * [P5.7] briefly gave the field behaviour — that default, plus the SillyTavern
+     * importer's identical fallback, is what put every book a person owned into
+     * every session's prompt. **A field nobody sets should not default to the
+     * most permissive answer it can hold**, and P16 is the phase that gives
+     * `scope` a reader again — the `world` arm, which waits on 26 §B16 — so the
+     * default was decided first, as the old comment here said it had to be.
      *
-     * *(2026-10-04: decided — 26 §B15 answers `{ kind: 'linked', actorIds: [] }`,
-     * a recommended answer the owner deferred, and
-     * [P16.2](../../../docs/design/workplan/35-p16-world.md) changes this line
-     * with the copy from a World's members, because the `world` scope arm it
-     * lands beside is what gives the field a consumer; the default itself
-     * changes no schema and does not wait on that arm. Until then the value
-     * below is still what ships, and still harmless.)*
+     * *It admits nothing either way.* `linked` with no actors is a book that says
+     * it belongs to nobody in particular, and selection is still what puts a book
+     * in play.
      */
-    scope: { kind: 'global' },
+    scope: { kind: 'linked', actorIds: [] },
     enabled: true,
     scanDepth: 2,
     tokenBudget: 2048,

@@ -19,7 +19,7 @@ changes on disk while it runs.
 | **Treatment** | How a world is handled: its framing, which goes into every turn, plus its lorebooks, plot hooks, writing samples and tone. Reusable across many stories. | Chosen when a session starts (or later). Its framing and lorebooks are read every turn; its hooks are copied into the session when it starts — a treatment picked later brings its framing and lorebooks, not its hooks. |
 | **Setup** | One particular game: a mode and its answers, a treatment, a preset, a persona and lorebooks, kept together to start from again — and, for one made from a story, its party, goals, plot hooks, openings and the story so far. | Saved from the start form, or made from any turn of a story with **Make a setup from here**. Started from the sessions page or from its own page with **Start a session**; a session copies it when it starts, so later edits reach only sessions started afterwards. |
 | **Preset** | The recipe for a prompt: its blocks, their order and budget, and the generation settings. See [Presets and prompts](presets.md). | **Copied** into a session when it starts, so later edits do not reach that session. |
-| **World** | A named set of library objects and sessions, kept together so they can travel as one file. Called a *package* before this version — see [Files on disk](#files-on-disk) for what happens to one an earlier version made. | A session can be a member — **Add to a world…** on its row or its page — and its page says **In these worlds**. |
+| **World** | A named set of library objects and sessions, kept together so new sessions can start in it and it can travel as one file. Called a *package* before this version — see [Files on disk](#files-on-disk) for what happens to one an earlier version made. | A session started in a world gets its lorebooks and its treatment, copied, and joins it; any session can be added with **Add to a world…**, and its page says **In these worlds**. |
 
 The difference between a treatment and a setup is the one worth learning: a treatment
 is how a world is handled and told (its lorebooks hold the world itself), reusable
@@ -42,11 +42,15 @@ it, you wanted a setup.
   resets. A tag can also be a **folder**, shown as a row at the top of the list (see
   [Tags](#tags)).
 - The **Lorebooks** shelf has its own columns — entries, tags, source, when updated —
-  and filters for **Scope**, **Enabled** and **Source**.
+  and filters for **Scope** (*Global*, *Linked to characters*, *Linked to nobody*),
+  **Enabled** and **Source**. A new lorebook, and every lorebook imported on its own
+  from SillyTavern, is *linked to nobody* — it says nothing about where it belongs;
+  an older one may say *Global*. Neither puts a book in any session: a book is in a
+  session because the session, its treatment or its world chose it.
 
 Each row is the object's name, with **Yours** or **System**. On the **Lorebooks** shelf,
 a book can also say **Off** (switched off), **Linked** (written for particular
-characters) or **Memories** (written by play). **Shadowed** means another folder on disk holds the same object; see
+characters — only when it names at least one) or **Memories** (written by play). **Shadowed** means another folder on disk holds the same object; see
 [Files on disk](#files-on-disk).
 
 **New actor**, **New lorebook** and the other **New** buttons are under the kind bar;
@@ -74,6 +78,12 @@ own opening, when it has one — and opens it straight away. There is nothing to
 because the setup already says everything a session needs. To start from a setup with a different
 opening, or cold, use the sessions page: see
 [Starting from a setup](playing.md#starting-from-a-setup).
+
+A world's page — your own — has **Start a session in this world**, which starts a
+session with the world's lorebooks and, when it holds exactly one, its treatment, adds
+the session to the world, and opens it; and **Choose first…**, which opens the sessions
+page's form with the world picked, to change what it fills in. See
+[Starting in a world](playing.md#starting-in-a-world).
 
 The page shows no pictures. The workbench over it shows the object's provenance, its
 version history and how the index sees it.

@@ -53,6 +53,21 @@ describe('narrowing a list by kind or by mode', () => {
     expect(validateSessionsSearch({ mode: 'x.y,x.y,,z' })).toEqual({ mode: 'x.y,z' });
     expect(validateSessionsSearch({})).toEqual({});
   });
+
+  /**
+   * ***`?world=` chooses the World the new session starts in*** — [P16.2],
+   * the address a World's *Choose first…* links to. The router can only check
+   * that it is a string; the page drops one that is not the person's.
+   */
+  it('carries a World to start in, beside a mode filter or alone', () => {
+    expect(validateSessionsSearch({ world: 'w-harbour' })).toEqual({ world: 'w-harbour' });
+    expect(validateSessionsSearch({ mode: 'x.y', world: 'w-harbour' })).toEqual({
+      mode: 'x.y',
+      world: 'w-harbour',
+    });
+    expect(validateSessionsSearch({ world: '  ' })).toEqual({});
+    expect(validateSessionsSearch({ world: 7 })).toEqual({});
+  });
 });
 
 /**

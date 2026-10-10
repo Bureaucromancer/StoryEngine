@@ -578,6 +578,28 @@ describe('the Lorebooks panel', () => {
     expect(badgesInRows('Linked')).toHaveLength(1);
   });
 
+  /**
+   * ***Linked to nobody is the default now, and gets no badge*** — [P16.2],
+   * 26 §B15. Every new book and every standalone SillyTavern import is
+   * `{ kind: 'linked', actorIds: [] }` from P16.2 on, so a badge on `linked`
+   * alone would be on nearly every book — furniture, the argument `global` was
+   * left unbadged by. The badge is for a book that names somebody.
+   */
+  it('badges a book linked to characters, and not one linked to nobody', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { scope: { kind: 'linked', actorIds: ['a1'] } }),
+        book('Brine', { scope: { kind: 'linked', actorIds: [] } }, 'brine'),
+        book('Cinder', { scope: { kind: 'linked' } }, 'cinder'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(badgesInRows('Linked')).toHaveLength(1);
+  });
+
   it('reads the tags nothing has ever read', async () => {
     search = { kind: 'lorebooks' };
     listLibrary.mockResolvedValue({ objects: [book('Ardent', { tags: ['noir', 'city'] })] });
@@ -640,6 +662,8 @@ describe('the Lorebooks panel', () => {
       return [
         book('Ardent', { tags: ['noir'], scope: { kind: 'linked', actorIds: ['a'] } }),
         book('Rain City', { tags: ['city'], enabled: false }, 'rain-city'),
+        // The factory's default since [P16.2] — linked, to nobody.
+        book('Brine', { scope: { kind: 'linked', actorIds: [] } }, 'brine'),
       ];
     }
 
@@ -684,6 +708,22 @@ describe('the Lorebooks panel', () => {
       expect(names()).toEqual(['Ardent']);
     });
 
+    /**
+     * ***Three scopes since [P16.2]***, because `linked` started meaning two
+     * things: a book authored for particular characters, and — the new
+     * default — a book linked to nobody. *Linked to characters* is the
+     * question worth asking, and it would have no answer if every new book
+     * answered it too. `global` keeps its own option, since it is what an
+     * older book's file still says.
+     */
+    it('tells a book linked to characters from one linked to nobody, and both from global', async () => {
+      await shelved();
+      choose('Scope', 'nobody');
+      expect(names()).toEqual(['Brine']);
+      choose('Scope', 'global');
+      expect(names()).toEqual(['Rain City']);
+    });
+
     it('narrows by whether the book is switched on', async () => {
       await shelved();
       choose('Enabled', 'off');
@@ -709,7 +749,7 @@ describe('the Lorebooks panel', () => {
       const options = [...screen.getByLabelText('Scope').querySelectorAll('option')].map(
         (node) => node.textContent,
       );
-      expect(options).toEqual(['Any', 'Global', 'Linked']);
+      expect(options).toEqual(['Any', 'Global', 'Linked to characters', 'Linked to nobody']);
     });
 
     /**

@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { type PortableObjectEnvelope, WORLD_SCHEMA, type World } from '@storyengine/shared';
+import {
+  LOREBOOK_SCHEMA,
+  type PortableObjectEnvelope,
+  TREATMENT_SCHEMA,
+  WORLD_SCHEMA,
+  type World,
+} from '@storyengine/shared';
 
 import { LibraryError, type LibraryContext, read, update } from '../library.js';
 
@@ -113,4 +119,48 @@ export async function addMembers(
       throw error;
     }
   }
+}
+
+/**
+ * ***What a World contributes to a session started in it*** —
+ * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md), [P16.2].
+ *
+ * **Read once, at creation, and copied** — never a query that re-decides each
+ * turn, which is what separates this from [P5.7]'s reversed scope rule: a World
+ * is a subset somebody named, and what it contributes becomes the session's own
+ * data, on disk and editable ([00 §3.1]'s *prefill, never binding*).
+ *
+ * - **Its lorebook members**, in the order the World holds them, for
+ *   `session.lore`.
+ * - **Its treatment members**, all of them, for the form to offer; and the
+ *   one to use when the caller chose none — **only when there is exactly one**,
+ *   because picking the first of several would be the server choosing a story
+ *   on somebody's behalf.
+ *
+ * Members are taken as the World names them, by id: a member since deleted is
+ * a dangling id in `session.lore`, which the retriever already reports every
+ * turn rather than refusing at the door ([00 §3.3]).
+ */
+export interface WorldContribution {
+  world: { id: string; name: string };
+  lore: string[];
+  treatments: string[];
+  treatment: string | null;
+}
+
+export function worldContribution(
+  context: LibraryContext,
+  handle: string,
+  worldId: string,
+): WorldContribution {
+  const current = read(context, handle, worldId, WORLD_SCHEMA);
+  const world = current.body as World;
+  const lore = world.contents.filter((m) => m.schema === LOREBOOK_SCHEMA).map((m) => m.id);
+  const treatments = world.contents.filter((m) => m.schema === TREATMENT_SCHEMA).map((m) => m.id);
+  return {
+    world: { id: current.id, name: current.name },
+    lore,
+    treatments,
+    treatment: treatments.length === 1 ? (treatments[0] ?? null) : null,
+  };
 }

@@ -260,7 +260,14 @@ decided, so a P16.0 build writes it too. **And not only dev installs**: alpha 5
 and alpha 6, tagged after this was written, shipped the export, so the frozen
 format is in files a release handed out.)*
 
-### 5.2 [OPEN] Whether the World's file is JSON or a zip
+### 5.2 ~~[OPEN]~~ Whether the World's file is JSON or a zip — **a zip, decided 2026-10-10**
+
+***Decided by the owner, 2026-10-10, at [P16](workplan/35-p16-world.md)'s
+revisit: the zip of the members' stored folders, the lean below.*** An actor
+travels as its card, portrait and expressions included, and a lorebook with its
+`assets/`; sessions ride inside as their session exports. [P16.3](workplan/35-p16-world.md)
+writes it, and reads the frozen `storyengine.package-export/1` JSON beside it. The
+question is kept as it was asked, for the reasoning.
 
 **The question the pictures bullet defers**, and [P16](workplan/35-p16-world.md)'s
 revisit decides it before P16.3 writes a format, because that format is frozen

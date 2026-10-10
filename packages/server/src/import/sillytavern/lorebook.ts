@@ -277,7 +277,13 @@ function applyBookFields(
 }
 
 /**
- * **A chat-scoped book imports as `global`, and the review names the drop.**
+ * ~~**A chat-scoped book imports as `global`, and the review names the drop.**~~
+ * ***Every standalone book imports as `{ kind: 'linked', actorIds: [] }`, and a
+ * chat-scoped one's drop is still named*** — [P16.2](../../../../../docs/design/workplan/35-p16-world.md),
+ * 2026-10-10, on [26 §B15](../../../../../docs/design/26-open-questions.md)'s
+ * recommended answer (owner deferred; overrule it there). The history below is
+ * kept because it is the argument for the change.
+ *
  *
  * `LoreScope` shipped with two arms rather than [03 §3.4]'s three: session
  * scoping moved to the session's own lore links, deliberately, because session
@@ -314,7 +320,17 @@ function applyScope(
   if (input['chatId'] !== undefined || input['chat_id'] !== undefined) {
     notes.push(note('import.lore.chatScopeDropped', { book: lorebook.name }, 'warn'));
   }
-  lorebook.scope = { kind: 'global' };
+  /**
+   * ***Linked to nobody, rather than global*** ([P16.2]): the narrowest value
+   * the union holds, so a field nobody set says so, instead of the widest one
+   * — which is what made [P5.7] put a whole SillyTavern folder into every
+   * prompt. **It admits nothing either way**: scope selects no book for any
+   * session ([03 §3.4]), and the one arm P16 gives a reader — `world`, which
+   * waits on [26 §B16] — is not this one. A book embedded in a character card
+   * still imports `linked` to that card's actor (`card.ts`), which this
+   * function does not reach.
+   */
+  lorebook.scope = { kind: 'linked', actorIds: [] };
 }
 
 function roleOf(value: unknown): LoreEntry['role'] {

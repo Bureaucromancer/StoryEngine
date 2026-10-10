@@ -28,6 +28,13 @@ import { AddToWorld } from './SessionWorlds.js';
 import { SetupFields } from './SetupFields.js';
 import { setupFromForm } from './setup-from-form.js';
 import { sessionLabel } from './session-label.js';
+import {
+  chooseWorld,
+  NOTHING_PREFILLED,
+  worldsToOffer,
+  type Named,
+  type Prefilled,
+} from './world-start.js';
 import { labels } from '../i18n/catalogue.js';
 
 /**
@@ -287,6 +294,54 @@ const SETUP_WORDS = labels('sessions.setup', {
     'This setup has an opening of its own now — it was changed after this page read it — so its characters’ greetings are not used. Start again to begin on its opening.',
 });
 
+/**
+ * ***What the form says about the World a session starts in*** —
+ * [P16.2](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md).
+ *
+ * `oneTreatment` says what the form did with a World's only treatment. The
+ * route uses it when the caller sent none — and ~~*none* has no spelling on the
+ * wire~~ *since 2026-10-10 it has one*: `treatment: null`, which overrides every
+ * rung. So *None* stays in the select beside such a World and is sent as
+ * `null`, rather than the option vanishing — a choice the route quietly
+ * replaced with the World's would have been the control that lies, which
+ * [P14.5]'s comment on `CAST_WORDS` rules out, and hiding it was the stopgap
+ * while the wire could not say it.
+ * `severalTreatments` is the other side of the same rule: several are offered
+ * first and none is chosen, because the first of several would be the form
+ * choosing a story. The `setup…` lines are the Setup path's, where the form
+ * sends no `lore` or `treatment` of its own and the route layers the World
+ * under the Setup — so the form says what that layering will do instead of
+ * offering controls the Setup path does not send.
+ */
+const WORLD_WORDS = labels('sessions.world', {
+  label: 'Start in a world',
+  none: 'No world',
+  hint: 'Its lorebooks and its treatment are filled in below for you to change, and the new session joins the world.',
+  missing: '{name} (not in your library)',
+  listed: '{name} (in this world)',
+  oneTreatment:
+    'This world has one treatment, chosen for you. Choose another, or None to start without one.',
+  severalTreatments:
+    'This world has {count} treatments, listed first. Choose one, or none: the world does not choose for you.',
+  fromSetup: 'From the setup “{setup}”, in the world “{world}”',
+  setupBooks: 'This world’s lorebooks join the setup’s: {names}.',
+  setupTreatmentKept: 'The setup’s treatment is used, not the world’s.',
+  setupTreatmentSole: 'The setup names no treatment, so the world’s is used: {name}.',
+  setupTreatmentNone:
+    'The setup names no treatment, and this world has several, so the session starts without one.',
+});
+
+/** The treatment a Setup names, or `null` — read defensively, as `modeOf` reads its mode. */
+function treatmentOf(setup: Record<string, unknown> | undefined): string | null {
+  const treatment = setup?.['treatment'];
+  const id =
+    typeof treatment === 'object' && treatment !== null
+      ? (treatment as { id?: unknown }).id
+      : undefined;
+  return typeof id === 'string' && id !== '' ? id : null;
+}
+
 /** The route's class for an `opening` the Setup does not hold — `docs/api.md`, `POST /api/sessions`. */
 const SETUP_OPENING_REFUSED = 'unknown-setup-opening';
 /** The route's class for a greeting chosen beside a Setup that carries an opening — the same route. */
@@ -382,6 +437,25 @@ export function SessionsPage(): React.JSX.Element {
    * send, which `answersFor` drops.
    */
   const [setup, setSetup] = useState<Record<string, unknown>>({});
+  /**
+   * ***The World to start in, and what choosing it filled in*** — [P16.2].
+   *
+   * `''` is *no World*. `prefilled` is what the World added to `lore` and
+   * `treatment`, kept so that choosing another — or none — takes back exactly
+   * that (`chooseWorld` says why that is the rule). The books and the
+   * treatment themselves live in the ordinary `lore` and `treatment` state:
+   * once filled in they are the person's to change like anything else on the
+   * form, which is [00 §3.1]'s *prefill, never binding* as form state.
+   */
+  const [world, setWorld] = useState('');
+  const [prefilled, setPrefilled] = useState<Prefilled>(NOTHING_PREFILLED);
+  /**
+   * The names every World chosen here gave its members, by id — kept past the
+   * choice so that a book or treatment it filled in still has its name after
+   * the World drops it, or is deleted in another tab while chosen
+   * (`strayBooks` says why that box has to stay).
+   */
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   /** The session just created, when its treatment has been played before — [08 §6]. */
   const [replaying, setReplaying] = useState<{
     sessionId: string;
@@ -407,6 +481,15 @@ export function SessionsPage(): React.JSX.Element {
   const presets = useLibrary('presets');
   const actors = useLibrary('actors');
   const setups = useLibrary('setups');
+  const worlds = useLibrary('worlds');
+  const offered = worldsToOffer(worlds.data?.objects);
+  /**
+   * The World chosen, **resolved against what is offered** — so a World
+   * deleted in another tab since it was chosen stops being sent and the
+   * select shows *No world*, rather than the state naming one the select no
+   * longer lists.
+   */
+  const inWorld = offered.find((one) => one.id === world);
   const startingFrom = (setups.data?.objects ?? []).find((one) => one.id === fromSetup);
   const setupOpenings = openingsOf(startingFrom?.object);
 
@@ -438,6 +521,56 @@ export function SessionsPage(): React.JSX.Element {
    */
   const navigate = useNavigate();
   const search = routeApi.useSearch();
+
+  /**
+   * ***Choosing a World, which fills in the form*** — [P16.2]. `chooseWorld`
+   * is the rule, and keeps it apart from the page: the World's books are added
+   * to what is ticked, its sole treatment fills an empty select, and changing
+   * World takes back only what the last one put there.
+   */
+  function pickWorld(id: string): void {
+    const offer = offered.find((one) => one.id === id);
+    const next = chooseWorld({ lore, treatment }, prefilled, offer);
+    setLore(next.lore);
+    setTreatment(next.treatment);
+    setPrefilled(next.prefilled);
+    setWorld(id);
+    if (offer !== undefined) {
+      const seen: Record<string, string> = {};
+      for (const one of [...offer.books, ...offer.treatments]) seen[one.id] = one.name;
+      setMemberNames((known) => ({ ...known, ...seen }));
+    }
+  }
+
+  /**
+   * ***`?world=` chooses one on arrival*** — what a World's *Choose first…*
+   * links to ([P16.2]).
+   *
+   * **Applied once per address, while rendering, once the Worlds have
+   * arrived** — React's *adjusting state when a prop changes*, rather than an
+   * effect, so the first frame that can show the World shows it filled in
+   * instead of flashing an empty form and then changing under somebody's
+   * cursor. *Once per address* because after that the form is the person's:
+   * choosing *No world* must not be overruled by the address still naming
+   * one. An id that is not one of the person's own Worlds is dropped, as a
+   * stale `?mode=` is.
+   */
+  const [worldFromAddress, setWorldFromAddress] = useState<string | undefined>(undefined);
+  if (
+    search.world !== undefined &&
+    search.world !== worldFromAddress &&
+    worlds.data !== undefined
+  ) {
+    setWorldFromAddress(search.world);
+    if (offered.some((one) => one.id === search.world)) pickWorld(search.world);
+  }
+  /**
+   * **Open on arrival from a World**, so what it filled in is on screen rather
+   * than behind a summary line — read once, as `EntryFields`' `OPEN_AT_FIRST`
+   * is: React sets `open` when it mounts and never again while the value does
+   * not change, so the disclosure is the person's to close.
+   */
+  const [openAtFirst] = useState(() => search.world !== undefined);
   const modeList = modes.data?.modes ?? [];
   const requested = new Set(parseList(search.mode));
   const narrowed = modeList.map((one) => one.id).filter((id) => requested.has(id));
@@ -457,6 +590,16 @@ export function SessionsPage(): React.JSX.Element {
   for (const shelf of [treatments, presets, actors, books]) {
     for (const one of shelf.data?.objects ?? []) names[one.id] = one.name;
   }
+  // A World's member the library no longer holds still has the name the World
+  // saw it by ([P16.2]) — the one a saved Setup's ref would want beside its id.
+  // The chosen World's as it reads now first; then the names any World chosen
+  // here gave, so that a member it filled in and has since dropped — or a World
+  // deleted in another tab while chosen — keeps its name where `strayBooks`
+  // shows it.
+  for (const one of [...(inWorld?.books ?? []), ...(inWorld?.treatments ?? [])]) {
+    names[one.id] ??= one.name;
+  }
+  for (const [id, known] of Object.entries(memberNames)) names[id] ??= known;
 
   const form = {
     name,
@@ -523,6 +666,72 @@ export function SessionsPage(): React.JSX.Element {
   const carriesOpening = setupOpenings.written.length > 0;
   const greetingsBegin = greeters.length > 0 && !carriesOpening;
 
+  /** One book ticked or unticked — whoever put it there, the person decides now. */
+  function tickBook(id: string, checked: boolean): void {
+    setLore(checked ? [...lore, id] : lore.filter((one) => one !== id));
+  }
+  const libraryBooks = new Set((books.data?.objects ?? []).map((one) => one.id));
+  /**
+   * ***Every book that would be sent and has no box of its own*** — [P16.2].
+   * The chosen World's missing members, ticked or not (so one unticked can be
+   * ticked again), **and any id still in `lore` that the library does not
+   * hold**: a World chosen and then deleted in another tab, or one that dropped
+   * a member it had filled in, leaves that id ticked in the state with no
+   * checkbox naming it — and Start would send it unseen, which is the one
+   * thing *what the person sees is what starts* rules out. *Only once the
+   * shelf has answered*: before it does, every book would look missing.
+   */
+  const strayBooks: Named[] =
+    books.data === undefined
+      ? []
+      : [...(inWorld?.books.map((book) => book.id) ?? []), ...lore]
+          .filter((id, at, all) => !libraryBooks.has(id) && all.indexOf(id) === at)
+          .map((id) => ({ id, name: names[id] ?? id }));
+
+  /**
+   * ***The Treatment select, with a World chosen*** — [P16.2]. The World's
+   * treatments first, each said to be the World's, then the rest of the
+   * library's, after *None* — sent as `null` beside a World, which
+   * `WORLD_WORDS`' note on `oneTreatment` explains. A World's treatment that
+   * is not in the library is listed by the name the World saw, for the reason
+   * its missing books are.
+   */
+  const worldTreatments = inWorld?.treatments ?? [];
+  const libraryTreatments = treatments.data?.objects ?? [];
+  const treatmentOptions: [string, string][] = [
+    ['', 'None'] as [string, string],
+    ...worldTreatments.map((one): [string, string] => {
+      const held = libraryTreatments.find((each) => each.id === one.id);
+      return [
+        one.id,
+        // *Missing* only once the shelf has answered — `?world=` can fill the
+        // select before it does, and every treatment would read as missing.
+        held === undefined && treatments.data !== undefined
+          ? WORLD_WORDS.missing.replace('{name}', () => one.name)
+          : WORLD_WORDS.listed.replace('{name}', () => held?.name ?? one.name),
+      ];
+    }),
+    ...libraryTreatments
+      .filter((each) => !worldTreatments.some((one) => one.id === each.id))
+      .map((each) => [each.id, each.name] as [string, string]),
+  ];
+  /**
+   * **A select never holds a value it does not show** — `strayBooks`' reason,
+   * for the treatment. A World's treatment filled in and then gone from the
+   * World (or the World gone) is still the state, and a select whose value
+   * matches no option draws its first one while Start sends the other.
+   */
+  if (
+    treatment !== '' &&
+    treatments.data !== undefined &&
+    !treatmentOptions.some(([id]) => id === treatment)
+  ) {
+    treatmentOptions.push([
+      treatment,
+      WORLD_WORDS.missing.replace('{name}', () => names[treatment] ?? treatment),
+    ]);
+  }
+
   const create = useMutation({
     mutationFn: () =>
       /**
@@ -546,6 +755,9 @@ export function SessionsPage(): React.JSX.Element {
         ? createSession({
             ...(name.trim() === '' ? {} : { name }),
             setup: startingFrom.id,
+            // The World under the Setup — the route layers it one rung below,
+            // and the form says above Start what that will do ([P16.2]).
+            ...(inWorld === undefined ? {} : { world: inWorld.id }),
             ...(opening === '' ? {} : { opening: opening === COLD ? null : opening }),
             ...(greetingsBegin
               ? {
@@ -559,10 +771,26 @@ export function SessionsPage(): React.JSX.Element {
           })
         : createSession({
             ...(name.trim() === '' ? {} : { name }),
-            ...(treatment === '' ? {} : { treatment }),
+            // *None* beside a World is `null`, which overrides the World's own
+            // treatment; absent would mean *the World's*, which is not what the
+            // select shows ([P16.2]).
+            ...(treatment === ''
+              ? inWorld === undefined
+                ? {}
+                : { treatment: null }
+              : { treatment }),
             ...(preset === '' ? {} : { preset }),
             ...(persona === '' ? {} : { persona }),
-            ...(lore.length === 0 ? {} : { lore }),
+            /**
+             * ***Beside a World, the books exactly as ticked*** — [P16.2],
+             * [P16 §1.3]. The route fills an absent `lore` with the World's
+             * books, so the form sends its own list whenever a World is
+             * chosen — an empty one included, which `createSession` lets
+             * through beside `world` — and a book somebody unticked stays
+             * unticked. What the person sees is what starts.
+             */
+            ...(lore.length === 0 && inWorld === undefined ? {} : { lore }),
+            ...(inWorld === undefined ? {} : { world: inWorld.id }),
             // The effective id, not the state: a form that rendered the default's
             // wizard and then sent no `mode` would be right only by coincidence.
             ...(chosen === null ? {} : { mode: chosen.id }),
@@ -589,6 +817,8 @@ export function SessionsPage(): React.JSX.Element {
       setOpening('');
       setMembers([]);
       setOpenings({});
+      setWorld('');
+      setPrefilled(NOTHING_PREFILLED);
       /**
        * ***Replaying a treatment you have played*** — [08 §6], [P8.5].
        *
@@ -608,6 +838,9 @@ export function SessionsPage(): React.JSX.Element {
           : { sessionId: created.session.id, others: created.sharesTreatmentWith },
       );
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      // The World's `contents` gained the session, so its row on the Worlds
+      // shelf, *In these worlds* and the *Add to a world* offers are all stale.
+      if (inWorld !== undefined) void queryClient.invalidateQueries({ queryKey: ['library'] });
     },
     onError: (error) => {
       // The opening chosen is not in the Setup any more (see `refusal`), so
@@ -761,14 +994,56 @@ export function SessionsPage(): React.JSX.Element {
             where sessions are made rather than where objects are merged. */}
         <ImportSession />
 
-        <details className="rounded-control border border-line bg-surface px-3 py-2">
+        <details
+          open={openAtFirst}
+          className="rounded-control border border-line bg-surface px-3 py-2"
+        >
           <summary className={`${disclosure.quiet} text-sm`}>
             {startingFrom !== undefined
-              ? `From the setup “${startingFrom.name}”`
-              : setupLine(lore.length, treatment !== '', preset !== '', persona !== '')}
+              ? inWorld === undefined
+                ? `From the setup “${startingFrom.name}”`
+                : WORLD_WORDS.fromSetup
+                    .replace('{setup}', () => startingFrom.name)
+                    .replace('{world}', () => inWorld.name)
+              : setupLine(
+                  lore.length,
+                  treatment !== '',
+                  preset !== '',
+                  persona !== '',
+                  inWorld?.name,
+                )}
           </summary>
 
           <div className="mt-3 flex flex-col gap-3">
+            {/*
+              ***A World to start in*** — [P16.2],
+              [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md). **First,
+              and above the Setup**, because it is the wider of the two: a
+              Setup is how to begin, a World is the set the story belongs to,
+              and either may be chosen with the other.
+
+              **It fills the controls below rather than replacing them** — the
+              opposite of the Setup's choice, and for the opposite reason. A
+              Setup says everything those controls would, so a second copy
+              could drift; a World says only which books and treatments belong
+              to it, so the controls are where the person sees that and changes
+              it before Start ([00 §3.1]: prefill, never binding). *Absent for
+              somebody with no Worlds of their own*, rather than a select
+              offering only *No world*.
+            */}
+            {offered.length === 0 ? null : (
+              <SelectField
+                label={WORLD_WORDS.label}
+                value={inWorld?.id ?? ''}
+                options={[
+                  ['', WORLD_WORDS.none],
+                  ...offered.map((one) => [one.id, one.name] as [string, string]),
+                ]}
+                onChange={pickWorld}
+                hint={WORLD_WORDS.hint}
+              />
+            )}
+
             {/*
               ***A Setup is how to start playing*** — [04 §7], [P15.4]. The
               route has accepted one since [P7.4], and until this select the
@@ -843,6 +1118,13 @@ export function SessionsPage(): React.JSX.Element {
                   The mode, treatment, preset, persona, lorebooks, party, goals and hooks all come
                   from the setup. Open it in the library to change them.
                 </Fine>
+                {inWorld === undefined ? null : (
+                  <WorldUnderSetup
+                    books={inWorld.books.map((book) => names[book.id] ?? book.name)}
+                    treatments={inWorld.treatments.map((one) => names[one.id] ?? one.name)}
+                    setupTreatment={treatmentOf(startingFrom.object) !== null}
+                  />
+                )}
               </>
             ) : (
               <>
@@ -875,15 +1157,18 @@ export function SessionsPage(): React.JSX.Element {
                 <SelectField
                   label="Treatment"
                   value={treatment}
-                  options={[
-                    ['', 'None'],
-                    ...(treatments.data?.objects ?? []).map(
-                      (one) => [one.id, one.name] as [string, string],
-                    ),
-                  ]}
+                  options={treatmentOptions}
                   onChange={setTreatment}
                   hint="A treatment brings its own lorebooks and its own framing."
                 />
+                {worldTreatments.length === 1 ? <Fine>{WORLD_WORDS.oneTreatment}</Fine> : null}
+                {worldTreatments.length > 1 ? (
+                  <Fine>
+                    {WORLD_WORDS.severalTreatments.replace('{count}', () =>
+                      String(worldTreatments.length),
+                    )}
+                  </Fine>
+                ) : null}
 
                 {/*
                  * ***The blank option acquired a visible twin at [P7B.0]***, and
@@ -944,7 +1229,27 @@ export function SessionsPage(): React.JSX.Element {
                       label={book.name}
                       checked={lore.includes(book.id)}
                       onChange={(checked) => {
-                        setLore(checked ? [...lore, book.id] : lore.filter((id) => id !== book.id));
+                        tickBook(book.id, checked);
+                      }}
+                    />
+                  ))}
+                  {/*
+                    ***A World's book that is not in the library*** — [P16.2].
+                    A World names its members by id and keeps naming one that
+                    was deleted (P16.1's *Missing*), and the route copies
+                    whatever id it names, the retriever reporting it every
+                    turn ([00 §3.3]) — so the form ticks it too, under the
+                    name the World last saw, and says so. Left off the list it
+                    would be sent unseen, or dropped unseen; shown, it is one
+                    more box to untick.
+                  */}
+                  {strayBooks.map((book) => (
+                    <CheckboxField
+                      key={book.id}
+                      label={WORLD_WORDS.missing.replace('{name}', () => book.name)}
+                      checked={lore.includes(book.id)}
+                      onChange={(checked) => {
+                        tickBook(book.id, checked);
                       }}
                     />
                   ))}
@@ -1105,6 +1410,13 @@ export function setupLine(
   treatment: boolean,
   preset: boolean,
   persona: boolean,
+  /**
+   * The World's name, when one is chosen — [P16.2]. It leads, because it is
+   * the choice the others were filled in from, and *no lorebooks* is said
+   * outright beside it, since a World whose books were all unticked is the
+   * case somebody would least expect to be starting.
+   */
+  world?: string,
 ): string {
   const parts: string[] = [];
   // **Persona first, because it is the one a reader is most likely to have
@@ -1116,6 +1428,48 @@ export function setupLine(
   if (books === 1) parts.push('one lorebook');
   if (books > 1) parts.push(`${String(books)} lorebooks`);
   if (preset) parts.push('a preset');
+  if (world !== undefined) {
+    return parts.length === 0
+      ? `In the world “${world}”, with no lorebooks`
+      : `In the world “${world}”, with ${parts.join(', ')}`;
+  }
   if (parts.length === 0) return 'Nothing chosen yet — the mode default, and no lorebooks';
   return `With ${parts.join(', ')}`;
+}
+
+/**
+ * ***What a World adds under a Setup*** — [P16.2], the Setup path's half.
+ *
+ * The Setup path sends the Setup and nothing the form defaulted, so the World's
+ * books and treatment are not controls here: the route layers them — the
+ * World's books **join** the Setup's (both are the session's books, so the two
+ * are a union), and its treatment is used **only when the Setup names none and
+ * the World holds exactly one**. These lines say which of those will happen,
+ * because a contribution nobody can see before Start is the one this stage is
+ * careful not to make ([P16 §1.3]); after Start every one of them is the
+ * session's own, changed from its lore panel.
+ */
+function WorldUnderSetup(props: {
+  books: string[];
+  treatments: string[];
+  setupTreatment: boolean;
+}): React.JSX.Element | null {
+  const [sole] = props.treatments;
+  const treatmentLine =
+    props.treatments.length === 0
+      ? null
+      : props.setupTreatment
+        ? WORLD_WORDS.setupTreatmentKept
+        : props.treatments.length === 1 && sole !== undefined
+          ? WORLD_WORDS.setupTreatmentSole.replace('{name}', () => sole)
+          : WORLD_WORDS.setupTreatmentNone;
+  if (props.books.length === 0 && treatmentLine === null) return null;
+  return (
+    <>
+      {props.books.length === 0 ? null : (
+        <Fine>{WORLD_WORDS.setupBooks.replace('{names}', () => props.books.join(', '))}</Fine>
+      )}
+      {treatmentLine === null ? null : <Fine>{treatmentLine}</Fine>}
+    </>
+  );
 }

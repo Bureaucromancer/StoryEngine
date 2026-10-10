@@ -1737,7 +1737,7 @@ render a wizard for a mode nobody chose.
 
 ### `POST /api/sessions` · `GET /api/sessions?archived=true`
 
-`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, opening?, openings?, hooks? }`
+`{ name?, mode?, modeConfig?, preset?, cast?, treatment?, lore?, setup?, world?, opening?, openings?, hooks? }`
 → `201 { session, activeJob? }`, and a list. **`archived` is the string `"true"`,
 not a boolean** — see the note under the turn routes.
 
@@ -1800,6 +1800,34 @@ cannot reach a running game — the same asymmetry the preset has. `422
 unknown-setup` when there is no such Setup: a dangling *treatment* or *lorebook*
 is a session missing a book and is accepted, but a dangling Setup is a session
 that would be created as something other than what was asked for.
+
+**`world` is a World to start in** — [P16.2](design/workplan/35-p16-world.md),
+[P16 §1.3](design/workplan/35-p16-world.md). Its contribution is a **default one
+rung below the Setup's**, read once here and copied:
+
+- **`lore`** — when the request sends none — is the Setup's books and the World's
+  lorebook members together, the World's in the order it holds them. The two are
+  a union rather than a choice, since both are simply the session's books.
+- **`treatment`** — when neither the request nor the Setup names one — is the
+  World's treatment member **only when it holds exactly one**; with several, none
+  is chosen, because the first would be the server picking a story. A form offers
+  them.
+- **The hooks those carry** join the pool as every carrier's do, with their ids.
+
+**A request that sends `lore` or `treatment` gets what it sent**: a form that
+offered a World's books and had one unticked sends the rest, and the World does
+not put it back — *prefill, never binding* ([00 §3.1](design/00-stance.md)). What a
+World contributes lands in `session.lore`, on disk and editable, and **nothing
+reaches the prompt that is not selected there**: a book's own `scope` admits it to
+nothing, whatever it says.
+
+**The session then joins the World** — `{schema: "storyengine.session/1", id,
+name}` appended to its `contents`, the one place membership is written (the
+session carries no World). A World that cannot take the write in that moment — a
+system one, one deleted since it was read — costs the membership, which is
+logged, and not the session, which already exists. `422 unknown-world` when there
+is no such World, for the Setup's reason: it decides what the session starts
+with.
 
 **A Setup's opening is the session's first turn**, since P15.3
 ([03 §6](design/03-data-model.md),

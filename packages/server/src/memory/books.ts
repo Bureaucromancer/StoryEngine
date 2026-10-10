@@ -162,9 +162,10 @@ export function memoryBookName(actorName: string, personaName: string | null): s
  * What differs is the three things that make it *this* book: the name, the
  * marking and the scope.
  *
- * *`scope: { kind: 'global' }` is inherited and means nothing here*: since
- * [P5.7] a book reaches a session by being found rather than by claiming to
- * apply, and the third `LoreRoute` is what finds this one.
+ * *The scope `newLorebook` gives — `{ kind: 'linked', actorIds: [] }` since
+ * [P16.2], `{ kind: 'global' }` before — is inherited and means nothing here*:
+ * since [P5.7] a book reaches a session by being found rather than by claiming
+ * to apply, and the third `LoreRoute` is what finds this one.
  */
 export function newMemoryBook(
   scope: MemoryScope,

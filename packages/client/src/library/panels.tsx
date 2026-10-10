@@ -120,6 +120,43 @@ function scopeKindOf(object: LibraryObject): string | null {
 }
 
 /**
+ * ***Which of the scope filter's three a book is*** — [P16.2](../../../../docs/design/workplan/35-p16-world.md),
+ * [26 §B15](../../../../docs/design/26-open-questions.md).
+ *
+ * **`linked` split in two at P16.2, because its meaning did.** Until then a
+ * `linked` book had been linked *to somebody*: the factory wrote `global` and
+ * so did the SillyTavern importer, and `linked` arrived only with actor ids in
+ * it — a character's embedded book. 26 §B15's answer, built at P16.2, moves
+ * both defaults to `{ kind: 'linked', actorIds: [] }`, so from now on most
+ * `linked` books are linked to **nobody** — the narrowest value the union
+ * holds, chosen because a field nobody sets should not default to the widest.
+ * A filter that kept one *Linked* option would put every new book under it
+ * beside the few authored for particular characters, and the one question the
+ * option was worth asking — *which books belong to someone?* — would have no
+ * answer.
+ *
+ * **Three values, not two**, and that is the decision: *Global*, *Linked to
+ * characters* (`linked` with at least one actor id) and *Linked to nobody*
+ * (`linked` with none). Folding *Global* into *Linked to nobody* would be
+ * truer to what either does today — neither admits a book anywhere; selection
+ * does that ([03 §3.4]) — but the filter's options are the stored values a
+ * person can see in *As stored*, and a `global` that answered to *Linked to
+ * nobody* would be the shelf and the file disagreeing about one word. A book
+ * whose `actorIds` is not a list is counted as linked to nobody: it names no
+ * one this build can read. A scope this build does not know matches none of
+ * the three, as it always has.
+ */
+type ScopeShelf = 'global' | 'linked' | 'nobody';
+
+function scopeShelfOf(object: LibraryObject): ScopeShelf | null {
+  const kind = scopeKindOf(object);
+  if (kind === 'global') return 'global';
+  if (kind !== 'linked') return null;
+  const actorIds: unknown = (field(object, 'scope') as { actorIds?: unknown }).actorIds;
+  return Array.isArray(actorIds) && actorIds.length > 0 ? 'linked' : 'nobody';
+}
+
+/**
  * Where the object says it came from — `Provenance.source`, [P8.2].
  *
  * *Read defensively for `scopeKindOf`'s reason*: the client is handed whatever
@@ -146,7 +183,7 @@ function updatedAt(object: LibraryObject): string | null {
  */
 function nameBadges(object: LibraryObject): JSX.Element {
   const enabled = field(object, 'enabled');
-  const linked = scopeKindOf(object) === 'linked';
+  const linked = scopeShelfOf(object) === 'linked';
   const derived = provenanceSourceOf(object) === 'session';
 
   return (
@@ -169,6 +206,14 @@ function nameBadges(object: LibraryObject): JSX.Element {
        * Scope is badged only when it is not `global`, for the same reason:
        * global is the default, almost every imported book is one, and a badge
        * that appears on everything is furniture.
+       *
+       * ***Since [P16.2], only when it names somebody*** — 26 §B15's default
+       * moved to `{ kind: 'linked', actorIds: [] }` for every new book and
+       * every standalone SillyTavern import, so the same argument now moves
+       * the badge: *linked to nobody* is the new default, and badging it would
+       * put *Linked* on nearly every book made from here on. The badge is for
+       * the one case it ever described — a book authored as belonging to
+       * particular characters (`scopeShelfOf`).
        */}
       {/*
        * ***The title said "Active only for the actors it links", which stopped
@@ -338,11 +383,13 @@ const LOREBOOKS: KindPanel = {
     {
       id: 'scope',
       label: 'Scope',
+      // `scopeShelfOf` says why there are three since [P16.2].
       optionsFor: () => [
         ['global', 'Global'],
-        ['linked', 'Linked'],
+        ['linked', 'Linked to characters'],
+        ['nobody', 'Linked to nobody'],
       ],
-      matches: (object, value) => scopeKindOf(object) === value,
+      matches: (object, value) => scopeShelfOf(object) === value,
     },
     {
       id: 'enabled',
@@ -429,7 +476,7 @@ export function membersLine(object: LibraryObject, locale: string | undefined): 
 const WORLD_WORDS = labels('library.panel.worlds', {
   other: 'other',
   empty:
-    'No worlds yet. A world is a named set of library objects and sessions that you keep together, so it can travel as one file. Make one with New world above, then add its members in its editor — from every kind in your library, and your sessions too.',
+    'No worlds yet. A world is a named set of library objects and sessions that you keep together, so new sessions can start in it and it can travel as one file. Make one with New world above, then add its members in its editor — from every kind in your library, and your sessions too.',
 });
 
 /**
@@ -449,11 +496,13 @@ const WORLD_WORDS = labels('library.panel.worlds', {
  * happens to hold.
  *
  * **The empty sentence is for somebody who never saw Packages** (AA10): what a
- * world is, in one clause, and how to make one, in the next. *It does not
+ * world is, in one clause, and how to make one, in the next. ~~*It does not
  * promise starting a session in one* — that is [P16.2]'s, not built yet, and a
  * shelf that invited it would be the blurb's mistake one surface over
- * (`kinds.tsx` has the argument). *Travel as one file* is already true: the
- * World's page exports it.
+ * (`kinds.tsx` has the argument).~~ ***It does since [P16.2]***, which built
+ * the start — from the World's page and as a choice on the session form — so
+ * the clause the struck sentence held back is now true and said. *Travel as
+ * one file* was already true: the World's page exports it.
  */
 const WORLDS: KindPanel = {
   columns: [

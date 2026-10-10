@@ -116,14 +116,28 @@ describe('what the book itself carries', () => {
     expect(notes.find((n) => n.key === 'import.lore.entryLimitClamped')?.params['from']).toBe(5000);
   });
 
-  it('imports a chat-scoped book as global, and names the drop', () => {
+  it('imports a chat-scoped book as linked to nobody, and names the drop', () => {
     // `LoreScope` shipped with two arms rather than three: session scoping moved
     // to the session's own lore links, so an ST book bound to a chat has no
     // representable target — and P4 imports no chats for it to bind to anyway.
+    // ~~`global`~~ until [P16.2] took 26 §B15's answer, 2026-10-10.
     const { lorebook, notes } = convert({}, { chatId: 'chat-1' });
 
-    expect(lorebook.scope).toEqual({ kind: 'global' });
+    expect(lorebook.scope).toEqual({ kind: 'linked', actorIds: [] });
     expect(notes.find((n) => n.key === 'import.lore.chatScopeDropped')?.level).toBe('warn');
+  });
+
+  /**
+   * ***The case most imports are*** — a plain standalone book, bound to no chat.
+   * It was `global` before [P16.2], the widest value the union holds and the one
+   * that made [P5.7] put a whole folder of books into every prompt; it is now the
+   * narrowest, and says nothing about anybody.
+   */
+  it('imports a plain standalone book as linked to nobody, with no note', () => {
+    const { lorebook, notes } = convert();
+
+    expect(lorebook.scope).toEqual({ kind: 'linked', actorIds: [] });
+    expect(notes.find((n) => n.key === 'import.lore.chatScopeDropped')).toBeUndefined();
   });
 
   it('drops state with a note rather than preserving it as metadata', () => {

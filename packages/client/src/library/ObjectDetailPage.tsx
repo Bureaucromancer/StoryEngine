@@ -39,7 +39,7 @@ import { ByField } from './ByField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
 import { mutable } from './mutable.js';
-import { StartSession } from './StartSession.js';
+import { StartInWorld, StartSession } from './StartSession.js';
 import { editorRouteFor } from './fields.js';
 import { LorebookView, lorebookShape } from './LorebookView.js';
 import { labels } from '../i18n/catalogue.js';
@@ -270,6 +270,18 @@ function ObjectView(props: {
          * nothing about it.
          */}
         {kind === 'setups' && !object.shadowed ? <StartSession setupId={object.id} /> : null}
+        {/*
+         * ***A World's page is somewhere to start from too*** — [P16.2]. First
+         * for the Setup's reason; **your own only**, unlike the Setup's, because
+         * starting in a World writes to it — the session joins its `contents`
+         * — and a system World is read-only to every account, so the start
+         * would happen and the joining would not. Not on a shadowed copy,
+         * whose id the route resolves to the winner: a session started there
+         * would take another World's members under this one's heading.
+         */}
+        {kind === 'worlds' && object.source === 'user' && !object.shadowed ? (
+          <StartInWorld worldId={object.id} />
+        ) : null}
         {/*
          * The kind gate comes from the same place the fields do
          * ([polish §1](../../../../docs/design/workplan/06-polish.md)), and it
