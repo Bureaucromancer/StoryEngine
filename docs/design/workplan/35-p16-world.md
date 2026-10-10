@@ -617,6 +617,44 @@ the World blocking it, and delete the World without losing a member — a dangli
 reference, visible and non-blocking, being the correct outcome and walked rather
 than only asserted (AA2).
 
+**Built 2026-10-10, on `p16`; the walk is AA2's and has not happened.** What
+shipped, against the bullets above:
+
+- **The panel**: *Worlds*, with columns for the members by kind (*2 actors · 1
+  lorebook*, a kind this build does not know counted as *other* rather than
+  dropped) and for sessions, sorted by name, by recency or by size, and an empty
+  state written for somebody who never saw a Package (AA10's reading).
+- **The editor's picker** (`editor/MembersField.tsx`, `editor/members-form.ts`):
+  members listed in order, by kind and by their **current** name — a reference
+  sees the edit — with a member that resolves to nothing kept in place and marked
+  *Missing*, never removed for the person; **Add members** over everything of the
+  account's own of every kind **but Worlds** ([15 §3.1](../15-world.md)) and its
+  sessions, archived ones labelled, filtered by name and kind and capped at fifty
+  shown with the rest counted (AA11 is where that cap meets a real library). A
+  412's merge takes `contents` member by member, as the hook list's does, with one
+  stated gap: a member they removed and I removed and re-added unchanged stays
+  removed, because the two are indistinguishable from *untouched*.
+- **Add to a world** from a session's row and its page, and ***In these worlds***
+  on the page. **One server door** for the first, `POST
+  /library/worlds/:id/members` (`library/worlds.ts`, `addMembers`): idempotent by
+  id, hash-checked and retried on a stale read, refusing a World or the World
+  itself as a member — because a button on a session page holds no version of the
+  World, and a read-modify-write in a browser loses whatever a second tab saved.
+  **The second is a query and the client's** (§1.2): the Worlds whose `contents`
+  name the session, read off the same list the first control offers.
+- **Backlinks**: a library member's *Used by* already named its Worlds, and does.
+
+**What §1.2 said no test held now does**: `routes/world-membership.test.ts`
+deletes a World holding a lorebook and a session and reads both back; deletes a
+book and a session a World holds and finds the World still naming them; and pins
+the members door — idempotence, the refusals, not-found for a missing World and
+for another kind's id. *An independent review of the client found four defects
+and two tests that passed vacuously, fixed before the commit*: a malformed
+`contents` entry could take down the session list and the play page, *Add to a
+world*'s accessible name did not contain its visible text, a long World name
+pushed the phone row sideways, and an unnamed session sorted and filtered by its
+empty name; and Enter in the picker's filter submitted — saved — the World.
+
 ### P16.2 — Contribution
 
 §1.3, built: starting a session in a World — from the World's page, and as a

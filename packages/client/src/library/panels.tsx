@@ -3,10 +3,12 @@
 
 import type { JSX, ReactNode } from 'react';
 
-import { kindOfSchema, type LibraryKind, type LibraryObject } from '../api.js';
+import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
+import { SESSION_MEMBER_SCHEMA } from '../editor/members-form.js';
 import { formatCount, formatTimestamp, timestampsOf } from '../format.js';
+import { labels } from '../i18n/catalogue.js';
 import { Badge } from '../ui/Badge.js';
-import { KIND_LABELS, SourceBadge } from './labels.js';
+import { KIND_LABELS, KIND_PLURALS, KIND_WORDS, SourceBadge } from './labels.js';
 
 /**
  * What each kind's panel supplies, which is
@@ -365,9 +367,135 @@ const LOREBOOKS: KindPanel = {
     'No lorebooks yet. Import brings them in — from a SillyTavern or Marinara folder, an archive, or a single world-info file.',
 };
 
+/**
+ * A World's member envelopes, read defensively — `scopeKindOf`'s reason: the
+ * list row is whatever the server read off disk, and a member whose `schema`
+ * is not a string is counted as nothing rather than thrown on.
+ */
+function membersOfWorld(object: LibraryObject): { schema: string }[] {
+  const contents = field(object, 'contents');
+  if (!Array.isArray(contents)) return [];
+  return contents.filter(
+    (member): member is { schema: string } =>
+      typeof member === 'object' &&
+      member !== null &&
+      typeof (member as { schema?: unknown }).schema === 'string',
+  );
+}
+
+function sessionCount(object: LibraryObject): number {
+  return membersOfWorld(object).filter((member) => member.schema === SESSION_MEMBER_SCHEMA).length;
+}
+
+/**
+ * *What it holds, by kind* — `2 actors · 1 lorebook · 1 treatment`.
+ *
+ * **Sessions are left out because they have a column of their own**, and the
+ * split is [15 §3.2]'s: a World published without its sessions is *the Rain
+ * City setting* and with them *my six Rain City sessions*, which are two
+ * different answers to *what is this*, and a person scanning the shelf for one
+ * should not have to subtract.
+ *
+ * **Kinds with none are omitted**, and the order is the library's own kind
+ * order rather than the counts', so the same kind sits in the same place on
+ * every row. A member of a kind this build does not know is counted as
+ * *other* rather than dropped: the World carries it verbatim (`world.ts`'s
+ * envelope rule), so a line that hid it would undercount the set somebody is
+ * about to export.
+ *
+ * *A string assembled here rather than in JSX* — `UsedBy.tsx`'s `list`
+ * reason: the separator and the order are the sentence, and a sentence made of
+ * children is one no catalogue can hold.
+ */
+export function membersLine(object: LibraryObject, locale: string | undefined): string {
+  const counts = new Map<LibraryKind, number>();
+  let other = 0;
+  for (const member of membersOfWorld(object)) {
+    if (member.schema === SESSION_MEMBER_SCHEMA) continue;
+    const kind = kindOfSchema(member.schema);
+    if (kind === null) other += 1;
+    else counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  const parts = LIBRARY_KINDS.flatMap((kind) => {
+    const count = counts.get(kind) ?? 0;
+    if (count === 0) return [];
+    return [`${formatCount(count, locale)} ${count === 1 ? KIND_WORDS[kind] : KIND_PLURALS[kind]}`];
+  });
+  if (other > 0) parts.push(`${formatCount(other, locale)} ${WORLD_WORDS.other}`);
+  return parts.join(' · ');
+}
+
+/** The words the Worlds panel says that are not a kind's. */
+const WORLD_WORDS = labels('library.panel.worlds', {
+  other: 'other',
+  empty:
+    'No worlds yet. A world is a named set of library objects and sessions that you keep together, so it can travel as one file. Make one with New world above, then add its members in its editor — from every kind in your library, and your sessions too.',
+});
+
+/**
+ * Worlds — [P16.1](../../../../docs/design/workplan/35-p16-world.md): the
+ * Package's panel, renamed, and the first that answers what a World *holds*.
+ *
+ * **The two columns are §5.3's test passed by the kind's whole point.** A World
+ * is a set, and the generic table showed its name and its kind, which is to
+ * say nothing about the set: telling *five characters and a lorebook* from *my
+ * six Rain City sessions* meant opening each one. *Members* answers the first,
+ * *Sessions* the second, and they are two columns rather than one line for
+ * [15 §3.2]'s reason, which `membersLine` gives.
+ *
+ * ***Most members* counts everything the World names**, sessions included and
+ * missing members included — it sorts by the size of the set as written, which
+ * is what an export would try to carry, rather than by what this library still
+ * happens to hold.
+ *
+ * **The empty sentence is for somebody who never saw Packages** (AA10): what a
+ * world is, in one clause, and how to make one, in the next. *It does not
+ * promise starting a session in one* — that is [P16.2]'s, not built yet, and a
+ * shelf that invited it would be the blurb's mistake one surface over
+ * (`kinds.tsx` has the argument). *Travel as one file* is already true: the
+ * World's page exports it.
+ */
+const WORLDS: KindPanel = {
+  columns: [
+    { id: 'members', header: 'Members', cell: (object, locale) => membersLine(object, locale) },
+    {
+      id: 'sessions',
+      header: 'Sessions',
+      numeric: true,
+      cell: (object, locale) => formatCount(sessionCount(object), locale),
+    },
+    { id: 'source', header: 'Source', cell: (object) => <SourceBadge source={object.source} /> },
+    {
+      id: 'updated',
+      header: 'Updated',
+      cell: (object, locale) => {
+        const stamp = updatedAt(object);
+        return stamp === null ? null : formatTimestamp(stamp, locale);
+      },
+    },
+  ],
+  sorts: [
+    ...COMMON_SORTS,
+    {
+      id: 'members',
+      label: 'Most members',
+      compare: (a, b) => membersOfWorld(b).length - membersOfWorld(a).length,
+    },
+  ],
+  filters: [],
+  get empty() {
+    // A getter, so the catalogue is read when the shelf is drawn rather than
+    // frozen into English when this module loads (`catalogue.test.ts`'s third
+    // caveat).
+    return WORLD_WORDS.empty;
+  },
+};
+
 /** The panel for a kind, or the shared one for a kind that has not chosen. */
 export function panelFor(kind: LibraryKind | undefined): KindPanel {
-  return kind === 'lorebooks' ? LOREBOOKS : GENERIC;
+  if (kind === 'lorebooks') return LOREBOOKS;
+  if (kind === 'worlds') return WORLDS;
+  return GENERIC;
 }
 
 /** The badges a panel adds inside the shared name cell. */
@@ -390,5 +518,6 @@ export function panelNameBadges(
 export function emptyMessage(kind: LibraryKind | undefined): string {
   if (kind === undefined) return GENERIC.empty;
   if (kind === 'lorebooks') return LOREBOOKS.empty;
+  if (kind === 'worlds') return WORLDS.empty;
   return 'There is nothing of this kind in the library yet. Make one above, or import some.';
 }

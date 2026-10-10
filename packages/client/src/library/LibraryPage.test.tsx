@@ -757,6 +757,130 @@ describe('the Lorebooks panel', () => {
 });
 
 /**
+ * ***The Worlds panel*** — [P16.1](../../../../docs/design/workplan/35-p16-world.md).
+ *
+ * **The generic table said nothing about a set**: a name and the word *World*
+ * on every row, so telling *five characters and a lorebook* from *my six Rain
+ * City sessions* meant opening each one. The two columns are what answer that,
+ * and the empty sentence is for a person who never saw the Packages it
+ * replaces (AA10).
+ */
+describe('the Worlds panel', () => {
+  function world(name: string, contents: { schema: string; id: string }[], updatedAt: string) {
+    const slug = name.toLowerCase().replace(/ /g, '-');
+    return {
+      ...object(name),
+      id: `world-${slug}`,
+      schema: 'storyengine.world/1',
+      slug,
+      contentHash: `sha256:${slug}`,
+      object: {
+        schema: 'storyengine.world/1',
+        name,
+        contents,
+        provenance: { updatedAt },
+      },
+    };
+  }
+
+  const member = (schema: string, id: string) => ({ schema: `storyengine.${schema}/1`, id });
+
+  function headers(): string[] {
+    return [...document.querySelectorAll('th')].map((node) => node.textContent);
+  }
+
+  function names(): (string | null)[] {
+    return [...document.querySelectorAll('tbody tr')].map(
+      (row) => row.querySelector('td a')?.textContent ?? null,
+    );
+  }
+
+  it('carries members and sessions after the name, then source and updated', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({ objects: [world('Rain City', [], '2026-10-01T00:00:00Z')] });
+    renderPage();
+    await settled();
+
+    expect(headers()).toEqual(['Name', 'Members', 'Sessions', 'Source', 'Updated', 'Actions']);
+  });
+
+  /**
+   * By kind, in the library's kind order, omitting kinds with none — and
+   * sessions counted in their own column rather than in this line. A kind this
+   * build does not know is *other* rather than dropped, because the World
+   * still carries it.
+   */
+  it('says what it holds by kind, and counts its sessions apart', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        world(
+          'Rain City',
+          [
+            member('treatment', 't1'),
+            member('actor', 'a1'),
+            member('session', 's1'),
+            member('lorebook', 'b1'),
+            member('actor', 'a2'),
+            member('session', 's2'),
+            member('campaign', 'c1'),
+          ],
+          '2026-10-01T00:00:00Z',
+        ),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const cells = [...document.querySelectorAll('tbody td')].map((node) => node.textContent);
+    expect(cells[1]).toBe('2 actors · 1 lorebook · 1 treatment · 1 other');
+    expect(cells[2]).toBe('2');
+  });
+
+  it('sorts by name, by recent update, and by most members', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        world('Ardent', [member('actor', 'a1')], '2026-10-03T00:00:00Z'),
+        world('Brine', [member('actor', 'a1'), member('session', 's1')], '2026-10-01T00:00:00Z'),
+        world('Cinder', [], '2026-10-02T00:00:00Z'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(names()).toEqual(['Ardent', 'Brine', 'Cinder']);
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'updated' } });
+    });
+    expect(names()).toEqual(['Ardent', 'Cinder', 'Brine']);
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'members' } });
+    });
+    expect(names()).toEqual(['Brine', 'Ardent', 'Cinder']);
+  });
+
+  /**
+   * AA10: somebody who never saw Packages. What a world is, and how to make
+   * one — and not a promise that sessions start from it, which is P16.2's and
+   * not built.
+   */
+  it('says what a world is, and how to make one, on an empty shelf', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({ objects: [] });
+    renderPage();
+    await settled();
+
+    const shown = screen.getByText(/^No worlds yet/);
+    expect(shown.textContent).toContain('named set of library objects and sessions');
+    expect(shown.textContent).toContain('New world');
+    expect(screen.getByRole('button', { name: 'New world' })).toBeTruthy();
+  });
+});
+
+/**
  * Search and sort on every shelf — [polish §9].
  *
  * The control row used to render only for a panel that declared sorts or

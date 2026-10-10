@@ -934,6 +934,31 @@ export const api = {
     request('DELETE', objectUrl(kind, id), undefined, { 'if-match': contentHash }),
 
   /**
+   * ***Add to a World, from somewhere that is not its editor*** —
+   * [P16.1](../../../docs/design/workplan/35-p16-world.md),
+   * [P16 §1.2](../../../docs/design/workplan/35-p16-world.md).
+   *
+   * **Not `updateObject` with one more envelope**, and the difference is who
+   * holds the World. Its editor read it and owns the hash it presents, so it
+   * writes the whole object like every editor; a button on a session's page
+   * read nothing, and a read-modify-write done here would lose whatever a
+   * second tab saved in between. The server does the add against the World as
+   * stored, idempotent by id, and answers what it stored — so *no hash is
+   * sent*: an add overwrites nothing this client read.
+   *
+   * *The address is spelled out rather than built on `objectUrl`*, because the
+   * route is `worlds` and nothing else — and `route-callers.test.ts` credits a
+   * literal segment only to a route whose segment is that literal, so
+   * `` `${objectUrl(kind, id)}/members` `` would leave the route uncalled in its
+   * eyes while calling it in fact.
+   */
+  addWorldMembers: (
+    worldId: string,
+    members: readonly { schema: string; id: string; name?: string }[],
+  ): Promise<{ contentHash: string; object: Record<string, unknown> }> =>
+    request('POST', `/api/library/worlds/${encodeURIComponent(worldId)}/members`, { members }),
+
+  /**
    * ***A file from a download or export route, and what its answer said***
    * (2026-09-28) — gap round A5.4.
    *

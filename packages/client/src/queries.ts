@@ -304,6 +304,38 @@ export function useCreateObject(): UseMutationResult<
   });
 }
 
+/**
+ * ***Add to a World*** from a session's page or the session list —
+ * [P16.1](../../../docs/design/workplan/35-p16-world.md), `api.addWorldMembers`.
+ *
+ * **Two invalidations, for `useSaveObject`'s two reasons.** `['library']`
+ * because the Worlds list is what *In these worlds* and the control's own
+ * offer are both read from, so the line updates and the World just added to
+ * stops being offered. And the World's **editor base**, which sits outside
+ * that prefix by design: without it, the next visit to the World's editor
+ * would open on the cached pre-add object and its first Save would raise the
+ * conflict dialog against an add this same person made a minute ago. An editor
+ * that is *open* elsewhere is not reached by this — it is another tab — and
+ * that case is the 412 merge's, which keeps the add (`mergedMembers`).
+ */
+export function useAddToWorld(): UseMutationResult<
+  { contentHash: string; object: Record<string, unknown> },
+  Error,
+  { worldId: string; members: { schema: string; id: string; name?: string }[] }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      worldId: string;
+      members: { schema: string; id: string; name?: string }[];
+    }) => api.addWorldMembers(input.worldId, input.members),
+    onSuccess: (_result, input) => {
+      void client.invalidateQueries({ queryKey: ['library'] });
+      void client.invalidateQueries({ queryKey: ['editor', 'worlds', input.worldId] });
+    },
+  });
+}
+
 export function useRestoreVersion(): UseMutationResult<
   { contentHash: string; object: Record<string, unknown> },
   Error,

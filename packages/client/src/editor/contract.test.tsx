@@ -141,6 +141,9 @@ vi.mock('../api.js', async (importOriginal) => {
       }
       return Promise.resolve(answer('A wet quay under sodium light.'));
     },
+    // The World's member list resolves sessions [P16.1]; real, it is a fetch
+    // into jsdom whenever the six-kind loop opens the World.
+    listSessions: () => Promise.resolve({ sessions: [] }),
     api: {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),

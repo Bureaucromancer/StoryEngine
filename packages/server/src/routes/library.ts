@@ -22,6 +22,7 @@ import { usedBy } from '../index-db/links.js';
 import { exportPackage } from '../packaging/export.js';
 import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
+import { addMembers } from '../library/worlds.js';
 import { disconnectSignal } from './disconnect.js';
 import { copyAssets, storeAsset, sweep } from '../library/assets.js';
 import { sniff } from '../auth/avatars.js';
@@ -441,6 +442,61 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
           `attachment; filename="${packFileName(result.exported.manifest.name)}"`,
         )
         .send(result.exported);
+    },
+  );
+
+  /**
+   * ***Add to a World*** — [P16.1](../../../../docs/design/workplan/35-p16-world.md),
+   * [P16 §1.2](../../../../docs/design/workplan/35-p16-world.md).
+   *
+   * **The door for a gesture made from somewhere else** — *Add to a World* on a
+   * session's page or in the session list — rather than for the World's own
+   * editor, which writes the whole object through `PUT` as every editor does.
+   * The difference is who holds the World: the editor read it and owns the
+   * hash it presents, and a button on a session page did neither, so a
+   * read-modify-write in the browser would lose whatever a second tab saved in
+   * between. Here it is the library's own hash-checked write, retried on a
+   * stale read, and **idempotent by id** — a member already held is not added
+   * twice, and adding nothing new writes nothing (`library/worlds.ts`).
+   *
+   * No `If-Match`, deliberately: an add does not overwrite anything the caller
+   * read, so there is no version of the World for it to have been wrong about.
+   * It answers the World as stored afterwards, as `PUT` does.
+   */
+  app.post(
+    '/library/worlds/:id/members',
+    {
+      schema: {
+        params: Type.Object({ id: Type.String({ minLength: 1 }) }),
+        body: Type.Object({
+          members: Type.Array(
+            Type.Object({
+              schema: Type.String({ minLength: 1, maxLength: 200 }),
+              id: Type.String({ minLength: 1, maxLength: 200 }),
+              name: Type.Optional(Type.String({ maxLength: 500 })),
+            }),
+            { minItems: 1, maxItems: 500 },
+          ),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      try {
+        const stored = await addMembers(
+          services.library,
+          account.handle,
+          (request.params as { id: string }).id,
+          (request.body as { members: { schema: string; id: string; name?: string }[] }).members,
+        );
+        return await reply
+          .header('etag', stored.contentHash)
+          .send({ contentHash: stored.contentHash, object: stored.object });
+      } catch (error) {
+        respondToLibraryError(error, reply);
+        return;
+      }
     },
   );
 

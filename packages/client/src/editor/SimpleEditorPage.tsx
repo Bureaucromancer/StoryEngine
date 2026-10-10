@@ -12,6 +12,8 @@ import { mergedHooks, type Draft } from './book-form.js';
 import { EditorFrame } from './EditorFrame.js';
 import { hooksOf, withHooks } from './hook-form.js';
 import { HookList } from './HookList.js';
+import { MembersField } from './MembersField.js';
+import { contentsShape, membersOf, mergedMembers, withMembers } from './members-form.js';
 import { useObjectEditor, type EditorKind } from './object-editor.js';
 import { SchemaFields } from './SchemaFields.js';
 import { Note } from '../ui/Text.js';
@@ -43,8 +45,10 @@ import { Note } from '../ui/Text.js';
  * ***The bar is [P7B §0.4]'s, and saying it plainly is part of the work:
  * usable, not complete.*** *Create, rename, delete, and the durable core …
  * with everything else visible and read-only* is [10 §11.2d]'s minimum on the
- * P1 precedent. A treatment's cast rows and a World's member list arrive here
- * **shown as stored and not writable**, which is a real limit and a stated one:
+ * P1 precedent. A treatment's cast rows ~~and a World's member list~~ arrive
+ * here **shown as stored and not writable** — *the member list stopped being
+ * one of them at [P16.1], drawn by [MembersField](./MembersField.tsx) under the
+ * second named flag (`members`, below)* — which is a real limit and a stated one:
  * `SchemaFields` renders such a field with the sentence *this editor does not
  * write this field yet* rather than dropping it, because a field silently
  * absent from an editor is a field a user cannot discover is there
@@ -98,6 +102,28 @@ export interface SimpleKind {
    * objects, and the hooks it travels with belong to them.
    */
   hooks?: true;
+  /**
+   * Whether this page authors the World's `contents` itself —
+   * [P16.1](../../../../docs/design/workplan/35-p16-world.md),
+   * [15 §3.1](../../../../docs/design/15-world.md).
+   *
+   * ***The second exception, which is what `hooks` above said would come.***
+   * *A second one is a second field, and by the third the generalisation will
+   * have been earned rather than guessed* — so this is a second named flag
+   * rather than the `sections?: ReactNode[]` that sentence declines. The
+   * schema renderer cannot draw this one for a different reason than the
+   * first: `contents` is a list of `{ schema, id, name }` envelopes that has to
+   * be **picked** from what exists rather than typed, and whose every row has
+   * to be **looked up** to say what it is now — a member's current name, or that
+   * it is gone. `SchemaFields` reads a value and draws what it finds, which for
+   * this field is three ids nobody can read and a form that would let somebody
+   * type a fourth by hand.
+   *
+   * **`true` is the only value, because *off* is the field's absence** — the
+   * `hooks` rule. Only `WORLDS` declares it; a kind with no `contents` has
+   * nothing for the flag to turn on.
+   */
+  members?: true;
   /**
    * The sentence under the hook list's heading — what *this* carrier's hooks
    * are.
@@ -156,6 +182,14 @@ function nameOf(draft: Draft): string {
  */
 function shapeOf(object: Record<string, unknown>, kind: SimpleKind): string | null {
   if (typeof object['name'] !== 'string') return 'its "name" is not a string';
+  // ***And `contents`, on the kind that walks it*** — [P16.1]. The member list
+  // maps over it and keys every row on a member's id, so a hand edit that left
+  // it something else fails the way a broken `hooks` does; gated on the flag
+  // for the reason the hook check is.
+  if (kind.members !== undefined) {
+    const problem = contentsShape(object['contents']);
+    if (problem !== null) return problem;
+  }
   return kind.hooks === undefined ? null : hookShape(object['hooks']);
 }
 
@@ -221,15 +255,27 @@ export function descriptorFor(kind: SimpleKind): EditorKind<Draft> {
      * on a kind that does not author it — a World's draft has no such field,
      * and a merge that wrote one would be inventing a key from a page that
      * never showed it.
+     *
+     * ***`contents` joined it at [P16.1], member by member***, and for a
+     * sharper reason than hooks had: the World's list is the one field on these
+     * pages that something *other than an editor* writes. *Add to a world* on
+     * a session's page posts one envelope while this editor may be open, which
+     * is precisely the write that makes this page's Save come back 412 — and
+     * under the field rule, *reapply my edits* would then take my whole list
+     * and drop the add without a word. `mergedMembers` has the three cases.
      */
     reapply: (pristine, mine, fresh) => {
-      const merged = structuredClone(fresh);
+      let merged = structuredClone(fresh);
       for (const key of Object.keys(mine)) {
         if (key === 'hooks' && kind.hooks !== undefined) continue;
+        if (key === 'contents' && kind.members !== undefined) continue;
         if (JSON.stringify(pristine[key]) !== JSON.stringify(mine[key])) merged[key] = mine[key];
       }
-      if (kind.hooks === undefined) return merged;
-      return withHooks(merged, mergedHooks(pristine, mine, fresh));
+      if (kind.hooks !== undefined) merged = withHooks(merged, mergedHooks(pristine, mine, fresh));
+      if (kind.members !== undefined) {
+        merged = withMembers(merged, mergedMembers(pristine, mine, fresh));
+      }
+      return merged;
     },
     requiredValues: (draft) => ({ name: nameOf(draft) }),
     requiredLabels: { name: 'Name' },
@@ -363,7 +409,12 @@ function SimpleEditor(props: {
         // the array is rendered twice — once by the generic renderer, which
         // reads an array of objects as a structure it will not invent a form
         // for and prints it as JSON, and once by the list below that does.
-        handled={props.kind.hooks === undefined ? ['name'] : ['name', 'hooks']}
+        // `contents` is the same case on the World [P16.1].
+        handled={[
+          'name',
+          ...(props.kind.hooks === undefined ? [] : ['hooks']),
+          ...(props.kind.members === undefined ? [] : ['contents']),
+        ]}
         {...(props.kind.readOnly === undefined ? {} : { readOnly: props.kind.readOnly })}
         // An updater, and so is every write on this page: an assist's result
         // lands tens of seconds after its click, and a whole form built from
@@ -388,6 +439,17 @@ function SimpleEditor(props: {
             editor.patch((current) => withHooks(current, update(hooksOf(current))));
           }}
           {...(props.kind.hookNote === undefined ? {} : { note: props.kind.hookNote })}
+        />
+      )}
+
+      {/* A World's members, after its own fields for the hook list's reason:
+          the identity of the set first, then what it holds. */}
+      {props.kind.members === undefined ? null : (
+        <MembersField
+          members={membersOf(draft)}
+          onChange={(update) => {
+            editor.patch((current) => withMembers(current, update(membersOf(current))));
+          }}
         />
       )}
     </EditorFrame>

@@ -41,6 +41,23 @@ export const KIND_WORDS: Record<LibraryKind, string> = labels('library.kind-word
 });
 
 /**
+ * ***And in the plural, in a sentence*** — [P16.1].
+ *
+ * `KIND_LABELS` is a tab's word and capitalised; a count inside a line — the
+ * Worlds panel's *2 actors · 1 lorebook* — needs the plural a sentence uses,
+ * and lower-casing the tab's word would be a rule about English applied to
+ * every catalogue. So it is its own table, for `KIND_WORDS`' reason.
+ */
+export const KIND_PLURALS: Record<LibraryKind, string> = labels('library.kind-plural', {
+  actors: 'actors',
+  lorebooks: 'lorebooks',
+  treatments: 'treatments',
+  setups: 'setups',
+  presets: 'presets',
+  worlds: 'worlds',
+});
+
+/**
  * The user-versus-system badge. The list merges both libraries into one
  * ([10 §5](../../../../docs/design/10-ui-surfaces.md)), and the badge is text first —
  * colour is the *second* channel, never the only one.

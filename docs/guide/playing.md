@@ -16,8 +16,10 @@ the assistant is in [Modes](modes.md); pictures are in [Pictures](pictures.md).
 
 **Play**, in the header, lists your sessions, most recently changed first — renaming a
 session, archiving it or changing one of its settings moves it to the top as a turn
-does. Each row has the session's name — *Untitled session* if it has none — and
-**Rename**.
+does. Each row has the session's name — *Untitled session* if it has none —
+**Rename**, and **Add to a world…**, which lists your worlds that do not already hold
+the session and adds it to the one you choose: the session becomes a member of that
+world, beside its books and characters, and nothing about the session changes.
 
 - The mode chips over the list narrow it to **Scenes**, **Freeform** or **Assistant**
   sessions (**All sessions** shows every one); **Select several** picks more than one.
@@ -122,7 +124,8 @@ or Marinara chat as a new session — see
 
 ## The play page
 
-From the top: the session's name and **Rename**; a strip of the story's state where
+From the top: the session's name, **Rename** and **Add to a world…**, and under them
+**In these worlds** when any world names the session; a strip of the story's state where
 the mode keeps one; the **Cast**; for a Scene chat, **How this chat plays**; the lore
 panel (*Retrieving from …*); the session panel (*Prompted with …*); goals; plot
 hooks; Freeform's dials; picture controls; the **transcript**; and at the bottom the

@@ -1244,7 +1244,46 @@ link (*Export this package* until P16.0); before 2026-09-28 nothing read it.
 
 The id alone: no `?source=&slug=`, so the page offers this only on the copy
 an id resolves to. `404 {"error":"not-found"}` for a World that is not
-there.
+there — and, since 2026-10-10, for an id that is some other kind: the writer
+reads its id with no kind, so an actor's id here exported the actor as a bundle
+of nothing.
+
+### `POST /api/library/worlds/:id/members`
+
+**Adds members to a World** — [P16.1](design/workplan/35-p16-world.md) →
+`200 {contentHash, object}`, the World as stored afterwards, as `PUT` answers.
+
+```json
+{ "members": [
+    { "schema": "storyengine.lorebook/1", "id": "0199…", "name": "The Docks" },
+    { "schema": "storyengine.session/1",  "id": "0199…", "name": "A night out" }
+] }
+```
+
+**The door for a gesture made from outside the World's own editor** — *Add to
+a world* on a session's page or in the session list. The editor writes the whole
+World through `PUT` like every editor; this one adds, so it needs no `If-Match`:
+there is no version of the World the caller could have been wrong about. It is
+the library's ordinary hash-checked write, read and retried on the server when
+somebody else saved in between.
+
+- **Idempotent by id.** A member the World already holds is left where it is,
+  under the name it was added with; adding nothing new writes nothing and takes
+  no history entry. New members go at the end, in the order given.
+- **A member is an envelope**, `{schema, id, name?}`, of any library kind — and
+  a session, as `storyengine.session/1`, which the envelope admits because its
+  `schema` is a string and never a kind
+  ([P16 §1.2](design/workplan/35-p16-world.md)). An id that resolves to nothing
+  is kept, as every reference here is: it dangles visibly rather than blocking.
+- **Not a World, and not itself** — `400 {"error":"invalid"}`. A World does not
+  hold a World ([15 §3.1](design/15-world.md)).
+- `404 {"error":"not-found"}` for a World that is not there, or an id of
+  another kind. A World still stored under its old name moves on this write, as
+  on any first write.
+
+**Membership lives on the World alone**: a session carries no World, and the
+reverse view — *In these worlds* on a session's page — is the client reading
+the Worlds whose `contents` name it, from `GET /api/library/worlds`.
 
 ### `GET /api/library/:kind/:id/avatar`
 

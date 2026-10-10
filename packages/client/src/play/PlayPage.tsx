@@ -89,6 +89,7 @@ import { anchorOffset, RenditionChooser, RenditionView } from './Rendition.js';
 import { RememberThis } from './RememberThis.js';
 import { useSetupFromTurn } from './SetupFromTurn.js';
 import { RenameSession } from './RenameSession.js';
+import { AddToWorld, InTheseWorlds } from './SessionWorlds.js';
 import { sessionLabel } from './session-label.js';
 import { Note, SectionTitle } from '../ui/Text.js';
 import { useDebouncedInput } from './useDebouncedInput.js';
@@ -1060,7 +1061,7 @@ export function PlayPage({
     // the story surface, and the reading measure is the token's one designed
     // use ([10 §1.2]).
     <div className={`${page.reading} flex h-full flex-col gap-4`}>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/*
           Two cases kept apart on purpose. `?? 'Session'` used to cover both and
           only caught `undefined`, so an empty name went straight through it and
@@ -1074,7 +1075,21 @@ export function PlayPage({
         {session.data === undefined ? null : (
           <RenameSession sessionId={sessionId} name={session.data.session.name} />
         )}
+        {/* ***Add to a world***, beside *Rename* for `RenameSession`'s own
+            reason — the moment you know where a session belongs is right after
+            playing it — and the row wraps since it holds three things. */}
+        {session.data === undefined ? null : (
+          <AddToWorld sessionId={sessionId} name={session.data.session.name} />
+        )}
       </div>
+
+      {/* ***In these worlds*** — the backlink [P16 §1.2] gives a session's page:
+          the Worlds whose members name it, worked out from the Worlds list
+          rather than read off the session, which carries no World. Directly
+          under the heading because it is a fact about what this session *is*
+          rather than about its state, and renders nothing for a session in no
+          world, which is most of them. */}
+      <InTheseWorlds sessionId={sessionId} />
 
       {/* **Above the lore panel and above the transcript** — [06 §4.2], [P7.1].
           A persistent banner on the session, not a modal and not a log line: it

@@ -24,6 +24,7 @@ import { control, disclosure, link, page } from '../ui/classes.js';
 import { Fine, Note, PageTitle } from '../ui/Text.js';
 import { ImportSession } from './ImportSession.js';
 import { RenameSession } from './RenameSession.js';
+import { AddToWorld } from './SessionWorlds.js';
 import { SetupFields } from './SetupFields.js';
 import { setupFromForm } from './setup-from-form.js';
 import { sessionLabel } from './session-label.js';
@@ -1028,7 +1029,7 @@ export function SessionsPage(): React.JSX.Element {
 
       <ul className="flex flex-col gap-2" aria-label="Sessions">
         {listed.map((session) => (
-          <li key={session.id} className="flex items-center gap-2">
+          <li key={session.id} className="flex flex-wrap items-center gap-2">
             {/*
               Through `sessionLabel`, which fixes a bug that predates unnamed
               sessions being reachable from here: a session whose name is `''`
@@ -1039,6 +1040,12 @@ export function SessionsPage(): React.JSX.Element {
               {sessionLabel(session.name)}
             </Link>
             <RenameSession sessionId={session.id} name={session.name} />
+            {/* ***Add to a world*** — [P16.1]. Beside *Rename* because both are
+                housekeeping on a row somebody is sorting, and `SessionWorlds`
+                says why the same control is beside the play heading too.
+                `flex-wrap` on the row since this landed: four things on one
+                line does not fit a phone. */}
+            <AddToWorld sessionId={session.id} name={session.name} />
             {session.archivedAt === undefined ? null : <Fine>Archived</Fine>}
           </li>
         ))}

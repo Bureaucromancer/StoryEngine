@@ -27,6 +27,7 @@ const listLibrary = vi.fn();
 const renameSession = vi.fn();
 const listModes = vi.fn();
 const createObject = vi.fn();
+const addWorldMembers = vi.fn();
 
 vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
@@ -40,6 +41,7 @@ vi.mock('../api.js', async (importOriginal) => {
       ...actual.api,
       listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
       createObject: (...a: unknown[]) => createObject(...a) as unknown,
+      addWorldMembers: (...a: unknown[]) => addWorldMembers(...a) as unknown,
     },
   };
 });
@@ -538,6 +540,43 @@ describe('renaming a session from the list', () => {
 
     await waitFor(() => {
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rename Rain City' }));
+    });
+  });
+});
+
+/**
+ * ***Add to a world, from the list*** — [P16.1]: the row is one of the two
+ * places P16 §1.2 names, and the write is the session's envelope posted to the
+ * World rather than a field on the session. `SessionWorlds.test.tsx` holds the
+ * control's own claims; this holds that the row carries it, for the row's
+ * session.
+ */
+describe('adding a session to a world from the list', () => {
+  it('posts the row’s session to the world chosen', async () => {
+    listSessions.mockResolvedValue({ sessions: [aSession('s-1', 'Rain City')] });
+    const fallback = listLibrary.getMockImplementation();
+    listLibrary.mockImplementation((kind: string) =>
+      kind === 'worlds'
+        ? Promise.resolve({
+            objects: [
+              {
+                ...libraryObject('w-harbour', 'The harbour set', 'storyengine.world/1'),
+                object: { contents: [] },
+              },
+            ],
+          })
+        : (fallback?.(kind) as unknown),
+    );
+    addWorldMembers.mockResolvedValue({ contentHash: 'sha256:after', object: {} });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add to a world: Rain City' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add' }));
+
+    await waitFor(() => {
+      expect(addWorldMembers).toHaveBeenCalledWith('w-harbour', [
+        { schema: 'storyengine.session/1', id: 's-1', name: 'Rain City' },
+      ]);
     });
   });
 });

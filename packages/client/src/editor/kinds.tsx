@@ -106,19 +106,27 @@ const SETUPS: SimpleKind = {
  * **The blurb says what a World is for and stops there.** A World is a named
  * set of library objects and sessions ([15 §1](../../../../docs/design/15-world.md)),
  * and the three things it is for — membership, starting new sessions from it,
- * travelling as one file — are what the line names. *What it does not offer is
+ * travelling as one file — are what the line names. ~~*What it does not offer is
  * a way to pick the members*: that editor is [P16.1]'s, and until it lands the
  * `contents` list arrives here the way it always has, shown as stored and not
  * writable (`SimpleEditorPage`'s *usable, not complete*). A blurb inviting
  * somebody to add things to a set, on a page that cannot add anything, would
  * promise what the page does not do — so the line describes the set and leaves
  * the picker to the stage that builds it, which will rewrite this sentence when
- * it does.
+ * it does.~~
+ *
+ * ***Rewritten at [P16.1], as the struck paragraph said it would be.*** The
+ * page now picks members (`members: true` below, drawn by `MembersField`), and
+ * sessions are among them — so the line says *and sessions*, which is what it
+ * held back while nothing could put one there. **It still does not say a new
+ * session can start from it**: that is [P16.2]'s, not built yet, and the
+ * struck paragraph's rule is the same rule one stage on — a blurb promising
+ * what the page does not do. P16.2 rewrites this again when it lands.
  */
 const WORLDS: SimpleKind = {
   kind: 'worlds',
   schemaId: WORLD_SCHEMA,
-  blurb: 'A named set of library objects, kept together so it can travel as one file.',
+  blurb: 'A named set of library objects and sessions, kept together so it can travel as one file.',
   backLabel: 'Back to the world',
   unsavedHeading: 'This world has unsaved changes',
   conflictTitle: 'The world changed while you were editing',
@@ -129,6 +137,13 @@ const WORLDS: SimpleKind = {
     `This world cannot be opened in the editor because ${problem}. Fix the file on disk, then reload this page.`,
   untitled: { draft: 'New world', saved: 'Untitled world' },
   editorRoute: '/library/worlds/$id/edit',
+  /**
+   * ***The member picker*** — [P16.1], [15 §3.1](../../../../docs/design/15-world.md).
+   * `contents` is drawn by `MembersField` rather than shown as stored: every
+   * library kind you own but this one, and your sessions, with a member that
+   * has since been deleted kept in its place and marked missing.
+   */
+  members: true,
   /**
    * ***No `hooks` here, and the absence is the decision***
    * ([03 §4.1](../../../../docs/design/03-data-model.md)).

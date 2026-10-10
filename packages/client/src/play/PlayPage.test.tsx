@@ -282,6 +282,41 @@ describe('the transcript', () => {
   });
 });
 
+/**
+ * ***In these worlds, on the session's page*** — [P16.1], [P16 §1.2]: the
+ * backlink is the reverse query over the Worlds' members, beside the heading
+ * with *Add to a world*. `SessionWorlds.test.tsx` holds what each says; this
+ * holds that the page carries both, for this session.
+ */
+describe('the worlds a session is in', () => {
+  it('lists the worlds that name it, and offers to add it to another', async () => {
+    listLibrary.mockImplementation((kind?: string) =>
+      Promise.resolve({
+        objects:
+          kind === 'worlds'
+            ? [
+                {
+                  id: 'w-ash',
+                  name: 'The Ashfall setting',
+                  schema: 'storyengine.world/1',
+                  slug: 'ashfall',
+                  source: 'user',
+                  contentHash: 'sha256:w',
+                  shadowed: false,
+                  object: { contents: [{ schema: 'storyengine.session/1', id: SESSION.id }] },
+                },
+              ]
+            : [],
+      }),
+    );
+    renderPage();
+
+    const region = await screen.findByRole('region', { name: 'In these worlds' });
+    expect(within(region).getByRole('link', { name: 'The Ashfall setting' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add to a world: The Ashfall Road' })).toBeTruthy();
+  });
+});
+
 describe('submitting a turn', () => {
   it('sends the text with the head it was written against', async () => {
     renderPage();
