@@ -17,6 +17,9 @@ import { TokenField, type TokenOption } from './TokenField.js';
  * noticed. Two of them are behaviours the surface this imitates does not have:
  * Enter committing what you typed without arrowing onto it first, and Backspace
  * removing the last chip. They are the two things somebody tries once.
+ * *(The second is a tag field's alone since 2026-10-10: under `strict`
+ * Backspace moves to the last chip's remove button and does not press it —
+ * the strict describe, at the end.)*
  *
  * The last describe is the collision worth its own test: `useFocusTrap` binds
  * Escape on `document`, so a popup that does not stop the event closes the
@@ -60,6 +63,11 @@ function chips(): string[] {
   return [...document.querySelectorAll('li button')].map((node) =>
     (node.getAttribute('aria-label') ?? '').replace('Remove ', ''),
   );
+}
+
+/** What the field's one live region last said. */
+function said(): string {
+  return document.querySelector('[aria-live="polite"]')?.textContent ?? '';
 }
 
 describe('the popup', () => {
@@ -154,6 +162,21 @@ describe('committing', () => {
     expect(chips()).toEqual(['ronin']);
   });
 
+  /**
+   * ***A tag is still trimmed*** (2026-10-10) — the half of *committed exactly
+   * as given* that is not the strict field's: what somebody typed with a space
+   * either side is the word, and a chip called `  ronin  ` is nobody's tag.
+   * Falsified by the commit taking every value as given, strict or not.
+   */
+  it('trims what was typed, under no strictness', async () => {
+    const changed = vi.fn();
+    render(<Host onChange={changed} />);
+    await userEvent.type(box(), '  ronin  {Enter}');
+
+    expect(changed).toHaveBeenLastCalledWith(['ronin']);
+    expect(said()).toBe('Added ronin. 1 in the list.');
+  });
+
   it('refuses a duplicate rather than carrying it twice', async () => {
     render(<Host initial={['noir']} />);
     await userEvent.type(box(), 'noir{Enter}');
@@ -187,6 +210,10 @@ describe('removing', () => {
   /**
    * **The second improvement.** The reference has no keydown handling on its
    * tag input at all, so a chip can only go by finding its small `×`.
+   *
+   * *Still so for tags after 2026-10-10*, when `strict` stopped doing it (the
+   * strict describe's Backspace tests): a tag removed by accident can be typed
+   * back. Falsified by the strict branch's move taken for every field.
    */
   it('drops the last chip on Backspace in an empty box', async () => {
     render(<Host initial={['noir', 'city']} />);
@@ -202,6 +229,30 @@ describe('removing', () => {
 
     expect(chips()).toEqual(['noir']);
     expect(box()).toHaveProperty('value', 'a');
+  });
+
+  /**
+   * ***And a tag's `×` takes Enter and Space, never Backspace*** (2026-10-10,
+   * the strict fix's own review). Backspace on a remove button is the strict
+   * field's second press — the box sent focus there — and the handler doing it
+   * sat on every remove button, so a tag field had gained a deletion key it
+   * never had, on a button reached only by Tab. Falsified by the button's
+   * Backspace taken for every field: `noir` goes.
+   */
+  it("leaves a tag's remove button alone on Backspace", async () => {
+    const changed = vi.fn();
+    render(<Host initial={['noir', 'city']} onChange={changed} />);
+    // The chips come before the box, so the first Tab is the first `×`.
+    await userEvent.tab();
+    const button = screen.getByRole('button', { name: 'Remove noir' });
+    expect(document.activeElement).toBe(button);
+
+    await userEvent.keyboard('{Backspace}');
+
+    expect(changed).not.toHaveBeenCalled();
+    expect(chips()).toEqual(['noir', 'city']);
+    expect(document.activeElement).toBe(button);
+    expect(said()).toBe('');
   });
 
   it('labels each remove button with the tag it removes', async () => {
@@ -282,24 +333,37 @@ describe('a strict field, over ids', () => {
     { value: 'id-mira', label: 'Mira' },
     { value: 'id-ossian', label: 'Ossian, the elder' },
   ];
-  const NAMES = new Map(PEOPLE.map((one) => [one.value, one.label] as const));
 
-  function StrictHost(props: { initial?: string[] }): JSX.Element {
+  /**
+   * `people` stands in for a library whose ids are not tidy — a hand-edited
+   * file's, with a space at either end — and `onChange` is the value list
+   * exactly as committed, which a chip's name cannot show.
+   */
+  function StrictHost(props: {
+    initial?: string[];
+    people?: { value: string; label: string }[];
+    onChange?: (values: string[]) => void;
+  }): JSX.Element {
     const [values, setValues] = useState<string[]>(props.initial ?? []);
+    const people = props.people ?? PEOPLE;
+    const names = new Map(people.map((one) => [one.value, one.label] as const));
     return (
       <TokenField
         label="Characters"
         values={values}
-        onChange={setValues}
+        onChange={(next) => {
+          setValues(next);
+          props.onChange?.(next);
+        }}
         strict
-        nameOf={(value) => NAMES.get(value) ?? value}
+        nameOf={(value) => names.get(value) ?? value}
         optionsFor={(term) =>
-          PEOPLE.filter(
+          people.filter(
             (one) =>
               !values.includes(one.value) && one.label.toLowerCase().includes(term.toLowerCase()),
           )
         }
-        renderToken={(value) => <span>{NAMES.get(value) ?? value}</span>}
+        renderToken={(value) => <span>{names.get(value) ?? value}</span>}
       />
     );
   }
@@ -363,5 +427,151 @@ describe('a strict field, over ids', () => {
 
     // An id with no name is spoken as itself — still removable, and still there.
     expect(chips()).toEqual(['Mira', 'id-gone']);
+  });
+
+  /**
+   * ***An offered id is committed byte for byte*** (2026-10-10, [P16.2]'s
+   * review of the hook editor's id pickers). `Id` is unpatterned, and a
+   * hand-edited file can hold one with a space at either end; every commit
+   * trimmed, so picking it stored an id that resolved to nothing — and the
+   * live region, speaking through `nameOf`, found no name for the trimmed id
+   * and read it out instead. Falsified by the strict commit trimming again:
+   * the list gets `id-vera`, and the region says *Added id-vera*.
+   */
+  it('commits an offered id exactly as given, and speaks it by its name', async () => {
+    const changed = vi.fn();
+    render(
+      <StrictHost people={[...PEOPLE, { value: ' id-vera ', label: 'Vera' }]} onChange={changed} />,
+    );
+    await userEvent.type(field(), 'vera{Enter}');
+
+    expect(changed).toHaveBeenLastCalledWith([' id-vera ']);
+    expect(chips()).toEqual(['Vera']);
+    expect(said()).toBe('Added Vera. 1 in the list.');
+  });
+
+  /**
+   * ***And a duplicate is the same value byte for byte*** — so an id that
+   * differs from one already held only by a space is another id, and is not
+   * turned away as *already here*. Falsified by the duplicate check comparing
+   * trimmed values: `id-mira ` would be refused as `Mira`.
+   */
+  it('carries two ids that differ only by a space as two', async () => {
+    const changed = vi.fn();
+    render(
+      <StrictHost
+        initial={['id-mira']}
+        people={[...PEOPLE, { value: 'id-mira ', label: 'Mira, the other' }]}
+        onChange={changed}
+      />,
+    );
+    await userEvent.type(field(), 'the other{Enter}');
+
+    expect(changed).toHaveBeenLastCalledWith(['id-mira', 'id-mira ']);
+    expect(said()).toBe('Added Mira, the other. 2 in the list.');
+  });
+
+  /**
+   * ***Backspace on an empty box moves to the last chip's remove button, and
+   * does not press it*** (2026-10-10, the same review). The last chip here is
+   * an id nothing names — `id-gone`, the *Missing* case — which this field
+   * will never offer again, so removing it by a key that was only clearing a
+   * search took it for good. The removal is now a second press, of a button
+   * whose name says what it removes; Backspace there is that press, and so is
+   * Enter. Nothing is said on the move, since nothing was removed. Falsified
+   * by the strict branch taken out of the box's Backspace (the first press
+   * removes `id-gone`), and by the button's own Backspace handler taken out
+   * (the second press does nothing).
+   */
+  it('moves to the last remove button on Backspace, and removes only when it is pressed', async () => {
+    const changed = vi.fn();
+    render(<StrictHost initial={['id-mira', 'id-gone']} onChange={changed} />);
+    await userEvent.click(field());
+    await userEvent.keyboard('{Backspace}');
+
+    expect(changed).not.toHaveBeenCalled();
+    expect(chips()).toEqual(['Mira', 'id-gone']);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove id-gone' }));
+    expect(said()).toBe('');
+
+    await userEvent.keyboard('{Backspace}');
+
+    expect(changed).toHaveBeenLastCalledWith(['id-mira']);
+    expect(said()).toBe('Removed id-gone.');
+    // Back to the box, so the next Backspace is the same two-step again.
+    expect(document.activeElement).toBe(field());
+
+    await userEvent.keyboard('{Backspace}');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove Mira' }));
+    await userEvent.keyboard('{Enter}');
+
+    expect(changed).toHaveBeenLastCalledWith([]);
+  });
+
+  /**
+   * ***The button it moves to wears the app's focus ring*** (2026-10-10, the
+   * fix's own review). The second press is deliberate only if the move can be
+   * seen: the caret leaves the box, and a `×` drawn without
+   * `focus-visible:outline-focus` showed whatever the user agent draws, or
+   * nothing — every other control here carries the ring (`Button`'s `BASE`,
+   * `classes.ts`' `control`). Read off the rendered button rather than the
+   * source, so a comment naming the classes cannot pass it. Falsified by the
+   * two classes taken off the remove button.
+   */
+  it('draws the focus ring on the remove button Backspace moves to', async () => {
+    render(<StrictHost initial={['id-mira']} />);
+    await userEvent.click(field());
+    await userEvent.keyboard('{Backspace}');
+
+    const button = screen.getByRole('button', { name: 'Remove Mira' });
+    expect(document.activeElement).toBe(button);
+    expect(button.className.split(' ')).toEqual(
+      expect.arrayContaining(['focus-visible:outline-2', 'focus-visible:outline-focus']),
+    );
+  });
+
+  /**
+   * ***A held Backspace clears the search and stops at the button*** — the
+   * accident itself: one key held to empty the box, auto-repeating on past
+   * the last character. The repeats that reach the button are ignored, or the
+   * move would be the old removal one repeat later. Falsified by the
+   * button's `event.repeat` check taken out: the held key removes `id-gone`,
+   * returns to the box, moves to *Mira*, and removes her too.
+   */
+  it('never removes a chip on a held Backspace', async () => {
+    const changed = vi.fn();
+    render(<StrictHost initial={['id-mira', 'id-gone']} onChange={changed} />);
+    await userEvent.type(field(), 'oss');
+    await userEvent.keyboard('{Backspace>8}');
+
+    expect(field()).toHaveProperty('value', '');
+    expect(changed).not.toHaveBeenCalled();
+    expect(chips()).toEqual(['Mira', 'id-gone']);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove id-gone' }));
+  });
+
+  /**
+   * ***Expanded only over a listbox that is drawn*** (2026-10-10, the same
+   * review). A term that matches nothing leaves the popup *open* with nothing
+   * to show; the box said `aria-expanded="true"` over no list and named in
+   * `aria-controls` a listbox absent from the document. The APG combobox
+   * pattern: expanded while the popup is visible, and `aria-controls` *"only
+   * needs to be set when the popup is visible"*. Falsified by either attribute
+   * read off `open` again.
+   */
+  it('says expanded, and names its listbox, only while one is drawn', async () => {
+    render(<StrictHost />);
+    await userEvent.type(field(), 'Nobody');
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(field().getAttribute('aria-expanded')).toBe('false');
+    expect(field().hasAttribute('aria-controls')).toBe(false);
+
+    await userEvent.clear(field());
+    await userEvent.type(field(), 'mir');
+
+    const listbox = screen.getByRole('listbox');
+    expect(field().getAttribute('aria-expanded')).toBe('true');
+    expect(field().getAttribute('aria-controls')).toBe(listbox.id);
   });
 });

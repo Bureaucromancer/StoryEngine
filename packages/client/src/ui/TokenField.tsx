@@ -27,6 +27,24 @@ import { control, fieldLabel } from './classes.js';
  * trying, so Enter commits what you typed and Backspace on an empty box removes
  * the last chip.
  *
+ * ***Except under `strict`, where Backspace on an empty box moves to the last
+ * chip's remove button and does not press it*** (2026-10-10, [P16.2]'s review
+ * of the hook editor's id pickers — the paragraph *The hook editor's two
+ * pickers take the same fix* in
+ * [P16](../../../../docs/design/workplan/35-p16-world.md)). The removal above is
+ * safe for a tag because a tag removed by accident can be typed straight back.
+ * A strict field's value may be one the field will never offer again — an id
+ * that resolves to nothing, kept on purpose and marked *Missing*, or a ref an
+ * older picker stored from typed text — and a key held to clear a search ran
+ * on into the chips and took it, with no way back short of leaving the editor
+ * unsaved. So under `strict` the removal is a press of its own: focus goes to
+ * the button, whose name says what it removes, and Backspace, Enter or Space
+ * there is the deliberate act. *A held key never reaches it*: the button
+ * ignores a repeated Backspace, or the move would be the same accident one
+ * auto-repeat later. Nothing is announced on the move — the focused button
+ * speaks its own name, which is the only thing worth hearing, and a *Removed*
+ * would be untrue.
+ *
  * **`optionsFor` is a prop rather than a search this component does**, which is
  * what keeps the policy — which values are offered, how they are matched, what
  * *create* looks like — at the call site beside the other filtering policies,
@@ -62,6 +80,24 @@ export interface TokenFieldProps {
    * narrows the options — Enter commits the active one or nothing, a comma is a
    * character (a name can hold one), and a term left in the box is left there
    * rather than committed on blur.
+   *
+   * ***And an offered value is committed exactly as given*** (2026-10-10, the
+   * review the header's *Except under `strict`* cites). Every commit trimmed,
+   * which is right for a word somebody typed and wrong for an id somebody
+   * chose: `Id` is unpatterned, so one a hand-edited file holds with a space at
+   * either end came back without it — a reference to nothing, announced under
+   * the trimmed id, which the hook editor's `pickable` had to map back to what
+   * was offered. Under `strict` the typed term is still a search and nothing
+   * more: it reaches `optionsFor` as typed, for the caller to trim as its
+   * matching wants (`BookScope`'s and the hook editor's do), and is trimmed
+   * here only to tell whether anything was typed and for the *Nothing matches*
+   * sentence — while the committed value is never touched. A duplicate is the
+   * same value byte for byte, so two ids that differ by a space are two ids.
+   * Only the empty string is refused, being no id at all (`Id`'s
+   * `minLength: 1`).
+   *
+   * ***And Backspace on an empty box moves rather than removes*** — the
+   * header's *Except under `strict`*.
    */
   strict?: boolean | undefined;
   /**
@@ -88,8 +124,37 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
    */
   const [announcement, setAnnouncement] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
+  /** The last chip's remove button — where a strict Backspace moves to. */
+  const lastRemoveRef = useRef<HTMLButtonElement | null>(null);
 
   const options = open ? props.optionsFor(term) : [];
+  /**
+   * ***Whether a listbox is drawn — the only thing `aria-expanded` and
+   * `aria-controls` may say*** (2026-10-10, the review the header's *Except
+   * under `strict`* cites). `open` is this field's intent to show the popup,
+   * and a term that matches nothing leaves it set with no popup to show: the
+   * box said *expanded* over nothing, and `aria-controls` named a listbox id
+   * absent from the document. The APG combobox pattern ties `aria-expanded` to
+   * the popup being *visible* and says `aria-controls` *"only needs to be set
+   * when the popup is visible"*; a reference to an element that is merely
+   * hidden is allowed there, but this popup is not hidden when closed, it is
+   * not rendered, so the id would point at nothing. `open` stays the state —
+   * a term typed on into a match must draw the list without another key — and
+   * this is what the box says of it.
+   *
+   * ***Escape still follows `open`, not this, and that is a known cost***
+   * (2026-10-10, the fix's own review). Over a term that matches nothing the
+   * first Escape is stopped and closes a popup that was never drawn — so it
+   * does nothing anybody can see or hear, while the box already says
+   * *collapsed* — and only the second clears the term and reaches a dialog
+   * around the field. Keyed on `drawn`, that one press would clear the term
+   * *and* close the dialog: the collision the Escape branch's stop exists for,
+   * traded for a silent press, and a change to how Escape behaves in a dialog
+   * that these three defects did not ask for. The APG's *if the popup is not
+   * displayed, optionally clear the textbox* is the shape a repair would take,
+   * and is its own decision.
+   */
+  const drawn = options.length > 0;
   const activeOption = options[active];
   const spoken = (value: string): string => props.nameOf?.(value) ?? value;
 
@@ -100,24 +165,37 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
   }
 
   function commit(value: string): void {
-    const trimmed = value.trim();
-    if (trimmed === '') return;
-    if (props.values.includes(trimmed)) {
+    // Exact under `strict` — the prop's *committed exactly as given*: an
+    // offered id is the id, a space at either end and all, and the trimmed one
+    // named nothing. A tag is a typed word, and trimmed as it always was.
+    const meant = props.strict === true ? value : value.trim();
+    if (meant === '') return;
+    if (props.values.includes(meant)) {
       // Already carried. Cleared rather than left standing, so the box does not
       // sit there holding a word that will never become a chip.
       setTerm('');
-      announce(`${spoken(trimmed)} is already here.`);
+      announce(`${spoken(meant)} is already here.`);
       return;
     }
-    props.onChange([...props.values, trimmed]);
+    props.onChange([...props.values, meant]);
     setTerm('');
     setActive(0);
-    announce(`Added ${spoken(trimmed)}. ${String(props.values.length + 1)} in the list.`);
+    announce(`Added ${spoken(meant)}. ${String(props.values.length + 1)} in the list.`);
   }
 
   function remove(value: string): void {
     props.onChange(props.values.filter((each) => each !== value));
     announce(`Removed ${spoken(value)}.`);
+  }
+
+  /**
+   * A remove button pressed, by any key or the pointer: the chip goes, and
+   * focus returns to the box — so under `strict` the next Backspace is the
+   * same two steps again, never a run through the chips.
+   */
+  function pressRemove(value: string): void {
+    remove(value);
+    inputRef.current?.focus();
   }
 
   function close(): void {
@@ -203,6 +281,13 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
 
     if (event.key === 'Backspace' && term === '' && props.values.length > 0) {
       event.preventDefault();
+      if (props.strict === true) {
+        // Moved to, never pressed, and nothing announced — the header's
+        // *Except under `strict`*. Leaving the box blurs it, which closes the
+        // popup and, being strict, commits nothing.
+        lastRemoveRef.current?.focus();
+        return;
+      }
       const last = props.values[props.values.length - 1];
       if (last !== undefined) remove(last);
       return;
@@ -223,17 +308,37 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
 
       {props.values.length === 0 ? null : (
         <ul className="mb-2 flex flex-wrap items-center gap-1.5">
-          {props.values.map((value) => (
+          {props.values.map((value, index) => (
             <li key={value}>
               <span className="inline-flex items-center gap-1">
                 {props.renderToken(value)}
                 <button
+                  // Only the last chip's: a strict Backspace's one destination.
+                  ref={index === props.values.length - 1 ? lastRemoveRef : undefined}
                   type="button"
                   aria-label={removeLabel(spoken(value))}
-                  className="rounded-control px-1 text-ink-faint hover:text-ink"
+                  // The app's own focus ring, as `Button` and `control` draw
+                  // it: a strict Backspace sends focus here from the box, and
+                  // the second press is only deliberate if the move can be
+                  // seen. Without it the `×` wore whatever ring the user agent
+                  // draws, or none (2026-10-10, the fix's own review).
+                  className="rounded-control px-1 text-ink-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-focus"
                   onClick={() => {
-                    remove(value);
-                    inputRef.current?.focus();
+                    pressRemove(value);
+                  }}
+                  onKeyDown={(event) => {
+                    // Backspace presses this button as Enter and Space do —
+                    // the second, deliberate press after a strict Backspace
+                    // moved here. *Never a repeat*, which is a key held since
+                    // the box, and the accident the move exists to stop.
+                    // *Under `strict` only*: a tag's `×` never took Backspace,
+                    // a tag field's Backspace is the box's, and the fix's own
+                    // review found this handler had given every tag field a
+                    // deletion key it never had (2026-10-10).
+                    if (event.key !== 'Backspace' || props.strict !== true) return;
+                    event.preventDefault();
+                    if (event.repeat) return;
+                    pressRemove(value);
                   }}
                 >
                   ×
@@ -249,8 +354,8 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
           id={inputId}
           ref={inputRef}
           role="combobox"
-          aria-expanded={open}
-          aria-controls={listboxId}
+          aria-expanded={drawn}
+          aria-controls={drawn ? listboxId : undefined}
           aria-autocomplete="list"
           aria-activedescendant={
             open && activeOption !== undefined ? `${optionPrefix}-${String(active)}` : undefined
@@ -281,7 +386,7 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
           onKeyDown={onKeyDown}
         />
 
-        {open && options.length > 0 ? (
+        {drawn ? (
           <ul
             id={listboxId}
             role="listbox"

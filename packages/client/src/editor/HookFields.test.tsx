@@ -340,7 +340,13 @@ describe('involves', () => {
    * keeps what it was given, and `TokenField` trims what it commits, an
    * option's value included — so picking *Vera Kohl* handed back `vera`, and
    * the ref built around it named nobody: the dangling entry this field exists
-   * not to write. Falsified by `pickable` taken out of `ActorRefs`' `onChange`.
+   * not to write. ~~Falsified by `pickable` taken out of `ActorRefs`'
+   * `onChange`.~~ *Corrected 2026-10-10, the same day*: `TokenField` no longer
+   * trims under `strict`, so the id comes back as offered and `pickable`'s
+   * remap never fires — taking `pickable` out no longer fails this. It is held
+   * twice now, and falsified only by both together: `TokenField`'s strict trim
+   * put back *and* `pickable` taken out. `TokenField.test.tsx` holds the first
+   * on its own, and the test below holds it at this field.
    */
   it('stores the id the library holds, a space around it and all', async () => {
     mount(hook('The war'), { actors: [{ id: 'vera ', name: 'Vera Kohl' }] });
@@ -351,14 +357,25 @@ describe('involves', () => {
   });
 
   /**
-   * ***And writes nothing when it cannot tell which was meant*** — two ids
+   * ~~***And writes nothing when it cannot tell which was meant*** — two ids
    * that trim alike. Absurd as data; the claim is the rule behind it, that
    * this field never writes an id nobody offered. Falsified by `pickable`
-   * keeping the id it could not place.
+   * keeping the id it could not place.~~
+   *
+   * ***Two ids that trim alike are two ids, and each is stored as offered***
+   * (rewritten 2026-10-10, the same day). Struck above, this test asserted
+   * that picking *Vera Kohl* wrote nothing, because `TokenField`
+   * handed back `vera` and `pickable` could not tell which of two padded ids
+   * was meant. `TokenField` now commits an offered id exactly under `strict`,
+   * so there is nothing to tell apart: the pick is `vera ` and goes in, and
+   * that assertion became the defect's description rather than the rule's.
+   * `pickable`'s `null` is now unreachable from this field — a guard that
+   * never fires, as its note says — so what is held here is the fix itself, at
+   * the field: falsified by `TokenField` trimming a strict commit again, which
+   * sends both picks into `pickable`'s ambiguity and writes neither.
    */
-  it('writes nothing it cannot name, whatever the field hands back', async () => {
-    const one = hook('The war');
-    mount(one, {
+  it('tells two ids that trim alike apart, storing each as offered', async () => {
+    mount(hook('The war'), {
       actors: [
         { id: 'vera ', name: 'Vera Kohl' },
         { id: ' vera', name: 'Vera Lind' },
@@ -366,9 +383,12 @@ describe('involves', () => {
     });
 
     await userEvent.type(involves(), 'kohl{Enter}');
+    await userEvent.type(involves(), 'lind{Enter}');
 
-    expect(latest).toBe(one);
-    expect(latest.involves).toEqual([]);
+    expect(latest.involves).toEqual([
+      { id: 'vera ', name: 'Vera Kohl' },
+      { id: ' vera', name: 'Vera Lind' },
+    ]);
   });
 
   /**
@@ -527,7 +547,10 @@ describe('blocked by', () => {
   /**
    * ***A sibling's id with a space around it is stored as it is*** — the
    * involves case, one field over: `TokenField`'s trim handed back an id no
-   * hook carries. Falsified by `pickable` taken out of `SiblingHooks`.
+   * hook carries. ~~Falsified by `pickable` taken out of `SiblingHooks`.~~
+   * *Corrected 2026-10-10, the same day*: the trim is gone under `strict`, so
+   * this is falsified only by it put back *and* `pickable` taken out — the
+   * involves case's note, above.
    */
   it('stores the id the sibling carries, a space around it and all', async () => {
     const padded = { ...hook('The coronation'), id: 'hook-coronation ' };

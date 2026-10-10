@@ -415,7 +415,9 @@ function WeightField(props: {
  * the one it is on or says nothing matches, a comma is part of a name, and a
  * term left in the box stays a search — and the `?? id` in `rebuilt` is a
  * type's fallback rather than a path anything takes, which `pickable` sees to:
- * `strict` alone left one, an id with a space at either end.
+ * `strict` alone left one, an id with a space at either end. *(Closed in
+ * `TokenField` the same day, 2026-10-10: `strict` now commits an offered id
+ * as given — `pickable`'s dated note.)*
  *
  * ***What a chip shows is what its remove button and the live region say*** —
  * `renderToken` and `nameOf` read one function. They had read two: the chip
@@ -436,18 +438,23 @@ function WeightField(props: {
  * while any actor it names is Missing, and `unanswered` while there is no
  * list to say that of.
  *
- * ***A Missing ref taken off by Backspace cannot be typed back, and that is a
+ * ~~***A Missing ref taken off by Backspace cannot be typed back, and that is a
  * known cost*** (2026-10-10, on review). `TokenField` removes the last chip on
  * Backspace in an empty box, so a key held to clear a search can run on into
  * the chips. Before `strict` a value removed that way could be retyped; now
  * only an offered one can, and nobody offers a ref the library does not have —
  * so the way back is leaving the editor without saving. The live region does
- * say *Removed Old Tom*. The repair is `TokenField`'s, because `BookScope`'s
- * Missing ids have the same need: under `strict`, Backspace in an empty box
- * moving to the last chip's remove button rather than pressing it. The
- * in-file alternative — remembering what was held at mount and offering it
- * back — was declined: a third source of values for `pickable` and `rebuilt`
- * to agree with, for one caller of two.
+ * say *Removed Old Tom*.~~ **Repaired in `TokenField` the same day**
+ * (2026-10-10, the follow-up this paragraph asked for): under `strict`,
+ * Backspace in an empty box moves to the last chip's remove button and does
+ * not press it, a held key never presses it, and nothing is announced until a
+ * second, deliberate press does — `TokenField.test.tsx`'s *a strict field,
+ * over ids*. ~~The repair is `TokenField`'s, because `BookScope`'s Missing ids
+ * have the same need: under `strict`, Backspace in an empty box moving to the
+ * last chip's remove button rather than pressing it.~~ The in-file alternative
+ * — remembering what was held at mount and offering it back — was declined: a
+ * third source of values for `pickable` and `rebuilt` to agree with, for one
+ * caller of two.
  */
 function ActorRefs(props: {
   label: string;
@@ -525,6 +532,22 @@ function ActorRefs(props: {
  * id it was trimmed from; two that trim alike cannot be told apart, and
  * neither is guessed at. The trim is `TokenField`'s to stop doing under
  * `strict`, and when it does this is a guard that never fires.
+ *
+ * ***It has stopped, so the remap below no longer fires*** (2026-10-10, the
+ * follow-up the sentence above waited for): under `strict`, `TokenField`
+ * commits an offered value exactly as given, so an id with a space around it
+ * comes back as it went out and passes on `offered.has`. The remap and its
+ * `null` are kept rather than deleted — the first half of this guard is the
+ * field keeping `strict`'s promise instead of trusting it, and the second is
+ * the same distrust for the one way the promise was already broken once. A
+ * pick reaching the remap now means `TokenField` trims again.
+ *
+ * ***No test reaches either half now, and that is by design*** (2026-10-10,
+ * the fix's own review): a strict `TokenField` commits only an offered value,
+ * exactly, so nothing it hands back is dropped or remapped — `pickable` taken
+ * out of both pickers leaves every suite in `editor/` green. It is held by
+ * reading, not by a test. Testing it directly would mean exporting it from a
+ * component file for its tests alone, which this follow-up left undone.
  *
  * *Without `pickableIds`' dedupe*, which would fold a hand-edited file's two
  * refs to one actor into one — `rebuilt`'s case, and not this field's to
@@ -628,9 +651,12 @@ function offer(
  *
  * The Missing gate's reason is said in words under the field as well as in the
  * badge's title, `ActorRefs`' `missingActors` for its reason; and a pick goes
- * through `pickable` there, for the same trimmed id. A Missing gate taken off
+ * through `pickable` there, for the same trimmed id. ~~A Missing gate taken off
  * by Backspace cannot be typed back either — `ActorRefs`' known cost, and
- * sharper here, where a Missing gate is kept because its hook may yet arrive.
+ * sharper here, where a Missing gate is kept because its hook may yet arrive.~~
+ * *Struck 2026-10-10*: repaired in `TokenField` the same day, as `ActorRefs`'
+ * note says — a strict Backspace moves to the remove button and does not
+ * press it — and the trimmed id `pickable` mapped back no longer reaches it.
  *
  * ***Two buttons can now share a name, and that is a known cost rather than an
  * oversight.*** The card of hook *The marriage* has *Remove The marriage*, and

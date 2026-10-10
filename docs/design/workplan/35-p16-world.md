@@ -827,7 +827,14 @@ fixed here with tests that fail without them. *Three are `TokenField`'s own*: in
 `strict`, an offered id is trimmed before it is committed, and a *Missing* value
 removed by Backspace cannot be typed back; and `aria-expanded` stays true with no
 list drawn. The first two are defects of this stage's `strict` and follow in a
-commit of their own.
+commit of their own. *(Repaired the same day, in the commit after `ecf7ebf`, with
+the third: under `strict` an offered value is committed exactly as given and
+compared byte for byte; Backspace in an empty box moves focus to the last chip's
+remove button, which a second, deliberate press removes — never a held key, and
+in a tag field the button takes no Backspace at all; and `aria-expanded` and
+`aria-controls` follow whether a list is drawn. Its own review added the focus
+ring that makes the move visible. Escape still follows the internal open state,
+recorded beside the code, because changing it changes Escape in a dialog.)*
 *A disagreement found on the way, and not this phase's*: [04 §3](../04-schemas.md)
 says a `Ref` resolves by id **then by case-insensitive name**, always; the turn
 pipeline's hook pool (`sessions/hook-pool.ts`) resolves `involves` by id alone,
