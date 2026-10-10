@@ -124,6 +124,18 @@ describe('a proposal read off the record', () => {
     ).toBeNull();
   });
 
+  /**
+   * ***A proposal recorded before Package was renamed World*** ([P16.0]): the
+   * turn keeps the effect as written, so it names `packages`, and it is offered
+   * against the World it is now rather than dropped as a kind nobody knows.
+   */
+  it('reads a proposal about a Package as one about the World', () => {
+    const found = latestProposal([
+      turn([effect({ kind: 'packages', id: 'w-1', changes: { name: 'Rain City' } })]),
+    ]);
+    expect(found).toMatchObject({ kind: 'worlds', id: 'w-1' });
+  });
+
   it('ignores a proposal that changes nothing, or names nothing', () => {
     expect(latestProposal([turn([effect({ kind: 'actors', id: 'a', changes: {} })])])).toBeNull();
     expect(
