@@ -23,6 +23,17 @@ import { LibraryError, read, type LibraryContext } from '../library.js';
  * lists it — and both wrong answers are worse than saying so: dropping it
  * exports a package that quietly is not the one somebody made, and refusing
  * makes a stale reference unfixable except by hand-editing a file.
+ *
+ * ***Replaced by the walker, 2026-10-10 ([P16.3a]).*** This resolves exactly
+ * one level — the `contents[]` a World already declares — which is why
+ * [04 §9.1](../../../../docs/design/04-schemas.md) could say *"the only reason
+ * that has cost nothing is that the walker does not exist either."* That is no
+ * longer true: `packaging/closure.ts` walks the whole table, every level, and is
+ * what [P16.3](../../../../docs/design/workplan/35-p16-world.md)'s World file
+ * will be built from. **This module and its route stay as they are** until
+ * P16.3g, where the client's *Export this package* gives way to Publish and the
+ * stage's plan removes the old export; until then a `.sepack.json` is still
+ * this envelope and still one level deep, and the walker does not call it.
  */
 
 export interface PackageExportContext {

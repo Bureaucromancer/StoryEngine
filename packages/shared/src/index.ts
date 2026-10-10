@@ -69,6 +69,11 @@ export * from './import.js';
 // What an import *would* do — beside the review rather than in it, because a
 // report is written to disk and a prediction never is.
 export * from './import-preview.js';
+// What a publish would send — [P16.3a]. Beside the import preview and for its
+// reason: a closure is a statement about a file that does not exist yet, never
+// stored as itself, and `fileSet` is the one rule the review draws with and the
+// confirm writes with, so it lives where both sides import it.
+export * from './publish.js';
 // The other direction: what a library object can be written out *as*. Shared
 // because the client builds the menu from the same table the server dispatches
 // on, and two copies of it would disagree about what a file will work in.

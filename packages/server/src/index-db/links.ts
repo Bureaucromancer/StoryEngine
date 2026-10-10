@@ -189,13 +189,19 @@ function loreIds(lore: unknown): (string | undefined)[] {
  * ***This is not [04 §9.1]'s closure walker, and the two are easy to mistake
  * for each other.*** That table describes export-as-package following outbound
  * references **transitively** from a chosen object, deciding per edge what is
- * included by default and what can be unchecked. It does not exist:
+ * included by default and what can be unchecked. ~~It does not exist:
  * `packaging/export.ts` resolves exactly one level, the `contents[]` a package
- * already declares. What this feeds is `object_link` — a flat *who names whom*,
- * answering [03 §10.1]'s count-before-you-delete and the object page's *Used
- * by*. A walker built later is written against §9.1's table, not against this
- * function, and the two agreeing about hooks is a thing to check rather than a
- * thing either one inherits.
+ * already declares.~~ ***It exists since [P16.3a], 2026-10-10*** —
+ * `packaging/closure.ts`, over `library/references.ts`, which reads §9.1's
+ * table row by row; `packaging/export.ts`'s one level stays only until the
+ * client stops calling it (P16.3g). What this feeds is `object_link` — a flat
+ * *who names whom*, answering [03 §10.1]'s count-before-you-delete and the
+ * object page's *Used by*. ~~A walker built later is~~ The walker was written
+ * against §9.1's table, not against this function, and the two agreeing about
+ * hooks is a thing to check rather than a thing either one inherits — *checked
+ * now*, by `links.test.ts`'s parity case, which lists where they still differ
+ * (an actor's lore, a session's treatment and its hook pool) until P16.3b
+ * points this function at the same reader.
  *
  * **Defensive like everything else in this file**, and here the defensiveness
  * has a second edge: `entryRef` is applied to values the schema says are bare

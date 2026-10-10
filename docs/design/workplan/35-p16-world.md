@@ -949,6 +949,42 @@ is in the file, which the review draws with and the confirm writes with.
 **Ends when** every row has a named test through the reader and through the
 walker, and the integration cases pass against real routes.
 
+**Built 2026-10-10, on `p16`**, by a builder, two reviewers — fidelity to the
+table, and robustness with test adequacy — and a fixer, after a first run was
+cut off by a session limit with half its files written. **It ends as written**:
+`references.test.ts` has a case per row of 04 §9.1 as amended, thirteen of them
+with the World's scoped books as row twelve, and `closure.test.ts` walks each
+through an in-memory reader and through the real `resolveRef`, `read` and session
+reader on a test server — a Setup made by its route, a foreign lore id found by
+name, a session started in a World and reached as its member, a memory book
+*not* reached, an unmoved legacy Package walked as a World. Every load-bearing
+test was checked by breaking what it guards — the bare-`Ref` trap, resolution
+order, envelopes and session links never falling back to a name, siblings never
+reached, the session gate, the cycle, the shadowed copy, an index error
+propagating from every lookup — and failed.
+
+- **The owner's two edges.** A World's scoped books are asked of the reader
+  (`scopedTo`) only for the World a publish starts from, and answered by
+  `booksScopedTo` in `library/worlds.ts`, which the session start's
+  `worldContribution` now shares — **so what a publish carries and what a session
+  started in the World is offered are one query**. They join the roots after the
+  members, so leaving one out is noted no more than leaving out a member. A ticked
+  session's pool reaches every `involves`, and `introduces.actor` only while
+  `readHookState` does not say *fired*.
+- **What an orphan is, decided where the plan said it twice.** R1 says
+  reachability decides which rows are orphans, and the rule list under it said
+  *no inbound edge from a carried node*. The review found the second blind to a
+  cycle — an actor and her own lorebook, kept after the treatment that brought
+  them is unticked — and to a book two steps out. `fileSet` takes R1: **a carried
+  row is an orphan when no carried starting point reaches it through carried
+  rows**, and *came with* names the first left-out row behind it.
+- **The index disagrees with the table in three places, not two**: an actor's
+  lore, a session's treatment, and a session's hook pool. `links.test.ts` pins
+  exactly those three, so P16.3b removes them knowingly or the test says so.
+- *The walker refuses where it cannot honestly answer*: an index error at any
+  lookup rejects the walk; an unreadable session — a link that escapes the data
+  directory included — is a missing member, not an error.
+
 #### P16.3b — The index reads the same table
 
 `referencesIn` becomes the reader's ids, a session indexes its `treatment`, index

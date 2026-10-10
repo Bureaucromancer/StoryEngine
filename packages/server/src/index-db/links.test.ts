@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ACTOR_SCHEMA,
   LOREBOOK_SCHEMA,
   PRESET_SCHEMA,
   SETUP_SCHEMA,
@@ -11,7 +12,11 @@ import {
   WORLD_SCHEMA,
 } from '@storyengine/shared';
 
+import { edgesOf, sessionEdges } from '../library/references.js';
+import type { SessionFile } from '../sessions/types.js';
 import { referencesIn } from './links.js';
+import { openIndex } from './open.js';
+import { indexSession } from './sessions.js';
 
 /**
  * ***What counts as a reference*** —
@@ -259,5 +264,155 @@ describe('the actors a hook names', () => {
         ],
       }),
     ).toEqual([]);
+  });
+});
+
+/**
+ * ***The index and the walker agree about what a reference is*** —
+ * [P16.3a](../../../../docs/design/workplan/35-p16-world.md),
+ * [04 §9.1](../../../../docs/design/04-schemas.md).
+ *
+ * `hookActorIds`' docstring said it in advance: *"the two agreeing about hooks
+ * is a thing to check rather than a thing either one inherits."* This is the
+ * check, for every field, on one object per kind built to name something
+ * through each field its rows read — and a session, which reaches the index
+ * through `indexSession` rather than `referencesIn`.
+ *
+ * ***The differences are listed, and the list is exact.*** The case fails if a
+ * listed difference is not there as surely as if an unlisted one is, so it
+ * cannot outlive the thing it describes. As of P16.3a there are three, all of
+ * them the index under-counting what 04 §9.1 says is a reference: **an actor's
+ * lore** (`referencesIn` has no Actor arm, so a lorebook's *Used by* omits the
+ * actors that link it), **a session's treatment** (`indexSession` writes the
+ * cast and the books and not the treatment), and **a session's hook pool**
+ * (the owner's answer of 2026-10-10 made its actors a row; the index never read
+ * the pool). P16.3b points the index at the walker's reader and this table
+ * empties.
+ */
+describe('the index and the walker agree about what a reference is', () => {
+  const ref = (id: string) => ({ id, name: id });
+  const hook = (id: string, involves: string, introduces: string) => ({
+    id,
+    title: id,
+    premise: '',
+    magnitude: 'local',
+    involves: [ref(involves)],
+    weight: 1,
+    delivery: 'guidance',
+    once: true,
+    introduces: { actor: ref(introduces), entrances: [], primaryEntranceId: null },
+  });
+
+  const bodies: [string, string, unknown][] = [
+    [
+      'setup',
+      SETUP_SCHEMA,
+      {
+        id: 'setup-1',
+        treatment: ref('treatment-1'),
+        preset: ref('preset-1'),
+        cast: {
+          personaOptions: [ref('actor-you')],
+          partyDefault: [ref('actor-vera')],
+          narrator: ref('actor-voice'),
+        },
+        lore: [{ ref: ref('book-1'), required: true }],
+        hooks: [hook('h-1', 'actor-a', 'actor-b')],
+        goals: [{ id: 'goal-1', next: 'goal-2' }],
+      },
+    ],
+    [
+      'treatment',
+      TREATMENT_SCHEMA,
+      {
+        id: 'treatment-1',
+        lore: [{ ref: ref('book-1'), required: false }],
+        cast: [{ ref: ref('actor-vera') }],
+        hooks: [hook('h-1', 'actor-a', 'actor-b')],
+      },
+    ],
+    [
+      'lorebook',
+      LOREBOOK_SCHEMA,
+      {
+        id: 'book-1',
+        scope: { kind: 'world', worldIds: ['world-1'] },
+        entries: [{ id: 'entry-1', name: 'The keeper' }],
+        hooks: [hook('h-1', 'actor-a', 'actor-b')],
+      },
+    ],
+    ['actor', ACTOR_SCHEMA, { id: 'actor-vera', lore: [ref('book-1'), ref('book-2')] }],
+    [
+      'world',
+      WORLD_SCHEMA,
+      {
+        id: 'world-1',
+        contents: [
+          { schema: ACTOR_SCHEMA, id: 'actor-vera', name: 'Vera' },
+          { schema: 'storyengine.session/1', id: 'session-1', name: 'Night one' },
+        ],
+      },
+    ],
+    ['preset', PRESET_SCHEMA, { id: 'preset-1', blocks: [{ id: 'block-1', name: 'System' }] }],
+  ];
+
+  const KNOWN: Record<string, { walkerOnly: string[]; indexOnly: string[] }> = {
+    setup: { walkerOnly: [], indexOnly: [] },
+    treatment: { walkerOnly: [], indexOnly: [] },
+    lorebook: { walkerOnly: [], indexOnly: [] },
+    // No Actor arm in `referencesIn` — row 5.
+    actor: { walkerOnly: ['book-1', 'book-2'], indexOnly: [] },
+    world: { walkerOnly: [], indexOnly: [] },
+    preset: { walkerOnly: [], indexOnly: [] },
+    // No `treatment` and no hook pool in `indexSession` — row 13.
+    session: { walkerOnly: ['treatment-1', 'actor-a', 'actor-b'], indexOnly: [] },
+  };
+
+  function differences(walker: string[], index: string[]) {
+    return {
+      walkerOnly: walker.filter((id) => !index.includes(id)),
+      indexOnly: index.filter((id) => !walker.includes(id)),
+    };
+  }
+
+  const walkerIds = (edges: { ref: { id: string | null } }[]): string[] => [
+    ...new Set(edges.flatMap((edge) => (edge.ref.id === null ? [] : [edge.ref.id]))),
+  ];
+
+  it('on every portable kind, except where listed', () => {
+    for (const [name, schemaId, body] of bodies) {
+      expect(
+        differences(walkerIds(edgesOf(schemaId, body)), referencesIn(schemaId, body)),
+        name,
+      ).toEqual(KNOWN[name]);
+    }
+  });
+
+  it('on a session, except where listed', async () => {
+    const opened = await openIndex({ path: ':memory:' });
+    try {
+      const session = {
+        schema: 'storyengine.session/1',
+        id: 'session-1',
+        name: 'Night one',
+        createdAt: '2026-10-10T00:00:00.000Z',
+        updatedAt: '2026-10-10T00:00:00.000Z',
+        headTurnId: null,
+        channels: {},
+        treatment: 'treatment-1',
+        lore: ['book-1'],
+        cast: { persona: 'actor-you', actors: ['actor-vera'] },
+        hooks: [{ hook: hook('h-1', 'actor-a', 'actor-b'), source: { kind: 'session' } }],
+      } as unknown as SessionFile;
+      indexSession(opened.db, 'user:ned', session);
+      const indexed = (
+        opened.db
+          .prepare("select to_id from object_link where from_kind = 'session' and from_id = ?")
+          .all(session.id) as { to_id: string }[]
+      ).map((row) => row.to_id);
+      expect(differences(walkerIds(sessionEdges(session)), indexed)).toEqual(KNOWN['session']);
+    } finally {
+      opened.close();
+    }
   });
 });

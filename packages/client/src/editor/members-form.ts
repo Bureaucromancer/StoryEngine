@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type { PortableObjectEnvelope } from '@storyengine/shared';
+import { type PortableObjectEnvelope, SESSION_SCHEMA } from '@storyengine/shared';
 
 import {
   kindOfSchema,
@@ -36,16 +36,25 @@ import { mergeKeyed, type Draft } from './book-form.js';
 /**
  * ***The schema a session member is named by*** — [P16 §1.2].
  *
- * **Spelled here because `@storyengine/shared` exports no constant for it**:
+ * ~~**Spelled here because `@storyengine/shared` exports no constant for it**:~~
+ * ***A re-export since [P16.3a](../../../../docs/design/workplan/35-p16-world.md),
+ * 2026-10-10***, when the closure walker became the first server reader that
+ * has to *classify* a World member as a session rather than write one, and
+ * shared grew `SESSION_SCHEMA` for it. The reason for one constant is unchanged:
  * the server writes the literal in each of the four places that make a session
  * (`sessions/store.ts`, `sessions/import.ts`, the chat import and the route),
  * and a session is not a library kind, so `LIBRARY_DIRECTORIES` does not carry
  * it either. One constant on this side, so the picker that writes it, the
  * resolver that reads it and the *Add to a world* control that posts it cannot
- * disagree about a string — and when shared grows one, this becomes a
- * re-export.
+ * disagree about a string ~~— and when shared grows one, this becomes a
+ * re-export~~ — and now one constant across both sides.
+ *
+ * **`SESSION_MEMBER_SCHEMA` stays as the name this module's importers use** —
+ * the panels, *In these Worlds*, the tests — and is the shared constant under a
+ * second name, not a second spelling of the string.
  */
-export const SESSION_MEMBER_SCHEMA = 'storyengine.session/1';
+export { SESSION_SCHEMA };
+export const SESSION_MEMBER_SCHEMA = SESSION_SCHEMA;
 
 export type Member = PortableObjectEnvelope;
 

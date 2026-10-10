@@ -10,6 +10,7 @@ import {
   worldIdsOf,
 } from '@storyengine/shared';
 
+import type { IndexedObject } from '../index-db/query.js';
 import { LibraryError, type LibraryContext, list, read, update } from '../library.js';
 
 /**
@@ -164,13 +165,7 @@ export function worldContribution(
   const current = read(context, handle, worldId, WORLD_SCHEMA);
   const world = current.body as World;
   const members = world.contents.filter((m) => m.schema === LOREBOOK_SCHEMA).map((m) => m.id);
-  const scoped = list(context, handle, LOREBOOK_SCHEMA)
-    .filter(
-      (row) =>
-        !row.shadowed && worldIdsOf((row.body as { scope?: unknown }).scope).includes(current.id),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((row) => row.id);
+  const scoped = booksScopedTo(context, handle, current.id).map((row) => row.id);
   const lore = [...new Set([...members, ...scoped])];
   const treatments = world.contents.filter((m) => m.schema === TREATMENT_SCHEMA).map((m) => m.id);
   return {
@@ -179,4 +174,40 @@ export function worldContribution(
     treatments,
     treatment: treatments.length === 1 ? (treatments[0] ?? null) : null,
   };
+}
+
+/**
+ * ***Every lorebook this person can read whose own scope names the World***,
+ * ordered by name — `LoreScope`'s `world` arm read from the World's end.
+ *
+ * **One query, two readers, and that is why it is a function** ([P16.3a],
+ * 2026-10-10). A World's session start copies these books into the new
+ * session's lore ({@link worldContribution}, [P16.2]), and a World's publish
+ * reaches them as [04 §9.1](../../../../docs/design/04-schemas.md)'s row 12 —
+ * the owner's answer at P16.3's plan, so that a World published and imported
+ * starts sessions with the books it starts them with here. Two spellings of the
+ * filter would be two answers to *which books belong with this World*, and the
+ * publish is the one a person cannot check afterwards on somebody else's
+ * install.
+ *
+ * - **Readable, not owned**: the person's own books and the system library's,
+ *   as `list` merges them. A system book is off by default in the review
+ *   ([P16.3]'s decisions), which is the walker's to say, not this filter's.
+ * - **Not shadowed**: a copied folder is one object held twice, and the winner
+ *   is the one every by-id read answers with.
+ * - **By name**, so the order is a fact about the books rather than about where
+ *   they sit on disk; `list`'s own `name, path` order breaks ties, since the
+ *   sort is stable.
+ */
+export function booksScopedTo(
+  context: LibraryContext,
+  handle: string,
+  worldId: string,
+): IndexedObject[] {
+  return list(context, handle, LOREBOOK_SCHEMA)
+    .filter(
+      (row) =>
+        !row.shadowed && worldIdsOf((row.body as { scope?: unknown }).scope).includes(worldId),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
