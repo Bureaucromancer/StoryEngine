@@ -827,6 +827,122 @@ account as a World naming exactly what landed, with the session opening; a
 `.sepack.json` written before the stage imports as a World; and publishing an
 edited World again opens on what changed.
 
+**The build plan, 2026-10-10.** Three designs — the walker, the file and its
+reader, the flow and its surface — were made independently against the branch
+and synthesised into one plan, whose load-bearing facts were then checked in the
+code. Eight sub-stages, each closing on the whole suite and recording its commit
+here; the three end clauses above are tests in P16.3e, P16.3f and P16.3h.
+
+**Decisions the plan takes**, where the designs disagreed: unchecking a row never
+cascades — a book a dropped treatment brought stays ticked and is labelled as
+nothing-left-names-it, with *leave these out too* on its group — and sessions are
+the one cascade, because the Session row says *excluded until ticked*; system
+objects are off by default and can be ticked; review choices are keyed by id and
+re-applied on a confirm that re-walks the library, so the preview holds nothing
+([P4 §7.17](16-p4-implementation.md)'s posture); a World in a selection is a
+`422`, not an exclusion; integrity is checked by the manifest's `sha256` per file,
+and the zip readers' behaviour for third-party archives is not changed; the World
+is created only after the file is planned, so a refusal leaves no stray World;
+`requires` as stored stays the World's, and the derived union goes in the
+manifest for the reader's warning.
+
+**The owner's answers, 2026-10-10**, to the three questions the plan could not
+take: **a ticked session's hook actors travel** — 04 §9.1's Session row gains the
+pool's `involves` and unfired `introduces.actor`; **books scoped to a World travel
+with it**, included and each uncheckable — a new World row, the table's one query,
+because P16.2's arm is an inbound link the walk would otherwise never see; and
+**a session's pictures travel** beside its export ([16 §5.2](../16-publish.md)).
+
+**Where the design notes and the plan disagree, said rather than smoothed**:
+
+- *[04 §9](../04-schemas.md)'s "an object of an unrecognised kind is kept, not
+  usable here"* has no home to keep it in. The reader reports one and does not
+  keep it, and the sender's review names an unknown-kind member as left behind;
+  §9 gets a dated note when P16.3e lands.
+- *[16 §5](../16-publish.md)'s "the review writes one thing"* cannot be literal
+  beside *re-publishing opens on the diff*: the plan reads it as one **library**
+  write, and the ledger line is written on confirm.
+- *§1.1's last row* — that an older build refuses the World's file — is, on a
+  reading of the code, wrong: an older build sweeps a `.seworld` as loose files
+  and imports its objects without the World or its sessions. P16.3g checks it
+  against an alpha 6 build before the review's sentence says it.
+
+#### P16.3a — The reference table and the walker
+
+`library/references.ts` — one pure reader of [04 §9.1](../04-schemas.md)'s rows
+per kind — and `packaging/closure.ts`, a breadth-first walker over it that
+resolves `Ref`s by id then name and envelopes and session links by id alone, never
+calls `resolveLore` (memory books), and reports a missing reference as a node;
+`shared/src/publish.ts`, the closure's types and `fileSet` — the one rule for what
+is in the file, which the review draws with and the confirm writes with.
+
+**Ends when** every row has a named test through the reader and through the
+walker, and the integration cases pass against real routes.
+
+#### P16.3b — The index reads the same table
+
+`referencesIn` becomes the reader's ids, a session indexes its `treatment`, index
+version 14.
+
+**Ends when** the index and the walker agree with no listed differences.
+*Independent; may move to a follow-up*.
+
+#### P16.3c — The zip writer and the World file
+
+The server's first zip writer (stored, UTF-8 names, no zip64, refusing before
+writing anything its own readers would refuse) and the World file:
+`storyengine.world-file/1`, `.seworld`, a manifest first, the members' stored
+folders under `library/`, sessions under `sessions/` with their pictures, every
+file re-hashed at write so an edit mid-publish fails it whole.
+
+**Ends when** a planned file is accepted by both repository readers and by `unzip
+-t`, and an unticked session's name appears nowhere in its bytes.
+
+#### P16.3d — The publish routes and the ledger
+
+`POST /api/publish/preview` (writes nothing), `POST /api/publish` (returns the
+file; the one library write is the kept World), and a per-account ledger,
+`users/<handle>/publishes.jsonl`, which the diff reads and [16
+§8](../16-publish.md)'s counts come from.
+
+**Ends when** the one-write rule holds in every origin's test.
+
+#### P16.3e — The reader: objects, identity across accounts, the World, the legacy file
+
+The reader's objects: identity across accounts — kept ids where this account can
+hold them, re-minted where another account does, references followed by
+exact-match rewriting — the World landing last and naming what landed, and the
+frozen `.sepack.json` read through the same reader.
+
+**Ends when** a World file imports on a second account of one install with every
+reference followed and the first account untouched, and the legacy fixture imports
+as a World.
+
+#### P16.3f — The reader: sessions, and the look before commit
+
+The reader's sessions — turn ids re-keyed only when another account holds them —
+and the look before commit, from the manifest's head bytes through the existing
+preview door.
+
+**Ends when** the first end clause, as a route test.
+
+#### P16.3g — The client: selection, the review, the doors
+
+The client: selection on the shelves, the review as its own lazy route, *Publish…*
+on every object's page and *Publish this world…* on a World's; the old export link
+and route removed.
+
+**Ends when** the client builds with the entry under 312 — **the ceiling is not
+raised for this stage**; the review is lazy, and the selection bar follows it if
+it must.
+
+#### P16.3h — Re-publishing opens on the diff
+
+Re-publishing opens on the diff against the ledger's last record, with *choose as
+last time*.
+
+**Ends when** the third end clause, as a route test.
+
 ## 3. Verification — the P16 exit gate
 
 Split under [manual testing §0](05-manual-testing.md)'s two-tier rule. **The

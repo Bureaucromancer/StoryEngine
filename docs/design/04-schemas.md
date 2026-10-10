@@ -2086,7 +2086,8 @@ follow outbound references transitively and collect what they reach:
 | Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
 | Lorebook | `hooks[].introduces.actor`, and its bare `hooks[].involves[]` `Ref`s with it | included |
 | World | every member in `contents`, and each member's closure | included; each member individually uncheckable |
-| Session (a World's member) | its `treatment`, its `lore[]` and its `cast` (persona and actors), and their closures; the session itself as its session export | the session **excluded until ticked**; never a sibling session |
+| World | every lorebook whose `scope` is `{ kind: 'world' }` naming it ([§5](#5-lorebook)), and each one's closure — *added 2026-10-10* | included, each individually uncheckable |
+| Session (a World's member) | its `treatment`, its `lore[]` and its `cast` (persona and actors), and their closures; **the actors its hook pool names** — each pooled hook's bare `involves[]` `Ref`s and, for a hook not yet fired, its `introduces.actor` (*added 2026-10-10*); the session itself as its session export | the session **excluded until ticked**; never a sibling session |
 
 ***The last two rows were added 2026-10-04, with [16](16-publish.md)***, for the
 kinds [15](15-world.md) puts in a set. A World is a list of starting points, so its
@@ -2102,6 +2103,24 @@ session names and stops, and never pulls in the other sessions of the same World
 because *this story* and *my six stories* are different things to send. Sessions
 default to unticked for [16 §5](16-publish.md)'s reason — sending somebody your
 transcripts is a thing to choose.
+
+***Two edges added 2026-10-10, by the owner's answers at
+[P16.3](workplan/35-p16-world.md)'s plan.*** **A World reaches the books scoped to
+it.** P16.2 built `LoreScope`'s `world` arm, which offers a book to every session
+started in a World it names — and that is an *inbound* link, from the book to the
+World, which a walk that follows only outbound references never sees. Without the
+row, a World published and imported would start sessions with fewer books than
+it starts with here, which is the set failing to travel. The row is a query, not
+an edge any field holds, and it is the only one in this table; it is included by
+default because the book's author said the book belongs with the World, and
+uncheckable because the person sending is the one who decides. **A ticked
+session reaches the actors its hooks name.** The paragraph above is right that a
+session's hook pool is a *copy*, carried inside its session export and needing no
+walk — but the copy's `Ref`s point out of it, at actors in the library, for the
+same reason the Treatment and Setup hook rows exist: a pooled arrival whose
+subject did not come along lands as *"an arrival with nobody to arrive"*, retired
+quietly on the other side. A fired arrival's subject has arrived already and is in
+the cast, which the row reaches anyway.
 
 Every level is shown, not just the first: the actor two steps out whose lorebook
 came along is named in the review, because "why is this package 40 MB" should be

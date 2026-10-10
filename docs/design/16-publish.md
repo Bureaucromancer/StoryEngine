@@ -267,7 +267,12 @@ revisit: the zip of the members' stored folders, the lean below.*** An actor
 travels as its card, portrait and expressions included, and a lorebook with its
 `assets/`; sessions ride inside as their session exports. [P16.3](workplan/35-p16-world.md)
 writes it, and reads the frozen `storyengine.package-export/1` JSON beside it. The
-question is kept as it was asked, for the reasoning.
+question is kept as it was asked, for the reasoning. *(Later the same day, at
+P16.3's plan, the owner answered the question the decision left: **a session's
+pictures travel too** — its renditions' pixels and its attachments, beside its
+session export, which stays the JSON P11.10 writes. A stored zip has no base64 to
+refuse, and the session reader already lands pixels and attachments it is
+handed; a picture missing on disk is named, never fatal.)*
 
 **The question the pictures bullet defers**, and [P16](workplan/35-p16-world.md)'s
 revisit decides it before P16.3 writes a format, because that format is frozen
