@@ -427,7 +427,10 @@ are this phase's:
   — twelve rows, the World and Session rows added 2026-10-04 — and against its
   paragraph on bare and wrapped references, which describes the walker that drops
   every `involves` edge silently. `packaging/export.ts`'s one-level resolution is
-  replaced, not extended.
+  replaced, not extended. *(2026-10-10: the table as it stands is now thirteen
+  rows and a query — the owner's answers at P16.3's plan added the World's scoped
+  books and a ticked session's hook actors — and the walker is built against
+  that.)*
 - **Keeping a World on publish is the one write**, on confirm, and only when the
   starting point was a selection of two or more objects and the snapshot choice
   was not taken. *One object is not a selection* — from its detail page, or a
@@ -811,7 +814,8 @@ in this world*, where there was no client order to disagree with.
 ### P16.3 — Publish
 
 [16](../16-publish.md), built: the walker against [04 §9.1](../04-schemas.md)'s
-twelve rows; the review in the panel — every level, `required` warnings, a
+~~twelve rows~~ table *(thirteen rows and a query since the owner's answers of
+2026-10-10, below)*; the review in the panel — every level, `required` warnings, a
 checkbox per session defaulted off, history opt-in, every picture that stays
 behind named, re-publishing opening on the diff, and the snapshot choice; a World
 kept when the starting point was a selection of two or more, and none when it was
@@ -853,6 +857,40 @@ with it**, included and each uncheckable — a new World row, the table's one qu
 because P16.2's arm is an inbound link the walk would otherwise never see; and
 **a session's pictures travel** beside its export ([16 §5.2](../16-publish.md)).
 
+**What the fact check changed**, the same day — an adversarial read of the plan's
+load-bearing claims against the code, which found most of them true, two
+**partly** true, and one **false**:
+
+- *False*: that one exact-match rewrite carries a re-minted or re-keyed id
+  through a session. A session keys ids in map **keys** and composite strings —
+  its channels (`se.status#<actorId>`), `prompts.cards`, `hidden`,
+  `renditionSelection`, `lastSelectedChild` — and a session landed with the old
+  keys would, on first open, record "hand edits" deleting the re-minted actors'
+  state. P16.3e and P16.3f map the keys too, and their tests scan keys as well as
+  values.
+- *Partly*: the turn table's holder check must count a turn with no session row
+  as held by somebody else, and *already here* must mean every turn is held, not
+  any — a session played on since it was last sent lands what is new (P16.3f).
+  Re-keying needs a fallback for turn ids that are not v7, which every chat and
+  Aventuras import produces (P16.3f).
+- *Leaks the plan had not named*: a session's `memory.associations` keys name its
+  sibling sessions, unticked ones included, and are stripped from every session
+  that travels; the leak test checks an unticked session's **id** as well as its
+  name (P16.3c). A turn's recorded calls name the connection that answered —
+  an id, never the connection — and stay; its recorded prompt may quote memory
+  drawn from another session, and the review says so rather than scrubbing what
+  the session sent (P16.3g).
+- *Gaps*: the World landing refuses a nested World envelope itself, since only
+  `addMembers` did (P16.3e); tag ids name the sender's tag registry and are
+  dropped where the recipient has no such tag (P16.3e); landing a session warms
+  the recipient's summariser, which the reader either suppresses or the preview
+  says (P16.3f); the reader's byte budget counts re-reads, and a session export
+  over the readers' 64 MiB entry bound is left behind by name (P16.3c, P16.3e).
+- *The older-build sentence* (below) holds in outline with four caveats for
+  P16.3g's check against alpha 6: its picker does not offer the extension;
+  carried history would land each object at an old version; a book scoped to a
+  World is refused by its closed union; and folder pictures arrive loose.
+
 **Where the design notes and the plan disagree, said rather than smoothed**:
 
 - *[04 §9](../04-schemas.md)'s "an object of an unrecognised kind is kept, not
@@ -872,7 +910,9 @@ because P16.2's arm is an inbound link the walk would otherwise never see; and
 `library/references.ts` — one pure reader of [04 §9.1](../04-schemas.md)'s rows
 per kind — and `packaging/closure.ts`, a breadth-first walker over it that
 resolves `Ref`s by id then name and envelopes and session links by id alone, never
-calls `resolveLore` (memory books), and reports a missing reference as a node;
+calls `resolveLore` (memory books), and reports a missing reference as a node —
+with the owner's two edges, the World's scoped books as a query and a ticked
+session's hook actors gated on the session;
 `shared/src/publish.ts`, the closure's types and `fileSet` — the one rule for what
 is in the file, which the review draws with and the confirm writes with.
 
