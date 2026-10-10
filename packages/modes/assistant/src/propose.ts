@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  kindOfDirectory,
   LIBRARY_DIRECTORIES,
   type Candidate,
   type StepDefinition,
@@ -153,19 +154,28 @@ function proposalOf(value: unknown, about: { kind: string; id: string } | null):
    * disclosed none — which is a session with no ambient context, where there is
    * nothing to overrule.
    */
-  const kind = about?.kind ?? (typeof row.kind === 'string' ? row.kind : '');
+  const kind = libraryKindOf(about?.kind ?? (typeof row.kind === 'string' ? row.kind : ''));
   const id = about?.id ?? (typeof row.id === 'string' ? row.id : '');
-  if (kind === '' || id === '' || !isLibraryKind(kind)) return null;
+  if (kind === null || id === '') return null;
 
   return { kind, id, changes, ...(typeof row.why === 'string' ? { why: row.why } : {}) };
 }
 
 /**
  * ***A library object's kind, as its folder is named*** — the only kind a
- * proposal can be applied to, because applying is a library write.
+ * proposal can be applied to, because applying is a library write — or null.
+ *
+ * ***And a folder a kind used to have, as the one it has now*** (2026-10-10,
+ * [P16.0]). The context channel is written only when what the panel sees
+ * changes, so an assistant session last pointed at a Package's page still says
+ * `packages` after the upgrade; read as a kind this build does not have, its
+ * proposal fell back to whatever kind the propose model named, which never saw
+ * the screen. `kindOfDirectory` reads the old folder as the World's, and the
+ * proposal is addressed to `worlds`, the route that can write it.
  */
-function isLibraryKind(kind: string): boolean {
-  return (Object.values(LIBRARY_DIRECTORIES) as string[]).includes(kind);
+function libraryKindOf(kind: string): string | null {
+  const schemaId = kindOfDirectory(kind);
+  return schemaId === null ? null : LIBRARY_DIRECTORIES[schemaId];
 }
 
 export async function propose(input: StepInput, host: StepHost): Promise<StepResult> {
@@ -186,11 +196,8 @@ export async function propose(input: StepInput, host: StepHost): Promise<StepRes
     typeof seen === 'object' && seen !== null
       ? (() => {
           const row = seen as { kind?: unknown; id?: unknown };
-          return typeof row.kind === 'string' &&
-            typeof row.id === 'string' &&
-            isLibraryKind(row.kind)
-            ? { kind: row.kind, id: row.id }
-            : null;
+          const kind = typeof row.kind === 'string' ? libraryKindOf(row.kind) : null;
+          return kind !== null && typeof row.id === 'string' ? { kind, id: row.id } : null;
         })()
       : null;
 

@@ -41,7 +41,7 @@ import { codecFor, envelope, pngCardCodec } from './storage/card/index.js';
 import { readAsset } from './library/assets.js';
 import type { BlobStore } from './storage/card/envelope.js';
 import { fileExists, moveTree, readFileBytes, renamePath } from './storage/files.js';
-import { KeyedQueue } from './storage/keyed-queue.js';
+import { libraryWrites } from './storage/library-writes.js';
 import {
   listVersions,
   patchVersion,
@@ -149,16 +149,19 @@ export interface LibraryContext {
 }
 
 /**
- * Serialises the check-then-write sequences. The stale-hash comparison, the
- * no-op decision, slug allocation and the snapshot all read state that the
- * write then changes; without a critical section, two writers racing through
- * the same `await` points both pass the check and the loser is silently
- * overwritten — the exact failure the hash exists to refuse. Keyed by object
- * id (updates, deletes) or kind directory (creates), so unrelated objects
- * never wait on each other. Deliberately separate from the watcher's event
- * chain — see `keyed-queue.ts` for why sharing it would be wrong.
+ * The library's write queue — `storage/library-writes.ts` says what it
+ * serialises and why it lives there since [P16.0].
  */
-const writes = new KeyedQueue();
+const writes = libraryWrites;
+
+/**
+ * Runs `work` in an object's turn on the library's write queue — for a write
+ * beside the object rather than to it (an asset stored in its folder), which
+ * must not land in a folder the object's own write is moving ([P16.0]).
+ */
+export function inObjectTurn<T>(id: string, work: () => Promise<T>): Promise<T> {
+  return writes.run(`obj:${id}`, work);
+}
 
 export interface StoredObject {
   object: unknown;
@@ -885,6 +888,18 @@ export async function update(
      */
     const legacy = context.layout.parseObjectPath(current.path)?.legacy === true;
     const writtenAt = legacy ? current.path : path;
+    /**
+     * ***Moved only when it is the one copy*** (2026-10-10, after review). The
+     * winner of a duplicated id is the earliest path, and every
+     * `library/packages/…` path sorts before every `library/worlds/…` one — so
+     * moving the copy being edited out of `packages/` while another copy of the
+     * same id stays there, or already sits in `worlds/` under an earlier name,
+     * hands the win to the copy nobody edited, and the edit vanishes from every
+     * read while the write answered success. A duplicate is the person's to
+     * resolve where the library already shows it; until then the edit is
+     * written where the winner is, and moves with the first write after.
+     */
+    const alone = rowsForId(context.db, id).filter((row) => row.tombstonedAt === null).length <= 1;
 
     // Write, then snapshot the replaced state (held in memory), then index.
     // The write first: snapshotting first left a phantom history entry when
@@ -904,9 +919,24 @@ export async function update(
       keepPerObject: context.keepHistoryPerObject,
     });
 
-    const landed = legacy
-      ? await relocateLegacy(context, owner, schemaId, current.path)
-      : { path, slug: current.slug };
+    /**
+     * ***The move follows the write, and does not undo it*** (2026-10-10,
+     * after review). The new bytes are on disk and the old state is in the
+     * history by now, so a move that fails — a scanner holding the folder on
+     * Windows, a rename refused — must not turn a saved edit into a 500 with
+     * the index left describing bytes that are gone: the watcher would drop
+     * the event as this process's own write, and every later save would loop
+     * on 412. So the object is indexed where it is, still a World that reads
+     * under its old name, and the next write tries the move again.
+     */
+    let landed = { path: writtenAt, slug: current.slug };
+    if (legacy && alone) {
+      try {
+        landed = await relocateLegacy(context, owner, schemaId, current.path);
+      } catch {
+        // Where it was: the folder move is one rename and did not happen.
+      }
+    }
 
     await ingestFile(context.db, context.layout, landed.path);
 
@@ -979,7 +1009,13 @@ async function relocateLegacy(
   const carried = join(folder, basename(legacyPath));
   if (basename(legacyPath) === basename(target)) return { path: target, slug };
   if (await fileExists(target)) return { path: carried, slug };
-  await renamePath(carried, target);
+  try {
+    await renamePath(carried, target);
+  } catch {
+    // The folder moved and its file kept the old name, which the layout reads
+    // in `worlds/` too: a World that reads, and the next write renames it.
+    return { path: carried, slug };
+  }
   return { path: target, slug };
 }
 
@@ -1078,17 +1114,24 @@ export async function amendVersion(
   patch: { reason?: string; pinned?: boolean },
   inKind?: PortableSchemaId,
 ): Promise<VersionRecord> {
-  const current = read(context, handle, id, inKind);
-  if (current.owner === 'system') {
-    throw new LibraryError('read-only', 'System library objects cannot be edited.');
-  }
-  // Not a write of the object, so it moves nothing; it reaches the history
-  // where the object is ([P16 §1.1]).
-  const updated = await patchVersion(context.layout.folderOf(current.path), versionId, patch);
-  if (!updated) {
-    throw new LibraryError('not-found', `No version with id ${versionId}.`);
-  }
-  return updated;
+  // In the object's turn since [P16.0]: renaming or pinning a version writes
+  // the history index in the object's folder, and the first write to a World
+  // still in `packages/` moves that folder — so an amendment racing the move
+  // would recreate `packages/<slug>/history` behind it and be lost from the
+  // World. Read inside the turn, so the folder is the one the object is in now.
+  return writes.run(`obj:${id}`, async () => {
+    const current = read(context, handle, id, inKind);
+    if (current.owner === 'system') {
+      throw new LibraryError('read-only', 'System library objects cannot be edited.');
+    }
+    // Not a write of the object, so it moves nothing; it reaches the history
+    // where the object is ([P16 §1.1]).
+    const updated = await patchVersion(context.layout.folderOf(current.path), versionId, patch);
+    if (!updated) {
+      throw new LibraryError('not-found', `No version with id ${versionId}.`);
+    }
+    return updated;
+  });
 }
 
 /**

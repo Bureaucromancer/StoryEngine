@@ -6,7 +6,7 @@ import { basename, dirname, join } from 'node:path';
 
 import { mediaRowsIn, type PortableSchemaId } from '@storyengine/shared';
 
-import { LibraryError, read, type LibraryContext } from '../library.js';
+import { inObjectTurn, LibraryError, read, type LibraryContext } from '../library.js';
 import {
   ensureDirectory,
   listEntryNames,
@@ -195,22 +195,25 @@ export async function copyAssets(
   toId: string,
   inKind?: PortableSchemaId,
 ): Promise<number> {
-  const source = read(context, handle, fromId, inKind);
-  const target = read(context, handle, toId, inKind);
-  if (target.owner === 'system') {
-    throw new LibraryError('read-only', 'System library objects cannot be edited.');
-  }
-  let copied = 0;
-  for (const row of mediaRowsIn(target.body)) {
-    if (['', '.', '..'].includes(basename(row.ref))) continue;
-    const bytes = await readFileBytes(await assetFile(context, handle, source, row.ref));
-    if (bytes === null) continue;
-    const landing = await assetFile(context, handle, target, row.ref);
-    await ensureDirectory(dirname(landing));
-    await writeFileBytes(landing, bytes);
-    copied += 1;
-  }
-  return copied;
+  // In the target's turn, for {@link storeAsset}'s reason.
+  return inObjectTurn(toId, async () => {
+    const source = read(context, handle, fromId, inKind);
+    const target = read(context, handle, toId, inKind);
+    if (target.owner === 'system') {
+      throw new LibraryError('read-only', 'System library objects cannot be edited.');
+    }
+    let copied = 0;
+    for (const row of mediaRowsIn(target.body)) {
+      if (['', '.', '..'].includes(basename(row.ref))) continue;
+      const bytes = await readFileBytes(await assetFile(context, handle, source, row.ref));
+      if (bytes === null) continue;
+      const landing = await assetFile(context, handle, target, row.ref);
+      await ensureDirectory(dirname(landing));
+      await writeFileBytes(landing, bytes);
+      copied += 1;
+    }
+    return copied;
+  });
 }
 
 /** What an upload becomes: a file on disk, and the row a manifest should carry. */
@@ -247,21 +250,32 @@ export async function storeAsset(
   mime: string,
   inKind?: PortableSchemaId,
 ): Promise<StoredAsset> {
-  const row = read(context, handle, id, inKind);
-  if (row.owner === 'system') {
-    throw new LibraryError('read-only', 'System library objects cannot be edited.');
-  }
+  /**
+   * ***In the object's turn, read inside it*** ([P16.0], 2026-10-10, after
+   * review). An object's folder never moved, so storing beside it needed no
+   * turn; the first write to a World still in `packages/` moves its folder, and
+   * an upload racing that save resolved the old folder, then recreated
+   * `packages/<slug>/assets` behind the move and wrote there — a ref the World
+   * would name and never find. Read in the turn, the folder is where the object
+   * is now.
+   */
+  return inObjectTurn(id, async () => {
+    const row = read(context, handle, id, inKind);
+    if (row.owner === 'system') {
+      throw new LibraryError('read-only', 'System library objects cannot be edited.');
+    }
 
-  const digest = digestOf(bytes);
-  const ref = `${ASSETS}/${digest.replace('sha256:', '')}.${EXTENSIONS[mime] ?? 'bin'}`;
+    const digest = digestOf(bytes);
+    const ref = `${ASSETS}/${digest.replace('sha256:', '')}.${EXTENSIONS[mime] ?? 'bin'}`;
 
-  // Written again when it is already there, which is also what renews an
-  // upload's grace in the sweep below.
-  const target = await assetFile(context, handle, row, ref);
-  await ensureDirectory(dirname(target));
-  await writeFileBytes(target, bytes);
+    // Written again when it is already there, which is also what renews an
+    // upload's grace in the sweep below.
+    const target = await assetFile(context, handle, row, ref);
+    await ensureDirectory(dirname(target));
+    await writeFileBytes(target, bytes);
 
-  return { ref, digest, bytes: bytes.length, mime };
+    return { ref, digest, bytes: bytes.length, mime };
+  });
 }
 
 /**

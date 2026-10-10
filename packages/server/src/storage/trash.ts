@@ -17,7 +17,8 @@ import type { Logger } from '../state/commit.js';
 import { watchWallClock, type WallClockWatch } from '../wall-clock.js';
 import { writeJsonAtomic } from './atomic.js';
 import { objectFilenames, resolveFreeFolder, type Layout, userOwner } from './layout.js';
-import { moveTree, readFileBytes } from './files.js';
+import { fileExists, moveTree, readFileBytes, renamePath } from './files.js';
+import { libraryWrites } from './library-writes.js';
 import { KeyedQueue } from './keyed-queue.js';
 
 /**
@@ -341,10 +342,10 @@ async function restoreNow(layout: Layout, handle: string, id: string): Promise<R
 /**
  * ***A legacy entry, restored into its kind's current folder*** — [P16 §1.1].
  *
- * Two steps, in the order that leaves a readable object if it stops between
- * them: the folder moves into `library/worlds/` under a free name, and then the
- * file it carried — `package.json`, saying `storyengine.package/1` — is
- * rewritten as `world.json` under the kind's id, exactly as the first write's
+ * In the order that leaves one readable object wherever it stops: the folder
+ * moves into `library/worlds/` under a free name, the file it carried —
+ * `package.json`, saying `storyengine.package/1` — is rewritten in place under
+ * the kind's id, and then renamed `world.json`, exactly as the first write's
  * move leaves one (`library.ts`, `relocateLegacy`). The layout reads the old
  * file name in the new folder, so a restore interrupted after the move is a
  * World that reads rather than one that vanished.
@@ -368,20 +369,38 @@ async function restoreLegacy(
 ): Promise<RestoreOutcome> {
   const owner = userOwner(handle);
   const kindRoot = layout.kindRoot(owner, schemaId);
-  const slug = await resolveFreeFolder(kindRoot, name);
-  const to = layout.objectRoot(owner, schemaId, slug);
 
+  /**
+   * ***The free name is looked for and claimed on the kind's turn*** — the
+   * library's own queue (`storage/library-writes.ts`), the one a create of a
+   * World and the first-write move take for the same reason (2026-10-10, after
+   * review). Chosen on the trash's queue alone, a create of a World named the
+   * same could resolve the same folder between the look and the rename, and a
+   * POSIX rename onto the empty directory it had just made succeeds without a
+   * word — so the refusal below would never be reached.
+   */
+  let slug: string;
   try {
-    await moveTree(from, to);
+    slug = await libraryWrites.run(`kind:${kindRoot}`, async () => {
+      const free = await resolveFreeFolder(kindRoot, name);
+      await moveTree(from, layout.objectRoot(owner, schemaId, free));
+      return free;
+    });
   } catch (error) {
-    // The look-and-rename race `restoreNow` answers, for this branch: gone is
-    // gone, and a place taken between the look and the rename is a refusal
-    // rather than the overwrite a rename onto an empty directory would be.
+    // Gone between the look and the rename is the refusal `restoreNow` gives;
+    // anything else is the failure it was.
     if (!(await exists(from))) return { ok: false, reason: 'not-found' };
-    if (await exists(to)) return { ok: false, reason: 'occupied' };
     throw error;
   }
+  const to = layout.objectRoot(owner, schemaId, slug);
 
+  /**
+   * ***Rewritten in place, then renamed*** — the first write's order
+   * (`library.ts`, `relocateLegacy`), so every state this can stop in is one
+   * file that reads. Writing `world.json` first and then removing the old file
+   * left both for a moment, holding one id, and a crash there was a duplicate
+   * the next edit would never resolve (2026-10-10, after review).
+   */
   const current = layout.objectFile(owner, schemaId, slug);
   if (!(await exists(current))) {
     for (const legacyName of objectFilenames(schemaId).slice(1)) {
@@ -394,8 +413,8 @@ async function restoreLegacy(
       } catch {
         break;
       }
-      await writeJsonAtomic(current, upgradeLegacySchema(body));
-      await rm(carried, { force: true });
+      await writeJsonAtomic(carried, upgradeLegacySchema(body));
+      if (!(await fileExists(current))) await renamePath(carried, current);
       break;
     }
   }

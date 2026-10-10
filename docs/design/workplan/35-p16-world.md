@@ -563,6 +563,38 @@ backup reader's (both archive cases), the trash's legacy kind (all 5 of its
 cases), the ingest's upgrade (all 7 migration cases), and the move taking the old
 slug unchecked (the fresh-slug case).
 
+***After review, 2026-10-10*** — an adversarial pass over the stage's diff,
+each finding verified before it was acted on, moved six things:
+
+- **The move is best-effort once the write has landed.** A move refused after
+  the new bytes were on disk — a scanner holding the folder on Windows — turned a
+  saved edit into a 500 and left the index describing bytes that were gone, and
+  the watcher drops the event as the process's own write, so every later save
+  was a 412. Now the object is indexed where it is, a World that reads under its
+  old name, and the next write tries again.
+- **No move while the id has another copy.** Every `packages/` path sorts before
+  every `worlds/` one, and the earliest path wins a duplicated id, so moving the
+  edited copy away from its twin handed the win to the twin and the edit vanished
+  from every read. With a duplicate on disk the write lands in place.
+- **Asset stores, asset copies and version amendments take the object's turn**
+  on the library's write queue (`storage/library-writes.ts`, moved out of
+  `library.ts` for the next bullet), because the first write to a legacy World
+  moves the folder they write into.
+- **A legacy trash restore claims its folder on the kind's turn**, the one a
+  create and the move take, and **rewrites in place then renames**, the move's
+  order — writing `world.json` before removing `package.json` could stop with
+  both, a duplicate the next edit never resolved.
+- **The assistant's proposals read `packages` as `worlds`**, as its context
+  rendering already did.
+- **The older-index test writes version 12, the number alpha 6 shipped**, not
+  one less than today's constant — which would have differed from it whether or
+  not anybody bumped it, so the test pinned nothing.
+
+Three more were already fixed by then, found by the suite: `folderOf` re-applies
+the name rules (a folder named `con` is a 422 again, not an empty history),
+rebuild and reconcile ask `objectFile` first as the watcher does, and `POST`
+upgrades a body in the old name as `PUT` did.
+
 ### P16.1 — Membership: the panel, the editor, and sessions as members
 
 The World as something a person can make and fill, and see from the outside.

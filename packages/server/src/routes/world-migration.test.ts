@@ -295,6 +295,7 @@ describe('a Package made before P16.0, on the first start after it', () => {
    * check would find the row current and leave it a kind no route names.
    */
   it('is a World even where an older build had already indexed it as a Package', async () => {
+    expect(INDEX_SCHEMA_VERSION).toBeGreaterThan(12);
     const planted = await plantPackage('rain-city', []);
     // Started once, so the row exists; then rewritten to what an alpha 6
     // index held for the same file — the old kind, the old id in the body, and
@@ -309,7 +310,10 @@ describe('a Package made before P16.0, on the first start after it', () => {
                            body = json_set(body, '$.schema', 'storyengine.package/1')
           where id = ?`,
       ).run(planted.id);
-      db.exec(`pragma user_version = ${String(INDEX_SCHEMA_VERSION - 1)}`);
+      // The version alpha 6 shipped, written as the number it was rather than
+      // as one less than today's: one less than a constant nobody bumped would
+      // still differ from it, and the test would pass without the bump it pins.
+      db.exec('pragma user_version = 12');
     } finally {
       db.close();
     }
@@ -342,5 +346,65 @@ describe('a Package made before P16.0, on the first start after it', () => {
       ),
     ) as { schema: string; id: string };
     expect(stored).toMatchObject({ schema: WORLD_SCHEMA, id: world.id });
+  });
+
+  /**
+   * ***Two copies of one Package, and the edit stays where it is read*** —
+   * every `packages/` path sorts before every `worlds/` one, so moving the
+   * copy being edited while its twin stays behind would hand the win to the
+   * twin and make the edit vanish from every read. With a duplicate on disk the
+   * first write writes in place, and the duplicate is the person's to resolve.
+   */
+  it('does not move a Package whose id another copy also holds, so the edit is what reads', async () => {
+    const planted = await plantPackage('rain-city', []);
+    const twin = join(library(), 'packages', 'rain-city-copy');
+    await mkdir(twin, { recursive: true });
+    await writeFile(
+      join(twin, 'package.json'),
+      await readFile(join(planted.folder, 'package.json')),
+    );
+    const app = await upgrade();
+
+    await save(app, planted.id, (object) => {
+      object.description = 'edited beside a copy';
+    });
+
+    expect((await readWorld(app, planted.id)).object.description).toBe('edited beside a copy');
+    expect(await present(join(library(), 'worlds'))).toBe(false);
+  });
+
+  /**
+   * ***A move that fails does not unsave the edit.*** The bytes are on disk and
+   * the old state in the history before the move is tried, so a refused move
+   * leaves a World that reads under its old name, with the edit — not a 500
+   * and an index describing bytes that are gone.
+   */
+  it('keeps the edit and the World where it was when the move cannot happen', async () => {
+    const planted = await plantPackage('rain-city', []);
+    // `library/worlds` as a file: nothing can be moved under it.
+    await writeFile(join(library(), 'worlds'), 'not a folder');
+    const app = await upgrade();
+
+    await save(app, planted.id, (object) => {
+      object.description = 'edited with nowhere to move';
+    });
+
+    const read = await readWorld(app, planted.id);
+    expect(read.object.description).toBe('edited with nowhere to move');
+    expect(read.object.schema).toBe(WORLD_SCHEMA);
+    const onDisk = JSON.parse(await readFile(join(planted.folder, 'package.json'), 'utf8')) as {
+      schema: string;
+      description: string;
+    };
+    expect(onDisk).toMatchObject({
+      schema: WORLD_SCHEMA,
+      description: 'edited with nowhere to move',
+    });
+
+    // And the next save is not a 412 loop: the index holds the bytes it wrote.
+    await save(app, planted.id, (object) => {
+      object.description = 'and again';
+    });
+    expect((await readWorld(app, planted.id)).object.description).toBe('and again');
   });
 });

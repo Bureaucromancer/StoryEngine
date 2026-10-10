@@ -245,6 +245,30 @@ describe('a change the assistant proposes', () => {
     expect(unnamed.effects).toBeUndefined();
   });
 
+  /**
+   * ***A Package on screen before the upgrade is a World after it*** —
+   * [P16.0]. The context channel keeps what the panel last wrote, so a session
+   * last pointed at a Package's page still says `packages`; the proposal is
+   * addressed to `worlds`, the kind a route can write, rather than dropped or
+   * left to whatever kind the propose model names.
+   */
+  it('addresses a proposal about a Package seen before the rename to the World', async () => {
+    const seenAsPackage = {
+      'se.assistant.context': { version: 1, value: { kind: 'packages', id: 'w-1' } },
+    };
+    const result = await propose(
+      input({ output: { text: 'Rename the set.' }, channels: seenAsPackage }),
+      host({ object: { change: { kind: 'lorebooks', id: 'other', changes: { name: 'Docks' } } } }),
+    );
+    expect(result.effects?.[0]?.after).toMatchObject({ kind: 'worlds', id: 'w-1' });
+
+    const named = await propose(
+      input({ output: { text: 'Rename the set.' } }),
+      host({ object: { change: { kind: 'packages', id: 'w-1', changes: { name: 'Docks' } } } }),
+    );
+    expect(named.effects?.[0]?.after).toMatchObject({ kind: 'worlds', id: 'w-1' });
+  });
+
   /** No answer, no call — the same gate `staging.ts` puts in front of its own. */
   it('asks nobody when the turn produced no prose', async () => {
     const capabilities = host();
