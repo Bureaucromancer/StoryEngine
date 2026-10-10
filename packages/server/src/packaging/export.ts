@@ -34,6 +34,9 @@ import { LibraryError, read, type LibraryContext } from '../library.js';
  * P16.3g, where the client's *Export this package* gives way to Publish and the
  * stage's plan removes the old export; until then a `.sepack.json` is still
  * this envelope and still one level deep, and the walker does not call it.
+ * *(2026-10-10, [P16.3c]: and the World file is now built from the walk —
+ * `world-file.ts` plans and writes the `.seworld` from a closure; nothing it
+ * does calls this module either, which still answers the old route alone.)*
  */
 
 export interface PackageExportContext {

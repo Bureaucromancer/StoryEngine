@@ -31,6 +31,7 @@ route touches `fs` is a rule negotiated with existing code.
 | `import-scratch.ts` | scratch for an import, one directory per use, removed whole |
 | `upload-landing.ts` | an upload written to disk as it arrives |
 | `zip.ts`, `zip-file.ts` | a zip read as bytes with bounds, and a zip read where it lies |
+| `zip-writer.ts` | a stored zip written — the World file's container, refusing before it writes anything those two would refuse ([P16.3c]) |
 | `sqlite-snapshot.ts`, `sqlite-snapshot-worker.ts` | a consistent private copy of somebody else's SQLite database |
 | `tar.ts`, `tar-archive.ts` | one ustar header — the server's copy of `tools/tar.mjs` — and a gzipped tar written from inside the server |
 | `test-zip.ts` | real zip archives, for tests |
@@ -40,7 +41,9 @@ route touches `fs` is a rule negotiated with existing code.
 twenty-odd, and ten of them import `node:fs` — `atomic`, `captures`, `files`,
 `local-source`, `paths`, `sqlite-snapshot`, `tar-archive`, `trash`,
 `upload-landing` and `zip-file`. That is the rule working, not breaking: it
-says *where* the filesystem is touched, never *how often*.
+says *where* the filesystem is touched, never *how often*. *(2026-10-10,
+[P16.3c]: eleven, with `zip-writer`, which holds its `.part` through a
+`FileHandle` as `zip-file` holds the archive it reads.)*
 
 **`paths.ts` has two entry points and the difference matters.** `resolveWithin`
 is lexical — pure, synchronous, and it catches everything expressible in the

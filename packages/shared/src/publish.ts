@@ -426,6 +426,9 @@ export interface PublishChoices {
  *
  * `not-portable` and `too-large` are P16.3c's reasons (a manuscript, a card over
  * the entry limit); {@link fileSet} produces `unchecked` and `missing`.
+ * *(2026-10-10, the P16.3c review: `not-portable` is also an object play wrote
+ * — `provenance.source === 'session'`, a memory book — which the World file
+ * leaves home because its entries name the sessions they came from.)*
  */
 export interface LeftBehind {
   schema: string | null;

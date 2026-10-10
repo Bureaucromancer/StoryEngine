@@ -1055,6 +1055,53 @@ file re-hashed at write so an edit mid-publish fails it whole.
 **Ends when** a planned file is accepted by both repository readers and by `unzip
 -t`, and an unticked session's name appears nowhere in its bytes.
 
+**Built 2026-10-10, on `p16`**, by a builder, three reviewers — the format and
+its readers, what leaves and what must not, whether the tests can fail — and a
+fixer. **It ends as written, and further**: a plan made from a real P16.3a walk
+writes a `.seworld` that `zip.ts`, `ZipFile`, `unzip -t`, `zipinfo -v` and
+Python's `zipfile` all accept, and a property test holds that whatever the writer
+accepts the reader returns identically — its generator now really producing lone
+surrogates and duplicate names, which the review found it only claimed to. **An
+unticked session's name *and id* appear nowhere in the file**, searched in its raw
+bytes and inside every carried card's decoded envelope and pictures, with history
+on and off.
+
+- **The writer** (`storage/zip-writer.ts`) writes stored entries with UTF-8 names
+  and one fixed time, to a `.part` it removes on any failure, and refuses —
+  before the offending byte — anything the repository's readers would refuse: a
+  name `safeZipName` rejects, an entry or archive past their bounds, a central
+  directory past `ZipFile`'s 16 MiB. The readers parse an entry's CRC and still
+  enforce none; the file's integrity is the manifest's `sha256` per member.
+- **What a plan holds to.** Each stored file must hash to the index's
+  `contentHash`, so the bytes copied are the body that chose the pictures; every
+  member is re-hashed at write, and a change between plan and write — the same
+  length included — fails the publish whole, leaving no file. Session exports
+  are streamed to scratch one turn at a time as they are surveyed, so a plan
+  never holds every transcript at once, and one too large to travel stays home,
+  named, rather than throwing.
+- **What the review found leaving that should not**, fixed: with history on, an
+  unticked session's name travelled in ordinary members' `history/index.jsonl`
+  — a hook promoted from it, a memory written by it — and the index is now
+  rebuilt with a memory source's session id dropped and the generated reasons
+  saying *a session*. The World's own history never travels: its old versions
+  name members and sessions the publish left out.
+- **Two decisions the stage took, conservative and reversible, recorded for the
+  owner.** *An object play wrote stays home* — a memory book, `provenance.source`
+  `session` — as `not-portable`, because its entries are a session's text and
+  may be an unticked one's; the walker still draws it as included, so P16.3g's
+  review shows the row staying home and why. Carrying one deliberately, scrubbed
+  and off until ticked as a session is, is the alternative, and it is not built.
+  *A card drops the pictures its author removed*: a card that still embeds a
+  picture no current media row names is re-spliced without it, every other chunk
+  and the pixels untouched — so an author's deleted expressions do not travel in
+  a file meant for somebody else. A sender importing their own file sees such a
+  card as changed, and a replace merges its pictures back.
+- *Interpretations*: a book scoped to the World and not a member is `member:
+  false` in the manifest and not named in `world.json`; a folder name colliding,
+  case-folded, takes `-2`; a session member that cannot be read stays home with
+  a note; a picture whose bytes do not match its name stays home, named.
+  `publish.file.*` notes have no client sentences yet — P16.3g's.
+
 #### P16.3d — The publish routes and the ledger
 
 `POST /api/publish/preview` (writes nothing), `POST /api/publish` (returns the

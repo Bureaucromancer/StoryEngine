@@ -146,8 +146,14 @@ async function objectFolder(
  * Rooted at the object and not at `assets`, because a check rooted at a link
  * resolves the root through the link too, and then everything is inside it.
  * An escape is a `PathEscapeError`, which the routes answer `422`.
+ *
+ * ***Exported at [P16.3c]***, for the World file's planner, which copies an
+ * object's pictures into the file beside it: *read*, *stored*, *swept* and now
+ * *published* resolve a row's `ref` through this one function, so a folder
+ * whose `assets` leads elsewhere is refused by the publish as it is by the
+ * other three, rather than copied into a file somebody else downloads.
  */
-async function assetFile(
+export async function assetFile(
   context: LibraryContext,
   handle: string,
   row: ObjectRow,

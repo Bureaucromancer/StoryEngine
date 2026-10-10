@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { basename } from 'node:path';
+
 import type { TurnAttachment } from '@storyengine/shared';
 
 import { sniff } from '../auth/avatars.js';
@@ -114,6 +116,40 @@ async function candidatesFor(
     if (error instanceof PathEscapeError) return [];
     throw error;
   }
+}
+
+/**
+ * ***Where a digest's bytes are on disk, and under what name*** — or null when
+ * the store does not hold them.
+ *
+ * **For the World file's planner** ([P16.3c]), which carries a session's
+ * pictures beside its export (the owner's answer of 2026-10-10, 16 §5.2) and
+ * copies each file as it is stored rather than reading it into memory to
+ * learn its type: the name is the store's own `<sha256>.<ext>`, so what
+ * arrives in the file is addressed exactly as it is here, and the reader
+ * re-addresses it by its bytes through {@link storeAttachment} anyway.
+ * Resolved through the same candidates every read here uses, so an
+ * `attachments` that leads out of the session is a picture this does not
+ * have.
+ */
+export async function attachmentOnDisk(
+  layout: Layout,
+  handle: string,
+  sessionId: string,
+  digest: string,
+): Promise<{ path: string; name: string; mime: string; bytes: number } | null> {
+  for (const candidate of await candidatesFor(layout, handle, sessionId, digest)) {
+    const facts = await statFile(candidate.path);
+    if (facts !== null) {
+      return {
+        path: candidate.path,
+        name: basename(candidate.path),
+        mime: candidate.mime,
+        bytes: facts.size,
+      };
+    }
+  }
+  return null;
 }
 
 export interface StoredAttachment {

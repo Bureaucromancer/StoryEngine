@@ -63,6 +63,20 @@ export interface ZipEntry {
   /** Normalised, forward-slashed, guaranteed not to escape. */
   name: string;
   compression: number;
+  /**
+   * ***The CRC-32 the central record states, parsed and never checked*** —
+   * [P16.3c](../../../../docs/design/workplan/35-p16-world.md).
+   *
+   * **Read so a caller can compare, not compared here.** The World file's
+   * writer (`zip-writer.ts`) is proved against these readers by a round trip
+   * that asserts `crc32(bytes) === entry.crc32`, which needs the field; and
+   * enforcing it would change what every third-party archive that imports
+   * today — a CHARX, a Marinara export, an Aventuras backup — is held to, for
+   * a check the World file does not need: its manifest carries a sha256 per
+   * file, which the reader verifies instead ([P16.3]'s plan, R9). Unsigned,
+   * as `node:zlib`'s `crc32` answers it.
+   */
+  crc32: number;
   compressedSize: number;
   uncompressedSize: number;
   /** Offset of the local header, which is where the bytes are found. */
@@ -216,6 +230,7 @@ export function parseCentralDirectory(
     if (view.getUint32(at, true) !== CENTRAL) return { ok: false, refusal: 'malformed' };
 
     const compression = view.getUint16(at + 10, true);
+    const crc32 = view.getUint32(at + 16, true);
     const compressedSize = view.getUint32(at + 20, true);
     const uncompressedSize = view.getUint32(at + 24, true);
     const nameLength = view.getUint16(at + 28, true);
@@ -239,7 +254,7 @@ export function parseCentralDirectory(
     // the paths imply the directories, exactly as `MemoryFileSource` does.
     const isDirectory = raw.endsWith('/');
     if (!isDirectory) {
-      const name = safeName(raw);
+      const name = safeZipName(raw);
       if (name === null) return { ok: false, refusal: 'unsafe-path' };
 
       if (compression !== STORED && compression !== DEFLATED) {
@@ -255,7 +270,14 @@ export function parseCentralDirectory(
       // would rather not seek there to find out.
       if (localOffset + 30 > archiveLength) return { ok: false, refusal: 'malformed' };
 
-      entries.push({ name, compression, compressedSize, uncompressedSize, offset: localOffset });
+      entries.push({
+        name,
+        compression,
+        crc32,
+        compressedSize,
+        uncompressedSize,
+        offset: localOffset,
+      });
     }
 
     at = nameAt + nameLength + extraLength + commentLength;
@@ -356,8 +378,18 @@ function findEocd(view: DataView, length: number): number {
  * Refuses rather than sanitises, and the difference matters: silently rewriting
  * `../../x` to `x` imports a file the archive did not describe, under a name
  * nobody chose. An archive that contains one is not an archive we want half of.
+ *
+ * ***Exported since [P16.3c], and renamed from `safeName` with it***, because
+ * this server now writes zips as well as reading them, and the writer asks the
+ * readers' own question before it writes a name (`zip-writer.ts`): *the writer
+ * never writes what the reader refuses* is a property only one function can
+ * hold. A second copy of these four rules in the writer would agree today and
+ * drift the first time either learned a fifth. The writer is **stricter** on
+ * top — it also refuses a name this would *change* (a backslash, which is
+ * folded to `/` here) — because a name read back differently from how it was
+ * written is a member the reader never returns.
  */
-function safeName(raw: string): string | null {
+export function safeZipName(raw: string): string | null {
   const name = raw.replaceAll('\\', '/');
   if (name.length === 0) return null;
   // Absolute, and the Windows drive-letter form of absolute.

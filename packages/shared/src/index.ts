@@ -74,6 +74,11 @@ export * from './import-preview.js';
 // stored as itself, and `fileSet` is the one rule the review draws with and the
 // confirm writes with, so it lives where both sides import it.
 export * from './publish.js';
+// The file a publish writes — [P16.3c]. Shared because the server writes and
+// reads it and the client reads the head of one before uploading it, and a
+// manifest read two ways would preview one file and import another. An
+// envelope with a hand-written reader, `backup.js`'s precedent: never emitted.
+export * from './world-file.js';
 // The other direction: what a library object can be written out *as*. Shared
 // because the client builds the menu from the same table the server dispatches
 // on, and two copies of it would disagree about what a file will work in.
