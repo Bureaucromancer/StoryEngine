@@ -239,4 +239,64 @@ describe('starting a session in a World', () => {
     expect(response.status, JSON.stringify(response.body)).toBe(201);
     expect((await onDisk(response.body.session.id as string)).lore).toHaveLength(200);
   });
+
+  /**
+   * ***A book that says it is for this World*** — `LoreScope`'s `world` arm,
+   * the author's statement where membership is the curator's ([15 §5.3]). Read
+   * once, here, by copying: it joins the World's own books in `session.lore`,
+   * and a book scoped to another World does not.
+   */
+  it('copies a book whose scope names the World after the World’s own, and no other', async () => {
+    const member = bookOf('The Docks', { keys: ['ferry'] });
+    await created('lorebooks', member);
+    const world = worldOf('Rain City', [
+      { schema: member.schema, id: member.id, name: member.name },
+    ]);
+    await created('worlds', world);
+    const forIt = bookOf(
+      'Harbour gossip',
+      { keys: ['gossip'] },
+      { scope: { kind: 'world', worldIds: [world.id] } },
+    );
+    const forAnother = bookOf(
+      'Far coast',
+      { keys: ['coast'] },
+      { scope: { kind: 'world', worldIds: ['0199c000-0000-7000-8000-0000000000ee'] } },
+    );
+    await created('lorebooks', forIt);
+    await created('lorebooks', forAnother);
+
+    const response = await start({ world: world.id });
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+    expect((await onDisk(response.body.session.id as string)).lore).toEqual([member.id, forIt.id]);
+
+    // Not a query each turn: a session started with no World never sees it.
+    const plain = await start({});
+    expect((await onDisk(plain.body.session.id as string)).lore).toBeUndefined();
+  });
+
+  /**
+   * ***A scope this build has never heard of*** — [26 B16]'s answer, *open the
+   * unions*. A book a newer build scoped some new way is kept, byte for byte,
+   * and admits itself to nothing.
+   */
+  it('keeps a book whose scope is of a kind it does not know, and admits it to nothing', async () => {
+    const strange = bookOf(
+      'From a newer build',
+      { keys: ['ferry'] },
+      { scope: { kind: 'campaign', campaignIds: ['c-1'] } as unknown as Lorebook['scope'] },
+    );
+    await created('lorebooks', strange);
+    const read = await server.request({
+      method: 'GET',
+      url: `/api/library/lorebooks/${strange.id}`,
+    });
+    expect(read.status).toBe(200);
+    expect(read.body.object.scope).toEqual({ kind: 'campaign', campaignIds: ['c-1'] });
+
+    const world = worldOf('Rain City', []);
+    await created('worlds', world);
+    const response = await start({ world: world.id });
+    expect((await onDisk(response.body.session.id as string)).lore).toEqual([]);
+  });
 });

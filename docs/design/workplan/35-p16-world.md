@@ -725,6 +725,36 @@ the client found one defect, fixed before the commit*: a World deleted in anothe
 tab after it was chosen left its books and treatment selected and no longer drawn,
 so Start would have sent what the form did not show.
 
+**The arm, built 2026-10-10, on `p16`**, after the owner answered
+[26 B16](../26-open-questions.md) — *open the unions*, §1.3's first row.
+
+- **`LoreScope` is open, and the `world` arm is in it**, inside `/1`
+  (`schema/lorebook.ts`): `{ kind: 'world', worldIds: string[] }` beside the two
+  arms `/1` shipped with, and an open arm after them — any `kind` that is *not*
+  one of `LORE_SCOPE_KINDS` — so a scope a newer build writes is kept and read by
+  nothing. **The known kinds are refused by the open arm**, so a `linked` without
+  `actorIds` or a `world` without `worldIds` is still a malformed book rather
+  than an unknown one. `worldIdsOf(scope)` is the one read of the arm, written
+  once because the open arm's `kind: string` defeats narrowing on `kind`.
+- **Read once, at creation, by copying** (`worldContribution`): after the World's
+  own lorebook members, every lorebook the person can read whose scope names the
+  World, by name, deduplicated against the members — as part of the World's
+  default, which an explicit `lore` overrides as it overrides the rest. A book
+  scoped to a World after a session started in it reaches that session only by
+  being chosen there.
+- **§1.6's check is widened by exactly the open arm**: `world-release-check.test.ts`
+  now requires the two `/1` arms, then the `world` arm, then the open arm, and
+  nothing else. §3.3 row 5 is answered again for the arm.
+- **Where this disagrees with §1.3's table, said rather than smoothed**: the first
+  row's *an older build keeps an unknown scope and ignores it* is true of builds
+  from this one on, not of the alphas already released. Alpha 5 and alpha 6
+  carry the closed union and refuse, whole, a book that names a World — which is
+  B16's own argument for answering before the release that would freeze the
+  closed shape, and not something this stage can reach back and change.
+
+The scope surface — §1.3's *a book's scope gets a surface with the arm* — follows
+in a commit of its own.
+
 ### P16.3 — Publish
 
 [16](../16-publish.md), built: the walker against [04 §9.1](../04-schemas.md)'s
@@ -789,6 +819,7 @@ govern.
 | # | Answered by | Date | Result |
 |---|---|---|---|
 | 5 | Claude, at the desk, on branch `p16` with P16.0 to P16.2 built | 2026-10-10 | **Passes.** `world-release-check.test.ts`, 7 of 7: the actor, treatment, setup and preset artefacts are as they were at `ad47e39`; the lorebook's is too, `LoreScope` included, because the `world` arm waits on [26 B16](../26-open-questions.md); the emitted set is those five and the World's. Written into [work plan §0.2](01-work-plan.md) the same day. *Rows 1–4 are a person's and are not answered.* |
+| 5 | Claude, at the desk, after B16 was answered and the arm built | 2026-10-10 | **Passes, with the exception used as named.** 7 of 7: the four artefacts unchanged; the lorebook's unchanged outside `LoreScope`, and inside it the two `/1` arms kept with exactly the `world` arm and the open arm after them. Work plan §0.2's answer gained the same note. |
 
 ## 4. Not this phase: accrual and the story bible — gated on PLAYABLE
 

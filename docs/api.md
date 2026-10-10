@@ -1806,8 +1806,10 @@ that would be created as something other than what was asked for.
 rung below the Setup's**, read once here and copied:
 
 - **`lore`** — when the request sends none — is the Setup's books and the World's
-  lorebook members together, the World's in the order it holds them. The two are
-  a union rather than a choice, since both are simply the session's books.
+  lorebook members together, the World's in the order it holds them, and **then
+  every lorebook you can read whose own scope names the World** (`{ kind:
+  "world", worldIds }`), ordered by name. They are a union rather than a choice,
+  since all of them are simply the session's books.
 - **`treatment`** — when neither the request nor the Setup names one — is the
   World's treatment member **only when it holds exactly one**; with several, none
   is chosen, because the first would be the server picking a story. A form offers
@@ -1818,8 +1820,8 @@ rung below the Setup's**, read once here and copied:
 offered a World's books and had one unticked sends the rest, and the World does
 not put it back — *prefill, never binding* ([00 §3.1](design/00-stance.md)). What a
 World contributes lands in `session.lore`, on disk and editable, and **nothing
-reaches the prompt that is not selected there**: a book's own `scope` admits it to
-nothing, whatever it says.
+reaches the prompt that is not selected there**: a book's `world` scope is read
+once, here, to copy it, and no scope admits a book to a session afterwards.
 
 **The session then joins the World** — `{schema: "storyengine.session/1", id,
 name}` appended to its `contents`, the one place membership is written (the

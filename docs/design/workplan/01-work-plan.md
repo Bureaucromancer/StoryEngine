@@ -177,6 +177,11 @@ seven cases pass with P16.0 to P16.2 built: **no other portable schema changed,
 and the one exception is unused** — the `world` arm waits on B16, so the lorebook
 artefact is byte-identical too. The World's own artefact replaced the Package's
 ([P16 §1.1](35-p16-world.md)) and is the one it does not pin.
+*(Later the same day, the owner answered B16 — open the unions — and the arm
+landed: **it still passes, and the exception is now used, exactly as named.**
+The lorebook artefact differs from its pinned form inside `LoreScope` only, by
+the `world` arm and the open arm that is how the arm lands; the test admits
+those two shapes and nothing else beside the arms `/1` shipped with.)*
 
 > **Write at 2.0 may change internal-tier shapes and may not break portable
 > ones.**

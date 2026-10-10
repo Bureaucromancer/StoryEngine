@@ -101,20 +101,80 @@ export const LOREBOOK_SCHEMA = 'storyengine.lorebook/1';
  * contributes books to a session by its members**, copied into `session.lore`
  * at creation (`library/worlds.ts`), which is the "something above the session"
  * the paragraph before them anticipated — designed, as it asked, rather than
- * inferred from this union. **The `world` arm is still not here**: it is the
+ * inferred from this union. ~~**The `world` arm is still not here**: it is the
  * union widening inside its version, which is 26 §B16's question, open and the
  * owner's, and P16.2 records it as waiting rather than landing it around the
- * answer.
+ * answer.~~
+ *
+ * ***(2026-10-10, later the same day — B16 answered by the owner: open the
+ * unions.)*** So the union is open and the `world` arm is in it, inside `/1`,
+ * and both are below.
  */
+/** The arms this build knows, by `kind` — the open arm is everything else. */
+export const LORE_SCOPE_KINDS = ['global', 'linked', 'world'] as const;
+
 export const LoreScope = Type.Union(
   [
     Type.Object({ kind: Type.Literal('global') }),
     /** Personas are actors, so this is one list rather than two. */
     Type.Object({ kind: Type.Literal('linked'), actorIds: Type.Array(Type.String()) }),
+    /**
+     * ***For sessions started in these Worlds*** — [15 §5.3], [P16.2].
+     *
+     * **The only arm anything reads**, and read once: at the creation of a
+     * session in one of these Worlds, a book in the person's library whose
+     * scope names that World is copied into `session.lore` beside the World's
+     * own members (`library/worlds.ts`). It is the author's statement, carried
+     * with the book — *this book is for that World* — where membership is the
+     * curator's — *this set holds this book* — and the two are different facts
+     * by different people, which is why both contribute. Never a query each
+     * turn: P5.7's lesson, that a library is not a world, is kept by the copy.
+     *
+     * **World ids are portable where session ids are not** — the whole
+     * difference between this arm and the session scoping refused above
+     * ([04 §5](../../../../docs/design/04-schemas.md)). A World is a portable
+     * object and its id travels with it, so a book and the World it names, sent
+     * together in one World's file, still name each other on arrival. A book
+     * sent on its own names a World the recipient may not have, and then names
+     * nothing, visibly and harmlessly ([00 §3.3]): the arm admits a book only to
+     * sessions started in a World it names.
+     */
+    Type.Object({ kind: Type.Literal('world'), worldIds: Type.Array(Type.String()) }),
+    /**
+     * ***Any other arm — kept, and read by nothing*** —
+     * [26 B16](../../../../docs/design/26-open-questions.md), answered by the
+     * owner 2026-10-10: **open the unions**.
+     *
+     * A union that was closed made a build without an arm fail a book that used
+     * it, whole — so a book a newer build scoped some new way would not open
+     * here at all. Open, it validates, round-trips untouched, and admits the book
+     * to nothing, which is what an unknown scope should do: `ActorRole` and
+     * `CallKind` already behave this way. **The known kinds are refused here**,
+     * so a `linked` with no `actorIds` or a `world` with no `worldIds` is still
+     * the malformed book it is rather than an unknown one.
+     *
+     * *A build from before this arm still refuses such a book*: opening a union
+     * helps every build after it, which is why B16 was due before the release
+     * that would otherwise have frozen the closed shape.
+     */
+    Type.Object({ kind: Type.String({ not: { enum: [...LORE_SCOPE_KINDS] } }) }),
   ],
   { title: 'LoreScope' },
 );
 export type LoreScope = Static<typeof LoreScope>;
+
+/**
+ * The Worlds a book's scope names, or none — the one read of the `world` arm,
+ * written once so every reader narrows it the same way. The open arm's `kind`
+ * is any string, so `scope.kind === 'world'` alone does not narrow to it in the
+ * type system, and a hand-edited file can say `world` with anything beside it.
+ */
+export function worldIdsOf(scope: unknown): string[] {
+  if (typeof scope !== 'object' || scope === null) return [];
+  const { kind, worldIds } = scope as { kind?: unknown; worldIds?: unknown };
+  if (kind !== 'world' || !Array.isArray(worldIds)) return [];
+  return worldIds.filter((id): id is string => typeof id === 'string');
+}
 
 export const LoreFolder = Type.Object(
   {

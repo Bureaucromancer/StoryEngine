@@ -596,9 +596,12 @@ lorebook members into `session.lore`, uses its treatment when it holds exactly
 one, and copies the hooks they carry; the request's own `lore` and `treatment`
 override all of it, as they override a Setup's. `routes/world-contribution.test.ts`
 is the check above, with a `global` book outside the World keyed on a word the
-input says, and it holds. **The `world` arm below is not built**: it waits on
+input says, and it holds. ~~**The `world` arm below is not built**: it waits on
 [26 B16](26-open-questions.md), and [P16.2](workplan/35-p16-world.md) records it as
-waiting.)*
+waiting.~~ *Later the same day the owner answered B16 — open the unions — and the
+arm below is built too, inside `/1`, with the union opened beside it: a book whose
+scope names the World is copied after the World's own books, ordered by name, and
+the lorebook editor sets it.)*
 
 **`LoreScope` gains one arm — `{ kind: 'world', worldIds: string[] }` — and it is
 the only arm anything reads.** It is a book's own statement, carried with the

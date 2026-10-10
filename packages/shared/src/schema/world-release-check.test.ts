@@ -96,33 +96,39 @@ describe('World changes no other portable schema (P16 §1.6, work plan §0.2)', 
   });
 
   /**
-   * ***Inside LoreScope, additive and only the named arm.*** The two arms `/1`
-   * shipped with are kept exactly, and anything beyond them is the one
-   * exception the check names in advance — `{ kind: 'world', worldIds:
-   * string[] }` — or the check fails. Until [26 B16] is answered the union is
-   * the two arms alone; the test admits the third so that the arm, when it
-   * lands, lands against a check rather than around one.
+   * ***Inside LoreScope, additive and only the named exception.*** The two arms
+   * `/1` shipped with are kept exactly, and what follows them is the exception
+   * the check names in advance and nothing else: the `world` arm, and — since
+   * the owner answered [26 B16] on 2026-10-10 with *open the unions* — the open
+   * arm that keeps any other kind a newer build writes. Opening the union is how
+   * the arm lands (P16 §1.3's first row), so the open arm is part of the named
+   * exception rather than a second change; the check is widened to admit
+   * exactly it, and anything else beside the two still fails.
    */
-  it('widens LoreScope by the world arm or not at all, and drops nothing', () => {
+  it('widens LoreScope by the world arm and the open arm, and drops nothing', () => {
     const scope = (
       artefact('storyengine.lorebook.1.json')['properties'] as Record<string, unknown>
     )['scope'] as { title?: unknown; anyOf?: unknown[] };
     expect(scope.title).toBe('LoreScope');
     const arms = scope.anyOf ?? [];
     expect(arms.slice(0, SCOPE_ARMS_BEFORE.length)).toEqual(SCOPE_ARMS_BEFORE);
-
-    const added = arms.slice(SCOPE_ARMS_BEFORE.length);
-    expect(added.length).toBeLessThanOrEqual(1);
-    for (const arm of added) {
-      expect(arm).toEqual({
+    expect(arms.slice(SCOPE_ARMS_BEFORE.length)).toEqual([
+      {
         type: 'object',
         required: ['kind', 'worldIds'],
         properties: {
           kind: { const: 'world', type: 'string' },
           worldIds: { type: 'array', items: { type: 'string' } },
         },
-      });
-    }
+      },
+      {
+        type: 'object',
+        required: ['kind'],
+        properties: {
+          kind: { not: { enum: ['global', 'linked', 'world'] }, type: 'string' },
+        },
+      },
+    ]);
   });
 
   it('pins every portable artefact but the World’s, so a seventh kind is noticed', () => {

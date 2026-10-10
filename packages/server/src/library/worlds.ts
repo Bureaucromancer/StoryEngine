@@ -7,9 +7,10 @@ import {
   TREATMENT_SCHEMA,
   WORLD_SCHEMA,
   type World,
+  worldIdsOf,
 } from '@storyengine/shared';
 
-import { LibraryError, type LibraryContext, read, update } from '../library.js';
+import { LibraryError, type LibraryContext, list, read, update } from '../library.js';
 
 /**
  * ***Membership, written in one place*** —
@@ -131,7 +132,14 @@ export async function addMembers(
  * data, on disk and editable ([00 §3.1]'s *prefill, never binding*).
  *
  * - **Its lorebook members**, in the order the World holds them, for
- *   `session.lore`.
+ *   `session.lore` — **and, after them, every lorebook this person can read
+ *   whose own scope names the World** (`LoreScope`'s `world` arm, built at
+ *   [P16.2] once [26 B16] was answered), ordered by name. Membership is the
+ *   curator's statement and the arm the author's ([15 §5.3]); both contribute,
+ *   and both land in the same list, where the person sees them and can drop
+ *   either before the session starts. *Read here, once, by copying* — the arm
+ *   is never consulted again, so a book scoped to a World after a session
+ *   started in it reaches that session only by being chosen there.
  * - **Its treatment members**, all of them, for the form to offer; and the
  *   one to use when the caller chose none — **only when there is exactly one**,
  *   because picking the first of several would be the server choosing a story
@@ -155,7 +163,15 @@ export function worldContribution(
 ): WorldContribution {
   const current = read(context, handle, worldId, WORLD_SCHEMA);
   const world = current.body as World;
-  const lore = world.contents.filter((m) => m.schema === LOREBOOK_SCHEMA).map((m) => m.id);
+  const members = world.contents.filter((m) => m.schema === LOREBOOK_SCHEMA).map((m) => m.id);
+  const scoped = list(context, handle, LOREBOOK_SCHEMA)
+    .filter(
+      (row) =>
+        !row.shadowed && worldIdsOf((row.body as { scope?: unknown }).scope).includes(current.id),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((row) => row.id);
+  const lore = [...new Set([...members, ...scoped])];
   const treatments = world.contents.filter((m) => m.schema === TREATMENT_SCHEMA).map((m) => m.id);
   return {
     world: { id: current.id, name: current.name },

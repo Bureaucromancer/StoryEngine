@@ -492,6 +492,8 @@ interface Lorebook {
 type LoreScope =
   | { kind: "global" }
   | { kind: "linked"; actorIds: string[] }    // personas are actors
+  | { kind: "world"; worldIds: string[] }     // P16.2 — read once, at creation in one
+  | { kind: string /* any other */ }          // open (26 B16): kept, read by nothing
 
 // Session scoping is NOT here. Session ids are install-local, so a shared
 // lorebook carrying them exports identifiers that are meaningless everywhere
@@ -528,6 +530,20 @@ type LoreScope =
 // recommended answer, owner deferred (26 B14/B15), and neither waits on B16.
 // Adding an arm to this closed union inside `/1` is
 // [26 B16](26-open-questions.md)'s question, and the arm waits on its answer.
+//
+// BUILT 2026-10-10, ON BRANCH `p16` ([P16.2](workplan/35-p16-world.md)). The
+// owner answered B16 the same day: OPEN THE UNIONS. So the `world` arm is in
+// the union inside `/1`, and so is an open fourth arm — any `kind` this build
+// does not know, validated as a string that is none of the three it does, kept
+// verbatim and read by nothing — which is what makes a book a newer build scoped
+// some new way open here instead of failing whole, as `ActorRole` and `CallKind`
+// already do. A known kind with the wrong fields still fails: a `world` without
+// `worldIds` is a malformed book, not an unknown one. At creation in a World, a
+// book in the person's library whose scope names it is copied into
+// `session.lore` after the World's own lorebook members, ordered by name; a
+// request's own `lore` overrides both. The lorebook editor sets it. A build
+// from before the opening still refuses a book with an arm it lacks — opening
+// helps every build after it.
 
 interface LoreFolder {
   id: string
