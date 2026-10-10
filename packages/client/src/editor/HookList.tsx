@@ -78,12 +78,29 @@ export function HookList(props: {
    * pages to each fetch the library and pass it down would put the same query
    * in three places to serve one component's two controls, and the query is
    * cached by key: the page that also lists actors pays for one fetch, not two.
+   *
+   * *Picked rather than typed was the intent, and until 2026-10-10 not the
+   * behaviour*: `introduces.actor` is a select and always was, but `involves`
+   * was a tag field's combobox and took whatever was typed as an id. It is
+   * strict now ([HookFields](./HookFields.tsx)'s `ActorRefs` has the account).
+   *
+   * ***Undefined until the library answers*** (2026-10-10), where it was `[]`
+   * from the first render: `involves` marks an actor the library does not have
+   * as *Missing*, and drawn from `[]` that badge would land on every actor a
+   * hook names while the request is in flight.
+   *
+   * ***The winners only*** (2026-10-10). The list carries a shadowed copy
+   * beside its winner under the same id, and both were offered — two options
+   * with one value, and a name taken from whichever came last. The winner is
+   * what an id-only read resolves to (`resolveMember`'s rule, for its reason),
+   * so it is the one name a chip can honestly carry.
    */
   const actors = useLibrary('actors');
-  const cast = (actors.data?.objects ?? []).map((object) => ({
-    id: object.id,
-    name: object.name,
-  }));
+  const cast = actors.data?.objects
+    .filter((object) => !object.shadowed)
+    .map((object) => ({ id: object.id, name: object.name }));
+  // Only a list that never arrived — a poll failing after an answer keeps it.
+  const unread = cast === undefined && actors.isError;
 
   function add(): void {
     // Minted out here, where it runs once: React runs an updater twice under
@@ -108,6 +125,22 @@ export function HookList(props: {
       </div>
 
       {props.hooks.length === 0 ? <Fine>None here yet.</Fine> : null}
+
+      {/*
+       * ***Said once, for the list*** (2026-10-10) — `BookScope`'s line for
+       * the same failure. A strict picker over a list that never arrived offers
+       * nobody, and *Nothing matches Vera* typed against it would be the field
+       * blaming the name for the request. The field itself says *nobody can be
+       * chosen until your library has been read*, at the box (`HookFields`'
+       * `unanswered`, added on review); this says why, and what to do, once
+       * rather than on every card.
+       */}
+      {unread && props.hooks.length > 0 ? (
+        <Fine>
+          Your library could not be read, so no character can be chosen for a hook here. Try
+          reloading the page.
+        </Fine>
+      ) : null}
 
       {props.hooks.map((hook, at) => (
         <Panel key={hook.id} variant="card" className="flex flex-col gap-4">

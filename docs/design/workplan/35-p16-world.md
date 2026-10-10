@@ -811,6 +811,29 @@ differently could disagree — but the form sends the list it shows, so what a
 person saw is what starts, and the server's order governs only *Start a session
 in this world*, where there was no client order to disagree with.
 
+**The hook editor's two pickers take the same fix, the same day**, at the owner's
+request — not a P16 stage, but `strict` is this stage's, and the hook editor had
+the flaw it was written for. *Involves* (`involves: Ref[]`) and *Blocked by*
+(`blockedBy`) were tag fields: Enter, a comma or leaving the box committed
+whatever was typed, so a typo became a `Ref` naming nobody — and
+[03 §4.1](../03-data-model.md) retires a hook whose `involves` dangles, quietly.
+Both now pass `strict` and a `nameOf` that speaks what the chip shows; a guard
+writes only an id that was held or offered; a value already stored that resolves
+to nothing keeps its chip under its stored name, marked *Missing* only once the
+library has answered, with the reason in the field's hint as well as the badge's
+title. Built, reviewed through three lenses (what is written, what is heard,
+whether the tests can fail), and fixed: ten findings, all verified real, seven
+fixed here with tests that fail without them. *Three are `TokenField`'s own*: in
+`strict`, an offered id is trimmed before it is committed, and a *Missing* value
+removed by Backspace cannot be typed back; and `aria-expanded` stays true with no
+list drawn. The first two are defects of this stage's `strict` and follow in a
+commit of their own.
+*A disagreement found on the way, and not this phase's*: [04 §3](../04-schemas.md)
+says a `Ref` resolves by id **then by case-insensitive name**, always; the turn
+pipeline's hook pool (`sessions/hook-pool.ts`) resolves `involves` by id alone,
+so a typed-in name the old picker stored still retires its hook. The badge follows
+the server. Which of the two gives way is its own decision.
+
 ### P16.3 — Publish
 
 [16](../16-publish.md), built: the walker against [04 §9.1](../04-schemas.md)'s
