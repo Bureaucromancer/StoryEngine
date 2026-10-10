@@ -92,7 +92,9 @@ in a story you are already playing, use
 ### Starting in a world
 
 Pick it in **Start in a world**. Its lorebooks are ticked under **Lorebooks**, after
-any you had already ticked and in the order the world holds them, and its treatment
+any you had already ticked and in the order the world holds them, then every lorebook
+of yours whose **Scope** is for this world, by name (see
+[The book's settings](lorebooks-and-memory.md#the-books-settings)); and its treatment
 is chosen if it holds exactly one; if it holds several, they are listed first and
 none is chosen — you pick. **All of it is yours to change before Start**: untick a
 book and it stays unticked, choose another treatment or **None**, and the session
@@ -103,8 +105,8 @@ world**, takes back only what the previous world filled in.
 The new session **joins the world** — it appears among the world's members, and its
 page says **In these worlds**. What it copied is now the session's own: editing the
 world afterwards changes nothing in a session already started. A lorebook is in a
-session because the session's list names it, never because of anything the book
-says about itself.
+session because the session's list names it: a book's scope can put it in the start
+form, and from then on it is the list that counts.
 
 With a **setup** chosen as well, the setup decides, and the world adds under it: its
 lorebooks join the setup's, and its treatment is used only if the setup names none.

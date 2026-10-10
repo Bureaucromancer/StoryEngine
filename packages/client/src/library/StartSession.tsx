@@ -76,7 +76,8 @@ export function StartSession(props: {
  * the World already says which books and treatment it brings and a form in
  * between would ask somebody to confirm what they had just chosen. The route
  * does the contribution — the World's lorebook members copied into
- * `session.lore`, its treatment when it holds exactly one, the session added to
+ * `session.lore`, then every book whose own scope names the World (the `world`
+ * arm, [26 B16]), its treatment when it holds exactly one, the session added to
  * its `contents` — and every part of it lands as the session's own data, on
  * disk and editable from its lore panel ([00 §3.1]: prefill, never binding).
  *

@@ -317,7 +317,14 @@ const SETUP_WORDS = labels('sessions.setup', {
 const WORLD_WORDS = labels('sessions.world', {
   label: 'Start in a world',
   none: 'No world',
-  hint: 'Its lorebooks and its treatment are filled in below for you to change, and the new session joins the world.',
+  hint: 'Its lorebooks, any book that says it is for this world, and its treatment are filled in below for you to change, and the new session joins the world.',
+  /**
+   * Why a book the person never put in the world is ticked — [P16.2], the
+   * `world` arm of a book's scope. Said once, under the list, rather than on
+   * each box: the box is an ordinary choice from here on, and the line is only
+   * the reason it was pre-ticked.
+   */
+  scopedBooks: 'Ticked because the book says it is for this world: {names}.',
   missing: '{name} (not in your library)',
   listed: '{name} (in this world)',
   oneTreatment:
@@ -482,7 +489,21 @@ export function SessionsPage(): React.JSX.Element {
   const actors = useLibrary('actors');
   const setups = useLibrary('setups');
   const worlds = useLibrary('worlds');
-  const offered = worldsToOffer(worlds.data?.objects);
+  // With the lorebooks, so a World's offer includes the books whose own scope
+  // names it, after its members — what the server's copy would add ([P16.2]).
+  const offered = worldsToOffer(worlds.data?.objects, books.data?.objects);
+  /**
+   * ***Whether a World's offer is whole yet*** — [P16.2], the `world` arm.
+   * Until the lorebooks have answered, an offer is its members alone, and a
+   * World chosen then ticks those and never the books whose scope names it:
+   * the choice is a copy made once (`chooseWorld`), so the books arriving a
+   * moment later do not reach a form that has already been filled in, and
+   * Start would send a list without them that the server's own copy would
+   * have had. So the World select waits for the shelf, as `?world=` does
+   * below. *Or for it to fail*: a shelf that cannot be read must not hold
+   * the World back for ever, and then its members are all it can offer.
+   */
+  const shelfAnswered = books.data !== undefined || books.isError;
   /**
    * The World chosen, **resolved against what is offered** — so a World
    * deleted in another tab since it was chosen stops being sent and the
@@ -554,12 +575,19 @@ export function SessionsPage(): React.JSX.Element {
    * choosing *No world* must not be overruled by the address still naming
    * one. An id that is not one of the person's own Worlds is dropped, as a
    * stale `?mode=` is.
+   *
+   * ***And once the lorebooks have answered too*** (since the `world` arm,
+   * [P16.2]): a World chosen before the shelf arrived would tick its members
+   * and miss every book whose scope names it, and the address is applied only
+   * once. *Or failed to* — a shelf that cannot be read must not hold the World
+   * back for ever; it then fills in its members, which is all it can see.
    */
   const [worldFromAddress, setWorldFromAddress] = useState<string | undefined>(undefined);
   if (
     search.world !== undefined &&
     search.world !== worldFromAddress &&
-    worlds.data !== undefined
+    worlds.data !== undefined &&
+    shelfAnswered
   ) {
     setWorldFromAddress(search.world);
     if (offered.some((one) => one.id === search.world)) pickWorld(search.world);
@@ -687,6 +715,9 @@ export function SessionsPage(): React.JSX.Element {
       : [...(inWorld?.books.map((book) => book.id) ?? []), ...lore]
           .filter((id, at, all) => !libraryBooks.has(id) && all.indexOf(id) === at)
           .map((id) => ({ id, name: names[id] ?? id }));
+
+  /** The books the chosen World ticked because their scope names it — [P16.2]. */
+  const scopedTicks = (inWorld?.scoped ?? []).filter((id) => prefilled.lore.includes(id));
 
   /**
    * ***The Treatment select, with a World chosen*** — [P16.2]. The World's
@@ -1029,9 +1060,11 @@ export function SessionsPage(): React.JSX.Element {
               to it, so the controls are where the person sees that and changes
               it before Start ([00 §3.1]: prefill, never binding). *Absent for
               somebody with no Worlds of their own*, rather than a select
-              offering only *No world*.
+              offering only *No world*. *And absent until the lorebooks have
+              answered* (`shelfAnswered` says why), so a World cannot be chosen
+              before its offer includes the books whose scope names it.
             */}
-            {offered.length === 0 ? null : (
+            {offered.length === 0 || !shelfAnswered ? null : (
               <SelectField
                 label={WORLD_WORDS.label}
                 value={inWorld?.id ?? ''}
@@ -1253,6 +1286,25 @@ export function SessionsPage(): React.JSX.Element {
                       }}
                     />
                   ))}
+                  {/*
+                    ***Why a book nobody put in the world is ticked*** —
+                    [P16.2], [15 §5.3]. Its own scope names the world, so the
+                    server's copy would add it, and the form ticks it for the
+                    same reason it ticks a member: what starts is what is shown.
+                    *Only the ones the World's choice actually ticked*
+                    (`prefilled`): a scoped book the person had ticked before
+                    choosing the world was theirs, and one the shelf brought
+                    after the choice was never ticked by it — the line saying
+                    *ticked because* of either would be explaining a tick the
+                    world did not make.
+                  */}
+                  {scopedTicks.length === 0 ? null : (
+                    <Fine>
+                      {WORLD_WORDS.scopedBooks.replace('{names}', () =>
+                        scopedTicks.map((id) => names[id] ?? id).join(', '),
+                      )}
+                    </Fine>
+                  )}
                 </fieldset>
 
                 <Fine>These can be changed from the session itself, except the preset.</Fine>

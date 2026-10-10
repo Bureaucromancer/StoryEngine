@@ -752,8 +752,61 @@ so Start would have sent what the form did not show.
   B16's own argument for answering before the release that would freeze the
   closed shape, and not something this stage can reach back and change.
 
-The scope surface — §1.3's *a book's scope gets a surface with the arm* — follows
-in a commit of its own.
+~~The scope surface — §1.3's *a book's scope gets a surface with the arm* — follows
+in a commit of its own.~~
+
+**The surface, built the same day** — §1.3's *a book's scope gets a surface with
+the arm*, because a field that is read and set only in *As stored* is set by
+nobody, and [15 §8](../15-world.md)'s test of whether it gets set would measure the missing
+control.
+
+- **The lorebook editor says what the book is for** (`BookScope.tsx`, its rules in
+  `scope-form.ts`): *Not tied to anything* — the factory's
+  `{ kind: 'linked', actorIds: [] }` — *For particular characters*, and *For
+  sessions started in particular worlds*, with a help line saying what the last
+  does and that it does it once. *Global (from an older book)* and a kind this
+  build does not know are choices **only for a book that already says them**,
+  and choosing back to what the saved book says restores it as stored, so an
+  unknown scope is never overwritten except by a deliberate choice. Characters
+  are picked from the library and worlds from the person's own; an id that no
+  longer resolves stays, under its id, marked *Missing*. `TokenField` gained an
+  opt-in `strict` — for a field of ids, only an offered option is committed —
+  and `nameOf`, so a remove button speaks a name rather than an id.
+- **The session form ticks what the server would copy**: after the World's own
+  books, every book whose scope names it, by name, and a line saying why they
+  are ticked; choosing another World takes them back with the rest. *The builder
+  found a defect in P16.2's own form*: arriving with `?world=` applied the World
+  as soon as the Worlds list loaded, before the lorebooks had, so a scope-named
+  book could never have been ticked on that path. It now waits for both.
+- **The shelf**: a *For worlds* scope filter, by kind, and a neutral **World**
+  badge only when the book names a World — the *Linked* badge's rule. A kind
+  this build does not know is under no filter but the unfiltered shelf, and
+  carries no badge.
+- **The read page keeps scope off its strip**, for a narrower reason than its
+  comment gave (`LorebookView.tsx`, a dated note): the strip is what decides
+  whether an entry fires on a turn, and the arm decides nothing on any turn.
+- **The entry budget is raised to 312**, from 304 (`tools/entry-budget.test.ts`,
+  with every stage's measurement): P16 took the entry from 299.63 to 306.79,
+  all its own code and no dependency. **It was found by the isolated full run of
+  `c511641`, not by the stage's own checks**, which were targeted and built no
+  client — so from here a stage that touches the client builds it and runs the
+  `release` project before it calls itself verified.
+*An independent review of the surface found three defects, each fixed with a
+test that fails without it*: the session form drew its World choice as soon as
+the Worlds had loaded and before the lorebooks had, so a World picked in that
+window ticked only its members and Start sent a list without the books the server
+would have added — the choice now waits for both, the condition `?world=` waits
+on; the *ticked because the book says it is for this world* line could name a
+book the person had ticked themselves, and now names only what the World's
+choice added; and `TokenField`'s `strict` answered Enter after Escape with
+*nothing matches* while options matched, and now reopens the list. It also found
+a test that could not fail — the editor's worlds picker offering every World
+rather than the person's own — and added the one that can.
+*Not changed, and why*: both sides order scope-named books with
+`localeCompare` and no locale, so a server and a browser that collate
+differently could disagree — but the form sends the list it shows, so what a
+person saw is what starts, and the server's order governs only *Start a session
+in this world*, where there was no client order to disagree with.
 
 ### P16.3 — Publish
 

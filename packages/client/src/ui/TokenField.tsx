@@ -51,6 +51,25 @@ export interface TokenFieldProps {
   renderToken: (value: string) => ReactNode;
   hint?: string | undefined;
   placeholder?: string | undefined;
+  /**
+   * ***Only an offered option can be committed*** — [P16.2], for a field whose
+   * values are ids rather than words.
+   *
+   * A tag is whatever somebody types, so Enter, a comma and leaving the box all
+   * commit the term, and that is the point of this component. An id is not:
+   * typed text that became one would be a reference to something called by its
+   * own name, resolving to nothing anywhere. So under `strict` the text only
+   * narrows the options — Enter commits the active one or nothing, a comma is a
+   * character (a name can hold one), and a term left in the box is left there
+   * rather than committed on blur.
+   */
+  strict?: boolean | undefined;
+  /**
+   * How a value is **spoken** — its remove button and the live region — when
+   * the value is not a word anybody can hear: an id reads as a string of hex.
+   * Absent, the value is its own name, which is right for a tag.
+   */
+  nameOf?: ((value: string) => string) | undefined;
 }
 
 export function TokenField(props: TokenFieldProps): JSX.Element {
@@ -72,6 +91,7 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
 
   const options = open ? props.optionsFor(term) : [];
   const activeOption = options[active];
+  const spoken = (value: string): string => props.nameOf?.(value) ?? value;
 
   function announce(text: string): void {
     // A trailing space alternates, so the same sentence twice still changes the
@@ -86,18 +106,18 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
       // Already carried. Cleared rather than left standing, so the box does not
       // sit there holding a word that will never become a chip.
       setTerm('');
-      announce(`${trimmed} is already here.`);
+      announce(`${spoken(trimmed)} is already here.`);
       return;
     }
     props.onChange([...props.values, trimmed]);
     setTerm('');
     setActive(0);
-    announce(`Added ${trimmed}. ${String(props.values.length + 1)} in the list.`);
+    announce(`Added ${spoken(trimmed)}. ${String(props.values.length + 1)} in the list.`);
   }
 
   function remove(value: string): void {
     props.onChange(props.values.filter((each) => each !== value));
-    announce(`Removed ${value}.`);
+    announce(`Removed ${spoken(value)}.`);
   }
 
   function close(): void {
@@ -135,11 +155,31 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
        * somebody has finished typing a tag.
        */
       event.preventDefault();
+      if (props.strict === true) {
+        // Nothing offered matches what was typed, so there is nothing to
+        // commit — said, because a key that does nothing silently is the
+        // reference's failure this component exists to avoid.
+        if (activeOption === undefined) {
+          // *Closed is not empty*: Escape shuts the popup and leaves the term,
+          // and with nothing drawn there is no active option — so a term that
+          // does match opens the list again rather than being told it matches
+          // nothing, which would be the field lying about its own options.
+          if (!open && term.trim() !== '' && props.optionsFor(term).length > 0) {
+            setOpen(true);
+            setActive(0);
+            return;
+          }
+          if (term.trim() !== '') announce(`Nothing matches ${term.trim()}.`);
+          return;
+        }
+        commit(activeOption.value);
+        return;
+      }
       commit(activeOption?.value ?? term);
       return;
     }
 
-    if (event.key === ',') {
+    if (event.key === ',' && props.strict !== true) {
       event.preventDefault();
       commit(term);
       return;
@@ -189,7 +229,7 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
                 {props.renderToken(value)}
                 <button
                   type="button"
-                  aria-label={removeLabel(value)}
+                  aria-label={removeLabel(spoken(value))}
                   className="rounded-control px-1 text-ink-faint hover:text-ink"
                   onClick={() => {
                     remove(value);
@@ -234,7 +274,8 @@ export function TokenField(props: TokenFieldProps): JSX.Element {
             // A term left in the box is committed rather than discarded: type a
             // tag, click Save, and the tag should be there. Discarding is
             // silent data loss in the exact flow people hit.
-            if (term.trim() !== '') commit(term);
+            // Not under `strict`, where the term is a search and never a value.
+            if (term.trim() !== '' && props.strict !== true) commit(term);
             close();
           }}
           onKeyDown={onKeyDown}

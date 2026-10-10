@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { LOREBOOK_SCHEMA, TREATMENT_SCHEMA, WORLD_SCHEMA } from '@storyengine/shared';
+import { LOREBOOK_SCHEMA, TREATMENT_SCHEMA, WORLD_SCHEMA, worldIdsOf } from '@storyengine/shared';
 
 import type { LibraryObject } from '../api.js';
 
@@ -25,6 +25,15 @@ import type { LibraryObject } from '../api.js';
  * filled in is never what decides ([00 §3.1]'s *prefill, never binding*). The
  * two readers match on the schema exactly, as the server's does, so a member
  * the server would not contribute is one this form does not tick.
+ *
+ * ***And the books that say they are for it*** — `LoreScope`'s `world` arm,
+ * built at [P16.2] once [26 B16] was answered *open the unions*. The server
+ * puts every lorebook the person can read whose scope names the World **after**
+ * the World's own, by name, each once; this side reads the library the same way
+ * so that those books are ticked on the form too — [15 §5.3]'s *visibly*, said
+ * of the copy, holds only if what the copy would add is on screen before Start.
+ * Membership is the curator's statement and scope the author's; both end as
+ * ticks the person can take off.
  */
 
 /** A member as the form names it: its id, and the name the World last saw it by. */
@@ -37,8 +46,17 @@ export interface Named {
 export interface WorldOffer {
   id: string;
   name: string;
-  /** Its lorebook members, in the World's order — what lands in `session.lore`. */
+  /**
+   * What lands in `session.lore`: its lorebook members, in the World's order,
+   * then the books whose own scope names it, by name — each once, a member
+   * first, as the server reads them (`worldContribution`).
+   */
   books: Named[];
+  /**
+   * The ids among `books` that are there **only** because their scope names the
+   * World — so the form can say why a book it did not hold was ticked.
+   */
+  scoped: string[];
   /** Its treatment members, in the World's order — offered, never chosen among. */
   treatments: Named[];
 }
@@ -68,11 +86,50 @@ function membersOfSchema(world: LibraryObject, schema: string): Named[] {
   return out;
 }
 
-export function worldOffer(world: LibraryObject): WorldOffer {
+/**
+ * ***The library's books whose scope names this World*** — [P16.2],
+ * [15 §5.3].
+ *
+ * **The server's filter, row for row**: every lorebook the person can read —
+ * theirs and the system's, since a book shipped for a World is as much the
+ * author's statement as one written here — that is not a shadowed copy (the id
+ * reaches the winner, so the loser's scope is not the book's), ordered by name
+ * with the same `localeCompare`. `worldIdsOf` is the one reading of the arm both
+ * sides share, so a hand-edited scope that says `world` beside a non-list is
+ * read as naming nothing here exactly as it is there.
+ */
+export function booksScopedTo(
+  worldId: string,
+  lorebooks: readonly LibraryObject[] | undefined,
+): Named[] {
+  return (lorebooks ?? [])
+    .filter(
+      (row) =>
+        row.schema === LOREBOOK_SCHEMA &&
+        !row.shadowed &&
+        worldIdsOf(row.object['scope']).includes(worldId),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((row) => ({ id: row.id, name: row.name }));
+}
+
+/**
+ * What one World would bring, read off its row — and off the library's
+ * lorebooks for the ones whose scope names it. *Without the lorebooks* the
+ * offer is its members alone, which is what it was before the arm and what a
+ * caller that has not read the shelf yet can honestly say.
+ */
+export function worldOffer(world: LibraryObject, lorebooks?: readonly LibraryObject[]): WorldOffer {
+  const members = membersOfSchema(world, LOREBOOK_SCHEMA);
+  const held = new Set(members.map((book) => book.id));
+  // A member that also names the World in its scope stays where the World put
+  // it — the server's `new Set([...members, ...scoped])`, which keeps the first.
+  const scoped = booksScopedTo(world.id, lorebooks).filter((book) => !held.has(book.id));
   return {
     id: world.id,
     name: world.name,
-    books: membersOfSchema(world, LOREBOOK_SCHEMA),
+    books: [...members, ...scoped],
+    scoped: scoped.map((book) => book.id),
     treatments: membersOfSchema(world, TREATMENT_SCHEMA),
   };
 }
@@ -90,10 +147,23 @@ export function worldOffer(world: LibraryObject): WorldOffer {
  * schema* although fetched by kind, because the row's schema is the object's
  * own claim and checking it costs nothing.
  */
-export function worldsToOffer(objects: readonly LibraryObject[] | undefined): WorldOffer[] {
-  return (objects ?? [])
-    .filter((one) => one.schema === WORLD_SCHEMA && one.source === 'user' && !one.shadowed)
-    .map(worldOffer);
+export function worldsToOffer(
+  objects: readonly LibraryObject[] | undefined,
+  lorebooks?: readonly LibraryObject[],
+): WorldOffer[] {
+  return ownWorlds(objects).map((world) => worldOffer(world, lorebooks));
+}
+
+/**
+ * The Worlds a person can start in — `worldsToOffer`'s filter on its own, for
+ * the lorebook editor's scope picker ([P16.2]), which offers the same set for
+ * the same reason: a book scoped to a World nobody can start a session in here
+ * would be a choice that does nothing on this install.
+ */
+export function ownWorlds(objects: readonly LibraryObject[] | undefined): LibraryObject[] {
+  return (objects ?? []).filter(
+    (one) => one.schema === WORLD_SCHEMA && one.source === 'user' && !one.shadowed,
+  );
 }
 
 /**
@@ -134,6 +204,10 @@ export interface WorldFields {
  * **The treatment is filled only into an empty select**, and only with a World's
  * sole one: a treatment somebody already picked is a choice, and a World is a
  * default one rung below it (the route's layering, read in the same order).
+ *
+ * *The World's books include the ones whose scope names it* (`worldOffer`),
+ * so they arrive after its members and go back with them — nothing below
+ * needs to know which statement put a book there.
  *
  * **Changing World takes back what the last one added — and only what is still
  * as it left it.** A book it ticked that is still ticked is unticked; a book the

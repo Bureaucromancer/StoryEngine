@@ -18,7 +18,10 @@ are called out as they come.
 A lorebook takes part in a session in one of three ways:
 
 - the session chose it — in the start form, or later in the play page's lore panel
-  (*Retrieving from …*);
+  (*Retrieving from …*). Starting in a world ticks that world's lorebooks for you,
+  and every book of yours whose **Scope** is for that world (see
+  [Starting in a world](playing.md#starting-in-a-world)) — ticked, so you can untick
+  them before **Start**;
 - the session's treatment links it;
 - it is one of your memory books, for a character in the cast (see [Memory](#memory)).
 
@@ -48,6 +51,28 @@ Under **Retrieval** — each read on every turn that reaches the book:
 | **Entry limit** | 100 | The most entries that may fire at once (1 to 1000). |
 | **Recursive scanning** | off | An entry that fired is itself searched for this book's keys, so one entry can pull in another. |
 | **Max recursion depth** | 3 | How many times that can chain. |
+
+**Scope**, below the table, says who the book is for. It is the book's own statement
+and travels with it:
+
+- **Not tied to anything** — new books, and every lorebook imported on its own from
+  SillyTavern.
+- **For particular characters** — chosen by name. A character card's own lorebook
+  arrives this way, naming its character. It describes the book; nothing in play
+  reads it.
+- **For sessions started in particular worlds** — chosen by name, from your worlds.
+  A session started in one of them gets this book ticked in its start form, after
+  the world's own lorebooks. This is the one scope that does anything, and it does
+  it once: the book is in the session because the start form chose it, so a session
+  already playing is not changed by scoping a book to its world afterwards, and
+  unticking it before **Start** keeps it out.
+- **Global (from an older book)** — offered only for a book that already says it,
+  which an older book or another program's file may. Like the first two, it puts the
+  book in no session.
+
+A book whose scope is of a kind this version does not know — written by a newer one —
+says so and keeps it, unless you choose another scope. A character or world that is
+no longer in your library stays listed, marked as missing, until you remove it.
 
 A book's description and tags are shown on its page, and its writing samples only in the
 page's **As stored** JSON; none of them can be changed in the editor.

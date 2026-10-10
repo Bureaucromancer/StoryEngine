@@ -881,6 +881,155 @@ describe('starting a session in a world', () => {
 
     expect(screen.queryByLabelText('Start in a world')).toBeNull();
   });
+
+  /**
+   * ***The books that say they are for the world*** — `LoreScope`'s `world`
+   * arm, [P16.2], [15 §5.3]. The server copies every readable book whose
+   * scope names the World **after** its members, by name; the form ticks the
+   * same list, so what Start sends is what the person saw — and a book that
+   * names another World, or none, stays as the person left it.
+   */
+  describe('and the books whose scope names it', () => {
+    function scopedBook(id: string, name: string, worldIds: string[]) {
+      return {
+        ...libraryObject(id, name, 'storyengine.lorebook/1'),
+        object: { scope: { kind: 'world', worldIds } },
+      };
+    }
+
+    const SHELF = [
+      libraryObject('book-rain', 'Rain City', 'storyengine.lorebook.1'),
+      scopedBook('book-gossip', 'Harbour gossip', ['w-harbour']),
+      scopedBook('book-alpha', 'Alpha notes', ['w-elsewhere', 'w-harbour']),
+      scopedBook('book-far', 'Far coast', ['w-elsewhere']),
+    ];
+
+    function withShelf(lorebooks: () => Promise<unknown>) {
+      const fallback = listLibrary.getMockImplementation();
+      listLibrary.mockImplementation((kind: string) =>
+        kind === 'lorebooks' ? lorebooks() : (fallback?.(kind) as unknown),
+      );
+    }
+
+    it('ticks them after the world’s own, by name, says why, and sends them', async () => {
+      withWorlds(HARBOUR);
+      withShelf(() => Promise.resolve({ objects: SHELF }));
+      await chooseHarbour();
+
+      expect(checked('Rain City')).toBe(true);
+      expect(checked('Harbour gossip')).toBe(true);
+      expect(checked('Alpha notes')).toBe(true);
+      expect(checked('Far coast')).toBe(false);
+      expect(
+        screen.getByText(
+          'Ticked because the book says it is for this world: Alpha notes, Harbour gossip.',
+        ),
+      ).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledWith({
+          world: 'w-harbour',
+          lore: ['book-rain', 'book-tide', 'book-alpha', 'book-gossip'],
+          treatment: 'treat-wet',
+          mode: SCENE,
+        });
+      });
+    });
+
+    it('takes them back with the members when no world is chosen', async () => {
+      withWorlds(HARBOUR);
+      withShelf(() => Promise.resolve({ objects: SHELF }));
+      await chooseHarbour();
+      await userEvent.selectOptions(screen.getByLabelText('Start in a world'), '');
+
+      expect(checked('Harbour gossip')).toBe(false);
+      expect(checked('Alpha notes')).toBe(false);
+      expect(screen.queryByText(/^Ticked because the book says/)).toBeNull();
+    });
+
+    /**
+     * ***`?world=` waits for the shelf too.*** The address is applied once, so
+     * applying it the moment the Worlds arrived — before the lorebooks — would
+     * tick the members and miss every scoped book for good.
+     */
+    it('waits for the lorebooks before choosing the world in the address', async () => {
+      withWorlds(HARBOUR);
+      let arrive: (value: unknown) => void = () => undefined;
+      withShelf(
+        () =>
+          new Promise((resolve) => {
+            arrive = resolve;
+          }),
+      );
+      search = { world: 'w-harbour' };
+      renderPage();
+      // The Worlds have answered and the shelf has not — so nothing is chosen
+      // yet, and there is no World select to choose one with either.
+      await waitFor(() => {
+        expect(listLibrary).toHaveBeenCalledWith('worlds');
+      });
+      await screen.findByLabelText('Start from a setup');
+      expect(screen.queryByLabelText('Start in a world')).toBeNull();
+
+      arrive({ objects: SHELF });
+      expect(
+        await screen.findByText('In the world “The harbour set”, with a treatment, 4 lorebooks'),
+      ).toBeTruthy();
+      expect(checked('Harbour gossip')).toBe(true);
+      expect(screen.getByLabelText<HTMLSelectElement>('Start in a world').value).toBe('w-harbour');
+    });
+
+    /**
+     * ***A World cannot be chosen before its offer is whole.*** The choice is
+     * a copy made once, so a World picked while the lorebooks were still on
+     * their way ticked its members and never the books whose scope names it —
+     * and Start sent that shorter list. The select waits for the shelf; and a
+     * shelf that fails does not hold it back for ever.
+     */
+    it('offers no world until the lorebooks have answered, or failed to', async () => {
+      withWorlds(HARBOUR);
+      let fail: (reason: unknown) => void = () => undefined;
+      withShelf(
+        () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      );
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await screen.findByLabelText('Start from a setup');
+      expect(screen.queryByLabelText('Start in a world')).toBeNull();
+
+      fail(new Error('the shelf is unreadable'));
+      expect(await screen.findByLabelText('Start in a world')).toBeTruthy();
+    });
+
+    /**
+     * ***The line explains the World's ticks and nobody else's.*** A scoped
+     * book the person ticked before choosing was theirs, so it is not said to
+     * be ticked *because* of the world — and it stays when the world goes.
+     */
+    it('names only the scoped books the world ticked, not one already ticked', async () => {
+      withWorlds(HARBOUR);
+      withShelf(() => Promise.resolve({ objects: SHELF }));
+      renderPage();
+      await userEvent.click(await screen.findByText(/Nothing chosen yet/));
+      await userEvent.click(await screen.findByLabelText('Alpha notes'));
+      await userEvent.selectOptions(
+        await screen.findByLabelText('Start in a world'),
+        await screen.findByRole('option', { name: 'The harbour set' }),
+      );
+
+      expect(
+        screen.getByText('Ticked because the book says it is for this world: Harbour gossip.'),
+      ).toBeTruthy();
+
+      await userEvent.selectOptions(screen.getByLabelText('Start in a world'), '');
+      expect(checked('Alpha notes')).toBe(true);
+      expect(checked('Harbour gossip')).toBe(false);
+    });
+  });
 });
 
 /**

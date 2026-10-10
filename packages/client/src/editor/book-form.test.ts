@@ -266,6 +266,43 @@ describe('reapplying my edits onto a newer book', () => {
   });
 
   /**
+   * ***The scope, since it has a control*** — [P16.2]. An ordinary book field:
+   * mine when I changed it, theirs when I did not, and never a mixture of the
+   * two — a scope is one statement, so their World list does not get spliced
+   * into my characters.
+   */
+  it('merges the scope as one field: mine when I changed it, theirs when I did not', () => {
+    const pristine = { ...book([entry('Harbour')]), scope: { kind: 'linked', actorIds: [] } };
+    const toWorld = { kind: 'world', worldIds: ['w1'] };
+    const toCharacters = { kind: 'linked', actorIds: ['a1'] };
+
+    const mine = reapplyBookEdits(
+      pristine,
+      { ...pristine, scope: toWorld },
+      {
+        ...pristine,
+        scope: toCharacters,
+        name: 'Theirs',
+      },
+    );
+    expect(mine['scope']).toEqual(toWorld);
+    expect(mine['name']).toBe('Theirs');
+
+    const theirs = reapplyBookEdits(
+      pristine,
+      { ...pristine, name: 'Mine' },
+      {
+        ...pristine,
+        scope: { kind: 'campaign', campaignIds: ['c'] },
+      },
+    );
+    // A kind this build does not know arriving from the other side is kept as
+    // it came ([26 B16]), because I never touched the scope.
+    expect(theirs['scope']).toEqual({ kind: 'campaign', campaignIds: ['c'] });
+    expect(theirs['name']).toBe('Mine');
+  });
+
+  /**
    * *And the containers are still merged by the finer rules above*, which a
    * blanket three-way over the whole object would have flattened: this asserts
    * the book-level pass did not reach into them.

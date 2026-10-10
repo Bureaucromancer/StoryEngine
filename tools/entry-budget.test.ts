@@ -244,7 +244,30 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * entry measured **298.46** before and **299.63** after: **+1.17 kB**, all the
  * client's own code, and **no new dependency**. It fits, and leaves **4.37**.
  */
-const JS_CEILING_KB = 304;
+/*
+ * ***Raised to 312 on 2026-10-10, at [P16.2]*** — the World,
+ * [P16](../docs/design/workplan/35-p16-world.md). Found by this file failing, as
+ * it is meant to be: the stage's own checks were targeted and built no client,
+ * and the isolated full run of `c511641` measured **304.77**. Measured stage by
+ * stage from P16's base (alpha 6, `ad47e39`), **299.63**: **299.85** after P16.0
+ * (the kind's rename — words, routes, the Worlds shelf in place of Packages);
+ * **302.98** after P16.1 (+3.13 — the member picker, `MembersField.tsx`, with its
+ * kind and name filters and its *Missing* badge, a session's *Add to a world…*
+ * and *In these worlds*); **303.08** with P16.0's review fix to the assistant's
+ * proposals; **304.77** after P16.2 (+1.69 — *Start in a world* on the session
+ * form, what it fills in and takes back, and a World's page's two starts);
+ * **304.81** with the `world` arm's schema, which the client bundles with the
+ * rest of `shared`; and **306.79** with the arm's surface — the lorebook
+ * editor's scope control (`BookScope.tsx`), the form's scope-named books, and
+ * the shelf's *For worlds* filter. **+7.16 kB** in all, every byte the
+ * client's own code, and **no new dependency**, which is the [21 §7] trigger.
+ * Five kB of margin, as every raise above left. *The next candidate for a
+ * `lazy()` is P16.3's own*: the publish review is a panel nobody sees until they
+ * press Publish, the plainest case since the setup wizard's dialog, and it is
+ * named here so P16.3 weighs it rather than meeting this ceiling and raising
+ * again — still a loading decision, and the stage's to make, not this one's.
+ */
+const JS_CEILING_KB = 312;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

@@ -270,3 +270,98 @@ describe('escape', () => {
     expect(dismiss).toHaveBeenCalled();
   });
 });
+
+/**
+ * ***Ids rather than words*** — [P16.2]'s scope pickers. A tag is whatever
+ * somebody types; an id is not, so under `strict` the text only narrows and a
+ * value is committed only by choosing an option — and `nameOf` is how a chip
+ * whose value is a uuid is spoken.
+ */
+describe('a strict field, over ids', () => {
+  const PEOPLE = [
+    { value: 'id-mira', label: 'Mira' },
+    { value: 'id-ossian', label: 'Ossian, the elder' },
+  ];
+  const NAMES = new Map(PEOPLE.map((one) => [one.value, one.label] as const));
+
+  function StrictHost(props: { initial?: string[] }): JSX.Element {
+    const [values, setValues] = useState<string[]>(props.initial ?? []);
+    return (
+      <TokenField
+        label="Characters"
+        values={values}
+        onChange={setValues}
+        strict
+        nameOf={(value) => NAMES.get(value) ?? value}
+        optionsFor={(term) =>
+          PEOPLE.filter(
+            (one) =>
+              !values.includes(one.value) && one.label.toLowerCase().includes(term.toLowerCase()),
+          )
+        }
+        renderToken={(value) => <span>{NAMES.get(value) ?? value}</span>}
+      />
+    );
+  }
+
+  function field(): HTMLElement {
+    return screen.getByRole('combobox', { name: 'Characters' });
+  }
+
+  it('commits the option Enter is on, by its value', async () => {
+    render(<StrictHost />);
+    await userEvent.type(field(), 'mir{Enter}');
+
+    expect(chips()).toEqual(['Mira']);
+  });
+
+  it('commits nothing for text no option matches, and says so', async () => {
+    render(<StrictHost />);
+    await userEvent.type(field(), 'Nobody{Enter}');
+
+    expect(chips()).toEqual([]);
+    expect(screen.getByText('Nothing matches Nobody.')).toBeTruthy();
+  });
+
+  /**
+   * Escape closes the popup and keeps the term; Enter then reopens the options
+   * the term matches rather than saying nothing matches, and a second Enter
+   * commits the one it is on.
+   */
+  it('reopens the options on Enter after Escape, rather than saying nothing matches', async () => {
+    render(<StrictHost />);
+    await userEvent.type(field(), 'mir{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByText('Nothing matches mir.')).toBeNull();
+    expect(screen.getByRole('option', { name: 'Mira' })).toBeTruthy();
+
+    await userEvent.keyboard('{Enter}');
+    expect(chips()).toEqual(['Mira']);
+  });
+
+  /** A name can hold a comma, so under `strict` it is a character and not an end-of-tag. */
+  it('takes a comma as part of the search', async () => {
+    render(<StrictHost />);
+    await userEvent.type(field(), 'ossian,{Enter}');
+
+    expect(chips()).toEqual(['Ossian, the elder']);
+  });
+
+  it('leaves a term in the box when focus leaves, rather than committing it', async () => {
+    render(<StrictHost />);
+    await userEvent.type(field(), 'Mira');
+    await userEvent.tab();
+
+    expect(chips()).toEqual([]);
+    expect(field()).toHaveProperty('value', 'Mira');
+  });
+
+  it('names each remove button by the name, not the id', () => {
+    render(<StrictHost initial={['id-mira', 'id-gone']} />);
+
+    // An id with no name is spoken as itself — still removable, and still there.
+    expect(chips()).toEqual(['Mira', 'id-gone']);
+  });
+});

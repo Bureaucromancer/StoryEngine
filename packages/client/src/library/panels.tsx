@@ -3,6 +3,8 @@
 
 import type { JSX, ReactNode } from 'react';
 
+import { worldIdsOf } from '@storyengine/shared';
+
 import { kindOfSchema, LIBRARY_KINDS, type LibraryKind, type LibraryObject } from '../api.js';
 import { SESSION_MEMBER_SCHEMA } from '../editor/members-form.js';
 import { formatCount, formatTimestamp, timestampsOf } from '../format.js';
@@ -111,7 +113,7 @@ export function tagsOf(object: LibraryObject): string[] {
   return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : [];
 }
 
-/** `global`, `linked`, or whatever a newer build wrote there. */
+/** `global`, `linked`, `world`, or whatever a newer build wrote there. */
 function scopeKindOf(object: LibraryObject): string | null {
   const scope = field(object, 'scope');
   if (typeof scope !== 'object' || scope === null) return null;
@@ -145,12 +147,23 @@ function scopeKindOf(object: LibraryObject): string | null {
  * whose `actorIds` is not a list is counted as linked to nobody: it names no
  * one this build can read. A scope this build does not know matches none of
  * the three, as it always has.
+ *
+ * ***A fourth, `world`, with the arm*** — [P16.2], [15 §5.3], [26 B16]. The
+ * one arm anything reads: a session started in a World the book names gets it
+ * ticked at the start. *By kind*, whether or not it names a World yet — the
+ * option is the stored word, the rule the three above keep — so a book left
+ * `{ kind: 'world', worldIds: [] }` by somebody who chose the option and never
+ * picked is found here rather than nowhere. **A kind this build does not know
+ * still matches none of them** ([26 B16]'s *open the unions*: kept and
+ * ignored), so it is on the unfiltered shelf and under no option, and carries
+ * no badge, rather than being guessed into one.
  */
-type ScopeShelf = 'global' | 'linked' | 'nobody';
+type ScopeShelf = 'global' | 'linked' | 'nobody' | 'world';
 
 function scopeShelfOf(object: LibraryObject): ScopeShelf | null {
   const kind = scopeKindOf(object);
   if (kind === 'global') return 'global';
+  if (kind === 'world') return 'world';
   if (kind !== 'linked') return null;
   const actorIds: unknown = (field(object, 'scope') as { actorIds?: unknown }).actorIds;
   return Array.isArray(actorIds) && actorIds.length > 0 ? 'linked' : 'nobody';
@@ -184,6 +197,9 @@ function updatedAt(object: LibraryObject): string | null {
 function nameBadges(object: LibraryObject): JSX.Element {
   const enabled = field(object, 'enabled');
   const linked = scopeShelfOf(object) === 'linked';
+  // Only when it names a World — the `Linked` badge's rule, *only when it
+  // names somebody*: a `world` scope naming none reaches no session.
+  const forWorlds = worldIdsOf(field(object, 'scope')).length > 0;
   const derived = provenanceSourceOf(object) === 'session';
 
   return (
@@ -232,6 +248,19 @@ function nameBadges(object: LibraryObject): JSX.Element {
       {linked ? (
         <Badge title="Authored as belonging to particular actors. A book is in play only if the session or its treatment names it.">
           Linked
+        </Badge>
+      ) : null}
+      {/*
+       * ***For sessions started in particular worlds*** — [P16.2],
+       * [15 §5.3]. Badged because, unlike `Linked`, it does something — and
+       * the title says exactly what, and what it does not: offered to a session
+       * *at its start*, in one of those worlds, as a tick on the form. Neutral,
+       * like `Linked`, because it is an authored statement and not a state
+       * anybody needs warning of; the word carries it.
+       */}
+      {forWorlds ? (
+        <Badge title="Offered to sessions started in the worlds it names: a session started in one of them gets this book ticked in its lorebooks at the start. No other session gets it unless somebody chooses it.">
+          World
         </Badge>
       ) : null}
       {/*
@@ -383,11 +412,13 @@ const LOREBOOKS: KindPanel = {
     {
       id: 'scope',
       label: 'Scope',
-      // `scopeShelfOf` says why there are three since [P16.2].
+      // `scopeShelfOf` says why there are three since [P16.2], and four with
+      // the `world` arm.
       optionsFor: () => [
         ['global', 'Global'],
         ['linked', 'Linked to characters'],
         ['nobody', 'Linked to nobody'],
+        ['world', 'For worlds'],
       ],
       matches: (object, value) => scopeShelfOf(object) === value,
     },

@@ -42,15 +42,20 @@ it, you wanted a setup.
   resets. A tag can also be a **folder**, shown as a row at the top of the list (see
   [Tags](#tags)).
 - The **Lorebooks** shelf has its own columns — entries, tags, source, when updated —
-  and filters for **Scope** (*Global*, *Linked to characters*, *Linked to nobody*),
-  **Enabled** and **Source**. A new lorebook, and every lorebook imported on its own
-  from SillyTavern, is *linked to nobody* — it says nothing about where it belongs;
-  an older one may say *Global*. Neither puts a book in any session: a book is in a
-  session because the session, its treatment or its world chose it.
+  and filters for **Scope** (*Global*, *Linked to characters*, *Linked to nobody*,
+  *For worlds*), **Enabled** and **Source**. A new lorebook, and every lorebook
+  imported on its own from SillyTavern, is *linked to nobody* — it says nothing about
+  where it belongs; an older one may say *Global*. Neither puts a book in any
+  session: a book is in a session because the session, its treatment or its world
+  chose it. A book *for worlds* is ticked on the start form of a session started in
+  one of the worlds it names — see
+  [The book's settings](lorebooks-and-memory.md#the-books-settings).
 
 Each row is the object's name, with **Yours** or **System**. On the **Lorebooks** shelf,
 a book can also say **Off** (switched off), **Linked** (written for particular
-characters — only when it names at least one) or **Memories** (written by play). **Shadowed** means another folder on disk holds the same object; see
+characters — only when it names at least one), **World** (for sessions started in
+particular worlds — only when it names at least one) or **Memories** (written by
+play). **Shadowed** means another folder on disk holds the same object; see
 [Files on disk](#files-on-disk).
 
 **New actor**, **New lorebook** and the other **New** buttons are under the kind bar;

@@ -600,6 +600,31 @@ describe('the Lorebooks panel', () => {
     expect(badgesInRows('Linked')).toHaveLength(1);
   });
 
+  /**
+   * ***A book for particular worlds is badged, because that arm does
+   * something*** — [P16.2], [15 §5.3]: a session started in one of them gets
+   * it ticked at the start. Only when it names one, `Linked`'s rule; and a
+   * scope of a kind this build does not know gets no badge at all
+   * ([26 B16]: kept and ignored, not guessed into a word).
+   */
+  it('badges a book that names a world, and not one naming none or of a kind it does not know', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { scope: { kind: 'world', worldIds: ['w1'] } }),
+        book('Brine', { scope: { kind: 'world', worldIds: [] } }, 'brine'),
+        book('Cinder', { scope: { kind: 'campaign', campaignIds: ['c'] } }, 'cinder'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const badges = badgesInRows('World');
+    expect(badges).toHaveLength(1);
+    expect(badges[0]?.getAttribute('title')).toMatch(/^Offered to sessions started in the worlds/);
+    expect(badgesInRows('Linked')).toHaveLength(0);
+  });
+
   it('reads the tags nothing has ever read', async () => {
     search = { kind: 'lorebooks' };
     listLibrary.mockResolvedValue({ objects: [book('Ardent', { tags: ['noir', 'city'] })] });
@@ -664,6 +689,9 @@ describe('the Lorebooks panel', () => {
         book('Rain City', { tags: ['city'], enabled: false }, 'rain-city'),
         // The factory's default since [P16.2] — linked, to nobody.
         book('Brine', { scope: { kind: 'linked', actorIds: [] } }, 'brine'),
+        // The `world` arm, and a kind from a newer build ([26 B16]).
+        book('Docks', { scope: { kind: 'world', worldIds: ['w1'] } }, 'docks'),
+        book('Elsewhere', { scope: { kind: 'campaign', campaignIds: ['c'] } }, 'elsewhere'),
       ];
     }
 
@@ -724,6 +752,22 @@ describe('the Lorebooks panel', () => {
       expect(names()).toEqual(['Rain City']);
     });
 
+    /**
+     * ***For worlds*** — [P16.2]'s arm, by kind. A scope of a kind this build
+     * does not know is on the unfiltered shelf and under no option at all:
+     * kept and ignored, never guessed into one of the four ([26 B16]).
+     */
+    it('narrows to books for worlds, and puts an unknown kind under no option but Any', async () => {
+      await shelved();
+      expect(names()).toContain('Elsewhere');
+      choose('Scope', 'world');
+      expect(names()).toEqual(['Docks']);
+      for (const value of ['global', 'linked', 'nobody', 'world']) {
+        choose('Scope', value);
+        expect(names()).not.toContain('Elsewhere');
+      }
+    });
+
     it('narrows by whether the book is switched on', async () => {
       await shelved();
       choose('Enabled', 'off');
@@ -749,7 +793,13 @@ describe('the Lorebooks panel', () => {
       const options = [...screen.getByLabelText('Scope').querySelectorAll('option')].map(
         (node) => node.textContent,
       );
-      expect(options).toEqual(['Any', 'Global', 'Linked to characters', 'Linked to nobody']);
+      expect(options).toEqual([
+        'Any',
+        'Global',
+        'Linked to characters',
+        'Linked to nobody',
+        'For worlds',
+      ]);
     });
 
     /**

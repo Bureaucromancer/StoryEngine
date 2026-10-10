@@ -171,6 +171,13 @@ function makeLibrary() {
 let server = makeLibrary();
 
 /**
+ * ***Other shelves, by kind*** — [P16.2]'s scope control reads the actors and
+ * the Worlds to pick from. Empty by default, so every other test sees the one
+ * book it always did; a test that needs a picker fills the kind it reads.
+ */
+let shelves: Partial<Record<string, LibraryObject[]>> = {};
+
+/**
  * ***The assist, answered when the test says*** (2026-09-27).
  *
  * A real assist takes ten to sixty seconds, and that interval is the whole of
@@ -210,7 +217,8 @@ vi.mock('../api.js', async (importOriginal) => {
     api: {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
-      listLibrary: () => Promise.resolve({ objects: [server.envelope()] }),
+      listLibrary: (kind?: string) =>
+        Promise.resolve({ objects: shelves[kind ?? ''] ?? [server.envelope()] }),
       readPrefs: () => Promise.resolve({ prefs: {} }),
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       readObject: () => server.readObject(),
@@ -231,6 +239,7 @@ const { router } = await import('../router.js');
 
 beforeEach(() => {
   server = makeLibrary();
+  shelves = {};
   assist.asked = [];
   assist.answers = [];
   assist.failures = [];
@@ -1231,6 +1240,230 @@ describe('leaving an editor with unsaved changes', () => {
       expect(screen.getByRole('textbox', { name: 'Name' })).toHaveProperty('value', 'Bridge');
     });
     expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+});
+
+/**
+ * ***The book's scope, written*** —
+ * [P16.2](../../../../docs/design/workplan/35-p16-world.md),
+ * [P16 §1.3](../../../../docs/design/workplan/35-p16-world.md): *"a field that
+ * is read and can only be changed in As stored is a field nobody sets."*
+ *
+ * Through the real write path, like the rest of this file: what is asserted is
+ * the scope the fake was handed on Save, because a control that showed the right
+ * option and saved the wrong value is the failure worth a build. The rules
+ * themselves — which option a scope reads as, what a choice writes — are
+ * `scope-form.test.ts`'s; these are that the page wires them, and that a scope
+ * from a newer build survives a save it had no part in ([26 B16]).
+ */
+describe('the book’s scope', () => {
+  const RAIN_CITY = '01a008de-7e08-70d0-899c-0000000000a1';
+  const MIRA = '01a008de-7e08-70d0-899c-0000000000b1';
+
+  function shelfRow(id: string, schema: string, name: string): LibraryObject {
+    return {
+      id,
+      schema,
+      name,
+      slug: name.toLowerCase(),
+      source: 'user',
+      contentHash: 'sha256:x',
+      shadowed: false,
+      object: {},
+    };
+  }
+
+  /** A book on disk whose scope says whatever the test needs it to. */
+  function scoped(scope: unknown): void {
+    server.handEdit({ ...makeBook(), scope } as unknown as Lorebook);
+  }
+
+  function chooser(): HTMLSelectElement {
+    return screen.getByRole<HTMLSelectElement>('combobox', { name: 'This book is' });
+  }
+
+  async function save(client: QueryClient): Promise<void> {
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    await settled(client);
+  }
+
+  it('writes the world arm from a picker over your own worlds', async () => {
+    shelves = { worlds: [shelfRow(RAIN_CITY, 'storyengine.world/1', 'Rain City')] };
+    const client = renderApp();
+    await openEditor();
+
+    // A new book is tied to nothing — 26 B15's default — and says what that does.
+    expect(chooser().value).toBe('nobody');
+    await userEvent.selectOptions(chooser(), 'worlds');
+    // The sentence the arm is owed: what it does, once, and that nothing else does.
+    expect(
+      screen.getByText(/a session started in one of these worlds gets this book/i),
+    ).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Worlds' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Rain City' }));
+    await save(client);
+
+    expect(server.stored().scope).toEqual({ kind: 'world', worldIds: [RAIN_CITY] });
+  });
+
+  it('writes characters, and back to nothing', async () => {
+    shelves = { actors: [shelfRow(MIRA, 'storyengine.actor/1', 'Mira')] };
+    const client = renderApp();
+    await openEditor();
+
+    await userEvent.selectOptions(chooser(), 'actors');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Characters' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Mira' }));
+    await save(client);
+    expect(server.stored().scope).toEqual({ kind: 'linked', actorIds: [MIRA] });
+
+    await userEvent.selectOptions(chooser(), 'nobody');
+    await save(client);
+    expect(server.stored().scope).toEqual({ kind: 'linked', actorIds: [] });
+  });
+
+  /**
+   * *For particular characters* with nobody picked stores what *Not tied to
+   * anything* stores, so a select that re-read the scope would snap back and
+   * take the picker away mid-edit — on choosing, and again on removing the
+   * last character.
+   */
+  it('stays on characters with nobody picked, rather than snapping back', async () => {
+    shelves = { actors: [shelfRow(MIRA, 'storyengine.actor/1', 'Mira')] };
+    renderApp();
+    await openEditor();
+
+    await userEvent.selectOptions(chooser(), 'actors');
+    expect(chooser().value).toBe('actors');
+    expect(screen.getByText(/^No character chosen yet/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Characters' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Mira' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Mira' }));
+
+    expect(chooser().value).toBe('actors');
+    expect(screen.getByRole('combobox', { name: 'Characters' })).toBeTruthy();
+  });
+
+  /**
+   * ***Your own Worlds, and only those*** — the set the new-session form
+   * offers to start in (`ownWorlds`), since a scope naming a World nobody
+   * here can start a session in does nothing on this install. A system World
+   * is not offered; a shadowed copy is not offered twice; and a system World
+   * the book already names is still shown by its name, not as *Missing*.
+   */
+  it('offers only your own worlds, and names a held one it does not offer', async () => {
+    const SHIPPED = '01a008de-7e08-70d0-899c-0000000000a2';
+    shelves = {
+      worlds: [
+        shelfRow(RAIN_CITY, 'storyengine.world/1', 'Rain City'),
+        { ...shelfRow(RAIN_CITY, 'storyengine.world/1', 'Rain City (old copy)'), shadowed: true },
+        { ...shelfRow(SHIPPED, 'storyengine.world/1', 'Shipped coast'), source: 'system' },
+      ],
+    };
+    scoped({ kind: 'world', worldIds: [SHIPPED] });
+    renderApp();
+    await openEditor();
+
+    expect(await screen.findByText('Shipped coast')).toBeTruthy();
+    expect(screen.queryByText('Missing')).toBeNull();
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Worlds' }));
+    const popup = await screen.findByRole('listbox');
+    const options = within(popup)
+      .getAllByRole('option')
+      .map((one) => one.textContent);
+    expect(options).toEqual(['Rain City']);
+  });
+
+  /** What is typed into a picker is a search; an id nobody chose is never stored. */
+  it('stores no id for text typed into the picker', async () => {
+    shelves = { worlds: [shelfRow(RAIN_CITY, 'storyengine.world/1', 'Rain City')] };
+    const client = renderApp();
+    await openEditor();
+
+    await userEvent.selectOptions(chooser(), 'worlds');
+    const box = screen.getByRole('combobox', { name: 'Worlds' });
+    await userEvent.type(box, 'Nowhere{Enter}');
+    await userEvent.tab();
+    await save(client);
+
+    expect(server.stored().scope).toEqual({ kind: 'world', worldIds: [] });
+  });
+
+  /**
+   * ***[26 B16]: open the unions.*** A scope from a newer build is shown as
+   * what it is, kept through a save of something else, and put back byte for
+   * byte when somebody switches away and back before saving.
+   */
+  it('keeps a scope of a kind it does not know, through saves and switches', async () => {
+    const newer = { kind: 'campaign', campaignIds: ['c-1'], note: { deep: true } };
+    scoped(newer);
+    const client = renderApp();
+    await openEditor();
+
+    expect(chooser().value).toBe('unknown');
+    expect(
+      screen.getByText(
+        'This book’s scope is of a kind this version does not know (campaign); it is kept as it is.',
+      ),
+    ).toBeTruthy();
+
+    const name = screen.getByRole('textbox', { name: 'Book name' });
+    await userEvent.type(name, ' Harbour');
+    await save(client);
+    expect(server.stored().scope).toEqual(newer);
+
+    await userEvent.selectOptions(chooser(), 'nobody');
+    await userEvent.selectOptions(chooser(), 'unknown');
+    await userEvent.type(name, '!');
+    await save(client);
+    expect(server.stored().scope).toEqual(newer);
+  });
+
+  const offered = (): string[] => [...chooser().options].map((one) => one.value);
+
+  it('offers no Global to a book that does not already say it', async () => {
+    renderApp();
+    await openEditor();
+    expect(offered()).toEqual(['nobody', 'actors', 'worlds']);
+  });
+
+  it('offers Global to an older book that says it, and keeps it through a save', async () => {
+    scoped({ kind: 'global' });
+    const client = renderApp();
+    await openEditor();
+
+    expect(chooser().value).toBe('global');
+    expect(offered()).toEqual(['nobody', 'actors', 'worlds', 'global']);
+    expect(screen.getByRole('option', { name: 'Global (from an older book)' })).toBeTruthy();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Harbour');
+    await save(client);
+    expect(server.stored().scope).toEqual({ kind: 'global' });
+  });
+
+  /**
+   * ***A World that no longer resolves stays named, marked Missing*** —
+   * [15 §3.1]'s *dangles visibly*, the rule `MembersField` keeps for a World's
+   * members. Dropping the id would rewrite the author's statement for them.
+   */
+  it('keeps a picked world that no longer resolves, by its id, marked Missing', async () => {
+    shelves = { worlds: [] };
+    scoped({ kind: 'world', worldIds: ['gone-world'] });
+    const client = renderApp();
+    await openEditor();
+
+    expect(chooser().value).toBe('worlds');
+    expect(await screen.findByText('Missing')).toBeTruthy();
+    expect(screen.getByText('gone-world')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove gone-world' })).toBeTruthy();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Book name' }), ' Harbour');
+    await save(client);
+    expect(server.stored().scope).toEqual({ kind: 'world', worldIds: ['gone-world'] });
   });
 });
 
