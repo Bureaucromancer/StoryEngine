@@ -361,10 +361,16 @@ describe('an index whose rebuild never finished', () => {
  * this build it must ask for the rebuild, and the rebuild must give the book's
  * *Used by* the actor. Leave the constant at 13 and the open reports the file
  * current, and the book stays used by nobody.
+ *
+ * *(2026-10-10, the commit after P16.3b: the version is 15 — the played-cast
+ * correction to row 13 bumped it, `migrations.ts` says why — and an index at 13
+ * is now two builds back. What this case pins is unchanged: an index older than
+ * this build asks for the rebuild, and the rebuild gives the links 13 never
+ * held.)*
  */
 describe('an index an older build wrote', () => {
-  it('is rebuilt at 14, and a lorebook’s Used by gains the actors that link it', async () => {
-    expect(INDEX_SCHEMA_VERSION).toBe(14);
+  it('is rebuilt at 15, and a lorebook’s Used by gains the actors that link it', async () => {
+    expect(INDEX_SCHEMA_VERSION).toBe(15);
     const book = newLorebook('Rain City');
     await library.saveObject(book, 'rain-city');
     const vera = { ...newActor('Vera Solano'), lore: [{ id: book.id, name: book.name }] };
@@ -379,7 +385,7 @@ describe('an index an older build wrote', () => {
 
     const reopened = await openIndex({ path: library.layout.indexFile });
     try {
-      expect(reopened.migration).toMatchObject({ from: 13, to: 14, rebuildRequired: true });
+      expect(reopened.migration).toMatchObject({ from: 13, to: 15, rebuildRequired: true });
       await rebuild(reopened.db, library.layout);
       expect(usedBy(reopened.db, book.id, owners)).toEqual([
         { fromKind: ACTOR_SCHEMA, fromId: vera.id, fromName: 'Vera Solano' },

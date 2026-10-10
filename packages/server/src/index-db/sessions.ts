@@ -136,25 +136,34 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
    * plays under**, so a treatment's *Used by* counts the sessions played under
    * it, and the delete confirmation says so before the treatment goes. **And the
    * actors its hook pool names**, the owner's answer of 2026-10-10 at P16.3's
-   * plan: every pooled hook's `involves`, and its `introduces.actor` only while
-   * the hook has not fired — the walker's rule, because it is the walker's
-   * function. *Shape-guarded, which the list was not*: a hand-edited
+   * plan: every pooled hook's `involves`, and its `introduces.actor` ~~only while
+   * the hook has not fired~~ *fired or not* — the walker's rule, because it is
+   * the walker's function. ***And the cast it plays with***, *corrected
+   * 2026-10-10* after P16.3b's review: whoever arrived during play — an actor
+   * the head's channels hold state for and `cast.actors` does not name,
+   * `resolveCast`'s other half — so a character the story walked in lists the
+   * session that walked them in. *Shape-guarded, which the list was not*: a hand-edited
    * `cast.actors` holding a `{ id }` would have reached `writeLinks` as an object
    * SQLite cannot bind, and one holding a string would have spread into its
    * characters; `sessionEdges` reads an id string, or a `Ref`'s id, or nothing.
    *
-   * ***So this row now changes when a hook fires, and nothing new had to make
-   * that true.*** Fired is the head's `se.hook#<id>` channel, and a session's
-   * channels change only where its head moves — `advanceHead` on every appended
-   * turn, the engine's and a person's channel edit alike, and `moveHead` on a
-   * branch switch — and both write through here, as every write of
-   * `session.json` does (`sessions/store.ts`'s, and `chat-write`'s, `hidden`'s
-   * and the importer's through its `indexWrittenSession`). Rewinding past the
-   * firing brings the link back, because `moveHead` rebuilds the channels this
-   * reads; a hand edit to the file is read at the next start's consistency
-   * check, as any other is.
+   * ***So this row ~~now changes when a hook fires~~ changes when somebody
+   * arrives, and nothing new had to make that true.*** ~~Fired is the head's
+   * `se.hook#<id>` channel~~ *Since 2026-10-10 a hook firing changes nothing
+   * here — its subject is named fired or not — and what moves with play is the
+   * played cast: an actor's `se.presence`, `se.status` or `se.party` key at the
+   * head*; and a session's channels change only where its head moves —
+   * `advanceHead` on every appended turn, the engine's and a person's channel
+   * edit alike, and `moveHead` on a branch switch — and both write through
+   * here, as every write of `session.json` does (`sessions/store.ts`'s, and
+   * `chat-write`'s, `hidden`'s and the importer's through its
+   * `indexWrittenSession`). ~~Rewinding past the firing brings the link back~~
+   * *Rewinding past an arrival takes the link away, unless something else
+   * names them*, because `moveHead` rebuilds the channels this reads and an
+   * undone arrival's key is deleted, not set `false`; a hand edit to the file is
+   * read at the next start's consistency check, as any other is.
    *
-   * ***What it does not see, stated rather than decided here.*** The rule's
+   * ~~***What it does not see, stated rather than decided here.*** The rule's
    * reason, in `sessionEdges` and in 04 §9.1 — *"a fired arrival's subject has
    * arrived already and is in the cast, which the row reaches anyway"* — is
    * true of the cast a turn is played with, which `resolveCast` unions from the
@@ -163,7 +172,16 @@ export function indexSession(db: DatabaseSync, owner: string, session: SessionFi
    * So once the hook fires, the subject's *Used by* stops naming the session
    * unless the roster or another hook names them — and the walker leaves them
    * out of a publish for the same reason, so the two still agree. It is the
-   * row's question, not the index's, and P16.3b changes neither.
+   * row's question, not the index's, and P16.3b changes neither.~~ ***Decided
+   * 2026-10-10, the commit after P16.3b.*** The struck reason was false — the
+   * fired arrival's subject was in the cast a turn is played with and not in
+   * the `cast` field the row read — so the subject's *Used by* dropped the
+   * session at the moment they entered the story, the under-count `usedBy`
+   * calls the direction that makes [03 §10.1]'s confirmation lie. The row reads
+   * the played cast now and follows every pooled arrival's subject, and this
+   * call changed not at all: it writes `sessionEdges`' ids, and the walker
+   * reads the same function, so the two still agree with no listed difference
+   * (`links.test.ts`).
    */
   writeLinks(
     db,

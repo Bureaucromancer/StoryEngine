@@ -18,6 +18,7 @@ import {
   newLorebook,
   newPreset,
   newSetup,
+  newTagRegistry,
   newTreatment,
   newWorld,
   PRESET_SCHEMA,
@@ -30,8 +31,10 @@ import {
 import { rebuild } from '../index-db/rebuild.js';
 import { list } from '../library.js';
 import { ensureMemoryBook } from '../memory/books.js';
+import { readSession } from '../sessions/store.js';
 import type { SessionFile } from '../sessions/types.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
+import { resolveCast } from '../turns/cast.js';
 import {
   type ClosureReader,
   type ClosureRefusal,
@@ -524,8 +527,13 @@ describe('each row of 04 §9.1, through the walker', () => {
 
     /**
      * ***The owner's first answer*** (2026-10-10), and its gate. A pooled
-     * hook's `involves` is followed fired or not; its `introduces.actor` only
-     * while unfired. Everything the pool reaches is reached *through the
+     * hook's `involves` is followed fired or not; its `introduces.actor` ~~only
+     * while unfired~~ *fired or not too — flipped 2026-10-10, the correction
+     * after [P16.3b]'s review*: the owner's answer is about the actors the
+     * hooks name, and the struck rule's reason (*a fired arrival's subject is in
+     * the cast*) was false of the roster the walker read, so Cy — the fired
+     * hook's subject — was left out of a publish of the very session that
+     * brought him in. Everything the pool reaches is reached *through the
      * session*, so it travels exactly when the session is ticked.
      */
     it('reaches pooled hooks’ actors only through the session, and only when it is ticked', async () => {
@@ -551,18 +559,88 @@ describe('each row of 04 §9.1, through the walker', () => {
       });
       const closure = await walked(lib.reader, world(home.id));
 
-      // involves either way — the fired hook's and the waiting one's; the fired
-      // arrival's subject not; the unfired one's yes.
+      // involves either way — the fired hook's and the waiting one's; ~~the fired
+      // arrival's subject not~~ the fired arrival's subject too (2026-10-10);
+      // the unfired one's yes.
       expect(rulesInto(closure, ada.id)).toEqual(['session.hooks.involves']);
       expect(rulesInto(closure, bo.id)).toEqual(['session.hooks.involves']);
-      expect(foundIds(closure)).not.toContain(cy.id);
+      expect(rulesInto(closure, cy.id)).toEqual(['session.hooks.introduces']);
       expect(rulesInto(closure, di.id)).toEqual(['session.hooks.introduces']);
 
-      for (const actor of [ada, bo, di]) {
+      for (const actor of [ada, bo, cy, di]) {
         expect(foundOf(closure, actor.id)).toMatchObject({ base: false, gates: [session.id] });
       }
       expect(carried(closure)).toEqual([]);
-      expect(carried(closure, { [session.id]: true })).toEqual([ada.id, bo.id, di.id, session.id]);
+      expect(carried(closure, { [session.id]: true })).toEqual([
+        ada.id,
+        cy.id,
+        bo.id,
+        di.id,
+        session.id,
+      ]);
+    });
+
+    /**
+     * ***Row 13's cast is the played cast*** — 2026-10-10, the correction after
+     * [P16.3b]'s review. The keeper arrived by a fired hook and the story gave
+     * him presence; the stranger walked in on a person's channel write with no
+     * hook at all. Neither is in `cast.actors` and both are in every turn
+     * `resolveCast` assembles, so both are reached — as *arrived during play*,
+     * the review's own rule — and, being reached only through the session,
+     * both stay home with an unticked transcript. The persona holds every
+     * channel there is and is reached once, as the persona.
+     */
+    it('reaches whoever arrived during play as arrived, through the session alone, and never the persona', async () => {
+      const lib = shelf();
+      const you = lib.put(newActor('You'));
+      const vera = lib.put(newActor('Vera'));
+      const keeper = lib.put(newActor('The keeper'));
+      const stranger = lib.put(newActor('A stranger'));
+      const session = lib.session({
+        id: 'session-1',
+        cast: { persona: you.id, actors: [vera.id] },
+        hooks: [
+          {
+            hook: hook('knock', [], refTo(keeper)) as never,
+            source: { kind: 'session' },
+          },
+        ],
+        channels: {
+          'se.hook#knock': { value: 'fired' },
+          [`se.presence#${keeper.id}`]: { value: true },
+          [`se.presence#${stranger.id}`]: { value: true },
+          [`se.presence#${you.id}`]: { value: true },
+          [`se.party#${you.id}`]: { value: 'player' },
+        } as never,
+      });
+      const home = lib.put({
+        ...newWorld('Rain City'),
+        contents: [{ schema: SESSION_SCHEMA, id: session.id, name: 'Night one' }],
+      });
+      const closure = await walked(lib.reader, world(home.id));
+
+      expect(rulesInto(closure, you.id)).toEqual(['session.cast.persona']);
+      expect(rulesInto(closure, vera.id)).toEqual(['session.cast.actors']);
+      expect(rulesInto(closure, keeper.id)).toEqual([
+        'session.cast.arrived',
+        'session.hooks.introduces',
+      ]);
+      expect(rulesInto(closure, stranger.id)).toEqual(['session.cast.arrived']);
+      // By id, from the channel key that put them there.
+      expect(closure.edges.find((edge) => edge.to === stranger.id)).toMatchObject({
+        from: session.id,
+        field: `/channels/se.presence#${stranger.id}`,
+        resolvedBy: 'id',
+        default: 'included',
+      });
+
+      for (const actor of [keeper, stranger]) {
+        expect(foundOf(closure, actor.id)).toMatchObject({ base: false, gates: [session.id] });
+      }
+      expect(carried(closure)).toEqual([]);
+      expect(carried(closure, { [session.id]: true }).sort()).toEqual(
+        [you.id, vera.id, keeper.id, stranger.id, session.id].sort(),
+      );
     });
 
     it('does not reach an actor named by a pooled hook’s source', async () => {
@@ -1199,6 +1277,78 @@ describe('walking a real library', () => {
       'treatment.hooks.introduces',
     ]);
     expect(foundOf(closure, keeper.id)).toMatchObject({ base: false, gates: [sessionId] });
+  });
+
+  /**
+   * ***Somebody a person walked in, through the door a person uses*** — row
+   * 13's played cast (2026-10-10, the correction after [P16.3b]'s review),
+   * over a real session and the real channel route. `PUT
+   * /sessions/:id/channels/se.presence#<id>` appends a turn like any other
+   * write and puts the stranger in the story without touching `cast.actors`;
+   * the walk reaches him as *arrived during play*, gated on the session's
+   * tick like everything else it names.
+   *
+   * ***And the set is `resolveCast`'s, asked of `resolveCast`.*** The cast the
+   * walker reaches — persona, roster and arrivals — is compared with the cast
+   * the turn assembler would play this session with, read from the same file
+   * by the real function. That is the decision's own wording (*exactly the set
+   * `resolveCast` plays with*), and the comparison is what fails if either side
+   * learns a channel the other does not.
+   */
+  it('reaches an actor a person gave presence by hand, as arrived — resolveCast’s cast, gated on the tick', async () => {
+    const you = await created('actors', newActor('You'));
+    const vera = await created('actors', newActor('Vera'));
+    const stranger = await created('actors', newActor('A stranger'));
+    const home = await created('worlds', newWorld('Rain City'));
+    const started = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Night one', world: home.id, cast: { persona: you.id, actors: [vera.id] } },
+    });
+    expect(started.status, JSON.stringify(started.body)).toBe(201);
+    const sessionId = started.body.session.id as string;
+
+    const walkedIn = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent(`se.presence#${stranger.id}`)}`,
+      payload: { value: true },
+    });
+    expect(walkedIn.status, JSON.stringify(walkedIn.body)).toBe(200);
+    expect(walkedIn.body.effect.applied).toBe(true);
+    expect(walkedIn.body.session.cast.actors).toEqual([vera.id]);
+    // The persona in the scene too: `resolveCast` plays them as the persona and
+    // never as an arrival, so the comparison below fails if the walker does.
+    const persona = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${sessionId}/channels/${encodeURIComponent(`se.presence#${you.id}`)}`,
+      payload: { value: true },
+    });
+    expect(persona.status, JSON.stringify(persona.body)).toBe(200);
+
+    const closure = await walked(reader(), world(home.id));
+    expect(rulesInto(closure, you.id)).toEqual(['session.cast.persona']);
+    expect(rulesInto(closure, stranger.id)).toEqual(['session.cast.arrived']);
+    expect(foundOf(closure, stranger.id)).toMatchObject({ base: false, gates: [sessionId] });
+    expect(carried(closure)).not.toContain(stranger.id);
+    expect(carried(closure, { [sessionId]: true })).toContain(stranger.id);
+
+    const file = await readSession(server.services.sessions, 'ned', sessionId);
+    if (file === null) throw new Error('the session the route made is not there');
+    const played = resolveCast(
+      server.services.library,
+      'ned',
+      file.cast,
+      newTagRegistry(),
+      file.channels,
+    );
+    const castRules = ['session.cast.persona', 'session.cast.actors', 'session.cast.arrived'];
+    const reached = closure.edges
+      .filter((edge) => edge.from === sessionId && castRules.includes(edge.rule))
+      .map((edge) => edge.to);
+    expect(reached.sort()).toEqual(
+      [played.persona?.actor.id, ...played.actors.map((member) => member.actor.id)].sort(),
+    );
+    expect(reached.sort()).toEqual([you.id, vera.id, stranger.id].sort());
   });
 
   /**

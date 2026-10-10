@@ -121,17 +121,48 @@ import type { DatabaseSync } from 'node:sqlite';
  * what the index never did. *An actor's `lore[]`* — so a lorebook's *Used by*
  * gains the actors that link it, which [10 §5.2] has always listed and this
  * index has never held. *A session's `treatment`, and the actors its hook pool
- * names* — every pooled hook's `involves`, and its `introduces.actor` while the
- * hook has not fired — so a treatment's *Used by* counts the sessions played
- * under it, and an actor's counts the sessions whose hooks name them. 9's
- * argument word for word: an actor or a session nobody has saved since the
- * upgrade is a file nothing re-reads, and without the bump every lorebook on an
- * upgraded install would go on reporting no actors — and the delete
- * confirmation ([03 §10.1](../../../../docs/design/03-data-model.md)) counting
- * fewer users than it has — until each actor happened to be saved. One rescan
- * is the whole cost, a fourth time.
+ * names* — every pooled hook's `involves`, and its `introduces.actor` ~~while the
+ * hook has not fired~~ *fired or not* — so a treatment's *Used by* counts the
+ * sessions played under it, and an actor's counts the sessions whose hooks name
+ * them. *And, corrected 2026-10-10 in the commit after P16.3b, the actors who
+ * arrived during play* — row 13's cast is the one a session plays with, so the
+ * actors its head's channels hold state for are links too. 9's argument word
+ * for word: an actor or a session nobody has saved since the upgrade is a file
+ * nothing re-reads, and without the bump every lorebook on an upgraded install
+ * would go on reporting no actors — and the delete confirmation
+ * ([03 §10.1](../../../../docs/design/03-data-model.md)) counting fewer users
+ * than it has — until each actor happened to be saved. One rescan is the whole
+ * cost, a fourth time.
+ *
+ * ~~***14 carries the correction rather than a 15***~~ *(Overruled by the lead
+ * the same day, in the same commit — see 15 below — and kept for its argument.)*
+ * (2026-10-10, the commit
+ * after [P16.3b]; *moved here by that commit's review*, which found it splitting
+ * the paragraph above, so that 9's argument — the case **for** a bump — read as
+ * though it followed the decision not to make one). 14 was committed at P16.3b
+ * and pushed to `origin/p16`, and no tag holds it, so no release built an index
+ * under the struck rule: only a developer who ran the server on that branch —
+ * the owner walking the P16 gate among them — holds one. **That index needs
+ * `index.rebuildOnStart` once, or `index.sqlite` deleted**, because the
+ * argument above applies to it unchanged: a session nobody writes again keeps
+ * the links the struck rule gave it, so the characters who arrived in it, and
+ * its fired hooks' subjects, are missing from their *Used by* until the next
+ * turn or edit rewrites `session.json`. A 15 is what would make that rescan
+ * automatic; it would be owed had 14 shipped, and it was not taken here because
+ * 14 has not.
+ *
+ * ***15 is 9's shape a fifth time, and carries the correction*** (2026-10-10, the
+ * commit after [P16.3b]). The paragraph above is right that no release built an
+ * index at 14, and wrong about who pays for leaving it: 14 is on `origin/p16`,
+ * and the indexes built under it belong to exactly the people walking the P16
+ * gate on that branch, for whom *remember to set `index.rebuildOnStart` once* is
+ * the kind of step this file exists so nobody has to remember. A bump costs a
+ * release nothing it was not already paying — an install from alpha 6 rescans
+ * once, from 12, at 15 as it would have at 14 — and costs a `p16` index the one
+ * rescan it needs, automatically. So the arrivals and the fired hooks' subjects
+ * that 14's struck rule left out are links at 15 without anybody being told.
  */
-export const INDEX_SCHEMA_VERSION = 14;
+export const INDEX_SCHEMA_VERSION = 15;
 
 /**
  * `user_version` is a 32-bit integer SQLite stores in the database header for

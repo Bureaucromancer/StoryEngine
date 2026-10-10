@@ -142,7 +142,9 @@ describe('who points at an object', () => {
  * [P16.3b](../../../../docs/design/workplan/35-p16-world.md).
  *
  * The index reads the publish walker's reader since P16.3b, and these are the
- * three answers that grew when it did — each asked of the route the client's
+ * three answers that grew when it did — *and a fourth since the correction of
+ * 2026-10-10, the actors a session plays with that its roster does not name* —
+ * each asked of the route the client's
  * *Used by* panel and delete confirmation read (`readUsedBy` in the client's
  * `api.ts`), each made through the routes that make the referring thing, for
  * the reason the case above gives: the deciding and the counting are written
@@ -213,11 +215,11 @@ describe('who points at an object, as 04 §9.1 names it', () => {
   });
 
   /**
-   * ***The pool's actors, and the rule that moves with play*** — row 13's
-   * second clause, the owner's answer of 2026-10-10. A pooled hook names its
-   * `involves` for as long as it is in the pool, and its `introduces.actor`
-   * only while the hook has not fired: the walker's rule, and the index's,
-   * because they are one function.
+   * ***The pool's actors, and ~~the rule that moves with play~~ a rule that
+   * does not*** — row 13's second clause, the owner's answer of 2026-10-10. A
+   * pooled hook names its `involves` for as long as it is in the pool, and its
+   * `introduces.actor` ~~only while the hook has not fired~~ *fired or not*:
+   * the walker's rule, and the index's, because they are one function.
    *
    * **Fired through the door a person uses** — the hook panel's channel write,
    * which appends a turn like any other — so this also proves the index is
@@ -225,7 +227,7 @@ describe('who points at an object, as 04 §9.1 names it', () => {
    * saved for some other reason: the session is written once, here, and the
    * link goes with it.
    *
-   * ***The second half pins the row as 04 §9.1 prints it, and the row is
+   * ~~***The second half pins the row as 04 §9.1 prints it, and the row is
    * questioned*** (2026-10-10, at P16.3b's review). Its reason for stopping at
    * the firing — *the subject has arrived and is in the cast, which the row
    * reaches anyway* — holds for the cast a turn is played with (`resolveCast`
@@ -238,9 +240,20 @@ describe('who points at an object, as 04 §9.1 names it', () => {
    * it is what the row says and the walker does, not because it is settled: the
    * decision is the owner's, on 04 §9.1's row 13, and if it goes the other way
    * this assertion and `links.test.ts`'s session parity case flip with it. See
-   * `sessionEdges`' and `indexSession`'s notes.
+   * `sessionEdges`' and `indexSession`'s notes.~~
+   *
+   * ***Flipped 2026-10-10*** — the correction after P16.3b's review, as the
+   * struck paragraph said it would be. The struck reason was false of the roster
+   * the row read, so the keeper's *Used by* lost the session at the moment the
+   * keeper entered the story; the row now names every pooled arrival's subject
+   * whatever the hook's state, because the owner's answer is about the actors a
+   * session's hooks name. So the firing changes nothing here, and the second
+   * half asserts exactly that — the session stays in the keeper's *Used by* and
+   * in the count the delete confirmation shows. *When the story then walks the
+   * keeper in*, the played cast names him too (`session.cast.arrived`, the case
+   * below); `usedBy` is one row per thing that names, so that adds no row.
    */
-  it('an actor named by a session’s unfired arrival hook lists that session; once fired it does not, as row 13 stands', async () => {
+  it('an actor named by a session’s arrival hook lists that session, fired or not', async () => {
     const keeper = newActor('The keeper');
     await server.request({ method: 'POST', url: '/api/library/actors', payload: keeper });
     const session = await startSession({ name: 'Night one' });
@@ -281,8 +294,59 @@ describe('who points at an object, as 04 §9.1 names it', () => {
     expect(fired.status, JSON.stringify(fired.body)).toBe(200);
     expect(fired.body.effect.applied).toBe(true);
 
-    expect(bySession(await linksOf('actors', keeper.id))).toEqual([]);
+    // ~~`toEqual([])`, as row 13 stood~~ — the fired hook still names him.
+    expect(bySession(await linksOf('actors', keeper.id))).toHaveLength(1);
     // `involves` is not the subject: a fired hook that involved Vera still names her.
+    expect(bySession(await linksOf('actors', vera))).toHaveLength(1);
+  });
+
+  /**
+   * ***Row 13's played cast, through the door a person uses*** — 2026-10-10,
+   * the correction after P16.3b's review. A person gives a stranger presence
+   * by hand (`PUT /sessions/:id/channels/se.presence#<id>`, the write the
+   * narrator's presence effect also makes); the stranger is in no
+   * `cast.actors` and in every turn `resolveCast` assembles from here on, so
+   * the session is in his *Used by* — and the delete confirmation counts it —
+   * as an actor who **arrived during play**.
+   *
+   * ***And rewinding past the arrival takes it away.*** `PUT /sessions/:id/head`
+   * back to before the first turn rebuilds the head's channels without the
+   * write, and writes the session through the index as every head move does;
+   * the stranger is no longer in the cast the session plays with, so he is no
+   * longer used by it. Vera, on the roster, is unmoved by either.
+   */
+  it('an actor who arrived during play lists the session that walked them in, until a rewind takes them out', async () => {
+    const stranger = newActor('A stranger');
+    await server.request({ method: 'POST', url: '/api/library/actors', payload: stranger });
+    const session = await startSession({
+      name: 'Night one',
+      cast: { persona: null, actors: [vera] },
+    });
+    const bySession = (used: { fromKind: string; fromId: string }[]) =>
+      used.filter((one) => one.fromKind === 'session' && one.fromId === session);
+    expect(bySession(await linksOf('actors', stranger.id))).toEqual([]);
+
+    const walkedIn = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${session}/channels/${encodeURIComponent(`se.presence#${stranger.id}`)}`,
+      payload: { value: true },
+    });
+    expect(walkedIn.status, JSON.stringify(walkedIn.body)).toBe(200);
+    expect(walkedIn.body.effect.applied).toBe(true);
+    // Not on the roster: what names him is the channel, and only the channel.
+    expect(walkedIn.body.session.cast.actors).toEqual([vera]);
+
+    expect(bySession(await linksOf('actors', stranger.id))).toHaveLength(1);
+    expect(bySession(await linksOf('actors', vera))).toHaveLength(1);
+
+    const rewound = await server.request({
+      method: 'PUT',
+      url: `/api/sessions/${session}/head`,
+      payload: { turnId: null },
+    });
+    expect(rewound.status, JSON.stringify(rewound.body)).toBe(200);
+
+    expect(bySession(await linksOf('actors', stranger.id))).toEqual([]);
     expect(bySession(await linksOf('actors', vera))).toHaveLength(1);
   });
 });

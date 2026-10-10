@@ -203,7 +203,10 @@ export function idsOf(edges: readonly OutboundRef[]): string[] {
  * actor in a field whose purpose is to point. *Three carriers then, four now*:
  * a session's pool was the fourth source [03 §4.1] names, and it never came
  * through here, because `indexSession` hands `writeLinks` its ids directly — it
- * does still, and since [P16.3b] they include the pool's actors (`sessionEdges`).
+ * does still, and since [P16.3b] they include the pool's actors (`sessionEdges`)
+ * — every arrival's subject, fired or not, since the correction of 2026-10-10,
+ * which also gave them whoever arrived during play: a session's cast is the one
+ * it plays with, `resolveCast`'s, and not `cast.actors` alone.
  *
  * **`entryRef` — unwrap what might be wrapped.** It was applied to values the
  * schema says are bare `Ref`s, because the fields beside them in hand-written

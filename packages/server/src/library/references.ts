@@ -15,7 +15,7 @@ import {
   worldIdsOf,
 } from '@storyengine/shared';
 
-import { readHookState } from '../sessions/hooks.js';
+import { actorsWithState } from '../sessions/cast.js';
 
 /**
  * ***[04 §9.1]'s table, read off one object at a time*** —
@@ -67,9 +67,16 @@ import { readHookState } from '../sessions/hooks.js';
  * walk that threw on one malformed hook would refuse to publish a World over a
  * typo. A position that holds nothing usable yields no edge; a position that
  * holds a usable reference to nothing is the walker's to report as missing.
- * *Pure in its imports too*: `sessions/hooks.ts`, the one module reached for, is
+ * *Pure in its imports too*: ~~`sessions/hooks.ts`, the one module reached for, is
  * the hook filter's — a function of its arguments that `mode-loader.ts` already
- * imports precisely because it touches no storage.
+ * imports precisely because it touches no storage.~~ *`sessions/cast.ts` since
+ * 2026-10-10* — the one module reached for, for `actorsWithState`, the function
+ * `resolveCast` plays a turn's cast with (see {@link sessionEdges}); it reads a
+ * channel map's keys and nothing else, touches no storage, and was already in
+ * this module's import graph through `sessions/hooks.ts`, which imports it — so
+ * the swap added no edge to the graph and no cycle (nothing `sessions/cast.ts`
+ * reaches imports this module). `sessions/hooks.ts` went with the fired gate it
+ * was imported for.
  *
  * ***What is not followed, and why each is deliberate*** — the list is the
  * table's complement, and a reader that "helpfully" followed any of these would
@@ -102,11 +109,17 @@ import { readHookState } from '../sessions/hooks.js';
  *   exactly the sibling the row says is never pulled in; `roles` and `stepRoles`
  *   are connection bindings, which never travel ([16 §2]); `branchRefs`,
  *   `renditionSelection`, `lastSelectedChild` and `hidden` name turns; and the
- *   actor ids that key `channels` (`se.status#<actorId>`) and `prompts.cards`
- *   describe the cast rather than choosing it — the cast is `cast`, which is
- *   followed. *Questioned 2026-10-10, at [P16.3b]*: a fired arrival's subject
- *   reaches the cast a turn is played with only through these keys, since
- *   firing adds nobody to `cast` — see {@link sessionEdges}'s note.
+ *   actor ids that key ~~`channels` (`se.status#<actorId>`) and~~
+ *   `prompts.cards` describe the cast rather than choosing it ~~— the cast is
+ *   `cast`, which is followed~~. *Questioned 2026-10-10, at [P16.3b]*: a fired
+ *   arrival's subject reaches the cast a turn is played with only through these
+ *   keys, since firing adds nobody to `cast` — see {@link sessionEdges}'s note.
+ *   ***Corrected the same day***: the actor ids that key `se.presence`,
+ *   `se.status` and `se.party` **do** choose the cast — `resolveCast` plays
+ *   every actor they name — so row 13 follows them, as `session.cast.arrived`.
+ *   What stays unfollowed is what never put anybody in a turn: a card prompt
+ *   keyed by an actor (`prompts.cards`), and every other channel (`se.hook#`'s
+ *   hook ids, the clock, a mode's dials).
  * - **Memory books.** A session's cast reaches its memory books only through
  *   `resolveLore`, which *queries* the library for them; nothing names one. The
  *   walker never calls it — see `packaging/closure.ts`.
@@ -179,11 +192,69 @@ export function edgesOf(schemaId: string, body: unknown): OutboundRef[] {
 }
 
 /**
- * ***Row 13 — a session's links, and the actors its hook pool names.***
+ * ***Row 13 — a session's links, ~~and~~ the cast it plays with, and the actors
+ * its hook pool names.***
  *
  * **Its links first**: its `treatment`, its `lore[]`, its persona and its
  * actors — bare id strings on `SessionFile`, resolved by id alone, as
  * `resolveLore` and `resolveCast` resolve them when the session plays.
+ *
+ * ***Then the rest of the cast it plays with*** — *corrected 2026-10-10*, the
+ * lead's decision after the [P16.3b] review, following the owner's answer
+ * (*"actors named by its plot hooks travel"*) more literally than the row's
+ * first amendment did. [04 §9.1]'s Session row says *its cast (persona and
+ * actors)*, and **the cast is the played cast**: the persona, and `cast.actors`
+ * together with every actor the session's channels hold state for — exactly
+ * the set `resolveCast` (`turns/cast.ts`) sends cards for, because that is the
+ * set a turn is assembled around. An arrived character joins it through
+ * `actorsWithState` — the same function, imported rather than re-spelled, so
+ * which channels put somebody in the story (`se.presence`, `se.status`,
+ * `se.party`) is decided once — and through nothing that touches `cast.actors`:
+ * firing an arrival writes the hook's channel and nothing else, and the
+ * narrator's presence effect that walks the subject in, or a person's write
+ * through `PUT /sessions/:id/channels/:key`, writes a channel too. Reading only
+ * the roster left every such character out of a publish of the session and out
+ * of their own *Used by* — which is the bug the review proved.
+ *
+ * - **Their own rule, `session.cast.arrived`**, so the review can say *arrived
+ *   during play* rather than calling a character nobody configured part of the
+ *   configured cast. By id alone, like the session's other links: a channel's
+ *   scope key is an id and there is no name to fall back on. *What the rule
+ *   means exactly* (2026-10-10, the review of this correction): **in play
+ *   through channel state, and not in the configured cast** — which is wider
+ *   than an arrival. `setCast` replaces `cast` and touches no channel, so an
+ *   actor a person removed from the roster, or a persona they swapped out,
+ *   after the narrator or the opening (`se.party: companion`) gave them state
+ *   is still played by `resolveCast` and is reached here under this rule. That
+ *   is the decision's set, and right; it is the *label* that must not promise
+ *   an arrival, which is P16.3g's to word (see the arm in `publish.ts`).
+ * - **`resolveCast`'s exclusions, and its order.** An actor the roster already
+ *   reaches is not also an arrival, nor is the persona — *a player who has a
+ *   presence effect is not also an NPC* — so neither is ever reported as
+ *   arrived; the arrivals follow the roster, sorted, as `resolveCast` appends
+ *   them. "Already reaches" is the roster's *edges*, which tolerate a `Ref`
+ *   where `resolveCast` takes only strings: the set of actors reached is
+ *   `resolveCast`'s either way, and a hand-edited `{ id }` in the roster is
+ *   reached once, under the roster's rule, rather than twice.
+ * - **`resolveCast`'s guard too**: a `cast` that is not an object plays nobody,
+ *   arrivals included, so it reaches nobody here either.
+ * - **The head's channels**, `session.channels`, because that is the state the
+ *   file holds and the node the next turn is played from ([03 §8.1]: the
+ *   snapshot is the state at `headTurnId`). A rewind past an arrival takes the
+ *   arrival out of it, so it leaves here too; *an arrival only on a branch the
+ *   head is not on is not in the snapshot, and is not reached* — stated, not
+ *   decided here.
+ * - **The pointer** is the first key in the file's channel map that names the
+ *   actor — asked of `actorsWithState` one key at a time, so the pointer and
+ *   the decision cannot disagree about which keys are about actors — escaped as
+ *   RFC 6901 says, since a scope key is data. *Found in one pass over the map*
+ *   (2026-10-10), not one scan per arrival: this runs on every write of
+ *   `session.json`, through `indexSession`, and is held to that by
+ *   `references-cost.test.ts`.
+ *
+ * The gate on these is the session's tick, as on every edge here: they are
+ * edges from the session node, so the walker's `NodeBase.base` keeps them home
+ * with an unticked transcript and needed no change to do it.
  *
  * ***Then its pool's actors*** — *added 2026-10-10*, the owner's first answer at
  * [P16.3]'s plan. A session's `hooks` is a copy, carried inside its export and
@@ -191,22 +262,28 @@ export function edgesOf(schemaId: string, body: unknown): OutboundRef[] {
  * library, for the reason rows 4, 8 and 10 exist: a pooled arrival whose subject
  * stayed home lands as *"an arrival with nobody to arrive"*. So every pooled
  * hook's bare `involves[]` is followed, fired or not — a fired hook that
- * involved somebody still names them — and its `introduces.actor` **only while
+ * involved somebody still names them — and its `introduces.actor` ~~**only while
  * the hook has not fired**, because a fired arrival's subject has arrived and is
- * in the cast, which the links above reach already. *Resolved as `Ref`s*, id
- * then name, like every other hook row: they were copied from a treatment, a
- * setup or a book, and carry whatever that object's refs carried.
+ * in the cast, which the links above reach already~~ ***fired or not***
+ * (corrected 2026-10-10): the owner's answer is about the actors the hooks
+ * *name*, and a fired arrival's subject is in the story — the struck reason was
+ * false of the roster, below, and the played-cast clause above is what reaches
+ * them as arrived when the story walked them in. *Resolved as `Ref`s*, id then
+ * name, like every other hook row: they were copied from a treatment, a setup or
+ * a book, and carry whatever that object's refs carried.
  *
- * *Questioned 2026-10-10, at [P16.3b], and left as the row says.* "In the cast"
- * is true of the cast a turn is played with — `resolveCast` unions the roster
- * with whoever the channels name — and not of the `cast` field the links above
- * read: firing an arrival writes `se.hook` and adds nobody to `cast.actors`. So
- * a fired arrival's subject is reached only if the roster or another hook names
- * them. 04 §9.1's row says the same as this paragraph, so the disagreement is
- * the row's to settle; the index reads this function and agrees with it either
- * way (`index-db/sessions.ts`).
+ * *Questioned 2026-10-10, at [P16.3b], and ~~left as the row says~~ settled the
+ * same day as above.* "In the cast" is true of the cast a turn is played with —
+ * `resolveCast` unions the roster with whoever the channels name — and not of
+ * the `cast` field the links above read: firing an arrival writes `se.hook` and
+ * adds nobody to `cast.actors`. So a fired arrival's subject ~~is~~ *was* reached
+ * only if the roster or another hook names them. ~~04 §9.1's row says the same
+ * as this paragraph, so the disagreement is the row's to settle; the index reads
+ * this function and agrees with it either way (`index-db/sessions.ts`).~~ The
+ * row was the one to settle it, and it reads the played cast now; the index
+ * reads this function and agrees with it either way (`index-db/sessions.ts`).
  *
- * ***Fired is read where the session keeps it***: the head's `se.hook#<id>`
+ * ~~***Fired is read where the session keeps it***: the head's `se.hook#<id>`
  * channel, through `readHookState` — the reader the hook filter itself uses —
  * so this and the selector cannot disagree about what has happened. **Only
  * `fired` stops the edge.** `provisional` is an introduction the narrator was
@@ -215,8 +292,10 @@ export function edgesOf(schemaId: string, body: unknown): OutboundRef[] {
  * and it returns to the pool on a lapse; `committed` and `forced` are a person's
  * intent that it fire, not a record that it did. A hook with no usable id has
  * no channel to read and counts as unfired, which errs toward carrying the
- * subject. The gate on all of these is the session's tick, which is the
- * walker's (`NodeBase.base`): what only a session reaches travels with it.
+ * subject.~~ *Struck 2026-10-10 with the gate it described*: no hook state
+ * stops an edge now, so this function reads no `se.hook#` channel at all. The
+ * gate on all of these is the session's tick, which is the walker's
+ * (`NodeBase.base`): what only a session reaches travels with it.
  *
  * Nothing else on a session is a reference this row names; the module header
  * lists what is deliberately not read and why.
@@ -229,23 +308,61 @@ export function sessionEdges(session: unknown): OutboundRef[] {
   each(object['lore'], (one, i) => {
     edge(out, one, `/lore/${String(i)}`, 'session.lore', LOREBOOK_SCHEMA, BY_ID);
   });
+  const roster: OutboundRef[] = [];
   const cast = recordOf(object['cast']);
   if (cast !== null) {
-    edge(out, cast['persona'], '/cast/persona', 'session.cast.persona', ACTOR_SCHEMA, BY_ID);
+    edge(roster, cast['persona'], '/cast/persona', 'session.cast.persona', ACTOR_SCHEMA, BY_ID);
     each(cast['actors'], (one, i) => {
-      edge(out, one, `/cast/actors/${String(i)}`, 'session.cast.actors', ACTOR_SCHEMA, BY_ID);
+      edge(roster, one, `/cast/actors/${String(i)}`, 'session.cast.actors', ACTOR_SCHEMA, BY_ID);
     });
   }
-  const channels = channelsOf(object['channels']);
+  out.push(...roster, ...arrivedEdges(object['cast'], object['channels'], roster));
   out.push(
     ...hookEdges(object['hooks'], (h) => `/hooks/${String(h)}/hook`, SESSION_HOOKS, {
       pick: (element) => recordOf(element)?.['hook'],
-      introduces: (hook) => {
-        const id = text(hook['id']);
-        return id === null || readHookState(channels, id) !== 'fired';
-      },
     }),
   );
+  return out;
+}
+
+/**
+ * ***Who the channels put in the story that the roster does not*** — row 13's
+ * played cast, the half `resolveCast` adds to `cast.actors` (2026-10-10; see
+ * {@link sessionEdges}). `roster` is the persona's and the actors' edges,
+ * already read, whose ids are not arrivals.
+ */
+function arrivedEdges(
+  cast: unknown,
+  channelsValue: unknown,
+  roster: readonly OutboundRef[],
+): OutboundRef[] {
+  // `resolveCast`'s own guard, kept to the letter — an array passes it, as it
+  // passes there — so a cast this reaches nobody through is one that plays
+  // nobody.
+  if (typeof cast !== 'object' || cast === null) return [];
+  const channels = channelsOf(channelsValue);
+  const named = new Set(roster.map((one) => one.ref.id));
+  // ~~Each arrival's key was found by scanning the map from the top, once per
+  // arrival~~ — *one pass since 2026-10-10*, the review of this correction:
+  // the scan was O(arrivals × keys) on `indexSession`'s per-turn write path,
+  // and a long session's map holds a `se.lore.timing#` key per entry whose
+  // counters ever moved (`references-cost.test.ts`). Still asked of `actorsWithState` one key
+  // at a time, so the pointer and the decision cannot disagree about which keys
+  // are about actors; the first key to name an actor keeps the pointer.
+  const firstKey = new Map<string, string>();
+  for (const [key, state] of Object.entries(channels)) {
+    for (const id of actorsWithState({ [key]: state })) {
+      if (!firstKey.has(id)) firstKey.set(id, key);
+    }
+  }
+  const out: OutboundRef[] = [];
+  for (const id of [...actorsWithState(channels)].filter((one) => !named.has(one)).sort()) {
+    const key = firstKey.get(id);
+    // Never taken: `actorsWithState` is a union over the map's keys, so some
+    // one key names every id it answered. The guard is for the type alone.
+    if (key === undefined) continue;
+    edge(out, id, `/channels/${pointerToken(key)}`, 'session.cast.arrived', ACTOR_SCHEMA, BY_ID);
+  }
   return out;
 }
 
@@ -465,18 +582,18 @@ const SESSION_HOOKS: HookRules = {
  *
  * `at` builds the pointer to hook `h`; `how.pick` finds the hook in an array
  * element, so a carrier that wraps its hooks — a session's pool holds
- * `{ hook, source }` — is one call rather than a second reader; and
+ * `{ hook, source }` — is one call rather than a second reader~~; and
  * `how.introduces` says whether a hook's subject is still to come, which only a
- * session can answer (a library object's hooks have not fired anywhere).
+ * session can answer (a library object's hooks have not fired anywhere)~~.
+ * *`how.introduces` went 2026-10-10*, with the fired gate that was its one
+ * caller: a session's pool names its arrivals' subjects fired or not, as every
+ * other carrier's hooks always did, so all four carriers read one rule now.
  */
 function hookEdges(
   hooks: unknown,
   at: (h: number) => string,
   rules: HookRules,
-  how: {
-    pick?: (element: unknown) => unknown;
-    introduces?: (hook: Record<string, unknown>) => boolean;
-  } = {},
+  how: { pick?: (element: unknown) => unknown } = {},
 ): OutboundRef[] {
   const pick = how.pick ?? ((element: unknown) => element);
   const out: OutboundRef[] = [];
@@ -487,7 +604,7 @@ function hookEdges(
       edge(out, one, `${at(h)}/involves/${String(k)}`, rules.involves, ACTOR_SCHEMA, INCLUDED);
     });
     const introduces = recordOf(hook['introduces']);
-    if (introduces !== null && (how.introduces?.(hook) ?? true)) {
+    if (introduces !== null) {
       edge(
         out,
         introduces['actor'],
@@ -564,16 +681,33 @@ function plainRef(value: unknown): { id: string | null; name: string | null } | 
 }
 
 /**
- * A session's channel map as `readHookState` reads it, or an empty one — so a
- * hand-edited `channels` that is a list, a string or absent reads as *nothing
- * has fired*, the state of a session with no turns, rather than throwing.
+ * A session's channel map as ~~`readHookState`~~ `actorsWithState` reads it, or
+ * an empty one — so a hand-edited `channels` that is a list, a string or absent
+ * reads as ~~*nothing has fired*~~ *nobody has arrived*, the state of a session
+ * with no turns, rather than throwing.
  *
- * *The entries need no guard of their own*: `readHookState` reads
+ * ~~*The entries need no guard of their own*: `readHookState` reads
  * `channels[key]?.value` and keeps it only when it is one of the hook states,
- * so an entry that is `null`, a number or a string answers *in the pool*.
+ * so an entry that is `null`, a number or a string answers *in the pool*.~~
+ * *The entries still need no guard of their own* (2026-10-10, when the reader
+ * changed): `actorsWithState` reads the map's **keys** and never a value — by
+ * design, since a character walked out of the room still holds a `false`
+ * presence and is still in the story — so an entry that is `null`, a number or
+ * a string under an actor's key is that actor in the story, exactly as
+ * `resolveCast` reads the same file.
  */
 function channelsOf(value: unknown): Readonly<Record<string, { value: unknown }>> {
   return (recordOf(value) ?? {}) as Readonly<Record<string, { value: unknown }>>;
+}
+
+/**
+ * One JSON pointer reference token ([RFC 6901 §3](https://www.rfc-editor.org/rfc/rfc6901#section-3)):
+ * `~` as `~0`, then `/` as `~1`. Every other pointer here is built from field
+ * names and indices, which need neither; a channel key carries a scope key,
+ * which is data — an imported id may hold a `/` — so it is escaped.
+ */
+function pointerToken(key: string): string {
+  return key.replaceAll('~', '~0').replaceAll('/', '~1');
 }
 
 /** A non-empty string, or null — `''` is how an absent name is often written (`resolveLore`'s refs). */

@@ -97,6 +97,10 @@ export type PublishOrigin = 'object' | 'selection' | 'world';
  * Session row of 2026-10-04, and the owner's two answers of 2026-10-10 at
  * [P16.3]'s plan: a World reaches the books scoped to it (row 12), and a ticked
  * session reaches the actors its hook pool names (row 13's second clause).
+ * *Corrected the same day, after [P16.3b]'s review*: row 13's cast is the cast
+ * the session **plays** with, so a character who arrived during play — named by
+ * the session's channels, never added to `cast.actors` — is reached too, under
+ * a rule of its own (`session.cast.arrived`, below).
  *
  * Three rules begin at the start rather than at a node: `selected` (a starting
  * point the person chose), `world.member` (row 11, a field — `contents[]` — of
@@ -128,6 +132,33 @@ export type ClosureRule =
   | 'session.lore'
   | 'session.cast.persona'
   | 'session.cast.actors'
+  /**
+   * ***Row 13's played cast, the half the roster does not hold*** — added
+   * 2026-10-10, the correction after [P16.3b]'s review. An actor the session's
+   * channels hold state for (`se.presence`, `se.status`, `se.party`) and its
+   * `cast.actors` does not name, which `resolveCast` sends a card for every
+   * turn: a hook's subject the story walked in, or somebody a person gave
+   * presence by hand. Never the persona.
+   *
+   * **The review's sentence: *arrived during play*** — and that is why it is an
+   * arm rather than `session.cast.actors` again. The configured cast is a thing
+   * the person chose when the session began; an arrival is a thing the story
+   * did, and a review that listed both as *in the cast* would hide which one a
+   * recipient is being sent. P16.3g's `Record<ClosureRule, …>` makes the label
+   * a compile error to forget.
+   *
+   * ***Wider than an arrival, which the label has to allow for*** (2026-10-10,
+   * the review of this correction). The arm is computed as *in play through
+   * channel state, and not in the configured cast*, and that also holds of
+   * somebody a person **removed from the roster**, or a **former persona**,
+   * after the narrator or the opening (`se.party: companion`) gave them state:
+   * `PUT /sessions/:id/cast` replaces `cast` and touches no channel, so
+   * `resolveCast` still plays them, and the walker is right to reach them. *Never
+   * the persona* is of the current one. So P16.3g's label is owed a wording
+   * that is true of both — *in play, not in the configured cast*, say — rather
+   * than one that promises the story walked them in.
+   */
+  | 'session.cast.arrived'
   | 'session.hooks.involves'
   | 'session.hooks.introduces';
 
@@ -214,7 +245,10 @@ export interface NodeBase {
    * *The owner's first answer of 2026-10-10 rides the same gate*, and needs
    * nothing of its own: the actors a session's hook pool names are reached
    * through the session, exactly as its cast is, so an actor only an unticked
-   * session's pool names stays home with the transcript.
+   * session's pool names stays home with the transcript. *So does the played
+   * cast's other half* (`session.cast.arrived`, 2026-10-10): a character who
+   * arrived during play is reached through the session alone, and travels
+   * only with it.
    *
    * **False for a session node**, which is a starting point that *is* a session:
    * its own carriage is its tick, and nothing about it is base.

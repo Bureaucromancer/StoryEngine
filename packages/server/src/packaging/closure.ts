@@ -85,7 +85,12 @@ import type { SessionFile } from '../sessions/types.js';
  * the starting points after the members, each its own uncheckable row. **A
  * ticked session reaches the actors its hook pool names** — read by
  * `sessionEdges`, gated by the session's tick exactly as its cast is
- * (`NodeBase.base`), so it needed no rule of its own here.
+ * (`NodeBase.base`), so it needed no rule of its own here. *Nor did the
+ * correction to it* (2026-10-10, after [P16.3b]'s review): row 13's cast is
+ * the **played** cast, so `sessionEdges` also answers whoever arrived during
+ * play (`session.cast.arrived`) and every pooled arrival's subject fired or
+ * not, and both are edges from the session node — gated by its tick, with no
+ * line here changed.
  *
  * ***What it decides and what it does not.*** It decides what was reached and
  * how — and the three flags that are facts about the walk: `defaultOn`,

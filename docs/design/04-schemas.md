@@ -2087,7 +2087,7 @@ follow outbound references transitively and collect what they reach:
 | Lorebook | `hooks[].introduces.actor`, and its bare `hooks[].involves[]` `Ref`s with it | included |
 | World | every member in `contents`, and each member's closure | included; each member individually uncheckable |
 | World | every lorebook whose `scope` is `{ kind: 'world' }` naming it ([§5](#5-lorebook)), and each one's closure — *added 2026-10-10* | included, each individually uncheckable |
-| Session (a World's member) | its `treatment`, its `lore[]` and its `cast` (persona and actors), and their closures; **the actors its hook pool names** — each pooled hook's bare `involves[]` `Ref`s and, for a hook not yet fired, its `introduces.actor` (*added 2026-10-10*); the session itself as its session export | the session **excluded until ticked**; never a sibling session |
+| Session (a World's member) | its `treatment`, its `lore[]` and its **played** cast — the persona, and `cast.actors` together with every actor the session's channels hold state for, the set a turn is played with (*corrected 2026-10-10*) — and their closures; **the actors its hook pool names** — each pooled hook's bare `involves[]` `Ref`s and its `introduces.actor`, ~~for a hook not yet fired~~ fired or not (*added, then corrected, 2026-10-10*); the session itself as its session export | the session **excluded until ticked**; never a sibling session |
 
 ***The last two rows were added 2026-10-04, with [16](16-publish.md)***, for the
 kinds [15](15-world.md) puts in a set. A World is a list of starting points, so its
@@ -2119,8 +2119,15 @@ session's hook pool is a *copy*, carried inside its session export and needing n
 walk — but the copy's `Ref`s point out of it, at actors in the library, for the
 same reason the Treatment and Setup hook rows exist: a pooled arrival whose
 subject did not come along lands as *"an arrival with nobody to arrive"*, retired
-quietly on the other side. A fired arrival's subject has arrived already and is in
-the cast, which the row reaches anyway.
+quietly on the other side. ~~A fired arrival's subject has arrived already and is in
+the cast, which the row reaches anyway.~~ *(Corrected the same day, at
+[P16.3b](workplan/35-p16-world.md), whose review found it false: a fired
+arrival's subject is in the cast a turn is **played** with, but not in
+`cast.actors` — firing writes only the hook's channel, and an arrived character
+joins the played cast through its channel state (`resolveCast`). So the row reads
+"its cast" as the played cast, and follows every pooled arrival's subject, fired
+or not; an arrived character no longer drops out of a published session or out
+of its own* Used by.*)*
 
 Every level is shown, not just the first: the actor two steps out whose lorebook
 came along is named in the review, because "why is this package 40 MB" should be

@@ -449,12 +449,22 @@ describe('row 13 — a session’s links and its hook pool', () => {
   });
 
   /**
-   * ***A fired arrival's subject has arrived*** and is in the cast, which the
+   * ~~***A fired arrival's subject has arrived*** and is in the cast, which the
    * links reach; an unfired one's has not, and leaving it home would land *an
    * arrival with nobody to arrive*. Only `fired` stops the edge: `provisional`
-   * may lapse back to the pool, and `committed`/`forced` are intent, not record.
+   * may lapse back to the pool, and `committed`/`forced` are intent, not record.~~
+   *
+   * ***Every pooled arrival's subject, whatever the hook's state*** — flipped
+   * 2026-10-10, the correction after [P16.3b]'s review. The struck reason was
+   * false of what the links read: a fired arrival's subject is in the cast a
+   * turn is *played* with, and not in `cast.actors`, which firing never
+   * touches — so the old pin sent the session's arrival home exactly when the
+   * story let them in. The owner's answer is about the actors a session's
+   * hooks **name**, and a fired hook still names its subject, so `done` is
+   * read like the other four. *No state is special any more*: the five states
+   * are kept so a gate re-added for any one of them fails here.
    */
-  it('reads an introduced actor only while the hook has not fired', () => {
+  it('reads every pooled hook’s introduced actor, fired or not', () => {
     const pool = ['fresh', 'done', 'maybe', 'wanted', 'pushed'].map((id) => ({
       hook: introducing({ id: `actor-${id}` }, id),
       source: { kind: 'session' },
@@ -470,23 +480,143 @@ describe('row 13 — a session’s links and its hook pool', () => {
     });
     expect(brief(edges)).toEqual([
       ['session.hooks.introduces', '/hooks/0/hook/introduces/actor', 'actor-fresh', null],
+      ['session.hooks.introduces', '/hooks/1/hook/introduces/actor', 'actor-done', null],
       ['session.hooks.introduces', '/hooks/2/hook/introduces/actor', 'actor-maybe', null],
       ['session.hooks.introduces', '/hooks/3/hook/introduces/actor', 'actor-wanted', null],
       ['session.hooks.introduces', '/hooks/4/hook/introduces/actor', 'actor-pushed', null],
     ]);
   });
 
-  it('comes after the links, and reads a hand-edited channel map as nothing fired', () => {
+  /**
+   * ~~reads a hand-edited channel map as nothing fired~~ — the channel map is
+   * read for who arrived now, not for what fired (2026-10-10), so the shapes a
+   * hand edit leaves are held to *nobody arrived*: a string, a list and a
+   * `null` are not maps, and reach nobody however actor-like their contents.
+   */
+  it('comes after the links, and reads a hand-edited channel map as nobody arrived', () => {
     const session = {
       cast: { persona: null, actors: ['actor-vera'] },
       hooks: [{ hook: introducing({ id: 'actor-b' }, 'h-1'), source: { kind: 'session' } }],
     };
-    for (const channels of [undefined, 'fired', ['se.hook#h-1'], { 'se.hook#h-1': 'fired' }]) {
+    for (const channels of [undefined, null, 'se.presence#actor-x', ['se.presence#actor-x']]) {
       expect(sessionEdges({ ...session, channels }).map((edge) => edge.rule)).toEqual([
         'session.cast.actors',
         'session.hooks.introduces',
       ]);
     }
+  });
+});
+
+/**
+ * ***Row 13's cast is the played cast*** — 2026-10-10, the correction after
+ * [P16.3b]'s review, [04 §9.1](../../../../docs/design/04-schemas.md).
+ *
+ * A turn is assembled around `resolveCast`'s set (`turns/cast.ts`): the persona,
+ * and `cast.actors` with every actor the channels hold state for. An arrival —
+ * a hook's subject the story walked in, or somebody a person gave presence by
+ * hand — is in that set and never in `cast.actors`, so a reader of the roster
+ * alone sent them home from a publish of the session and dropped the session
+ * from their *Used by*. These hold the reader to `resolveCast`'s set,
+ * exclusions and order; the walker's half, with the tick gate, is
+ * `packaging/closure.test.ts`, and the index's is `routes/used-by.test.ts`.
+ */
+describe('row 13 — the played cast: who arrived during play', () => {
+  const arrived = (id: string, key: string): OutboundRef => ({
+    rule: 'session.cast.arrived',
+    field: `/channels/${key}`,
+    target: ACTOR_SCHEMA,
+    ref: { id, name: null },
+    resolve: 'id',
+    required: false,
+    default: 'included',
+  });
+
+  /**
+   * **Every channel that puts somebody in the story, and none that does not.**
+   * Ada is in the party, the keeper is present (and alive — two keys, one
+   * edge, pointed at the first), Zed is dead: `resolveCast` sends a card for
+   * all three, because status is about a life and the dead are still in the
+   * story. Vera is on the roster already and the persona is the persona, so
+   * neither is an arrival. A fired hook's id and the clock name nobody.
+   */
+  it('reads every actor the channels hold state for and the roster does not, sorted, after the roster', () => {
+    const edges = sessionEdges({
+      cast: { persona: 'actor-you', actors: ['actor-vera'] },
+      channels: {
+        'se.clock': { value: { day: 1 } },
+        'se.presence#actor-you': { value: true },
+        'se.presence#actor-vera': { value: false },
+        'se.status#actor-zed': { value: 'dead' },
+        'se.presence#actor-keeper': { value: true },
+        'se.status#actor-keeper': { value: 'alive' },
+        'se.party#actor-ada': { value: 'companion' },
+        'se.hook#hook-1': { value: 'fired' },
+      },
+      hooks: [{ hook: introducing({ id: 'actor-keeper' }, 'hook-1'), source: { kind: 'session' } }],
+    });
+    expect(edges.filter((edge) => edge.rule === 'session.cast.arrived')).toEqual([
+      arrived('actor-ada', 'se.party#actor-ada'),
+      arrived('actor-keeper', 'se.presence#actor-keeper'),
+      arrived('actor-zed', 'se.status#actor-zed'),
+    ]);
+    // The roster, then the arrivals as `resolveCast` appends them, then the
+    // pool — whose fired arrival still names the keeper.
+    expect(edges.map((edge) => [edge.rule, edge.ref.id])).toEqual([
+      ['session.cast.persona', 'actor-you'],
+      ['session.cast.actors', 'actor-vera'],
+      ['session.cast.arrived', 'actor-ada'],
+      ['session.cast.arrived', 'actor-keeper'],
+      ['session.cast.arrived', 'actor-zed'],
+      ['session.hooks.introduces', 'actor-keeper'],
+    ]);
+  });
+
+  /**
+   * ***The persona is never an arrival*** — `resolveCast`'s *a player who has a
+   * presence effect is not also an NPC*. Every channel names them here, and
+   * they are reached once, as the persona; a hand-edited roster entry that is a
+   * `{ id }` rather than an id is reached once too, under the roster's rule.
+   */
+  it('never reports the persona, or anybody the roster reaches, as arrived', () => {
+    const edges = sessionEdges({
+      cast: { persona: 'actor-you', actors: [{ id: 'actor-vera' }] },
+      channels: {
+        'se.presence#actor-you': { value: true },
+        'se.status#actor-you': { value: 'alive' },
+        'se.party#actor-you': { value: 'player' },
+        'se.presence#actor-vera': { value: true },
+      },
+    });
+    expect(edges.map((edge) => [edge.rule, edge.ref.id])).toEqual([
+      ['session.cast.persona', 'actor-you'],
+      ['session.cast.actors', 'actor-vera'],
+    ]);
+  });
+
+  /**
+   * ***`resolveCast`'s guard, to the letter.*** A `cast` that is not an object
+   * plays nobody, arrivals included, so it reaches nobody; an array passes
+   * that guard there — `typeof [] === 'object'` — and plays the arrivals with
+   * no roster, so it reaches them here.
+   */
+  it('reaches no arrival through a cast that plays nobody, and every one through one that plays only them', () => {
+    const channels = { 'se.presence#actor-keeper': { value: true } };
+    for (const cast of [undefined, null, 'actor-vera', 7]) {
+      expect(sessionEdges({ cast, channels })).toEqual([]);
+    }
+    expect(sessionEdges({ cast: [], channels })).toEqual([
+      arrived('actor-keeper', 'se.presence#actor-keeper'),
+    ]);
+  });
+
+  /** A scope key is data — an imported id may carry a `/` — so the pointer escapes it (RFC 6901). */
+  it('escapes the channel key in the pointer', () => {
+    expect(
+      sessionEdges({
+        cast: { persona: null, actors: [] },
+        channels: { 'se.presence#import/a~b': { value: true } },
+      }),
+    ).toEqual([arrived('import/a~b', 'se.presence#import~1a~0b')]);
   });
 });
 
@@ -562,7 +692,21 @@ describe('what the table does not follow', () => {
         lastSelectedChild: { 'turn-1': 'turn-2' },
         hidden: { 'turn-1': true },
         prompts: { cards: { 'actor-vera': { system: '' } } },
-        channels: { 'se.status#actor-vera': { value: 'well' } },
+        /**
+         * ~~`{ 'se.status#actor-vera': { value: 'well' } }`~~ — *moved
+         * 2026-10-10*: an actor's status key puts them in the cast a turn is
+         * played with, so row 13 follows it now (`session.cast.arrived`, the
+         * describe above). The channels left here name nobody — a hook id, the
+         * clock, a book entry's timing — beside a cast that plays nobody but
+         * would play an arrival, so the empty answer is the channel reading
+         * and not the cast guard.
+         */
+        cast: { persona: null, actors: [] },
+        channels: {
+          'se.hook#hook-1': { value: 'fired' },
+          'se.clock': { value: { day: 1 } },
+          'se.lore.timing#entry-1': { value: { lastFired: 3 } },
+        },
       }),
     ).toEqual([]);
   });

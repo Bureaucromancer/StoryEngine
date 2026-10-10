@@ -552,7 +552,9 @@ not say, each found by reading the code the rename touched rather than the plan:
   stayed a row no route names. The rescan is the cost, as at 9 and 11. *(14 since
   P16.3b, the same day, when the index came to read the walker's table: an
   install upgrading from alpha 6 rescans once either way, and a `p16` data
-  directory indexed at 13 rescans again, for the links 13 never held.)*
+  directory indexed at 13 rescans again, for the links 13 never held. 15 with
+  the row 13 correction after it, so a `p16` index built at 14 rescans too, for
+  the arrivals 14 left out, without anybody having to ask.)*
 - ***An import over an unmoved Package finds it unchanged.*** `identifyNative`
   compared the arriving object's encoding with the hash of the old bytes, which
   can never match once one side says the new id; a legacy prior is compared by
@@ -885,7 +887,8 @@ manifest for the reader's warning.
 
 **The owner's answers, 2026-10-10**, to the three questions the plan could not
 take: **a ticked session's hook actors travel** — 04 §9.1's Session row gains the
-pool's `involves` and unfired `introduces.actor`; **books scoped to a World travel
+pool's `involves` and ~~unfired~~ `introduces.actor` *(fired or not, with the
+played cast — corrected at P16.3b, below)*; **books scoped to a World travel
 with it**, included and each uncheckable — a new World row, the table's one query,
 because P16.2's arm is an inbound link the walk would otherwise never see; and
 **a session's pictures travel** beside its export ([16 §5.2](../16-publish.md)).
@@ -1003,7 +1006,9 @@ portable kind and on a session **with no listed differences**. Through the route
 the panel calls: a lorebook's *Used by* names the actors that link it, a
 treatment's counts the sessions played under it, and an actor's counts the
 sessions whose hook pool names them — the index is refreshed on every head move,
-so a hook firing updates it. The index's version is 14.
+so ~~a hook firing updates it~~ *an arrival — a presence, status or party write —
+updates it (corrected with row 13, below)*. The index's version is 14 *(15 with
+the correction)*.
 
 - **What the index stops linking, measured rather than assumed.** Old against new
   over every position of every kind and twenty-eight value shapes: the new
@@ -1025,7 +1030,19 @@ so a hook firing updates it. The index's version is 14.
   is played with through `resolveCast`'s union with channel state. So the
   session drops out of the arrived character's *Used by*, and out of a publish of
   that session. The test that pins it says *as row 13 stands*; the correction
-  follows in a commit of its own.
+  follows in a commit of its own. *(It did, the commit after `adedc22`: the row
+  reads "its cast" as the **played** cast — the persona, and `cast.actors`
+  together with every actor the session's channels hold state for, which is
+  `resolveCast`'s set — with those in play through channel state as their own
+  rule, `session.cast.arrived`, which the review must word as *in play, not in
+  the configured cast* rather than promise an arrival, since someone taken off
+  the roster who still holds state is one too; and every pooled arrival's subject
+  is followed, fired or not. 04 §9.1 strikes the false reason with a dated note.
+  The walker's played cast was checked against `resolveCast` itself over forty
+  thousand generated sessions; the walker and the index still agree, with no
+  listed differences. The review made the pointer search one pass, since the
+  index runs it on every session write, and the index's version is **15**, so a
+  `p16` index built at 14 rescans on its own.)*
 
 #### P16.3c — The zip writer and the World file
 
