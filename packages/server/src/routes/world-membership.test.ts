@@ -3,7 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newLorebook, newWorld, WORLD_SCHEMA } from '@storyengine/shared';
+import { LEGACY_PACKAGE_SCHEMA, newLorebook, newWorld, WORLD_SCHEMA } from '@storyengine/shared';
 
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
@@ -116,6 +116,13 @@ describe('adding members to a World', () => {
 
     const nested = await add(world.id, [{ schema: WORLD_SCHEMA, id: other.id, name: other.name }]);
     expect(nested.status).toBe(400);
+    // Under its name from before P16.0 too (2026-10-11, the [P16 audit]):
+    // `storyengine.package/1` is a World, and was written with a 200.
+    const legacy = await add(world.id, [
+      { schema: LEGACY_PACKAGE_SCHEMA, id: other.id, name: other.name },
+    ]);
+    expect(legacy.status, JSON.stringify(legacy.body)).toBe(400);
+    expect(legacy.body.error).toBe('invalid');
     const itself = await add(world.id, [
       { schema: 'storyengine.lorebook/1', id: world.id, name: 'itself' },
     ]);

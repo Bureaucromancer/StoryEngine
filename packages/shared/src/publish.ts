@@ -322,8 +322,9 @@ export interface FoundNode extends NodeBase {
   canUncheck: boolean;
   defaultOn: boolean;
   /**
-   * ***Play wrote it*** — `provenance.source === 'session'` on the stored body
-   * ({@link isWrittenByPlay}), the marking a memory book carries. Present, and
+   * ***Play wrote it*** — `provenance.source === 'session'` on a stored
+   * **lorebook** ({@link isWrittenByPlay}; *lorebooks only since 2026-10-11,
+   * the [P16 audit]*), the marking a memory book carries. Present, and
    * `true`, only then; absent on every other object, so a closure a client
    * built before the field existed reads as it always did.
    *
@@ -914,11 +915,24 @@ export function mergeRequires(
 }
 
 /**
- * ***Written by play*** — `provenance.source === 'session'`, the marking
- * `memory/books.ts` puts on a memory book and the library page reads to say
- * the book *is not meant to be shared or published*. That page's own comment
- * names what is owed when an export path is built: *that it read the same
- * marking*.
+ * ***The one kind the marking is read on*** — `LOREBOOK_SCHEMA`, spelled here
+ * rather than imported from `schema/lorebook.ts` (2026-10-11, the [P16 audit]).
+ * **Measured, not assumed**: with the import, the bundler moved this whole
+ * module — `fileSet` and everything the review draws with — out of the
+ * publish review's lazy chunk and into a file the client's entry preloads,
+ * +2.2 kB gzip on a budget with 0.16 to spare; `publish-constants.ts` says
+ * why a module the entry and the review share is split by module. The two
+ * spellings are held equal by `publish.test.ts`, which asks this of
+ * `LOREBOOK_SCHEMA` itself.
+ */
+const WRITTEN_BY_PLAY_KIND = 'storyengine.lorebook/1';
+
+/**
+ * ***Written by play*** — ~~`provenance.source === 'session'`~~ **a lorebook
+ * whose `provenance.source` is `'session'`**, the marking `memory/books.ts`
+ * puts on a memory book and the library page reads to say the book *is not
+ * meant to be shared or published*. That page's own comment names what is
+ * owed when an export path is built: *that it read the same marking*.
  *
  * ***Shared since [P16.3d], and one predicate for three readers***: the walker
  * records it on a {@link FoundNode}, {@link fileSet} never carries what it
@@ -927,10 +941,29 @@ export function mergeRequires(
  * writer; a second spelling here would be two answers to *may this leave*,
  * which is the question the review is the only description of.
  *
+ * ***Lorebooks only*** (2026-10-11, the [P16 audit], privacy finding 2). It
+ * read the marking on every kind, and a Setup made from a turn carries it:
+ * `sessions/setup-from-turn.ts` stamps `blankProvenance('session')` on the
+ * Setup it builds, *"safe on a Setup because only lorebooks are read for that
+ * marker"* — which is [P15 §0.3]'s rule in as many words (*the Setup itself
+ * may be "session": only lorebooks are read for that marker*), and every
+ * other reader keeps it: `memory/books.ts` and retrieval read it on books
+ * alone. So such a Setup could never be published — no *Publish…* on its page,
+ * left home from a World as `not-portable`, while its companion facts book
+ * (`generated`) travelled without it — and [P15 §0.4]'s *what travels is a
+ * Setup* was false. What the marking protects is a memory book's entries,
+ * which carry the sessions they were remembered from; a Setup made from a
+ * turn holds a copy of that turn's state, which the person chose to make
+ * into a thing to keep and start from, and travels like any other object.
+ * **The schema is the caller's** — the index row's `schemaId` — rather than
+ * the body's own `schema` field, so a hand-edited body cannot move itself in
+ * or out of the rule by what it says it is.
+ *
  * Read through `unknown`, because the body is whatever the file says — a
  * hand-edited one included.
  */
-export function isWrittenByPlay(body: unknown): boolean {
+export function isWrittenByPlay(schema: string, body: unknown): boolean {
+  if (schema !== WRITTEN_BY_PLAY_KIND) return false;
   if (typeof body !== 'object' || body === null) return false;
   const provenance = (body as { provenance?: unknown }).provenance;
   return (
@@ -967,6 +1000,44 @@ export function tooLargeToTravel(node: FoundNode): boolean {
   return node.facts?.entries === 0 && node.facts.omitted.length > 0;
 }
 
+/**
+ * ***The name the review offers*** — and the file's name when no World is
+ * kept to name it. *Moved here from the server's `packaging/review.ts`
+ * (2026-10-11, the [P16 audit], privacy finding 4)*, so the review and the
+ * confirm name a selection by one rule over one {@link FileSet}.
+ *
+ * - **A World start**: the World's own.
+ * - **One object**: that object's — the file is that object and what came with it.
+ * - **A selection**: the first three starting points' names, in the order
+ *   picked, and `…` when there were more. Names rather than a sentence, because
+ *   the server sends no prose ([01 §2]) and a person's own names are not prose;
+ *   the field is prefilled and theirs to change, and a selection that names
+ *   nothing found offers nothing.
+ *
+ * ***A selection is named by the starting points that travel*** (the [P16
+ * audit]): ~~the starting points~~ — every one of them, so a person who
+ * unticked *Act III twist* got a file called `Vera-Act-III-twist-Bob.seworld`
+ * and a kept World whose name in the file's `world.json` named the thing they
+ * had just left out, while the review said it stayed out of the file. A start
+ * is named when `set` carries it. The review recomputes this as the ticks
+ * move, until the person types a name of their own.
+ */
+export function suggestedPublishName(c: Closure, set: Pick<FileSet, 'objects'>): string {
+  if (c.world !== null) return c.world.name;
+  const byKey = new Map(c.nodes.map((node) => [node.key, node]));
+  const carried = new Set(set.objects.map((node) => node.key));
+  const names = c.roots
+    .filter((key) => c.origin !== 'selection' || carried.has(key))
+    .map((key) => byKey.get(key))
+    .map((node) => (node?.state === 'found' ? node.name.trim() : ''))
+    .filter((name) => name !== '');
+  if (names.length <= SUGGESTED_NAMES) return names.join(', ');
+  return `${names.slice(0, SUGGESTED_NAMES).join(', ')}, …`;
+}
+
+/** How many starting points a selection's suggested name spells out. */
+const SUGGESTED_NAMES = 3;
+
 // ── The routes' contracts — [P16.3d] ────────────────────────────────────────
 
 /**
@@ -994,7 +1065,9 @@ export interface PublishPreview {
   /**
    * The name the review offers: the World's for a World start, the object's
    * for one object, and for a selection the first starting points' names —
-   * the kept World's default name and the file's stem.
+   * the kept World's default name and the file's stem. *At the default ticks*
+   * (2026-10-11, the [P16 audit]): {@link suggestedPublishName} over the
+   * default {@link fileSet}, which the review recomputes as the ticks move.
    */
   suggestedName: string;
   /**

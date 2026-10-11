@@ -43,6 +43,7 @@ import { ingestFile } from '../../index-db/ingest.js';
 import { rowsForId } from '../../index-db/query.js';
 import {
   create,
+  inObjectTurn,
   list,
   read,
   readCardPixels,
@@ -1969,6 +1970,86 @@ describe('a candidate carrying history', () => {
     expect(replaced?.disposition).toBe('converted');
     expect((await versionsOf(library, 'ned', other.id)).versions.map((one) => one.reason)).toEqual([
       'Replaced by a re-import',
+    ]);
+  });
+
+  /**
+   * ***Written in the object's turn*** (2026-10-11, the [P16 audit], safety
+   * finding 2). The carry looked for `history/index.jsonl`, awaited the
+   * file's read, and then wrote — truncating — with no turn held, so a save
+   * of the object just created landing in that gap had its
+   * `snapshotReplaced` record overwritten by the sender's index. **By a gate
+   * on the read**: while the carry waits on it, a task queued on the object's
+   * turn must not run; without the turn it runs at once.
+   */
+  it('writes it in the object’s turn, so no save of the object lands in between', async () => {
+    const library = server.services.library;
+    const book = newLorebook('Harbour');
+    const payload = new TextEncoder().encode(
+      `${JSON.stringify({ ...book, description: 'v0' }, null, 2)}\n`,
+    );
+    const digest = createHash('sha256').update(payload).digest('hex');
+    const index = `${JSON.stringify({ id: uuidv7(), digest, authoredAt: AT, recordedAt: AT, source: { kind: 'manual' }, reason: 'Old', authorVersion: null, pinned: false })}\n`;
+    const memory = new MemoryFileSource({
+      'library/lorebooks/harbour/lorebook.json': JSON.stringify(book),
+      'library/lorebooks/harbour/history/index.jsonl': index,
+      [`library/lorebooks/harbour/history/v/${digest}.json`]: payload,
+    });
+    let reached: () => void = () => undefined;
+    const atGate = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const files = new Proxy(memory, {
+      get(target, property) {
+        if (property === 'read') {
+          return async (path: string) => {
+            if (path.endsWith('/history/index.jsonl')) {
+              reached();
+              await gate;
+            }
+            return target.read(path);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === 'function'
+          ? (value as (...args: unknown[]) => unknown).bind(target)
+          : value;
+      },
+    });
+
+    const running = convertOne(
+      { library, handle: 'ned', tags: server.services.tags, files },
+      {
+        source: 'library/lorebooks/harbour/lorebook.json',
+        format: 'storyengine.object',
+        payload: book,
+        history: [
+          'library/lorebooks/harbour/history/index.jsonl',
+          `library/lorebooks/harbour/history/v/${digest}.json`,
+        ],
+      },
+    );
+    await atGate;
+    let ranWhileHeld = false;
+    const probe = inObjectTurn(book.id, () => {
+      ranWhileHeld = true;
+      return Promise.resolve();
+    });
+    // A macrotask: every microtask an idle queue would need has run by now.
+    await new Promise((resolve) => setImmediate(resolve));
+    const during = ranWhileHeld;
+    open();
+    const [row] = await running;
+    await probe;
+
+    expect(during).toBe(false);
+    expect(row?.disposition).toBe('converted');
+    expect((await versionsOf(library, 'ned', book.id)).versions.map((one) => one.reason)).toEqual([
+      'Old',
     ]);
   });
 });

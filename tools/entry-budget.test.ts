@@ -291,7 +291,29 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * review's address, and a publish's headers read before its body: **0.16 kB**
  * under, with the bar still on the entry.)*
  */
-const JS_CEILING_KB = 312;
+/*
+ * ***Raised to 317 on 2026-10-11, at the final audit of [P16]*** — the audit's
+ * fixes, the last of them a World's own page listing its members (sitting AA's
+ * AA2 expects the page to say a member is gone, and it showed `contents` as
+ * stored JSON). P16.3g left **311.84**; the audit's eight other fixes —
+ * dropped memory text not travelling, a Setup made from a turn publishable,
+ * the file's folders and `world.json` under current names, the suggested name
+ * from what is carried, a legacy restore re-minting a held id — took it to
+ * **312.00**, and the member list drawn on the page to **312.35**. **No new
+ * dependency**, which is the [21 §7] trigger. *A split was measured and is
+ * worse*: the list behind its own `lazy()` measured **314.41**, **313.93** with
+ * fewer imports, and the whole member surface lazy **312.59** — the chunk
+ * imports modules the entry already holds, the bundler then splits each into a
+ * file of its own, and a small file compresses worse; removing the list
+ * entirely still left **312.16**, since the member row it shares with the
+ * editor stays either way. So the raise, with five kB of margin as every raise
+ * above left. *The next remedy is measured and named*: the admin half of
+ * Settings — Accounts, Connections, Install, Backups — behind one `lazy()`
+ * measured **310.50** with every fix in, **−1.85 kB**; it needs a chunk-error
+ * boundary and an off-the-entry check like the publish review's, which makes it
+ * a loading decision of its own and not an audit fix's.
+ */
+const JS_CEILING_KB = 317;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
 const CSS_CEILING_KB = 12;

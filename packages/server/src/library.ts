@@ -1050,13 +1050,36 @@ export async function restoreVersion(
     throw new LibraryError('not-found', `The payload for version ${versionId} is missing.`);
   }
 
+  /*
+   * ***This object's past, whatever id it records*** (2026-10-11, the review
+   * of the [P16 audit]'s fixes). The payload was read from the history in
+   * this object's own folder, so it is this object's earlier state — but it
+   * may name an id the object no longer has: a Package deleted before P16.0
+   * and put back while its id was held again comes back under a fresh one
+   * (`storage/trash.ts`, `remintIfLive`), and its history, content-addressed
+   * and written under the old id, is not rewritten with it. `update`'s guard
+   * (*an object cannot change its id*) then refused every one of its
+   * versions, so the copy's history could be listed and never restored.
+   *
+   * The id is set to the object's own **here** and not dropped from `update`,
+   * which keeps the guard for every other caller — a PUT naming another id is
+   * still the mistake it was. *The key keeps its place* (a spread then an
+   * existing key overwritten), so a version that already names this id is the
+   * same bytes it was, and restoring the state you are on stays a no-op.
+   */
+  const restored =
+    // `null` was refused above, so an object here is a record or an array.
+    typeof payload === 'object' && !Array.isArray(payload)
+      ? { ...(payload as Record<string, unknown>), id }
+      : payload;
+
   // No queue key taken here: `update` takes `obj:<id>` itself, and acquiring
   // it twice on one call path is a self-deadlock. The reads above are safe
   // unlocked (torn-tail-tolerant list, content-addressed payload); the hash
   // check inside `update` is what carries correctness. `stamp: false` because
   // restoring is not authoring — and because a stamp would change the restored
   // bytes, so restoring the state you are on would stop being a no-op.
-  return update(context, handle, id, payload, expectedHash, {
+  return update(context, handle, id, restored, expectedHash, {
     source: { kind: 'restore', fromVersionId: versionId },
     reason: 'Saved before restoring an earlier version',
     stamp: false,

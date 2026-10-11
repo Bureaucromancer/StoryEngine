@@ -6,8 +6,11 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newLorebook, uuidv7 } from '@storyengine/shared';
+import { newLorebook, newWorld, uuidv7, WORLD_SCHEMA } from '@storyengine/shared';
 
+import { findById } from '../index-db/query.js';
+import { create } from '../library.js';
+import { recordVersion } from '../storage/history.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -621,5 +624,193 @@ describe('POST /api/me/trash/restore', () => {
 
     expect(response.status).toBe(500);
     expect(response.body.error).not.toBe('invalid');
+  });
+
+  /**
+   * ***A Package trashed before P16.0, whose id was landed again since***
+   * (2026-10-11, the [P16 audit], safety finding 1) — the auditor's sequence:
+   * the Package's id arrives live (as an import of its `.sepack.json` or a
+   * pre-P16.0 backup lands it), the person starts a session in that World, and
+   * then puts the trash entry back. It used to come back under the **same
+   * id**, at `rain-city-2/`, which the index's tie-break by path put first —
+   * so the stale copy answered every read by id and the World in use was
+   * shadowed. It comes back under a new id now, as a World of its own, and the
+   * answer says so in a note.
+   */
+  it('brings a legacy Package back under a new id when its own is held, and says so', async () => {
+    const world = newWorld('Rain City');
+    const entry = `rain-city-${uuidv7()}`;
+    const folder = join(server.services.layout.trashRoot('ned'), 'packages', entry);
+    await mkdir(folder, { recursive: true });
+    await writeFile(
+      join(folder, 'package.json'),
+      `${JSON.stringify(
+        { ...world, schema: 'storyengine.package/1', description: 'trashed before the upgrade' },
+        null,
+        2,
+      )}\n`,
+    );
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/worlds',
+      payload: { ...world, description: 'in use since the import' },
+    });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    const started = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Night one', world: world.id },
+    });
+    expect(started.status, JSON.stringify(started.body)).toBe(201);
+
+    const restored = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id: `packages/${entry}` },
+    });
+    expect(restored.status, JSON.stringify(restored.body)).toBe(200);
+    expect(restored.body).toEqual({
+      restored: true,
+      notes: [
+        {
+          key: 'trash.restore.reminted',
+          params: { name: 'Rain City', id: expect.any(String) },
+          level: 'warn',
+        },
+      ],
+    });
+    const fresh = restored.body.notes[0].params.id as string;
+    expect(fresh).not.toBe(world.id);
+
+    // The World in use still answers its id, with its session in it.
+    const held = await server.request({ method: 'GET', url: `/api/library/worlds/${world.id}` });
+    expect(held.body).toMatchObject({
+      slug: 'rain-city',
+      shadowed: false,
+      object: { description: 'in use since the import' },
+    });
+    expect((held.body.object.contents as { id: string }[]).map((member) => member.id)).toContain(
+      started.body.session.id,
+    );
+    // And the copy brought back is its own World, nobody's shadow.
+    const back = await server.request({ method: 'GET', url: `/api/library/worlds/${fresh}` });
+    expect(back.body).toMatchObject({
+      slug: 'rain-city-2',
+      shadowed: false,
+      object: {
+        id: fresh,
+        schema: 'storyengine.world/1',
+        description: 'trashed before the upgrade',
+      },
+    });
+  });
+
+  /**
+   * ***A re-minted copy's own past restores*** (2026-10-11, the review of the
+   * audit's fixes). The copy's history was written under the old id and is
+   * not rewritten with it, and `update` refuses a body naming another id — so
+   * every version was listed and none could be restored. A version restored
+   * now takes the object's own id: it was read from the object's own folder.
+   */
+  it('restores an earlier version of a re-minted copy under the copy’s id', async () => {
+    const world = newWorld('Rain City');
+    const entry = `rain-city-${uuidv7()}`;
+    const folder = join(server.services.layout.trashRoot('ned'), 'packages', entry);
+    await mkdir(folder, { recursive: true });
+    const legacy = { ...world, schema: 'storyengine.package/1' };
+    await writeFile(
+      join(folder, 'package.json'),
+      `${JSON.stringify({ ...legacy, description: 'the last state' }, null, 2)}\n`,
+    );
+    await recordVersion(
+      folder,
+      { ...legacy, description: 'an earlier state' },
+      { kind: 'manual' },
+      '',
+    );
+    const made = await server.request({
+      method: 'POST',
+      url: '/api/library/worlds',
+      payload: world,
+    });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+
+    const restored = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id: `packages/${entry}` },
+    });
+    expect(restored.status, JSON.stringify(restored.body)).toBe(200);
+    const fresh = restored.body.notes[0].params.id as string;
+    expect(fresh).not.toBe(world.id);
+
+    const history = await server.request({
+      method: 'GET',
+      url: `/api/library/worlds/${fresh}/history`,
+    });
+    expect(history.status, JSON.stringify(history.body)).toBe(200);
+    expect(history.body.versions).toHaveLength(1);
+    const copy = await server.request({ method: 'GET', url: `/api/library/worlds/${fresh}` });
+    const back = await server.request({
+      method: 'POST',
+      url: `/api/library/worlds/${fresh}/history/${history.body.versions[0].id as string}/restore`,
+      payload: { contentHash: copy.body.contentHash },
+    });
+    expect(back.status, JSON.stringify(back.body)).toBe(200);
+    const now = await server.request({ method: 'GET', url: `/api/library/worlds/${fresh}` });
+    expect(now.body.object).toMatchObject({
+      id: fresh,
+      schema: 'storyengine.world/1',
+      description: 'an earlier state',
+    });
+    // And the World holding the old id is untouched by it.
+    const held = await server.request({ method: 'GET', url: `/api/library/worlds/${world.id}` });
+    expect(held.body.object.description).not.toBe('an earlier state');
+  });
+
+  /**
+   * ***Held by another account, re-minted all the same*** (2026-10-11, the
+   * review of the audit's fixes). Ids are one install's, not one account's —
+   * an import re-mints an id another account holds (P16.3e) — so the look is
+   * install-wide, and Ned's restore of an id Amy's import landed comes back
+   * under a new one. What the note may not say is that *Ned* holds it: his
+   * own list of Worlds is empty, and the answer's params name only the copy
+   * (the client's sentence says *in use on this server*, `Trash.tsx`).
+   */
+  it('re-mints an id another account holds, and names nothing of whose it is', async () => {
+    const world = newWorld('Rain City');
+    const entry = `rain-city-${uuidv7()}`;
+    const folder = join(server.services.layout.trashRoot('ned'), 'packages', entry);
+    await mkdir(folder, { recursive: true });
+    await writeFile(
+      join(folder, 'package.json'),
+      `${JSON.stringify({ ...world, schema: 'storyengine.package/1' }, null, 2)}\n`,
+    );
+    // Amy's copy of the same id — as her import of Ned's old file would land it.
+    await create(server.services.library, 'amy', world, WORLD_SCHEMA);
+    const nedsWorlds = await server.request({ method: 'GET', url: '/api/library/worlds' });
+    expect(nedsWorlds.status).toBe(200);
+    expect(
+      (nedsWorlds.body.objects as { owner: string }[]).filter((row) => row.owner === 'user:ned'),
+    ).toEqual([]);
+
+    const restored = await server.request({
+      method: 'POST',
+      url: '/api/me/trash/restore',
+      payload: { id: `packages/${entry}` },
+    });
+    expect(restored.status, JSON.stringify(restored.body)).toBe(200);
+    expect(restored.body.notes).toEqual([
+      {
+        key: 'trash.restore.reminted',
+        params: { name: 'Rain City', id: expect.any(String) },
+        level: 'warn',
+      },
+    ]);
+    const fresh = restored.body.notes[0].params.id as string;
+    expect(fresh).not.toBe(world.id);
+    // Amy's keeps its id, Ned's copy is his under the new one.
+    expect(findById(server.services.index.db, world.id)?.owner).toBe('user:amy');
+    expect(findById(server.services.index.db, fresh)?.owner).toBe('user:ned');
   });
 });

@@ -6,8 +6,10 @@ import { createHash } from 'node:crypto';
 import {
   type Closure,
   fileSet,
+  type FileSet,
   type PublishPreview,
   type PublishStart,
+  suggestedPublishName,
   WORLD_SCHEMA,
   type World,
 } from '@storyengine/shared';
@@ -73,7 +75,7 @@ export async function previewPublish(
   return {
     closure,
     modeVersions: modeVersionsOf(closure),
-    suggestedName: suggestedNameOf(closure),
+    suggestedName: suggestedNameOf(closure, defaults),
     sameAs: closure.origin === 'selection' ? sameAs(context, handle, closure) : [],
     justTheObject:
       closure.origin === 'object' &&
@@ -128,29 +130,16 @@ export function closureHash(closure: Closure): string {
 
 /**
  * ***The name the review offers*** — and the file's name when no World is
- * kept to name it.
- *
- * - **A World start**: the World's own.
- * - **One object**: that object's — the file is that object and what came with it.
- * - **A selection**: the first three starting points' names, in the order
- *   picked, and `…` when there were more. Names rather than a sentence, because
- *   the server sends no prose ([01 §2]) and a person's own names are not prose;
- *   the field is prefilled and theirs to change, and a selection that names
- *   nothing found offers nothing.
+ * kept to name it: shared's `suggestedPublishName` over a {@link FileSet}.
+ * ~~Over `closure.roots`, ticks or none~~ — *2026-10-11, the [P16 audit]
+ * (privacy finding 4)*: a selection is named by the starting points that
+ * travel, so an unticked one is not in the file's name or in a kept World's
+ * prefilled one. The preview names by the default ticks; the confirm by the
+ * person's.
  */
-export function suggestedNameOf(closure: Closure): string {
-  if (closure.world !== null) return closure.world.name;
-  const byKey = new Map(closure.nodes.map((node) => [node.key, node]));
-  const names = closure.roots
-    .map((key) => byKey.get(key))
-    .map((node) => (node?.state === 'found' ? node.name.trim() : ''))
-    .filter((name) => name !== '');
-  if (names.length <= SUGGESTED_NAMES) return names.join(', ');
-  return `${names.slice(0, SUGGESTED_NAMES).join(', ')}, …`;
+export function suggestedNameOf(closure: Closure, set: Pick<FileSet, 'objects'>): string {
+  return suggestedPublishName(closure, set);
 }
-
-/** How many starting points a selection's suggested name spells out. */
-const SUGGESTED_NAMES = 3;
 
 /**
  * ***Every found object and every session, measured*** — in place, onto the

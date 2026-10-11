@@ -43,8 +43,10 @@ import type { SessionFile } from '../sessions/types.js';
  * reason that has cost nothing is that the walker does not exist either."* This
  * is that walker — breadth-first, every level, against the table as it stands
  * (`library/references.ts` is the table's reader, and this module never reads a
- * field itself). `export.ts` and its route stay until the client stops calling
- * them at P16.3g; nothing here calls them.
+ * field itself). ~~`export.ts` and its route stay until the client stops calling
+ * them at P16.3g; nothing here calls them.~~ *Both removed at [P16.3g]
+ * (2026-10-11, noted by the [P16 audit]): the World file is the only export a
+ * World has, and this walk is what it is built from.*
  *
  * ***Resolution is the documented order, and only where a row says so.*** A
  * `Ref` resolves by exact id, then by case-insensitive name within its kind,
@@ -521,8 +523,13 @@ class Walk {
          * [P16.3c], and a closure that did not say so let the review draw it
          * as travelling. Its edges are still followed — a node is what the
          * walk reached, and what it names is reached through it either way.
+         *
+         * *On a lorebook only* (2026-10-11, the [P16 audit], privacy finding
+         * 2): ~~read from the indexed body's provenance~~ on any kind, a Setup
+         * made from a turn — which carries the same marking ([P15 §0.3]) —
+         * was drawn as staying home. The row's kind goes in with the body.
          */
-        ...(isWrittenByPlay(row.body) ? { writtenByPlay: true } : {}),
+        ...(isWrittenByPlay(row.schemaId, row.body) ? { writtenByPlay: true } : {}),
       }),
       // A World reached here would be one a kind-scoped read answered for a
       // World kind, which no row asks for; expanding it would publish its

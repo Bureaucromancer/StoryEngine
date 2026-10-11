@@ -69,6 +69,38 @@ describe('putting something back', () => {
     ).toBeTruthy();
   });
 
+  /**
+   * ***A restore that did something besides says so*** (2026-10-11, the [P16
+   * audit], safety finding 1): a World deleted before this version whose id
+   * is held again comes back under a new one, and the answer's note is worded
+   * where the person pressed. *Worded for any holder* (2026-10-11, the review
+   * of the audit's fixes): ~~a world you already have~~ — the id may be
+   * another account's.
+   */
+  it('says a World came back as a separate one when its id was taken', async () => {
+    restoreFromTrash.mockResolvedValue({
+      restored: true,
+      notes: [
+        {
+          key: 'trash.restore.reminted',
+          params: { name: 'Rain City', id: '0199c000-0000-7000-8000-0000000000ff' },
+          level: 'warn',
+        },
+      ],
+    });
+    renderPanel();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Put it back' }));
+
+    expect(
+      (
+        await screen.findByText(
+          '“Rain City” came back as a separate world under a new id: its own is already in use on this server, and whatever uses it is unchanged.',
+        )
+      ).getAttribute('role'),
+    ).toBe('status');
+  });
+
   it('does not claim a taken name for a failure that was something else', async () => {
     restoreFromTrash.mockRejectedValue(new ApiError(500, 'internal', 'The request failed.'));
     renderPanel();

@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 
 import { kindOfSchema, type LibraryObject } from '../api.js';
 import { useAuthState } from '../queries.js';
-import { provenanceSourceOf } from './panels.js';
+import { writtenByPlay } from './panels.js';
 
 /**
  * ***A selection on the shelves*** — [10 §5](../../../../docs/design/10-ui-surfaces.md)'s
@@ -81,7 +81,9 @@ export interface LibrarySelection {
 export function unselectable(object: LibraryObject): 'world' | 'shadowed' | 'play' | null {
   if (kindOfSchema(object.schema) === 'worlds') return 'world';
   if (object.shadowed) return 'shadowed';
-  if (provenanceSourceOf(object) === 'session') return 'play';
+  // A lorebook's marking only (2026-10-11, the [P16 audit]): a Setup made
+  // from a turn carries it too, and travels — `writtenByPlay`.
+  if (writtenByPlay(object)) return 'play';
   return null;
 }
 

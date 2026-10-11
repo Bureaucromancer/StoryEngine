@@ -387,7 +387,7 @@ describe('sessions', () => {
     expect(within(row).getByText('Its turns record which model answered each one.')).toBeTruthy();
     expect(
       within(row).getByText(
-        'Its recorded prompts may quote memories drawn from your other sessions; they travel as the session sent them.',
+        'Its recorded prompts may quote memories drawn from your other sessions, as the session sent them. A memory left out of a prompt for room travels without its words.',
       ),
     ).toBeTruthy();
   });
@@ -537,7 +537,7 @@ describe('what publishing keeps', () => {
         .edge(null, 'vera', 'selected')
         .edge(null, 'harbour', 'selected')
         .closure('selection'),
-      { suggestedName: 'Vera and Harbour' },
+      { suggestedName: 'Vera, Harbour' },
     );
   }
 
@@ -547,9 +547,7 @@ describe('what publishing keeps', () => {
       'Keep these 2 as a world named',
     );
     expect(keepWorld.checked).toBe(true);
-    expect(screen.getByLabelText<HTMLInputElement>('The world’s name').value).toBe(
-      'Vera and Harbour',
-    );
+    expect(screen.getByLabelText<HTMLInputElement>('The world’s name').value).toBe('Vera, Harbour');
     expect(screen.getByLabelText('Just make the file')).toBeTruthy();
     expect(
       screen.getByText('What you leave out above leaves the file, not the world.'),
@@ -582,8 +580,70 @@ describe('what publishing keeps', () => {
     });
     expect(publish.mock.calls[0]?.[1]).toMatchObject({
       keep: 'snapshot',
-      name: 'Vera and Harbour',
+      name: 'Vera, Harbour',
     });
+  });
+
+  /**
+   * ***Named by what travels, until the person names it*** (2026-10-11, the
+   * [P16 audit], privacy finding 4): the suggestion is the starting points the
+   * file carries, so unticking one takes it out of the name the file and a
+   * kept World's `world.json` would carry; a name the person typed is theirs,
+   * and the ticks no longer move it.
+   */
+  it('names a selection by the starting points that travel, until a name is typed', async () => {
+    show(
+      previewOf(
+        graph()
+          .found('vera', 'storyengine.actor/1', { name: 'Vera' })
+          .found('twist', 'storyengine.lorebook/1', { name: 'Act III twist' })
+          .found('bob', 'storyengine.actor/1', { name: 'Bob' })
+          .edge(null, 'vera', 'selected')
+          .edge(null, 'twist', 'selected')
+          .edge(null, 'bob', 'selected')
+          .closure('selection'),
+        { suggestedName: 'Vera, Act III twist, Bob' },
+      ),
+    );
+    const field = await screen.findByLabelText<HTMLInputElement>('The world’s name');
+    expect(field.value).toBe('Vera, Act III twist, Bob');
+
+    await userEvent.click(screen.getByLabelText('Include “Act III twist”'));
+    expect(field.value).toBe('Vera, Bob');
+
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Harbour folk');
+    await userEvent.click(screen.getByLabelText('Include “Bob”'));
+    expect(field.value).toBe('Harbour folk');
+  });
+
+  /**
+   * ***A snapshot's file is named here too*** (the [P16 audit]): the field was
+   * disabled for a snapshot while the confirm still named the file from it.
+   * Now it is the file's name, under the choice it names, and editable.
+   */
+  it('lets the file be named for a snapshot, and sends that name', async () => {
+    publish.mockResolvedValue({
+      blob: new Blob(['zip']),
+      fileName: 'Notes.seworld',
+      world: null,
+      drift: false,
+      notes: [],
+      missing: 0,
+    });
+    show(selection());
+    await userEvent.click(await screen.findByLabelText('Just make the file'));
+    expect(screen.queryByLabelText('The world’s name')).toBeNull();
+    const field = screen.getByLabelText<HTMLInputElement>('The file’s name');
+    expect(field.disabled).toBe(false);
+    expect(field.value).toBe('Vera, Harbour');
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Notes');
+    await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    await waitFor(() => {
+      expect(publish).toHaveBeenCalledTimes(1);
+    });
+    expect(publish.mock.calls[0]?.[1]).toMatchObject({ keep: 'snapshot', name: 'Notes' });
   });
 
   it('will not keep a World with no name', async () => {
@@ -641,14 +701,14 @@ describe('the confirm', () => {
           .edge(null, 'vera', 'selected')
           .edge(null, 'harbour', 'selected')
           .closure('selection'),
-        { suggestedName: 'Vera and Harbour' },
+        { suggestedName: 'Vera, Harbour' },
       ),
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Publish' }));
 
     expect(await screen.findByText('Saved Vera-and-Harbour.seworld.')).toBeTruthy();
     expect(onFile).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Kept as the world “Vera and Harbour”.')).toBeTruthy();
+    expect(screen.getByText('Kept as the world “Vera, Harbour”.')).toBeTruthy();
     const open = screen.getByRole('link', { name: 'Open it' });
     expect(open.getAttribute('data-params')).toBe(JSON.stringify({ kind: 'worlds', id: 'w-new' }));
     expect(screen.getByText(/^The library changed while you were looking/)).toBeTruthy();
@@ -658,7 +718,7 @@ describe('the confirm', () => {
     expect(screen.getByText(/^A picture of “Vera” \(a\.png\) was not on disk/)).toBeTruthy();
     // A selection kept once is not kept twice from here.
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Publish' }).disabled).toBe(true);
-    expect(screen.getByText(/^This selection is the world “Vera and Harbour” now\./)).toBeTruthy();
+    expect(screen.getByText(/^This selection is the world “Vera, Harbour” now\./)).toBeTruthy();
   });
 
   it('says a refusal by its class, and names a World a 409 kept', async () => {
@@ -938,11 +998,11 @@ describe('the strip', () => {
           .edge(null, 'vera', 'selected')
           .edge(null, 'harbour', 'selected')
           .closure('selection'),
-        { suggestedName: 'Vera and Harbour' },
+        { suggestedName: 'Vera, Harbour' },
       ),
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Publish' }));
-    await screen.findByText('Kept as the world “Vera and Harbour”.');
+    await screen.findByText('Kept as the world “Vera, Harbour”.');
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Open it' }));
   });
 
@@ -1078,7 +1138,7 @@ describe('what stays home', () => {
           .edge(null, 'vera', 'selected')
           .edge(null, 'harbour', 'selected')
           .closure('selection'),
-        { suggestedName: 'Vera and Harbour' },
+        { suggestedName: 'Vera, Harbour' },
       ),
     );
     await userEvent.click(await screen.findByLabelText('Include “Vera”'));
@@ -1105,7 +1165,7 @@ describe('what stays home', () => {
           .edge(null, 'harbour', 'selected')
           .edge(null, 'missing:1', 'selected')
           .closure('selection'),
-        { suggestedName: 'Vera and Harbour' },
+        { suggestedName: 'Vera, Harbour' },
       ),
     );
     expect(await screen.findByLabelText('Keep these 2 as a world named')).toBeTruthy();
@@ -1187,7 +1247,7 @@ describe('a publish whose file does not arrive', () => {
           .edge(null, 'vera', 'selected')
           .edge(null, 'harbour', 'selected')
           .closure('selection'),
-        { suggestedName: 'Vera and Harbour' },
+        { suggestedName: 'Vera, Harbour' },
       ),
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Publish' }));
@@ -1199,7 +1259,7 @@ describe('a publish whose file does not arrive', () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        'The world “Vera and Harbour” was kept before that happened; publish it from its page.',
+        'The world “Vera, Harbour” was kept before that happened; publish it from its page.',
       ),
     ).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Publish' }).disabled).toBe(true);

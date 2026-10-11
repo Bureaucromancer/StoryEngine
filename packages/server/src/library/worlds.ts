@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import {
+  LEGACY_PACKAGE_SCHEMA,
   LOREBOOK_SCHEMA,
   type PortableObjectEnvelope,
   TREATMENT_SCHEMA,
@@ -61,9 +62,29 @@ const ATTEMPTS = 3;
  *
  * **A World is not a member of a World** ([15 §3.1]): a set of sets is a
  * question nobody has asked, and refusing it at the door that writes membership
- * means the picker's refusal is not the only one. A file that arrives holding a
- * World inside a World is the importer's to carry, as the envelope rule says,
- * and is not written through here.
+ * means the picker's refusal is not the only one. Refused under either of the
+ * World's schema ids since 2026-10-11 (the [P16 audit]). A file that arrives
+ * holding a World inside a World ~~is the importer's to carry, as the envelope
+ * rule says, and~~ is not written through here — *and since [P16.3e] the
+ * importer does not carry it either: the landing names no nested World
+ * (`import.world.nestedWorld`).*
+ *
+ * ***One of two doors, said so it is not read as the only one*** (2026-10-11,
+ * the review of the audit's fixes). The World's own create and update —
+ * `POST`/`PUT /library/worlds`, the editor's whole-object write, and a hand
+ * edit the watcher indexes — write whatever `contents` they are given, a
+ * World under either schema id included: nothing in `library.ts` or the
+ * route reads `contents`, and the schema takes any envelope. That door is
+ * left open on purpose. The editor's picker never offers a World
+ * (`MembersField.tsx` filters the kind out), so only a hand-built request or
+ * a hand-edited file reaches it; refusing there would refuse *every* save of
+ * a World that already holds one — a Package nested before P16.0, its first
+ * move into `worlds/` included, and every `addMembers` call on it, which
+ * writes the whole list — over an entry nothing acts on. *Nothing acts on it*
+ * is what holds the line: the walker excludes a nested World
+ * (`nested-world`, under both ids), the writer carries none, and the landing
+ * names none. So the refusal here is the one at the door a person's *Add to a
+ * World* uses, and the rest are filters downstream.
  *
  * ***A first write, if the World is still under its old name.*** Adding a
  * member is an ordinary `update`, so a Package not yet moved moves now
@@ -76,7 +97,15 @@ export async function addMembers(
   members: readonly MemberEnvelope[],
 ): Promise<{ contentHash: string; object: unknown; written: boolean }> {
   for (const member of members) {
-    if (member.schema === WORLD_SCHEMA) {
+    /*
+     * ***Under either of its names*** (2026-10-11, the [P16 audit]): a World
+     * is also `storyengine.package/1`, the id it had before P16.0, and an
+     * envelope under that id was written here with a `200` — a World inside
+     * a World by the one door that refuses it, which the walker then excluded
+     * as `nested-world` and the landing filtered. The walker's `isWorld` and
+     * the landing's `isWorldSchema` read both names; so does this.
+     */
+    if (member.schema === WORLD_SCHEMA || member.schema === LEGACY_PACKAGE_SCHEMA) {
       throw new LibraryError('invalid', 'A World holds library objects and sessions, not Worlds.');
     }
     if (member.id === worldId) {

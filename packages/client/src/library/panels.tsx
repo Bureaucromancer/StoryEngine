@@ -183,6 +183,25 @@ export function provenanceSourceOf(object: LibraryObject): string | null {
   return typeof source === 'string' ? source : null;
 }
 
+/**
+ * ***A book play wrote*** — a lorebook whose `provenance.source` is
+ * `'session'`: a memory book ([P8.2]), and the client's spelling of shared's
+ * `isWrittenByPlay`, which decides whether it may be published.
+ *
+ * *A lorebook's marking, not any object's* (2026-10-11, the [P16 audit],
+ * privacy finding 2). The shelf's *Memories* badge, the page's *written by
+ * play* alert, its *Publish…* door and the selection's *play* row each read
+ * `provenanceSourceOf(object) === 'session'` on every kind, and a Setup made
+ * from a turn carries that marking — [P15 §0.3]: *the Setup itself may be
+ * "session": only lorebooks are read for that marker*. So such a Setup was
+ * badged *Memories*, told it was a book not meant to be published, and
+ * offered no way to publish it. One predicate here, so the four agree with
+ * each other and with the server's rule.
+ */
+export function writtenByPlay(object: LibraryObject): boolean {
+  return kindOfSchema(object.schema) === 'lorebooks' && provenanceSourceOf(object) === 'session';
+}
+
 function updatedAt(object: LibraryObject): string | null {
   return timestampsOf(object.object).updatedAt;
 }
@@ -200,7 +219,7 @@ function nameBadges(object: LibraryObject): JSX.Element {
   // Only when it names a World — the `Linked` badge's rule, *only when it
   // names somebody*: a `world` scope naming none reaches no session.
   const forWorlds = worldIdsOf(field(object, 'scope')).length > 0;
-  const derived = provenanceSourceOf(object) === 'session';
+  const derived = writtenByPlay(object);
 
   return (
     <>

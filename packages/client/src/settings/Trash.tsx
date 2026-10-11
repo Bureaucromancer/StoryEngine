@@ -4,10 +4,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
+import type { ImportNote } from '@storyengine/shared';
+
 import { errorCode, isLibraryKind, readTrash, restoreFromTrash, type TrashEntry } from '../api.js';
 import { formatTimestamp } from '../format.js';
 import { labels } from '../i18n/catalogue.js';
 import { KIND_WORDS } from '../library/labels.js';
+import { fill } from '../library/note-labels.js';
 import { Button } from '../ui/Button.js';
 import { Fine, Note, SectionTitle } from '../ui/Text.js';
 
@@ -55,6 +58,14 @@ export function Trash(props: {
           {restoreLine(restore.error)}
         </p>
       ) : null}
+
+      {/* ***What the restore did besides*** (2026-10-11, the [P16 audit]):
+          a note the answer carries is said where the person pressed. */}
+      {(restore.data?.notes ?? []).map((note, index) => (
+        <p key={`${note.key}-${String(index)}`} role="status" className="text-ink">
+          {restoreNoteLine(note)}
+        </p>
+      ))}
 
       {trash.isPending ? <Note>Loading…</Note> : null}
 
@@ -171,6 +182,36 @@ function whenLine(entry: TrashEntry, locale: string | undefined): string {
   const deleted = formatTimestamp(new Date(entry.deletedAt).toISOString(), locale);
   if (entry.expiresAt === null) return `Deleted ${deleted}.`;
   return `Deleted ${deleted}; removed after ${formatTimestamp(new Date(entry.expiresAt).toISOString(), locale)}.`;
+}
+
+/**
+ * ***The restore's notes, worded here*** — 2026-10-11, the [P16 audit]
+ * (safety finding 1). The server sends `{ key, params }` and never a sentence
+ * ([P4 §1.4]); the trash panel is the one surface a restore answers on, so
+ * its words live with it. One today:
+ *
+ * - `trash.restore.reminted` — a World deleted before this version, whose id
+ *   was brought back since (an import of its file, an old backup), came back
+ *   as a separate World under a new id, so the one in use keeps its own.
+ *
+ * A key this build has no words for is shown as itself, the import review's
+ * rule for a class a newer server knows.
+ */
+const RESTORE_NOTES: Readonly<Record<string, string>> = labels('settings.trash.note', {
+  /*
+   * ~~*A world you already have uses the same id … the one you have been
+   * using is unchanged*~~ (2026-10-11, the review of the audit's fixes): ids
+   * are the install's, not the account's, so the holder may be another
+   * account's import of the same file — and then the person has no such
+   * world. The sentence says only what is true either way, and nothing of
+   * whose it is.
+   */
+  'trash.restore.reminted':
+    '“{name}” came back as a separate world under a new id: its own is already in use on this server, and whatever uses it is unchanged.',
+});
+
+function restoreNoteLine(note: Pick<ImportNote, 'key' | 'params'>): string {
+  return fill(Object.hasOwn(RESTORE_NOTES, note.key) ? RESTORE_NOTES[note.key] : undefined, note);
 }
 
 /**

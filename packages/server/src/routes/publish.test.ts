@@ -649,6 +649,27 @@ describe('publishing, by where it starts', () => {
       { origin: 'selection', world: null },
       { origin: 'selection', world: null },
     ]);
+
+    /**
+     * ***Named by what it holds, not by what was left out*** (2026-10-11, the
+     * [P16 audit], privacy finding 4): a starting point unticked is in
+     * neither the file nor its name — ~~`Vera-Act-III-twist-Harbour`~~ —
+     * and the preview offers the name at the default ticks by the same rule.
+     */
+    const twist = await made(newLorebook('Act III twist'));
+    const ids = [vera.id, twist.id, harbour.id];
+    expect((await previewOf({ kind: 'objects', ids })).suggestedName).toBe(
+      'Vera, Act III twist, Harbour',
+    );
+    const unticked = await publish({
+      start: { kind: 'objects', ids },
+      choices: choices({ keep: 'snapshot', ticked: { [twist.id]: false } }),
+    });
+    expect(unticked.status, JSON.stringify(unticked.body)).toBe(200);
+    expect(unticked.headers['content-disposition']).toBe(
+      'attachment; filename="Vera-Harbour.seworld"',
+    );
+    expect(contains(unticked.bytes, 'Act III twist')).toBe(false);
   });
 
   /**
@@ -731,6 +752,92 @@ describe('what the file carries', () => {
       ticked: [night.id],
       offered: { sessions: 2 },
     });
+  });
+
+  /**
+   * ***A Setup made from a turn travels, its facts book with it*** (2026-10-11,
+   * the [P16 audit], privacy finding 2). The Setup is made through the route a
+   * person uses — `POST /sessions/:id/turns/:turnId/setup`, which stamps it
+   * `provenance.source: 'session'` and writes a `generated` companion book —
+   * and published from its own start, then from a World holding it. [P15
+   * §0.3]: *the Setup itself may be "session": only lorebooks are read for
+   * that marker* — so the walker does not mark it, the review does not draw it
+   * staying home, and the file holds it and the book it links.
+   */
+  it('carries a Setup made from a turn, and the facts book it links', async () => {
+    const created = await server.request({
+      method: 'POST',
+      url: '/api/sessions',
+      payload: { name: 'Night one' },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const sessionId = created.body.session.id as string;
+    const turnId = uuidv7();
+    await appendTurnToSession(server.services.sessions, 'ned', sessionId, {
+      id: turnId,
+      sessionId,
+      parentTurnId: null,
+      createdAt: new Date().toISOString(),
+      status: 'complete',
+      output: { text: 'The rain kept on.' },
+      effects: [],
+      tape: [],
+    });
+    const saved = await server.request({
+      method: 'POST',
+      url: `/api/sessions/${sessionId}/turns/${turnId}/setup`,
+      payload: {
+        texts: {
+          name: 'After the flood',
+          blurb: '',
+          storySoFar: 'The harbour flooded.',
+          opening: { label: 'Morning', text: 'The water is going down.' },
+        },
+        include: { party: false, goals: false, hooks: false },
+        facts: [{ text: 'The harbour flooded a night early.', keys: ['harbour'] }],
+      },
+    });
+    expect(saved.status, JSON.stringify(saved.body)).toBe(201);
+    const setupId = saved.body.setup.id as string;
+    const bookId = saved.body.lorebook.id as string;
+    // What makes this the case: the marking is on the Setup as stored.
+    expect(read(server.services.library, 'ned', setupId).body).toMatchObject({
+      provenance: { source: 'session' },
+    });
+    await settled(server);
+
+    const preview = await previewOf({ kind: 'objects', ids: [setupId] });
+    const root = preview.closure.nodes.find(
+      (node) => node.state === 'found' && node.id === setupId,
+    );
+    expect(root).toMatchObject({ state: 'found' });
+    expect(root).not.toHaveProperty('writtenByPlay');
+
+    const sent = await publish({ start: { kind: 'objects', ids: [setupId] }, choices: choices() });
+    expect(sent.status, JSON.stringify(sent.body)).toBe(200);
+    const manifest = manifestOf(sent.bytes);
+    expect(manifest.objects.map((one) => one.id).sort()).toEqual([setupId, bookId].sort());
+    expect(manifest.leftBehind).toEqual([]);
+    expect(notesOf(sent).map((one) => one.key)).not.toContain('publish.file.writtenByPlay');
+
+    // And as a World's member, which `not-portable` used to leave home.
+    const world = await made({
+      ...newWorld('Flood Town'),
+      contents: [{ schema: 'storyengine.setup/1', id: setupId, name: 'After the flood' }],
+    });
+    const fromWorld = await publish({
+      start: { kind: 'world', id: world.id },
+      choices: choices(),
+    });
+    expect(fromWorld.status, JSON.stringify(fromWorld.body)).toBe(200);
+    const inWorld = manifestOf(fromWorld.bytes);
+    expect(inWorld.objects.map((one) => [one.id, one.member])).toEqual(
+      expect.arrayContaining([
+        [setupId, true],
+        [bookId, false],
+      ]),
+    );
+    expect(worldJsonOf(fromWorld.bytes).contents.map((one) => one.id)).toEqual([setupId]);
   });
 
   /**

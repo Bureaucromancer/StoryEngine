@@ -36,6 +36,7 @@ import {
   RENDITION_SCHEMA,
   type Rendition,
   SESSION_SCHEMA,
+  slugify,
   TREATMENT_SCHEMA,
   type PlotHook,
   type Turn,
@@ -53,7 +54,7 @@ import { newMemoryBook } from '../memory/books.js';
 import { renditionIdFor, sessionAssetsRoot, writeRendition } from '../renditions/store.js';
 import { attachmentOnDisk, storeAttachment } from '../sessions/attachments.js';
 import { promoteSessionHook } from '../sessions/promote.js';
-import { appendTurnOnly, createSession, sessionFilePath } from '../sessions/store.js';
+import { appendTurnOnly, createSession, readTurns, sessionFilePath } from '../sessions/store.js';
 import type { SessionFile } from '../sessions/types.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { pngCardCodec } from '../storage/card/png.js';
@@ -98,6 +99,11 @@ import {
  */
 
 const SECRET_NAME = 'Zanzibar Midnight Confession';
+/** A memory entry's words that a ticked session's budget dropped — never sent, so never carried. */
+const UNSENT_MEMORY = 'Remember this: the Obsidian Quay key is under the third lamp';
+/** A block the same call did send, which travels as it was sent. */
+const SENT_TEXT = 'You narrate a rain-soaked harbour town.';
+const MEMORY_BOOK = '01900000-0000-7000-8000-00000000b00c';
 const AT = new Date('2026-10-10T12:00:00.000Z');
 const BUILD = { version: '1.0.0-alpha.7', commit: 'abc1234' };
 
@@ -327,11 +333,61 @@ async function build(): Promise<Fixture> {
       },
     } as Partial<Turn> & { id: string; parentTurnId: string | null }),
   );
+  /**
+   * ***A recorded call with a block the budget dropped*** (2026-10-11, the
+   * [P16 audit], privacy finding 1): a memory the retriever activated and the
+   * chat-wide cut left out, its entry's words on the turn as the assembler
+   * records every candidate — beside one block that was sent. The leak test
+   * holds the file to never carrying the first's words, and to carrying the
+   * second's.
+   */
   await appendTurnOnly(
     sessions,
     'ned',
     night.id,
-    turn({ id: t2, parentTurnId: t1, sessionId: night.id }),
+    turn({
+      id: t2,
+      parentTurnId: t1,
+      sessionId: night.id,
+      request: {
+        calls: [
+          {
+            id: 'call-1',
+            stepId: 'chat.reply',
+            role: 'prose',
+            resolved: { connectionId: 'c-1', modelId: 'm-1' },
+            blocks: [
+              {
+                id: 'preset.system',
+                source: { kind: 'preset', blockId: 'system' },
+                reason: 'the pack’s system block',
+                role: 'system',
+                text: SENT_TEXT,
+                tokens: 12,
+                included: true,
+              },
+              {
+                id: `lore.${MEMORY_BOOK}.m-1`,
+                source: { kind: 'lore', entryId: 'm-1', phase: 'before', bookId: MEMORY_BOOK },
+                reason: 'keyword match: “lantern”',
+                role: 'system',
+                text: UNSENT_MEMORY,
+                tokens: 40,
+                included: false,
+                droppedBy: 'over budget: the chat-wide cut',
+                advisory: true,
+              },
+            ],
+            messages: [{ role: 'system', content: SENT_TEXT, blocks: ['preset.system'] }],
+            params: {},
+            usage: null,
+            cost: null,
+            wallMs: 1,
+            finishReason: 'stop',
+          },
+        ],
+      },
+    } as unknown as Partial<Turn> & { id: string; parentTurnId: string | null }),
   );
   const secretTurnId = uuidv7();
   await appendTurnOnly(
@@ -683,6 +739,45 @@ describe('a World published from a real walk', () => {
   });
 
   /**
+   * ***A dropped block travels as a row without its words*** (2026-10-11, the
+   * [P16 audit], privacy finding 1). The memory's words are on the stored turn
+   * — the assembler records every candidate's text — and nowhere in either
+   * file; the row is, with the drop and its reason, so the recipient's
+   * workbench still shows what the budget left out; and the block the call
+   * sent travels as it was sent.
+   */
+  it('carries a block the budget dropped as its row, never its words', async () => {
+    const stored = await readTurns(fixture.server.services.sessions, 'ned', fixture.night.id);
+    expect(JSON.stringify([...stored.values()])).toContain(UNSENT_MEMORY);
+
+    for (const file of [plain, withHistory]) {
+      expect(contains(file.bytes, UNSENT_MEMORY)).toBe(false);
+      const exported = json(file.entries, `sessions/${fixture.night.id}/session-export.json`) as {
+        turns: Turn[];
+      };
+      const blocks = exported.turns.flatMap((one) =>
+        (one.request?.calls ?? []).flatMap((call) => call.blocks ?? []),
+      );
+      expect(blocks).toEqual([
+        expect.objectContaining({ id: 'preset.system', included: true, text: SENT_TEXT }),
+        {
+          id: `lore.${MEMORY_BOOK}.m-1`,
+          source: { kind: 'lore', entryId: 'm-1', phase: 'before', bookId: MEMORY_BOOK },
+          reason: 'keyword match: “lantern”',
+          role: 'system',
+          text: '',
+          tokens: 40,
+          included: false,
+          droppedBy: 'over budget: the chat-wide cut',
+          advisory: true,
+        },
+      ]);
+      // What the call sent is the rendered prompt, and it is untouched.
+      expect(contains(file.bytes, SENT_TEXT)).toBe(true);
+    }
+  });
+
+  /**
    * ***What the scrub keeps*** — the history still says what happened, in
    * words that name no session: a promotion, a memory, each version once.
    */
@@ -989,10 +1084,12 @@ describe('what a plan decides, case by case', () => {
     const library = fixture.server.services.library;
     const system = list(library, 'ned', PRESET_SCHEMA).find((row) => row.owner === 'system');
     if (system === undefined) throw new Error('the test server ships no system preset');
-    // A person's preset named so its folder is the system one's.
-    const mine = { ...newPreset(system.slug), id: uuidv7() };
+    // A person's preset named as the system one is — so, since 2026-10-11
+    // (the [P16 audit]), its folder in the file is the system one's: a folder
+    // is named from the current name, ~~and this was named from its slug so
+    // its folder on disk matched~~.
+    const mine = { ...newPreset(system.name), id: uuidv7() };
     await create(library, 'ned', mine, PRESET_SCHEMA);
-    expect(read(library, 'ned', mine.id).slug).toBe(system.slug);
 
     const plan = await planned(
       fixture,
@@ -1002,8 +1099,8 @@ describe('what a plan decides, case by case', () => {
       stage,
     );
     expect(plan.manifest.objects.map((one) => one.folder)).toEqual([
-      `library/presets/${system.slug}`,
-      `library/presets/${system.slug}-2`,
+      `library/presets/${slugify(system.name)}`,
+      `library/presets/${slugify(system.name)}-2`,
     ]);
   });
 
@@ -1571,26 +1668,43 @@ describe('what a plan decides, case by case', () => {
    * Windows' — so a file made here extracts to the same tree there. Two books
    * whose folders differ only in case are two folders on this disk and would
    * be one on that one.
+   *
+   * ~~`library/lorebooks/Harbour-2`, from the folder on disk~~ — *2026-10-11,
+   * the [P16 audit], privacy finding 3*: a folder in the file is named from
+   * the object's **current name**, never the folder on disk, whose name is
+   * frozen at create (and here was renamed by hand). So the second book is
+   * named for what it is called; and a third called the first's name in other
+   * capitals ~~folds onto it and is suffixed — the comparison the
+   * case-folding is for, now that every name passes through `slugify`~~
+   * collides with it and is suffixed. *Corrected 2026-10-11, the review of the
+   * audit's fixes:* the fold here is `slugify`'s — it lowercases and keeps
+   * only `[a-z0-9-]`, so *HARBOUR* is `harbour` before `FolderNames` compares
+   * anything — and `FolderNames`' own case-folded key is belt and braces,
+   * unreachable while every base is a slug (a mutation dropping it passed
+   * this test, which is why the test no longer claims it).
    */
-  it('suffixes a folder that differs from another of its kind only in case', async () => {
+  it('names a folder from the object’s name, not its folder on disk, a collision suffixed', async () => {
     const library = fixture.server.services.library;
     const second = newLorebook('Harbour, the second');
     await create(library, 'ned', second, LOREBOOK_SCHEMA);
     const folder = dirname(read(library, 'ned', second.id).path);
     await rename(folder, join(dirname(folder), 'Harbour'));
+    const third = newLorebook('HARBOUR');
+    await create(library, 'ned', third, LOREBOOK_SCHEMA);
     await rebuild(fixture.server.services.index.db, fixture.server.services.layout);
     expect(basename(dirname(read(library, 'ned', second.id).path))).toBe('Harbour');
 
     const plan = await planned(
       fixture,
-      { kind: 'objects', ids: [fixture.harbour.id, second.id] },
+      { kind: 'objects', ids: [fixture.harbour.id, second.id, third.id] },
       {},
       false,
       stage,
     );
     expect(plan.manifest.objects.map((one) => one.folder)).toEqual([
       'library/lorebooks/harbour',
-      'library/lorebooks/Harbour-2',
+      'library/lorebooks/harbour-the-second',
+      'library/lorebooks/harbour-2',
     ]);
   });
 

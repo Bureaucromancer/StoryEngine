@@ -11,6 +11,7 @@ import {
   closureTree,
   type FoundNode,
   fileSet,
+  isWrittenByPlay,
   mergeRequires,
   type NodeFacts,
   type NodeKey,
@@ -553,6 +554,22 @@ describe('what is in the file', () => {
  * one that only something unticked names is not the file's to mention.
  */
 describe('what play wrote', () => {
+  /**
+   * ***A lorebook's marking, and only a lorebook's*** (2026-10-11, the [P16
+   * audit], privacy finding 2): a Setup made from a turn carries
+   * `provenance.source: 'session'` too ([P15 §0.3]) and travels. Asked of
+   * `LOREBOOK_SCHEMA` itself, which also holds the predicate's own spelling of
+   * the id to the constant's.
+   */
+  it('is a lorebook marked session, and no other kind marked so', () => {
+    const marked = { provenance: { source: 'session' } };
+    expect(isWrittenByPlay(LOREBOOK_SCHEMA, marked)).toBe(true);
+    expect(isWrittenByPlay(SETUP_SCHEMA, marked)).toBe(false);
+    expect(isWrittenByPlay(ACTOR_SCHEMA, marked)).toBe(false);
+    expect(isWrittenByPlay(LOREBOOK_SCHEMA, { provenance: { source: 'generated' } })).toBe(false);
+    expect(isWrittenByPlay(LOREBOOK_SCHEMA, null)).toBe(false);
+  });
+
   const memory = (): Graph =>
     graph()
       .found('rain', TREATMENT_SCHEMA)

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,6 +34,7 @@ const createObject = vi.fn();
 const authState = vi.fn();
 const createSession = vi.fn();
 const listSessions = vi.fn();
+const listLibrary = vi.fn();
 const navigate = vi.fn();
 
 const ACTOR_ID = '01a008de-7e08-70d0-899c-f6869d6b9aeb';
@@ -55,6 +56,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     takeFile: (...a: unknown[]) => takeFile(...a) as unknown,
     publishRecords: (...a: unknown[]) => publishRecords(...a) as unknown,
     libraryErrors: (...a: unknown[]) => libraryErrors(...a) as unknown,
+    listLibrary: (...a: unknown[]) => listLibrary(...a) as unknown,
   },
 }));
 
@@ -72,16 +74,29 @@ vi.mock('@tanstack/react-router', () => ({
   // `data-to` as well as `data-search` since [P5.1]: the book page now carries
   // two links per entry — the name, into the read address, and Edit, into the
   // editor — and a stub that dropped the destination could not tell them apart.
+  // And `data-params` (2026-10-11, the review of the audit's fixes): a World's
+  // member links name their object by `params`, and a stub that dropped them
+  // passed a link to the wrong member — `PublishPage.test`'s stub does the same.
   Link: ({
     children,
     to,
     search,
+    params: linkParams,
+    className,
   }: {
     children: React.ReactNode;
     to?: string;
     search?: Record<string, unknown>;
+    params?: Record<string, unknown>;
+    className?: string;
   }) => (
-    <a href="#" data-to={to ?? ''} data-search={JSON.stringify(search ?? {})}>
+    <a
+      href="#"
+      className={className}
+      data-to={to ?? ''}
+      data-search={JSON.stringify(search ?? {})}
+      data-params={JSON.stringify(linkParams ?? {})}
+    >
       {children}
     </a>
   ),
@@ -89,6 +104,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const { ApiError } = await import('../api.js');
 const { ObjectDetailPage } = await import('./ObjectDetailPage.js');
+const { link } = await import('../ui/classes.js');
 
 function actor(overrides: Record<string, unknown> = {}) {
   return {
@@ -113,6 +129,7 @@ beforeEach(() => {
   createObject.mockResolvedValue({ id: COPY_ID, slug: 'vera-kohl-2', contentHash: 'sha256:def' });
   authState.mockResolvedValue({ account: { handle: 'ned', locale: null } });
   listSessions.mockResolvedValue({ sessions: [] });
+  listLibrary.mockResolvedValue({ objects: [] });
   libraryErrors.mockResolvedValue({ errors: [] });
   publishRecords.mockResolvedValue({ count: 0, records: [] });
 });
@@ -571,6 +588,33 @@ describe('the doors into Publish', () => {
     expect(await screen.findByRole('heading', { name: 'What Vera remembers' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Download this lorebook' })).toBeTruthy();
+  });
+
+  /**
+   * ***A Setup made from a turn carries the marking, and is published like
+   * any Setup*** (2026-10-11, the [P16 audit], privacy finding 2) — [P15
+   * §0.3]: *only lorebooks are read for that marker*. So it has the door, and
+   * the page does not tell it it is a book play wrote.
+   */
+  it('offers Publish… on a Setup made from a turn, which carries the same marking', async () => {
+    params = { kind: 'setups', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      actor({
+        schema: 'storyengine.setup/1',
+        name: 'After the flood',
+        object: {
+          schema: 'storyengine.setup/1',
+          id: ACTOR_ID,
+          name: 'After the flood',
+          provenance: { source: 'session' },
+        },
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'After the flood' })).toBeTruthy();
+    expect(door('Publish…')).toEqual({ to: '/library/publish', search: { from: ACTOR_ID } });
+    expect(screen.queryByText(/This book was written by play/)).toBeNull();
   });
 
   it('gives a World Publish this world…, starting from the World, and no Publish…', async () => {
@@ -1215,5 +1259,117 @@ describe('copying a system object into your own library', () => {
     await user.click(await screen.findByRole('button', { name: 'Copy to my library' }));
 
     expect(await screen.findByText(/already exists/)).toBeTruthy();
+  });
+});
+
+/**
+ * ***A World's own page lists its members, resolved*** (2026-10-11, the [P16
+ * audit], readiness finding 4). The page drew `contents` as stored, so a
+ * deleted member read like a present one under the name it was added with,
+ * and only the editor said *Missing* — while AA2 and the phase's demo ask the
+ * World's **page** to say a member is gone. Now each member is drawn by its
+ * current name, linked to its object or session, and one the library or the
+ * session list no longer holds keeps its stored name and the editor's badge;
+ * nothing is called missing before the lists have answered.
+ */
+describe('a World’s members on its page', () => {
+  const BOB = '01a008de-7e08-70d0-899c-f6869d6b9b01';
+  const DOCKS = '01a008de-7e08-70d0-899c-f6869d6b9b02';
+  const NIGHT = '01a008de-7e08-70d0-899c-f6869d6b9b03';
+  const LOST = '01a008de-7e08-70d0-899c-f6869d6b9b04';
+  const HARBOUR = '01a008de-7e08-70d0-899c-f6869d6b9b05';
+
+  function world() {
+    return actor({
+      schema: 'storyengine.world/1',
+      name: 'Rain City',
+      slug: 'rain-city',
+      object: {
+        schema: 'storyengine.world/1',
+        id: ACTOR_ID,
+        name: 'Rain City',
+        contents: [
+          { schema: 'storyengine.actor/1', id: BOB, name: 'Bob the Traitor' },
+          { schema: 'storyengine.lorebook/1', id: DOCKS, name: 'The Docks' },
+          { schema: 'storyengine.session/1', id: NIGHT, name: 'Night one' },
+          { schema: 'storyengine.session/1', id: LOST, name: 'A night nobody kept' },
+          { schema: 'storyengine.lorebook/1', id: HARBOUR, name: 'Harbour' },
+        ],
+      },
+    });
+  }
+
+  function row(name: string): HTMLElement {
+    const members = screen.getByRole('region', { name: 'Members' });
+    const item = within(members)
+      .getAllByRole('listitem')
+      .find((one) => one.textContent.includes(name));
+    if (item === undefined) throw new Error(`no member row names ${name}`);
+    return item;
+  }
+
+  it('names each member as it is called now, links it, and marks the gone ones Missing', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    readObject.mockResolvedValue(world());
+    listLibrary.mockResolvedValue({
+      objects: [
+        actor({ id: BOB, name: 'Bob', slug: 'bob-the-traitor' }),
+        actor({ id: HARBOUR, schema: 'storyengine.lorebook/1', name: 'Docks', slug: 'harbour' }),
+      ],
+    });
+    listSessions.mockResolvedValue({ sessions: [{ id: NIGHT, name: 'The long night' }] });
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'Bob' })).toBeTruthy();
+    // Where each link goes, by its route *and* its params (2026-10-11, the
+    // review of the audit's fixes: a link to the wrong id passed on `to` alone).
+    const destination = (name: string): [string | null, unknown] => {
+      const link = screen.getByRole('link', { name });
+      return [link.getAttribute('data-to'), JSON.parse(link.getAttribute('data-params') ?? '{}')];
+    };
+    expect(destination('Bob')).toEqual(['/library/$kind/$id', { kind: 'actors', id: BOB }]);
+    expect(destination('Docks')).toEqual([
+      '/library/$kind/$id',
+      { kind: 'lorebooks', id: HARBOUR },
+    ]);
+    expect(destination('The long night')).toEqual(['/play/$sessionId', { sessionId: NIGHT }]);
+    // Each name the row's primary target, as a shelf row's is — never the
+    // quiet grey a present member read fainter than a Missing one in.
+    for (const name of ['Bob', 'Docks', 'The long night']) {
+      expect(screen.getByRole('link', { name }).className).toContain(link.object);
+    }
+    // Never the names they were added under, for the two that are here.
+    const members = screen.getByRole('region', { name: 'Members' });
+    expect(members.textContent).not.toContain('Bob the Traitor');
+    expect(members.textContent).not.toContain('Night one');
+
+    // The two that are gone: their stored names, unlinked, and the badge.
+    for (const gone of ['The Docks', 'A night nobody kept']) {
+      expect(within(row(gone)).getByText('Missing')).toBeTruthy();
+      expect(within(row(gone)).queryByRole('link')).toBeNull();
+    }
+    expect(within(row('Bob')).queryByText('Missing')).toBeNull();
+    expect(within(row('The Docks')).getByText('Missing').getAttribute('title')).toBe(
+      'Not in your library any more — it was deleted or never arrived. The world keeps naming it until it is removed from the world.',
+    );
+    expect(
+      screen.getByText(
+        'A member marked Missing is not in your library or among your sessions any more. The world keeps naming it, and nothing is blocked by it, until it is removed from the world.',
+      ),
+    ).toBeTruthy();
+    // And the stored list is not drawn a second time beside it.
+    expect(screen.queryByText('Bob the Traitor')).toBeNull();
+  });
+
+  it('marks nothing missing while the lists have not answered', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    readObject.mockResolvedValue(world());
+    listLibrary.mockReturnValue(new Promise(() => undefined));
+    listSessions.mockReturnValue(new Promise(() => undefined));
+    renderPage();
+
+    expect(await screen.findByRole('link', { name: 'The Docks' })).toBeTruthy();
+    expect(screen.queryByText('Missing')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Bob the Traitor' })).toBeTruthy();
   });
 });

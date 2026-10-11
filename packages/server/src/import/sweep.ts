@@ -57,7 +57,14 @@ import {
   stampImported,
   type ConflictPolicy,
 } from './identity.js';
-import { blankCardPixels, create, read, update, type LibraryContext } from '../library.js';
+import {
+  blankCardPixels,
+  create,
+  inObjectTurn,
+  read,
+  update,
+  type LibraryContext,
+} from '../library.js';
 import { contentHashOf } from '../index-db/ingest.js';
 import { codecFor } from '../storage/card/index.js';
 import { fileExists, writeFileBytes } from '../storage/files.js';
@@ -1130,24 +1137,39 @@ class Writer {
     schemaId: PortableSchemaId,
     notes: ImportNote[],
   ): Promise<void> {
-    if (candidate.assets === undefined || candidate.assets.length === 0) return;
+    const assets = candidate.assets;
+    if (assets === undefined || assets.length === 0) return;
     const { library, handle } = this.#request;
     try {
-      const row = read(library, handle, id, schemaId);
-      // The folder the object is in, read off its path rather than built from
-      // its slug: a World still in `packages/` keeps its pictures there
-      // ([P16 §1.1]), and `worlds/<slug>` may be another World's.
-      const root = resolveWithin(library.layout.folderOf(row.path), 'assets');
-      for (const path of candidate.assets) {
-        // Within the object's own folder whatever the archive calls it: the
-        // source refused `..` already, and this is the door that would not
-        // need it to have.
-        const to = resolveWithin(root, path.slice(path.lastIndexOf('/') + 1));
-        if (to === root || (await fileExists(to))) continue;
-        const bytes = await this.#request.files.read(path);
-        if (bytes === null) continue;
-        await writeFileBytes(to, bytes);
-      }
+      /**
+       * ***In the object's turn, the row read inside it*** (2026-10-11, the
+       * [P16 audit], safety finding 2) — `storeAsset`'s and `copyAssets`'
+       * rule since [P16.0]'s review, which this carry missed. It runs after
+       * an `unchanged` too, so over a World still in `packages/`; read
+       * outside the turn, a save of that World landing during the archive's
+       * read moved the folder to `worlds/`, and the write then recreated
+       * `packages/<slug>/assets/` behind the move — a stray folder with no
+       * object, and the moved World still without the picture the carry was
+       * restoring. In the turn, the folder is where the object is now and no
+       * write of the object can move it under this one.
+       */
+      await inObjectTurn(id, async () => {
+        const row = read(library, handle, id, schemaId);
+        // The folder the object is in, read off its path rather than built from
+        // its slug: a World still in `packages/` keeps its pictures there
+        // ([P16 §1.1]), and `worlds/<slug>` may be another World's.
+        const root = resolveWithin(library.layout.folderOf(row.path), 'assets');
+        for (const path of assets) {
+          // Within the object's own folder whatever the archive calls it: the
+          // source refused `..` already, and this is the door that would not
+          // need it to have.
+          const to = resolveWithin(root, path.slice(path.lastIndexOf('/') + 1));
+          if (to === root || (await fileExists(to))) continue;
+          const bytes = await this.#request.files.read(path);
+          if (bytes === null) continue;
+          await writeFileBytes(to, bytes);
+        }
+      });
     } catch (error) {
       notes.push({
         key: 'import.file.notStored',
@@ -1177,22 +1199,35 @@ class Writer {
     schemaId: PortableSchemaId,
     notes: ImportNote[],
   ): Promise<void> {
-    if (candidate.history === undefined || candidate.history.length === 0) return;
+    const history = candidate.history;
+    if (history === undefined || history.length === 0) return;
     const { library, handle } = this.#request;
     try {
-      const row = read(library, handle, id, schemaId);
-      const folder = library.layout.folderOf(row.path);
-      for (const path of candidate.history) {
-        const at = path.lastIndexOf('/history/');
-        const relative = at < 0 ? '' : path.slice(at + 1);
-        const segments = HISTORY_MEMBER.test(relative) ? relative.split('/') : null;
-        if (segments === null) continue;
-        const to = resolveWithin(folder, ...segments);
-        if (await fileExists(to)) continue;
-        const bytes = await this.#request.files.read(path);
-        if (bytes === null) continue;
-        await writeFileBytes(to, bytes);
-      }
+      /**
+       * ***In the object's turn*** (2026-10-11, the [P16 audit], safety
+       * finding 2), for `#carryAssets`' reason and one of its own: a save of
+       * the object just created, landing between the look for
+       * `history/index.jsonl` and its write, appended its `snapshotReplaced`
+       * record — and then this write, which truncates, put the sender's index
+       * over it, leaving that version's payload listed nowhere. Every write
+       * to the object, its history append included, takes this turn, so
+       * *absent when looked at* is *absent when written*.
+       */
+      await inObjectTurn(id, async () => {
+        const row = read(library, handle, id, schemaId);
+        const folder = library.layout.folderOf(row.path);
+        for (const path of history) {
+          const at = path.lastIndexOf('/history/');
+          const relative = at < 0 ? '' : path.slice(at + 1);
+          const segments = HISTORY_MEMBER.test(relative) ? relative.split('/') : null;
+          if (segments === null) continue;
+          const to = resolveWithin(folder, ...segments);
+          if (await fileExists(to)) continue;
+          const bytes = await this.#request.files.read(path);
+          if (bytes === null) continue;
+          await writeFileBytes(to, bytes);
+        }
+      });
     } catch (error) {
       notes.push({
         key: 'import.file.notStored',

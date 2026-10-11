@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useId, useState, type JSX } from 'react';
 
 import { LIBRARY_KINDS, listSessions } from '../api.js';
@@ -11,6 +12,7 @@ import { sessionLabel } from '../play/session-label.js';
 import { useLibrary } from '../queries.js';
 import { Badge } from '../ui/Badge.js';
 import { Button } from '../ui/Button.js';
+import { link } from '../ui/classes.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { Panel } from '../ui/Panel.js';
 import { Fine, Note, SectionTitle, SubsectionTitle } from '../ui/Text.js';
@@ -68,12 +70,18 @@ const WORDS = labels('editor.world-members', {
   session: 'session',
   sessions: 'Sessions',
   missing: 'Missing',
+  /*
+   * ~~*remove it here if you no longer want it*~~ (2026-10-11, the [P16
+   * audit]): these three are said on the World's own page now as well
+   * ({@link WorldMembers}), where there is no *here* to remove it from, so the
+   * remedy names the world rather than the place.
+   */
   missingObject:
-    'Not in your library any more — it was deleted or never arrived. The world keeps naming it; remove it here if you no longer want it.',
+    'Not in your library any more — it was deleted or never arrived. The world keeps naming it until it is removed from the world.',
   missingSession:
-    'Not among your sessions any more — it was deleted or never arrived. The world keeps naming it; remove it here if you no longer want it.',
+    'Not among your sessions any more — it was deleted or never arrived. The world keeps naming it until it is removed from the world.',
   missingNote:
-    'A member marked Missing is not in your library or among your sessions any more. The world keeps naming it and nothing is blocked by it; remove it here if you no longer want it.',
+    'A member marked Missing is not in your library or among your sessions any more. The world keeps naming it, and nothing is blocked by it, until it is removed from the world.',
   unknownKind: 'Unknown kind',
   unknownKindTitle:
     'A kind this version does not know. The world keeps it exactly as it is and carries it with the rest.',
@@ -101,11 +109,7 @@ export function MembersField(props: {
    * archived session is still a session, and reading the live list alone would
    * mark every archived member *Missing*.
    */
-  const library = useLibrary();
-  const sessions = useQuery({
-    queryKey: ['sessions', 'with-archived'],
-    queryFn: () => listSessions({ archived: true }),
-  });
+  const { library, sessions, rows } = useMemberRows(props.members);
   const objects = library.data?.objects;
   const played = sessions.data?.sessions;
 
@@ -114,12 +118,6 @@ export function MembersField(props: {
   const [announced, setAnnounced] = useState('');
   /** Into the name box when the picker opens — polish 10's `useFocusOnReveal`. */
   const picker = useFocusOnReveal<HTMLDivElement>(picking);
-
-  const rows = props.members.map((member) => ({
-    member,
-    kind: memberKindOf(member),
-    resolution: resolveMember(member, objects, played),
-  }));
 
   return (
     <section className="flex flex-col gap-4" aria-label="Members">
@@ -203,18 +201,119 @@ export function MembersField(props: {
   );
 }
 
-/** One member, in its place: what kind, what it is called now, and whether it is still there. */
+/**
+ * ***Each member resolved against both lists*** — the editor's reading, and
+ * (2026-10-11, the [P16 audit]) the World page's, so the two say the same
+ * thing of the same member.
+ */
+function useMemberRows(members: readonly Member[]) {
+  const library = useLibrary();
+  const sessions = useQuery({
+    queryKey: ['sessions', 'with-archived'],
+    queryFn: () => listSessions({ archived: true }),
+  });
+  const rows = members.map((member) => ({
+    member,
+    kind: memberKindOf(member),
+    resolution: resolveMember(member, library.data?.objects, sessions.data?.sessions),
+  }));
+  return { library, sessions, rows };
+}
+
+/**
+ * ***A World's members, on its own page*** — 2026-10-11, the [P16 audit]
+ * (readiness finding 4), [15 §3.1](../../../../docs/design/15-world.md).
+ *
+ * **What the page drew was `contents` as stored**, through the generic
+ * `ByField`, which resolves nothing: a deleted actor read exactly like a
+ * present one, under the name it was added with, and a renamed member under
+ * its old name. Only this editor marked *Missing* — yet the World's page is
+ * where a person lands, and the page the gate's AA2 and the phase's demo ask
+ * about (*the World's page shows the actor missing*, *watch the World say it
+ * is gone*), and [15 §3.1]'s *the reference dangles, visibly*.
+ *
+ * **The editor's rows, read-only**: the same resolution, the same row — each
+ * member by its current name, linked to its object or its session, and the
+ * same *Missing* badge and sentences for one the library or the session list
+ * no longer holds — with no *Remove*. ***Nothing is marked missing while the
+ * lists load*** (`unchecked`), which `resolveMember` already answers.
+ *
+ * ***Here, and not behind a `lazy()`*** — measured, with the entry at
+ * 312.00 kB gzip (of a 312 ceiling) once the audit's other client fixes were
+ * in: drawn in place, sharing this file's row, resolution and words, the list
+ * costs **+0.35 kB** (312.35); in a module of its own behind `lazy()`, as the
+ * publish review is, **314.41** — the chunk imported a dozen modules the entry
+ * holds (`queries.ts`, `ui/Field.tsx`, `format.ts`, `members-form.ts`…) and
+ * the bundler split each into a file of its own, which compresses worse, the
+ * trap `tools/entry-budget.test.ts`'s P16.3g note records; and the whole
+ * member surface (this editor field with it) behind one boundary, **312.59**.
+ * The smallest is this one, and with it the entry is over its ceiling —
+ * whether the ceiling moves, or some other surface leaves the entry, is the
+ * phase's decision, not this fix's.
+ */
+export function WorldMembers(props: { members: readonly Member[] }): JSX.Element {
+  const { rows } = useMemberRows(props.members);
+  return (
+    <section className="mb-6 flex flex-col gap-3" aria-label="Members">
+      <SectionTitle as="h2">Members</SectionTitle>
+      {rows.length === 0 ? (
+        <Fine>Nothing here yet.</Fine>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {rows.map((row, at) => (
+            <MemberRow key={`${row.member.id}:${String(at)}`} {...row} />
+          ))}
+        </ul>
+      )}
+      {rows.some((row) => row.resolution.state === 'missing') ? (
+        <Fine>{WORDS.missingNote}</Fine>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * One member, in its place: what kind, what it is called now, and whether it
+ * is still there. *Without `onRemove`* — the World's page — the name is a
+ * link to the member while it may be there (found, or its list not yet in),
+ * and there is no *Remove*. *Drawn as a library row's object name*
+ * (`link.object`, 2026-10-11, the review of the audit's fixes): ~~`link.inline`~~
+ * is the quiet grey of a link under a heading, and a present member read
+ * fainter than a *Missing* one's plain ink — the row's name is its primary
+ * target, as the shelf's is.
+ */
 function MemberRow(props: {
   member: Member;
   kind: MemberKind | null;
   resolution: Resolution;
-  onRemove: () => void;
+  onRemove?: () => void;
 }): JSX.Element {
-  const name = shownName(props.member, props.kind, props.resolution);
+  const { member, kind, resolution } = props;
+  const name = shownName(member, kind, resolution);
+  const linked = props.onRemove === undefined && kind !== null && resolution.state !== 'missing';
   return (
     <li className="flex flex-wrap items-center gap-2 rounded-control border border-line px-3 py-2">
-      <span className="text-xs text-ink-subtle">{kindWord(props.kind, props.member)}</span>
-      <span className="min-w-0 text-sm text-ink">{name}</span>
+      <span className="text-xs text-ink-subtle">{kindWord(kind, member)}</span>
+      {!linked ? (
+        <span className="min-w-0 text-sm text-ink">{name}</span>
+      ) : kind === 'session' ? (
+        <Link
+          to="/play/$sessionId"
+          params={{ sessionId: member.id }}
+          className={`min-w-0 text-sm ${link.object}`}
+        >
+          {name}
+        </Link>
+      ) : (
+        <Link
+          to="/library/$kind/$id"
+          params={{ kind, id: member.id }}
+          search={{}}
+          className={`min-w-0 text-sm ${link.object}`}
+        >
+          {name}
+        </Link>
+      )}
       {/*
        * ***Danger's colour, `ShadowedBadge`'s arrangement*** — a state that
        * warns and never blocks. Not neutral, as `Off` and `Memories` are on the
@@ -235,18 +334,20 @@ function MemberRow(props: {
       {props.resolution.state === 'unknown-kind' ? (
         <Badge title={WORDS.unknownKindTitle}>{WORDS.unknownKind}</Badge>
       ) : null}
-      <Button
-        type="button"
-        variant="quiet"
-        size="tiny"
-        className="ms-auto"
-        // A column of *Remove* buttons is a list nobody can choose from by
-        // name — `RenameSession`'s reason for carrying the session in its own.
-        aria-label={`Remove ${name}`}
-        onClick={props.onRemove}
-      >
-        Remove
-      </Button>
+      {props.onRemove === undefined ? null : (
+        <Button
+          type="button"
+          variant="quiet"
+          size="tiny"
+          className="ms-auto"
+          // A column of *Remove* buttons is a list nobody can choose from by
+          // name — `RenameSession`'s reason for carrying the session in its own.
+          aria-label={`Remove ${name}`}
+          onClick={props.onRemove}
+        >
+          Remove
+        </Button>
+      )}
     </li>
   );
 }

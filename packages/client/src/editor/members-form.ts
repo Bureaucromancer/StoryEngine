@@ -52,8 +52,12 @@ import { mergeKeyed, type Draft } from './book-form.js';
  * **`SESSION_MEMBER_SCHEMA` stays as the name this module's importers use** —
  * the panels, *In these Worlds*, the tests — and is the shared constant under a
  * second name, not a second spelling of the string.
+ *
+ * ~~`export { SESSION_SCHEMA }` beside it~~ — *removed 2026-10-11, the [P16
+ * audit]*: nothing imported it from here; the one other client reader
+ * (`publish/kind-words.ts`) takes it from `@storyengine/shared`, which is
+ * where it lives.
  */
-export { SESSION_SCHEMA };
 export const SESSION_MEMBER_SCHEMA = SESSION_SCHEMA;
 
 export type Member = PortableObjectEnvelope;

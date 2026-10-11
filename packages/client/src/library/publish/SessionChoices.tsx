@@ -31,7 +31,10 @@ import { countPhrase, WORDS } from './words.js';
  *   **its recorded prompts may quote memories drawn from other sessions**,
  *   because a turn keeps the prompt it sent, and that prompt is what the
  *   session sent. Scrubbing them would make the transcript something it was
- *   not; saying them makes the tick an informed one.
+ *   not; saying them makes the tick an informed one. *Corrected 2026-10-11,
+ *   the [P16 audit] (privacy finding 1):* a turn also kept the words of the
+ *   blocks its budget **dropped**, which it never sent; those no longer
+ *   travel (the writer keeps each one's row), and the sentence says so.
  *
  * *Only for a World start*: a session reaches Publish by being a member of a
  * World ([16 §2]), so no other start has any.

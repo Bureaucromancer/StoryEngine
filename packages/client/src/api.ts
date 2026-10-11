@@ -3559,7 +3559,12 @@ export function readTrash(): Promise<{ entries: TrashEntry[]; retentionDays: num
   return request('GET', '/api/me/trash');
 }
 
-export function restoreFromTrash(id: string): Promise<{ restored: boolean }> {
+/**
+ * `notes` — what the restore did that was not asked for, in the house note
+ * shape (2026-10-11, the [P16 audit]): today only a legacy entry brought back
+ * under a new id because its own was held. Absent from an older server.
+ */
+export function restoreFromTrash(id: string): Promise<{ restored: boolean; notes?: ImportNote[] }> {
   return request('POST', '/api/me/trash/restore', { id });
 }
 

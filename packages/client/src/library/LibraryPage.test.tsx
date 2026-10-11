@@ -1521,6 +1521,36 @@ describe('choosing on the shelves', () => {
   });
 
   /**
+   * ***A Setup made from a turn is chosen like any Setup*** (2026-10-11, the
+   * [P16 audit], privacy finding 2): it carries the same marking, which [P15
+   * §0.3] reads on lorebooks only, and it travels — so it has its checkbox,
+   * and no *Memories* badge.
+   */
+  it('gives a Setup made from a turn its checkbox, and no Memories badge', async () => {
+    search = { kind: 'setups' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        row('After the flood', ids.harbour, 'storyengine.setup/1', {
+          object: {
+            schema: 'storyengine.setup/1',
+            id: ids.harbour,
+            name: 'After the flood',
+            provenance: { source: 'session' },
+          },
+        }),
+      ],
+    });
+    renderPage();
+    await settled();
+    expect(screen.queryByText('Memories')).toBeNull();
+    click('Select');
+    choose('After the flood');
+
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Publish…' })).toBeTruthy();
+  });
+
+  /**
    * ***Said, as well as shown*** — the bar's count is a status that is on the
    * page before the first tick, so the first *1 chosen* is heard
    * (`ui/TwoStep.tsx`: a live region inserted holding its text is not read).

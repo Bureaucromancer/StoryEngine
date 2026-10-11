@@ -4,6 +4,8 @@
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance } from 'fastify';
 
+import type { ImportNote } from '@storyengine/shared';
+
 import { requireAccount } from '../app.js';
 import type { AppServices } from '../app.js';
 import { refuseShortPassword } from '../auth/password-policy.js';
@@ -24,6 +26,7 @@ import {
 import { presentRoleRow, roleTable } from '../providers/roles.js';
 import { ASSIST_ROLES, readTaskRoles, writeTaskRoles } from '../providers/task-roles.js';
 import { ingestFile } from '../index-db/ingest.js';
+import { findById } from '../index-db/query.js';
 import { reindexSession, withSessionLock } from '../sessions/store.js';
 import { fileExists } from '../storage/files.js';
 import { userOwner } from '../storage/layout.js';
@@ -336,7 +339,11 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
     const { id } = request.body as { id: string };
     let restored;
     try {
-      restored = await restoreFromTrash(services.layout, account.handle, id);
+      // The index is asked whether a legacy entry's id is held again
+      // (2026-10-11, the [P16 audit]); the trash module holds no database.
+      restored = await restoreFromTrash(services.layout, account.handle, id, {
+        idIsLive: (objectId) => findById(services.index.db, objectId) !== null,
+      });
     } catch (error) {
       // An address that is not one is a malformed request rather than a
       // server fault. ***Only that*** (2026-09-27): anything else, a rename
@@ -407,7 +414,24 @@ export function registerMeRoutes(app: FastifyInstance, services: AppServices): v
         'Restored from the trash, and not yet indexed',
       );
     }
-    return reply.send({ restored: true });
+    /**
+     * ***What the restore did that the person did not ask for, as notes***
+     * (2026-10-11, the [P16 audit], safety finding 1) — the house shape,
+     * `{ key, params, level }`, worded by the client's trash panel. Today one:
+     * a legacy entry whose id was held again came back under a new one, as a
+     * World of its own beside the one holding the id.
+     */
+    const notes: ImportNote[] =
+      restored.reminted === undefined
+        ? []
+        : [
+            {
+              key: 'trash.restore.reminted',
+              params: { name: restored.reminted.name, id: restored.reminted.to },
+              level: 'warn',
+            },
+          ];
+    return reply.send({ restored: true, notes });
   });
 
   app.get('/me/prefs', async (request, reply) => {

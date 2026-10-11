@@ -253,8 +253,11 @@ export async function confirmPublish(
         throw error;
       }
 
+      // Named, when nothing kept names it, by the starting points that
+      // travel (2026-10-11, the [P16 audit]: ~~every starting point~~, an
+      // unticked one included).
       const fileName = worldFileName(
-        world?.body.name ?? validName(choices.name) ?? suggestedNameOf(closure),
+        world?.body.name ?? validName(choices.name) ?? suggestedNameOf(closure, set),
       );
       const missing = missingCount(closure, set);
       const record = recordOf(closure, set, choices, {

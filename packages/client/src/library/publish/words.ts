@@ -97,8 +97,16 @@ export const WORDS = labels('publish.review', {
   bringsMany: 'Brings {count} things not otherwise in the file.',
   bindings: 'The connections it was set to play with stay here: a file never carries a connection.',
   models: 'Its turns record which model answered each one.',
+  /*
+   * ~~*they travel as the session sent them*~~ (2026-10-11, the [P16 audit],
+   * privacy finding 1): a call records every block it assembled, and the
+   * budget's drops kept their words, so a memory the session never sent
+   * travelled too. The writer now carries a dropped block as its row without
+   * its words (`packaging/world-file.ts`, `withoutUnsentText`), and the
+   * sentence says both halves of what the file holds.
+   */
   memories:
-    'Its recorded prompts may quote memories drawn from your other sessions; they travel as the session sent them.',
+    'Its recorded prompts may quote memories drawn from your other sessions, as the session sent them. A memory left out of a prompt for room travels without its words.',
   archived: 'Archived.',
   missingPixelsOne: '1 of its pictures is not on disk, and stays behind.',
   missingPixelsMany: '{count} of its pictures are not on disk, and stay behind.',
@@ -168,6 +176,7 @@ export const WORDS = labels('publish.review', {
   keepWorldOne: 'Keep this one as a world named',
   keepWorld: 'Keep these {count} as a world named',
   keepName: 'The world’s name',
+  keepFileName: 'The file’s name',
   keepSnapshot: 'Just make the file',
   keepHint: 'What you leave out above leaves the file, not the world.',
   keepWorldStart: 'Publishing again makes a new file; the world stays one world.',

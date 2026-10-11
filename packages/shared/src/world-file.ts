@@ -84,7 +84,10 @@ export const WORLD_FILE_MANIFEST_MAX_BYTES = 4 * 1024 * 1024;
  * `folder` and `file` are **member names in this zip** — `library/actors/vera`
  * and `library/actors/vera/card.png` — rather than parts to be joined, so a
  * reader looks a file up by the string the manifest gives and never rebuilds a
- * path. `<folder>` is the object's own folder name on the sender's side,
+ * path. `<folder>` is ~~the object's own folder name on the sender's side~~
+ * **its current name's slug** (2026-10-11, the [P16 audit], privacy finding 3:
+ * a folder's name is frozen at create, so a renamed object went out under the
+ * name it was made with — a spoiler renamed away, still in the file),
  * suffixed `-2`, `-3` where two carried objects of one kind shared one, and it
  * means nothing on arrival: `create` picks its own folder.
  */

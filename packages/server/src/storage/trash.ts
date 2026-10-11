@@ -246,8 +246,29 @@ export type RestoreOutcome =
       restored:
         | { kind: 'session'; sessionId: string }
         | { kind: 'object'; schemaId: PortableSchemaId; slug: string };
+      /**
+       * ***Brought back under a new id, because its own was taken*** —
+       * 2026-10-11, the [P16 audit] (safety finding 1). Only a legacy entry
+       * ({@link restoreLegacy}) is ever re-minted; `name` is the object's
+       * own, for the sentence the restore's answer carries.
+       */
+      reminted?: { from: string; to: string; name: string };
     }
   | { ok: false; reason: 'not-found' | 'occupied' };
+
+/**
+ * ***What a restore may ask of the index*** — the trash module holds no
+ * database, so the route that does hands this over (2026-10-11, the [P16
+ * audit]).
+ */
+export interface RestoreOptions {
+  /**
+   * Whether an object id is held, live, anywhere in this install — the
+   * index's `findById`, which skips tombstoned rows. Absent, nothing is
+   * re-minted.
+   */
+  idIsLive?: (id: string) => boolean;
+}
 
 /**
  * Puts one entry back where it came from.
@@ -266,11 +287,17 @@ export async function restoreFromTrash(
   layout: Layout,
   handle: string,
   id: string,
+  options: RestoreOptions = {},
 ): Promise<RestoreOutcome> {
-  return moves.run(handle, () => restoreNow(layout, handle, id));
+  return moves.run(handle, () => restoreNow(layout, handle, id, options));
 }
 
-async function restoreNow(layout: Layout, handle: string, id: string): Promise<RestoreOutcome> {
+async function restoreNow(
+  layout: Layout,
+  handle: string,
+  id: string,
+  options: RestoreOptions,
+): Promise<RestoreOutcome> {
   const [kind, entry] = splitTrashId(id);
   const from = trashEntryPath(layout, handle, id);
   if (!(await exists(from))) return { ok: false, reason: 'not-found' };
@@ -284,12 +311,27 @@ async function restoreNow(layout: Layout, handle: string, id: string): Promise<R
    * slug if that is free and a fresh one if not** — never `occupied`, because
    * slugs are frozen and renaming the World that took the name frees nothing,
    * so the refusal the current kinds give would strand it in the trash for
-   * good.
+   * good. ***And under a fresh id when its own is held*** (2026-10-11, the
+   * [P16 audit]): ~~the fresh-slug rule alone~~ turned *the name is taken by
+   * the same id, landed again* into a certain duplicate, the stale copy
+   * winning the id — {@link remintIfLive}.
    */
   const legacyKind = Object.hasOwn(LEGACY_LIBRARY_DIRECTORIES, kind)
     ? (LEGACY_LIBRARY_DIRECTORIES[kind] ?? null)
     : null;
-  if (legacyKind !== null) return restoreLegacy(layout, handle, from, legacyKind, name);
+  if (legacyKind !== null) {
+    return restoreLegacy(layout, handle, from, legacyKind, name, options.idIsLive ?? null);
+  }
+
+  /*
+   * ***The same id-held-live case, on the current kinds, is not answered
+   * here*** (2026-10-11, the [P16 audit]): a trashed object whose id was
+   * landed again under a *different* slug since — an import, a backup — comes
+   * back beside it as a second copy of one id, and the index's tie-break
+   * picks between them. That is the older, non-legacy path, and a separate
+   * queued change; the legacy path below is fixed because its fresh-slug rule
+   * made the duplicate certain rather than possible.
+   */
 
   const to =
     kind === 'sessions'
@@ -366,6 +408,7 @@ async function restoreLegacy(
   from: string,
   schemaId: PortableSchemaId,
   name: string,
+  idIsLive: ((id: string) => boolean) | null,
 ): Promise<RestoreOutcome> {
   const owner = userOwner(handle);
   const kindRoot = layout.kindRoot(owner, schemaId);
@@ -380,12 +423,17 @@ async function restoreLegacy(
    * word — so the refusal below would never be reached.
    */
   let slug: string;
+  let reminted: { from: string; to: string; name: string } | null;
   try {
-    slug = await libraryWrites.run(`kind:${kindRoot}`, async () => {
+    ({ slug, reminted } = await libraryWrites.run(`kind:${kindRoot}`, async () => {
+      // On the same turn as a create of the kind, whose own id check runs
+      // there: an import landing this id cannot slip between the look and
+      // the move.
+      const fresh = idIsLive === null ? null : await remintIfLive(from, schemaId, idIsLive);
       const free = await resolveFreeFolder(kindRoot, name);
       await moveTree(from, layout.objectRoot(owner, schemaId, free));
-      return free;
-    });
+      return { slug: free, reminted: fresh };
+    }));
   } catch (error) {
     // Gone between the look and the rename is the refusal `restoreNow` gives;
     // anything else is the failure it was.
@@ -419,7 +467,78 @@ async function restoreLegacy(
     }
   }
 
-  return { ok: true, path: to, restored: { kind: 'object', schemaId, slug } };
+  return {
+    ok: true,
+    path: to,
+    restored: { kind: 'object', schemaId, slug },
+    ...(reminted === null ? {} : { reminted }),
+  };
+}
+
+/**
+ * ***A legacy entry whose id is held again comes back under a new one*** —
+ * 2026-10-11, the [P16 audit] (safety finding 1).
+ *
+ * **What happened without it.** A Package trashed under alpha 6, then the
+ * `.sepack.json` exported before the delete (or a backup taken before it)
+ * imported on this build: the import sees no live row for the id — the old
+ * one is tombstoned, or matured away — and lands it as a World, which the
+ * person then plays in. Restoring the trash entry then found a free folder
+ * (the fresh-slug rule above, *never occupied*), rewrote the body under the
+ * **same id**, and answered *restored*. Two Worlds, one id, and the index's
+ * tie-break by path put `rain-city-2/` before `rain-city/` — so the stale copy
+ * took the id over, and every by-id read, edit, start and publish went to it,
+ * the World with the person's session in it shadowed. Gate row 1's walk (a
+ * Package in the trash and a pre-P16.0 archive imported) is that sequence.
+ *
+ * **Re-minted rather than refused**, because a legacy entry must never strand:
+ * refusing would leave it in the trash with no remedy — renaming frees no id —
+ * which is the stranding [P16 §1.1] built the legacy restore to prevent. So
+ * the trashed body is rewritten **in the trash**, before the folder moves into
+ * the watched library tree, with a fresh `uuidv7` and its kind's current
+ * schema, and the restore lands it as a World of its own. The restore's answer
+ * says so (`trash.restore.reminted`), so the person knows the copy they
+ * brought back is a second World and not the one they have been using.
+ * *Whoever holds the id* (2026-10-11, the review of the audit's fixes): ids
+ * are the install's, so the look is the index's whole table, and the holder
+ * may be another account's import of the same file — the re-mint is right
+ * either way, and the note's params and the client's sentence name nothing
+ * of whose it is.
+ *
+ * *Only the body's own `id`.* Its history stays as it is and names the old id
+ * — ~~restoring one of its earlier versions is refused (*an object cannot
+ * change its id*), which is said in the report rather than repaired here~~:
+ * a version restored is restored under the object's own id (`library.ts`,
+ * `restoreVersion`, 2026-10-11, the review of the audit's fixes), because a
+ * history is content-addressed and rewriting it here would re-address every
+ * payload for nothing the restore needs. A body that
+ * will not parse, or has no string `id`, is left for the rename below to land
+ * as it does today.
+ */
+async function remintIfLive(
+  from: string,
+  schemaId: PortableSchemaId,
+  idIsLive: (id: string) => boolean,
+): Promise<{ from: string; to: string; name: string } | null> {
+  for (const filename of objectFilenames(schemaId)) {
+    const path = join(from, filename);
+    const bytes = await readFileBytes(path);
+    if (bytes === null) continue;
+    let body: unknown;
+    try {
+      body = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      return null;
+    }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+    const id = (body as { id?: unknown }).id;
+    if (typeof id !== 'string' || !idIsLive(id)) return null;
+    const fresh = uuidv7();
+    const name = (body as { name?: unknown }).name;
+    await writeJsonAtomic(path, { ...upgradeLegacySchema(body), id: fresh });
+    return { from: id, to: fresh, name: typeof name === 'string' ? name : '' };
+  }
+  return null;
 }
 
 /**

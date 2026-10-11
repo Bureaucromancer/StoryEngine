@@ -143,8 +143,10 @@ describe('the member list', () => {
     expect(row(2).textContent).toContain('Last week');
 
     const badge = within(row(1)).getByText('Missing');
+    // ~~*…; remove it here if you no longer want it.*~~ — 2026-10-11, the
+    // [P16 audit]: the World's own page says it too, where there is no *here*.
     expect(badge.getAttribute('title')).toBe(
-      'Not in your library any more — it was deleted or never arrived. The world keeps naming it; remove it here if you no longer want it.',
+      'Not in your library any more — it was deleted or never arrived. The world keeps naming it until it is removed from the world.',
     );
     expect(within(row(2)).getByText('Missing').getAttribute('title')).toContain(
       'Not among your sessions any more',

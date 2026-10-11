@@ -980,11 +980,22 @@ describe('what a walker has to get right', () => {
       hooks: [hook('h-1', [refTo(vera)])],
     });
     const harbour = lib.put(newLorebook('Harbour'));
-    const closure = await walked(lib.reader, objects(memories.id, harbour.id));
+    /**
+     * *A Setup made from a turn carries the same marking and is not marked*
+     * (2026-10-11, the [P16 audit], privacy finding 2): [P15 §0.3] reads it on
+     * lorebooks only, so the walk does too, and the Setup travels.
+     */
+    const made = newSetup('After the flood');
+    const fromTurn = lib.put({
+      ...made,
+      provenance: { ...made.provenance, source: 'session' as const },
+    });
+    const closure = await walked(lib.reader, objects(memories.id, harbour.id, fromTurn.id));
     expect(foundOf(closure, memories.id).writtenByPlay).toBe(true);
     expect(foundOf(closure, harbour.id).writtenByPlay).toBeUndefined();
     expect(foundOf(closure, vera.id).writtenByPlay).toBeUndefined();
-    expect(carried(closure, { [memories.id]: true })).toEqual([harbour.id, vera.id]);
+    expect(foundOf(closure, fromTurn.id).writtenByPlay).toBeUndefined();
+    expect(carried(closure, { [memories.id]: true })).toEqual([harbour.id, fromTurn.id, vera.id]);
   });
 
   it('reads a Setup’s mode, and a session’s mode and bindings', async () => {

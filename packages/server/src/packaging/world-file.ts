@@ -2,7 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { createHash } from 'node:crypto';
-import { basename, dirname } from 'node:path';
+import { basename } from 'node:path';
 
 import {
   ACTOR_SCHEMA,
@@ -97,7 +97,12 @@ import {
  *   members and the carried sessions, in the World's own order, so an
  *   unchecked member or an unticked session appears nowhere — not by id, not by
  *   name. Its `requires` stays as its author stored it (R12); the derived union
- *   goes in the manifest for the reader's warning.
+ *   goes in the manifest for the reader's warning. *Each entry under its
+ *   thing's current name* (2026-10-11, the [P16 audit]): a stored envelope
+ *   keeps the name its member was added under, and a renamed member went out
+ *   under the old one; and every member's folder in the file is its current
+ *   name's slug, never the folder on disk, which keeps the name it was made
+ *   with.
  * - **The World's own history never travels**, whatever the history choice:
  *   its versions are earlier `contents`, and they name members and sessions the
  *   publish left out. The file's `world.json` is a re-encoding, not the stored
@@ -124,7 +129,10 @@ import {
  *   bodies, are copied as they are.
  * - **An object play wrote stays home** (2026-10-10, the P16.3c review):
  *   `provenance.source === 'session'`, the marking a memory book carries and
- *   the library page reads to say *not meant to be shared or published*. Its
+ *   the library page reads to say *not meant to be shared or published* —
+ *   ***on a lorebook*** (2026-10-11, the [P16 audit], privacy finding 2:
+ *   ~~any object~~ — a Setup made from a turn carries the marking too, and
+ *   [P15 §0.3] reads it on lorebooks only, so the Setup travels). Its
  *   entries carry the session and turn each was remembered from, and their
  *   text is what that play produced, so carrying one would send an unticked
  *   session's id and something of its transcript. It is `not-portable` in
@@ -142,7 +150,12 @@ import {
  * What it deliberately does not scrub, said here so it is not mistaken for an
  * oversight: a turn's recorded prompt may quote memory another session wrote
  * (it is what that session sent, and the review says so — P16.3g — the lead's
- * decision of 2026-10-10). ~~an object that names a session in its own body —
+ * decision of 2026-10-10). *Corrected 2026-10-11, the [P16 audit] (privacy
+ * finding 1):* ~~a turn's recorded calls travel as recorded~~ — the record
+ * keeps the words of every block the budget **dropped** too, which the session
+ * never sent, so those words do not travel; each such block keeps its row
+ * ({@link withoutUnsentText}). The decision now holds of what it says: what
+ * travels is what the session sent. ~~an object that names a session in its own body —
  * a memory book's entries carry their origin session — travels as its body
  * says, because it is that object's content.~~ *Corrected 2026-10-10, the
  * P16.3c review:* that decision covered rendered prompts, not a carried
@@ -151,6 +164,13 @@ import {
  * of the two answers the lead keeps — home, or carried with its session
  * pointers stripped — is the lead's to record*; home is the one that can be
  * taken back.
+ *
+ * *Added 2026-10-11, the review of the audit's fixes:* a `Ref` inside a
+ * carried object travels with the name its target had when it was linked,
+ * which a rename since does not change — the file's folders and `world.json`
+ * say the current name, the carried body its own. Not scrubbed, because a
+ * carried object is its stored file; `planWorldFile` says why at its refresh
+ * of `world.json`, and the round trip pins it.
  */
 
 /**
@@ -345,7 +365,7 @@ export async function measureObject(
   row: IndexedObject,
   o: { history: boolean },
 ): Promise<NodeFacts> {
-  if (writtenByPlay(row.body)) return nothing();
+  if (writtenByPlay(row.schemaId, row.body)) return nothing();
   const limit = limitsOf(context).maxEntryBytes;
   const survey = await surveyObject(context, handle, row, { history: o.history, limit });
   const index = survey.history.index;
@@ -574,7 +594,9 @@ function scrubbed(version: VersionRecord): Record<string, unknown> {
  * `isWrittenByPlay`*, which the walker records on a node and `fileSet` acts
  * on, so the review says a memory book stays home before this does. The check
  * here stays, belt and braces: a plan built some other way than from
- * `fileSet` still cannot carry one.
+ * `fileSet` still cannot carry one. *It takes the row's schema since
+ * 2026-10-11 (the [P16 audit])*: the marking is a lorebook's, and a Setup made
+ * from a turn that carries it travels.
  */
 const writtenByPlay = isWrittenByPlay;
 
@@ -698,6 +720,9 @@ const STRIPPED_SESSION_FIELDS: ReadonlySet<string> = new Set(['roles', 'stepRole
  * absent `associations` reads as *auto* (`memory/config.ts`), so nothing on
  * the other side has to know it was removed. `exportedBy` is the manifest's,
  * so every member of one file says the same moment.
+ *
+ * ***And the words of every block a budget dropped*** (2026-10-11, the [P16
+ * audit], privacy finding 1) — see {@link withoutUnsentText}.
  */
 function travelling(
   exported: SessionExport,
@@ -714,7 +739,70 @@ function travelling(
       Object.entries(memory as Record<string, unknown>).filter(([key]) => key !== 'associations'),
     );
   }
-  return { ...exported, exportedBy, session: kept };
+  return {
+    ...exported,
+    exportedBy,
+    session: kept,
+    turns: exported.turns.map((one) => withoutUnsentText(one)),
+  };
+}
+
+/**
+ * ***A turn as it travels: a dropped block keeps its row and loses its
+ * words*** (2026-10-11, the [P16 audit], privacy finding 1).
+ *
+ * **What was wrong.** A call records every block it assembled
+ * (`ModelCall.blocks`, `turn.ts`), and the assembler builds each one with the
+ * candidate's text whether or not the budget let it in
+ * (`assembly/assemble.ts`). So a memory the retriever activated and the
+ * chat-wide cut then dropped — `included: false`, `droppedBy: 'over budget…'`
+ * — sat on the turn with the memory's whole entry, which is often another
+ * session's transcript word for word through *Remember this*; an unticked
+ * book's activated entry the same. The module comment's decision not to scrub
+ * a recorded prompt rests on *it is what that session sent*, and the review's
+ * sentence says the memories *travel as the session sent them* — neither is
+ * true of a block the model never saw. `messages`, the rendered prompt, holds
+ * only included blocks, so what the call **sent** is untouched by this.
+ *
+ * **What travels instead.** The block's row — `id`, `source` (the book and the
+ * entry), `reason`, `role`, `tokens`, `included`, `droppedBy`, `advisory`,
+ * `image` — so the recipient's workbench still shows *this was offered and the
+ * budget dropped it*, which is the information a dropped row carries
+ * (`BlockTable.tsx`: *the drop is the information*). `text` becomes `''`
+ * rather than going absent: `AssembledBlock.text` is a required string every
+ * reader takes as one — the workbench's compare reads it (`align.ts`), and an
+ * older install reads an export through a spread that never heard of a block
+ * without one — so an empty string is the removal that keeps the record the
+ * shape the freeze promised ([P11.10]: *a promise not to tighten*).
+ *
+ * *Every call of every turn*, the included blocks as they are. The digest
+ * (`SessionFacts.digest`, P16.3h) is taken over this document, so it measures
+ * what now travels with no change of its own. A rendition's dropped
+ * fragments are not this: they are the card's and the scene's words, never a
+ * memory's, and their record is held to an invariant
+ * (`capPrompt(fragments, …).text === text`, `rendition.ts`) a scrub would
+ * break.
+ */
+function withoutUnsentText(turn: SessionExport['turns'][number]): SessionExport['turns'][number] {
+  const calls = turn.request?.calls;
+  if (!Array.isArray(calls)) return turn;
+  const dropped = (block: { included?: unknown; text?: unknown }): boolean =>
+    block.included === false && block.text !== '';
+  if (!calls.some((call) => Array.isArray(call.blocks) && call.blocks.some(dropped))) return turn;
+  return {
+    ...turn,
+    request: {
+      ...turn.request,
+      calls: calls.map((call) =>
+        Array.isArray(call.blocks) && call.blocks.some(dropped)
+          ? {
+              ...call,
+              blocks: call.blocks.map((block) => (dropped(block) ? { ...block, text: '' } : block)),
+            }
+          : call,
+      ),
+    },
+  };
 }
 
 /**
@@ -997,9 +1085,12 @@ interface Copy extends Candidate {
  * - *Folder names that collide* — a system preset and a person's preset called
  *   the same, two folders differing only in case — are suffixed `-2`, `-3` in
  *   the order the objects come, compared case-folded so the file extracts the
- *   same on a filesystem that folds case. A folder name the zip writer would
- *   refuse is replaced by the object's slug; the name means nothing on
- *   arrival either way, because `create` picks its own.
+ *   same on a filesystem that folds case. ~~A folder name the zip writer would
+ *   refuse is replaced by the object's slug~~ — *every folder is its object's
+ *   current name's slug* (2026-10-11, the [P16 audit]: the folder on disk
+ *   keeps the name an object was created with, {@link FolderNames}), `object`
+ *   when even that would be refused; the name means nothing on arrival either
+ *   way, because `create` picks its own.
  * - *A book scoped to the World that is not a member* travels as `member:
  *   false` and is **not** added to the World's `contents`: it names the World,
  *   so the World need not name it, and adding it would publish a World that
@@ -1090,7 +1181,7 @@ export async function planWorldFile(
       continue;
     }
     const label = { id: row.id, name: row.name, schema: row.schemaId };
-    if (writtenByPlay(row.body)) {
+    if (writtenByPlay(row.schemaId, row.body)) {
       stayHome.push({
         row,
         reason: 'not-portable',
@@ -1202,7 +1293,7 @@ export async function planWorldFile(
   for (const { survey, member } of surveys) {
     const { row, schema } = survey;
     const kindDirectory = LIBRARY_DIRECTORIES[schema];
-    const folder = folders.take(kindDirectory, basename(survey.folder), row.name);
+    const folder = folders.take(kindDirectory, row.name);
     const prefix = `library/${kindDirectory}/${folder}`;
     const stored = `${prefix}/${OBJECT_FILENAMES[schema]}`;
     const label = { id: row.id, name: row.name };
@@ -1372,13 +1463,33 @@ export async function planWorldFile(
   let worldEntry: WorldFileManifest['world'] = null;
   const worldMembers: PlannedMember[] = [];
   if (world !== null) {
-    const carried = new Set([
-      ...objectRows.filter((one) => one.member).map((one) => one.id),
-      ...sessionRows.map((one) => one.id),
+    /**
+     * ***Each carried entry under the name its thing has now*** (2026-10-11,
+     * the [P16 audit], privacy finding 3). A World's envelope keeps the name
+     * its member had when it was added (`library/worlds.ts`, `addMembers`;
+     * the editor writes back the envelope it opened with), so a member renamed
+     * since — an actor renamed to hide a spoiler, a session given its real
+     * title — went out in `world.json` under its former name while the review
+     * showed the current one. The name comes from the manifest's row for an
+     * object (the index's, current) and the session's survey for a session
+     * (its file's, current); the rest of the envelope, fields this build does
+     * not know included, is kept as stored. *What the sender's own import then
+     * reads*: the World unchanged, because a landing onto the World here keeps
+     * its list as it is and adds only what it lacks (`import/world/landing.ts`,
+     * *`contents` merges and never shrinks*) — the stored envelopes keep their
+     * old names until the person edits the World, as they did before.
+     */
+    const current = new Map<string, string>([
+      ...objectRows.filter((one) => one.member).map((one) => [one.id, one.name] as const),
+      ...sessionRows.map((one) => [one.id, one.name] as const),
     ]);
     const published: World = {
       ...world,
-      contents: contents.filter((entry) => carried.has(entry.id)),
+      contents: contents.flatMap((entry) => {
+        const name = current.get(entry.id);
+        if (name === undefined) return [];
+        return [entry.name === name ? entry : { ...entry, name }];
+      }),
     };
     const owner = worldRow?.owner === 'system' ? SYSTEM_OWNER : userOwner(handle);
     const slug = worldRow?.slug ?? slugify(world.name);
@@ -1389,11 +1500,7 @@ export async function planWorldFile(
       slug,
       published,
     );
-    const folder = folders.take(
-      LIBRARY_DIRECTORIES[WORLD_SCHEMA],
-      worldSurvey === null ? slug : basename(worldSurvey.folder),
-      world.name,
-    );
+    const folder = folders.take(LIBRARY_DIRECTORIES[WORLD_SCHEMA], world.name);
     // ***Always `worlds/`, never `packages/`*** — [P16 §1.1]: the kind's
     // folder is its current name, and a World still stored under the old one
     // is published as what it is now, `world/1`, `world.json`.
@@ -1603,14 +1710,31 @@ async function readCopies(
  * ***Folder names inside the file, each kind's distinct.*** Case-folded and
  * NFC-normalised for the comparison, so the file extracts to the same tree on
  * a filesystem that folds case (macOS, Windows) as on one that does not.
+ * *(Belt and braces since 2026-10-11 — the review of the audit's fixes: every
+ * base is now `slugify`'s, which is lowercase `[a-z0-9-]` already, so the
+ * fold here changes nothing a slug can be. Kept, because it is what makes the
+ * guarantee this class's and not a property of whatever chooses the base.)*
+ *
+ * ***From the current name, never the folder on disk*** (2026-10-11, the [P16
+ * audit], privacy finding 3). ~~`wanted` — the object's own folder — first,
+ * its name's slug when that folder would be refused~~: a folder's name is
+ * derived once at create and then frozen (`library.ts`), so an actor made as
+ * *Bob the Traitor* and renamed *Bob* to hide a spoiler went out as
+ * `library/actors/bob-the-traitor/`, in the member names and the manifest's
+ * `folder`, while the review showed *Bob*. The name has no function on
+ * arrival — `create` picks its own folder — so it carries the name the review
+ * shows and nothing older. A World's folder the same. *(Of the folder, not
+ * the file — 2026-10-11, the review of the audit's fixes: a link inside a
+ * carried object still names its target as it was called when linked, see
+ * `planWorldFile`'s refresh of `world.json`.)*
  */
 class FolderNames {
   readonly #taken = new Set<string>();
 
-  take(kindDirectory: string, wanted: string, name: string): string {
+  take(kindDirectory: string, name: string): string {
     const usable = (folder: string): boolean =>
       folder !== '' && zipNameRefusal(`library/${kindDirectory}/${folder}/x`) === null;
-    const base = usable(wanted) ? wanted : usable(slugify(name)) ? slugify(name) : 'object';
+    const base = usable(slugify(name)) ? slugify(name) : 'object';
     for (let n = 1; ; n += 1) {
       const candidate = n === 1 ? base : `${base}-${String(n)}`;
       const key = `${kindDirectory}/${candidate.normalize('NFC').toLowerCase()}`;
@@ -1643,9 +1767,11 @@ function surveyedMembers(
 ): { name: string; size: number }[] {
   const sizes: { name: string; size: number }[] = [];
   for (const { survey } of surveys) {
-    // Names here are only for their length, and a folder is at most what the
-    // index holds, so the survey's own folder name is a fair stand-in.
-    const prefix = `library/${LIBRARY_DIRECTORIES[survey.schema]}/${basename(survey.folder)}`;
+    // Names here are only for their length, and the folder will be the
+    // name's slug (2026-10-11, the [P16 audit]: ~~the survey's own folder
+    // name~~ — the disk's, which the file no longer uses) less any `-2`
+    // suffix, which the exact check at the end counts.
+    const prefix = `library/${LIBRARY_DIRECTORIES[survey.schema]}/${slugify(survey.row.name)}`;
     sizes.push({
       name: `${prefix}/${OBJECT_FILENAMES[survey.schema]}`,
       size: survey.file?.size ?? 0,
@@ -1695,10 +1821,12 @@ function isWorld(schema: string): boolean {
 /**
  * The member name a row's stored file would have, before folder names are
  * settled — what an error may name instead of a path on disk ([22 §4.1]).
+ * From the current name, as the file names it (2026-10-11, the [P16 audit]:
+ * ~~the folder on disk~~ — see {@link FolderNames}).
  */
 function memberNameOf(row: IndexedObject): string {
   const schema = row.schemaId as PortableSchemaId;
-  return `library/${LIBRARY_DIRECTORIES[schema]}/${basename(dirname(row.path))}/${OBJECT_FILENAMES[schema]}`;
+  return `library/${LIBRARY_DIRECTORIES[schema]}/${slugify(row.name)}/${OBJECT_FILENAMES[schema]}`;
 }
 
 /** A stored World is validated, but `contents` is also read from hand-edited files. */

@@ -34,8 +34,10 @@ import { listSessions } from '../api.js';
 import { AsStored } from './AsStored.js';
 import { bookToMarkdown } from './book-document.js';
 import { UsedByPanel } from './UsedBy.js';
-import { provenanceSourceOf } from './panels.js';
+import { provenanceSourceOf, writtenByPlay } from './panels.js';
 import { ByField } from './ByField.js';
+import { contentsShape, membersOf } from '../editor/members-form.js';
+import { WorldMembers } from '../editor/MembersField.js';
 import { CopyToMyLibrary } from './CopyToMyLibrary.js';
 import { DeleteObject } from './DeleteObject.js';
 import { mutable } from './mutable.js';
@@ -205,7 +207,13 @@ function ObjectView(props: {
        * a working feature as a fault is the surface arguing with the person — the
        * same rule the `Off` badge follows one file over.
        */}
-      {provenanceSourceOf(object) === 'session' ? (
+      {/*
+       * *A lorebook's marking* (2026-10-11, the [P16 audit], privacy finding
+       * 2): ~~any object marked `session`~~ — a Setup made from a turn
+       * carries it too ([P15 §0.3]), and this alert told it it was a book not
+       * meant to be published. `writtenByPlay` reads the kind.
+       */}
+      {writtenByPlay(object) ? (
         <Alert tone="neutral" className="mb-6">
           This book was written by play rather than by hand. It is personal, it may hold things you
           would not hand to anyone, and it is not meant to be shared or published. Correcting an
@@ -510,8 +518,10 @@ function TakeItWithYou(props: {
         nothing, and the alert above already says it *is not meant to be
         shared or published*. Download stays, as it always has: that is a person
         copying their own file, not the publish path [08 §2] warns about.
+        *A book, not any object marked so* (2026-10-11, the [P16 audit]): a
+        Setup made from a turn carries the marking and has this door.
       */}
-      {kind !== 'worlds' && !object.shadowed && provenanceSourceOf(object) !== 'session' ? (
+      {kind !== 'worlds' && !object.shadowed && !writtenByPlay(object) ? (
         <span className="flex flex-col">
           <Link
             to="/library/publish"
@@ -691,6 +701,23 @@ function ObjectBody(props: {
 
   if (props.kind === 'lorebooks' && lorebookShape(object.object) === null) {
     return <LorebookBody object={object} search={search} locale={props.locale} />;
+  }
+  /*
+   * ***A World's members, resolved*** (2026-10-11, the [P16 audit]): ~~its
+   * `contents` as stored~~, through `ByField`, which resolves nothing — a
+   * deleted member read like a present one. They are drawn by their current
+   * names now, with the editor's *Missing* (`MembersField.tsx`'s
+   * `WorldMembers`); a `contents` the list could not walk keeps the stored
+   * drawing (`contentsShape`).
+   */
+  const body = object.object;
+  if (props.kind === 'worlds' && contentsShape(body['contents']) === null) {
+    return (
+      <>
+        <ByField schemaId={object.schema} value={body} omit="contents" />
+        <WorldMembers members={membersOf(body)} />
+      </>
+    );
   }
   return <ByField schemaId={object.schema} value={object.object} />;
 }

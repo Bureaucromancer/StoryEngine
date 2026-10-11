@@ -40,9 +40,11 @@ import {
   sessionFilePath,
   type SessionContext,
 } from '../sessions/store.js';
+import { pngCardCodec } from '../storage/card/index.js';
 import { makePng } from '../storage/card/test-png.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { Layout } from '../storage/layout.js';
+import { readZipDirectory, readZipEntry } from '../storage/zip.js';
 import { eventually, makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
 
 /**
@@ -604,6 +606,121 @@ describe('a World published with one session ticked, imported on a second accoun
     expect(world.contents.filter((entry) => entry.schema === SESSION_SCHEMA)).toEqual([
       { schema: SESSION_SCHEMA, id: ned.sessionId, name: 'Night one' },
     ]);
+  });
+
+  /**
+   * ***A renamed member travels under the name it has now*** (2026-10-11, the
+   * [P16 audit], privacy finding 3). The book is renamed after the World
+   * named it — its folder on disk keeps *harbour*, frozen at create, and the
+   * World's envelope keeps *Harbour*, the name it was added under — and the
+   * session is renamed too. The file names neither former name: not in a
+   * member's folder, not in the manifest's, not in `world.json`. And Ned
+   * importing his own file reads the World as unchanged — the landing keeps
+   * the list here as it is (`landing.ts`: *`contents` merges and never
+   * shrinks*), so the refreshed names change nothing he holds.
+   *
+   * *The World renamed as well* (2026-10-11, the audit fixes' review): its
+   * folder on disk keeps *rain-city*, and the file's folder is its name now —
+   * the case `FolderNames` says it covers, which a World left as *Rain City*
+   * could not tell from the folder on disk.
+   *
+   * ***And what still travels under a former name, pinned so a change to it is
+   * deliberate*** (the same review): a `Ref` inside a carried object — Vera's
+   * `lore` names the book *Harbour*, the name it had when she was linked to it.
+   * A carried object is its stored file byte for byte, checked against its
+   * `contentHash` (`world-file.ts`, `readStored`), so refreshing a link's name
+   * would publish a body the sender does not hold and make his own import read
+   * it as changed; `planWorldFile`'s comment on the refresh says so.
+   */
+  it('names a renamed member, session and World by their names now, and Ned’s own import reads the World unchanged', async () => {
+    const ned = await nedPlays();
+    const library = server.services.library;
+    const book = read(library, 'ned', ned.harbour.id);
+    await update(
+      library,
+      'ned',
+      ned.harbour.id,
+      { ...(book.body as object), name: 'Docks' },
+      book.contentHash,
+    );
+    expect(read(library, 'ned', ned.harbour.id).path).toMatch(/\/harbour\/lorebook\.json$/);
+    const renamed = await server.request({
+      method: 'PATCH',
+      url: `/api/sessions/${ned.sessionId}`,
+      payload: { name: 'The long night' },
+    });
+    expect(renamed.status, JSON.stringify(renamed.body)).toBe(200);
+    const before = read(library, 'ned', ned.world.id);
+    await update(
+      library,
+      'ned',
+      ned.world.id,
+      { ...(before.body as object), name: 'Port Town' },
+      before.contentHash,
+    );
+    const stored = read(library, 'ned', ned.world.id);
+    expect(stored.path).toMatch(/\/rain-city\/world\.json$/);
+    expect((stored.body as World).contents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: ned.harbour.id, name: 'Harbour' }),
+        expect.objectContaining({ id: ned.sessionId, name: 'Night one' }),
+      ]),
+    );
+
+    const file = await publish(ned.world.id, ned.sessionId);
+    const directory = readZipDirectory(file);
+    if (!directory.ok) throw new Error(directory.refusal);
+    const names = directory.entries.map((entry) => entry.name);
+    const member = (name: string): any => {
+      const entry = directory.entries.find((one) => one.name === name);
+      if (entry === undefined) throw new Error(`no ${name}`);
+      return JSON.parse(new TextDecoder().decode(readZipEntry(file, entry)!));
+    };
+    expect(names).toContain('library/lorebooks/docks/lorebook.json');
+    expect(names.some((name) => name.startsWith('library/lorebooks/harbour'))).toBe(false);
+    expect(names).toContain('library/worlds/port-town/world.json');
+    expect(names.some((name) => name.startsWith('library/worlds/rain-city'))).toBe(false);
+    const manifest = member(WORLD_FILE_MANIFEST);
+    expect(manifest.objects).toContainEqual(
+      expect.objectContaining({
+        id: ned.harbour.id,
+        name: 'Docks',
+        folder: 'library/lorebooks/docks',
+      }),
+    );
+    expect(manifest.world).toMatchObject({
+      id: ned.world.id,
+      name: 'Port Town',
+      folder: 'library/worlds/port-town',
+      file: 'library/worlds/port-town/world.json',
+    });
+    // The residual, pinned: a link inside a carried object keeps the name it
+    // was made with. Vera is her stored file as it is.
+    const veraRow = (manifest.objects as { id: string; file: string }[]).find(
+      (one) => one.id === ned.vera.id,
+    )!;
+    const veraEntry = directory.entries.find((one) => one.name === veraRow.file)!;
+    const veraCard = pngCardCodec.read(readZipEntry(file, veraEntry)!);
+    expect((veraCard.envelope?.payload as { lore: unknown }).lore).toEqual([
+      { id: ned.harbour.id, name: 'Harbour' },
+    ]);
+    const published = member('library/worlds/port-town/world.json') as World;
+    expect(published.name).toBe('Port Town');
+    expect(published.contents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: ned.harbour.id, name: 'Docks' }),
+        expect.objectContaining({ id: ned.sessionId, name: 'The long night' }),
+      ]),
+    );
+    expect(JSON.stringify(published)).not.toContain('Harbour');
+    expect(JSON.stringify(published)).not.toContain('Night one');
+
+    const answer = await importFile(file);
+    const row = answer.report.items.find((item: { source: string }) =>
+      item.source.endsWith('/world.json'),
+    );
+    expect(row).toMatchObject({ disposition: 'unchanged', objectId: ned.world.id });
+    expect(read(library, 'ned', ned.world.id).contentHash).toBe(stored.contentHash);
   });
 
   it('lands only the new turns of a session Ned played on and published again', async () => {

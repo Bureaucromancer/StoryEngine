@@ -77,6 +77,22 @@ export function KeepChoice(props: {
   onName: (name: string) => void;
 }): JSX.Element {
   const group = useId();
+  // Padded rather than margined: the control is `w-full`, and a margin
+  // beside a full width is the sideways scroll AA14 refuses at 280 px.
+  const nameField = (label: string): JSX.Element => (
+    <div className="ps-6">
+      <input
+        type="text"
+        aria-label={label}
+        className={control}
+        value={props.name}
+        maxLength={200}
+        onChange={(event) => {
+          props.onName(event.target.value);
+        }}
+      />
+    </div>
+  );
   if (props.origin === 'world') return <Note className="mb-6">{WORDS.keepWorldStart}</Note>;
   if (props.origin === 'object') return <Note className="mb-6">{WORDS.keepObject}</Note>;
   return (
@@ -93,21 +109,7 @@ export function KeepChoice(props: {
         />
         <span>{countPhrase(WORDS.keepWorldOne, WORDS.keepWorld, props.count)}</span>
       </label>
-      {/* Padded rather than margined: the control is `w-full`, and a margin
-          beside a full width is the sideways scroll AA14 refuses at 280 px. */}
-      <div className="ps-6">
-        <input
-          type="text"
-          aria-label={WORDS.keepName}
-          className={control}
-          value={props.name}
-          maxLength={200}
-          disabled={props.keep !== 'world'}
-          onChange={(event) => {
-            props.onName(event.target.value);
-          }}
-        />
-      </div>
+      {props.keep === 'world' ? nameField(WORDS.keepName) : null}
       {props.keep === 'world' && props.name.trim() === '' ? (
         <Note className="ms-6">{WORDS.nameNeeded}</Note>
       ) : null}
@@ -122,6 +124,16 @@ export function KeepChoice(props: {
         />
         <span>{WORDS.keepSnapshot}</span>
       </label>
+      {/*
+        ***A snapshot's name is the file's, and the person's to change***
+        (2026-10-11, the [P16 audit], privacy finding 4). ~~One field, disabled
+        unless a World is kept~~ — the confirm names a snapshot's file from the
+        name sent, so a disabled field still named the download, with nothing
+        the person could do about it short of switching to *keep*, editing, and
+        switching back. The field sits under the choice it names, and says
+        which name it is.
+      */}
+      {props.keep === 'snapshot' ? nameField(WORDS.keepFileName) : null}
       <Note>{WORDS.keepHint}</Note>
     </fieldset>
   );

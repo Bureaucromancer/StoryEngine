@@ -367,6 +367,49 @@ describe('a Package trashed before the kind was renamed World', () => {
     );
   });
 
+  /**
+   * ***Its id held again, it comes back under a new one*** (2026-10-11, the
+   * [P16 audit], safety finding 1). A restore under the same id beside the
+   * World that holds it was a second copy of one id, and the index's
+   * tie-break by path put the stale one first. Asked of the index through
+   * `idIsLive` — and only for the id it carried, so a body whose id is free
+   * comes back as itself (the test above, which asks nothing).
+   */
+  it('comes back under a new id when its own is held live, and says which', async () => {
+    const id = await trashedPackage('rain-city', Date.now());
+    const asked: string[] = [];
+    const outcome = await restoreFromTrash(layout, 'ned', id, {
+      idIsLive: (objectId) => {
+        asked.push(objectId);
+        return objectId === PACKAGE_ID;
+      },
+    });
+    expect(asked).toEqual([PACKAGE_ID]);
+    expect(outcome).toMatchObject({
+      ok: true,
+      restored: { kind: 'object', schemaId: 'storyengine.world/1', slug: 'rain-city' },
+      reminted: { from: PACKAGE_ID, to: expect.any(String), name: 'Rain City' },
+    });
+    const fresh = outcome.ok ? outcome.reminted?.to : undefined;
+    expect(fresh).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7/);
+    const body = JSON.parse(await readFile(join(worlds(), 'rain-city', 'world.json'), 'utf8')) as {
+      schema: string;
+      id: string;
+    };
+    expect(body).toMatchObject({ schema: 'storyengine.world/1', id: fresh });
+    await expect(stat(join(worlds(), 'rain-city', 'package.json'))).rejects.toThrow();
+  });
+
+  it('comes back as itself when its id is free', async () => {
+    const id = await trashedPackage('rain-city', Date.now());
+    const outcome = await restoreFromTrash(layout, 'ned', id, { idIsLive: () => false });
+    expect(outcome).not.toHaveProperty('reminted');
+    const body = JSON.parse(await readFile(join(worlds(), 'rain-city', 'world.json'), 'utf8')) as {
+      id: string;
+    };
+    expect(body.id).toBe(PACKAGE_ID);
+  });
+
   it('leaves a body it cannot read under its old name rather than rewriting it', async () => {
     const suffix = uuidAt(Date.now());
     const folder = join(layout.trashRoot('ned'), 'packages', `broken-${suffix}`);

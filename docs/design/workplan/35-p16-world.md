@@ -1356,6 +1356,43 @@ green suite closes a stage, not a phase**: P16 closes on §3's critical list,
 walked by a person — rows 1 to 4 are unanswered — and on what §3.2 adds to the
 standing list.
 
+### The final audit, 2026-10-11
+
+**A read-only audit of the whole branch** (`ad47e39..e6b3cbd`), at the seams no
+stage's own review could see whole — what leaves, end to end; data safety across
+stages; the design notes against the code; readiness for the gate walk — each
+finder's findings put to an adversarial verifier. **Thirty-five findings, every
+one confirmed.** The code ones are fixed in one commit, built, reviewed and fixed
+again; the notes' disagreements follow in a docs commit of their own.
+
+- **What left that should not, fixed**: a ticked session's turn records kept the
+  full text of blocks the budget *dropped* — memory and unticked books' entries
+  the model never saw — and they travelled; they now travel as their rows, with
+  no words. The file carried objects' **former names** in its folder names
+  (slugs are frozen on disk) and in `world.json`'s member envelopes; both now use
+  current names. *Left, and named*: a link inside a carried object keeps the name
+  it was linked under, because a carried object is its stored file, held to its
+  hash — rewriting it would publish a body the sender does not hold. Whether a
+  rename should refresh the links to it, or the review should name a stale one,
+  is the owner's.
+- **What could not be published, now can**: "written by play" held *any* kind
+  with a `session` provenance at home, so a Setup made from a turn
+  ([P15](33-p15-setup-from-a-turn.md)) never travelled — against P15 §0.3, which
+  says only lorebooks are read for that marker. It is lorebooks only now.
+- **Data safety**: restoring a legacy trash entry whose id had since arrived again
+  made a silent duplicate that took the id over; it now comes back under a new id,
+  and says so — and a version of it restores under its own id. The members route
+  refuses a World envelope under the legacy schema id as it refuses one under the
+  new; a World's own save is left open on purpose, every reader filtering a nested
+  World. An import's picture and history carries now run in the object's own turn
+  on the write queue.
+- **The gate's AA2, answered on the page**: a World's page listed its members only
+  as stored JSON; it now lists them by current name, each linking to its object or
+  session, a gone member under its stored name and marked *Missing*.
+- **The entry budget is raised to 317** (`tools/entry-budget.test.ts`): the fixes
+  took it to **312.35**, a lazy member list measured *worse*, and the admin half of
+  Settings behind one `lazy()` is the named next remedy at **−1.85 kB**.
+
 ## 3. Verification — the P16 exit gate
 
 Split under [manual testing §0](05-manual-testing.md)'s two-tier rule. **The

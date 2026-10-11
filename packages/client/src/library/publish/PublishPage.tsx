@@ -4,7 +4,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type JSX } from 'react';
 
-import { fileSet, type NodeKey, type PublishPreview, type PublishStart } from '@storyengine/shared';
+import {
+  fileSet,
+  type NodeKey,
+  type PublishPreview,
+  type PublishStart,
+  suggestedPublishName,
+} from '@storyengine/shared';
 
 import { api, ApiError } from '../../api.js';
 import { Alert, AlertNote } from '../../ui/Alert.js';
@@ -121,7 +127,16 @@ function Review(props: {
   const [ticked, setTicked] = useState<Record<NodeKey, boolean>>({});
   const [history, setHistory] = useState(false);
   const [keep, setKeep] = useState<'world' | 'snapshot'>('world');
-  const [name, setName] = useState(preview.suggestedName);
+  /**
+   * ***The name the person typed, once they have*** — until then the name is
+   * the suggestion over what is ticked now (2026-10-11, the [P16 audit],
+   * privacy finding 4). ~~`useState(preview.suggestedName)`~~ held the
+   * preview's names of every starting point, so unticking *Act III twist*
+   * left it in the file's name and in a kept World's name in the file. The
+   * suggestion follows the ticks; a name the person wrote is theirs and does
+   * not move.
+   */
+  const [typed, setTyped] = useState<string | null>(null);
   /**
    * ***A kept World, once there is one*** — by this page's publish or named by
    * a refusal after the keep. **For a selection it stops Publish**: a second
@@ -153,6 +168,7 @@ function Review(props: {
   }
 
   const set = useMemo(() => fileSet(closure, { ticked, history }), [closure, ticked, history]);
+  const name = typed ?? suggestedPublishName(closure, set);
 
   const publish = useMutation({
     mutationFn: () =>
@@ -283,7 +299,7 @@ function Review(props: {
         keep={keep}
         name={name}
         onKeep={setKeep}
-        onName={setName}
+        onName={setTyped}
       />
       <PublishActions
         set={set}

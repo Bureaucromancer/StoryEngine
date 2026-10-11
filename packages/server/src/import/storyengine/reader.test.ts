@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { backupContextOf, findBackup, takeBackup } from '../../backup/archive.js';
 import { ingestFile } from '../../index-db/ingest.js';
-import { create, read, readMedia, remove, update } from '../../library.js';
+import { create, inObjectTurn, read, readMedia, remove, update } from '../../library.js';
 import { storeAsset } from '../../library/assets.js';
 import { makePng, pixelBytes } from '../../storage/card/test-png.js';
 import { readFileBytes } from '../../storage/files.js';
@@ -383,6 +383,84 @@ describe('what comes back with an object', () => {
 
     await importInto(files, 'skip');
 
+    const media = await readMedia(server.services.library, 'ned', id, 'm-map');
+    expect(plain(media.bytes)).toEqual(plain(GIF));
+  });
+
+  /**
+   * ***A picture carried back is written in the object's turn*** (2026-10-11,
+   * the [P16 audit], safety finding 2). The carry runs after an `unchanged`
+   * too, and it read the object's folder and then awaited the archive with
+   * no turn held — so a save landing in that gap (the first write to a World
+   * still in `packages/` moves its folder) had the picture written into a
+   * folder the object had left. **Deterministic, by a gate on the archive's
+   * read**: while the carry is waiting on it, a task queued on the object's
+   * turn must not run. Without the turn it runs at once.
+   */
+  it('carries a missing picture back inside the object’s turn', async () => {
+    const id = await addLorebook('Rain City', 'It rains.');
+    const stored = await storeAsset(server.services.library, 'ned', id, GIF, 'image/gif');
+    const current = read(server.services.library, 'ned', id);
+    await update(
+      server.services.library,
+      'ned',
+      id,
+      {
+        ...(current.body as Record<string, unknown>),
+        media: [row('m-map', 'gallery', stored.ref, stored.digest)],
+      },
+      current.contentHash,
+    );
+    const files = await archiveOf();
+    // The object stays, and its picture goes: the import finds it unchanged
+    // and carries the picture back.
+    const folder = server.services.library.layout.folderOf(
+      read(server.services.library, 'ned', id).path,
+    );
+    await rm(join(folder, stored.ref));
+
+    let reached: () => void = () => undefined;
+    const atGate = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const gated = new Proxy(files, {
+      get(target, property) {
+        if (property === 'read') {
+          return async (path: string) => {
+            if (path.includes('/assets/')) {
+              reached();
+              await gate;
+            }
+            return target.read(path);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === 'function'
+          ? (value as (...args: unknown[]) => unknown).bind(target)
+          : value;
+      },
+    });
+
+    const running = importInto(gated, 'skip');
+    await atGate;
+    let ranWhileHeld = false;
+    const probe = inObjectTurn(id, () => {
+      ranWhileHeld = true;
+      return Promise.resolve();
+    });
+    // A macrotask: every microtask an idle queue would need has run by now.
+    await new Promise((resolve) => setImmediate(resolve));
+    const during = ranWhileHeld;
+    open();
+    const report = await running;
+    await probe;
+
+    expect(during).toBe(false);
+    expect(report.items.find((item) => item.objectId === id)?.disposition).toBe('unchanged');
     const media = await readMedia(server.services.library, 'ned', id, 'm-map');
     expect(plain(media.bytes)).toEqual(plain(GIF));
   });
