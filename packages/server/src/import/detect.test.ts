@@ -2,15 +2,22 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+
+import { Layout } from '../storage/layout.js';
+import { DEFAULT_ZIP_FILE_LIMITS } from '../storage/zip-file.js';
+import { writeStoredZip } from '../storage/zip-writer.js';
 
 import { classifyRoot, MARINARA_LIVE_MARKS, probeMarks } from './detect.js';
 import { marinaraFixture } from './fixtures/test-marinara.js';
 import { sillyTavernFixture } from './fixtures/test-sillytavern.js';
 import { MARINARA_KNOWN_FORMAT } from './marinara/store-format.js';
 import { MARINARA_TABLES } from './registries/marinara.js';
+import { LandedZipSource } from './landed-source.js';
 import { MemoryFileSource } from './memory-source.js';
 
 /**
@@ -169,7 +176,14 @@ describe('classifying a root', () => {
  */
 describe('classifying an Aventuras root', () => {
   /** Every kind the probe table knows, which is what the ambiguity check walks. */
-  const KINDS = ['sillytavern', 'marinara', 'charx', 'storyengine-backup', 'aventuras'] as const;
+  const KINDS = [
+    'sillytavern',
+    'marinara',
+    'charx',
+    'storyengine-backup',
+    'aventuras',
+    'storyengine-world',
+  ] as const;
 
   /** A root of each kind, as its own fixture or its own minimal marks build it. */
   const ROOTS: Record<(typeof KINDS)[number], () => MemoryFileSource> = {
@@ -178,6 +192,12 @@ describe('classifying an Aventuras root', () => {
     charx: () => new MemoryFileSource({ 'card.json': '{}', 'assets/icon/images/main.png': 'png' }),
     'storyengine-backup': () => new MemoryFileSource({ 'backup.json': '{}' }),
     aventuras: () => new MemoryFileSource({ 'aventura.db': 'SQLite format 3\0' }),
+    // [P16.3e]: the manifest first, as the World file's writer always puts it.
+    'storyengine-world': () =>
+      new MemoryFileSource({
+        'storyengine-world.json': '{}',
+        'library/actors/vera/card.png': 'png',
+      }),
   };
 
   it('knows a folder by its database alone', async () => {
@@ -246,5 +266,108 @@ describe('a Marinara manifest the pre-flight cannot read', () => {
     const torn = marinaraRoot({ 'storage/manifest.json': '{ broken' });
 
     expect(await classifyRoot(torn)).toEqual({ ok: true, kind: 'marinara' });
+  });
+});
+
+/**
+ * ***A World file is its manifest*** —
+ * [P16.3e](../../../../docs/design/workplan/35-p16-world.md),
+ * [16 §5.1](../../../../docs/design/16-publish.md).
+ *
+ * The writer puts `storyengine-world.json` first, always, so a client can read
+ * the manifest from the head of a file (P16.3f). ~~— and the probe asks for
+ * that exactly.~~ *Corrected 2026-10-11, the P16.3e review*: the probe asks
+ * for the name anywhere; *first* is the writer's rule and the preview's fast
+ * path, not the reader's test. *Through real archives*, written by the World file's own zip writer
+ * and opened the way the upload route opens one, because "first" is a fact
+ * about a zip's central directory that an in-memory map only imitates.
+ */
+describe('classifying a World file', () => {
+  let scratch = '';
+  const opened: LandedZipSource[] = [];
+
+  beforeAll(async () => {
+    scratch = await mkdtemp(join(tmpdir(), 'se-detect-world-'));
+  });
+
+  afterEach(async () => {
+    for (const source of opened.splice(0)) await source.close();
+  });
+
+  afterAll(async () => {
+    await rm(scratch, { recursive: true, force: true });
+  });
+
+  let written = 0;
+  async function zipOf(members: Record<string, string>): Promise<LandedZipSource> {
+    written += 1;
+    const path = join(scratch, `root-${String(written)}.zip`);
+    await writeStoredZip(
+      path,
+      Object.entries(members).map(([name, text]) => ({
+        name,
+        bytes: new TextEncoder().encode(text),
+      })),
+      { mtime: new Date('2026-10-11T00:00:00.000Z') },
+    );
+    const result = await LandedZipSource.open(path, {
+      layout: new Layout(join(scratch, 'data')),
+      limits: DEFAULT_ZIP_FILE_LIMITS,
+    });
+    if (!result.ok) throw new Error(`zip refused: ${result.refusal}`);
+    opened.push(result.source);
+    return result.source;
+  }
+
+  it('knows one by its manifest as the first member', async () => {
+    const root = await zipOf({
+      'storyengine-world.json': '{}',
+      'library/actors/vera/card.png': 'png',
+    });
+
+    expect(await classifyRoot(root)).toEqual({ ok: true, kind: 'storyengine-world' });
+  });
+
+  /**
+   * *A zip of cards that carries a manifest of its own is loose files* — the
+   * reason the name is specific: a generic `manifest.json` would claim it, and
+   * the reader's survey would then refuse it whole as a damaged World.
+   */
+  it('sweeps a zip of cards with a root manifest.json as loose files', async () => {
+    const root = await zipOf({
+      'manifest.json': '{"name":"my cards"}',
+      'vera.png': 'png',
+      'harbour.json': '{}',
+    });
+
+    expect(await classifyRoot(root)).toEqual({ ok: true, kind: 'loose-files' });
+  });
+
+  /**
+   * ~~*Somewhere is not first*: swept as loose files.~~ *Corrected 2026-10-11,
+   * the P16.3e review*: **anywhere, and the reader decides**. A World file
+   * zipped again by a tool that sorts its members has the manifest last, and
+   * swept loose its history snapshots overwrote the objects they are versions
+   * of. Read as a World, its survey holds every object to the manifest.
+   */
+  it('knows one by its manifest anywhere in the archive', async () => {
+    const root = await zipOf({
+      'library/actors/vera/card.png': 'png',
+      'storyengine-world.json': '{}',
+    });
+
+    expect(await probeMarks(root, 'storyengine-world')).toBe(true);
+    expect(await classifyRoot(root)).toEqual({ ok: true, kind: 'storyengine-world' });
+  });
+
+  /** *And a folder holding the tree* — an unpacked `.seworld` — is one too. */
+  it('knows an unpacked one, whatever order its folder lists in', async () => {
+    const root = new MemoryFileSource({
+      'library/lorebooks/harbour/lorebook.json': '{}',
+      'library/lorebooks/harbour/history/v/0000.json': '{}',
+      'storyengine-world.json': '{}',
+    });
+
+    expect(await classifyRoot(root)).toEqual({ ok: true, kind: 'storyengine-world' });
   });
 });

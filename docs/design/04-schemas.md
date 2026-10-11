@@ -2011,7 +2011,11 @@ type PortableObject =
 
 /** Any self-describing object this reader does not know. Preserved verbatim,
  *  round-tripped intact, shown in the import review as "1 object of an
- *  unrecognised kind (storyengine.campaign/1) — kept, not usable here". */
+ *  unrecognised kind (storyengine.campaign/1) — kept, not usable here".
+ *  (2026-10-10, P16.3e: the World reader REPORTS one and does not keep it —
+ *  the library has nowhere to keep an object of no kind, and a World names
+ *  only what landed — `import.world.unknownKind`; the sender's review names
+ *  such a member as left behind. "Kept" waits for a home to keep it in.) */
 interface UnknownPortableObject {
   schema: string
   id: string
@@ -2052,13 +2056,17 @@ resolves ([P11.10](workplan/28-p11-implementation.md)). So:
 | | Holds | Because |
 |---|---|---|
 | **Stored** — `library/worlds/<slug>/world.json`; *`library/packages/<slug>/package.json` before [P16.0](workplan/35-p16-world.md), still read as a World, and moved to `worlds/` — under a fresh slug if a World already holds its own — by its first write* | references | the objects live in the library and are edited there; a container holding copies would be a second representation of each of them ([00 §2.8](00-stance.md)) |
-| **Wire** — the exported file | the objects, each as stored | a file naming ids is useless on the install it is sent to |
+| **Wire** — the exported file | the objects, each as stored — *since [P16.3](workplan/35-p16-world.md), the World file, `.seworld` ([§9.3](#93-the-world-file-manifest--what-a-seworld-says-it-carries)); P11.10's `.sepack.json` is still read* | a file naming ids is useless on the install it is sent to |
 
 [15 §3.1](15-world.md) makes that distinction the World's, and it is unchanged by
 the rename. **On import**, references inside the file resolve within it first,
-then locally, then dangle visibly ([00 §3.3](00-stance.md)) — *no build reads the
+then locally, then dangle visibly ([00 §3.3](00-stance.md)) — ~~*no build reads the
 file yet*; [P16.3](workplan/35-p16-world.md) builds the reader, for the World's
-format and the frozen package one. `requires` is checked at import and produces a
+format and the frozen package one~~ *the reader is built at
+[P16.3e](workplan/35-p16-world.md) (2026-10-10), for the World file and the
+frozen `.sepack.json` through one path; [16 §5.2](16-publish.md) records what it
+decides*.
+A malformed `requires` entry is dropped with the warning, never a block. `requires` is checked at import and produces a
 clear warning with a degraded-start option rather than a hard block where
 possible.
 
@@ -2278,6 +2286,61 @@ wrong one for a backup.
 a file that travels.
 
 ---
+
+## 9.3 The World file manifest — what a `.seworld` says it carries
+
+*Added at [P16.3c](workplan/35-p16-world.md), read at
+[P16.3e](workplan/35-p16-world.md).* `storyengine-world.json`, written as the
+first member of every World file — a stored zip of the members' own folders,
+[16 §5.2](16-publish.md)'s decision — carrying
+`schema: "storyengine.world-file/1"`.
+
+```ts
+interface WorldFileManifest {
+  schema: "storyengine.world-file/1"
+  exportedBy: { version: string | null; at: string }   // a header, never a gate
+  origin: "object" | "selection" | "world"
+  world: (WorldFileObject & { description: string }) | null  // null: one object, or a snapshot
+  objects: WorldFileObject[]        // members first, then what the walk brought
+  sessions: WorldFileSession[]
+  leftBehind: LeftBehind[]          // what a carried thing names and the file does not hold
+  requires: World["requires"]       // the World's own, joined with what the closure needs
+  history: boolean
+  omitted: ImportNote[]             // a picture or a session too large, damaged, unreadable
+}
+interface WorldFileObject {
+  schema: string; id: string; name: string
+  folder: string                    // library/<kind-dir>/<folder>/ inside the zip
+  file: string                      // its stored file's name there
+  contentHash: string               // sha256 of those bytes, in this zip
+  member: boolean                   // named by the World, or brought by the walk
+}
+interface WorldFileSession {
+  id: string; name: string; folder: string   // sessions/<id>/
+  turns: number; headTurnId: string | null
+  pictures: number; attachments: number; mode: string | null
+}
+```
+
+**Here for §9.2's reason**: it travels, so it has a schema and a version, and it
+is not in `PORTABLE_SCHEMAS` — an envelope is not an object somebody edits.
+
+- **The layout mirrors `data/`**: `library/<kind-dir>/<folder>/` holds an
+  object's stored file byte for byte, its pictures under `assets/` — only those
+  its media rows name — and, when asked for, `history/`; `sessions/<id>/` holds
+  the session's export and its pictures and attachments. A person who knows the
+  data directory can read the file.
+- **The manifest is the integrity check.** Each object's `contentHash` is checked
+  on arrival and a mismatch refuses that object alone; a picture is checked
+  against its `sha256` name. The zip's CRCs are parsed and enforced nowhere, as
+  for every other archive this reads.
+- **A reader holds the file to its manifest before it writes**: a member named
+  twice, a file or id listed twice, a row whose id is not its body's, or a
+  manifest of another schema or a later version is refused whole, and nothing
+  lands. The manifest is written first, and *found* anywhere — a re-zipped World
+  file is still a World file.
+- **What is never in it**: the index, a connection, an orphan picture, an
+  unticked session or any trace of one, an object play wrote, an absolute path.
 
 ## 10. Not defined here, deliberately
 

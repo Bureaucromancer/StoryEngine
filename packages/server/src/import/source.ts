@@ -139,6 +139,22 @@ export interface FileSource {
    * no room above all (`SnapshotSpaceError`, a `507`).
    */
   land?(path: string): Promise<LandedFile | null>;
+
+  /**
+   * ***The names the root holds more than once*** —
+   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md), the review of
+   * 2026-10-11.
+   *
+   * A zip may name two members alike, and the archive sources answer for a
+   * name with the *last* such member while `list()` yields it at the *first*'s
+   * position — so a reader of the head of the file (the World file's manifest
+   * preview, P16.3f) and a reader of the source read different bytes under
+   * one name. A reader that vouches for its file as a whole asks this, and
+   * refuses a file that is not one thing. **Optional, because only an archive
+   * can**: a directory, a memory root and a landed database cannot hold a name
+   * twice.
+   */
+  duplicateNames?(): readonly string[];
 }
 
 /** A file in a scratch space whose ownership has passed to whoever holds this. */
@@ -177,7 +193,20 @@ export type ImportSourceKind =
    * `aventura.db` in it. [P12.8]'s *an archive is a root read through a
    * different file source* again, and the reason the reader never asks which.
    */
-  | 'aventuras';
+  | 'aventuras'
+  /**
+   * ***A World file*** — [16 §5.2](../../../../docs/design/16-publish.md),
+   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md).
+   *
+   * The second arm that is ours, and the first whose objects may not keep
+   * their ids: a backup restores an account's own objects, while a World file
+   * is somebody's objects arriving in an account that may share an install
+   * with theirs — so its reader plans which id each lands under before it
+   * yields any (`import/world/plan.ts`). A zip with `storyengine-world.json`
+   * as its first member, or the frozen `storyengine.package-export/1` JSON
+   * read as the same root (`import/world/legacy.ts`).
+   */
+  | 'storyengine-world';
 
 /**
  * Why a root was refused **before anything was written**.
@@ -263,6 +292,20 @@ export interface ImportCandidate {
    * reader that sets them cannot find an arm that drops them.
    */
   notes?: readonly ImportNote[];
+  /**
+   * ***The object's version history, carried*** —
+   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md),
+   * [03 §11.6](../../../../docs/design/03-data-model.md).
+   *
+   * Member paths of `history/index.jsonl` and `history/v/<sha256>.json`, keyed
+   * like `assets`: written into the object's folder after it is **created**,
+   * never over a history already there. Only the World reader sets it, and
+   * only for an object arriving under the id its history was written under —
+   * every snapshot is a whole body carrying that id, and `update` refuses an
+   * id change, so a history beside a re-minted or replaced object would be
+   * versions of something else.
+   */
+  history?: readonly string[];
 }
 
 /**

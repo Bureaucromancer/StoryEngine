@@ -6,7 +6,7 @@ import type { Layout } from '../storage/layout.js';
 import { landEntryWithLog, ZipFile, type ZipFileLimits } from '../storage/zip-file.js';
 import type { ZipEntry, ZipRefusal } from '../storage/zip.js';
 
-import { scope } from './memory-source.js';
+import { duplicatesOf, scope } from './memory-source.js';
 import type { FileSource, LandedFile } from './source.js';
 
 /**
@@ -34,6 +34,8 @@ import type { FileSource, LandedFile } from './source.js';
 export class LandedZipSource implements FileSource {
   readonly #zip: ZipFile;
   readonly #entries: Map<string, ZipEntry>;
+  /** Names more than one member carries — `FileSource.duplicateNames`. */
+  readonly #duplicates: readonly string[];
   readonly #layout: Layout;
   readonly #freeBytes: ((path: string) => Promise<number | null>) | undefined;
 
@@ -44,6 +46,7 @@ export class LandedZipSource implements FileSource {
   ) {
     this.#zip = zip;
     this.#entries = new Map(zip.entries.map((entry) => [entry.name, entry]));
+    this.#duplicates = duplicatesOf(zip.entries);
     this.#layout = layout;
     this.#freeBytes = freeBytes;
   }
@@ -107,6 +110,11 @@ export class LandedZipSource implements FileSource {
       layout: this.#layout,
       ...(this.#freeBytes === undefined ? {} : { freeBytes: this.#freeBytes }),
     });
+  }
+
+  /** Names more than one member carries — the last is what `read` answers with. */
+  duplicateNames(): readonly string[] {
+    return this.#duplicates;
   }
 
   /** Lets go of the archive's file handle. The route calls it; safe twice. */

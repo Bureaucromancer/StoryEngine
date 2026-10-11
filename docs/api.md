@@ -579,6 +579,24 @@ or no field, is the default, which writes none. The same before-the-file rule
 applies. Every other kind of upload ignores it — **including an Aventuras
 story file**, below, which brings its story whatever the field says.
 
+**A World file (`.seworld`), and a `.sepack.json`** —
+[P16.3e](design/workplan/35-p16-world.md). A zip holding
+`storyengine-world.json` anywhere is a World file, swept as a root
+(`report.source` `storyengine-world`): its objects in the manifest's order, then
+anything in it the manifest does not list (`import.world.unlisted`), then its
+sessions, then the World, which names exactly what landed — merged into a World
+already here, never shrinking it. An object is checked against the manifest's
+hash and refused alone when it does not match (`import.world.damaged`); a file
+that names a member twice, lists a file or id twice, or carries a manifest of
+another schema or a later version is refused whole, before anything is written.
+An object whose id another account on this install holds lands under a new id,
+and the references to it follow; reading your own file back is `unchanged`.
+**Sessions are `recorded` and not yet landed** (`import.world.sessionsNotTaken`)
+— that is P16.3f's. A `.sepack.json`, P11.10's export, is read by the same reader
+as a World with no pictures (`import.world.noPortrait` on an actor that lands on
+the blank card). A landed zip's read budget is the larger of 256 MiB and four
+times the bytes received, since a World file's members are read more than once.
+
 **An Aventuras story file (`.avt`)** — [P13.15](design/workplan/30-p13-aventuras-import.md) —
 is recognised by its contents, whatever it is called: a JSON object whose
 `story` is an object and whose `entries` is an array, which is what

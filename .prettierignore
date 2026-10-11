@@ -21,6 +21,11 @@ packages/shared/schemas/
 # owns their formatting.
 packages/server/src/providers/fixtures/
 
+# A `.sepack.json` as P11.10's export route sent it ([P16.3e]): one line of
+# compact JSON, the bytes a release handed out. The writer owns the
+# formatting, and a file reflowed here would no longer be the one it wrote.
+packages/server/src/import/world/fixtures/
+
 # Claude Code's local state — and its scratch worktrees, which are whole second
 # checkouts of this repository. Every entry above is anchored to the root, so
 # none of them reach inside one, and a machine that has ever made a worktree

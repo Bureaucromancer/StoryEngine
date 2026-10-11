@@ -280,6 +280,36 @@ session export, which stays the JSON P11.10 writes. A stored zip has no base64 t
 refuse, and the session reader already lands pixels and attachments it is
 handed; a picture missing on disk is named, never fatal.)*
 
+***As built, 2026-10-10 ([P16.3c](workplan/35-p16-world.md) writes it,
+[P16.3e](workplan/35-p16-world.md) reads it).*** The file is
+`storyengine.world-file/1`, a stored zip named `.seworld` whose manifest
+([04 §9.3](04-schemas.md)) is the integrity check, and it is read through the
+import review beside the frozen `.sepack.json`. What the reader decides:
+
+- **Identity across accounts.** An object keeps its id where this account can
+  hold it — new, or already here, or an earlier arrival of the same file found
+  again — and is **re-minted** where another account on the install holds the id,
+  because the library refuses an id held anywhere. References follow a re-mint by
+  exact match, in values and in the keys of maps keyed by id; a re-mint is never
+  reported object by object, since that would tell one account which ids another
+  holds. Your own file read back is *unchanged*.
+- **Keep both** makes copies, and whatever names a copy is copied too, so a copy's
+  references stay inside the copies; a second keep-both import of the same file
+  finds the copies it made and writes nothing.
+- **The World lands last and names what landed**, and its contents **merge and
+  never shrink**: a sender cannot take a member out of a recipient's World by
+  publishing again. A World nested in a World never lands.
+- **An object landing on one already here keeps its own tags**; one landing new
+  keeps its tag ids only if this account's registry holds them all, and otherwise
+  arrives with its tags as plain names.
+- **History arrives only for an object that lands new under its own id**, and
+  only when every version the history names arrived intact.
+- **A legacy `.sepack.json` World lands its name, version and members** on a World
+  already here and nothing else — the old envelope carried no description,
+  pictures or requirements, and reading it must not erase them.
+- The manifest's notes are taken only in the writer's own vocabulary, so a file
+  cannot put words of its own into the import review.
+
 **The question the pictures bullet defers**, and [P16](workplan/35-p16-world.md)'s
 revisit decides it before P16.3 writes a format, because that format is frozen
 the first time a release writes it.

@@ -143,6 +143,53 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{file} says it is something other than what its folder holds, and was skipped.',
 
   /**
+   * ***A World arriving*** —
+   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md),
+   * [16 §5.1](../../../../docs/design/16-publish.md).
+   *
+   * **Said in the World's terms, never in ids.** A World file is somebody's
+   * set arriving, and what a person needs from the review is which of their
+   * things landed, which did not and why, and what the set now names. Two
+   * things it deliberately never says: *which* objects arrived under a fresh
+   * id (a re-mint) — an id another account holds and an id nobody holds must
+   * read the same, or the review would describe other people's libraries — and
+   * anything about the sessions beyond their names, which land at P16.3f.
+   */
+  'import.world.landed':
+    'The world “{world}” landed, naming {members} objects and {sessions} sessions.',
+  'import.world.memberNotLanded': '“{member}” did not land, so the world does not name it.',
+  'import.world.nestedWorld':
+    '“{name}” is a world inside this world, and was not brought in: a world holds objects and sessions, not worlds.',
+  'import.world.damaged':
+    '“{object}” arrived damaged — {file} is not what the file says it holds — and was not brought in.',
+  'import.world.pictureDamaged':
+    'A picture of “{object}” ({file}) arrived damaged and was left behind.',
+  'import.world.historyDamaged':
+    'The history of “{object}” arrived damaged and was left behind; the object itself came in.',
+  'import.world.historyNotCarried':
+    'The history of “{object}” stayed behind with the copy’s original: a copy starts with none of its own.',
+  'import.world.unlisted':
+    '{file} is in the file but not in its list of contents; it came in as a loose object, outside the world.',
+  'import.world.unknownKind':
+    '“{object}” is a kind of object this build does not know ({schema}), and was not brought in.',
+  'import.world.builtIn':
+    '“{object}” is the built-in library’s own, unchanged, so nothing was written.',
+  'import.world.notRead':
+    '{file} is not part of anything in this world’s file, and was left alone.',
+  // The ids are left off and the names kept: an object whose tags name
+  // another library's registry lands with them as plain names (P16.3e review).
+  'import.world.tagsDropped':
+    '{count} tags on {objects} objects belong to the library that wrote this file; they came in as plain names.',
+  'import.world.requiresMode':
+    'This world asks for the {mode} mode, at version {minVersion} or later, which this install does not have. It came in anyway; what needs that mode may not play.',
+  'import.world.sessionsNotTaken':
+    'The session “{session}” is in this file. This build does not bring sessions in from a world’s file yet.',
+  'import.world.legacyNoPictures':
+    'This file is the older kind, which carries no pictures: portraits, galleries and other images stayed with the install that wrote it.',
+  'import.world.noPortrait':
+    '“{actor}” arrived without a portrait — files of the older kind carry none — and is on a blank card.',
+
+  /**
    * ***What an import did, and what it declined to do*** —
    * [P12.9](../../../../docs/design/workplan/29-p12-implementation.md).
    *

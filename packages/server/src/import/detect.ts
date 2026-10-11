@@ -92,6 +92,39 @@ const PROBES: readonly Probe[] = [
    * run in for a backup whose manifest is not ours.
    */
   { kind: 'aventuras', requires: ['aventura.db'] },
+  /**
+   * ***A World file*** — [16 §5.1](../../../../docs/design/16-publish.md),
+   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md). Its writer
+   * puts `storyengine-world.json` first, always, so a client can read the
+   * manifest from the head of the file (P16.3f).
+   *
+   * *A specific name, not `manifest.json`*, for `WORLD_FILE_MANIFEST`'s reason:
+   * a zip of cards somebody made that carries a `manifest.json` of its own is
+   * a folder of loose files and is swept as one, where a generic name would
+   * claim it and the reader's survey would refuse it as a damaged World. The
+   * schema is the reader's check, as `backup.json`'s is above: a member by
+   * this name that is not a manifest this build reads is `unknown-format`,
+   * before anything is written.
+   *
+   * ~~*First, not anywhere*: a zip whose manifest is somewhere in the middle
+   * was not written by our writer, and sweeping it loose takes what it can of
+   * it rather than refusing it whole.~~ *Corrected 2026-10-11, the P16.3e
+   * review* — **anywhere, and the reader decides.** Swept loose, a World file
+   * is not *what it can take*: every `history/v/<sha>.json` is a whole body
+   * carrying its object's live id, so under `replace` each one overwrote the
+   * object it is a version of, and the import ended on whichever old version
+   * the archive listed last. And *not first* is what a file becomes in the
+   * ordinary course — unpacked and zipped again by a tool that sorts its
+   * members, or rewritten by a mail or cloud service — and what a folder is,
+   * whose `list()` order is the filesystem's (the builder's own unresolved
+   * risk: an unpacked `.seworld` swept loose). Read as a World wherever the
+   * name is, the survey holds every object to the manifest's hash and the
+   * history is carried only where it belongs. *First* stays the writer's rule
+   * and the head-of-file preview's fast path; it is not the reader's test.
+   * (A root that also carries another probe's marks is refused as ambiguous,
+   * as any two would be.)
+   */
+  { kind: 'storyengine-world', requires: ['storyengine-world.json'] },
 ];
 
 /**

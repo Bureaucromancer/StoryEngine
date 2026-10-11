@@ -1161,6 +1161,52 @@ frozen `.sepack.json` read through the same reader.
 reference followed and the first account untouched, and the legacy fixture imports
 as a World.
 
+**Built 2026-10-10, on `p16`**, by a builder, four reviewers — identity across
+accounts, a hostile file, the legacy file and the doors that already worked,
+whether the tests can fail — and a fixer: thirty findings, three blocking, twenty-
+nine fixed in code and one named. **It ends as written**: a World file written by
+one account imports on a second account of the same install with every object
+re-minted and every reference followed — treatment and actor lore, bare
+`involves`, `introduces.actor`, a Setup's cast, both arms of `LoreScope` — the
+World naming the second account's ids, and **the first account's library
+unchanged byte for byte**; importing again doubles nothing; the first account's
+own file reads `unchanged`, its World keeping the sessions it did not send; and
+the legacy fixture, made by P11.10's own route, imports as a World. [16
+§5.2](../16-publish.md)'s *as built* paragraph is what the reader decides, and
+[04 §9.3](../04-schemas.md) the manifest.
+
+- **The blocking three**: a manifest whose `requires` held a `null` threw in the
+  World's landing after every object was written — a `500` and a half-import;
+  a deeply nested body overflowed the rewrite's recursion part-way through; and
+  re-importing your own legacy file erased the World's description, pictures and
+  requirements. Now `requires` is cleaned and a failure in the landing is that
+  row's; every body is worked out before the first write, by a rewrite with its
+  own stack; and a legacy World lands only its name, version and members.
+- **A file is held to its manifest before anything lands** — a member named twice
+  (the probe reads one, the reader another), a file or id listed twice, a row
+  whose id is not its body's. ***The manifest is found anywhere, a departure from
+  the plan's first-member rule***: a World file re-zipped or unpacked would
+  otherwise sweep as loose files, and its history snapshots, which are full
+  bodies under the live ids, would overwrite the objects they belong to. First
+  stays the writer's rule, and P16.3f's head-of-file preview must handle a
+  manifest that is not at the head.
+- **Decided against the plan's history paragraph**: a re-minted object does **not**
+  say that its history stayed behind. Said object by object, it tells one account
+  which ids another holds; a landed id differing from the file's still says it
+  once, which `create`'s install-wide refusal already said. A fresh keep-both
+  copy, which is the person's own, does say it.
+- **Keep both** copies whatever names a copy, by a worklist, and a second keep-
+  both import finds the copies the first made and writes nothing; **tags** are
+  kept on an object already here and arrive as names when the registry lacks
+  them; the manifest's notes are taken only in the writer's vocabulary.
+- *Named, not fixed*: **an id in another account's trash reads as free** — an
+  arrival takes it, and the owner restoring their object afterwards finds it
+  shadowed and unreadable by its id. It is older than this phase — a single
+  native object imported by another account takes it the same way — and its fix
+  is the trash's restore re-minting when another owner holds the id, filed as a
+  task of its own. History carried for an object can still name the sender's ids
+  for objects re-minted beside it; it is not rewritten, by design.
+
 #### P16.3f — The reader: sessions, and the look before commit
 
 The reader's sessions — turn ids re-keyed only when another account holds them —

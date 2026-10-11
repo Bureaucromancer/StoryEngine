@@ -8,6 +8,7 @@ import {
   PRESET_SCHEMA,
   TREATMENT_SCHEMA,
   uuidv7,
+  WORLD_SCHEMA,
   type ImportDisposition,
   type PortableSchemaId,
   type Provenance,
@@ -73,6 +74,13 @@ import { MARINARA_CHATS_FORMAT } from './marinara/chat.js';
 import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.js';
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
 import { BackupReader } from './storyengine/reader.js';
+import { landWorld, type WorldLanding } from './world/landing.js';
+import {
+  WORLD_LANDING_FORMAT,
+  WORLD_SESSION_FORMAT,
+  WorldFileReader,
+  type WorldSessionPayload,
+} from './world/reader.js';
 import { CharxReader } from './charx/reader.js';
 import { MarinaraReader } from './marinara/reader.js';
 import type { ParseOutcome } from './parse.js';
@@ -506,6 +514,22 @@ function readerFor(kind: string, request: SweepRequest): SourceReader | null {
   // One of ours — [P12.8]. Told whose subtree to read, because an install
   // archive holds several and the archive does not know which was asked for.
   if (kind === 'storyengine-backup') return new BackupReader(files, forHandle);
+  /**
+   * ***A World file*** — [P16.3e]. Handed the library, the handle and the
+   * policy, because it plans which id each object lands under before it
+   * yields one (a reference can follow a re-mint only once the plan has made
+   * it), and the account's tag registry, which arriving tag ids are kept to.
+   * *Replace* when nobody chose — the Writer's own default (the plan's fact
+   * 8): a file published again is the newer version of what it published.
+   */
+  if (kind === 'storyengine-world') {
+    return new WorldFileReader(files, {
+      library: request.library,
+      handle: request.handle,
+      policy: request.onConflict ?? 'replace',
+      tags: request.tags,
+    });
+  }
   // A whole Aventuras install — [P13.2]. Given the library's own layout,
   // because the copy it reads is taken into that layout's scratch (§1.3), and
   // the services' free-space seam, because that copy is what needs the room.
@@ -567,6 +591,12 @@ class Writer {
    * a first import and `unchanged` on the next (`vault-tag.ts`).
    */
   readonly #vaultTags: VaultTagMerge;
+  /**
+   * ***A World file's sessions, by their id in the file, as they landed*** —
+   * what `landWorld` names a session by. Empty at [P16.3e], which records
+   * sessions and lands none; [P16.3f]'s `#worldSession` fills it.
+   */
+  readonly #worldSessions = new Map<string, { id: string; name: string }>();
 
   constructor(request: SweepRequest) {
     this.#request = request;
@@ -674,6 +704,17 @@ class Writer {
        */
       case 'storyengine.object':
         return this.#native(candidate);
+      /**
+       * ***A World file's World, last*** — [P16.3e]. Not `#native`, because
+       * what a World lands as is decided by what landed before it: its
+       * `contents` names the members that now resolve here, merged into the
+       * World already here rather than replacing its list (`landWorld`).
+       */
+      case WORLD_LANDING_FORMAT:
+        return this.#worldLanding(candidate);
+      /** A World file's session — recorded at [P16.3e]; landed from [P16.3f]. */
+      case WORLD_SESSION_FORMAT:
+        return this.#worldSession(candidate);
 
       default:
         return { source: candidate.source, disposition: 'unrecognised', notes: [] };
@@ -1052,6 +1093,9 @@ class Writer {
     if (outcome !== 'skipped' && outcome !== 'failed') {
       await this.#carryAssets(candidate, object.id, schemaId, notes);
     }
+    // History beside an object this import created, and only then ([P16.3e]):
+    // never over a history already here, which is the object's own.
+    if (outcome === 'created') await this.#carryHistory(candidate, object.id, schemaId, notes);
     return {
       source: candidate.source,
       disposition: Writer.dispositionOf(outcome),
@@ -1111,6 +1155,119 @@ class Writer {
         level: 'warn',
       });
     }
+  }
+
+  /**
+   * ***The object's history, into its folder*** — [P16.3e],
+   * [03 §11.6](../../../../docs/design/03-data-model.md). `candidate.history`
+   * names `history/index.jsonl` and `history/v/<sha256>.json` members, which
+   * the World reader sets only for an object arriving under the id its
+   * history was written under; this writes them where `storage/history.ts`
+   * keeps them, after the object was **created** — so the folder is the new
+   * object's and nothing of a history already here is overwritten. A member
+   * of any other shape is not written: the reader names these two and no
+   * third, and this is the door that would not need it to have.
+   */
+  async #carryHistory(
+    candidate: ImportCandidate,
+    id: string,
+    schemaId: PortableSchemaId,
+    notes: ImportNote[],
+  ): Promise<void> {
+    if (candidate.history === undefined || candidate.history.length === 0) return;
+    const { library, handle } = this.#request;
+    try {
+      const row = read(library, handle, id, schemaId);
+      const folder = library.layout.folderOf(row.path);
+      for (const path of candidate.history) {
+        const at = path.lastIndexOf('/history/');
+        const relative = at < 0 ? '' : path.slice(at + 1);
+        const segments = HISTORY_MEMBER.test(relative) ? relative.split('/') : null;
+        if (segments === null) continue;
+        const to = resolveWithin(folder, ...segments);
+        if (await fileExists(to)) continue;
+        const bytes = await this.#request.files.read(path);
+        if (bytes === null) continue;
+        await writeFileBytes(to, bytes);
+      }
+    } catch (error) {
+      notes.push({
+        key: 'import.file.notStored',
+        params: {
+          object: candidate.source,
+          reason: error instanceof Error ? error.name : 'unknown',
+        },
+        level: 'warn',
+      });
+    }
+  }
+
+  /**
+   * ***A World file's World*** — [P16.3e], `landWorld`'s row, and its own
+   * pictures carried into whichever folder it now lives in, as every object's
+   * are (`#carryAssets`), when the World written or kept is the file's.
+   */
+  async #worldLanding(candidate: ImportCandidate): Promise<ImportItemReport> {
+    const { library, handle } = this.#request;
+    /**
+     * ***A throw here is this row's, never the sweep's*** (the P16.3e review).
+     * The World lands last, after every member was written, so anything that
+     * escaped `landWorld` — a manifest field a file shaped as nothing this
+     * build wrote, a library error — was a 500 with the members in and no
+     * report or ledger row to say so: the half-import [P4 §1.3] names. The
+     * reader holds what it can to its shape first; this is the floor under it.
+     */
+    let landed: Awaited<ReturnType<typeof landWorld>>;
+    try {
+      landed = await landWorld(
+        this,
+        { library, handle, policy: this.#request.onConflict ?? 'replace' },
+        candidate.payload as WorldLanding,
+        this.#worldSessions,
+      );
+    } catch (error) {
+      return {
+        source: candidate.source,
+        disposition: 'unrecognised',
+        notes: [
+          {
+            key: 'import.file.notStored',
+            params: {
+              object: candidate.source,
+              reason: error instanceof Error ? error.name : 'unknown',
+            },
+            level: 'warn',
+          },
+        ],
+      };
+    }
+    const { row, carry } = landed;
+    if (carry === null) return row;
+    const notes = [...row.notes];
+    await this.#carryAssets(candidate, carry, WORLD_SCHEMA, notes);
+    return { ...row, notes };
+  }
+
+  /**
+   * ***A World file's session, recorded*** — [P16.3e]. Named in the review,
+   * with what it is, and not landed: the session reader that re-keys turns
+   * another account holds is [P16.3f]'s, and until it lands one the World
+   * names none (`#worldSessions` stays empty), so a World is never written
+   * naming a session that is not here.
+   */
+  #worldSession(candidate: ImportCandidate): ImportItemReport {
+    const session = candidate.payload as WorldSessionPayload;
+    return {
+      source: candidate.source,
+      disposition: 'recorded',
+      notes: [
+        {
+          key: 'import.world.sessionsNotTaken',
+          params: { session: session.name },
+          level: 'info',
+        },
+      ],
+    };
   }
 
   async #card(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -2142,6 +2299,9 @@ const IMAGE_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'image/jpeg': 'JPEG',
   'image/webp': 'WebP',
 };
+
+/** The two shapes `storage/history.ts` writes under an object's folder — and no third. */
+const HISTORY_MEMBER = /^history\/(?:index\.jsonl|v\/[0-9a-f]{64}\.json)$/;
 
 function refusedItem(candidate: ImportCandidate, refusal: string): ImportItemReport {
   return {

@@ -169,6 +169,38 @@ export function findPriorImport(
 }
 
 /**
+ * ***Every object a previous import of the same source produced*** — the same
+ * triple as {@link findPriorImport}, all of it rather than the first.
+ *
+ * [P16.3e](../../../../docs/design/workplan/35-p16-world.md)'s keep-both: a
+ * World file's copy is stamped with the same arrival key as the arrival it sits
+ * beside (`seworld:<file id>`), so one account can hold two objects under one
+ * key — the arrival, edited since, and the copy the last keep-both import left
+ * — and the copy is the one that answers *is this file's object here already*.
+ * `limit 1` finds whichever sorts first, which the review of P16.3e found was
+ * the edited one as often as not, so every keep-both import made the copies
+ * again. In the same order, so the first of these is `findPriorImport`'s.
+ */
+export function findPriorImports(
+  db: DatabaseSync,
+  owner: string,
+  schemaId: string,
+  originalFilename: string,
+): IndexedObject[] {
+  const rows = db
+    .prepare(
+      `select * from object
+        where owner = ? and schema_id = ? and tombstoned_at is null
+          and json_extract(body, '$.provenance.source') = 'import'
+          and json_extract(body, '$.provenance.originalFilename') = ?
+        order by shadowed, path`,
+    )
+    .all(owner, schemaId, originalFilename);
+
+  return asRows(rows).map(hydrate);
+}
+
+/**
  * A specific copy of a duplicated id, addressed by where it lives.
  *
  * `findById` answers with the *winner* — the earliest path — which is right for

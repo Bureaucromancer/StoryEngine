@@ -47,10 +47,12 @@ import {
   type SweepOutcome,
   type SweepRequest,
 } from '../import/sweep.js';
+import { packageExportRoot, readPackageExport } from '../import/world/legacy.js';
 import { ZipFileSource } from '../import/zip-source.js';
 import { LandedDatabaseSource, LandedZipSource } from '../import/landed-source.js';
 import type { FileSource } from '../import/source.js';
 import { readSession } from '../sessions/store.js';
+import { statFile } from '../storage/files.js';
 import { looksLikeSqlite, SnapshotSpaceError } from '../storage/sqlite-snapshot.js';
 import { LandingSpaceError } from '../storage/upload-landing.js';
 import { looksLikeZip } from '../storage/zip.js';
@@ -1495,6 +1497,41 @@ async function importOneFile(
     // reader below is what decides.
   }
 
+  /**
+   * ***A `.sepack.json` — the frozen World file before the zip*** —
+   * [16 §5.1](../../../../docs/design/16-publish.md),
+   * [P16.3e](../../../../docs/design/workplan/35-p16-world.md). P11.10's
+   * export, which alpha 5 and alpha 6 shipped: one JSON document holding a
+   * World's manifest and its objects. It is a **root**, not an item — a World
+   * and what it names — so it is swept, as the profile envelope below is, over
+   * the root a `.seworld` would be (`packageExportRoot`), by the same reader.
+   * Asked before the envelope check because the two are both JSON roots and
+   * this one is ours: a Marinara envelope is never a package export, and the
+   * schema decides which.
+   */
+  const legacy = parsed === null || only === 'chat' ? null : readPackageExport(parsed);
+  if (legacy !== null) {
+    const outcome = await sweep({
+      library: services.library,
+      sessions: services.sessions,
+      handle,
+      tags: services.tags,
+      files: packageExportRoot(legacy),
+      freeBytes: services.freeBytes,
+      ...(onConflict === undefined ? {} : { onConflict }),
+    });
+    if (!outcome.ok) {
+      return item('unrecognised', [
+        {
+          key: 'import.file.refused',
+          params: { file: filename, refusal: outcome.refusal },
+          level: 'warn',
+        },
+      ]);
+    }
+    return reportAsUpload(filename, outcome.report);
+  }
+
   const envelope = parsed === null || only === 'chat' ? null : readEnvelope(parsed);
   if (envelope !== null) {
     const files = envelopeFiles(envelope);
@@ -1642,11 +1679,7 @@ async function importLanded(
   let files: FileSource;
   let archive: LandedZipSource | null = null;
   if (part.format === 'zip') {
-    const opened = await LandedZipSource.open(part.space.path(part.name), {
-      layout: services.layout,
-      limits: landedZipLimits(services),
-      freeBytes: services.freeBytes,
-    });
+    const opened = await openLandedZip(services, part.space.path(part.name));
     if (!opened.ok) {
       return unrecognised({
         key: 'import.file.badArchive',
@@ -1708,11 +1741,73 @@ async function importLanded(
  */
 const ENTRY_ALLOWANCE = 4;
 
-function landedZipLimits(services: AppServices): typeof DEFAULT_ZIP_FILE_LIMITS {
+/**
+ * ***A landed archive, opened as the upload door opens one*** — its limits
+ * from the bytes that landed ({@link landedZipLimits}), the services' layout
+ * for `land`'s scratch and their free-space seam. One function so a test that
+ * imports a World file through an archive on disk opens it exactly as this
+ * route does, and one beside it for the options, so a test can pin what this
+ * door asks of the archive for a file of a given size (the P16.3e review: a
+ * helper that mirrored the call kept passing when the route stopped passing
+ * the landed size).
+ */
+export async function openLandedZip(
+  services: Pick<AppServices, 'config' | 'layout' | 'freeBytes'>,
+  path: string,
+): ReturnType<typeof LandedZipSource.open> {
+  return LandedZipSource.open(path, await landedZipOptions(services, path));
+}
+
+/** What {@link openLandedZip} opens an archive with: the bytes on disk decide the read budget. */
+export async function landedZipOptions(
+  services: Pick<AppServices, 'config' | 'layout' | 'freeBytes'>,
+  path: string,
+): Promise<Parameters<typeof LandedZipSource.open>[1]> {
+  return {
+    layout: services.layout,
+    limits: landedZipLimits(services, (await statFile(path))?.size ?? 0),
+    freeBytes: services.freeBytes,
+  };
+}
+
+/**
+ * ***And how much may be read out of it in all*** — [P16.3e]: the larger of
+ * `zip-file.ts`'s 256 MiB and {@link ENTRY_ALLOWANCE} times the bytes that
+ * landed.
+ *
+ * **Why it had to widen.** The total is a running sum of every read — re-reads
+ * included (`zip-file.ts`) — and 256 MiB was a fair bound on a CHARX or a zip of
+ * cards, read once each. A World file is not that: it is a library, and its
+ * whole point is to carry a gallery's pictures and a card's expressions, so a
+ * file of a few hundred megabytes is an ordinary World and stopped reading
+ * part-way through ([P16.3]'s plan, fact 7), each member past the bound reading
+ * as *not there*.
+ *
+ * ***Re-reads counted*** (the fact check of 2026-10-10). The World reader reads
+ * each object file once (hashing it as it parses), and each picture and history
+ * payload twice — verified against its name, then copied by the Writer — and a
+ * card twice, once parsed and once for its pixels; the manifest twice, at most
+ * 4 MiB a time. A World file is stored, so its entries come to about the bytes
+ * that landed, and two passes over them fit inside four times those bytes with
+ * a pass to spare. (A session's export, pixels and attachments, at [P16.3f],
+ * are read on the same terms.) An archive that deflates is bounded per entry
+ * by the cap above already, at the same multiple; the total's job is the work
+ * one upload can ask for, and this keeps it a known multiple of what the
+ * operator agreed to receive — the plan's risk 4, that it widens for every
+ * landed zip, not only a World's, taken knowingly.
+ */
+export function landedZipLimits(
+  services: Pick<AppServices, 'config'>,
+  landedBytes: number,
+): typeof DEFAULT_ZIP_FILE_LIMITS {
   const cap = services.config.limits.maxImportUploadMb * MEGABYTE * ENTRY_ALLOWANCE;
   return {
     ...DEFAULT_ZIP_FILE_LIMITS,
     maxEntryBytes: Math.min(cap, DEFAULT_ZIP_FILE_LIMITS.maxEntryBytes),
+    maxReadTotalBytes: Math.max(
+      DEFAULT_ZIP_FILE_LIMITS.maxReadTotalBytes,
+      ENTRY_ALLOWANCE * Math.max(0, landedBytes),
+    ),
   };
 }
 

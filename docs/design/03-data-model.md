@@ -1204,7 +1204,9 @@ treatment for any lorebook or treatment that carries assets. *(2026-10-10: the
 kind is the World since [P16.0](workplan/35-p16-world.md); its exchange file
 is still P11.10's `.sepack.json`, and whether the World's own is this zip is
 [16 §5.2](16-publish.md)'s open question, decided before
-[P16.3](workplan/35-p16-world.md) writes it.)*
+[P16.3](workplan/35-p16-world.md) writes it. **Decided the same day: the zip.**
+P16.3 writes it as `.seworld` — the World file, [04 §9.3](04-schemas.md) — and
+reads `.sepack.json` beside it.)*
 
 ### 5.3 Asset manifest
 
@@ -1509,7 +1511,8 @@ no surface of its own:
   `.sepack.json`, one JSON document — a manifest beside each object's stored JSON,
   and no pixels — so the zip is not built; whether the World's file is that or a
   zip of the members' folders is [16 §5.2](16-publish.md)'s open question
-  (2026-10-04).*
+  (2026-10-04).* *(2026-10-10: the zip, as `.seworld`, written and read at
+  [P16.3](workplan/35-p16-world.md).)*
 
 **[OPEN]** Can a World ship an extension/mode *implementation*, or only declare
 a dependency on one? Shipping code makes Worlds far more powerful and makes

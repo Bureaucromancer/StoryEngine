@@ -96,6 +96,10 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
     'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
   aventuras:
     'An Aventuras library. Its characters, lorebooks and scenarios are imported, and its stories too when that is ticked; everything else in it is listed and left behind for now.',
+  // [P16.3e]: the probe table's World file. Its sessions are named and wait
+  // for P16.3f; the sentence says what this build does with one.
+  'storyengine-world':
+    'A StoryEngine world. Its objects come into your library and the world lands naming what landed; its sessions are listed and left behind for now.',
   'loose-files':
     'Not a SillyTavern, Marinara or Aventuras folder. Anything importable in it will be taken one file at a time.',
 });
