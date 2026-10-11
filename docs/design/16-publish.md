@@ -236,7 +236,13 @@ an object while looking at it, which is the honest failure rather than a
 prevented one. **The one write is the World**, kept on confirm when the starting
 point was a selection of two or more and the snapshot choice was not taken,
 because that is what publishing a selection means (§3). Starting from one object
-writes nothing (§2).
+writes nothing (§2). *(2026-10-10, [P16.3d](workplan/35-p16-world.md): **one
+library write.** "Re-publishing opens on the diff" needs a record of what left
+last time, which this paragraph read literally would forbid; so a delivered file
+is also a line in the account's own ledger, `publishes.jsonl`, written when the
+file has been sent to its end. It is not the library, it holds no copy of
+anything, and it is what [§8](#8-how-we-would-know-this-was-wrong)'s counts are
+read from.)*
 
 ### 5.1 And the other side: a World arriving
 

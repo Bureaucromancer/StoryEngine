@@ -314,6 +314,22 @@ export interface FoundNode extends NodeBase {
   /** False only for the one root of an `object` start: a file of nothing is not a choice. */
   canUncheck: boolean;
   defaultOn: boolean;
+  /**
+   * ***Play wrote it*** — `provenance.source === 'session'` on the stored body
+   * ({@link isWrittenByPlay}), the marking a memory book carries. Present, and
+   * `true`, only then; absent on every other object, so a closure a client
+   * built before the field existed reads as it always did.
+   *
+   * *Added 2026-10-10, at [P16.3d], because [P16.3c] left the rule saying two
+   * things.* The writer leaves such an object home as `not-portable` — its
+   * entries carry the session and turn each was remembered from, and their text
+   * is what that play produced, an unticked session's included — while the
+   * walker still drew it as an ordinary object and {@link fileSet} as carried.
+   * The review would then show a ticked row for a book the file does not hold,
+   * which is the one disagreement this module exists to prevent. So the walker
+   * records the fact here, and `fileSet` — the one rule — never carries it.
+   */
+  writtenByPlay?: boolean;
   facts?: NodeFacts;
 }
 
@@ -429,6 +445,16 @@ export interface PublishChoices {
  * *(2026-10-10, the P16.3c review: `not-portable` is also an object play wrote
  * — `provenance.source === 'session'`, a memory book — which the World file
  * leaves home because its entries name the sessions they came from.)*
+ * *(2026-10-10, [P16.3d]: and {@link fileSet} produces that one too, from
+ * {@link FoundNode.writtenByPlay}, so the review says it before the writer
+ * does. ~~{@link fileSet} produces `unchecked` and `missing`~~ — and
+ * `not-portable`.)*
+ *
+ * ***`from` may be empty***, which the sentence above does not say and the
+ * writer has always done: an object that stays home as a **starting point** —
+ * a member too large to travel, a member play wrote — is named by nothing
+ * carried, and is listed so the file says what it did not bring rather than so
+ * a reference can be followed to it.
  */
 export interface LeftBehind {
   schema: string | null;
@@ -473,6 +499,13 @@ export interface FileSet {
  * - **A found object is carried when it is on and** it is `base`, or a carried
  *   session is among its `gates`. That second clause is the one cascade
  *   ([NodeBase.base]); every other unchecking leaves what it brought in place.
+ * - **Never an object play wrote** ({@link FoundNode.writtenByPlay}), whatever
+ *   its tick — not even the one root of an object start, whose `canUncheck`
+ *   is about the person's choice and not about what may leave. It is listed in
+ *   `leftBehind` as `not-portable` with a `publish.closure.writtenByPlay` note
+ *   when it would otherwise have travelled, or when something carried names
+ *   it. *Added 2026-10-10 at [P16.3d]*: the writer has refused it since
+ *   [P16.3c], and a rule that carried what the writer refuses is two rules.
  * - Missing and excluded nodes are never carried.
  *
  * Then what the review says about it, as notes (`{ key, params }`, never prose):
@@ -522,11 +555,22 @@ export function fileSet(c: Closure, choices: Pick<PublishChoices, 'ticked' | 'hi
     (node): node is SessionNode => node.state === 'session' && (tick(node.key) ?? node.defaultOn),
   );
   const carriedSessions = new Set(sessions.map((one) => one.key));
+  /** On, and reachable by what travels — everything carriage asks but where it may go. */
+  const wouldTravel = (node: FoundNode): boolean =>
+    (!node.canUncheck || (tick(node.key) ?? node.defaultOn)) &&
+    (node.base || node.gates.some((gate) => carriedSessions.has(gate)));
   const objects = c.nodes.filter(
     (node): node is FoundNode =>
-      node.state === 'found' &&
-      (!node.canUncheck || (tick(node.key) ?? node.defaultOn)) &&
-      (node.base || node.gates.some((gate) => carriedSessions.has(gate))),
+      node.state === 'found' && node.writtenByPlay !== true && wouldTravel(node),
+  );
+  /**
+   * ***What play wrote, and the person would otherwise have sent*** — kept
+   * apart so the review can say so (below), rather than drawing a ticked row
+   * for a book the file will not hold ([P16.3d]).
+   */
+  const stayHome = c.nodes.filter(
+    (node): node is FoundNode =>
+      node.state === 'found' && node.writtenByPlay === true && wouldTravel(node),
   );
   const carried = new Set<NodeKey>([...objects, ...sessions].map((one) => one.key));
 
@@ -575,6 +619,8 @@ export function fileSet(c: Closure, choices: Pick<PublishChoices, 'ticked' | 'hi
     const from = byKey.get(edge.from);
     const fromName = from !== undefined && 'name' in from ? (from.name ?? '') : '';
     const missing = target.state === 'missing';
+    // Play wrote it: it stays home whatever was ticked, and says why below.
+    const notPortable = !missing && target.writtenByPlay === true;
     const params = {
       rule: edge.rule,
       id: missing ? (target.ref.id ?? '') : target.id,
@@ -589,7 +635,7 @@ export function fileSet(c: Closure, choices: Pick<PublishChoices, 'ticked' | 'hi
         schema: missing ? (target.expected === '' ? null : target.expected) : target.schema,
         id: missing ? target.ref.id : target.id,
         name: missing ? (target.ref.name ?? target.ref.id ?? '') : target.name,
-        reason: missing ? 'missing' : 'unchecked',
+        reason: missing ? 'missing' : notPortable ? 'not-portable' : 'unchecked',
         required: edge.required,
         from: [edge.from],
       });
@@ -607,9 +653,41 @@ export function fileSet(c: Closure, choices: Pick<PublishChoices, 'ticked' | 'hi
         'warn',
         params,
       );
-    } else if (edge.default === 'included') {
+    } else if (edge.default === 'included' && !notPortable) {
+      // *Left out* is a person's choice; a book play wrote was nobody's, and
+      // its own note below says so once rather than once per link.
       note(missing ? 'publish.closure.missing' : 'publish.closure.leftOut', 'info', params);
     }
+  }
+
+  /**
+   * ***What play wrote stays home, and the review says so*** ([P16.3d]). A
+   * book that would have travelled — a member, a selected id, a link from
+   * something carried — is `not-portable` in `leftBehind`, with `from` empty
+   * when nothing carried names it (a starting point: the writer's own shape
+   * for the same case since [P16.3c]); one only an unticked thing names stays
+   * home without a word, as anything else that thing named does. The note is
+   * the writer's sentence, said by the review first.
+   */
+  for (const node of stayHome) {
+    if (leftBehind.has(node.key)) continue;
+    leftBehind.set(node.key, {
+      schema: node.schema,
+      id: node.id,
+      name: node.name,
+      reason: 'not-portable',
+      required: false,
+      from: [],
+    });
+  }
+  for (const node of c.nodes) {
+    if (node.state !== 'found' || node.writtenByPlay !== true) continue;
+    if (!leftBehind.has(node.key)) continue;
+    note('publish.closure.writtenByPlay', 'warn', {
+      id: node.id,
+      name: node.name,
+      schema: node.schema,
+    });
   }
 
   // ***Orphans by reachability over what is carried*** (2026-10-10, the
@@ -807,6 +885,154 @@ export function mergeRequires(
     extensions: byId(listOf(mine.extensions), listOf(derived.extensions)),
     capabilities: unique([...listOf(mine.capabilities), ...listOf(derived.capabilities)]),
   };
+}
+
+/**
+ * ***Written by play*** — `provenance.source === 'session'`, the marking
+ * `memory/books.ts` puts on a memory book and the library page reads to say
+ * the book *is not meant to be shared or published*. That page's own comment
+ * names what is owed when an export path is built: *that it read the same
+ * marking*.
+ *
+ * ***Shared since [P16.3d], and one predicate for three readers***: the walker
+ * records it on a {@link FoundNode}, {@link fileSet} never carries what it
+ * answers, and the World file's writer still checks it itself — belt and
+ * braces for a plan built some other way. [P16.3c] wrote it privately in the
+ * writer; a second spelling here would be two answers to *may this leave*,
+ * which is the question the review is the only description of.
+ *
+ * Read through `unknown`, because the body is whatever the file says — a
+ * hand-edited one included.
+ */
+export function isWrittenByPlay(body: unknown): boolean {
+  if (typeof body !== 'object' || body === null) return false;
+  const provenance = (body as { provenance?: unknown }).provenance;
+  return (
+    typeof provenance === 'object' &&
+    provenance !== null &&
+    (provenance as { source?: unknown }).source === 'session'
+  );
+}
+
+// ── The routes' contracts — [P16.3d] ────────────────────────────────────────
+
+/**
+ * ***What the review is handed*** — `POST /api/publish/preview`, [P16.3d],
+ * [16 §5](../../../docs/design/16-publish.md).
+ *
+ * **Everything the review draws, and nothing it has to ask for again**: the
+ * closure with every found node's {@link NodeFacts} and every session's
+ * {@link SessionFacts} filled — by the same functions that plan the file, so
+ * the size the review shows is the size the file has — and the handful of
+ * answers about the publish as a whole. The client runs {@link fileSet} over
+ * it with the person's ticks, live, and sends the ticks back; the preview
+ * itself holds nothing and writes nothing ([16 §5]'s *stages nothing and holds
+ * no copy*, [P4 §7.17]'s posture).
+ */
+export interface PublishPreview {
+  /** The walk, its nodes carrying facts. History is measured as if opted into, so the toggle can say what it adds. */
+  closure: Closure;
+  /**
+   * This install's registered version of every mode the closure names, or
+   * `null` for one it does not have — so the review can say *this needs a mode
+   * you do not have here* before the file carries the requirement.
+   */
+  modeVersions: Record<string, string | null>;
+  /**
+   * The name the review offers: the World's for a World start, the object's
+   * for one object, and for a selection the first starting points' names —
+   * the kept World's default name and the file's stem.
+   */
+  suggestedName: string;
+  /**
+   * ***Worlds that already hold exactly this selection*** — the same set of ids,
+   * readable here — for a selection start; empty for any other. A person about
+   * to keep a second World of the same five things should be told the first
+   * exists ([16 §3]'s *publishing the same World twice produces two files and
+   * one object*).
+   */
+  sameAs: { id: string; name: string }[];
+  /**
+   * One object whose file would carry nothing else, at the defaults — [16 §2]'s
+   * case for offering Download beside Publish.
+   */
+  justTheObject: boolean;
+  /**
+   * ***The closure's hash*** — what the confirm compares against a fresh walk
+   * to say *the library changed while you were looking* (`x-storyengine-review-
+   * drift`). Reported, never prevented ([16 §5]: *the honest failure rather
+   * than a prevented one*).
+   */
+  reviewed: string;
+  build: { version: string | null };
+  /** The ledger's newest record for this World — a World start only; `null` otherwise or when never published. */
+  previous: PublishRecord | null;
+}
+
+/** The ledger line's schema — bumped when a reader would need to read it differently. */
+export const PUBLISH_RECORD_SCHEMA = 'storyengine.publish-record/1';
+
+/**
+ * ***One publish that reached the person*** — a line of
+ * `users/<handle>/publishes.jsonl`, written when the download finished
+ * ([P16.3d], [16 §8](../../../docs/design/16-publish.md)).
+ *
+ * **What left, never what was in it.** Ids, names, hashes and counts, so the
+ * diff a re-publish opens on ([16 §5], [P16.3h]) can say what changed since
+ * this file and [16 §8]'s questions can be counted; never a body, so the
+ * ledger holds no second copy of anything. *Internal tier*: it is the
+ * account's own record, travels in an account archive as `usage.jsonl` does,
+ * and is never in a published file — a World carrying its sender's publishing
+ * history would be a note to the importer about the exporter's library.
+ */
+export interface PublishRecord {
+  schema: typeof PUBLISH_RECORD_SCHEMA;
+  /** When the confirm planned the file — the manifest's `exportedBy.at`. */
+  at: string;
+  /** The build that wrote it; `null` for an unidentified development build. */
+  build: string | null;
+  origin: PublishOrigin;
+  /** The starting points as asked: the World's id, or the distinct selected ids. */
+  start: string[];
+  /**
+   * The World the file is of: `created` when this publish kept it (a
+   * selection), `existing` for a World start; `null` for one object or a
+   * snapshot, which keep nothing.
+   */
+  world: { id: string; name: string; kept: 'created' | 'existing' } | null;
+  fileName: string;
+  bytes: number;
+  entries: number;
+  /**
+   * What left. `contentHash` is **the stored object's** as the walk read it —
+   * the index's — not the member's in the zip, which differs for a card
+   * carried without a picture no row names; the diff compares against the
+   * next walk, which reads the same kind of hash.
+   */
+  objects: { schema: string; id: string; name: string; contentHash: string }[];
+  sessions: {
+    id: string;
+    name: string;
+    headTurnId: string | null;
+    turns: number;
+    updatedAt: string;
+  }[];
+  /** What the review offered — every found object and every session the walk reached — [16 §8]'s denominators. */
+  offered: { objects: number; sessions: number };
+  /**
+   * ***The person's overrides, both directions***: what was on by default and
+   * was turned off (with whether a required link named it), and what was off
+   * by default — a system object, a session — and was turned on. *Choose as
+   * last time* (P16.3h) re-applies exactly these.
+   */
+  unticked: { id: string; required: boolean }[];
+  ticked: string[];
+  history: boolean;
+  justTheObject: boolean;
+  /** References the file would have followed and could not — `x-storyengine-missing`. */
+  missing: number;
+  /** The confirm's walk did not hash to what the review was drawn from. */
+  drift: boolean;
 }
 
 /** A stored World is validated, but `requires` is also read from hand-edited files: arrays or nothing. */

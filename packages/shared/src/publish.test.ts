@@ -524,6 +524,114 @@ describe('what is in the file', () => {
   });
 });
 
+/**
+ * ***What play wrote never leaves*** — 2026-10-10, [P16.3d], the half of
+ * [P16.3c]'s *an object play wrote stays home* that the rule was missing. The
+ * writer has refused a memory book since P16.3c; until this the walker drew one
+ * as an ordinary object and `fileSet` carried it, so the review showed a ticked
+ * row for a book the file would not hold. Each clause is a case: never carried
+ * whatever the tick, the object start's own root included; listed as
+ * `not-portable` with a note, from whatever carried thing names it or from
+ * nothing when it is a starting point; a required link to it still warns; and
+ * one that only something unticked names is not the file's to mention.
+ */
+describe('what play wrote', () => {
+  const memory = (): Graph =>
+    graph()
+      .found('rain', TREATMENT_SCHEMA)
+      .found('remembered', LOREBOOK_SCHEMA, { writtenByPlay: true })
+      .found('vera', ACTOR_SCHEMA);
+
+  it('is never carried, ticked or not, and is named as staying home', () => {
+    const closure = memory()
+      .edge(null, 'rain', 'world.member')
+      .edge(null, 'remembered', 'world.member')
+      .edge(null, 'vera', 'world.member')
+      .closure();
+    for (const ticks of [{}, { remembered: true }]) {
+      const set = fileSet(closure, choose(ticks));
+      expect(keys(set.objects)).toEqual(['rain', 'vera']);
+      expect(set.leftBehind).toEqual([
+        {
+          schema: LOREBOOK_SCHEMA,
+          id: 'remembered',
+          name: 'remembered',
+          reason: 'not-portable',
+          required: false,
+          from: [],
+        },
+      ]);
+      expect(set.notes).toContainEqual({
+        key: 'publish.closure.writtenByPlay',
+        level: 'warn',
+        params: { id: 'remembered', name: 'remembered', schema: LOREBOOK_SCHEMA },
+      });
+      expect(set.totals.objects).toBe(2);
+    }
+  });
+
+  it('stays home as the one root of an object start, whose canUncheck is about choosing', () => {
+    const closure = graph()
+      .found('remembered', LOREBOOK_SCHEMA, { writtenByPlay: true, canUncheck: false })
+      .edge(null, 'remembered', 'selected')
+      .closure('object');
+    const set = fileSet(closure, choose());
+    expect(set.objects).toEqual([]);
+    expect(set.leftBehind.map((one) => one.reason)).toEqual(['not-portable']);
+    expect(noteKeys(set)).not.toContain('publish.closure.justTheObject');
+  });
+
+  it('is named by what carried thing links it, and a required link still warns', () => {
+    const closure = memory()
+      .edge(null, 'rain', 'world.member')
+      .edge('rain', 'remembered', 'treatment.lore', { required: true })
+      .edge('rain', 'vera', 'treatment.cast')
+      .closure();
+    const set = fileSet(closure, choose());
+    expect(set.leftBehind).toEqual([
+      {
+        schema: LOREBOOK_SCHEMA,
+        id: 'remembered',
+        name: 'remembered',
+        reason: 'not-portable',
+        required: true,
+        from: ['rain'],
+      },
+    ]);
+    expect(set.requiredLeftOut).toEqual([{ key: 'remembered', by: ['rain'] }]);
+    expect(noteKeys(set)).toEqual([
+      'publish.closure.requiredLeftOut',
+      'publish.closure.writtenByPlay',
+    ]);
+  });
+
+  it('is not a left-out link either: its own note says why, once', () => {
+    const closure = memory()
+      .edge(null, 'rain', 'world.member')
+      .edge('rain', 'remembered', 'treatment.cast')
+      .closure();
+    expect(noteKeys(fileSet(closure, choose()))).toEqual(['publish.closure.writtenByPlay']);
+  });
+
+  it('says nothing of one only an unticked thing names', () => {
+    const closure = memory()
+      .session('night-one')
+      .edge(null, 'rain', 'world.member')
+      .edge(null, 'night-one', 'world.member')
+      .edge('night-one', 'remembered', 'session.lore')
+      .closure();
+    const set = fileSet(closure, choose());
+    expect(set.leftBehind).toEqual([]);
+    expect(noteKeys(set)).not.toContain('publish.closure.writtenByPlay');
+    // Ticked, the session names it and the file says it stayed home.
+    const ticked = fileSet(closure, choose({ 'night-one': true }));
+    expect(keys(ticked.objects)).toEqual(['rain']);
+    expect(ticked.leftBehind).toContainEqual(
+      expect.objectContaining({ id: 'remembered', reason: 'not-portable', from: ['night-one'] }),
+    );
+  });
+});
+
 describe('the closure as the review reads it', () => {
   it('shows every level as a tree, with every other reason in alsoFrom', () => {
     const tree = closureTree(rainCity());

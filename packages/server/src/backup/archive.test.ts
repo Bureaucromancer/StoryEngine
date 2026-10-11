@@ -7,11 +7,16 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { readBackupManifest, BACKUP_MANIFEST_MEMBER } from '@storyengine/shared';
+import {
+  readBackupManifest,
+  BACKUP_MANIFEST_MEMBER,
+  PUBLISH_RECORD_SCHEMA,
+} from '@storyengine/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ensureDirectory, listTreeFiles, writeFileBytes } from '../storage/files.js';
 import { holdInstanceLock } from '../instance-lock.js';
+import { appendPublishRecord } from '../packaging/ledger.js';
 import { INSTANCE_LOCK_NAME, Layout } from '../storage/layout.js';
 import { readTarGz, writeTarGz } from '../storage/tar-archive.js';
 import {
@@ -554,6 +559,47 @@ describe('an account backup', () => {
       if (name === BACKUP_MANIFEST_MEMBER) continue;
       expect(name.startsWith('users/ned/')).toBe(true);
     }
+  });
+
+  /**
+   * ***The publish ledger travels with the account*** ([P16.3d]) — the reason
+   * it is a file under `users/<handle>/` rather than a row in `state.sqlite`,
+   * which an account archive holds none of: a person who moves their account
+   * keeps what their next re-publish diffs against. Written through the
+   * ledger's own append, so a ledger moved anywhere else fails here.
+   */
+  it('carries publishes.jsonl, as it carries usage.jsonl', async () => {
+    await appendPublishRecord(layout, 'ned', {
+      schema: PUBLISH_RECORD_SCHEMA,
+      at: '2026-10-10T12:00:00.000Z',
+      build: null,
+      origin: 'world',
+      start: ['w-1'],
+      world: { id: 'w-1', name: 'Rain City', kept: 'existing' },
+      fileName: 'Rain-City.seworld',
+      bytes: 1,
+      entries: 1,
+      objects: [],
+      sessions: [],
+      offered: { objects: 0, sessions: 0 },
+      unticked: [],
+      ticked: [],
+      history: false,
+      justTheObject: false,
+      missing: 0,
+      drift: false,
+    });
+
+    const record = await takeBackup(context, { owner: NED, contents: 'full', reason: 'manual' });
+    const found = await findBackup(context, NED, record.id);
+    const members = await membersOf(found!.path);
+
+    const line = members.get('users/ned/publishes.jsonl');
+    expect(line).toBeDefined();
+    expect(JSON.parse(line ?? '')).toMatchObject({
+      schema: PUBLISH_RECORD_SCHEMA,
+      fileName: 'Rain-City.seworld',
+    });
   });
 
   it('lands in the account directory and says whose it is', async () => {

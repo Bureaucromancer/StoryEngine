@@ -593,6 +593,27 @@ export class Layout {
   }
 
   /**
+   * `users/<handle>/publishes.jsonl` — the publish ledger
+   * ([16 §5](../../../../docs/design/16-publish.md),
+   * [16 §8](../../../../docs/design/16-publish.md), `packaging/ledger.ts`,
+   * [P16.3d]): one line per World file that reached the person, which the
+   * diff a re-publish opens on reads ([P16.3h]) and §8's counts come from.
+   *
+   * ***Beside `usage.jsonl`, and for every one of its reasons*** — a record
+   * of what happened, append-only, never derived, so not the index
+   * ([22 §5.1]'s *if losing it would surprise a user*); the account's, so not
+   * `state.sqlite`, which an account archive holds none of. Here it travels in
+   * the account's archive, comes back with a restore, goes with the account,
+   * and a person can read it. *Not* the World's own metadata: that would be a
+   * write to the World on every send — [16 §3]'s *publishing from a World
+   * creates nothing new* broken by its own bookkeeping — and would travel in
+   * the file it describes.
+   */
+  publishLogFile(handle: string): string {
+    return resolveWithin(this.userRoot(handle), 'publishes.jsonl');
+  }
+
+  /**
    * `users/<handle>/avatar.<ext>` — the account's face
    * ([12 §5.1](../../../../docs/design/12-account-gallery.md), [P10.4]).
    *

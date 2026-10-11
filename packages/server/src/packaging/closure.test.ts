@@ -963,6 +963,29 @@ describe('what a walker has to get right', () => {
     expect(carried(closure, { [pack.id]: true })).toEqual([start.id, pack.id]);
   });
 
+  /**
+   * ***Play wrote it, and the walk says so*** (2026-10-10, [P16.3d]) — read
+   * off the body's provenance, the marking a memory book carries, and left
+   * off every other object. The rule acts on it (`fileSet` never carries
+   * one); the walk only records it, and still follows what the book names.
+   */
+  it('marks an object play wrote, and nothing else, and still walks what it names', async () => {
+    const lib = shelf();
+    const vera = lib.put(newActor('Vera'));
+    const book = newLorebook('Vera — memories');
+    const memories = lib.put({
+      ...book,
+      provenance: { ...book.provenance, source: 'session' as const },
+      hooks: [hook('h-1', [refTo(vera)])],
+    });
+    const harbour = lib.put(newLorebook('Harbour'));
+    const closure = await walked(lib.reader, objects(memories.id, harbour.id));
+    expect(foundOf(closure, memories.id).writtenByPlay).toBe(true);
+    expect(foundOf(closure, harbour.id).writtenByPlay).toBeUndefined();
+    expect(foundOf(closure, vera.id).writtenByPlay).toBeUndefined();
+    expect(carried(closure, { [memories.id]: true })).toEqual([harbour.id, vera.id]);
+  });
+
   it('reads a Setup’s mode, and a session’s mode and bindings', async () => {
     const lib = shelf();
     const start = lib.put({ ...newSetup('Start'), mode: { id: 'scene', config: null } });
@@ -1025,6 +1048,21 @@ describe('where a walk starts', () => {
     expect(await walkClosure(lib.reader, world('no-such-world'))).toEqual(notFound);
     expect(await walkClosure(lib.reader, objects('no-such-object'))).toEqual(notFound);
     expect(await walkClosure(lib.reader, objects())).toEqual(notFound);
+  });
+
+  /**
+   * ***A selection none of whose ids is there is nothing to publish***, as a
+   * lone one is (2026-10-11, the P16.3d review): it walked to a closure of
+   * missing rows, and a confirm of it kept an empty World and sent a file of
+   * nothing. One id found is enough for the others to be missing rows.
+   */
+  it('a selection in which no id is there is not-found, as a lone one is', async () => {
+    const lib = shelf();
+    const vera = lib.put(newActor('Vera'));
+    expect(await walkClosure(lib.reader, objects('gone-1', 'gone-2'))).toEqual({
+      refusal: 'not-found',
+    });
+    expect('nodes' in (await walkClosure(lib.reader, objects('gone-1', vera.id)))).toBe(true);
   });
 
   it('an id in a selection that is not there is a missing row, reported', async () => {

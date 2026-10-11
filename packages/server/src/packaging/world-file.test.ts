@@ -460,13 +460,18 @@ async function publishPlan(
       .filter((edge) => edge.from === null && edge.rule === 'world.member')
       .map((edge) => edge.to),
   );
-  const world =
+  // As the confirm hands it over: the stored body, held to the walk's hash
+  // (2026-10-11, the P16.3d review), which the plan's own read must match.
+  const stored =
     start.kind === 'world'
-      ? (read(fixture.server.services.library, 'ned', start.id, WORLD_SCHEMA).body as World)
+      ? read(fixture.server.services.library, 'ned', start.id, WORLD_SCHEMA)
       : null;
   return {
     origin: closure.origin,
-    world: world === null ? null : { body: world },
+    world:
+      stored === null
+        ? null
+        : { body: stored.body as World, contentHash: closure.world?.contentHash ?? '' },
     objects: files.objects.map((object) => ({ id: object.id, member: members.has(object.key) })),
     sessions: files.sessions.map((session) => session.id),
     leftBehind: files.leftBehind,
@@ -1238,6 +1243,11 @@ describe('what a plan decides, case by case', () => {
    * something of its transcript, with it. `provenance.source === 'session'`
    * is the marking the library page reads to say *not meant to be shared or
    * published*, and the planner reads the same one.
+   *
+   * *Since [P16.3d] (2026-10-10) the rule says so before the planner does*:
+   * the walker marks the book `writtenByPlay` and `fileSet` never carries it,
+   * so this test holds both halves — the plan the confirm would build never
+   * asks for the book, and a plan that asks for it by hand is still refused it.
    */
   it('leaves a book written by play behind, and names nothing of the sessions it remembers', async () => {
     const library = fixture.server.services.library;
@@ -1278,15 +1288,42 @@ describe('what a plan decides, case by case', () => {
 
     const plan = await planned(fixture, worldStart(), { [fixture.night.id]: true }, true, stage);
     expect(plan.manifest.objects.some((one) => one.id === memory.id)).toBe(false);
-    expect(plan.manifest.leftBehind).toContainEqual({
+    const stayedHome = {
       schema: LOREBOOK_SCHEMA,
       id: memory.id,
       name: memory.name,
       reason: 'not-portable',
       required: false,
       from: [],
-    });
-    expect(plan.manifest.omitted).toContainEqual({
+    };
+    expect(plan.manifest.leftBehind).toContainEqual(stayedHome);
+    // ***Said by the rule since [P16.3d]***, not discovered by the writer: the
+    // walker marks the book and `fileSet` never asks for it, so the plan the
+    // confirm builds holds the row before the writer reads a byte — and the
+    // writer's own note, which is its backstop's, is not needed.
+    expect(plan.manifest.leftBehind.filter((one) => one.id === memory.id)).toHaveLength(1);
+    expect(plan.manifest.omitted.some((one) => one.key === 'publish.file.writtenByPlay')).toBe(
+      false,
+    );
+
+    // ***And the writer's own check, belt and braces***: a plan built some
+    // other way than from `fileSet` — asking for the book by hand, as a member
+    // — still leaves it home, with the writer's note.
+    const byHand = await publishPlan(fixture, worldStart(), { [fixture.night.id]: true }, true);
+    const forced = await planWorldFile(
+      fixture.context,
+      'ned',
+      {
+        ...byHand,
+        objects: [...byHand.objects, { id: memory.id, member: true }],
+        leftBehind: byHand.leftBehind.filter((one) => one.id !== memory.id),
+      },
+      stage,
+    );
+    if ('refusal' in forced) throw new Error(`refused: ${forced.refusal}`);
+    expect(forced.manifest.objects.some((one) => one.id === memory.id)).toBe(false);
+    expect(forced.manifest.leftBehind).toContainEqual(stayedHome);
+    expect(forced.manifest.omitted).toContainEqual({
       key: 'publish.file.writtenByPlay',
       level: 'warn',
       params: { id: memory.id, name: memory.name, schema: LOREBOOK_SCHEMA },
@@ -1381,6 +1418,39 @@ describe('what a plan decides, case by case', () => {
     );
     expect(error).toBeInstanceOf(WorldFileChangedError);
     expect((error as WorldFileChangedError).path).toBe('library/lorebooks/harbour/lorebook.json');
+  });
+
+  /**
+   * ***The World the plan reads is the World it was handed*** (2026-10-11, the
+   * P16.3d review). A World start's `world.json` is encoded from the body the
+   * confirm read; its folder and pictures come from the row the plan reads
+   * itself, later. A save in between — a rename, a picture replaced — would
+   * pair the old `world.json` with the new row's pictures in a file that says
+   * nothing changed. So the plan holds its read to the hash it was handed, and
+   * a World gone or saved since is the same `409` as any other change.
+   */
+  it('throws WorldFileChangedError when the World is saved between the hand-over and the plan', async () => {
+    const library = fixture.server.services.library;
+    const plan = await publishPlan(fixture, { kind: 'world', id: fixture.world.id }, {}, false);
+    const stored = read(library, 'ned', fixture.world.id);
+    await update(
+      library,
+      'ned',
+      fixture.world.id,
+      { ...(stored.body as World), name: 'Rain Town' },
+      stored.contentHash,
+    );
+
+    const error = await planWorldFile(fixture.context, 'ned', plan, stage).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(WorldFileChangedError);
+    expect((error as WorldFileChangedError).path).toBe(fixture.world.id);
+
+    // Handed the World as it is now, the same plan is made.
+    const again = await publishPlan(fixture, { kind: 'world', id: fixture.world.id }, {}, false);
+    const result = await planWorldFile(fixture.context, 'ned', again, stage);
+    expect('refusal' in result).toBe(false);
   });
 
   /**

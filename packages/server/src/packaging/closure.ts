@@ -8,6 +8,7 @@ import {
   type ExcludedNode,
   type FoundNode,
   isKnownSchema,
+  isWrittenByPlay,
   LEGACY_PACKAGE_SCHEMA,
   LOREBOOK_SCHEMA,
   type MissingNode,
@@ -99,6 +100,10 @@ import type { SessionFile } from '../sessions/types.js';
  * ticks is `fileSet`'s, in shared, so the review and the confirm draw with one
  * rule. The facts a review shows beside each row — sizes, pictures — are
  * P16.3d's (`NodeFacts`, `SessionFacts`), declared now and computed then.
+ * *(Computed since [P16.3d] by `packaging/review.ts`, through the writer's own
+ * `measureObject` and `measureSession`, onto the closure this returns — the
+ * walk itself still reads no file. And one more fact is the walk's own from
+ * that stage: `writtenByPlay`, read off the body it already holds.)*
  */
 
 /** One library object as the walk reads it: the index row, with a portable path. */
@@ -209,7 +214,12 @@ export interface ClosureRefusal {
  *   start, whose root cannot be unchecked; two or more are a `selection`, in
  *   which an id that resolves to nothing is a missing row, reported, while a
  *   lone id that resolves to nothing is `not-found`, because there is nothing to
- *   publish. An empty list names nothing and is `not-found` too.
+ *   publish. An empty list names nothing and is `not-found` too. ~~a lone id
+ *   that resolves to nothing~~ — *any selection none of whose ids resolves*
+ *   (2026-10-11, the P16.3d review), for the same reason: two objects deleted
+ *   in another tab while the review was open walked to a closure of missing
+ *   rows, and the confirm kept an empty World of it and sent a file of
+ *   nothing. One id that resolves is enough for the rest to be missing rows.
  *
  * **The walk is breadth-first, and every starting point is placed before any
  * node is expanded**, which is what makes *first discovery* the shallowest:
@@ -251,7 +261,9 @@ export async function walkClosure(
   if (rows.some((row) => row !== null && isWorld(row.schemaId))) {
     return { refusal: 'world-in-selection' };
   }
-  if (ids.length === 1 && rows[0] === null) return { refusal: 'not-found' };
+  // Nothing there at all — one id or several — is nothing to publish; the
+  // lone id was the first case of this, not a different rule.
+  if (rows.every((row) => row === null)) return { refusal: 'not-found' };
 
   const origin: PublishOrigin = ids.length === 1 ? 'object' : 'selection';
   const walk = new Walk(reader, null);
@@ -499,6 +511,16 @@ class Walk {
         // ticked. A recipient who has the mode resolves the reference to their
         // own copy, and shipping one would meet `create`'s install-wide id check.
         defaultOn: row.owner !== 'system',
+        /**
+         * ***Play wrote it*** (2026-10-10, [P16.3d]) — read from the indexed
+         * body's provenance, the marking a memory book carries. A fact about
+         * the object, like its owner, so it is the walker's to record and
+         * `fileSet`'s to act on: the writer has left such a book home since
+         * [P16.3c], and a closure that did not say so let the review draw it
+         * as travelling. Its edges are still followed — a node is what the
+         * walk reached, and what it names is reached through it either way.
+         */
+        ...(isWrittenByPlay(row.body) ? { writtenByPlay: true } : {}),
       }),
       // A World reached here would be one a kind-scoped read answered for a
       // World kind, which no row asks for; expanding it would publish its

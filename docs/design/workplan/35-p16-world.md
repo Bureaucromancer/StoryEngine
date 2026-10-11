@@ -990,6 +990,9 @@ propagating from every lookup — and failed.
 - *The walker refuses where it cannot honestly answer*: an index error at any
   lookup rejects the walk; an unreadable session — a link that escapes the data
   directory included — is a missing member, not an error.
+  *(P16.3d widened one rule: a selection none of whose ids resolve is
+  `not-found`, as a lone id is, rather than a walk of nothing that would have
+  kept an empty World.)*
 
 #### P16.3b — The index reads the same table
 
@@ -1075,7 +1078,10 @@ on and off.
 - **What a plan holds to.** Each stored file must hash to the index's
   `contentHash`, so the bytes copied are the body that chose the pictures; every
   member is re-hashed at write, and a change between plan and write — the same
-  length included — fails the publish whole, leaving no file. Session exports
+  length included — fails the publish whole, leaving no file. *(P16.3d added the
+  World's own row to what a plan holds to: a World saved while it is being
+  published refuses, rather than pairing the old `world.json` with the new
+  pictures.)* Session exports
   are streamed to scratch one turn at a time as they are surveyed, so a plan
   never holds every transcript at once, and one too large to travel stays home,
   named, rather than throwing.
@@ -1088,8 +1094,10 @@ on and off.
 - **Two decisions the stage took, conservative and reversible, recorded for the
   owner.** *An object play wrote stays home* — a memory book, `provenance.source`
   `session` — as `not-portable`, because its entries are a session's text and
-  may be an unticked one's; the walker still draws it as included, so P16.3g's
-  review shows the row staying home and why. Carrying one deliberately, scrubbed
+  may be an unticked one's; ~~the walker still draws it as included, so P16.3g's
+  review shows the row staying home and why~~ *(P16.3d: the walker marks it, and
+  `fileSet` — the one rule — leaves it home as `not-portable` with a note, so the
+  preview and the file agree; the writer's own check stays behind it)*. Carrying one deliberately, scrubbed
   and off until ticked as a session is, is the alternative, and it is not built.
   *A card drops the pictures its author removed*: a card that still embeds a
   picture no current media row names is re-spliced without it, every other chunk
@@ -1110,6 +1118,37 @@ file; the one library write is the kept World), and a per-account ledger,
 §8](../16-publish.md)'s counts come from.
 
 **Ends when** the one-write rule holds in every origin's test.
+
+**Built 2026-10-10, on `p16`**, by a builder, three reviewers — what is written
+and when, the HTTP contract, whether the tests can fail — and a fixer. **It ends
+as written**: in every origin's test the library takes at most one write, the
+kept World of a selection of two or more, and a World start leaves its World's
+hash, time and history untouched. `docs/api.md`'s *Publish* section is the
+contract and [22 §9](../22-internal-contracts.md) the ledger's record.
+
+- **The preview writes nothing**, checked by comparing the data directory's files
+  *and directories* before and after through the real route, and fills every
+  node's facts — pictures and their bytes, versions, a session's turns and
+  attachments — which the review needs to say *why is this so large*.
+- **The confirm walks again, plans dry, and only then writes**: the World is
+  created after the plan and its room check, so a refusal leaves none; a failure
+  after it was created, other than the `409` that names it, moves it to the
+  trash. A change between review and confirm is reported, not refused — the
+  `reviewed` hash covers objects, sessions' heads and `updatedAt`, and the World
+  — and a change between plan and write refuses whole.
+- **The ledger records a delivered file**: on a `200` whose file stream reached
+  its end — the review found fastify's `500` for an unreadable file still
+  emitting the same event, which would have recorded a publish nobody received.
+- *The review's other findings, fixed*: a notes header that grew without bound
+  and broke behind an ordinary proxy at about sixty missing pictures, now capped
+  at 3 KiB with the manifest holding the rest; bodies that ignored an unknown key,
+  so a misspelt `reviewed` switched drift reporting off silently, now closed.
+- *Owed to P16.3g, so a client cannot forget them*: `route-callers.test.ts` lists
+  the three routes as owed by P16.3g, and the client owes sentences for the
+  `publish.closure.*`, `publish.file.*` and `publish.requires.modeNotHere` notes.
+  *Left as the plan has them*: a double confirm keeps two Worlds (the client's
+  pending state is the guard), and a kept World whose download was abandoned has
+  no ledger line.
 
 #### P16.3e — The reader: objects, identity across accounts, the World, the legacy file
 

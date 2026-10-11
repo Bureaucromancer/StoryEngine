@@ -8,6 +8,7 @@ import {
   ACTOR_SCHEMA,
   type ImportNote,
   isKnownSchema,
+  isWrittenByPlay,
   LEGACY_PACKAGE_SCHEMA,
   type LeftBehind,
   LIBRARY_DIRECTORIES,
@@ -122,7 +123,10 @@ import {
  *   entries carry the session and turn each was remembered from, and their
  *   text is what that play produced, so carrying one would send an unticked
  *   session's id and something of its transcript. It is `not-portable` in
- *   `leftBehind`, with a note.
+ *   `leftBehind`, with a note. *Since [P16.3d] the rule itself says so*:
+ *   the walker marks such a node `writtenByPlay` and `fileSet` never carries
+ *   it, listing it the way this does — so a plan built from `fileSet` never
+ *   asks for one, and the check below is the backstop, not the rule.
  * - **A card carries the pictures its rows name, and no others** (2026-10-10,
  *   the P16.3c review). The store never takes a picture out of a card — the
  *   card is where a restored version finds its pixels — so a card copied whole
@@ -150,8 +154,20 @@ import {
  */
 export interface PublishPlan {
   origin: PublishOrigin;
-  /** The World as stored (a World start) or as just kept (a selection); `null` for no World. */
-  world: { body: World } | null;
+  /**
+   * The World as stored (a World start) or as just kept (a selection); `null`
+   * for no World.
+   *
+   * ***`contentHash`, for a stored World*** (2026-10-11, the P16.3d review):
+   * the hash the body was read at — the confirm's walk's. `world.json` is
+   * encoded from `body`, while the World's folder and pictures come from the
+   * row {@link planWorldFile} reads itself, later; a save between the two
+   * would pair one World's `world.json` with another's pictures. Given, the
+   * plan's read must still hash to it, or it throws
+   * {@link WorldFileChangedError}. Absent for a World kept in memory, which
+   * has no stored row to disagree with.
+   */
+  world: { body: World; contentHash?: string } | null;
   /** What travels, members first or not — {@link planWorldFile} puts members first. */
   objects: { id: string; member: boolean }[];
   /** Each must be a session member of `world` — anything else is refused, `not-a-member`. */
@@ -539,16 +555,14 @@ function scrubbed(version: VersionRecord): Record<string, unknown> {
  * the book *is not meant to be shared or published*. That page's own comment
  * names what is owed when an export path is built: *that it read the same
  * marking*. This is that read.
+ *
+ * ~~A private predicate~~ — *since [P16.3d] (2026-10-10) the shared
+ * `isWrittenByPlay`*, which the walker records on a node and `fileSet` acts
+ * on, so the review says a memory book stays home before this does. The check
+ * here stays, belt and braces: a plan built some other way than from
+ * `fileSet` still cannot carry one.
  */
-function writtenByPlay(body: unknown): boolean {
-  if (typeof body !== 'object' || body === null) return false;
-  const provenance = (body as { provenance?: unknown }).provenance;
-  return (
-    typeof provenance === 'object' &&
-    provenance !== null &&
-    (provenance as { source?: unknown }).source === 'session'
-  );
-}
+const writtenByPlay = isWrittenByPlay;
 
 // ── What one session carries ────────────────────────────────────────────────
 
@@ -923,9 +937,11 @@ interface Copy extends Candidate {
  *
  * Throws {@link WorldFileChangedError} when an object it was asked for is no
  * longer readable here, or its stored file has gone or is not the body the
- * index holds; and whatever the disk throws. Session exports are staged in
- * `stage` as each is surveyed, which the caller owns and disposes of after the
- * write — or after a refusal, which can come after some are staged.
+ * index holds; when a stored World handed over with its `contentHash` is gone
+ * or saved since (2026-10-11, the P16.3d review); and whatever the disk
+ * throws. Session exports are staged in `stage` as each is surveyed, which
+ * the caller owns and disposes of after the write — or after a refusal, which
+ * can come after some are staged.
  */
 export async function planWorldFile(
   context: WorldFileContext,
@@ -1009,6 +1025,15 @@ export async function planWorldFile(
       worldRow = read(context.library, handle, world.id, WORLD_SCHEMA);
     } catch (error) {
       if (!(error instanceof LibraryError && error.code === 'not-found')) throw error;
+    }
+    // The row is the body's (2026-10-11, the P16.3d review): a World saved
+    // or gone since the confirm read it would otherwise travel as its old
+    // `world.json` beside its new pictures — the same `409` as an object's
+    // stored file that is not its row (below). The id is what the review
+    // showed for it; it has no member name yet.
+    const expected = plan.world?.contentHash;
+    if (expected !== undefined && worldRow?.contentHash !== expected) {
+      throw new WorldFileChangedError(world.id);
     }
   }
   const worldSurvey =

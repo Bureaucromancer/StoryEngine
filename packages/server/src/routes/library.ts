@@ -9,7 +9,6 @@ import {
   exportFormat,
   isKnownSchema,
   LIBRARY_DIRECTORIES,
-  type ImportNote,
   type PortableSchemaId,
   type TagList,
   upgradeLegacySchema,
@@ -24,6 +23,7 @@ import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
 import { addMembers } from '../library/worlds.js';
 import { disconnectSignal } from './disconnect.js';
+import { encodeNotes } from './headers.js';
 import { copyAssets, storeAsset, sweep } from '../library/assets.js';
 import { sniff } from '../auth/avatars.js';
 import { readOnePart } from './import.js';
@@ -1475,20 +1475,6 @@ function downloadName(name: string, extension: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
   return `${slug === '' ? 'object' : slug}${extension}`;
-}
-
-/**
- * What an export did not carry, as a header.
- *
- * **Base64 of the JSON, because a header is latin-1 and a note's params are
- * whatever an object is called** — a treatment named *Café* would otherwise put
- * bytes in a header that no specification says how to read. The body is the
- * file ([P11.10]'s rule for `x-storyengine-missing`), so the notes cannot ride
- * inside it, and dropping them would leave the only surface that can tell
- * somebody what they lost with nothing to say.
- */
-function encodeNotes(notes: readonly ImportNote[]): string {
-  return Buffer.from(JSON.stringify(notes), 'utf8').toString('base64');
 }
 
 function packFileName(name: string): string {

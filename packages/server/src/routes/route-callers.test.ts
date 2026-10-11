@@ -295,6 +295,28 @@ const OWED = new Map<string, string>([
    * control (`ModeActions`, from the session read's `actions`), and `api.ts`'s
    * `runSessionStep` names the address. Discharged by building the surface.
    */
+  /**
+   * ***The three publish routes, owed for the stages between the server and
+   * its surface*** (2026-10-10, [P16.3d]). The routes, the ledger and their
+   * tests land a stage before the review that calls them: [P16.3g] builds the
+   * selection, the review as its own lazy route and the doors, and its
+   * `api.ts` names all three addresses; the records route is also what
+   * [P16.3h]'s *choose as last time* and the World page's *Published N times*
+   * read. Each row goes when the scan reaches it, which is the only way out
+   * this map has.
+   */
+  [
+    'POST /api/publish/preview',
+    'P16.3g: the review renders this answer — its own lazy route, every level, the ticks fileSet draws with.',
+  ],
+  [
+    'POST /api/publish',
+    'P16.3g: the review’s Publish button, and Publish… on every object’s page and a World’s.',
+  ],
+  [
+    'GET /api/publish/records',
+    'P16.3g: a World page’s Published N times; P16.3h’s diff reads the same ledger through the preview.',
+  ],
   [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",

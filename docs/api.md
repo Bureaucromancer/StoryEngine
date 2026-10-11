@@ -1436,6 +1436,107 @@ the illustrate route, which makes a sibling.
 
 ---
 
+## Publish
+
+***Built at [P16.3d](design/workplan/35-p16-world.md), 2026-10-10.*** Publish
+is [16](design/16-publish.md)'s flow: from one object, a selection of them, or a
+World, the closure [04 §9.1](design/04-schemas.md)'s table reaches, reviewed, and
+written as a World file — `storyengine.world-file/1`, a stored zip named
+`<name>.seworld` ([16 §5.2](design/16-publish.md)). Two requests: a **preview**
+that writes nothing, and a **confirm** that walks the library again, as it is
+then, and returns the file. The client's review (P16.3g) is the only caller so
+far, and until it is built `GET /api/library/worlds/:id/export` stays.
+
+The start is the same shape on both:
+
+```json
+{ "kind": "objects", "ids": ["0199…", "0199…"] }
+{ "kind": "world", "id": "0199…" }
+```
+
+One id is an **object** start, two or more a **selection**; a World is started
+from by its own shape and never named in a selection
+(`422 {"error":"world-in-selection"}`). Both bodies are closed: an unknown key —
+a misspelt `reviewed` included — is a `400` naming it, since an ignored key that
+quietly switched off a check is worse than a refusal.
+
+### `POST /api/publish/preview`
+
+**What would leave, and why** → `200` `PublishPreview`, writing nothing: not the
+library, not the index, not the ledger, not a scratch file left behind.
+
+- `closure` — every node the walk reached, every edge that reached it (each with
+  its rule from the table, the field it was read from, and whether it resolved
+  by id or by name), missing references as nodes, and each found object's and
+  session's facts: its entries, pictures and their bytes, versions, a session's
+  turns and attachments. History is measured as though asked for, so the choice
+  can say what it adds.
+- `reviewed` — a hash of what the review was drawn from. Sent back with the
+  confirm, it is how a change made in between is reported (below).
+- `suggestedName`; `justTheObject`, true when an object start's closure is the
+  object alone ([16 §2](design/16-publish.md) sends that one to *Download*);
+  `sameAs`, for a selection, the Worlds that already hold exactly it;
+  `modeVersions`, this install's version of each mode the closure needs, `null`
+  for one it does not have; `previous`, for a World start, the ledger's last
+  record of publishing it, which the diff opens on.
+- An object of yours is on by default; a system object, a session, and an object
+  play wrote — a memory book, which stays home whatever is ticked — are off.
+
+`404 {"error":"not-found"}` for a start that is not there — a lone id, a World,
+or a selection none of whose ids resolve. A selection with *some* missing is a
+preview with those as missing nodes.
+
+### `POST /api/publish`
+
+**The file** → `200`, `application/zip`, as an attachment named by the World or
+the selection, with `content-length`.
+
+```json
+{ "start": { "kind": "world", "id": "0199…" },
+  "choices": { "ticked": { "0199…": true, "0199…": false },
+               "history": false, "keep": "world", "name": "Rain City" },
+  "reviewed": "sha256:…" }
+```
+
+`ticked` overrides the defaults by id; an id the walk no longer reaches is
+ignored and a new one takes its default, because the confirm walks the library
+afresh. `keep` and `name` are read only for a selection: `"world"` (the default)
+keeps the selection as a World of that name — **the one write a publish makes to
+the library**, created only once the file is planned, so a refusal leaves none —
+and `"snapshot"` keeps nothing. A World start never changes its World, and an
+object start writes nothing at all.
+
+Headers: `x-storyengine-world`, the World this publish created;
+`x-storyengine-missing`, how many references could not be carried;
+`x-storyengine-review-drift: 1` when `reviewed` was sent and the library has
+changed since — the file is what the library is *now*, and the header says it is
+not what was reviewed; `x-storyengine-export-notes`, the notes, base64 JSON,
+capped at 3 KiB — warnings first, then a `publish.file.moreInManifest` count — so
+that a file missing many pictures does not trip a proxy's header limit; the
+manifest inside the file carries them all.
+
+Refusals: `404` as the preview's; `409 {"error":"publish.changed"}`, naming the
+file and any World this publish kept, when something it is copying changed
+between planning and writing — the file is never written half; `422` for
+`world-in-selection`, `invalid-name`, or `publish.tooLarge` (more entries or
+bytes than a World file holds, said before anything is written); `507` when the
+disk cannot hold the file, before writing it or while doing so. **A failure after
+a selection's World was kept, other than the `409`, moves that World to the
+trash**, so the only refusal that leaves one is the one that names it.
+
+**Each publish that delivered a file is a line in the account's ledger**,
+`users/<handle>/publishes.jsonl` ([22 §9](design/22-internal-contracts.md)) —
+written when a `200`'s file has been sent to its end, never for a refusal or a
+download abandoned part-way.
+
+### `GET /api/publish/records`
+
+**What this account has published** → `200 {count, records}`, newest first.
+`?world=<id>` narrows to one World's; `?limit=` is 1 to 200, 20 by default, and
+`count` is every matching record. A record names what left — each object with
+its stored hash, each session with its head and when it was last changed —
+which is what re-publishing compares against.
+
 ## Tags
 
 The tag registry — [05](design/05-tagging.md). One document per account, at
