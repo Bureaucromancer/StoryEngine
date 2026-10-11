@@ -1317,6 +1317,45 @@ last time*.
 
 **Ends when** the third end clause, as a route test.
 
+**Built 2026-10-11, on `p16`**, by a builder, three reviewers — does the diff tell
+the truth, the person reading it, whether the tests can fail — and a fixer: ten
+findings, one blocking, all fixed. **P16.3's third end clause is a test, and it
+passes**: `routes/publish-diff.test.ts` publishes a World with one session, then
+edits a member, renames one, adds one, deletes one and plays a turn through the
+real routes, and the preview's `previous` and the diff name each change — and a
+card re-spliced to drop a removed picture is not one. The entry is unchanged at
+**311.84 kB**; the diff is in the review's chunk.
+
+- **What the diff compares**, decided where the plan was thin: objects by their
+  stored hash, so a re-splice is not a change; a session by a **digest of what it
+  sends** — its export less `exportedBy` and its own `updatedAt`, with the names of
+  its pictures and attachments — so *the review found* a picture drawn since read
+  as no change and an archive or a model setting, neither of which leaves, read
+  as one; and the World by its name, version and an `about` hash, so *the review
+  found* a renamed or re-versioned World — 16 §5's *send them 1.2* — reading
+  *nothing has changed*. All three are on the ledger line now
+  ([22 §9](../22-internal-contracts.md)).
+- **`turnsSince` is a net count**, said as *holds N turns more than it did*: the
+  record has a count, not a list of ids, so deleting turns and playing as many
+  reads as changed, not played on. *No longer reached* does not promise the object
+  is still in the library — the diff sees only the walk — and its sentence says
+  only that nothing in the World reaches it now.
+- **The blocking finding**: *Choose as last time* re-ticked an object the person
+  had unticked that the last file never held, and then said the boxes were as
+  chosen last time. It now sets the record's choices and the last file's
+  defaults, and leaves what is new since as the person has it. After publishing
+  on the same page, the diff says so and compares again on *Look again*, rather
+  than describing the file two back.
+
+### P16.3 — what it closes
+
+**All three end clauses are tests on `p16`, and the stage is built**:
+`routes/world-round-trip.test.ts` (P16.3f), the legacy fixture importing as a
+World (P16.3e's `legacy.test.ts`), and `routes/publish-diff.test.ts` (P16.3h). **A
+green suite closes a stage, not a phase**: P16 closes on §3's critical list,
+walked by a person — rows 1 to 4 are unanswered — and on what §3.2 adds to the
+standing list.
+
 ## 3. Verification — the P16 exit gate
 
 Split under [manual testing §0](05-manual-testing.md)'s two-tier rule. **The

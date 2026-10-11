@@ -1528,13 +1528,14 @@ interface PublishRecord {
   build: string | null             // the build that wrote it
   origin: 'object' | 'selection' | 'world'
   start: string[]                  // the ids it started from
-  world: { id: string; name: string; kept: 'created' | 'existing' } | null
+  world: { id: string; name: string; kept: 'created' | 'existing';
+           version: string; about: string } | null   // P16.3h
   fileName: string
   bytes: number
   entries: number
   objects: { schema: string; id: string; name: string; contentHash: string }[]
   sessions: { id: string; name: string; headTurnId: string | null;
-              turns: number; updatedAt: string }[]
+              turns: number; updatedAt: string; digest: string }[]   // digest: P16.3h
   offered: { objects: number; sessions: number }
   unticked: { id: string; required: boolean }[]   // overrides, both ways,
   ticked: string[]                                //   on rows a person could change
@@ -1553,7 +1554,18 @@ interface PublishRecord {
   the file: a card re-spliced to drop a removed picture ([P16.3c](workplan/35-p16-world.md))
   is not a changed object, and the diff compares stored hash with stored hash. A
   session is compared by its head and `updatedAt`, since a rename or a hide moves
-  no head.
+  no head. *(2026-10-11, [P16.3h](workplan/35-p16-world.md): **by its `digest`
+  now** — a `sha256` of the session's export as it travels, leaving out
+  `exportedBy` and the session's `updatedAt`, together with the names of the
+  pictures and attachments that travel beside it. A picture drawn since is a
+  change; archiving the session or changing its model settings, which never
+  leave, is not. An older line without a digest falls back to head and time;
+  an unreadable session's is empty.)*
+- **The World is recorded as it was sent** — its name, its `version` and an
+  `about` hash of its description, its pictures and the requirements its author
+  wrote, but not its members (the diff compares those one by one) or its
+  provenance, which every save stamps. So *send them 1.2* is a change the diff
+  can name: renamed, re-versioned, re-described.
 - **Written when a `200`'s file has been sent to its end**, and only then — never
   for a refusal, an unreadable file, or a download abandoned part-way. A World
   a selection kept and whose download was abandoned therefore has no line; that

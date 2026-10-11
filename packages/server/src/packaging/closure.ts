@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { createHash } from 'node:crypto';
+
 import {
   type Closure,
   type ClosureEdge,
@@ -682,12 +684,43 @@ function summaryOf(world: Resolved): NonNullable<Closure['world']> {
     description: textOr(body['description'], ''),
     version: textOr(body['version'], ''),
     contentHash: world.contentHash,
+    about: worldAbout(body),
     requires: {
       modes: Array.isArray(requires.modes) ? requires.modes : [],
       extensions: Array.isArray(requires.extensions) ? requires.extensions : [],
       capabilities: Array.isArray(requires.capabilities) ? requires.capabilities : [],
     },
   };
+}
+
+/**
+ * ***The World's own page, as one hash*** — `Closure['world']['about']`, and
+ * the ledger's `world.about` (`confirm.ts`), computed here for both so the two
+ * can never be two spellings of one rule (2026-10-11, the P16.3h review).
+ *
+ * **What it covers is what the World says about itself in the file** and the
+ * diff says nowhere else: its description, its pictures (`media`, whose rows
+ * carry each picture's digest, so a cover replaced moves it) and the
+ * requirements its author wrote. **Not** its members, which the diff names one
+ * by one; not its name or its version, which it says on their own (*was
+ * called*, *is version 1.2*); not `provenance`, whose `updatedAt` the server
+ * stamps on every save, a member added included — a hash that held it would
+ * say *the World's own description changed* of a World that only gained a
+ * book; and not `metadata`, the open record no reader is promised anything
+ * of.
+ *
+ * Read through `unknown`, as `summaryOf` reads the rest: a hand-edited body's
+ * missing field hashes as its empty form, the same on both sides.
+ */
+export function worldAbout(body: unknown): string {
+  const fields = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+  const requires = fields['requires'];
+  const own = JSON.stringify([
+    textOr(fields['description'], ''),
+    Array.isArray(fields['media']) ? fields['media'] : [],
+    typeof requires === 'object' && requires !== null ? requires : {},
+  ]);
+  return `sha256:${createHash('sha256').update(own, 'utf8').digest('hex')}`;
 }
 
 /**

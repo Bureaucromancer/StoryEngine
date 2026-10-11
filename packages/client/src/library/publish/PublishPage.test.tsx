@@ -117,6 +117,7 @@ function rainCity(): PublishPreview {
           missingPixels: 0,
           entries: 30,
           bytes: 41 * 1024 * 1024,
+          digest: 'sha256:night',
         },
       })
       .edge(null, 'rain', 'world.member')

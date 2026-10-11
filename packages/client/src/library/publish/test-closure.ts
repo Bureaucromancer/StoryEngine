@@ -184,14 +184,19 @@ export function previewOf(closure: Closure, more: Partial<PublishPreview> = {}):
   };
 }
 
-/** A World start's `world`, as the walker reads it. */
-export function worldOf(name = 'Rain City'): NonNullable<Closure['world']> {
+/** A World start's `world`, as the walker reads it; `more` for the diff's World cases. */
+export function worldOf(
+  name = 'Rain City',
+  more: Partial<NonNullable<Closure['world']>> = {},
+): NonNullable<Closure['world']> {
   return {
     id: 'world-1',
     name,
     description: '',
     version: '1.0.0',
     contentHash: 'sha256:world',
+    about: 'sha256:about',
     requires: { modes: [], extensions: [], capabilities: [] },
+    ...more,
   };
 }

@@ -23,7 +23,7 @@ import { create, LibraryError, read, remove } from '../library.js';
 import { modeById } from '../mode-registry.js';
 import { openImportScratch, type ScratchSpace } from '../storage/import-scratch.js';
 import { SNAPSHOT_FREE_RESERVE_BYTES } from '../storage/sqlite-snapshot.js';
-import { type ClosureRefusal, libraryReader, walkClosure } from './closure.js';
+import { type ClosureRefusal, libraryReader, walkClosure, worldAbout } from './closure.js';
 import { closureHash, type PublishContext, suggestedNameOf } from './review.js';
 import {
   planWorldFile,
@@ -218,8 +218,19 @@ export async function confirmPublish(
     if (free !== null && free < needed) return { refusal: 'no-space', needed, free };
 
     // ── 5. The one library write ──
+    // The World's version and its own page's hash ride on the ledger line
+    // (2026-10-11, the P16.3h review) — the same `worldAbout` the walk gives
+    // the review, so the next re-publish compares like with like.
     const kept =
-      world === null ? null : { id: world.body.id, name: world.body.name, kept: world.kept };
+      world === null
+        ? null
+        : {
+            id: world.body.id,
+            name: world.body.name,
+            kept: world.kept,
+            version: typeof world.body.version === 'string' ? world.body.version : '',
+            about: worldAbout(world.body),
+          };
     const created =
       world?.kept === 'created'
         ? await create(context.library, handle, world.body, WORLD_SCHEMA)
@@ -254,6 +265,7 @@ export async function confirmPublish(
         bytes: written.bytes,
         entries: written.entries,
         manifest: planned.manifest,
+        sessionDigests: planned.sessionDigests,
         missing,
         drift,
       });
@@ -415,7 +427,9 @@ function missingCount(closure: Closure, set: FileSet): number {
  * (see `PublishRecord`). What left is read off the manifest, which is what the
  * file holds after the writer's own decisions (a card too large, a session too
  * long), with each object's hash the walk's — the stored object's — so the
- * diff a re-publish opens on compares like with like.
+ * diff a re-publish opens on compares like with like. Each session's
+ * `digest` is the plan's hash of what it sent, and the World's `version` and
+ * `about` are the World's own (2026-10-11, the P16.3h review).
  */
 function recordOf(
   closure: Closure,
@@ -429,6 +443,8 @@ function recordOf(
     bytes: number;
     entries: number;
     manifest: WorldFileManifest;
+    /** Each carried session's `digest` — `PlannedWorldFile.sessionDigests`. */
+    sessionDigests: ReadonlyMap<string, string>;
     missing: number;
     drift: boolean;
   },
@@ -477,6 +493,10 @@ function recordOf(
         headTurnId: session.headTurnId,
         turns: session.turns,
         updatedAt: node?.state === 'session' ? node.updatedAt : '',
+        // What it sent, as the plan hashed it while staging it — the review's
+        // `facts.digest` is the same hash over the same survey (2026-10-11,
+        // the P16.3h review).
+        digest: file.sessionDigests.get(session.id) ?? '',
       };
     }),
     offered: {

@@ -1517,7 +1517,10 @@ library, not the index, not the ledger, not a scratch file left behind.
   by id or by name), missing references as nodes, and each found object's and
   session's facts: its entries, pictures and their bytes, versions, a session's
   turns and attachments. History is measured as though asked for, so the choice
-  can say what it adds.
+  can say what it adds. *Since [P16.3h](design/workplan/35-p16-world.md)*, a
+  session's facts carry a `digest` of what it would send, and `closure.world`
+  an `about` hash of the World's description, pictures and requirements — what
+  the re-publish diff compares with the ledger's last record.
 - `reviewed` — a hash of what the review was drawn from. Sent back with the
   confirm, it is how a change made in between is reported (below).
 - `suggestedName`; `justTheObject`, true when an object start's closure is the

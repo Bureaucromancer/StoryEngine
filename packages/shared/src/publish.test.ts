@@ -15,9 +15,13 @@ import {
   type NodeFacts,
   type NodeKey,
   pathTo,
+  PUBLISH_RECORD_SCHEMA,
+  publishDiff,
   type PublishOrigin,
+  type PublishRecord,
   type SessionFacts,
 } from './publish.js';
+import { SESSION_SCHEMA } from './publish-constants.js';
 import { ACTOR_SCHEMA } from './schema/actor.js';
 import { LOREBOOK_SCHEMA } from './schema/lorebook.js';
 import { PRESET_SCHEMA } from './schema/preset.js';
@@ -44,6 +48,16 @@ interface Built {
   edges: ClosureEdge[];
 }
 
+/** What a session node may be given beside its key — the diff's cases ([P16.3h]) set the last three. */
+interface SessionMore {
+  modes?: string[];
+  leavesBehind?: ('roles' | 'stepRoles')[];
+  facts?: SessionFacts;
+  name?: string;
+  headTurnId?: string | null;
+  updatedAt?: string;
+}
+
 /**
  * ***Nodes and edges as a walker would produce them***, with the derived parts
  * computed the walker's way: `parent` and `depth` from the first edge into a
@@ -53,11 +67,8 @@ interface Built {
  */
 interface Graph {
   found(key: NodeKey, schema: PortableSchemaId, more?: Partial<FoundNode>): Graph;
-  session(
-    key: NodeKey,
-    more?: { modes?: string[]; leavesBehind?: ('roles' | 'stepRoles')[]; facts?: SessionFacts },
-  ): Graph;
-  missing(key: NodeKey, expected: string, name: string): Graph;
+  session(key: NodeKey, more?: SessionMore): Graph;
+  missing(key: NodeKey, expected: string, name: string, id?: string): Graph;
   excluded(id: string): Graph;
   edge(
     from: NodeKey | null,
@@ -96,22 +107,15 @@ function graph(): Graph {
       });
       return api;
     },
-    session(
-      key: NodeKey,
-      more: {
-        modes?: string[];
-        leavesBehind?: ('roles' | 'stepRoles')[];
-        facts?: SessionFacts;
-      } = {},
-    ): Graph {
+    session(key: NodeKey, more: SessionMore = {}): Graph {
       built.nodes.push({
         ...base,
         key,
         state: 'session',
         id: key,
-        name: key,
-        updatedAt: '2026-10-10T00:00:00.000Z',
-        headTurnId: null,
+        name: more.name ?? key,
+        updatedAt: more.updatedAt ?? '2026-10-10T00:00:00.000Z',
+        headTurnId: more.headTurnId ?? null,
         archived: false,
         modes: more.modes ?? [],
         leavesBehind: more.leavesBehind ?? [],
@@ -121,13 +125,13 @@ function graph(): Graph {
       });
       return api;
     },
-    missing(key: NodeKey, expected: string, name: string): Graph {
+    missing(key: NodeKey, expected: string, name: string, id = `${key}-id`): Graph {
       built.nodes.push({
         ...base,
         key,
         state: 'missing',
         expected,
-        ref: { id: `${key}-id`, name },
+        ref: { id, name },
         required: false,
       });
       return api;
@@ -506,7 +510,15 @@ describe('what is in the file', () => {
       .found('vera', ACTOR_SCHEMA, { facts })
       .found('bo', ACTOR_SCHEMA, { facts })
       .session('night-one', {
-        facts: { turns: 9, pictures: 1, attachments: 0, missingPixels: 0, entries: 4, bytes: 40 },
+        facts: {
+          turns: 9,
+          pictures: 1,
+          attachments: 0,
+          missingPixels: 0,
+          entries: 4,
+          bytes: 40,
+          digest: '',
+        },
       })
       .edge(null, 'vera', 'world.member')
       .edge(null, 'bo', 'world.member')
@@ -703,5 +715,574 @@ describe('requires, derived and authored', () => {
     expect(
       mergeRequires(derived, { modes: 'scene', extensions: null, capabilities: 7 } as never),
     ).toEqual(derived);
+  });
+});
+
+// ── What changed since the last file — [P16.3h] ─────────────────────────────
+
+/**
+ * ***The diff a re-publish opens on*** — [16 §5](../../../docs/design/16-publish.md)'s
+ * *"what changed since the last file, so 'send them 1.2' is a decision made
+ * against what 1.2 actually is"*, [22 §9](../../../docs/design/22-internal-contracts.md),
+ * [P16.3h].
+ *
+ * **What left last time is a ledger record, built by hand here** the way the
+ * confirm writes one — stored hashes, a session by its head, its count and its
+ * time — and **what would leave now is `fileSet` over a hand-built closure**,
+ * which is what the review hands `publishDiff` on every tick. Each case is one
+ * clause of the diff: what is new, what changed by its stored hash, a rename,
+ * every reason something in the last file is not in this one, a session played
+ * on and one only renamed or hidden, the history flag, and the card the writer
+ * re-spliced, which must read as the same object it is.
+ */
+describe('the diff a re-publish opens on', () => {
+  /** A ledger line as the confirm writes one, for a World start. */
+  const recordOf = (over: Partial<PublishRecord> = {}): PublishRecord => ({
+    schema: PUBLISH_RECORD_SCHEMA,
+    at: '2026-10-03T10:00:00.000Z',
+    build: null,
+    origin: 'world',
+    start: ['world-1'],
+    world: {
+      id: 'world-1',
+      name: 'Rain City',
+      kept: 'existing',
+      version: '1.0.0',
+      about: 'sha256:about',
+    },
+    fileName: 'rain-city.seworld',
+    bytes: 1,
+    entries: 1,
+    objects: [],
+    sessions: [],
+    offered: { objects: 0, sessions: 0 },
+    unticked: [],
+    ticked: [],
+    history: false,
+    justTheObject: false,
+    missing: 0,
+    drift: false,
+    ...over,
+  });
+  /** An object as the record holds what left: its stored hash, by the builder's own spelling. */
+  const left = (
+    id: string,
+    schema: string,
+    more: Partial<PublishRecord['objects'][number]> = {},
+  ): PublishRecord['objects'][number] => ({
+    schema,
+    id,
+    name: id,
+    contentHash: `sha256:${id}`,
+    ...more,
+  });
+  /**
+   * A session as the record holds it — with no `digest` unless a case gives
+   * one, which is a line from before the digest was recorded: compared by its
+   * head and its time.
+   */
+  const sent = (
+    id: string,
+    more: Partial<PublishRecord['sessions'][number]> = {},
+  ): PublishRecord['sessions'][number] => ({
+    id,
+    name: id,
+    headTurnId: null,
+    turns: 0,
+    updatedAt: '2026-10-10T00:00:00.000Z',
+    digest: '',
+    ...more,
+  });
+  const facts = (turns: number, digest = ''): SessionFacts => ({
+    turns,
+    pictures: 0,
+    attachments: 0,
+    missingPixels: 0,
+    entries: 1,
+    bytes: 1,
+    digest,
+  });
+  /** A World start's `world`, as the walk reads it — the record's own by default. */
+  const worldNow = (
+    more: Partial<NonNullable<Closure['world']>> = {},
+  ): NonNullable<Closure['world']> => ({
+    id: 'world-1',
+    name: 'Rain City',
+    description: '',
+    version: '1.0.0',
+    contentHash: 'sha256:world',
+    about: 'sha256:about',
+    requires: { modes: [], extensions: [], capabilities: [] },
+    ...more,
+  });
+  const diffOf = (
+    previous: PublishRecord,
+    closure: Closure,
+    ticked: Record<string, boolean> = {},
+    history = false,
+  ) => publishDiff(previous, fileSet(closure, { ticked, history }), closure, history);
+  const ids = (entries: { id: string }[]): string[] => entries.map((one) => one.id);
+
+  it('says when the last file was made and what it was called', () => {
+    const diff = diffOf(recordOf(), graph().closure());
+    expect(diff.since).toEqual({ at: '2026-10-03T10:00:00.000Z', fileName: 'rain-city.seworld' });
+  });
+
+  it('names what is new, what changed by its stored hash, and counts what did not', () => {
+    const closure = graph()
+      .found('rain', TREATMENT_SCHEMA)
+      .found('vera', ACTOR_SCHEMA, { contentHash: 'sha256:vera-portrait-replaced' })
+      .found('harbour', LOREBOOK_SCHEMA)
+      .found('pier', LOREBOOK_SCHEMA, { name: 'The Pier' })
+      .edge(null, 'rain', 'world.member')
+      .edge(null, 'pier', 'world.member')
+      .edge('rain', 'vera', 'treatment.cast')
+      .edge('rain', 'harbour', 'treatment.lore')
+      .closure();
+    const diff = diffOf(
+      recordOf({
+        objects: [
+          left('rain', TREATMENT_SCHEMA),
+          left('vera', ACTOR_SCHEMA),
+          left('harbour', LOREBOOK_SCHEMA),
+        ],
+      }),
+      closure,
+    );
+    expect(diff.added).toEqual([{ id: 'pier', schema: LOREBOOK_SCHEMA, name: 'The Pier' }]);
+    // The name is the same; the stored bytes are not — a portrait replaced.
+    expect(diff.changed).toEqual([{ id: 'vera', schema: ACTOR_SCHEMA, name: 'vera' }]);
+    expect(diff.unchanged).toBe(2);
+    expect(diff.removed).toEqual([]);
+  });
+
+  it('says what a renamed object was called in the last file', () => {
+    const closure = graph()
+      .found('harbour', LOREBOOK_SCHEMA, { name: 'Harbour', contentHash: 'sha256:renamed' })
+      .edge(null, 'harbour', 'world.member')
+      .closure();
+    const diff = diffOf(
+      recordOf({ objects: [left('harbour', LOREBOOK_SCHEMA, { name: 'Harbor' })] }),
+      closure,
+    );
+    expect(diff.changed).toEqual([
+      { id: 'harbour', schema: LOREBOOK_SCHEMA, name: 'Harbour', renamedFrom: 'Harbor' },
+    ]);
+  });
+
+  /**
+   * ***A card the writer re-spliced is not a changed card*** ([22 §9]). The
+   * file's member hashed differently from the stored card — the writer dropped
+   * a picture no row names — and the ledger kept the stored hash; the walk
+   * reads the stored hash again. The measured size, which is the re-spliced
+   * card's, is not part of the comparison, so nothing about the file's bytes
+   * can make an untouched card read as edited.
+   */
+  it('does not call a re-spliced card changed: stored hash against stored hash', () => {
+    const closure = graph()
+      .found('vera', ACTOR_SCHEMA, {
+        contentHash: 'sha256:stored-card',
+        facts: {
+          entries: 1,
+          bytes: 900,
+          pictures: { count: 1, bytes: 800 },
+          history: { versions: 0, entries: 0, bytes: 0 },
+          omitted: [],
+        },
+      })
+      .edge(null, 'vera', 'world.member')
+      .closure();
+    const diff = diffOf(
+      recordOf({
+        objects: [left('vera', ACTOR_SCHEMA, { contentHash: 'sha256:stored-card' })],
+      }),
+      closure,
+    );
+    expect(diff.changed).toEqual([]);
+    expect(diff.unchanged).toBe(1);
+  });
+
+  it('says why each thing in the last file is not in this one', () => {
+    const closure = graph()
+      .found('rain', TREATMENT_SCHEMA)
+      // Still reached, and its own box is unticked now.
+      .found('weather', LOREBOOK_SCHEMA, { name: 'Weather' })
+      // Still reached, through a session that is not ticked now.
+      .session('night')
+      .found('keeper', ACTOR_SCHEMA, { name: 'The Keeper' })
+      // Ticked, and now larger than one file in a World may be.
+      .found('atlas', LOREBOOK_SCHEMA, {
+        name: 'Atlas',
+        facts: {
+          entries: 0,
+          bytes: 0,
+          pictures: { count: 0, bytes: 0 },
+          history: { versions: 0, entries: 0, bytes: 0 },
+          omitted: [{ ref: 'lorebook.json', bytes: 70 * 1024 * 1024 }],
+        },
+      })
+      // A member the World still names, deleted since.
+      .missing('missing:0', LOREBOOK_SCHEMA, 'Old Pier', 'pier')
+      .edge(null, 'rain', 'world.member')
+      .edge(null, 'night', 'world.member')
+      .edge(null, 'atlas', 'world.member')
+      .edge(null, 'missing:0', 'world.member')
+      .edge('rain', 'weather', 'treatment.lore')
+      .edge('night', 'keeper', 'session.cast.actors')
+      .closure();
+    const diff = diffOf(
+      recordOf({
+        objects: [
+          left('rain', TREATMENT_SCHEMA),
+          left('weather', LOREBOOK_SCHEMA),
+          left('keeper', ACTOR_SCHEMA),
+          left('atlas', LOREBOOK_SCHEMA),
+          left('pier', LOREBOOK_SCHEMA, { name: 'Old Pier' }),
+          // Taken out of the World since: nothing walked names it.
+          left('tide', LOREBOOK_SCHEMA, { name: 'Tide Tables' }),
+        ],
+      }),
+      closure,
+      { weather: false },
+    );
+    expect(diff.removed).toEqual([
+      { id: 'weather', schema: LOREBOOK_SCHEMA, name: 'Weather', why: 'left-out' },
+      { id: 'keeper', schema: ACTOR_SCHEMA, name: 'The Keeper', why: 'left-out' },
+      { id: 'atlas', schema: LOREBOOK_SCHEMA, name: 'Atlas', why: 'too-large' },
+      { id: 'pier', schema: LOREBOOK_SCHEMA, name: 'Old Pier', why: 'gone' },
+      { id: 'tide', schema: LOREBOOK_SCHEMA, name: 'Tide Tables', why: 'no-longer-reached' },
+    ]);
+    expect(diff.unchanged).toBe(1);
+    // Too large last time is never in a record, so too large again is not *added*.
+    expect(ids(diff.added)).toEqual([]);
+  });
+
+  it('never calls an object too large to travel added, though fileSet carries it', () => {
+    const closure = graph()
+      .found('atlas', LOREBOOK_SCHEMA, {
+        facts: {
+          entries: 0,
+          bytes: 0,
+          pictures: { count: 0, bytes: 0 },
+          history: { versions: 0, entries: 0, bytes: 0 },
+          omitted: [{ ref: 'lorebook.json', bytes: 70 * 1024 * 1024 }],
+        },
+      })
+      .edge(null, 'atlas', 'world.member')
+      .closure();
+    const diff = diffOf(recordOf(), closure);
+    expect(diff.added).toEqual([]);
+    expect(diff.removed).toEqual([]);
+  });
+
+  /**
+   * ***Played on is *holds more turns than it did**** — the record's count of
+   * the turns its export held, against the walk's count now
+   * (`facts.turns`), retries and branches included in both.
+   */
+  it('names a session played on, and how many more turns it holds', () => {
+    const closure = graph()
+      .session('night', {
+        name: 'Night Market',
+        headTurnId: 'turn-13',
+        updatedAt: '2026-10-11T08:00:00.000Z',
+        facts: facts(13),
+      })
+      .edge(null, 'night', 'world.member')
+      .closure();
+    const diff = diffOf(
+      recordOf({
+        sessions: [sent('night', { name: 'Night Market', headTurnId: 'turn-10', turns: 10 })],
+      }),
+      closure,
+      { night: true },
+    );
+    expect(diff.sessions.playedOn).toEqual([
+      { id: 'night', schema: SESSION_SCHEMA, name: 'Night Market', turnsSince: 3 },
+    ]);
+    expect(diff.sessions.changed).toEqual([]);
+    expect(diff.sessions.unchanged).toBe(0);
+  });
+
+  it('calls a session renamed, hidden or rewound but not played changed, never played on', () => {
+    const at = '2026-10-10T00:00:00.000Z';
+    const later = '2026-10-11T08:00:00.000Z';
+    const closure = graph()
+      // Renamed: the name and the time moved, the head and the count did not.
+      .session('dawn', {
+        name: 'Dawn Patrol',
+        headTurnId: 'd-4',
+        updatedAt: later,
+        facts: facts(4),
+      })
+      // A turn hidden: only the time moved.
+      .session('dusk', { headTurnId: 'k-6', updatedAt: later, facts: facts(6) })
+      // Rewound to an earlier turn: the head moved, and there is no turn more.
+      .session('noon', { headTurnId: 'n-2', updatedAt: later, facts: facts(5) })
+      // The head moved and the time did not — a clock set back, a hand edit:
+      // the head alone still says it changed.
+      .session('dial', { headTurnId: 'h-3', updatedAt: at, facts: facts(3) })
+      // Nothing at all.
+      .session('still', { headTurnId: 's-1', updatedAt: at, facts: facts(1) })
+      .edge(null, 'dawn', 'world.member')
+      .edge(null, 'dusk', 'world.member')
+      .edge(null, 'noon', 'world.member')
+      .edge(null, 'dial', 'world.member')
+      .edge(null, 'still', 'world.member')
+      .closure();
+    const diff = diffOf(
+      recordOf({
+        sessions: [
+          sent('dawn', { name: 'Dawn', headTurnId: 'd-4', turns: 4, updatedAt: at }),
+          sent('dusk', { headTurnId: 'k-6', turns: 6, updatedAt: at }),
+          sent('noon', { headTurnId: 'n-5', turns: 5, updatedAt: at }),
+          sent('dial', { headTurnId: 'h-2', turns: 3, updatedAt: at }),
+          sent('still', { headTurnId: 's-1', turns: 1, updatedAt: at }),
+        ],
+      }),
+      closure,
+      { dawn: true, dusk: true, noon: true, dial: true, still: true },
+    );
+    expect(diff.sessions.playedOn).toEqual([]);
+    expect(diff.sessions.changed).toEqual([
+      { id: 'dawn', schema: SESSION_SCHEMA, name: 'Dawn Patrol', renamedFrom: 'Dawn' },
+      { id: 'dusk', schema: SESSION_SCHEMA, name: 'dusk' },
+      { id: 'noon', schema: SESSION_SCHEMA, name: 'noon' },
+      { id: 'dial', schema: SESSION_SCHEMA, name: 'dial' },
+    ]);
+    expect(diff.sessions.unchanged).toBe(1);
+  });
+
+  it('names sessions ticked now, and those no longer in the file, with why', () => {
+    const closure = graph()
+      .session('fresh', { name: 'Fresh Start' })
+      .session('dusk', { name: 'Dusk' })
+      .missing('missing:0', SESSION_SCHEMA, 'Deleted Night', 'deleted')
+      .edge(null, 'fresh', 'world.member')
+      .edge(null, 'dusk', 'world.member')
+      .edge(null, 'missing:0', 'world.member')
+      .closure();
+    const diff = diffOf(
+      recordOf({
+        sessions: [
+          sent('dusk', { name: 'Dusk' }),
+          sent('deleted', { name: 'Deleted Night' }),
+          sent('elsewhere', { name: 'Moved Away' }),
+        ],
+      }),
+      closure,
+      { fresh: true },
+    );
+    expect(diff.sessions.nowTicked).toEqual([
+      { id: 'fresh', schema: SESSION_SCHEMA, name: 'Fresh Start' },
+    ]);
+    expect(diff.sessions.noLongerTicked).toEqual([
+      { id: 'dusk', schema: SESSION_SCHEMA, name: 'Dusk', why: 'left-out' },
+      { id: 'deleted', schema: SESSION_SCHEMA, name: 'Deleted Night', why: 'gone' },
+      { id: 'elsewhere', schema: SESSION_SCHEMA, name: 'Moved Away', why: 'no-longer-reached' },
+    ]);
+  });
+
+  it('says the history flag then and now, which way it flipped', () => {
+    const closure = graph()
+      .found('rain', TREATMENT_SCHEMA)
+      .edge(null, 'rain', 'world.member')
+      .closure();
+    expect(diffOf(recordOf({ history: true }), closure, {}, false).history).toEqual({
+      then: true,
+      now: false,
+    });
+    expect(diffOf(recordOf({ history: false }), closure, {}, true).history).toEqual({
+      then: false,
+      now: true,
+    });
+  });
+
+  /**
+   * ***It follows the ticks*** — the review calls it on every one, so an
+   * unticked row moves out of *unchanged* into *removed*, and a session ticked
+   * moves into the comparison, with nothing held between the two calls.
+   */
+  it('is a function of the ticks: unticking and ticking move things between its lists', () => {
+    const closure = graph()
+      .found('rain', TREATMENT_SCHEMA)
+      .session('night', { headTurnId: 't-2', facts: facts(2) })
+      .edge(null, 'rain', 'world.member')
+      .edge(null, 'night', 'world.member')
+      .closure();
+    const previous = recordOf({
+      objects: [left('rain', TREATMENT_SCHEMA)],
+      sessions: [sent('night', { headTurnId: 't-1', turns: 1 })],
+    });
+    const before = diffOf(previous, closure);
+    expect(before.unchanged).toBe(1);
+    expect(before.sessions.noLongerTicked.map((one) => one.why)).toEqual(['left-out']);
+    expect(before.sessions.playedOn).toEqual([]);
+
+    const after = diffOf(previous, closure, { rain: false, night: true });
+    expect(after.unchanged).toBe(0);
+    expect(after.removed.map((one) => [one.id, one.why])).toEqual([['rain', 'left-out']]);
+    expect(after.sessions.noLongerTicked).toEqual([]);
+    expect(after.sessions.playedOn.map((one) => [one.id, one.turnsSince])).toEqual([['night', 1]]);
+  });
+
+  /**
+   * ***Changed, by what a session sends*** (2026-10-11, the P16.3h review):
+   * where the line and the walk both hashed the session as it travels, the
+   * hash decides — so a picture drawn since (which moves no head, no count
+   * and no time) is a change, and an archive or a model dial (which move the
+   * time and send nothing new) is not. A line from before the hash was kept is
+   * still compared by its head and its time.
+   */
+  it('decides a session changed by what it sends, where both sides hashed it', () => {
+    const at = '2026-10-10T00:00:00.000Z';
+    const later = '2026-10-11T08:00:00.000Z';
+    const closure = graph()
+      // A picture drawn since: the same head, count and time; another hash.
+      .session('drawn', { headTurnId: 'd-2', updatedAt: at, facts: facts(2, 'sha256:drawn-2') })
+      // Archived, or its dials set: the time moved; what it sends did not.
+      .session('shelved', {
+        headTurnId: 's-2',
+        updatedAt: later,
+        facts: facts(2, 'sha256:shelved'),
+      })
+      // Played on, and renamed while it was: played on, saying both.
+      .session('played', {
+        name: 'Night Market',
+        headTurnId: 'p-5',
+        updatedAt: later,
+        facts: facts(5, 'sha256:played-5'),
+      })
+      // A line from before the hash: the time moved, so changed.
+      .session('older', { headTurnId: 'o-1', updatedAt: later, facts: facts(1, 'sha256:older') })
+      .edge(null, 'drawn', 'world.member')
+      .edge(null, 'shelved', 'world.member')
+      .edge(null, 'played', 'world.member')
+      .edge(null, 'older', 'world.member')
+      .closure();
+    const diff = diffOf(
+      recordOf({
+        sessions: [
+          sent('drawn', { headTurnId: 'd-2', turns: 2, updatedAt: at, digest: 'sha256:drawn-1' }),
+          sent('shelved', { headTurnId: 's-2', turns: 2, updatedAt: at, digest: 'sha256:shelved' }),
+          sent('played', {
+            name: 'Night Bazaar',
+            headTurnId: 'p-3',
+            turns: 3,
+            updatedAt: at,
+            digest: 'sha256:played-3',
+          }),
+          sent('older', { headTurnId: 'o-1', turns: 1, updatedAt: at }),
+        ],
+      }),
+      closure,
+      { drawn: true, shelved: true, played: true, older: true },
+    );
+    expect(diff.sessions.playedOn).toEqual([
+      {
+        id: 'played',
+        schema: SESSION_SCHEMA,
+        name: 'Night Market',
+        turnsSince: 2,
+        renamedFrom: 'Night Bazaar',
+      },
+    ]);
+    expect(diff.sessions.changed).toEqual([
+      { id: 'drawn', schema: SESSION_SCHEMA, name: 'drawn' },
+      { id: 'older', schema: SESSION_SCHEMA, name: 'older' },
+    ]);
+    expect(diff.sessions.unchanged).toBe(1);
+  });
+
+  /**
+   * ***Too large is the writer's reason, never the person's*** — so an
+   * object too large to travel that the person has unticked is *left out*,
+   * as any unticked thing is: saying *it stays home because of its size*
+   * would hide that the box is off.
+   */
+  it('calls an object too large and unticked left out, not too large', () => {
+    const closure = graph()
+      .found('atlas', LOREBOOK_SCHEMA, {
+        name: 'Atlas',
+        facts: {
+          entries: 0,
+          bytes: 0,
+          pictures: { count: 0, bytes: 0 },
+          history: { versions: 0, entries: 0, bytes: 0 },
+          omitted: [{ ref: 'lorebook.json', bytes: 70 * 1024 * 1024 }],
+        },
+      })
+      .edge(null, 'atlas', 'world.member')
+      .closure();
+    const diff = diffOf(recordOf({ objects: [left('atlas', LOREBOOK_SCHEMA)] }), closure, {
+      atlas: false,
+    });
+    expect(diff.removed).toEqual([
+      { id: 'atlas', schema: LOREBOOK_SCHEMA, name: 'Atlas', why: 'left-out' },
+    ]);
+  });
+
+  /**
+   * ***The World itself*** (2026-10-11, the P16.3h review) — [16 §5]'s *send
+   * them 1.2* is a version, and a diff of members alone said *nothing has
+   * changed* of a World renamed and re-versioned. Each part is said only
+   * where the line holds it.
+   */
+  it('says the World renamed, re-versioned and re-described — and only what the line records', () => {
+    const members = (): Closure =>
+      graph().found('rain', TREATMENT_SCHEMA).edge(null, 'rain', 'world.member').closure();
+    const withWorld = (world: Closure['world']): Closure => ({ ...members(), world });
+    const previous = recordOf({ objects: [left('rain', TREATMENT_SCHEMA)] });
+
+    expect(diffOf(previous, withWorld(worldNow())).world).toEqual({ changed: false });
+    expect(
+      diffOf(
+        previous,
+        withWorld(worldNow({ name: 'Rain City Redux', version: '1.2.0', about: 'sha256:tides' })),
+      ).world,
+    ).toEqual({
+      renamedFrom: 'Rain City',
+      version: { then: '1.0.0', now: '1.2.0' },
+      changed: true,
+    });
+
+    // A line from before the version and the hash were kept: its name only.
+    const older = recordOf({
+      objects: [left('rain', TREATMENT_SCHEMA)],
+      world: { id: 'world-1', name: 'Rain City', kept: 'existing' } as never,
+    });
+    expect(
+      diffOf(
+        older,
+        withWorld(worldNow({ name: 'Rain City Redux', version: '1.2.0', about: 'sha256:tides' })),
+      ).world,
+    ).toEqual({ renamedFrom: 'Rain City', changed: false });
+    // No World to compare with — a closure that is not a World start's.
+    expect(diffOf(previous, withWorld(null)).world).toEqual({ changed: false });
+  });
+
+  it('reads a hand-edited record without throwing, and says nothing it cannot know', () => {
+    const closure = graph()
+      .found('rain', TREATMENT_SCHEMA)
+      .session('night', { headTurnId: 't-2', facts: facts(5) })
+      .edge(null, 'rain', 'world.member')
+      .edge(null, 'night', 'world.member')
+      .closure();
+    const previous = recordOf({
+      objects: [
+        { id: 'rain', schema: TREATMENT_SCHEMA } as never,
+        null as never,
+        { name: 'x' } as never,
+      ],
+      sessions: [{ id: 'night', headTurnId: 't-1', turns: 'many' } as never],
+      history: 'yes' as never,
+    });
+    const diff = diffOf(previous, closure, { night: true });
+    // No hash recorded: the diff cannot say it is the same.
+    expect(diff.changed.map((one) => one.id)).toEqual(['rain']);
+    // No count recorded: the head moved, so changed — never played on by a guessed amount.
+    expect(diff.sessions.playedOn).toEqual([]);
+    expect(diff.sessions.changed.map((one) => one.id)).toEqual(['night']);
+    expect(diff.history.then).toBe(false);
   });
 });

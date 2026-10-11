@@ -197,6 +197,86 @@ export const WORDS = labels('publish.review', {
 });
 
 /**
+ * ***What changed since the last file*** — [P16.3h](../../../../../docs/design/workplan/35-p16-world.md),
+ * [16 §5](../../../../../docs/design/16-publish.md)'s *re-publishing opens on
+ * the diff*.
+ *
+ * **Every change is a sentence of its own**, phone first and never a table
+ * (the brief's rule, and the review's since P16.3g): a table of *before* and
+ * *after* columns is unreadable at 280 px and says nothing a screen reader can
+ * follow, where *“Harbour” (lorebook) has changed since the last file* is
+ * read whole. **A rename is a second sentence**, *It was called “Harbor”
+ * then.*, rather than a variant of every other one — whole sentences, never
+ * a fragment joined on ([20 §12.2]).
+ *
+ * ***Each says only what the diff knows*** (`shared/src/publish.ts`'s
+ * `publishDiff`):
+ *
+ * - `removedNotReached` says *nothing in this world reaches it now*, never
+ *   *it is still in your library*: the diff sees the walk and no more, and an
+ *   object taken out of the World and then deleted reads the same way.
+ * - `playedOn` says *holds N turns more than it did* — a difference of two
+ *   counts, retries and branches in both, which is what the ledger kept — and
+ *   not *N turns played*, which the record cannot tell apart.
+ * - `sessionChanged` says it *holds no more turns than it did*, which is true
+ *   of a rename, a hidden turn, a rewind and a picture drawn since alike,
+ *   without guessing which.
+ * - `nothing` says *every object and session would leave as it did*, which is
+ *   what the diff compared — ~~*this file would hold what that one did, as it
+ *   was*~~ until 2026-10-11 (the P16.3h review), which claimed the World's own
+ *   page as well and was drawn over a World renamed and re-versioned. The
+ *   World's own changes are sentences of their own now (`worldVersion`,
+ *   `worldRenamed`, `worldChanged`), said first.
+ * - `asLastTimeHint` and `asLastTimeSame` say what *Choose as last time*
+ *   does to what is new since (2026-10-11, the P16.3h review): it stays as
+ *   the person has it, so the status says *your choices from the last file
+ *   are in place* and no longer *the boxes are as you chose them*, which was
+ *   false of a box the last file never had.
+ */
+export const DIFF_WORDS = labels('publish.diff', {
+  title: 'What changed since the last file',
+  since: 'The last file was “{file}”, published {date}.',
+  sinceNoName: 'The last file was published {date}.',
+  nothing: 'Nothing in it has changed since then: every object and session would leave as it did.',
+  justPublished:
+    'You have just published this world, so the last file is the one you made. Look again to compare with it.',
+  worldVersion: 'This file is version {now} of the world; the last was version {then}.',
+  worldVersionBlank: 'The world’s version is not what it was in the last file.',
+  worldRenamed: 'This world was called “{was}” in the last file.',
+  worldChanged:
+    'The world’s own description, pictures or requirements have changed since the last file.',
+  added: '“{name}” ({kind}) is in this file and was not in the last.',
+  changed: '“{name}” ({kind}) has changed since the last file.',
+  renamedFrom: 'It was called “{was}” then.',
+  removedGone: '“{name}” ({kind}) was in the last file, and is not in your library any more.',
+  removedLeftOut: '“{name}” ({kind}) was in the last file, and what is ticked now leaves it out.',
+  removedNotReached:
+    '“{name}” ({kind}) was in the last file, and nothing in this world reaches it now.',
+  removedTooLarge:
+    '“{name}” ({kind}) was in the last file, and is now larger than one file in a world may be, so it stays home.',
+  unchangedOne: '1 thing is as it was in the last file.',
+  unchangedMany: '{count} things are as they were in the last file.',
+  sessionNowTicked: 'The session “{name}” is ticked, and was not in the last file.',
+  sessionLeftOut: 'The session “{name}” was in the last file, and is not ticked now.',
+  sessionGone: 'The session “{name}” was in the last file, and is not in your library any more.',
+  sessionNotReached: 'The session “{name}” was in the last file, and is not in this world now.',
+  playedOnOne:
+    'The session “{name}” has been played on since the last file, and holds 1 turn more than it did.',
+  playedOnMany:
+    'The session “{name}” has been played on since the last file, and holds {count} turns more than it did.',
+  sessionChanged:
+    'The session “{name}” has changed since the last file, though it holds no more turns than it did.',
+  sessionsUnchangedOne: '1 session is as it was in the last file.',
+  sessionsUnchangedMany: '{count} sessions are as they were in the last file.',
+  historyOn: 'This file includes edit history, and the last one did not.',
+  historyOff: 'The last file included edit history, and this one does not.',
+  asLastTime: 'Choose as last time',
+  asLastTimeHint:
+    'Puts back what you ticked and unticked for the last file, and history as it was then. A session you did not tick then is unticked; anything new since stays as you have it.',
+  asLastTimeSame: 'Your choices from the last file are in place, and history is as it was then.',
+});
+
+/**
  * ***Why there is no review, or no file*** — by the class the server sends,
  * never its English (`errorCode`'s rule, [22 §1.4]).
  */

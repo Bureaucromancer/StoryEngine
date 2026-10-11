@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import type {
-  Closure,
-  ClosureEdge,
-  ClosureNode,
-  FileSet,
-  FoundNode,
-  MissingNode,
-  NodeKey,
-  SessionNode,
+import {
+  type Closure,
+  type ClosureEdge,
+  type ClosureNode,
+  type FileSet,
+  type FoundNode,
+  type MissingNode,
+  type NodeKey,
+  type PublishRecord,
+  type SessionNode,
+  tooLargeToTravel,
 } from '@storyengine/shared';
 
 /**
@@ -170,9 +172,16 @@ export function sessionBrings(
  * out, and *What opening it needs* names the object rather than a picture.
  * The ledger was never wrong: it records the file's manifest, which does not
  * hold it.
+ *
+ * ***The predicate itself moved to `shared` at [P16.3h]*** (2026-10-11), as
+ * `tooLargeToTravel`, because the re-publish diff reads it too: an object too
+ * large last time and too large again is in `fileSet`'s carried list and in no
+ * ledger record, and a diff with its own reading of *too large* would call it
+ * *added* while the rows here said it stays home. This name stays, for the
+ * call sites that read it as the review's word.
  */
 export function tooLarge(node: FoundNode): boolean {
-  return node.facts?.entries === 0 && node.facts.omitted.length > 0;
+  return tooLargeToTravel(node);
 }
 
 /** The objects the file will hold: `fileSet`'s, less what is too large to be one file. */
@@ -210,4 +219,86 @@ export function orphanGroups(set: FileSet): { cameWith: NodeKey | null; keys: No
     groups.set(by, [...(groups.get(by) ?? []), orphan.key]);
   }
   return [...groups].map(([cameWith, keys]) => ({ cameWith, keys }));
+}
+
+/**
+ * ***Choose as last time*** — [P16.3h](../../../../../docs/design/workplan/35-p16-world.md),
+ * [16 §5](../../../../../docs/design/16-publish.md): the choices the last file
+ * was made with, as the ledger recorded them ([22 §9]'s `ticked` and
+ * `unticked`, *the person's overrides, both directions*), and its history flag.
+ *
+ * **Defaults stay the table's, and this is a button, not a default.** The
+ * review opens on 04 §9.1's defaults whatever was chosen last time — every
+ * user object on, system objects and sessions off — because a session must
+ * never come back ticked by itself ([16 §5]: *"a thing to choose rather than a
+ * thing to discover you did"*). Pressing this is the choosing.
+ *
+ * ***What it sets, box by box***, over the person's ticks now (`current`):
+ *
+ * - **What the record unticked** goes off, and **what it ticked** goes on —
+ *   the untick winning where a record names one id in both, which no build
+ *   writes: the one way this button may be wrong is by leaving something home.
+ * - **A session the record did not tick** goes off (its default). *As last
+ *   time* means the boxes as they were, and a session is ticked only when the
+ *   record's `ticked` names it.
+ * - **An object the last file held**, untouched by the record, takes its
+ *   default — on — so a thing the person has unticked since comes back, as it
+ *   was.
+ * - ***Anything else stays as the person has it*** — chiefly what is new
+ *   since. ~~The map answered held only the record's overrides, so every
+ *   other box fell back to its default~~ until 2026-10-11 (the P16.3h
+ *   review), which turned **on** a book added since that the person had just
+ *   unticked: the last file never held it and the record never ticked it, so
+ *   *as last time* has nothing to say about it, and turning it on would send a
+ *   thing the person had said not to. **This never turns a box on unless the
+ *   last file held that thing or the record ticked it.**
+ *
+ * Only keys the closure holds, so a tick for something no longer reached is not
+ * carried in the person's choices to come back with a later *Look again*.
+ * Called on every render with the ticks as they are, the answer is also what
+ * the status line asks: the boxes are *as last time* exactly when pressing
+ * would change none of them ({@link sameTicks}).
+ */
+export function asLastTime(
+  previous: PublishRecord,
+  closure: Closure,
+  current: Readonly<Record<NodeKey, boolean>>,
+): { ticked: Record<NodeKey, boolean>; history: boolean } {
+  const ids = (list: unknown, read: (entry: unknown) => unknown): Set<string> =>
+    new Set(
+      (Array.isArray(list) ? (list as unknown[]) : [])
+        .map(read)
+        .filter((id): id is string => typeof id === 'string'),
+    );
+  const unticked = ids(previous.unticked, (entry) => (entry as { id?: unknown } | null)?.id);
+  const ticked = ids(previous.ticked, (entry) => entry);
+  const held = ids(previous.objects, (entry) => (entry as { id?: unknown } | null)?.id);
+
+  const next: Record<NodeKey, boolean> = {};
+  for (const node of closure.nodes) {
+    if (node.state !== 'found' && node.state !== 'session') continue;
+    const key = node.key;
+    if (unticked.has(node.id)) next[key] = false;
+    else if (ticked.has(node.id)) next[key] = true;
+    else if (node.state === 'session' || held.has(node.id)) continue;
+    else if (Object.hasOwn(current, key) && typeof current[key] === 'boolean') {
+      next[key] = current[key];
+    }
+  }
+  // Through `unknown`, as `publishDiff` reads it: the line is hand-editable.
+  return { ticked: next, history: (previous.history as unknown) === true };
+}
+
+/**
+ * ***Whether two sets of ticks draw the same file*** — every found object and
+ * session on or off alike, by {@link isOn}, so a map that spells a default out
+ * and one that leaves it unsaid are the same choice. What the diff's *these
+ * are the last file's choices* line is decided by.
+ */
+export function sameTicks(
+  closure: Closure,
+  one: Readonly<Record<NodeKey, boolean>>,
+  other: Readonly<Record<NodeKey, boolean>>,
+): boolean {
+  return closure.nodes.every((node) => isOn(node, one) === isOn(node, other));
 }

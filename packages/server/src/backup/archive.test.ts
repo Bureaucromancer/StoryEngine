@@ -575,7 +575,7 @@ describe('an account backup', () => {
       build: null,
       origin: 'world',
       start: ['w-1'],
-      world: { id: 'w-1', name: 'Rain City', kept: 'existing' },
+      world: { id: 'w-1', name: 'Rain City', kept: 'existing', version: '1.0.0', about: '' },
       fileName: 'Rain-City.seworld',
       bytes: 1,
       entries: 1,

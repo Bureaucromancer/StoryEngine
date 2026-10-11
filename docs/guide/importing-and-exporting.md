@@ -250,6 +250,13 @@ Every object's page in the library has links for taking it with you:
   its sessions, a lorebook tied to a world, or any picture except those inside a
   character's card.
 
+  **Publishing a world again** opens on what has changed since your last file of it:
+  the world renamed or given a new version, objects added, edited or left out (and
+  why), and sessions played on since. It follows the boxes as you change them.
+  **Choose as last time** ticks the boxes and sets history as they were for the last
+  file, and leaves anything new since as you have it. After publishing, **Look
+  again** compares with the file you just made.
+
 There is no export of a character as a SillyTavern card. A character imported from a
 SillyTavern PNG keeps that file's original card data inside its PNG, unchanged, so another
 application reading StoryEngine's download sees the card as it was imported, not your edits.

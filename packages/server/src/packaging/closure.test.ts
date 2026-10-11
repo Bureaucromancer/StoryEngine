@@ -41,6 +41,7 @@ import {
   libraryReader,
   type Resolved,
   walkClosure,
+  worldAbout,
 } from './closure.js';
 
 /**
@@ -1460,5 +1461,59 @@ describe('walking a real library', () => {
     expect(closure.roots).toEqual([tides.id]);
     expect(closure.edges).toHaveLength(1);
     expect(closure.edges[0]).toMatchObject({ rule: 'world.scopedBook', to: tides.id });
+  });
+});
+
+/**
+ * ***The World's own page, as one hash*** (2026-10-11, the P16.3h review) —
+ * what the diff a re-publish opens on says *the World's own description,
+ * pictures or requirements changed* by. It moves with exactly those, and not
+ * with what the diff says elsewhere (the name, the version, the members) nor
+ * with the time the server stamps on every save, or a World that only gained
+ * a book would read as re-described.
+ */
+describe('the World’s own page, hashed', () => {
+  const base = { ...newWorld('Rain City'), version: '1.0.0', description: 'Wet streets.' };
+
+  it('moves with its description, its pictures and its authored requirements', () => {
+    const before = worldAbout(base);
+    expect(before).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(worldAbout({ ...base, description: 'Now with tides.' })).not.toBe(before);
+    expect(
+      worldAbout({
+        ...base,
+        media: [
+          {
+            id: 'cover',
+            role: 'gallery',
+            label: '',
+            mime: 'image/png',
+            digest: 'sha256:cover',
+            bytes: 1,
+            ref: 'cover',
+            tags: [],
+          },
+        ],
+      }),
+    ).not.toBe(before);
+    expect(
+      worldAbout({
+        ...base,
+        requires: { modes: [{ id: 'rpg', minVersion: '1.0.0' }], extensions: [], capabilities: [] },
+      }),
+    ).not.toBe(before);
+  });
+
+  it('does not move with its name, its version, its members or its stamped time', () => {
+    const before = worldAbout(base);
+    expect(
+      worldAbout({
+        ...base,
+        name: 'Rain City Redux',
+        version: '1.2.0',
+        contents: [{ schema: 'storyengine.lorebook/1', id: 'harbour', name: 'Harbour' }],
+        provenance: { ...base.provenance, updatedAt: '2030-01-01T00:00:00.000Z' },
+      }),
+    ).toBe(before);
   });
 });

@@ -14,6 +14,7 @@ import { HistoryChoice, KeepChoice } from './FileChoices.js';
 import { FileNeeds } from './FileNeeds.js';
 import { keepKnown, totalsOf, travelling } from './model.js';
 import { keptByRefusal, PublishActions } from './PublishActions.js';
+import { PublishDiff } from './PublishDiff.js';
 import { JustTheObject, PublishHeader, type SavedFile } from './PublishHeader.js';
 import { SessionChoices } from './SessionChoices.js';
 import { REFUSAL_WORDS, WORDS } from './words.js';
@@ -30,6 +31,13 @@ import { REFUSAL_WORDS, WORDS } from './words.js';
  * own column** ([P16.3]'s plan, D-doc2), because this is the library's export
  * path given a name ([16 §6]) and a page of its own is where its address can
  * carry the start.
+ *
+ * ***A World published before opens on what changed*** (2026-10-11,
+ * [P16.3h]): the diff against the ledger's last record for it is drawn
+ * first, under the title and above everything else the review says —
+ * [16 §5]'s *re-publishing opens on the diff* — and follows the ticks, since
+ * it is worked out from the same `fileSet` the rows are. Its *Choose as last
+ * time* sets the ticks and history here; the defaults stay the table's.
  *
  * ***The rule for what is in the file is not here.*** `fileSet` is shared:
  * this page calls it on every tick, and the confirm calls it again over a
@@ -124,6 +132,14 @@ function Review(props: {
    * the plan's pending-disable, which guards only the double click.*
    */
   const [kept, setKept] = useState<{ id: string; name: string } | null>(null);
+  /**
+   * ***The preview a publish from this page was answered over*** — the diff
+   * stops calling its record *the last file* (2026-10-11, the P16.3h review):
+   * the file just made is the last one now, and its ledger line is what the
+   * next look reads. A new preview (*Look again*) is not this one, so the
+   * diff comes back against that line by itself.
+   */
+  const [publishedOver, setPublishedOver] = useState<PublishPreview | null>(null);
 
   /**
    * ***Look again keeps the ticks whose keys it still holds*** — adjusted while
@@ -154,6 +170,7 @@ function Review(props: {
       ),
     onSuccess: (file) => {
       props.onFile(file);
+      setPublishedOver(preview);
       if (file.world !== null) {
         setKept({ id: file.world, name: name.trim() });
         void queryClient.invalidateQueries({ queryKey: ['library'] });
@@ -215,6 +232,27 @@ function Review(props: {
   return (
     <div className="flex min-w-0 flex-col">
       <PublishHeader preview={preview} />
+      {/*
+        ***First, for a World published before*** ([P16.3h]): the server
+        answers `previous` for a World start alone, and the origin is checked
+        here too, so a record somehow handed to another start draws nothing —
+        one object or a snapshot is never a re-publish of anything.
+      */}
+      {closure.origin === 'world' && preview.previous !== null ? (
+        <PublishDiff
+          previous={preview.previous}
+          closure={closure}
+          set={set}
+          ticked={ticked}
+          history={history}
+          locale={locale}
+          justPublished={publishedOver === preview}
+          onChooseAsLastTime={(last) => {
+            setTicked(last.ticked);
+            setHistory(last.history);
+          }}
+        />
+      ) : null}
       {only === undefined ? null : <JustTheObject node={only} onFile={props.onFile} />}
       <ClosureList
         closure={closure}

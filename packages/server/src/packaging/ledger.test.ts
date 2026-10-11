@@ -46,7 +46,7 @@ function aRecord(over: Partial<PublishRecord> = {}): PublishRecord {
     build: null,
     origin: 'world',
     start: ['w-1'],
-    world: { id: 'w-1', name: 'Rain City', kept: 'existing' },
+    world: { id: 'w-1', name: 'Rain City', kept: 'existing', version: '1.0.0', about: '' },
     fileName: 'Rain-City.seworld',
     bytes: 1234,
     entries: 5,
@@ -106,7 +106,13 @@ describe('the publish ledger', () => {
   });
 
   it('filters by World, and answers the newest of one, or nothing', async () => {
-    const other = { id: 'w-2', name: 'Elsewhere', kept: 'created' as const };
+    const other = {
+      id: 'w-2',
+      name: 'Elsewhere',
+      kept: 'created' as const,
+      version: '1.0.0',
+      about: '',
+    };
     await appendPublishRecord(layout, 'ned', aRecord({ bytes: 1 }));
     await appendPublishRecord(layout, 'ned', aRecord({ world: other, bytes: 2 }));
     await appendPublishRecord(

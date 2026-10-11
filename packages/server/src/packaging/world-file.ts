@@ -228,6 +228,15 @@ export interface PlannedWorldFile {
   /** `manifest.exportedBy.at`, which every member is stamped with. */
   mtime: Date;
   limits: ZipWriteLimits;
+  /**
+   * ***What each carried session sent, as one hash*** — by session id, the
+   * same `SessionFacts.digest` the review measures, taken over the export as
+   * staged and the pictures and attachments actually copied. Not in the
+   * manifest: it is the sender's ledger's ([22 §9]), for the diff a re-publish
+   * opens on, and nothing a reader of the file needs (2026-10-11, the P16.3h
+   * review).
+   */
+  sessionDigests: ReadonlyMap<string, string>;
 }
 
 export interface WorldFileRefusal {
@@ -580,6 +589,12 @@ interface SessionSurvey {
   /** The export's size as it travels — bindings and associations gone. */
   size: number;
   /**
+   * The export as it travels, hashed less `exportedBy` and the session's
+   * `updatedAt` — the half of {@link sessionDigest} the pictures do not
+   * decide. Hex, unprefixed: it is an ingredient, never shown.
+   */
+  content: string;
+  /**
    * Where it was written, and the hash of what was — `null` for a measure,
    * which writes nothing, and for an export over the entry limit, which is
    * never written.
@@ -617,7 +632,15 @@ export async function measureSession(
   const limit = limitsOf(context).maxEntryBytes;
   const survey = await surveySession(context, handle, id, exportedByOf(context), limit, null);
   if (survey === null) {
-    return { turns: 0, pictures: 0, attachments: 0, missingPixels: 0, entries: 0, bytes: 0 };
+    return {
+      turns: 0,
+      pictures: 0,
+      attachments: 0,
+      missingPixels: 0,
+      entries: 0,
+      bytes: 0,
+      digest: '',
+    };
   }
   const files = [...survey.pictures, ...survey.attachments];
   return {
@@ -627,7 +650,33 @@ export async function measureSession(
     missingPixels: survey.missingPictures,
     entries: 1 + files.length,
     bytes: survey.size + files.reduce((sum, one) => sum + one.size, 0),
+    digest: sessionDigest(
+      survey.content,
+      files.map((one) => one.name),
+    ),
   };
+}
+
+/**
+ * ***What one session sends, as one hash*** — `SessionFacts.digest`, and the
+ * ledger's per-session `digest` (2026-10-11, the P16.3h review): the export as
+ * it travels ({@link SessionSurvey.content}) and the member names of the
+ * pictures and attachments that go beside it, sorted.
+ *
+ * **Why both halves.** The export holds every rendition's record, and each
+ * record its picture's digest, so a picture drawn, retried or finished since
+ * moves the first half; but a picture whose record was there and whose pixels
+ * were not — still being drawn, or lost — travels or not by what is on disk,
+ * and only the names say which. An attachment's name is its own digest.
+ *
+ * Called by the review's measure over what the survey found, and by the plan
+ * over what it copied, so a picture that went between the two is the plan's
+ * to have counted: the ledger records what left.
+ */
+function sessionDigest(content: string, carried: readonly string[]): string {
+  const hash = createHash('sha256').update(content, 'utf8');
+  for (const name of [...carried].sort(compare)) hash.update(`\u0000${name}`, 'utf8');
+  return `sha256:${hash.digest('hex')}`;
 }
 
 /** The header every member of one file carries, in the shape the plan writes it. */
@@ -690,33 +739,74 @@ function travelling(
  * `JSON.stringify(JSON.parse(it))`.
  */
 function* compactPieces(document: Readonly<Record<string, unknown>>): Generator<string> {
-  yield '{';
+  for (const [, piece] of keyedPieces(document)) yield piece;
+}
+
+/**
+ * {@link compactPieces}' pieces, each with the top-level field it belongs to
+ * (`null` for the braces) — so one pass can both count the export and hash it
+ * less the fields that move without the transcript moving
+ * ({@link measureTravelling}), rather than encoding every turn twice
+ * (2026-10-11, the P16.3h review).
+ */
+function* keyedPieces(
+  document: Readonly<Record<string, unknown>>,
+): Generator<readonly [string | null, string]> {
+  yield [null, '{'];
   let first = true;
   for (const [key, value] of Object.entries(document)) {
     const head = `${first ? '' : ','}${JSON.stringify(key)}:`;
     if (Array.isArray(value)) {
       first = false;
-      yield `${head}[`;
+      yield [key, `${head}[`];
       for (let at = 0; at < value.length; at += 1) {
         const text = JSON.stringify(value[at]) as string | undefined;
-        yield `${at === 0 ? '' : ','}${text ?? 'null'}`;
+        yield [key, `${at === 0 ? '' : ','}${text ?? 'null'}`];
       }
-      yield ']';
+      yield [key, ']'];
       continue;
     }
     const text = JSON.stringify(value) as string | undefined;
     if (text === undefined) continue;
     first = false;
-    yield `${head}${text}`;
+    yield [key, `${head}${text}`];
   }
-  yield '}';
+  yield [null, '}'];
 }
 
-/** What a document's pieces come to, in UTF-8 bytes — counted, never held. */
-function sizeOfPieces(pieces: Iterable<string>): number {
+/**
+ * ***The export's size as it travels, and what it says, in one pass*** —
+ * `size` is every piece's UTF-8 bytes, the count the entry bound is held to;
+ * `content` is the same pieces hashed **less what moves without the
+ * transcript moving** (2026-10-11, the P16.3h review): `exportedBy`, which is
+ * the moment of this measure, and the session's own `updatedAt`, which an
+ * archive or a model dial moves while the file would carry the same thing —
+ * what they changed, `archivedAt`, `roles` and `stepRoles`, the writer has
+ * already stripped ({@link travelling}). The session document is
+ * hashed again without that one field, behind a marker — it is the small
+ * piece; the turns, which are the large ones, are hashed as they are counted.
+ */
+function measureTravelling(document: Readonly<Record<string, unknown>>): {
+  size: number;
+  content: string;
+} {
+  const hash = createHash('sha256');
   let size = 0;
-  for (const piece of pieces) size += Buffer.byteLength(piece, 'utf8');
-  return size;
+  for (const [key, piece] of keyedPieces(document)) {
+    size += Buffer.byteLength(piece, 'utf8');
+    if (key === 'exportedBy') continue;
+    if (key === 'session') {
+      const session = document['session'];
+      const kept =
+        typeof session === 'object' && session !== null
+          ? Object.fromEntries(Object.entries(session).filter(([field]) => field !== 'updatedAt'))
+          : session;
+      hash.update(`\u0000session:${(JSON.stringify(kept) as string | undefined) ?? ''}`, 'utf8');
+      continue;
+    }
+    hash.update(piece, 'utf8');
+  }
+  return { size, content: hash.digest('hex') };
 }
 
 /**
@@ -777,7 +867,7 @@ async function surveySession(
   // whitespace. Counted first, and written only when it fits — an export
   // over the bound is never on disk, even in scratch.
   const document = travelling(exported, exportedBy);
-  const size = sizeOfPieces(compactPieces(document));
+  const { size, content } = measureTravelling(document);
   let staged: { path: string; size: number; digest: string } | null = null;
   if (stageTo !== null && size <= limit) {
     const path = stageTo();
@@ -868,6 +958,7 @@ async function surveySession(
         ? (mode as { id: string }).id
         : null,
     size: staged?.size ?? size,
+    content,
     staged: staged === null ? null : { path: staged.path, digest: staged.digest },
     names,
     pictures,
@@ -1169,6 +1260,7 @@ export async function planWorldFile(
 
   const sessionRows: WorldFileSession[] = [];
   const sessionMembersPlanned: PlannedMember[] = [];
+  const sessionDigests = new Map<string, string>();
   for (const survey of sessions) {
     const folder = `sessions/${survey.id}`;
     const staged = survey.staged;
@@ -1235,6 +1327,13 @@ export async function planWorldFile(
       );
     }
     sessionMembersPlanned.push(exportMember, ...pictures, ...attachments);
+    sessionDigests.set(
+      survey.id,
+      sessionDigest(
+        survey.content,
+        [...pictures, ...attachments].map((one) => one.name),
+      ),
+    );
     sessionRows.push({
       id: survey.id,
       name: survey.name,
@@ -1367,7 +1466,16 @@ export async function planWorldFile(
   if (exact !== null) return { refusal: refusalOf(exact) };
   const bytes = storedZipBytes(sizes);
 
-  return { manifest, members, entries: members.length, bytes, notes: omitted, mtime: at, limits };
+  return {
+    manifest,
+    members,
+    entries: members.length,
+    bytes,
+    notes: omitted,
+    mtime: at,
+    limits,
+    sessionDigests,
+  };
 }
 
 /**

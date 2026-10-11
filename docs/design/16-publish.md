@@ -221,10 +221,23 @@ answerable before the file exists rather than after.
   the portrait its card holds, and a lorebook without the gallery in its
   `assets/`. Until §5.2's question is answered, the review names every picture
   that stays behind, by object, rather than letting a recipient find the gaps.
+  *(Answered, and closed, 2026-10-11: the World file carries pictures — a
+  character's inside its card, every other kind's beside its file, a session's
+  beside its export — and the review names only those that cannot travel: too
+  large, damaged, or gone from disk.)*
 - **Re-publishing opens on the diff.** §3's consequence: what changed since the
   last file, so *send them 1.2* is a decision made against what 1.2 actually is.
   [polish §3.1](workplan/06-polish.md) already wanted this and had nowhere to put
-  it.
+  it. *(Built at [P16.3h](workplan/35-p16-world.md), 2026-10-11, against the
+  account's ledger ([22 §9](22-internal-contracts.md)): first under the page's
+  title, the World's own changes — renamed, re-versioned, re-described — then
+  each object added, changed, renamed or no longer in the file and why (gone,
+  left out, no longer reached, too large), then each session played on, changed
+  or no longer sent; it follows the boxes as they are ticked. **Choose as last
+  time** sets the boxes and history as the last file had them and leaves what is
+  new since as the person has it; after a publish the page says so and compares
+  again on *Look again*. "Nothing has changed" is said only of what the file
+  would hold, and the World's own changes are said beside it.)*
 - **It renders in the panel, not a modal**, for the reason import's does: a
   pending decision that vanishes when somebody collapses the form is worse than
   one that does not fold ([10 §5](10-ui-surfaces.md)). No stepper.
@@ -404,7 +417,12 @@ publishing is neither.
 ## 8. How we would know this was wrong
 
 **Runnable once [P16.3](workplan/35-p16-world.md) ships**, and watched by whoever
-publishes, on their own install:
+publishes, on their own install: *(the counts are in each account's ledger,
+`publishes.jsonl` — [22 §9](22-internal-contracts.md), since P16.3d — one line per
+delivered file, with what was offered, what was unticked against the defaults,
+which sessions were ticked, and which World; `GET /api/publish/records` reads it.
+There is no surface that adds the lines up, by design: nothing reports anywhere,
+and the person who publishes reads their own.)*
 
 - **Watch whether anyone publishes twice from the same World.** §3's whole claim
   is that the durable set is worth keeping because you come back to it. If every

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ImportNote } from './import.js';
+import { SESSION_SCHEMA } from './publish-constants.js';
 import type { PortableSchemaId } from './schema/registry.js';
 import type { World } from './schema/world.js';
 
@@ -274,6 +275,25 @@ export interface SessionFacts {
   missingPixels: number;
   entries: number;
   bytes: number;
+  /**
+   * ***What the session would send, as one hash*** — `sha256:<hex>` over its
+   * export **as it travels** (bindings, `archivedAt` and memory associations
+   * already gone) less the two things that move without the transcript
+   * moving — the export's own `exportedBy` and the session's `updatedAt` — and
+   * the names of the pictures and attachments that would go with it. Empty
+   * for a session that could not be read.
+   *
+   * *Added 2026-10-11, the P16.3h review*, because the diff a re-publish opens
+   * on compared a session by its head, its count and its `updatedAt`, and two
+   * things fell through: **a picture drawn since** (the rendition worker never
+   * writes the session's document, so all three stay put while the file would
+   * carry a picture the last one did not), and **an archive or a model dial
+   * set** (both move `updatedAt`, and neither travels — the writer strips
+   * them), which read as *changed* about nothing the person sends. The
+   * ledger keeps the same hash per session (`PublishRecord.sessions`), so
+   * the diff compares what would leave with what left ({@link publishDiff}).
+   */
+  digest: string;
 }
 
 /** A library object the walk resolved. */
@@ -396,6 +416,18 @@ export interface Closure {
     description: string;
     version: string;
     contentHash: string;
+    /**
+     * ***The World's own page, as one hash*** — `sha256:<hex>` over its
+     * description, its pictures (`media`) and its authored `requires`: what
+     * the World says about itself in the file, and not its members, its name
+     * or its version, which the diff says on their own, nor its `provenance`,
+     * whose time the server stamps on every save, a member added included,
+     * nor its open `metadata`. The ledger keeps it
+     * (`PublishRecord.world.about`) so a re-publish can say *the World's own
+     * description changed* ({@link publishDiff}). *Added 2026-10-11, the
+     * P16.3h review.*
+     */
+    about: string;
     requires: World['requires'];
   } | null;
   nodes: ClosureNode[];
@@ -908,6 +940,33 @@ export function isWrittenByPlay(body: unknown): boolean {
   );
 }
 
+/**
+ * ***Too large to be one file in a World*** — `measureObject`'s mark for an
+ * object whose own stored file is over the entry limit: no entries, and that
+ * file named in `omitted`. The writer then leaves **the whole object** home as
+ * `too-large` with `publish.file.objectTooLarge` (the plan's risk 3: *a large
+ * card leaves its actor behind; the review shows this before confirm*).
+ *
+ * ***Moved here from the client's `model.ts` at [P16.3h] (2026-10-11)***, where
+ * the P16.3g review put it, because a second reader now needs it: the diff
+ * ({@link publishDiff}) compares what left last time — the ledger records the
+ * file's manifest, which never holds such an object — with what would leave
+ * now, and a `fileSet` that still carries one would make an object too large
+ * last time and too large again read as *added*. Two spellings of *does this
+ * travel* — one for the rows, one for the diff above them — is the
+ * disagreement this module exists to prevent, so there is one, here.
+ *
+ * *Not folded into {@link fileSet}*, for the reason the P16.3g fixer gave: the
+ * walk's rule is the walk's, and the size is the writer's — a plan built from
+ * `fileSet` still meets the writer's own too-large handling. This answers *will
+ * the writer leave it home*, read off the facts the writer's survey filled; an
+ * object measured before facts existed (a hand-built closure) is never too
+ * large.
+ */
+export function tooLargeToTravel(node: FoundNode): boolean {
+  return node.facts?.entries === 0 && node.facts.omitted.length > 0;
+}
+
 // ── The routes' contracts — [P16.3d] ────────────────────────────────────────
 
 /**
@@ -993,7 +1052,20 @@ export interface PublishRecord {
    * selection), `existing` for a World start; `null` for one object or a
    * snapshot, which keep nothing.
    */
-  world: { id: string; name: string; kept: 'created' | 'existing' } | null;
+  world: {
+    id: string;
+    name: string;
+    kept: 'created' | 'existing';
+    /**
+     * Its `version` and its `about` hash ({@link Closure}'s `world.about`) as
+     * the file carried them — *added 2026-10-11, the P16.3h review*, so the
+     * diff can say *this file is version 1.2; the last was 1.0* and *the
+     * World's own description changed*. A line written before has neither,
+     * and the diff then says nothing of either.
+     */
+    version: string;
+    about: string;
+  } | null;
   fileName: string;
   bytes: number;
   entries: number;
@@ -1004,12 +1076,22 @@ export interface PublishRecord {
    * next walk, which reads the same kind of hash.
    */
   objects: { schema: string; id: string; name: string; contentHash: string }[];
+  /**
+   * What left of each session: its head, the turns its export held, its time,
+   * and — since 2026-10-11 (the P16.3h review) — `digest`, the hash of what it
+   * sent ({@link SessionFacts.digest}: the export as it travelled, less
+   * `exportedBy` and `updatedAt`, and the names of the pictures and
+   * attachments that went with it). The diff decides *changed* by the digest
+   * where both sides have one; a line written before it has none, and is
+   * compared by its head and its time as it was then.
+   */
   sessions: {
     id: string;
     name: string;
     headTurnId: string | null;
     turns: number;
     updatedAt: string;
+    digest: string;
   }[];
   /** What the review offered — every found object and every session the walk reached — [16 §8]'s denominators. */
   offered: { objects: number; sessions: number };
@@ -1017,7 +1099,9 @@ export interface PublishRecord {
    * ***The person's overrides, both directions***: what was on by default and
    * was turned off (with whether a required link named it), and what was off
    * by default — a system object, a session — and was turned on. *Choose as
-   * last time* (P16.3h) re-applies exactly these.
+   * last time* (P16.3h) re-applies exactly these, and puts back at its
+   * default what `objects` held; what is new since it leaves as the person
+   * has it (2026-10-11, the P16.3h review — the client's `asLastTime`).
    */
   unticked: { id: string; required: boolean }[];
   ticked: string[];
@@ -1027,6 +1111,407 @@ export interface PublishRecord {
   missing: number;
   /** The confirm's walk did not hash to what the review was drawn from. */
   drift: boolean;
+}
+
+// ── What changed since the last file — [P16.3h] ─────────────────────────────
+
+/**
+ * ***One thing the diff names*** — an object or a session, by its id, its kind
+ * and its name. `schema` is the object's own for an object and
+ * `SESSION_SCHEMA` for a session, so a sentence can say the kind without a
+ * second lookup. The name is the one it has **now** where the walk still
+ * reaches it, and the one the last file recorded where it does not — the
+ * person reads the list below the diff by today's names, and a thing that is
+ * gone has only its old one.
+ */
+export interface PublishDiffEntry {
+  id: string;
+  schema: string;
+  name: string;
+}
+
+/**
+ * ***Why something in the last file is not in this one*** — the plan's three,
+ * and one more.
+ *
+ * - `gone` — **a reference the walk followed by its id resolved to nothing**: a
+ *   member the World still names, a link a carried object still holds. That
+ *   is certain, because a lookup by id that misses means the id is not in this
+ *   person's library ([16 §4]'s *reported, never dropped*).
+ * - `left-out` — the walk still reaches it, and the ticks now leave it out: its
+ *   own box, or the session it travelled with ([NodeBase.base]'s one cascade).
+ * - `no-longer-reached` — **the walk does not reach it, and nothing it walked
+ *   says it is gone.** The plan's gloss is *still in the library*; the diff
+ *   cannot promise that, and does not: it sees the walk and nothing else, so
+ *   an object removed from the World *and then deleted* — named by nothing,
+ *   looked up by nothing — reads here too. The review's sentence for it says
+ *   only what is true of both (*nothing in this world reaches it now*).
+ *   Matching a missing reference by **name** was considered and refused: an
+ *   object renamed since is exactly what a name-only reference stops finding,
+ *   so a name match would call a renamed object `gone` while it sits in the
+ *   library.
+ * - `too-large` — *added at [P16.3h], beside the plan's three*: the ticks still
+ *   carry it, and the writer will leave it home, because its own stored file
+ *   is now over the entry limit ({@link tooLargeToTravel}). Calling that
+ *   *left out* would say the person dropped it.
+ */
+export type PublishDiffWhy = 'gone' | 'left-out' | 'no-longer-reached' | 'too-large';
+
+/**
+ * ***What changed since the last file*** — [16 §5](../../../docs/design/16-publish.md)'s
+ * *re-publishing opens on the diff*: *"what changed since the last file, so
+ * 'send them 1.2' is a decision made against what 1.2 actually is."* [16 §3]
+ * is why it exists — a World re-resolves, so the published file is the frozen
+ * image and the World is not — and [P16.3h] builds it.
+ *
+ * **Objects** are compared by their **stored** `contentHash`, the ledger's and
+ * the walk's alike ([22 §9]): a portrait replaced, an entry edited, a gallery
+ * picture added all move it, and a card the writer re-spliced to drop a
+ * picture no row names does not, because neither side ever hashed the
+ * re-spliced bytes. A rename is a change (the name is in the body) and says
+ * what it was called.
+ *
+ * **Sessions** are compared by what the record holds of them — `turns`, and
+ * the hash of what each sent (`digest`, {@link SessionFacts.digest}) — and
+ * fall into one of three: *played on* (it holds more turns), *changed* (it
+ * holds no more turns, and what it would send is not what it sent — a rename,
+ * a hide, a rewind, a picture drawn since), or unchanged. ~~*Changed* was
+ * decided by `headTurnId`, `updatedAt` and the name~~ until 2026-10-11 (the
+ * P16.3h review): a picture moves none of them, and an archive or a model
+ * dial moves `updatedAt` while sending nothing new; those three are now the
+ * comparison only for a line written before the digest was. See
+ * {@link publishDiff} for how `turnsSince` is counted and what it cannot see.
+ *
+ * **The World itself** — its name, its version, and its own description,
+ * pictures and authored requirements (`world`, added 2026-10-11, the P16.3h
+ * review): [16 §5]'s own example, *send them 1.2*, is a version, and a diff
+ * that compared only members said *nothing has changed* of a World renamed
+ * and re-versioned with every member as it was.
+ *
+ * *Beside the plan's contract, two fields*: `sessions.changed` and
+ * `sessions.unchanged`, because the brief's *a session renamed or hidden but
+ * not played is changed, not played on* needs somewhere to put the first and
+ * a count of the rest is what makes *nothing else moved* sayable; and
+ * `noLongerTicked` carries a {@link PublishDiffWhy}, because *not ticked now*
+ * is false of a session that is gone.
+ */
+export interface PublishDiff {
+  /** The last file: when it was planned, and what it was called. */
+  since: { at: string; fileName: string };
+  /** In this file and not the last — new to the World, newly reached, or newly ticked. */
+  added: PublishDiffEntry[];
+  /** In both, with a different stored hash; `renamedFrom` when its name moved too. */
+  changed: (PublishDiffEntry & { renamedFrom?: string })[];
+  /** In both, with the same stored hash. */
+  unchanged: number;
+  /** In the last file and not this one, each with why. */
+  removed: (PublishDiffEntry & { why: PublishDiffWhy })[];
+  sessions: {
+    /** In this file and not the last. */
+    nowTicked: PublishDiffEntry[];
+    /** In the last file and not this one — unticked now, gone, or no longer the World's. */
+    noLongerTicked: (PublishDiffEntry & { why: Exclude<PublishDiffWhy, 'too-large'> })[];
+    /** In both, holding more turns than it did. */
+    playedOn: (PublishDiffEntry & { turnsSince: number; renamedFrom?: string })[];
+    /** In both, holding no more turns, and sending something other than it sent. */
+    changed: (PublishDiffEntry & { renamedFrom?: string })[];
+    unchanged: number;
+  };
+  /**
+   * The World the file is of: what it was called, its version then and now
+   * when they differ, and whether its own description, pictures or authored
+   * requirements moved. Each is said only where the last file's line records
+   * it — a line written before 2026-10-11 has a name and nothing else.
+   */
+  world: {
+    renamedFrom?: string;
+    version?: { then: string; now: string };
+    changed: boolean;
+  };
+  history: { then: boolean; now: boolean };
+}
+
+/**
+ * ***The diff a re-publish opens on*** — [P16.3h], [16 §5], [22 §9].
+ *
+ * **What it compares**: what *left* last time — the ledger's newest record for
+ * this World, `previous`, which is the file's manifest and not the review
+ * (P16.3d) — with what *would leave* now, `now`, which is {@link fileSet} over
+ * the current closure and the current ticks. The client calls it on every
+ * tick, so the diff follows the checkboxes; nothing here reads the library.
+ * Only a World start has a `previous` (`PublishPreview.previous`): one object
+ * or a snapshot keeps nothing for a later file to be a re-publish *of*.
+ *
+ * **What leaves now is `fileSet`'s, less what the writer will leave home as too
+ * large** ({@link tooLargeToTravel}): the record never holds such an object,
+ * so counting it as travelling would make it *added* every time.
+ *
+ * ***`turnsSince`, and why it is a difference of counts.*** The record holds,
+ * per session, its head turn's id, **how many turns its export held** (every
+ * turn the session records — retries, branches and turns hidden from the
+ * story included, which is what `exportSession` writes and what
+ * `measureSession` counts) and its `updatedAt`. The walk holds the same three
+ * now, the count as `facts.turns`. A list of turn ids is held by neither, so
+ * *which* turns are new cannot be asked; **how many more there are can**:
+ * `turnsSince = facts.turns − record.turns`, and a session is *played on*
+ * when that is above zero. It is a net count — a session with turns deleted
+ * since and as many played reads as holding no more, and is then *changed*
+ * by what it sends (below), never *unchanged* — and the review's sentence
+ * says *holds N more turns than it did*, which is exactly what it knows. A
+ * head that moved with no turn more (a rewind, a branch chosen) is *changed*,
+ * not played on; a rename or a hide is *changed* too — the brief's rule. A
+ * session with no `facts` (a closure built by hand, or one measured before
+ * P16.3d) has no count to compare, and is never played on by an unknown
+ * amount.
+ *
+ * ***Changed, by what it sends*** (2026-10-11, the P16.3h review). With no
+ * turn more, a session is *changed* when its `digest` — the hash of its export
+ * as it travels, and the names of the pictures and attachments beside it — is
+ * not the one the record kept, or its name moved; *unchanged* when it is. So
+ * a picture drawn since is a change though it moves no head, no count and no
+ * time (the rendition worker never writes the session's document), and an
+ * archive or a model dial set is not, though both move `updatedAt`: the
+ * writer strips `archivedAt`, `roles` and `stepRoles`, and the hash is taken
+ * after it has. Where either side has no digest — a line written before it
+ * was recorded, a closure built by hand — the comparison is the one this
+ * stage shipped with: the head, the time and the name.
+ *
+ * ***The World***: renamed when the line's `world.name` is not the walk's,
+ * re-versioned when its `world.version` is not, and *changed* when its
+ * `world.about` — the hash of the World's own description, pictures and
+ * authored requirements, which the server computes the same way on both
+ * sides — is not. Nothing is claimed from a field the line does not hold.
+ *
+ * ***Read as a hand-editable line***, as `ledger.ts` reads it: a record field
+ * missing or of the wrong type is tolerated here rather than thrown on — an
+ * object with no id is skipped, one with no hash compares as changed (the diff
+ * cannot say it is the same), and a session with no count is compared by its
+ * head and time alone.
+ */
+export function publishDiff(
+  previous: PublishRecord,
+  now: FileSet,
+  closure: Closure,
+  history: boolean,
+): PublishDiff {
+  const byKey = new Map<NodeKey, ClosureNode>(closure.nodes.map((node) => [node.key, node]));
+  const then = recordedObjects(previous);
+  const thenSessions = recordedSessions(previous);
+
+  // What leaves now: the rule's, less what the writer leaves home as too large.
+  const leaving = now.objects.filter((object) => !tooLargeToTravel(object));
+  const leavingIds = new Set(leaving.map((object) => object.id));
+  const carriedIds = new Set(now.objects.map((object) => object.id));
+
+  const added: PublishDiff['added'] = [];
+  const changed: PublishDiff['changed'] = [];
+  let unchanged = 0;
+  for (const object of leaving) {
+    const before = then.get(object.id);
+    const entry = { id: object.id, schema: object.schema, name: object.name };
+    if (before === undefined) {
+      added.push(entry);
+    } else if (before.contentHash !== null && before.contentHash === object.contentHash) {
+      unchanged += 1;
+    } else {
+      changed.push(before.name === object.name ? entry : { ...entry, renamedFrom: before.name });
+    }
+  }
+
+  const removed: PublishDiff['removed'] = [];
+  for (const [id, before] of then) {
+    if (leavingIds.has(id)) continue;
+    const node = byKey.get(id);
+    if (node?.state === 'found') {
+      removed.push({
+        id,
+        schema: node.schema,
+        name: node.name,
+        // Carried by the ticks and still not leaving: only the writer's size
+        // rule does that. Anything else the walk reaches and the file does not
+        // hold is the ticks' doing — its own box, or its session's.
+        why: carriedIds.has(id) && tooLargeToTravel(node) ? 'too-large' : 'left-out',
+      });
+    } else {
+      removed.push({
+        id,
+        schema: before.schema,
+        name: before.name,
+        why: missingById(closure, id) ? 'gone' : 'no-longer-reached',
+      });
+    }
+  }
+
+  const nowTicked: PublishDiff['sessions']['nowTicked'] = [];
+  const playedOn: PublishDiff['sessions']['playedOn'] = [];
+  const sessionsChanged: PublishDiff['sessions']['changed'] = [];
+  let sessionsUnchanged = 0;
+  const leavingSessions = new Set(now.sessions.map((session) => session.id));
+  for (const session of now.sessions) {
+    const entry = { id: session.id, schema: SESSION_SCHEMA, name: session.name };
+    const before = thenSessions.get(session.id);
+    if (before === undefined) {
+      nowTicked.push(entry);
+      continue;
+    }
+    const renamed = before.name === session.name ? {} : { renamedFrom: before.name };
+    const counted = session.facts?.turns;
+    const turnsSince =
+      counted === undefined || before.turns === null ? null : counted - before.turns;
+    // What it would send against what it sent, where both were hashed; the
+    // head and the time only where they were not (see the docstring).
+    const digest = session.facts?.digest ?? '';
+    const moved =
+      before.digest !== '' && digest !== ''
+        ? before.digest !== digest
+        : before.headTurnId !== session.headTurnId || before.updatedAt !== session.updatedAt;
+    if (turnsSince !== null && turnsSince > 0) {
+      playedOn.push({ ...entry, turnsSince, ...renamed });
+    } else if (moved || before.name !== session.name) {
+      sessionsChanged.push({ ...entry, ...renamed });
+    } else {
+      sessionsUnchanged += 1;
+    }
+  }
+
+  const noLongerTicked: PublishDiff['sessions']['noLongerTicked'] = [];
+  for (const [id, before] of thenSessions) {
+    if (leavingSessions.has(id)) continue;
+    const node = byKey.get(id);
+    if (node?.state === 'session') {
+      noLongerTicked.push({ id, schema: SESSION_SCHEMA, name: node.name, why: 'left-out' });
+    } else {
+      noLongerTicked.push({
+        id,
+        schema: SESSION_SCHEMA,
+        name: before.name,
+        why: missingById(closure, id) ? 'gone' : 'no-longer-reached',
+      });
+    }
+  }
+
+  return {
+    since: {
+      at: typeof previous.at === 'string' ? previous.at : '',
+      fileName: typeof previous.fileName === 'string' ? previous.fileName : '',
+    },
+    added,
+    changed,
+    unchanged,
+    removed,
+    sessions: {
+      nowTicked,
+      noLongerTicked,
+      playedOn,
+      changed: sessionsChanged,
+      unchanged: sessionsUnchanged,
+    },
+    world: worldDiff(previous, closure),
+    // Through `unknown`: a hand-edited line's `"yes"` is not a flag that was on.
+    history: { then: (previous.history as unknown) === true, now: history },
+  };
+}
+
+/**
+ * ***The World against the line's*** — each part said only where the line
+ * holds it as a string, so a line from before the version and the hash were
+ * recorded is compared by its name alone, and a hand-edited one claims
+ * nothing it cannot back.
+ */
+function worldDiff(previous: PublishRecord, closure: Closure): PublishDiff['world'] {
+  const now = closure.world;
+  const then = (previous.world ?? null) as Record<string, unknown> | null;
+  if (now === null || typeof then !== 'object' || then === null) return { changed: false };
+  const text = (key: string): string | null => {
+    const value = then[key];
+    return typeof value === 'string' ? value : null;
+  };
+  const name = text('name');
+  const version = text('version');
+  const about = text('about');
+  return {
+    ...(name === null || name === now.name ? {} : { renamedFrom: name }),
+    ...(version === null || version === now.version
+      ? {}
+      : { version: { then: version, now: now.version } }),
+    changed: about !== null && about !== '' && about !== now.about,
+  };
+}
+
+/**
+ * ***The last file's objects, read as a hand-editable line would be*** — by id,
+ * first wins; an entry with no id is no entry, and a hash that is not a string
+ * is `null`, which compares as changed.
+ */
+function recordedObjects(
+  record: PublishRecord,
+): Map<string, { schema: string; name: string; contentHash: string | null }> {
+  const out = new Map<string, { schema: string; name: string; contentHash: string | null }>();
+  for (const raw of listOf<unknown>(record.objects)) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const object = raw as Record<string, unknown>;
+    const id = object['id'];
+    if (typeof id !== 'string' || id === '' || out.has(id)) continue;
+    out.set(id, {
+      schema: typeof object['schema'] === 'string' ? object['schema'] : '',
+      name: typeof object['name'] === 'string' ? object['name'] : '',
+      contentHash: typeof object['contentHash'] === 'string' ? object['contentHash'] : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * The last file's sessions, the same way; a count that is not a number is
+ * `null` — unknown — and a digest that is not a string is empty, which is
+ * the same unknown.
+ */
+function recordedSessions(record: PublishRecord): Map<
+  string,
+  {
+    name: string;
+    headTurnId: string | null;
+    turns: number | null;
+    updatedAt: string;
+    digest: string;
+  }
+> {
+  const out = new Map<
+    string,
+    {
+      name: string;
+      headTurnId: string | null;
+      turns: number | null;
+      updatedAt: string;
+      digest: string;
+    }
+  >();
+  for (const raw of listOf<unknown>(record.sessions)) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const session = raw as Record<string, unknown>;
+    const id = session['id'];
+    if (typeof id !== 'string' || id === '' || out.has(id)) continue;
+    const turns = session['turns'];
+    out.set(id, {
+      name: typeof session['name'] === 'string' ? session['name'] : '',
+      headTurnId: typeof session['headTurnId'] === 'string' ? session['headTurnId'] : null,
+      turns: typeof turns === 'number' && Number.isFinite(turns) ? turns : null,
+      updatedAt: typeof session['updatedAt'] === 'string' ? session['updatedAt'] : '',
+      digest: typeof session['digest'] === 'string' ? session['digest'] : '',
+    });
+  }
+  return out;
+}
+
+/**
+ * ***A reference the walk followed by this id, which resolved to nothing*** —
+ * the one certain sign that the id is not in the library ({@link PublishDiffWhy}'s
+ * `gone`). A lookup by id that misses is a miss whatever the arm: a `Ref`
+ * resolves by id first and only then by name, an envelope and a session link
+ * by id alone, so an id that is still readable here is never a missing node's.
+ */
+function missingById(closure: Closure, id: string): boolean {
+  return closure.nodes.some((node) => node.state === 'missing' && node.ref.id === id);
 }
 
 /** A stored World is validated, but `requires` is also read from hand-edited files: arrays or nothing. */

@@ -900,6 +900,30 @@ describe('what a plan decides, case by case', () => {
 
   const worldStart = (): { kind: 'world'; id: string } => ({ kind: 'world', id: fixture.world.id });
 
+  /**
+   * ***What a session sends, as one hash*** (2026-10-11, the P16.3h review):
+   * the review's measure and the plan's ledger hash agree for a session that
+   * did not move — or every re-publish would open on a change nobody made —
+   * and the half the export does not hold, which pictures go beside it, moves
+   * it: a picture whose record stays put and whose pixels went (or came) is a
+   * different file.
+   */
+  it('hashes what a session sends: the measure and the plan agree, and the pictures beside it count', async () => {
+    const night = fixture.night.id;
+    const measured = await measureSession(fixture.context, 'ned', night);
+    expect(measured.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    const plan = await planned(fixture, worldStart(), { [night]: true }, false, stage);
+    expect(plan.sessionDigests.get(night)).toBe(measured.digest);
+
+    await unlink(
+      join(sessionAssetsRoot(fixture.server.services.layout, 'ned', night), fixture.pictureName),
+    );
+    const without = await measureSession(fixture.context, 'ned', night);
+    // The rendition's record is in the export unchanged; only its pixels went.
+    expect(without.turns).toBe(measured.turns);
+    expect(without.digest).not.toBe(measured.digest);
+  });
+
   it('writes no World for one object published alone', async () => {
     const plan = await planned(
       fixture,
