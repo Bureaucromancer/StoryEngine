@@ -1875,10 +1875,32 @@ bar nobody owns is a wish.
 | 6 | **Upgrade tested, not assumed** | The tarball's upgrade path *is* re-running the install script, which is why that script is written to be idempotent and leaves the data directory alone. **Walking it is a person's** — a previous release, with data, upgraded — and it is a gate row rather than a check. |
 | 7 | **Backup and restore actually exercised** | Built and tested at [P11.11](28-p11-implementation.md): `tools/backup.mjs`, and a restore test whose load-bearing assertion is that the index is **rebuilt rather than carried**. The live half — restore into a running install and watch a search answer — is [testing](03-testing.md)'s. |
 
+***And one schema change owed before beta, which no phase carries — added
+2026-10-11, at [P16](35-p16-world.md)'s final audit, and owned here.***
+[26 B16](../26-open-questions.md) was answered on 2026-10-10 — **open the
+unions** — and P16.2 opened `LoreScope`, the one union it needed. **The other
+three arms already added to closed unions stay closed**: `MediaRole`'s
+`background` in `storyengine.actor/1`, and the preset block source's
+`{ of: 'state' }` and `{ of: 'setup' }` in `storyengine.preset/0`. B16's answer
+says they open under the same rule, *owed before beta*, and the only places that
+said so were [P16 §1.3](35-p16-world.md) — "a change of their own", in a phase
+that closes without it — and B16's own entry; nothing after P16, P12A included,
+named it. **So it is a pre-beta change of its own, on this list**: each of the
+three unions gains an open arm, an arm a build does not know kept and ignored, as
+`LoreScope`, `ActorRole` and `CallKind` do. **It re-pins the actor and preset
+artefacts** in `packages/shared/src/schema/world-release-check.test.ts`, which
+pins both as they stood at `ad47e39` — so opening either union fails that test
+by design, and the change says why beside the new pin, as P16.2's arm did for the
+lorebook. *Due before the release that would freeze the closed shapes* — beta,
+or an alpha cut first: every build that writes native actors and presets inside
+a `.seworld` and refuses, whole, a file using an arm it lacks is one more build
+the opening cannot help.
+
 ### What is left is two rows and a person
 
 Rows 2 (the container half) and 6 are the whole of the remainder, and neither is
-code. **Both want a machine with a container daemon and a previous release
+code. *(2026-10-11: and the unions owed above, which is code — the only item on
+this list that is.)* **Both want a machine with a container daemon and a previous release
 installed on it**, which is the same sitting twice, and
 [P11 §3](28-p11-implementation.md) carries them — row 9 for the first, and the
 critical list its close builds for the second.

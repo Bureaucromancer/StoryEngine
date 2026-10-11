@@ -169,6 +169,18 @@ added with this note for the kinds [15](15-world.md) admits:
   six stories* are different things to send and one must not silently become the
   other.
 
+*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit — the summary above
+went stale exactly as this section warns a copy would; the table is right, and
+this is a pointer to it rather than a second copy. **Since 2026-10-10 it has
+thirteen rows, and one of them is a query**, by the owner's answers at P16.3's
+plan, amended in [04 §9.1](04-schemas.md) the same day: **a World also reaches
+every book whose scope names it**, a query rather than a field, since the book
+points at the World; and **a ticked session reaches its played cast** — the
+persona, `cast.actors`, and every actor its channels hold state for — **and every
+actor its pooled hooks name**, fired or not. The hook pool is still a copy inside
+the session export, as the Session bullet says; its `Ref`s point out of it, which
+is why they are walked.)*
+
 **What a walker built against the table has to get right**, since the table
 itself says these and a walker is where they would be lost:
 
@@ -266,12 +278,20 @@ reports first and commits on a word**: what is inside, by kind and name — the
 manifest exists so that *do I want these in my library* can be answered before
 anything is written — what already exists here, and what dangles. On commit, the
 objects land as library objects, each ticked session lands through the session
-reader P11.10 built as a new session, and **a World lands naming what landed**.
+reader P11.10 built as a new session, and **a World lands naming what landed** —
+*of its members (glossed 2026-10-11, the [P16](workplan/35-p16-world.md) final
+audit): what the walk brought beside them, a treatment's books or a hook's actors,
+lands loose in the library, and the World names only what the sender's World
+named.*
 
 **It reads both formats.** [P16.3](workplan/35-p16-world.md) writes the World's
 own format and reads the frozen `storyengine.package-export/1` beside it, so a
-`.sepack.json` written before the rename imports as a World. Nothing reads one
-today, so nothing anyone holds is stranded by the rename; the legacy read is for
+`.sepack.json` written before the rename imports as a World. ~~Nothing reads one
+today, so nothing anyone holds is stranded by the rename;~~ *Read since
+[P16.3e](workplan/35-p16-world.md), as a World, through the World file's own
+path (corrected 2026-10-11, the [P16](workplan/35-p16-world.md) final audit; the
+export that wrote one is removed at P16.3g), so nothing anyone holds is stranded
+by the rename;* the legacy read is for
 the files dev installs have written since P11.10, and it is kept. *(2026-10-10:
 two corrections of scope, neither of the design. **"Before the rename" means
 before P16.3**: [P16.0](workplan/35-p16-world.md) renamed the kind and left the
@@ -304,13 +324,18 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   hold it — new, or already here, or an earlier arrival of the same file found
   again — and is **re-minted** where another account on the install holds the id,
   because the library refuses an id held anywhere. References follow a re-mint by
-  exact match, in values and in the keys of maps keyed by id; a re-mint is never
+  exact match, in values and in the keys of maps keyed by id — *and, in a
+  session, inside the composite strings that carry an actor's id: a channel's
+  scope, a Scene lock's field path, a draw's purpose (moved here from the Sessions
+  bullet, 2026-10-11, the [P16](workplan/35-p16-world.md) final audit)*; a re-mint is never
   reported object by object, since that would tell one account which ids another
   holds. Your own file read back is *unchanged*.
 - **Keep both** makes copies, and whatever names a copy is copied too, so a copy's
   references stay inside the copies; a second keep-both import of the same file
   finds the copies it made and writes nothing.
-- **The World lands last and names what landed**, and its contents **merge and
+- **The World lands last and names what landed** — *its members that landed;
+  what the walk brought beside them lands loose (§5.1's gloss, 2026-10-11)* —
+  and its contents **merge and
   never shrink**: a sender cannot take a member out of a recipient's World by
   publishing again. A World nested in a World never lands.
 - **An object landing on one already here keeps its own tags**; one landing new
@@ -326,9 +351,12 @@ import review beside the frozen `.sepack.json`. What the reader decides:
 - ***Sessions*** ([P16.3f](workplan/35-p16-world.md)). A session lands as a session
   of the importer's own, its turns keeping their ids unless another account on the
   install holds them — then they are re-keyed, deterministically per account, and
-  every turn id inside the session follows, in values, in map keys and inside
+  every turn id inside the session follows, in values ~~, in map keys and inside
   composite strings (a channel's scope, a Scene lock's field path, a draw's
-  purpose), so opening it records no hand edit. **A session already here is asked
+  purpose)~~ *and in map keys (corrected 2026-10-11, the
+  [P16](workplan/35-p16-world.md) final audit: those three strings carry
+  **actor** ids, which follow an object re-mint — the Identity bullet — and no
+  turn id is inside one)*, so opening it records no hand edit. **A session already here is asked
   how it is keyed on disk**, never only the index, and takes what is new — turns
   appended where nobody has played on, pictures for turns it already has, goals
   written since, and, when nobody played here, the hook pool, cast and books —
@@ -340,6 +368,21 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   own entry found through the archive's directory — and says each object is
   *new*, *here* or *built-in* for this account alone: an id only another account
   holds is *new*, so the preview cannot be used to ask what somebody else has.
+
+*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit — **what the writer
+names**, which the list above, being the reader's, does not say. **Current
+names**: each member's folder in the file is the slug of its current name, not the
+folder on disk, whose slug is fixed when the object is made; the manifest's
+`folder` says the same; and each envelope in `world.json` carries its member's
+current name, so a renamed thing does not travel under the name it had. **Except
+inside a carried body**: a `Ref` there keeps the name its target had when it was
+linked, because a carried object is its stored file, held to its hash — rewriting
+it would publish a body the sender does not hold, and the sender's own import
+would read it as changed. Whether a rename should refresh the links to it, or the
+review should name a stale one, is the owner's, in P16's record. **Unsent words
+stay home**: a ticked session's recorded prompt blocks that the budget dropped —
+memory, unticked books' entries — travel as their rows with empty text, because
+the session never sent them.)*
 
 **The question the pictures bullet defers**, and [P16](workplan/35-p16-world.md)'s
 revisit decides it before P16.3 writes a format, because that format is frozen
@@ -380,7 +423,10 @@ object's detail page, a selection in a library panel, and a World's own page —
 where it replaces today's *Export this package* link — *Export this world*
 since [P16.0](workplan/35-p16-world.md) renamed the kind (2026-10-10), still
 writing the same `.sepack.json`. *(2026-10-11, [P16.3g](workplan/35-p16-world.md):
-built — **Publish…** beside **Download** on every object's page, a selection on the
+built — **Publish…** beside **Download** on every object's page *but a shadowed
+copy's and a lorebook play wrote (qualified 2026-10-11, the
+[P16](workplan/35-p16-world.md) final audit; a World's page has* Publish this
+world… *instead)*, a selection on the
 shelves, and **Publish this world…** where *Export this world* was, which is gone
 with its `.sepack.json`. The review is the library page's own column, its own
 route, loaded only when opened: "in the panel" read as the surface the panel

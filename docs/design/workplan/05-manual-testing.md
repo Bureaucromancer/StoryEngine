@@ -377,7 +377,11 @@ the critical lists of [P12A](34-p12a-the-look.md) and [P16](35-p16-world.md),
 registered before either phase opened. Their rows are known and their code is
 not written, so there is nothing to walk. *AA0's errand is the exception*, and it
 belongs on whatever day P16 opens rather than on this list: a data directory and
-an archive from before the rename, which cannot be made afterwards.
+an archive from before the rename, ~~which cannot be made afterwards~~ *made on a
+build from before it — which can still be done late (corrected 2026-10-11, the
+[P16](35-p16-world.md) final audit): an alpha 6 build stays obtainable, and
+[AA](#aa--p16s-critical-list--an-install-that-had-packages-a-second-account-and-one-turn-the-second-that-unblocks-r4)'s
+notes beside its steps say how*.
 
 ---
 
@@ -1375,6 +1379,14 @@ mode that would otherwise open on greetings — which is the opening W1 reads.
 here travelling in a package to a second account and starting there with its
 facts; the no-summary-slot warning on a preset that really has none; and a kept
 fact activating on its key in play rather than in a scripted prompt.
+*(2026-10-11, the [P16](35-p16-world.md) final audit: **the first of these can be
+walked now, and could not before.** A package is a World file since P16.3, sent
+with **Publish…** on the setup's page — and until the audit's fixes P16's publish
+held any object stamped as written by a session at home, so a setup made here,
+which [P15 §0.3](33-p15-setup-from-a-turn.md) stamps that way on purpose, was
+left out of every file. The rule reads the stamp on lorebooks only now, as §0.3
+says, and the setup travels with its facts book; `publish.test.ts` carries one
+through an object start and a World start. The item's wording is not edited.)*
 
 *And one thing seen at the merge and not judged* (2026-10-03): a setup started
 cold, or one with no opening of its own that seats a party or spends a hook,
@@ -1650,9 +1662,11 @@ from a keyboard and searched by somebody who has not met it, and the second make
 ***The rows are known now and cannot be walked yet***, T's distinction exactly:
 nothing here is blocked on a prerequisite with lead time — AA3's one turn wants
 [R2](#3-standing-prerequisites), which is to hand — and the sitting cannot start
-because the code is not written. **AA0 has one errand that cannot be done
-later**: the data directory and the archive AA1 reads have to come from before
-P16.0, so they are copied the day the phase opens or never.
+because the code is not written. **AA0 has one errand that ~~cannot be done
+later~~ is best done first**: the data directory and the archive AA1 reads have
+to come from before P16.0, so they are copied the day the phase opens ~~or
+never~~ *or, later, on an alpha 6 build (corrected 2026-10-11, the
+[P16](35-p16-world.md) final audit — the notes after the table say how)*.
 
 *Derived, not chosen*: [P16 §3.1](35-p16-world.md) applies the criterion row by
 row in a table of its own, the three clauses beside each check, and it is not
@@ -1668,6 +1682,42 @@ over Worlds, and a cascade destroys data — and row 5 is desk work, R5's shape.
 | **AA3** | ***Contribution copies, and P5.7 stays reversed.*** **Have a `global` lorebook that is in no World** — the one AA0 created before the upgrade, or a native `storyengine.lorebook` `.json` carrying `"scope": { "kind": "global" }` brought in through the import panel; after P16.2 neither a new book nor a SillyTavern import is one, which is the next check. Import a standalone SillyTavern lorebook: *As stored* gives its scope as `linked` with no actors, not `global`. Make a World of a treatment and one other lorebook. Start a session in the World: the treatment is chosen, `session.lore` on disk names the World's book and not the `global` one, and after one turn the workbench shows nothing retrieved from the `global` book. Add a second book to the World: the session already started does not change. Remove the World's book from the session's lore: it stops contributing. *If the `world` arm has landed*, scope the `global` book to the World, start a second session, and it is in that session's lore beside the member. | [P16.2](35-p16-world.md); [15 §5.3](../15-world.md) | |
 | **AA4** | ***A World published, and arriving.* Only a person can walk it.** Publish AA3's World with one session ticked. Read the review: every level shown, the session unticked until you ticked it, the pictures that stay behind named, the sentence about which builds can read the file. Import the file on the second account: the import says what is inside before it writes anything, and on commit a World arrives naming the objects and the one session, which opens. Back on the first account, edit one member and publish again: the review opens on what changed. | [P16.3](35-p16-world.md); [16 §5](../16-publish.md) | |
 | **AA5** | **Desk work: the release check, recorded.** Write [P16 §1.6](35-p16-world.md)'s test output — four schema artefacts unchanged, the lorebook's changed inside `LoreScope` alone or not at all, and the World's artefact in the package one's place, with no frozen copy kept ([P16 §1.1](35-p16-world.md)) — into [P16 §3.3](35-p16-world.md) and [work plan §0.2](01-work-plan.md). *Write the result there, never into P16's five rows* — [§0](#the-two-tier-gate) forbids that. | P16 5 | |
+
+***How to walk AA0 to AA2 with the build P16 ends on — notes dated 2026-10-11,
+beside the steps and never in them.*** The [P16](35-p16-world.md) final audit
+found that three of these steps meet this build differently from how they read,
+and one that the build now meets as written. [§0](#the-two-tier-gate)'s rule
+holds: the steps above are not edited, and whoever walks them records what was
+walked in [P16 §3.3](35-p16-world.md)'s table of what was answered.
+
+- **AA0, late.** Nothing on record says whether AA0 was done before P16.0 landed.
+  If it was not, it still can be: on an **alpha 6 build** — the
+  `v1.0.0-alpha.6` image tag, which never moves ([deploy](../../deploy.md)), or a
+  checkout of `ad47e39` run under `pnpm dev`, as
+  [P16.3g](35-p16-world.md) ran one at the desk. AA0's steps hold on it as
+  written, and *then upgrade* means opening the copy with a P16 build.
+- **AA0 and AA1, the trash clock.** The Package AA0 deletes **expires 30 days
+  after AA0 deleted it**, at any P16 start: the date is in the trash folder's own
+  name, so copying the directory keeps it, and P16.0 made the legacy trash
+  expirable on purpose. Before the copied directory's first start on a P16 build,
+  set `"trash": { "retentionDays": 0 }` in its `config.json` — or walk AA1 within
+  30 days of AA0's delete. A Package gone from the trash after that is the window,
+  not the migration.
+- **AA1's backup half, which cannot be walked as written.** No route imports one
+  account's archive into another — an account backup belongs to its handle — and
+  even if one did, the library refuses an id the install already holds, and the
+  first account holds every one of them. So: **import the pre-P16 account archive
+  on a second install** — a fresh data directory, run with the P16 build — into an
+  account with the archive's own handle, as the guide's
+  [Moving an archive to another install](../../guide/backups-and-trash.md#moving-an-archive-to-another-install)
+  says; its Package arrives as a World. **Keep the second account on the first
+  install for the `.sepack.json` half**, which does re-mint across accounts: an
+  id another account holds lands under a new one.
+- **AA2's World's page.** *The World's page shows the actor missing, named* was
+  not true of the page until the audit's fixes (`6dfb9f0`): only the editor
+  marked *Missing*. A World's page now lists its members by current name, each
+  linking to it, and a gone member under the name it was added with, marked
+  *Missing*. The step can be walked as written.
 
 **AA's remainder, which extends the standing list and holds nothing open** —
 [P16 §3.2](35-p16-world.md)'s five, in its order, with somewhere to record a
@@ -1759,7 +1809,7 @@ a claim nobody made.*
 | **P14** | 5 + 4 | **none of the nine as written**, because every row is a person's judgement or a real folder. Underneath, by stage: `turns/speakers.test.ts`, `turns/smart-speakers.test.ts`, `turns/runner-dispatch.test.ts`, `sessions/swipes.test.ts`, the Scene package's `tracking`, `plot`, `edit` and `echo` tests, `import/chat/build-property.test.ts`, `import/chat-sync.test.ts`, and the `fixture-pair` project's `import/fixture-pair-chats.test.ts` with `import/chat-size.test.ts` ([P14.12](31-p14-scene-and-session-import.md)) | **merged 2026-09-30 at `8878851`, and open; the list is unwalked — sitting Y, registered 2026-10-04** | **The twelfth gate to split under [§0](#the-two-tier-gate).** Five criticals: two plays of Part A's Scene (Y1, Y2), two real imports (Y3, Y4), and the agents judged (Y5). ***Y3 and Y4 are read as walkable without R1*** — recommended answer, owner deferred, 2026-10-04: a folder the walker makes answers the structural claim, provided its group is on a reply order other than SillyTavern's default, though not R1's question. *Two rows carry a judgement*, smart's worth and the agents' worth, and a *no* there is a refinement rather than a `FAIL`. The four remainder rows are Y7–Y10. *Registered with P13's, and as late* |
 | **P15** | 3 + 3 | **most of both halves** — `sessions/opening.test.ts`, `sessions/setup-from-turn.test.ts` (the no-hidden-content property), `sessions/summary-chain-property.test.ts` (a golden no-root key), `routes/setup-from-turn.test.ts` (the round trip), `play/SetupFromTurn.test.tsx`, `play/SessionsPage.test.tsx` | **built 2026-09-26 on `claude/nice-davinci-xjdpf6`, ~~not merged~~ *merged through `p15` 2026-10-03, and open*; the list is unwalked — sitting ~~T~~ W** | **The ~~ninth~~ tenth gate to split under [§0](#the-two-tier-gate)**, and one feature like P12. *What the suite cannot reach is prose*: whether a real model's story so far is one a session can continue from (W1), and whether a spoiler reached the person still playing through a model's words rather than a payload (W2). ***The round trip is automated rather than owed*** — emit at a turn, start from the Setup, play a turn — and was run against two mutations before it was trusted. **The gate's three rows were not edited**; the three remainder rows are [P15 §3.2](33-p15-setup-from-a-turn.md)'s. *Written as P13 with sitting T, on a branch that could not see `main`'s P13 and P14 or P12A's T; renamed, re-lettered and counted again at the merge, 2026-10-03 — [P15](33-p15-setup-from-a-turn.md)'s status says how* |
 | **P12A** | 9 stages | ~~none yet~~ **P12A.1's face pairing** — `theme.test.ts`'s *the two faces*, from [polish §17](06-polish.md) | **T, registered 2026-09-22; ~~nothing built~~** *P12A.1, and P12A.0's typeface token, were built on `main` on 2026-10-01 at [polish §17](06-polish.md) (`04e45a5`), before the phase opened. What is left of P12A.1 is its measure check ([P12A](34-p12a-the-look.md)). No row of T is about the face, and each wants a stage that is still unbuilt, so T is still unwalkable.* | **The ninth gate to split under [§0](#the-two-tier-gate), and the first registered before its phase opens.** Six rows, five of them a person and one desk work, and **none of them blocked on a prerequisite** — [P12A §1.2](34-p12a-the-look.md) spends a stage decision on keeping it that way. *Why a phase exists here at all*: [10 §1.3](../10-ui-surfaces.md) was written on 2026-09-22 and put commitments into the 1.0 corpus that the build does not meet, and [releases §0](04-repo-and-releases.md) makes beta a completeness gate against that corpus — so **R4 waits on T**, and R1, R2, R3 and R5 do not. *What the list deliberately cannot reach*: whether a generated backdrop reads well, which is [sitting O](#o--p9s-critical-list--two-rows-and-the-first-sitting-that-cannot-start)'s errand and travels with R10 rather than holding this phase open |
-| **P16** | 4 stages | none yet — ~~nothing is built~~ *P16.0 is built on branch `p16`, 2026-10-10* | **AA, registered 2026-10-04; ~~nothing built~~ P16.0 built 2026-10-10, unwalked** | **The thirteenth gate to split under [§0](#the-two-tier-gate), and the second registered before its phase opens**, after T and for T's reason: [15](../15-world.md) was rewritten on 2026-10-04 and put membership, contribution and transport into the 1.0 corpus, so **R4 waits on AA as it waits on T**, and R1, R2, R3, R5 and R6 do not. Five rows: the rename on a real install that had Packages (AA1), membership that is not ownership (AA2), contribution that copies with P5.7 still reversed (AA3), a World published and arriving on a second account (AA4), and the release check recorded (AA5). *One errand cannot wait*: AA1 reads a data directory and an archive from before P16.0, so AA0 copies them the day the phase opens or never. ***What the list deliberately cannot reach*** is accrual and the story bible, which this phase does not build ([P16 §4](35-p16-world.md)), and whether anybody wants a World at all, which [15 §8](../15-world.md)'s tests answer through use |
+| **P16** | 4 stages | ~~none yet~~ — ~~nothing is built~~ *P16.0 is built on branch `p16`, 2026-10-10* *(2026-10-11: the stages underneath, by row — `routes/world-membership.test.ts` (AA2), `routes/world-contribution.test.ts` and `play/world-start.test.ts` (AA3), `routes/world-round-trip.test.ts`, `routes/publish-diff.test.ts` and `import/world/legacy.test.ts` (AA1's `.sepack.json` half, AA4) — and AA5 answered three times by `world-release-check.test.ts`, in [P16 §3.3](35-p16-world.md))* | **AA, registered 2026-10-04; ~~nothing built~~ ~~P16.0 built 2026-10-10, unwalked~~** *every stage built on `p16` by 2026-10-11, and the final audit's fixes at `6dfb9f0`; AA5 answered, AA0 not recorded, AA1–AA4 unwalked (corrected 2026-10-11)* | **The thirteenth gate to split under [§0](#the-two-tier-gate), and the second registered before its phase opens**, after T and for T's reason: [15](../15-world.md) was rewritten on 2026-10-04 and put membership, contribution and transport into the 1.0 corpus, so **R4 waits on AA as it waits on T**, and R1, R2, R3, R5 and R6 do not. Five rows: the rename on a real install that had Packages (AA1), membership that is not ownership (AA2), contribution that copies with P5.7 still reversed (AA3), a World published and arriving on a second account (AA4), and the release check recorded (AA5). *One errand cannot wait*: AA1 reads a data directory and an archive from before P16.0, so AA0 copies them the day the phase opens ~~or never~~ *— or later on an alpha 6 build, as AA's notes say (corrected 2026-10-11)*. ***What the list deliberately cannot reach*** is accrual and the story bible, which this phase does not build ([P16 §4](35-p16-world.md)), and whether anybody wants a World at all, which [15 §8](../15-world.md)'s tests answer through use |
 
 **Two things this table makes plain and no single document did.** Every gate
 from P3 onward is unwalked — and until this table existed, each phase document

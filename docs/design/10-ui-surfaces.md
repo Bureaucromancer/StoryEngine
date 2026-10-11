@@ -1223,7 +1223,13 @@ World file. **Bulk select is built** for it: *Select* beside the search box puts
 checkbox on each row and *Select all shown*, and a bar says how many are chosen,
 announced as it changes; a World, a shadowed copy and a book play wrote cannot be
 chosen, each saying why to a screen reader. The selection survives a kind switch
-and nothing that changes who is signed in.)*
+and nothing that changes who is signed in.)* *(Qualified 2026-10-11, the
+[P16](workplan/35-p16-world.md) final audit: ~~on every object's page~~ — on every
+object's page **but a shadowed copy's and a book play wrote**, the same two the
+selection refuses; a World's page has* Publish this world… *in its place. Leaving
+the memory book out of the page's door was the stage's own interpretation, not in
+the plan's list, and it is recorded here so the sentence above is not read as a
+promise the page breaks.)*
 
 That is the wrong kind of quiet for a surface whose whole claim (§2.1) is *the
 library is the model*: these are your objects, in folders you may open in a text

@@ -36,6 +36,12 @@ and the story bible are not this phase** (§4): they wait for real play, on
 > World again with one session ticked, read the diff, and import the file on a
 > second account as a World holding exactly what landed.*
 
+*(Glossed 2026-10-11, at the final audit, beside the demo and not in it: "a World
+holding exactly what landed" is its **members** that landed — what the walk
+brought beside them, a treatment's books or a hook's actors, lands loose; and
+"watch the World say it is gone" was true of the World's editor alone until the
+audit's fixes (`6dfb9f0`) gave its page the same list.)*
+
 **What makes the phase smaller than it looks:** the stored form already is
 membership. A Package holds references, the index already draws them as links,
 *Used by* already lists Packages beside treatments, and the delete confirmation
@@ -506,7 +512,9 @@ and [04 §1](../04-schemas.md)'s tier table, [03 §1](../03-data-model.md),
 [09 §4.3](../09-server-multiuser-deployment.md)'s layout block,
 [10 §5.1](../10-ui-surfaces.md)'s six panels, the API reference's routes and kind
 list, the guide's library, concepts and import pages, the docs lorebook's kinds
-entry, and the changelog. **And in code, the same commit or CI fails**: the
+entry, and the changelog *(2026-10-11, the final audit: the changelog's part was
+met by one word of its preamble; the entry is owed at the next tag, and is drafted
+under* Owed at the merge, and at the next tag *below)*. **And in code, the same commit or CI fails**: the
 artefact swap committed — `storyengine.package.1.json` deleted,
 `storyengine.world.1.json` added — because CI's *Emitted schemas are current*
 step and `tools/repo-shape.test.ts`'s *commits every schema the build emits*
@@ -605,11 +613,18 @@ each finding verified before it was acted on, moved six things:
 - **Asset stores, asset copies and version amendments take the object's turn**
   on the library's write queue (`storage/library-writes.ts`, moved out of
   `library.ts` for the next bullet), because the first write to a legacy World
-  moves the folder they write into.
+  moves the folder they write into. *(2026-10-11, the final audit: an import's
+  picture and history carries did not — they wrote into the folder after the
+  object's write, off its turn — and now run inside it, the row read in the
+  turn.)*
 - **A legacy trash restore claims its folder on the kind's turn**, the one a
   create and the move take, and **rewrites in place then renames**, the move's
   order — writing `world.json` before removing `package.json` could stop with
-  both, a duplicate the next edit never resolved.
+  both, a duplicate the next edit never resolved. *(2026-10-11, the final audit:
+  and an entry whose id is in use on the install again — the same World imported
+  back since — comes back under a new id rather than as a second claimant,
+  answering `trash.restore.reminted`; the check is install-wide, so the note
+  names no holder, and the copy's versions restore under its new id.)*
 - **The assistant's proposals read `packages` as `worlds`**, as its context
   rendering already did.
 - **The older-index test writes version 12, the number alpha 6 shipped**, not
@@ -653,7 +668,12 @@ shipped, against the bullets above:
 - **The editor's picker** (`editor/MembersField.tsx`, `editor/members-form.ts`):
   members listed in order, by kind and by their **current** name — a reference
   sees the edit — with a member that resolves to nothing kept in place and marked
-  *Missing*, never removed for the person; **Add members** over everything of the
+  *Missing*, never removed for the person *(and in the editor only, until the
+  final audit: the World's page drew `contents` as stored, so AA2's* the World's
+  page shows the actor missing *and the demo's* watch the World say it is gone
+  *were not true of the page a person lands on. Since `6dfb9f0`, 2026-10-11, the
+  page lists the members the editor's way — current names, linked, a gone one
+  marked* Missing*)*; **Add members** over everything of the
   account's own of every kind **but Worlds** ([15 §3.1](../15-world.md)) and its
   sessions, archived ones labelled, filtered by name and kind and capped at fifty
   shown with the rest counted (AA11 is where that cap meets a real library). A
@@ -664,7 +684,8 @@ shipped, against the bullets above:
   on the page. **One server door** for the first, `POST
   /library/worlds/:id/members` (`library/worlds.ts`, `addMembers`): idempotent by
   id, hash-checked and retried on a stale read, refusing a World or the World
-  itself as a member — because a button on a session page holds no version of the
+  itself as a member *(a World under `storyengine.world/1` only, until the final
+  audit made it refuse `storyengine.package/1` too, 2026-10-11)* — because a button on a session page holds no version of the
   World, and a read-modify-write in a browser loses whatever a second tab saved.
   **The second is a query and the client's** (§1.2): the Worlds whose `contents`
   name the session, read off the same list the first control offers.
@@ -918,9 +939,13 @@ load-bearing claims against the code, which found most of them true, two
   name (P16.3c). A turn's recorded calls name the connection that answered —
   an id, never the connection — and stay; its recorded prompt may quote memory
   drawn from another session, and the review says so rather than scrubbing what
-  the session sent (P16.3g).
+  the session sent (P16.3g). *(2026-10-11, the final audit: what it **sent** —
+  the record also kept the words of every block the budget dropped, which the
+  session never sent, and they travelled; such a block now travels as its row
+  with no text.)*
 - *Gaps*: the World landing refuses a nested World envelope itself, since only
-  `addMembers` did (P16.3e); tag ids name the sender's tag registry and are
+  `addMembers` did (P16.3e) — *and `addMembers` only under the new schema id,
+  until the final audit*; tag ids name the sender's tag registry and are
   dropped where the recipient has no such tag (P16.3e); landing a session warms
   the recipient's summariser, which the reader either suppresses or the preview
   says (P16.3f); the reader's byte budget counts re-reads, and a session export
@@ -1097,7 +1122,9 @@ on and off.
   name members and sessions the publish left out.
 - **Two decisions the stage took, conservative and reversible, recorded for the
   owner.** *An object play wrote stays home* — a memory book, `provenance.source`
-  `session` — as `not-portable`, because its entries are a session's text and
+  `session` — *(held for any kind with that marking until the final audit,
+  2026-10-11, which kept a Setup made from a turn home against
+  [P15 §0.3](33-p15-setup-from-a-turn.md); lorebooks only now)* — as `not-portable`, because its entries are a session's text and
   may be an unticked one's; ~~the walker still draws it as included, so P16.3g's
   review shows the row staying home and why~~ *(P16.3d: the walker marks it, and
   `fileSet` — the one rule — leaves it home as `not-portable` with a note, so the
@@ -1110,7 +1137,10 @@ on and off.
   card as changed, and a replace merges its pictures back.
 - *Interpretations*: a book scoped to the World and not a member is `member:
   false` in the manifest and not named in `world.json`; a folder name colliding,
-  case-folded, takes `-2`; a session member that cannot be read stays home with
+  case-folded, takes `-2` *(the folder names are the current names' slugs since
+  the final audit, never the folders on disk, and `world.json`'s envelopes carry
+  current names; `slugify` already lowercases, so the case-fold is belt and
+  braces)*; a session member that cannot be read stays home with
   a note; a picture whose bytes do not match its name stays home, named.
   `publish.file.*` notes have no client sentences yet — P16.3g's.
 
@@ -1287,7 +1317,8 @@ says what it found (§1.1's last row).
   them, orphans labelled with *leave these out too*, an unchecked required book
   warned, the memory book shown staying home, each session off with what it would
   bring and the corrections' sentences — its turns record which model answered,
-  its prompts may quote memory from other sessions. A row reached only through an
+  its prompts may quote memory from other sessions *(and, since the final audit, a
+  memory left out of a prompt for room travels without its words)*. A row reached only through an
   unticked session is hidden and counted on that session, so a ticked box always
   means *in the file*. `reasons.ts` is a `Record` over every closure rule, so a
   rule without a sentence does not compile.
@@ -1308,7 +1339,8 @@ says what it found (§1.1's last row).
 - *Found outside the stage*: at 280 px the app's header makes every page scroll
   sideways — the review itself has nothing wider than the screen. Filed as a task
   of its own. *Owed at the next tag*: the CHANGELOG's lines for publishing, the
-  selection, and the World export replaced.
+  selection, and the World export replaced. *(2026-10-11: not the whole of what
+  is owed — the list under* Owed at the merge, and at the next tag *is.)*
 
 #### P16.3h — Re-publishing opens on the diff
 
@@ -1374,14 +1406,17 @@ again; the notes' disagreements follow in a docs commit of their own.
   it was linked under, because a carried object is its stored file, held to its
   hash — rewriting it would publish a body the sender does not hold. Whether a
   rename should refresh the links to it, or the review should name a stale one,
-  is the owner's.
+  is the owner's. The **suggested name** followed every starting point, an
+  unticked one included, into the file's name and a kept World's; it follows what
+  is ticked now, and a snapshot's name — the file's — can be edited.
 - **What could not be published, now can**: "written by play" held *any* kind
   with a `session` provenance at home, so a Setup made from a turn
   ([P15](33-p15-setup-from-a-turn.md)) never travelled — against P15 §0.3, which
   says only lorebooks are read for that marker. It is lorebooks only now.
 - **Data safety**: restoring a legacy trash entry whose id had since arrived again
   made a silent duplicate that took the id over; it now comes back under a new id,
-  and says so — and a version of it restores under its own id. The members route
+  and says so — the check install-wide, so the note names no holder — and a
+  version of it restores under its own id. The members route
   refuses a World envelope under the legacy schema id as it refuses one under the
   new; a World's own save is left open on purpose, every reader filtering a nested
   World. An import's picture and history carries now run in the object's own turn
@@ -1392,6 +1427,113 @@ again; the notes' disagreements follow in a docs commit of their own.
 - **The entry budget is raised to 317** (`tools/entry-budget.test.ts`): the fixes
   took it to **312.35**, a lazy member list measured *worse*, and the admin half of
   Settings behind one `lazy()` is the named next remedy at **−1.85 kB**.
+
+### Owed at the merge, and at the next tag — 2026-10-11
+
+**What the audit's docs pass could not close, in one place**, so that the merge
+and the next release cut read one list rather than eight stages' worth of
+italics. Each item says whose it is.
+
+- **Two disagreements between the notes and the build, open for the owner.**
+  *Starting in a World never reads a Setup member*:
+  [04 §9](../04-schemas.md) and [03 §7.2](../03-data-model.md) say a World
+  starts through its Setup — "the whole mechanism" — and P16.2 built a second
+  start ([15 §5.3](../15-world.md)) that reads its lorebook and treatment members
+  and ignores a Setup. **Should Start in a world use the World's Setup when it
+  holds exactly one?** The emitted `storyengine.world.1.json` description says
+  what 04 says and is left alone until the answer. *`requires` warns about modes
+  only*: 04 §9 and 03 §7.2 promise a warning for each unmet requirement and a
+  degraded-start option; the reader warns per missing or older mode, lists
+  extensions and capabilities without checking them, drops a malformed entry
+  without a word, and offers no degraded start. **Build the promise, or narrow
+  the notes to what was built?** Both are recorded where the notes state them,
+  dated, and neither text is struck.
+- **One code comment, for the next code change.** The docstrings in
+  `packages/shared/src/schema/world.ts` still say a reader carries an unknown
+  kind through untouched and that the import review shows one as "kept, not
+  usable here"; the World file reader reports it and keeps nothing
+  ([04 §9](../04-schemas.md), [15 §3.3](../15-world.md), both dated). A docs
+  pass does not edit code.
+- **B16's other three unions have an owner now**: `MediaRole`'s `background`
+  and the preset block source's `state` and `setup` arms, owed before beta by
+  [26 B16](../26-open-questions.md)'s answer and carried by no phase after this
+  one. They are on [work plan §8](01-work-plan.md)'s pre-beta list, under *What
+  beta requires*, with the re-pin of the actor and preset artefacts in
+  `world-release-check.test.ts` that opening either makes.
+- **The changelog's entry**, owed at the next tag, drafted here because
+  `CHANGELOG.md` refuses an unreleased heading — the convention
+  [P12](29-p12-implementation.md), [P13](30-p13-aventuras-import.md) and
+  [P15](33-p15-setup-from-a-turn.md) followed. *What the changelog will say*, in
+  its own sections:
+  - ***Before you upgrade.*** **Packages are Worlds now.** Every Package is
+    listed as a World at once, and keeps working; **its folder moves** from
+    `library/packages/` to `library/worlds/` the first time it is saved — the
+    first time StoryEngine moves a folder of yours, which matters to anyone who
+    edits or syncs those folders by hand — under a new folder name if a World
+    already has its name. A Package in the trash is listed as a World and puts
+    back as one. **The index rebuilds itself once** on the first start (its
+    version goes from 12 to 15). `/api/library/packages/…` and the World export
+    route answer `404`. **A new lorebook, and every standalone SillyTavern
+    lorebook imported, is linked to nobody** rather than `global` — which was
+    read by nothing either way.
+  - ***Added.*** **Worlds you make and fill**: *New world*, an editor that picks
+    members of every kind and your sessions, *Add to a world* from a session,
+    *In these worlds* on its page, and the World's page listing its members, a
+    deleted one marked *Missing* — a World never stops a delete and deleting one
+    deletes no member. **Starting a session in a World**, from its page or the
+    session form: its lorebooks, the books scoped to it, and its treatment when
+    it holds exactly one, copied in once. **A lorebook's scope can be set** —
+    *For sessions started in particular worlds* — under **Scope** in its
+    settings. **Publishing**: *Publish…* on an object's page, *Publish this
+    world…* on a World's, and *Select* on the shelves; a review of
+    every level, sessions off until ticked, history opt-in, and a `.seworld`
+    file that carries pictures and sessions. Publishing a selection keeps it as
+    a World unless *Just make the file* is chosen. **Publishing again** opens on
+    what changed since the last file. **Importing a World file** — and a
+    `.sepack.json` from alpha 5 or 6 — through the ordinary import, as a World
+    naming its members that landed.
+  - ***Changed.*** *Export this package* is gone, replaced by *Publish this
+    world…*: the file it wrote is still read. **A plot hook's *Involves* and
+    *Blocked by* take only what they offer**: a typed name that matches nothing is
+    no longer saved as a reference to nobody, which retired the hook quietly.
+  - ***Known.*** **Alphas 5 and 6 cannot read a World file as a World** — given
+    one, they bring in its objects alone — and **refuse, whole, a lorebook
+    scoped to a World**. Alpha 5's Known line — *World will rename them and go
+    on reading the old name* — gets its sequel: it did. A link inside a
+    published object keeps the name it was linked under (above, the owner's).
+- **The refile, at the merge.** By `PLAN_ORDER`'s rule this document files ahead
+  of [P12A](34-p12a-the-look.md), and `tools/renumber-docs.mjs` does that: the
+  final audit ran it in a scratch clone at `e6b3cbd` — swap the two entries,
+  `--rename`, commit, `--rewrite HEAD` — and it changed only the two documents'
+  citations and their H1s, 149 files, with the one unresolved citation that was
+  already there (`[28 §x]` in [P7B](24-p7b-presets-and-prompts.md)) and the
+  `docs` project green. **Do it on `p16`, as its own commits, before the
+  `--no-ff` merge**: `--rewrite` reads a committed rename, which a merge in
+  progress does not have — the trap [P12A](34-p12a-the-look.md)'s renumbering
+  notes record twice. **What it leaves stale, to edit by hand in the same
+  commit as the rewrite:**
+  - `tools/renumber-docs.mjs` — the two `PLAN_ORDER` entries swapped, and both
+    rationale comments rewritten: P12A's *Last … still the phase in front of
+    beta*, and this one's *After P12A, by a decision rather than a default*.
+  - The work-plan [README](README.md): the two rows in filing order again; this
+    document's row's *§0.1 is why it runs after P12A and is now the last phase
+    before beta*; P12A's row's *the last until 2026-10-04, when P16 was planned
+    to follow it*; and *How to read them*'s *~~30~~ ~~33~~ 34 is the phase in
+    front of us* and *And 35 follows it … so P12A is still the phase in front of
+    us, and is no longer the last before beta*.
+  - [Work plan §4](01-work-plan.md): the P16 entry's *the last phase before beta
+    is said … It runs after P12A rather than before it*, P12A's entry's *P16,
+    World, runs after it, below*, and the two entries' order.
+  - [P12A](34-p12a-the-look.md): *filed **after** this phase, at 35* (dated
+    2026-10-11 already, and still a bare number the rewrite will not touch), and
+    a renumbering note of its own, as the three before it have.
+  - This document: *Status: skeleton* in its first line, and §0.1's *It executes
+    after P12A, and is the last phase before beta is said. Filed at 35* — a bare
+    number, which the rewrite does not read.
+  - [26](../26-open-questions.md)'s *P16 runs after P12A*, under B17 (dated
+    2026-10-11 already; the sentence itself still says *after*).
+  - [Manual testing](05-manual-testing.md)'s status rows for P12A and P16 are
+    order-neutral and need nothing; check them anyway.
 
 ## 3. Verification — the P16 exit gate
 
@@ -1411,7 +1553,7 @@ walkable with what is to hand:
 
 | # | Check | (i) The claim | (ii) Why it compounds | (iii) To hand |
 |---|---|---|---|---|
-| 1 | **The rename, on an install that had Packages.** A data directory — one Package live, one in the trash — and a backup archive from before P16.0, opened and imported by a P16 build. | P16.0's legacy read | A rename that mishandles a folder strands files on disk, and nothing found later restores what a migration dropped | The walker's own data directory, after a Package's contents are filled by hand as AA0 says — no build before P16.1 has a surface for membership (§0.2's second fact) — copied before upgrading |
+| 1 | **The rename, on an install that had Packages.** A data directory — one Package live, one in the trash — and a backup archive from before P16.0, opened and imported by a P16 build. | P16.0's legacy read | A rename that mishandles a folder strands files on disk, and nothing found later restores what a migration dropped | The walker's own data directory, after a Package's contents are filled by hand as AA0 says — no build before P16.1 has a surface for membership (§0.2's second fact) — copied before upgrading. *(2026-10-11, beside the step: the backup half is walked on a second install, and the trashed Package is on a 30-day clock — the notes under this table.)* |
 | 2 | **Membership is not ownership.** Delete a member a World holds, and delete a World that holds members and sessions. | P16.1: never blocks, never cascades | Every later feature over Worlds inherits whichever answer ships, and a cascade destroys data | Any install |
 | 3 | **Contribution copies, and P5.7 stays reversed.** A session started in a World whose library also holds a `global` book. | P16.2's check | Every session started in a World carries what this decides, in its record and in its prompts | An install and one turn against [R2](05-manual-testing.md) |
 | 4 | **A World published, and arriving.** Publish with a session ticked, import on a second account, publish again after an edit. | P16.3: the round trip and the diff | The format freezes the first time a release writes it; a wrong shape found later is two formats forever | A second account on one install |
@@ -1422,6 +1564,28 @@ claim is about what a real install and a real second account do with them. Row 2
 is on the list for clause (ii) rather than for being invisible: its two halves are
 assertable and will be asserted, and what the walk adds is that a person reading
 the World afterwards understands what happened.
+
+***Row 1 with the build this phase ends on — notes dated 2026-10-11, at the final
+audit, beside the row and not in it*** ([sitting AA](05-manual-testing.md) carries
+the same notes beside AA0 to AA2):
+
+- **The backup half cannot be walked as AA1 words it.** No route imports one
+  account's archive into another — an account backup belongs to its handle — and
+  if one did, the library refuses an id the install already holds, and the first
+  account holds them all. **Import the pre-P16 account archive on a second
+  install** — a fresh data directory, run with a P16 build — into an account
+  with the archive's own handle, as the guide's
+  [Moving an archive to another install](../../guide/backups-and-trash.md#moving-an-archive-to-another-install)
+  says. **Keep the second account on the first install for the `.sepack.json`
+  half**, which re-mints across accounts.
+- **The trashed Package is on a clock.** It expires 30 days after AA0 deleted it,
+  at any P16 start — the date is in its trash folder's name, which the copy
+  keeps. Set `"trash": { "retentionDays": 0 }` in the copied directory's
+  `config.json` before its first start on a P16 build, or walk within 30 days.
+- **AA0 can still be done late**, on an alpha 6 build: the `v1.0.0-alpha.6` image
+  tag, or a checkout of `ad47e39` under `pnpm dev`, as P16.3g ran one at the desk.
+  *Whether it was done is not on record*, and §3.3 says nothing about it until a
+  person does.
 
 ### 3.2 The remainder, which extends the standing list
 

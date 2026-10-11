@@ -468,7 +468,9 @@ value — recommended answer, owner deferred ([15 §5.3](15-world.md), built at
 [P16.2](workplan/35-p16-world.md)).** ***(2026-10-10: built, on branch `p16`** —
 `newLorebook` and the SillyTavern importer's every standalone book write it, and
 the Lorebooks panel's *Linked* badge is drawn only for a book linked to somebody.
-The `world` arm is not built; it waits on B16.)* *The condition below arrived*:
+~~The `world` arm is not built; it waits on B16.~~)* *(Corrected 2026-10-11, at
+[P16](workplan/35-p16-world.md)'s final audit: B16 was answered later on
+2026-10-10, and the `world` arm was built the same day — B16's entry.)* *The condition below arrived*:
 `scope` regains a consumer in the `world` arm, so the default is decided first
 rather than inherited. An empty `linked` means *this book has not said where it
 applies*, is read by nothing, and behaves as today's default does for a book
@@ -502,7 +504,11 @@ asked at [P16](workplan/35-p16-world.md)'s revisit, where the `world` arm on
 `LoreScope` opens with the `world` arm, at [P16.2](workplan/35-p16-world.md); the
 three unions already widened — `MediaRole`, and the preset block source's two
 arms — open under the same rule, owed before beta and recorded in
-[P16 §1.3](workplan/35-p16-world.md) beside the arm. A build from before the
+[P16 §1.3](workplan/35-p16-world.md) beside the arm. *(2026-10-11, at
+[P16](workplan/35-p16-world.md)'s final audit: P16 closes without them and no
+later phase named them, so they are owned now by the work plan's pre-beta list —
+[work plan §8](workplan/01-work-plan.md), under* What beta requires *— where
+re-pinning the actor and preset artefacts in the release check is said too.)* A build from before the
 opening still refuses a file that uses an arm it lacks, whole: opening a union
 helps every build *after* it, which is why it is due before the release that would
 otherwise freeze the closed shape. *What follows is the entry as it was asked.* Three arms have
@@ -569,6 +575,9 @@ both names. [06 §4.1](06-modes-and-turn-pipeline.md) separates the two senses
 named, additive exception. [P16](workplan/35-p16-world.md) runs after P12A and
 before beta, and its critical list is sitting AA. **B14 and B15 above are
 answered by it, B10 by consequence; B16 is not, and the arm waits on it.**
+*(2026-10-11, at P16's final audit: B16 was answered on 2026-10-10 and the arm
+built at P16.2 the same day; and P16 opened ahead of P12A, by the owner's word,
+rather than after it — its refile is owed at its merge.)*
 ***(2026-10-10: [P16.0](workplan/35-p16-world.md) landed on branch `p16`.)*** The
 kind is World in its schema id (`storyengine.world/1`), the registry, the folder
 and file (`library/worlds/<slug>/world.json`), the routes (`/library/worlds/*`)

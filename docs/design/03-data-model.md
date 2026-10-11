@@ -386,7 +386,11 @@ duplication disappears for free once persona is a flag on an actor.
 > a Worlds-shaped concept ([15 §5.3](15-world.md)) — rather than letting a field
 > on a library object opt itself into somebody's story.
 >
-> *Designed 2026-10-04, not yet built* ([15 §5.3](15-world.md),
+> *Designed 2026-10-04, ~~not yet built~~ built at [P16.2](workplan/35-p16-world.md)
+> on 2026-10-10, once [26 B16](26-open-questions.md) was answered "open the
+> unions": the `world` arm and an open arm sit inside `storyengine.lorebook/1`
+> (corrected 2026-10-11, the [P16](workplan/35-p16-world.md) final audit)*
+> ([15 §5.3](15-world.md),
 > [P16.2](workplan/35-p16-world.md)): a World contributes by **copying** its books
 > into `session.lore` when a session starts in it, and `LoreScope` gains a `world`
 > arm read at that one moment, by the same copy. The rule above is intact — a
@@ -1484,6 +1488,13 @@ no surface of its own:
   *is* the mechanism. A World with no Setup is a content drop — *"here are five
   characters and a lorebook"* — which is a perfectly reasonable thing to share
   and had nowhere to live before.
+  ***A disagreement, recorded 2026-10-11 at the [P16](workplan/35-p16-world.md)
+  final audit, and open for the owner*** ([04 §9](04-schemas.md) carries the
+  same note): [P16.2](workplan/35-p16-world.md)'s *Start a session in this world*
+  is a second way to start, and it reads the World's lorebook and treatment
+  members and never a Setup member — so a World with no Setup starts, and one
+  with a Setup does not start *through* it. Should Start in a world use the
+  World's Setup when it holds exactly one? The owner's.
 - **Contents are embedded copies, resolved on import** into the recipient's
   library (with a "these already exist, link or duplicate?" step). Links resolve
   within the package first, then locally, then dangle visibly. The only reliable
@@ -1497,6 +1508,12 @@ no surface of its own:
   Campaign ≥ 2 and an image connection; you have neither" rather than a
   broken session later. A warning with a degraded-start option where possible,
   not a hard block.
+  ***A disagreement, recorded 2026-10-11 at the [P16](workplan/35-p16-world.md)
+  final audit, and open for the owner*** ([04 §9](04-schemas.md) carries the
+  same note): the reader built at P16.3e warns about **modes only** — "this wants
+  Campaign ≥ 2" is said, "an image connection" is not, since nothing is asked
+  about extensions or capabilities — drops a malformed entry without a word, and
+  offers no degraded start.
 - **No production settings, in either object.** No connection ids, no keys, no
   endpoint URLs, no per-install toggles — enforced by there being nowhere to put
   them ([00 §3.2](00-stance.md)).
@@ -1915,6 +1932,13 @@ search. Restoring re-indexes them. *(2026-09-27: for a session it did not, until
 now — the restore left it to the watcher, which does not look under `sessions/`,
 so a restored session was listed and never matched a search again. The restore
 indexes what it puts back, sessions through the rebuild's own derivation.)*
+*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: restoration is a
+move back **unless the id has arrived again**. A Package trashed before P16.0
+restores as a World, and if its id is in use on the install by then — the same
+World imported back, by this account or another — it comes back under a new id
+and the restore says so (`trash.restore.reminted`), rather than as a second
+object claiming the first one's id. Ids are the install's, so the note names no
+holder.)*
 
 Four properties worth fixing now:
 
@@ -1996,6 +2020,12 @@ Four behaviours, each of which is the non-obvious choice:
   interruption cannot leave a half-applied card. Marinara skips the snapshot when
   the current state already equals the target, which is the same no-op rule
   applied to the same problem.
+  *(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: **a version is
+  restored under the object's own id**, whatever id the version records. A
+  legacy World restored from the trash while its id is in use again comes back
+  under a new one (§10.2), and its versions still hold the old id; restored as
+  recorded, each was refused as an object changing its id. Every other write
+  keeps that refusal.)*
 
 And two fields worth keeping verbatim: **`source`** — what made this change
 (`manual`, `assist`, `extension`, `import`, `restore`) — and **`reason`**, free

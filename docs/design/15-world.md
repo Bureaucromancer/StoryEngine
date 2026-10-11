@@ -267,7 +267,7 @@ five, and [16](16-publish.md) is a flow inside the library, not a fourth surface
 | | Holds | Why |
 |---|---|---|
 | **Stored** — `library/worlds/<slug>/world.json` from [P16.0](workplan/35-p16-world.md); `library/packages/<slug>/package.json` until then — *and after it, read as a World until that object's first write moves it (2026-10-10)* | **references** — the `{ schema, id, name }` envelopes a stored Package's `contents` already holds | The objects live in the library and are edited there. A World holding copies would be a second representation of every object in it — [00 §2.8](00-stance.md)'s derived data persisted as truth, at the scale of a set |
-| **Wire** — the published file ([16](16-publish.md)) | **the objects**, each as it is stored | *"The only reliable way to ship something working to someone whose library you know nothing about"* ([03 §7.2](03-data-model.md)), unchanged |
+| **Wire** — the published file ([16](16-publish.md)) | **the objects**, each as it is stored — *with the exceptions [04 §9.3](04-schemas.md) lists (2026-10-11): the World re-encoded to what travels, a card without pictures no row names, history scrubbed of sessions* | *"The only reliable way to ship something working to someone whose library you know nothing about"* ([03 §7.2](03-data-model.md)), unchanged |
 
 **Embedding is a fact about the file; linking is a fact about the store.** Get it
 backwards in either direction and one of two failures follows: a stored set full
@@ -278,7 +278,10 @@ renames the stored form and does not change what it means.
 
 **Import is where the two meet.** The objects arrive as real library objects
 through the ordinary review step ([10 §5](10-ui-surfaces.md)), and the World that
-arrives with them names what landed. References inside the file resolve within
+arrives with them names what landed — *of its members (glossed 2026-10-11, the
+[P16](workplan/35-p16-world.md) final audit): what the walk brought beside them,
+a treatment's books or a hook's actors, lands as loose library objects and is not
+added to the World, which names only what the sender's World named.* References inside the file resolve within
 it first, then locally, then dangle visibly ([00 §3.3](00-stance.md)) — which is
 [04 §9](04-schemas.md)'s rule unchanged, now with somewhere for the result to be
 kept. ~~*No build reads a `.sepack` today*; [P16.3](workplan/35-p16-world.md)
@@ -298,8 +301,15 @@ the World the place an actor is edited.
 
 **What may be a member.** The five other portable kinds, and sessions (§3.2).
 **Not another World**, at 1.0: a set of sets is a question nobody has asked, and
-the envelope rule (§3.3) already carries a World found inside a file as an object
-like any other, so refusing nesting in the editor forecloses nothing. **A
+~~the envelope rule (§3.3) already carries a World found inside a file as an object
+like any other, so refusing nesting in the editor forecloses nothing~~ *refusing
+nesting forecloses the file path too (corrected 2026-10-11, the
+[P16](workplan/35-p16-world.md) final audit): since P16.3a and P16.3e a nested
+World — under either schema id — is excluded from a publish (`nested-world`) and
+never lands from a file (`import.world.nestedWorld`; an unlisted `world.json`
+lands loose, never as a World), which is [16 §5.2](16-publish.md)'s rule as built.
+The members route refuses one under either id; a World's own save is left open on
+purpose, because every reader filters it*. **A
 manuscript, when Write lands at 2.0**, may be a member — the reference is
 harmless and the set is the person's to define — and does not reach the wire
 while [13 §5](13-write-mode.md) keeps Manuscript in the internal tier
@@ -349,6 +359,13 @@ what a file validates:
   through the registry, and carries the rest through untouched. That is what
   keeps the kind stable when a new kind appears, and it survives the rename
   unchanged.
+  *(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: true of the
+  **stored** World, which keeps an envelope of a kind this build does not know;
+  not of the **file**. A publish leaves such a member behind (`unknown-kind`), and
+  the World file reader reports one another build wrote
+  (`import.world.unknownKind`), does not keep it, and does not name it in the
+  landed World — [04 §9](04-schemas.md) records the same disagreement. "Kept"
+  waits for somewhere to keep an object of no kind.)*
 - **There is nowhere to put a connection.** [00 §3.2](00-stance.md) is enforced
   by the type system rather than by discipline: portable kinds have no field that
   could hold an endpoint, a key or a per-install toggle, so **importing a
@@ -491,7 +508,7 @@ long before it.
 |---|---|---|
 | **The kind** | Package renamed World — schema id, folder, file, panel, routes — as a migration that reads the old name and writes the new one. No new kind. | [P16.0](workplan/35-p16-world.md) |
 | **Membership** | References, sessions included; never blocks a delete; an object in several Worlds or none. | [P16.1](workplan/35-p16-world.md) |
-| **Contribution** | A new session in a World copies its books into `session.lore`, offers its treatment, and copies the hooks those carry — §5.3. The `world` arm waits on [26 B16](26-open-questions.md). | [P16.2](workplan/35-p16-world.md) |
+| **Contribution** | A new session in a World copies its books into `session.lore`, offers its treatment, and copies the hooks those carry — §5.3. ~~The `world` arm waits on [26 B16](26-open-questions.md).~~ *The `world` arm is built (corrected 2026-10-11): B16 was answered on 2026-10-10 — open the unions — and P16.2 built it inside `/1` the same day.* | [P16.2](workplan/35-p16-world.md) |
 | **Transport** | [16](16-publish.md)'s review; publishing a selection of two or more makes a World, one object makes none; re-publishing re-resolves. | [P16.3](workplan/35-p16-world.md) |
 | Sessions belong to a World | **None on the session.** Sessions are the *free to move* tier ([04 §1](04-schemas.md)), and membership is a reference on the World (§3.2). | — |
 | World-scoped memory | **Met.** Memory books must not hard-code the `(user, actor, persona)` three-tuple; `MemoryScope` is a record of named keys ([P8.2](workplan/25-p8-implementation.md)). The key itself is accrual's (§4.1). | P8 |
@@ -583,6 +600,13 @@ holds without amendment. Starting a session in a World:
 - **copies the hooks** those carry, by [03 §4.1](03-data-model.md)'s rule for
   every carrier a session names, ids kept (§5.1).
 
+*(2026-10-11, the [P16](workplan/35-p16-world.md) final audit: **a Setup member
+is not on this list**, and P16.2 built exactly the list — so a World start never
+reads a Setup the World holds. [04 §9](04-schemas.md) and
+[03 §7.2](03-data-model.md) say a World starts *through* its Setup, "the whole
+mechanism"; both now carry the disagreement, open for the owner: should Start in
+a world use the World's Setup when it holds exactly one?)*
+
 There is no live pointer back. A World edited after the session started changes
 nothing in it, and per-session divergence is the default rather than a feature
 to add. **The rule that a lorebook reaches a session by being selected is
@@ -628,9 +652,14 @@ the World that gives it meaning. That is the whole difference between the arm
 refused and the arm added.
 
 **It widens a closed portable union inside its version, which is
-[26 B16](26-open-questions.md)'s question exactly, and the arm waits on B16's
-answer.** `LoreScope` is closed in `storyengine.lorebook/1`; an older build
-fails a book that uses an arm it does not know, whole. Whichever way B16 is
+[26 B16](26-open-questions.md)'s question exactly, ~~and the arm waits on B16's
+answer.~~** ~~`LoreScope` is closed in `storyengine.lorebook/1`;~~ *(corrected
+2026-10-11, the [P16](workplan/35-p16-world.md) final audit: B16 was answered on
+2026-10-10 — open the unions — and the arm is built, with `LoreScope` opened
+inside `storyengine.lorebook/1` beside it; the paragraph says what was weighed
+before the answer.)* An older build
+fails a book that uses an arm it does not know, whole — *alphas 5 and 6 do, and
+P16's record says so where the next tag's notes are owed*. Whichever way B16 is
 answered — open the unions, bump the version, or accept and say so — decides how
 the arm lands, and [P16.2](workplan/35-p16-world.md) lands the copy from
 membership first and the arm second, so that the half of contribution that

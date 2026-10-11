@@ -110,7 +110,10 @@ derived from it.**
 The direction of derivation is the actual decision, and it turns on constraint 5:
 **a package or extension manifest schema has to be publishable and consumable by
 people who are not compiling against our TypeScript.** A third-party tool that
-validates a `.sepack` should be able to fetch a schema file. That points to JSON
+validates ~~a `.sepack`~~ *an object this build writes — each a native file inside
+a `.seworld` (2026-10-11, the [P16](workplan/35-p16-world.md) final audit: nothing
+writes a `.sepack` since P16.3g; `emit-schemas.ts` says the same)* should be able
+to fetch a schema file. That points to JSON
 Schema as the artefact and TS types as the derivative — which is TypeBox's model
 (`Static<typeof T>`), not Zod's.
 

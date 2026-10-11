@@ -84,11 +84,17 @@ because the setup already says everything a session needs. To start from a setup
 opening, or cold, use the sessions page: see
 [Starting from a setup](playing.md#starting-from-a-setup).
 
+A world's page lists its **Members**, each by its current name and linking to it — a
+session to the session, anything else to its page. One that is no longer in your
+library or among your sessions keeps the name it was added under, has no link, and is
+marked **Missing**: the world goes on naming it until it is removed from the world, in
+its editor.
+
 A world's page — your own — has **Start a session in this world**, which starts a
-session with the world's lorebooks and, when it holds exactly one, its treatment, adds
-the session to the world, and opens it; and **Choose first…**, which opens the sessions
-page's form with the world picked, to change what it fills in. See
-[Starting in a world](playing.md#starting-in-a-world).
+session with the world's lorebooks, every lorebook of yours whose scope names the world,
+and, when it holds exactly one, its treatment, adds the session to the world, and opens
+it; and **Choose first…**, which opens the sessions page's form with the world picked,
+to change what it fills in. See [Starting in a world](playing.md#starting-in-a-world).
 
 The page shows no pictures. The workbench over it shows the object's provenance, its
 version history and how the index sees it.
@@ -305,20 +311,24 @@ An object's page lists what points at it — *Referenced by 2 sessions and 1 tre
 with the names — and the delete question repeats the count. It never blocks a delete.
 What counts:
 
-- **sessions** count the characters in their cast and persona, and their chosen
-  lorebooks — archived sessions included, deleted ones not;
+- **sessions** — archived ones included, deleted ones not — count their treatment, the
+  characters in their cast and persona, their chosen lorebooks, the characters their
+  plot hooks name (fired or not), and any character the story itself brought into
+  play, such as one a hook introduced;
 - **setups** count their treatment, preset, cast, lorebooks and the characters their
   hooks name;
 - **treatments** count their lorebooks, cast and hook characters;
+- **characters** count the lorebooks they link;
 - **lorebooks** count the characters their hooks name;
 - **worlds** count their members, sessions included.
 
 **A world never stops a delete.** Deleting something a world holds deletes it; the
-world goes on naming it, marked **Missing** in its editor, until you remove it there.
-And **deleting a world deletes none of its members** — the lorebooks, characters and
-sessions it named are exactly where they were. Membership is a list, not ownership.
+world goes on naming it, marked **Missing** on the world's page and in its editor,
+until you remove it in the editor. And **deleting a world deletes none of its
+members** — the lorebooks, characters and sessions it named are exactly where they
+were. Membership is a list, not ownership.
 
-A session's treatment and preset do not count.
+A session's preset does not count.
 
 ## Shipped objects
 

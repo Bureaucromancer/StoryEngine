@@ -1524,7 +1524,11 @@ build reads, not because it travels.
 ```ts
 interface PublishRecord {
   schema: 'storyengine.publish-record/1'
-  at: string                       // when the file finished sending
+  at: string                       // when the confirm planned the file — the
+                                   //   manifest's exportedBy.at; the line is
+                                   //   written once the file finished sending
+                                   //   (corrected 2026-10-11: was "when the
+                                   //   file finished sending")
   build: string | null             // the build that wrote it
   origin: 'object' | 'selection' | 'world'
   start: string[]                  // the ids it started from
@@ -1567,7 +1571,11 @@ interface PublishRecord {
   provenance, which every save stamps. So *send them 1.2* is a change the diff
   can name: renamed, re-versioned, re-described.
 - **Written when a `200`'s file has been sent to its end**, and only then — never
-  for a refusal, an unreadable file, or a download abandoned part-way. A World
+  for a refusal, an unreadable file, or a download abandoned part-way. *Its `at`
+  is not that moment (corrected 2026-10-11, the [P16](workplan/35-p16-world.md)
+  final audit): it is the manifest's `exportedBy.at`, taken when the confirm
+  planned the file, so the line and the file it describes carry one time, and on
+  a slow download the diff's "since" is the time the file was made.* A World
   a selection kept and whose download was abandoned therefore has no line; that
   is the cost, and [16 §8](16-publish.md) reads it as a publish nobody received.
 - **Appending never throws**: a ledger that cannot be written costs its line,

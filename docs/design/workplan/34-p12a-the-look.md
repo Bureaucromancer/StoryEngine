@@ -69,6 +69,11 @@ answer, and P16's new surfaces are cheaper built to this phase's rules than
 retrofitted by its sweep. So this number, this sitting and this name all stay,
 and **§0.1's one scheduling claim gains a sibling** rather than changing: R4 must
 not be walked until this phase lands, and not until P16 lands either.
+*(2026-10-11: ~~filed **after** this phase~~ — P16 opened **ahead** of this phase
+on 2026-10-10, by the owner's word, and was built first; by `PLAN_ORDER`'s rule it
+is refiled ahead of this document at its merge, and this paragraph is on
+[P16](35-p16-world.md)'s list of what `tools/renumber-docs.mjs` will not reach.
+The sibling claim stands: R4 waits on both.)*
 
 **Its sitting stays T.** It was registered 2026-09-22; `main`'s own T — pictures
 on a move, [26 E15](../26-open-questions.md) — was registered 2026-09-27 by a
@@ -90,6 +95,22 @@ typeface token of [P12A.0](#p12a0--the-tokens-every-other-stage-spends); the
 sentences below that said otherwise are corrected where they stand rather than
 rewritten. The rest of that pass — polish §18 to §23 — is colour, navigation,
 confirmation, refusals and the keyboard, and none of it is a stage here.
+
+***And P16 hands this phase its entry — a note dated 2026-10-11, at
+[P16](35-p16-world.md)'s final audit.*** P16 ran first, and it leaves the client
+entry at about **312.35 kB** gzip against a ceiling of **317**
+(`tools/entry-budget.test.ts`, raised at that audit with every figure measured) —
+under five kB for a phase whose stages, tokens, motions, faces and editor headers,
+all touch the client, and whose first stage is the one that spends them. ***The
+named remedy, measured before this phase opens***: the admin half of Settings —
+Accounts, Connections, Install, Backups — behind one `lazy()` took the entry to
+**310.50**, **−1.85 kB**, with every audit fix in; it wants a chunk-error boundary
+and an off-the-entry check like the publish review's, which makes it a loading
+decision of its own ([21 §7](../21-client-loading.md)) rather than something to
+slip into a stage. *A split that imports what the entry already holds measured
+worse, not better* — the budget test's raise note says by how much — so the
+remedy is the one that moves a whole surface, and a raise is the other honest
+answer, with a measured reason, as every earlier raise had.
 
 ---
 

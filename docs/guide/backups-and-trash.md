@@ -287,7 +287,13 @@ this one back.*
 
 A package deleted under an earlier version, before worlds were called worlds, is listed
 as a *world*. **Put it back** returns it as one, in the worlds folder — under a numbered
-folder name if a world has taken its name since, rather than refusing.
+folder name if a world has taken its name since, rather than refusing. If the same
+world has come back onto this server since you deleted it — imported again, by you or
+by another account — the one in the trash returns as a separate world, and the panel
+says *“…” came back as a separate world under a new id: its own is already in use on
+this server, and whatever uses it is unchanged.* The world already here, and the
+sessions in it, are not touched. The returned copy keeps its version history, and
+**Restore** on an earlier version of it works as on any other object.
 
 Deleted things are removed once they are older than `trash.retentionDays` (30 by
 default; `0` keeps them for ever). The sweep runs about a minute after the server

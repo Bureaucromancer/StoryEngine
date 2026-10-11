@@ -584,9 +584,13 @@ story file**, below, which brings its story whatever the field says.
 `storyengine-world.json` anywhere is a World file, swept as a root
 (`report.source` `storyengine-world`): its objects in the manifest's order, then
 anything in it the manifest does not list (`import.world.unlisted`), then its
-sessions, then the World, which names exactly what landed — merged into a World
+sessions, then the World, which names ~~exactly what landed~~ *the members that
+landed — what the walk brought beside them (a treatment's books, a hook's actors)
+lands loose in the library and is not added to the World (corrected 2026-10-11,
+the [P16](design/workplan/35-p16-world.md) final audit)* — merged into a World
 already here, never shrinking it. An object is checked against the manifest's
-hash and refused alone when it does not match (`import.world.damaged`); a file
+hash and refused alone when it does not match (`import.world.damaged`), as is
+one whose body's id is not its manifest row's; a file
 that names a member twice, lists a file or id twice, or carries a manifest of
 another schema or a later version is refused whole, before anything is written.
 An object whose id another account on this install holds lands under a new id,
@@ -1322,7 +1326,14 @@ somebody else saved in between.
   ([P16 §1.2](design/workplan/35-p16-world.md)). An id that resolves to nothing
   is kept, as every reference here is: it dangles visibly rather than blocking.
 - **Not a World, and not itself** — `400 {"error":"invalid"}`. A World does not
-  hold a World ([15 §3.1](design/15-world.md)).
+  hold a World ([15 §3.1](design/15-world.md)). *Under either schema id since
+  2026-10-11, the [P16](design/workplan/35-p16-world.md) final audit:
+  `storyengine.package/1` is refused as `storyengine.world/1` is — until then an
+  envelope under the legacy id was written with a `200`, which this sentence did
+  not say.* This route is the only door that refuses one: a World's own `POST`
+  and `PUT` are left open on purpose, since refusing there would refuse every
+  save of a World that already holds one, and the publish walker, the World
+  file's writer and its reader each leave a nested World out.
 - `404 {"error":"not-found"}` for a World that is not there, or an id of
   another kind. A World still stored under its old name moves on this write, as
   on any first write.
@@ -1523,14 +1534,23 @@ library, not the index, not the ledger, not a scratch file left behind.
   the re-publish diff compares with the ledger's last record.
 - `reviewed` — a hash of what the review was drawn from. Sent back with the
   confirm, it is how a change made in between is reported (below).
-- `suggestedName`; `justTheObject`, true when an object start's closure is the
+- `suggestedName` — the World's own for a World start, an object's for an object
+  start, and for a selection the names of its first three starting points *that
+  the default ticks carry* (2026-10-11, the [P16](design/workplan/35-p16-world.md)
+  final audit: until then every starting point, an unticked one included); the
+  review recomputes it with the same rule as the ticks move, until the person
+  types a name; `justTheObject`, true when an object start's closure is the
   object alone ([16 §2](design/16-publish.md) sends that one to *Download*);
   `sameAs`, for a selection, the Worlds that already hold exactly it;
   `modeVersions`, this install's version of each mode the closure needs, `null`
   for one it does not have; `previous`, for a World start, the ledger's last
   record of publishing it, which the diff opens on.
-- An object of yours is on by default; a system object, a session, and an object
-  play wrote — a memory book, which stays home whatever is ticked — are off.
+- An object of yours is on by default; a system object, a session, and ~~an object
+  play wrote~~ a lorebook play wrote — a memory book, which stays home whatever is
+  ticked — are off. *(Corrected 2026-10-11, the
+  [P16](design/workplan/35-p16-world.md) final audit: the rule held any kind marked
+  as written by a session, so a Setup made from a turn never travelled; it is
+  lorebooks only now, and that Setup is an object of yours like any other.)*
 
 `404 {"error":"not-found"}` for a start that is not there — a lone id, a World,
 or a selection none of whose ids resolve. A selection with *some* missing is a
@@ -1550,11 +1570,17 @@ the selection, with `content-length`.
 
 `ticked` overrides the defaults by id; an id the walk no longer reaches is
 ignored and a new one takes its default, because the confirm walks the library
-afresh. `keep` and `name` are read only for a selection: `"world"` (the default)
-keeps the selection as a World of that name — **the one write a publish makes to
+afresh. ~~`keep` and `name` are read only for a selection: `"world"` (the default)~~
+*`history` and `keep` are required — a body without either is `400`, and
+`"world"` is what the review defaults to, not the route (corrected 2026-10-11, the
+[P16](design/workplan/35-p16-world.md) final audit). `keep` is read only for a
+selection:* `"world"` keeps the selection as a World of that name — **the one write a publish makes to
 the library**, created only once the file is planned, so a refusal leaves none —
 and `"snapshot"` keeps nothing. A World start never changes its World, and an
-object start writes nothing at all.
+object start writes nothing at all. *When no World names the file — a snapshot,
+or an object start — `name`, sent and valid, names it (since 2026-10-11: the
+review offers a snapshot's name as* The file's name*); otherwise it is named from
+the starting points that travel, by `suggestedName`'s rule over what is ticked.*
 
 Headers: `x-storyengine-world`, the World this publish created;
 `x-storyengine-missing`, how many references could not be carried;
@@ -1584,8 +1610,15 @@ download abandoned part-way.
 **What this account has published** → `200 {count, records}`, newest first.
 `?world=<id>` narrows to one World's; `?limit=` is 1 to 200, 20 by default, and
 `count` is every matching record. A record names what left — each object with
-its stored hash, each session with its head and when it was last changed —
-which is what re-publishing compares against.
+its stored hash, each session with ~~its head and when it was last changed~~ *its
+head, its turn count and a `digest` of what it sent, and the World's name,
+`version` and an `about` hash (corrected 2026-10-11, the
+[P16](design/workplan/35-p16-world.md) final audit: since
+[P16.3h](design/workplan/35-p16-world.md) a session is compared by `digest`, head
+and time only for a line written before there was one)* — which is what
+re-publishing compares against. Its `at` is when the confirm planned the file —
+the manifest's `exportedBy.at` — and the line is written once the file has
+finished sending ([22 §9](design/22-internal-contracts.md)).
 
 ## Tags
 
@@ -1763,6 +1796,12 @@ or `contentHash` in the body), and it snapshots the current state first — so
 going back never destroys what you were on. Restoring the state you are already
 on is a no-op and records nothing. → `200 { contentHash, object }`, the same
 shape as `PUT`, so a client treats it exactly as a save.
+
+**A version is restored under the object's own id**, whatever id the version
+records (2026-10-11, the [P16](design/workplan/35-p16-world.md) final audit). A
+legacy World re-minted on its way out of the trash keeps versions that hold its
+old id; restored as recorded, each was `400` *An object cannot change its id*. A
+`PUT` that changes the id is still refused.
 
 ### `PATCH /api/library/:kind/:id/history/:versionId`
 
@@ -2656,7 +2695,15 @@ being made when the session goes writes nothing, and a restore that finds a
 folder without a `session.json` in its place moves that aside into the trash.
 A restore (`POST /api/me/trash/restore`) indexes what it puts back before it
 answers, so a restored session is found by search again and a restored object
-reads at once. `{ id }` names an entry as `GET /api/me/trash` lists it; one that
+reads at once, and answers `200 {restored: true, notes}`. ***`notes` since
+2026-10-11*** (the [P16](design/workplan/35-p16-world.md) final audit), in the
+import review's `{key, params, level}` shape, worded by the client: today one,
+`trash.restore.reminted` (`warn`, params `name` and the new `id`) — a Package
+trashed before [P16.0](design/workplan/35-p16-world.md) whose id is in use on this
+install again comes back as a World under a new id, beside the one holding it,
+rather than as a second object claiming the id. Ids are the install's, so it can
+fire when **another account** holds the id, and the note names no holder; a
+restore with nothing to say answers `notes: []`. `{ id }` names an entry as `GET /api/me/trash` lists it; one that
 is not an address is `400 invalid`, one no longer there is `404 not-found`, and
 one whose place is taken is `409 occupied`. ***Anything else is a `500` and is
 logged*** (2026-09-27): every failure used to be *not an address in the trash*,
