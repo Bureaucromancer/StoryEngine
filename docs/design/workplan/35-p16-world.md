@@ -1402,6 +1402,7 @@ govern.
 |---|---|---|---|
 | 5 | Claude, at the desk, on branch `p16` with P16.0 to P16.2 built | 2026-10-10 | **Passes.** `world-release-check.test.ts`, 7 of 7: the actor, treatment, setup and preset artefacts are as they were at `ad47e39`; the lorebook's is too, `LoreScope` included, because the `world` arm waits on [26 B16](../26-open-questions.md); the emitted set is those five and the World's. Written into [work plan §0.2](01-work-plan.md) the same day. *Rows 1–4 are a person's and are not answered.* |
 | 5 | Claude, at the desk, after B16 was answered and the arm built | 2026-10-10 | **Passes, with the exception used as named.** 7 of 7: the four artefacts unchanged; the lorebook's unchanged outside `LoreScope`, and inside it the two `/1` arms kept with exactly the `world` arm and the open arm after them. Work plan §0.2's answer gained the same note. |
+| 5 | Claude, at the desk, with P16 built (`81342bf`) | 2026-10-11 | **Still passes, at the phase's last stage.** 7 of 7. Against alpha 6 (`ad47e39`) the emitted schemas differ in exactly two files: the lorebook's, by the `LoreScope` arms above (+37 lines), and the Package's, renamed the World's (§1.1). P16.3 added no portable schema — the World file's manifest is an envelope, not emitted ([04 §9.3](../04-schemas.md)). *Rows 1–4 are a person's and are not answered.* |
 
 ## 4. Not this phase: accrual and the story bible — gated on PLAYABLE
 
