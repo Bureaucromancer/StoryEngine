@@ -81,7 +81,8 @@ export const World = Type.Object(
     /**
      * **References, not copies** — one envelope per member, naming its
      * `schema`, `id` and `name`, resolved against the library when the World is
-     * exported (`packaging/export.ts`). This comment said *"embedded copies
+     * exported (~~`packaging/export.ts`~~ — the World file's writer,
+     * `packaging/world-file.ts`, since [P16.3g] removed the old export). This comment said *"embedded copies
      * resolved on import"* until 2026-10-04, which is true of the exported file
      * and was never true of what is stored here: embedding is a fact about the
      * file, linking a fact about the store ([04 §9], [15 §3.1]). On import, links

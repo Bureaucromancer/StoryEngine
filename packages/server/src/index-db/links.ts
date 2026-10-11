@@ -226,8 +226,9 @@ export function idsOf(edges: readonly OutboundRef[]): string[] {
  * resolves exactly one level, the `contents[]` a package already declares.~~
  * ***It exists since [P16.3a], 2026-10-10*** — `packaging/closure.ts`, over
  * `library/references.ts`, which reads §9.1's table row by row;
- * `packaging/export.ts`'s one level stays only until the client stops calling
- * it (P16.3g). What this feeds is `object_link` — a flat *who names whom*,
+ * ~~`packaging/export.ts`'s one level stays only until the client stops calling
+ * it (P16.3g)~~ — *and it is gone* (2026-10-11, [P16.3g]: the client publishes
+ * through the walker, and the old export and its route were removed). What this feeds is `object_link` — a flat *who names whom*,
  * answering [03 §10.1]'s count-before-you-delete and the object page's *Used
  * by*. ~~A walker built later is~~ The walker was written against §9.1's table,
  * not against this function, and the two agreeing about hooks is a thing to

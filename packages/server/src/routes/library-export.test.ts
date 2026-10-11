@@ -3,7 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { newActor, newWorld } from '@storyengine/shared';
+import { newWorld } from '@storyengine/shared';
 
 import { aventurasScenario } from '../import/fixtures/test-aventuras.js';
 import { makeTestServer, ownObjects, setUpAdmin, type TestServer } from '../test-server.js';
@@ -95,93 +95,41 @@ describe('downloading a library object', () => {
 });
 
 /**
- * ***A World, exported, at the kind's new address and only there*** —
+ * ***A World's old export, at neither address*** —
  * [P16 §1.1](../../../../docs/design/workplan/35-p16-world.md),
- * [P16.0](../../../../docs/design/workplan/35-p16-world.md).
+ * [P16.3g](../../../../docs/design/workplan/35-p16-world.md).
  *
- * Two halves of one decision, and each is checked because each could regress
- * without the other noticing. **The old paths are not kept**: the only caller of
- * `/library/packages/*` was the client that ships with this server, which moved
- * in the same change, so the generic `:kind` routes answer the old name as any
- * folder they do not know — `unknown-kind`, listing the kinds they do, which is
- * what [the API reference](../../../../docs/api.md) now says of it. An alias left
- * behind by accident would be a second door that reference denies exists.
- *
- * **And the file the new address writes is the old file**: §1.1 leaves
- * `storyengine.package-export/1` and its `.sepack.json` name exactly as P11.10
- * made them, because [P16.3](../../../../docs/design/workplan/35-p16-world.md)
- * defines the World's format once and reads this one beside it. Renaming the envelope with the route would be the first of two
- * formats written inside one phase, so a World's export still says *package*
- * in its schema id and its extension, and this pins that it does — until P16.3
- * changes it on purpose and changes this with it.
+ * ~~*A World, exported, at the kind's new address and only there*~~ — P16.0
+ * moved `GET /library/packages/:id/export` to `/library/worlds/:id/export` and
+ * pinned that the file was still P11.10's `.sepack.json`, *"until P16.3
+ * changes it on purpose and changes this with it."* **This is that change**
+ * (2026-10-11): P16.3g removed the route and its writer, because a World
+ * leaves as its World file through `POST /api/publish` (`routes/publish.test.ts`
+ * holds that door), and the client's *Export this world* became *Publish this
+ * world…* in the same commit. What stays pinned here is the half of P16.0's
+ * decision that outlives the route: **the old paths are not kept**, now
+ * neither of them — the Package's kind answers `unknown-kind` naming the kind
+ * that replaced it, and both export addresses are no route at all. The frozen
+ * envelope is still *read*: `import/world/legacy.test.ts` imports the
+ * fixture alpha 6's writer made.
  */
-describe('exporting a World', () => {
-  it('no longer answers at the Package’s address', async () => {
+describe('a World’s old export', () => {
+  it('answers at neither the Package’s address nor the World’s', async () => {
     const listed = await server.request({ method: 'GET', url: '/api/library/packages' });
     expect(listed.status).toBe(404);
     expect(listed.body).toMatchObject({ error: 'unknown-kind' });
     // The refusal names the kind that replaced it, so a stale caller is told where to go.
     expect((listed.body as { message: string }).message).toContain('worlds');
 
-    // The export route was the one non-generic path, and it moved rather than forked.
     const world = newWorld('Rain City');
     await server.request({ method: 'POST', url: '/api/library/worlds', payload: world });
-    const old = await server.request({
-      method: 'GET',
-      url: `/api/library/packages/${world.id}/export`,
-    });
-    expect(old.status).toBe(404);
-  });
-
-  /**
-   * ***Only a World leaves by this door*** (2026-10-10). The writer reads its
-   * id with no kind, so an actor's id here exported the actor as a bundle of
-   * nothing — the route now asks first.
-   */
-  it('answers 404 for an id that is not a World', async () => {
-    const actor = newActor('Vera');
-    await server.request({ method: 'POST', url: '/api/library/actors', payload: actor });
-    const response = await server.request({
-      method: 'GET',
-      url: `/api/library/worlds/${actor.id}/export`,
-    });
-    expect(response.status).toBe(404);
-  });
-
-  it('writes the unchanged .sepack envelope for a World made through the API', async () => {
-    const actor = newActor('Vera');
-    await server.request({ method: 'POST', url: '/api/library/actors', payload: actor });
-    const world = {
-      ...newWorld('Rain City'),
-      contents: [{ schema: 'storyengine.actor/1', id: actor.id, name: 'Vera' }],
-    };
-    const created = await server.request({
-      method: 'POST',
-      url: '/api/library/worlds',
-      payload: world,
-    });
-    expect(created.status).toBe(201);
-
-    const response = await server.request({
-      method: 'GET',
-      url: `/api/library/worlds/${world.id}/export`,
-    });
-
-    expect(response.status).toBe(200);
-    expect(response.headers['content-disposition']).toContain('Rain-City.sepack.json');
-    expect(response.headers['x-storyengine-missing']).toBe('0');
-    expect(response.body).toMatchObject({
-      schema: 'storyengine.package-export/1',
-      manifest: {
-        id: world.id,
-        name: 'Rain City',
-        contents: [{ id: actor.id, schema: 'storyengine.actor/1', name: 'Vera' }],
-      },
-    });
-    // Resolved rather than referenced, which is what makes it a bundle.
-    expect((response.body as { objects: { id: string }[] }).objects.map((one) => one.id)).toEqual([
-      actor.id,
-    ]);
+    for (const url of [
+      `/api/library/packages/${world.id}/export`,
+      `/api/library/worlds/${world.id}/export`,
+    ]) {
+      const old = await server.request({ method: 'GET', url });
+      expect(old.status, url).toBe(404);
+    }
   });
 });
 
@@ -213,7 +161,8 @@ describe('exporting a library object as a foreign format', () => {
 
     expect(response.status).toBe(200);
     /**
-     * **A header rather than the body**, on the `.sepack` route's reasoning: the
+     * **A header rather than the body**, on the `.sepack` route's reasoning (that
+     * route is gone since P16.3g; its reasoning is the publish route's now): the
      * body is the file, and a note to the recipient's importer about the
      * exporter's library does not belong inside the document.
      */

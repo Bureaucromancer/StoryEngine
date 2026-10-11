@@ -267,6 +267,30 @@ const DIST = join(HERE, '..', 'packages', 'client', 'dist');
  * named here so P16.3 weighs it rather than meeting this ceiling and raising
  * again — still a loading decision, and the stage's to make, not this one's.
  */
+/*
+ * ***Not raised on 2026-10-11, at [P16.3g]*** — the publish review, the
+ * selection on the shelves and the doors, with the ceiling held at 312 as the
+ * stage was told. The review is a chunk of its own, as the note above asked
+ * (`library/publish/PublishRoute.tsx` is the half the entry carries), and the
+ * check below says so by name and by what it carries. Measured with this
+ * file's compressor: **309.69** before the stage (P16.3f), **313.44** with the
+ * review lazy but its `fileSet` dragged into a file the entry preloads —
+ * `shared/src/publish.ts` was a module the entry already read, for
+ * `SESSION_SCHEMA`, and the bundler splits by module — **311.66** once the two
+ * names the entry reads moved to `shared/src/publish-constants.ts` and the
+ * review stopped importing entry modules that would have been split out for it
+ * (`queries.ts`, `ui/Field.tsx`, `save-file.ts`: each one a file the first load
+ * then fetched). The stage's final figure is in its record. *What stays on the
+ * entry*: the selection (`library/selection.ts`, `SelectionBar.tsx`), the two
+ * doors on an object's page, the route and its boundary, the three `api.ts`
+ * calls, and the World file's `publish.file.*` sentences, which the import
+ * review reads too. The selection bar was not made lazy: it fits.
+ * *(**311.84** after the stage's review fixes, the same day — the selection
+ * let go of on an account switch, a book play wrote not chosen, the bar's
+ * count a status that is always mounted, ids percent-encoded into the
+ * review's address, and a publish's headers read before its body: **0.16 kB**
+ * under, with the bar still on the entry.)*
+ */
 const JS_CEILING_KB = 312;
 
 /** The stylesheet, at 6.99 kB and growing with the design system rather than the app. */
@@ -410,6 +434,44 @@ describe('what a first load pays for', () => {
       expect(text.includes(name), `${name} carries the changelog`).toBe(false);
       expect(renderer.includes(name), `${name} carries the renderer`).toBe(false);
       expect(name.startsWith('readers-'), name).toBe(false);
+    }
+  });
+
+  /**
+   * ***The publish review is not on the entry, and this is the check that says
+   * so*** — [P16.3g](../docs/design/workplan/35-p16-world.md),
+   * [21 §7](../docs/design/21-client-loading.md), 2026-10-11.
+   *
+   * The changelog's argument, a fourth time, and for its reason: **the
+   * regression is not only a static import of the chunk's module.** The
+   * review's weight is its own components *and* the rule it draws with —
+   * `fileSet`, from `shared` — and P16.3g measured the second arriving on the
+   * entry by another road while a `PublishPage-*` chunk went on existing: a
+   * module the entry already read (`SESSION_SCHEMA`, in `shared/src/publish.ts`)
+   * took the whole module onto a file the entry preloads. So this reads the
+   * build for two markers as well as for the chunk's name: one of `fileSet`'s
+   * note keys, which minification keeps because it is a string, and the
+   * review's own sentence for a World file of nothing (AA13). Each is asserted
+   * present somewhere first, so a marker that stopped appearing fails here by
+   * name rather than passing because nothing matched.
+   */
+  it('keeps the publish review and its rule off the entry', () => {
+    const chunks = readdirSync(join(DIST, 'assets')).filter((name) => name.endsWith('.js'));
+    const carrying = (marker: string): string[] =>
+      chunks.filter((name) => readFileSync(join(DIST, 'assets', name), 'utf8').includes(marker));
+    const rule = carrying('publish.closure.orphan');
+    const review = carrying('This file would hold the world’s name and nothing else.');
+    expect(rule, 'no chunk carries fileSet: the marker no longer finds it').not.toEqual([]);
+    expect(review, 'no chunk carries the review: the marker no longer finds it').not.toEqual([]);
+    expect(
+      chunks.filter((name) => name.startsWith('PublishPage-')),
+      'no chunk named PublishPage-* in dist/assets: the publish review is not a chunk of its own',
+    ).not.toEqual([]);
+
+    for (const name of entryAssets('.js')) {
+      expect(rule.includes(name), `${name} carries fileSet`).toBe(false);
+      expect(review.includes(name), `${name} carries the publish review`).toBe(false);
+      expect(name.startsWith('PublishPage-'), name).toBe(false);
     }
   });
 });

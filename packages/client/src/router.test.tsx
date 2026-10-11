@@ -12,6 +12,7 @@ import {
   validateLibrarySearch,
   validateIndexSearch,
   validateObjectSearch,
+  validatePublishSearch,
   validateSessionsSearch,
 } from './router.js';
 
@@ -173,6 +174,45 @@ describe('addressing one object, one copy of it, and one entry inside it', () =>
 
   it('does not invent keys the address did not carry', () => {
     expect(Object.keys(validateObjectSearch({ slug: 'rain-city' }))).toEqual(['slug']);
+  });
+});
+
+/**
+ * ***Where a publish starts*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md).
+ * The three doors are one link to one page, and the address carries only the
+ * start: `?from=` a comma list, or `?world=` one World, which wins over a list
+ * because a World is never part of a selection ([P16.3]'s plan, R8).
+ */
+describe('addressing a publish', () => {
+  it('keeps a list of ids in order, without duplicates or empties', () => {
+    expect(validatePublishSearch({ from: 'b,a,,b' })).toEqual({ from: 'b,a' });
+    expect(validatePublishSearch({ from: 'a' })).toEqual({ from: 'a' });
+  });
+
+  it('keeps a World, and lets it win over a list', () => {
+    expect(validatePublishSearch({ world: 'w-1', from: 'a,b' })).toEqual({ world: 'w-1' });
+  });
+
+  /**
+   * ***Ids are kept byte for byte*** (2026-10-11, the P16.3g review): ~~a World
+   * id trimmed~~. An id with a space at either end is another id, and the
+   * server reads a start verbatim; only an empty one is dropped.
+   */
+  it('trims no id', () => {
+    expect(validatePublishSearch({ world: ' w-1 ' })).toEqual({ world: ' w-1 ' });
+    expect(validatePublishSearch({ from: ' a ,b' })).toEqual({ from: ' a ,b' });
+  });
+
+  it('drops what it cannot read rather than refusing the address', () => {
+    expect(validatePublishSearch({ from: 7, world: '' })).toEqual({});
+    expect(validatePublishSearch({})).toEqual({});
+  });
+
+  it('is its own page, not an object of a kind called publish', async () => {
+    await router.navigate({ to: '/library/publish', search: { world: 'w-1' } });
+    await router.invalidate();
+
+    expect(router.state.matches.at(-1)?.routeId).toBe('/library/publish');
   });
 });
 

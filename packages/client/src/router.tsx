@@ -21,6 +21,7 @@ import {
   WorldEditorPage,
 } from './editor/kinds.js';
 import { LibraryPage } from './library/LibraryPage.js';
+import { PublishRoute } from './library/publish/PublishRoute.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
 import { SettingsPage } from './settings/SettingsPage.js';
@@ -156,6 +157,44 @@ export function validateObjectSearch(search: Record<string, unknown>): ObjectSea
       : {}),
     ...(typeof search['entry'] === 'string' ? { entry: search['entry'] } : {}),
   };
+}
+
+/**
+ * ***Where a publish starts*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md),
+ * [16 §6](../../../docs/design/16-publish.md)'s three doors.
+ *
+ * **The address carries the start, and nothing else.** An object's page links
+ * here with `?from=<id>`, the selection bar with `?from=<id>,<id>,…`, and a
+ * World's page with `?world=<id>` — so all three doors are one link to one
+ * page, and a review can be reloaded or opened in a tab without losing what it
+ * was about ([P16.3]'s plan, §3: *the address carries the start points*). The
+ * ticks are not here: they are the review's, live, and a reload re-walks the
+ * library and starts from the defaults, which is [16 §5]'s *the review stages
+ * nothing* read from the browser's side.
+ *
+ * Validated as this router validates everything — **dropped rather than
+ * rejected**: `from` is a comma list split by `parseList` (empty entries and
+ * duplicates gone, the order kept), each entry an id percent-encoded by
+ * `joinIds`, and `world` a string. *A World wins over a list*: the two are
+ * different starts ([P16.3]'s plan, R8: a World is never part of a
+ * selection), and an address carrying both is one somebody edited by hand,
+ * which reads most plainly as the World it names.
+ *
+ * ***Never trimmed*** (2026-10-11, the P16.3g review): ~~a trimmed string~~.
+ * An id is any string, and one with a space at either end is a different id
+ * from the one without; trimming named a different object than the server
+ * would, which the server reads verbatim. Only an empty one is dropped.
+ */
+export interface PublishSearch {
+  from?: string;
+  world?: string;
+}
+
+export function validatePublishSearch(search: Record<string, unknown>): PublishSearch {
+  const world = search['world'];
+  if (typeof world === 'string' && world !== '') return { world };
+  const from = parseList(search['from']);
+  return from.length === 0 ? {} : { from: from.join(',') };
 }
 
 const rootRoute = createRootRoute({ component: Shell });
@@ -548,9 +587,34 @@ const newWorldRoute = createRoute({
   component: localised(NewWorldPage),
 });
 
+/**
+ * ***The publish review*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md),
+ * [16 §5](../../../docs/design/16-publish.md).
+ *
+ * **Its own route rather than a dialog or the dock** ([P16.3]'s plan, §3): 16
+ * §5 refuses a modal, the dock collapses on a preference and carries no
+ * selection between routes, and an address is what lets three doors be one
+ * link. **Two segments, so it cannot collide with `/library/$kind/$id`**, which
+ * is three; there is no `/library/$kind` route for `publish` to be mistaken
+ * for a kind of.
+ *
+ * ***The page behind it is a chunk of its own*** ([21 §7](../../../docs/design/21-client-loading.md)):
+ * `PublishRoute` is the small half the entry carries — the address read, the
+ * sentence while the chunk arrives, and a boundary for a chunk that does not —
+ * and the review itself is `lazy()` from there, as the setup wizard, the
+ * changelog readers and the World file's look are.
+ */
+const publishRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/publish',
+  validateSearch: validatePublishSearch,
+  component: localised(PublishRoute),
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   libraryRoute,
+  publishRoute,
   objectRoute,
   actorEditorRoute,
   newActorRoute,

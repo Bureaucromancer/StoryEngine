@@ -2,6 +2,7 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ImportNote } from '@storyengine/shared';
+import { megabytes } from '../format.js';
 import { labels } from '../i18n/catalogue.js';
 
 /**
@@ -214,6 +215,59 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     'This file is the older kind, which carries no pictures: portraits, galleries and other images stayed with the install that wrote it.',
   'import.world.noPortrait':
     '“{actor}” arrived without a portrait — files of the older kind carry none — and is on a blank card.',
+
+  /**
+   * ***What a World file says it does not carry*** —
+   * [P16.3g](../../../../docs/design/workplan/35-p16-world.md), the sentences
+   * [P16.3c] and [P16.3d] left owed: `publish.file.*` is the writer's own
+   * vocabulary (`packaging/world-file.ts`, and `routes/publish.ts`' one count).
+   *
+   * **Here, on the entry, rather than with the review in its chunk, because two
+   * surfaces read them.** The publish review says them after a publish, from
+   * the confirm's notes header; and the **import** review says them when a
+   * World file arrives, since the reader passes the manifest's `omitted` through
+   * kept to exactly this vocabulary (`import/world/reader.ts`'s
+   * `wellFormedNotes`). So each is worded to be true from either side — *the
+   * file does not carry it*, never *stays home* or *was not sent* — and the
+   * notes only the review says (`publish.closure.*`, `publish.session.*`,
+   * `publish.requires.*`) live in the review's chunk (`publish/notes.ts`),
+   * where nothing on the entry pays for them.
+   *
+   * *A size arrives as `bytes` and is said as one* (`sentence`, below).
+   * `pictureDamaged` names no picture, because a session's damaged picture is
+   * sent without its `ref`, and a placeholder a note may lack renders as
+   * itself.
+   */
+  'publish.file.nestedWorld':
+    '“{name}” is a world inside this world, so the file does not carry it: a world holds objects and sessions, not worlds.',
+  'publish.file.writtenByPlay':
+    '“{name}” was written by play, so the file does not carry it: its entries are what sessions said.',
+  'publish.file.objectTooLarge':
+    '“{name}” is {bytes}, larger than one file in a world may be, so the file does not carry it.',
+  'publish.file.sessionUnreadable':
+    'The session “{name}” could not be read when this file was written, so the file does not carry it.',
+  'publish.file.sessionTooLarge':
+    'The session “{name}” is {bytes}, larger than one file in a world may be, so the file does not carry it.',
+  'publish.file.pictureMissing':
+    'A picture of “{name}” ({ref}) was not on disk when this file was written, so the file does not carry it.',
+  'publish.file.pictureDamaged':
+    'A picture of “{name}” did not match what its name says it holds, so the file does not carry it.',
+  'publish.file.pictureTooLarge':
+    'A picture of “{name}” ({ref}) is {bytes}, larger than one file in a world may be, so the file does not carry it.',
+  'publish.file.versionMissing':
+    'An earlier version of “{name}” ({ref}) was not on disk when this file was written, so the file does not carry it.',
+  'publish.file.versionDamaged':
+    'An earlier version of “{name}” ({ref}) did not match what its name says it holds, so the file does not carry it.',
+  'publish.file.versionTooLarge':
+    'An earlier version of “{name}” ({ref}) is larger than one file in a world may be, so the file does not carry it.',
+  'publish.file.sessionPicturesMissing':
+    'Pictures shown in “{name}” were not on disk when this file was written, so the file does not carry them: {count}.',
+  'publish.file.sessionAttachmentsMissing':
+    'Pictures a person showed in “{name}” were not on disk when this file was written, so the file does not carry them: {count}.',
+  'publish.file.sessionPictureTooLarge':
+    'A picture shown in “{name}” is {bytes}, larger than one file in a world may be, so the file does not carry it.',
+  'publish.file.moreInManifest':
+    'More of the same, not listed here: {count}. The file’s own list of contents names every one.',
 
   /**
    * ***What an import did, and what it declined to do*** —
@@ -890,13 +944,29 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
  * at `level` has no business insisting on which of those it is given.
  */
 export function sentence(note: Pick<ImportNote, 'key' | 'params'>): string {
-  const template = NOTE_LABELS[note.key];
+  return fill(NOTE_LABELS[note.key], note);
+}
+
+/**
+ * ***A template, filled from a note's params*** — `sentence`'s substitution, on
+ * its own since [P16.3g] so the publish review's chunk fills its own table
+ * (`publish/notes.ts`) by the same rules rather than a copy of them. An absent
+ * template is the key itself, as it always was: a newer server's class appears
+ * as itself rather than as a blank.
+ */
+export function fill(
+  template: string | undefined,
+  note: Pick<ImportNote, 'key' | 'params'>,
+): string {
   if (template === undefined) return note.key;
   return template.replace(/\{(\w+)\}/g, (whole, key: string) => {
     const value = note.params[key];
     if (value === undefined) return whole;
     // A macro's reason arrives as the converter's code, which is not a sentence.
     if (key === 'because' && typeof value === 'string') return MACRO_REASONS[value] ?? value;
+    // A size arrives in bytes ([P16.3g]: the World file's notes), and *70254592*
+    // is not a sentence either.
+    if (key === 'bytes' && typeof value === 'number') return megabytes(value);
     return String(value);
   });
 }

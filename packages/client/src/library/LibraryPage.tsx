@@ -19,6 +19,8 @@ import { newObjectFor, newRouteFor, type NewRoute } from './fields.js';
 import { KIND_LABELS, ShadowedBadge } from './labels.js';
 import { mutable } from './mutable.js';
 import { QuarantinePanel } from './QuarantinePanel.js';
+import { SelectionBar } from './SelectionBar.js';
+import { unselectable, useLibrarySelection, type LibrarySelection } from './selection.js';
 import {
   emptyMessage,
   panelFor,
@@ -32,6 +34,7 @@ import { folderRows, insideClosedFolder } from '../tags/folders.js';
 import { passesTagFilters, TagFilterBar, type TagFilters } from '../tags/TagFilterBar.js';
 import { Note } from '../ui/Text.js';
 import { useFocusOnReveal } from '../ui/useFocusOnReveal.js';
+import { labels } from '../i18n/catalogue.js';
 
 /**
  * The library list, as P1.6 built it: one surface for all six kinds with a kind
@@ -75,6 +78,14 @@ export function LibraryPage(): JSX.Element {
    */
   const kinds = parseKinds(search.kind);
   const single = kinds.length === 1 ? kinds[0] : undefined;
+  /**
+   * ***The selection, held here and not in the table*** — [P16.3g]. The table
+   * below is keyed on the kinds and remounts when they change, which is right
+   * for its sorts and filters and wrong for a selection: [16 §2]'s *a selection
+   * of any of those, in one panel or across several* is built by switching
+   * shelves. `selection.ts` says why it is not in the address.
+   */
+  const selection = useLibrarySelection();
   const library = useLibrary(single);
   const objects =
     kinds.length <= 1
@@ -128,11 +139,28 @@ export function LibraryPage(): JSX.Element {
           objects={objects}
           kind={single}
           several={kinds.length > 1}
+          selection={selection}
         />
       ) : null}
+      <SelectionBar selection={selection} />
     </div>
   );
 }
+
+/**
+ * ***Choosing on the shelves*** — [P16.3g]. Whole phrases, the name substituted
+ * in, and the two reasons a row has no checkbox said to a screen reader where
+ * the checkbox would be ([10 §5]'s *bulk select*).
+ */
+const SELECT_WORDS = labels('library.select', {
+  select: 'Select',
+  selectAll: 'Select all shown',
+  column: 'Chosen',
+  choose: 'Choose “{name}”',
+  world: 'A world is published from its own page, so it is not chosen here.',
+  shadowed: 'A shadowed copy cannot be chosen: its id names the other file.',
+  play: 'Play wrote this book, so it stays home and is not chosen here.',
+});
 
 /**
  * The create control, or the sentence that says why there is not one.
@@ -258,7 +286,10 @@ function ObjectTable(props: {
   kind: LibraryKind | undefined;
   /** The mixed table narrowed to several kinds, which changes what *empty* means. */
   several: boolean;
+  /** The page's selection, which outlives this table ([P16.3g]). */
+  selection: LibrarySelection;
 }): JSX.Element {
+  const { selection } = props;
   const panel = panelFor(props.kind);
   const auth = useAuthState();
   const locale = auth.data?.account?.locale ?? undefined;
@@ -397,6 +428,34 @@ function ObjectTable(props: {
         >
           {searching ? 'Hide search' : 'Search'}
         </Button>
+        {/*
+          ***Select, beside Search*** — [P16.3g]. A toggle rather than a mode
+          the page enters: it shows the checkboxes, and turning it off hides
+          them without unchoosing anything — the bar below still holds what is
+          chosen, so a person can go back to browsing with a selection in hand.
+          *Select all shown* takes what this shelf shows **now**, after its
+          search and filters, never the rows they hide.
+        */}
+        <Button
+          ref={selection.toggleRef}
+          type="button"
+          aria-pressed={selection.selecting}
+          onClick={() => {
+            selection.setSelecting(!selection.selecting);
+          }}
+        >
+          {SELECT_WORDS.select}
+        </Button>
+        {selection.selecting ? (
+          <Button
+            type="button"
+            onClick={() => {
+              selection.add(shown);
+            }}
+          >
+            {SELECT_WORDS.selectAll}
+          </Button>
+        ) : null}
         {panel.sorts.length === 0 ? null : (
           <div className="min-w-40">
             <SelectField
@@ -470,6 +529,11 @@ function ObjectTable(props: {
           <table className={table.root}>
             <thead>
               <tr className={table.head}>
+                {selection.selecting ? (
+                  <th scope="col" className={table.th}>
+                    <span className="sr-only">{SELECT_WORDS.column}</span>
+                  </th>
+                ) : null}
                 <th scope="col" className={table.th}>
                   Name
                 </th>
@@ -494,7 +558,10 @@ function ObjectTable(props: {
             <tbody>
               {folders.map((folder) => (
                 <tr key={`folder:${folder.tag.id}`} className={table.row}>
-                  <td className={table.cell} colSpan={panel.columns.length + 2}>
+                  <td
+                    className={table.cell}
+                    colSpan={panel.columns.length + (selection.selecting ? 3 : 2)}
+                  >
                     <button
                       type="button"
                       className="flex items-center gap-2 text-sm text-ink"
@@ -529,6 +596,7 @@ function ObjectTable(props: {
                   columns={panel.columns}
                   locale={locale}
                   hidden={hiddenTags}
+                  selection={selection}
                 />
               ))}
             </tbody>
@@ -546,10 +614,28 @@ function ObjectRow(props: {
   locale: string | undefined;
   /** Tag names to keep out of an inline chip strip — see `hiddenTags`. */
   hidden: ReadonlySet<string>;
+  selection: LibrarySelection;
 }): JSX.Element {
   const kind = kindOfSchema(props.object.schema);
+  const why = unselectable(props.object);
   return (
     <tr className={table.row}>
+      {props.selection.selecting ? (
+        <td className={table.cell}>
+          {why === null ? (
+            <input
+              type="checkbox"
+              aria-label={SELECT_WORDS.choose.replace('{name}', () => props.object.name)}
+              checked={props.selection.has(props.object.id)}
+              onChange={() => {
+                props.selection.toggle(props.object);
+              }}
+            />
+          ) : (
+            <span className="sr-only">{SELECT_WORDS[why]}</span>
+          )}
+        </td>
+      ) : null}
       <td className={table.cell}>
         <span className="flex flex-wrap items-center gap-2">
           {kind === null ? (

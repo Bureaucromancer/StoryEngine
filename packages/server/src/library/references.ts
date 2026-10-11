@@ -523,7 +523,8 @@ function lorebookEdges(object: Record<string, unknown>): OutboundRef[] {
  * for the panel, and the World editor resolves members by id.
  *
  * An envelope with no id names nothing addressable and yields no edge, which is
- * what P11.10's export did with one (`packaging/export.ts`).
+ * what P11.10's export did with one (`packaging/export.ts`, removed at [P16.3g]
+ * once the client published through this walker instead).
  */
 function worldEdges(object: Record<string, unknown>): OutboundRef[] {
   const out: OutboundRef[] = [];

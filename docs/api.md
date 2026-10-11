@@ -1204,8 +1204,10 @@ copy's page offered the winner's bytes under the loser's name.
 
 **The primitive, and it converts nothing.** Everything under `/export/` below is
 a *writer*, and a writer loses something by definition; this loses nothing
-because nothing is converted. It carries no `x-storyengine-missing`: a World's
-export resolves references and can come up short, and an object is just itself.
+because nothing is converted. It carries no `x-storyengine-missing`: ~~a World's
+export resolves references and can come up short~~ *a publish resolves references
+and can come up short (the World export that did is removed)*, and an object is
+just itself.
 
 Until this route existed, nothing in the build downloaded a library object except
 a `.sepack` — a strange absence in a surface whose whole claim
@@ -1257,7 +1259,13 @@ build, which is what `export/writers.test.ts` asserts and the first real exercis
 [00 §2.4](design/00-stance.md)'s *nothing is lost and re-export is possible* has
 had.
 
-### `GET /api/library/worlds/:id/export`
+### ~~`GET /api/library/worlds/:id/export`~~ — removed
+
+***Removed at [P16.3g](design/workplan/35-p16-world.md), 2026-10-11.*** A World
+travels as a World file through [Publish](#publish), which walks every level, can
+carry pictures and sessions, and is reviewed first; `404` now. A `.sepack.json`
+this route wrote is still read, as a World, by `POST /api/import/file`. *What it
+was, for the record:*
 
 **A World with the objects it names, as a `.sepack`** → `200`,
 `application/json`, as `<World name>.sepack.json`. The contents are resolved
@@ -1483,7 +1491,8 @@ written as a World file — `storyengine.world-file/1`, a stored zip named
 `<name>.seworld` ([16 §5.2](design/16-publish.md)). Two requests: a **preview**
 that writes nothing, and a **confirm** that walks the library again, as it is
 then, and returns the file. The client's review (P16.3g) is the only caller so
-far, and until it is built `GET /api/library/worlds/:id/export` stays.
+far, ~~and until it is built `GET /api/library/worlds/:id/export` stays~~ *and the
+World export it replaced is removed (P16.3g, 2026-10-11)*.
 
 The start is the same shape on both:
 

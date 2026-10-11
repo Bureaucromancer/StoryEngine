@@ -12,13 +12,11 @@ import {
   type PortableSchemaId,
   type TagList,
   upgradeLegacySchema,
-  WORLD_SCHEMA,
 } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
 import { resolveObjectTags } from '../tags/resolve.js';
 import { usedBy } from '../index-db/links.js';
-import { exportPackage } from '../packaging/export.js';
 import { writerFor } from '../export/writers.js';
 import { assistField } from '../library/assist.js';
 import { addMembers } from '../library/worlds.js';
@@ -385,65 +383,25 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
   );
 
   /**
-   * ***A World, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10].
+   * ~~***A World, with the objects it names*** — [04 §9], [P11 §1.9], [P11.10]:
+   * `GET /library/worlds/:id/export`, P11.10's frozen
+   * `storyengine.package-export/1` envelope as `<name>.sepack.json`, one level
+   * deep, with `x-storyengine-missing` counting what it could not include.~~
    *
-   * ***At `/library/worlds/:id/export` from [P16.0]***, with the kind; the old
-   * `/library/packages/*` paths are not kept, because the only caller is the
-   * client that ships with this server ([P16 §1.1], and §6 lists it as the
-   * revisit's question). **The file it writes is unchanged** — still
-   * P11.10's frozen `storyengine.package-export/1` envelope, as `.sepack.json`
-   * — because [P16.3] defines the World's format once and reads this one beside
-   * it; renaming the envelope here and reshaping it there would be two formats
-   * written inside one phase.
-   *
-   * **`.sepack` is this stage's rather than a stage of its own**, and §1.9's
-   * argument was not scheduling: an envelope is one of [19 §3]'s four
-   * consequences — free while the format is written, expensive afterwards — and
-   * a second one written later is two formats forever.
-   *
-   * *`missing` travels in a header rather than in the body*, because the body is
-   * the file: a person downloading a bundle gets the bundle, and a stale
-   * reference is something the **surface** tells them about. A field inside the
-   * document would be a note to the importer about the exporter's library.
+   * ***Removed 2026-10-11, at [P16.3g](../../../../docs/design/workplan/35-p16-world.md)***,
+   * with its writer (`packaging/export.ts`) and `packFileName`. A World leaves
+   * as its World file now — `POST /api/publish`, every level of the closure,
+   * reviewed ([16 §5]) — and the client's *Export this world* link gave way
+   * to *Publish this world…* in the same change, which was the condition the
+   * plan set for the route going: its only caller was the client that ships
+   * with this server ([P16 §1.1]'s line for every route the rename moved).
+   * **The format is still read**: `PackageExport` and `PACKAGE_EXPORT_SCHEMA`
+   * stay in `shared` for `import/world/legacy.ts`, because files alpha 5 and
+   * alpha 6 handed out hold it ([16 §5.1]). [P16 §6]'s open question —
+   * whether an old address should keep answering — is answered here for this
+   * one: nothing outside this repository called it, and a door that writes a
+   * format nothing should write any more is a door to close.
    */
-  app.get(
-    '/library/worlds/:id/export',
-    { schema: { params: Type.Object({ id: Type.String({ minLength: 1 }) }) } },
-    async (request, reply) => {
-      const account = await requireAccount(request, reply);
-      if (!account) return;
-
-      const id = (request.params as { id: string }).id;
-      /**
-       * ***A World, and only a World, at this address*** (2026-10-10). The
-       * writer reads its id with no kind, so `/library/packages/<actor id>`
-       * exported an actor as a bundle of nothing — harmless while the path
-       * said *package* and nobody built one, and a lie once the path says
-       * *worlds*. Asked here rather than in the writer, which [P16.3] replaces
-       * and P16.0 leaves alone.
-       */
-      if (!exists(services.library, account.handle, id, WORLD_SCHEMA)) {
-        return reply.code(404).send({ error: 'not-found', message: 'That world is not there.' });
-      }
-      const result = exportPackage(
-        { library: services.library, build: services.build },
-        account.handle,
-        id,
-      );
-      if (result === null) {
-        return reply.code(404).send({ error: 'not-found', message: 'That world is not there.' });
-      }
-
-      return reply
-        .header('content-type', 'application/json; charset=utf-8')
-        .header('x-storyengine-missing', String(result.missing.length))
-        .header(
-          'content-disposition',
-          `attachment; filename="${packFileName(result.exported.manifest.name)}"`,
-        )
-        .send(result.exported);
-    },
-  );
 
   /**
    * ***Add to a World*** — [P16.1](../../../../docs/design/workplan/35-p16-world.md),
@@ -648,8 +606,9 @@ export function registerLibraryRoutes(app: FastifyInstance, services: AppService
          * A treatment's cast points at actors, and [00 §3.3] is the standing
          * answer for one that does not resolve: visible, non-blocking, never
          * fatal. So a dangling ref costs a line in the notes rather than the
-         * download — which is the same posture `exportPackage` takes when it
-         * reports `missing` instead of refusing.
+         * download — which is the same posture `exportPackage` took when it
+         * reported `missing` instead of refusing (removed at [P16.3g]; the
+         * World file's `leftBehind` is that posture's heir).
          */
         const written = writer(row.body, (refId) => {
           try {
@@ -1455,15 +1414,10 @@ export function respondToLibraryError(error: unknown, reply: FastifyReply): void
 }
 
 /**
- * A `.sepack` filename — [P11.10], and `fileNameFor`'s rules in `sessions.ts`.
- *
- * ASCII only, because `content-disposition` is latin-1 by specification; the
- * extension is the one [04 §9] names and the one an importer will look for.
- */
-/**
- * A download filename, by `packFileName`'s rules and for its reason.
- *
- * ASCII only, because `content-disposition` is latin-1 by specification. The
+ * A download filename — ASCII only, because `content-disposition` is latin-1
+ * by specification. *(It shared its rules with `packFileName`, the `.sepack`
+ * name, until [P16.3g] removed that export; `shared`'s `worldFileName` keeps
+ * the same rules for a World file.)* The
  * extension is the format's rather than fixed, since the next writer added may
  * not be JSON.
  */
@@ -1475,16 +1429,6 @@ function downloadName(name: string, extension: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
   return `${slug === '' ? 'object' : slug}${extension}`;
-}
-
-function packFileName(name: string): string {
-  const slug = name
-    .normalize('NFKD')
-    .replace(/[^\p{ASCII}]/gu, '')
-    .replace(/[^A-Za-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-  return `${slug === '' ? 'package' : slug}.sepack.json`;
 }
 
 /**
@@ -1504,19 +1448,3 @@ const AssistBody = Type.Object({
   guidance: Type.Optional(Type.String({ maxLength: 2000 })),
   current: Type.Optional(Type.String({ maxLength: 100_000 })),
 });
-
-/** Whether an id is an object of a kind this caller can read — the not-found arm of `read`, as a test. */
-function exists(
-  library: AppServices['library'],
-  handle: string,
-  id: string,
-  inKind: PortableSchemaId,
-): boolean {
-  try {
-    read(library, handle, id, inKind);
-    return true;
-  } catch (error) {
-    if (error instanceof LibraryError && error.code === 'not-found') return false;
-    throw error;
-  }
-}

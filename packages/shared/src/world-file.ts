@@ -258,7 +258,8 @@ export function firstLocalEntry(
 
 /**
  * ***A download name for a World file*** — `<slug>.seworld`, replacing
- * `packFileName`'s `.sepack.json` when the route moves to it (P16.3d).
+ * `packFileName`'s `.sepack.json` when the route moves to it (P16.3d). *(Both
+ * that function and its route were removed at P16.3g, 2026-10-11.)*
  *
  * The same rules as that function, for its reason: **ASCII only**, because
  * `content-disposition` is latin-1 by specification, and a World called

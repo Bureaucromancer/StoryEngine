@@ -74,6 +74,10 @@ export * from './import-preview.js';
 // stored as itself, and `fileSet` is the one rule the review draws with and the
 // confirm writes with, so it lives where both sides import it.
 export * from './publish.js';
+// The two names of publish's the client's entry reads — a session member's
+// schema and the selection bar's bound — in a module of their own, so the entry
+// does not pull `fileSet` in with them ([P16.3g]).
+export * from './publish-constants.js';
 // The file a publish writes — [P16.3c]. Shared because the server writes and
 // reads it and the client reads the head of one before uploading it, and a
 // manifest read two ways would preview one file and import another. An

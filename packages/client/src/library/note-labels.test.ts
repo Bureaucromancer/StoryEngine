@@ -53,6 +53,39 @@ const SERVER_EXPORT = join(SERVER, 'export');
 const EMITTED = /'((?:import|export)\.[a-zA-Z0-9.]+)'/g;
 const LABELLED = /'((?:import|export)\.[a-zA-Z0-9.]+)':/g;
 
+/**
+ * ***And the third: what a publish says*** — [P16.3g](../../../../docs/design/workplan/35-p16-world.md),
+ * owed since [P16.3c] and [P16.3d].
+ *
+ * A note of publish's is `publish.<group>.<name>` — `publish.closure.*` and
+ * `publish.session.*` from `fileSet` (in `shared`, because the review and the
+ * confirm both run it), `publish.file.*` from the World file's writer and
+ * `routes/publish.ts`' one count, `publish.requires.*` from the confirm.
+ * **Three segments, and that is the whole of the pattern's care**: the publish
+ * route's two refusal classes, `publish.changed` and `publish.tooLarge`, are
+ * two — they are `error` codes the review words by class (`publish/words.ts`),
+ * not notes, and a pattern that took them would ask for sentences no note
+ * renders.
+ *
+ * *Labelled in two files*: `publish.file.*` here in `note-labels.ts`, because
+ * the import review renders it too (a World file's manifest carries it), and
+ * the rest in the review's chunk, `publish/notes.ts`, because nothing on the
+ * entry renders them. Both files are read as one vocabulary.
+ */
+const PUBLISH_EMITTED = /'(publish\.[a-zA-Z]+\.[a-zA-Z0-9]+)'/g;
+const PUBLISH_LABELLED = /'(publish\.[a-zA-Z]+\.[a-zA-Z0-9]+)':/g;
+const SHARED = join(HERE, '..', '..', '..', 'shared', 'src');
+const PUBLISH_LABELS = join(HERE, 'publish', 'notes.ts');
+
+/** Every file a publish note is written in. */
+function publishSources(): string[] {
+  return [
+    join(SHARED, 'publish.ts'),
+    ...sourceFiles(join(SERVER, 'packaging')),
+    join(SERVER, 'routes', 'publish.ts'),
+  ];
+}
+
 /** Every file the two directions are written in, plus the routes' own notes. */
 function allSources(): string[] {
   return [
@@ -118,6 +151,87 @@ function keysIn(text: string, pattern: RegExp): Set<string> {
   // assertion is a fact about the regex rather than a hope about the input.
   return new Set([...text.matchAll(pattern)].map((match) => match[1]!));
 }
+
+/** The publish vocabulary's labels, from both of the files that hold them. */
+function publishLabelled(): Set<string> {
+  return new Set([
+    ...keysIn(readFileSync(LABELS, 'utf8'), PUBLISH_LABELLED),
+    ...keysIn(readFileSync(PUBLISH_LABELS, 'utf8'), PUBLISH_LABELLED),
+  ]);
+}
+
+function publishEmitted(): Set<string> {
+  const emitted = new Set<string>();
+  for (const file of publishSources()) {
+    for (const key of keysIn(readFileSync(file, 'utf8'), PUBLISH_EMITTED)) emitted.add(key);
+  }
+  return emitted;
+}
+
+describe('the publish vocabulary', () => {
+  it('has a sentence for every class a publish emits', () => {
+    const emitted = publishEmitted();
+    // `fileSet`'s ten (`missingStart` the tenth, 2026-10-11), the writer's
+    // fourteen, the route's one and the confirm's one.
+    expect(emitted.size).toBeGreaterThan(20);
+    const labelled = publishLabelled();
+    const missing = [...emitted].filter((key) => !labelled.has(key)).sort();
+    expect(missing, 'these notes would render to a person as a raw dotted key').toEqual([]);
+  });
+
+  it('has no sentence for a class nothing emits', () => {
+    const emitted = publishEmitted();
+    const orphaned = [...publishLabelled()].filter((key) => !emitted.has(key)).sort();
+    expect(orphaned, 'these labels name a publish note nothing emits any more').toEqual([]);
+  });
+
+  /**
+   * ***The placeholder check, with a window that looks back as well***.
+   *
+   * The converters build a note's params inline, after its key, which is what
+   * the check above reads. A publish note's emitters mostly do not: the World
+   * file's writer builds a `label` (`{ id, name }`) once per object and spreads
+   * it into each note, and `fileSet` builds `params` before choosing which of
+   * four keys to send it under. So the window here reaches back to where those
+   * are built. *Weaker than the forward check, said rather than hidden*: a
+   * name that appears as a key anywhere in that window counts. `notes.test.ts`
+   * is the strong form for the notes `fileSet` writes — it runs `fileSet` and
+   * renders what comes out.
+   */
+  it('interpolates only parameters a publish emitter sends', () => {
+    const sources = publishSources().map((file) => readFileSync(file, 'utf8'));
+    const tables = [readFileSync(LABELS, 'utf8'), readFileSync(PUBLISH_LABELS, 'utf8')];
+    const wrong: string[] = [];
+    let checked = 0;
+    for (const table of tables) {
+      for (const match of table.matchAll(
+        /'(publish\.[a-zA-Z]+\.[a-zA-Z0-9]+)':\s*\n?\s*(['"])(.*?)\2,/g,
+      )) {
+        const key = match[1]!;
+        for (const name of [...match[3]!.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!)) {
+          checked += 1;
+          const looksSent = new RegExp(`(\\b${name}\\s*:)|([{,]\\s*${name}\\s*[,}])`);
+          const sent = sources.some((source) => {
+            let at = source.indexOf(`'${key}'`);
+            while (at >= 0) {
+              if (looksSent.test(source.slice(Math.max(0, at - 1500), at + key.length + 300))) {
+                return true;
+              }
+              at = source.indexOf(`'${key}'`, at + 1);
+            }
+            return false;
+          });
+          if (!sent) wrong.push(`${key} interpolates {${name}}, which no emitter sends`);
+        }
+      }
+    }
+    expect(
+      checked,
+      'the pattern matched no publish sentence, so it checked nothing',
+    ).toBeGreaterThan(20);
+    expect(wrong, 'these sentences would render a literal {placeholder}').toEqual([]);
+  });
+});
 
 describe('the review vocabulary', () => {
   it('has a sentence for every class the converters emit', () => {

@@ -37,34 +37,21 @@ import type { World } from './schema/world.js';
  * and the manifest that carries it is P16.3c's.
  */
 
-/**
- * ***The schema a session member is named by*** — [P16 §1.2].
- *
- * **Shared from [P16.3a]**, which is the moment `editor/members-form.ts`'s own
- * docstring asked for: *"when shared grows one, this becomes a re-export."* The
- * walker is the first server reader that has to *classify* a World member as a
- * session rather than merely write one, and a classifier spelling the literal
- * where four writers also spell it is the drift the client's constant was made
- * to prevent, one package over. The server's writers keep their literals for
- * now, and **nothing compares the two at compile time** — a classifier
- * compares strings — so the agreement is pinned by a test instead:
- * `packaging/closure.test.ts` walks a session that `POST /sessions {world}`
- * made a member under the route's own literal, and finds a session node.
+/*
+ * `SESSION_SCHEMA` — the schema a session member is named by — moved to
+ * `publish-constants.ts` at P16.3g (2026-10-11), with `PUBLISH_MAX_START`
+ * below, for the reason given there: the client's entry reads both, and a
+ * module the entry reads is a module the bundler cannot leave off the first
+ * load. The barrel exports them as before.
  */
-export const SESSION_SCHEMA = 'storyengine.session/1' as const;
 
-/**
- * ***At most this many starting points*** — the route's bound (P16.3d), and the
- * number the selection bar's *too many to send as a selection* sentence is
- * written against (P16.3g).
- *
- * **Shared because both sides enforce it**: the server refuses a longer list at
- * the door, and the client stops offering *Publish…* before a person builds a
- * request the server would refuse. A selection larger than this is a set, and a
- * set that size wants a name — the sentence sends the person to the World
- * editor, which is where making one is a first-class act.
+/*
+ * `PUBLISH_MAX_START` — the route's bound on starting points, and the number
+ * the selection bar's *too many* sentence is written against — moved to
+ * `publish-constants.ts` at P16.3g (2026-10-11), so that the client's entry can
+ * read it without the bundler carrying this module, and `fileSet` with it,
+ * onto every first load. The barrel exports it as before.
  */
-export const PUBLISH_MAX_START = 200;
 
 /**
  * Where the walk begins: **library objects by id, or a World.** A session is not
@@ -519,10 +506,13 @@ export interface FileSet {
  *   rule, because the review states every reason.
  * - **An `optional` one is silent** — leaving out a preset is what *can be
  *   unchecked* means.
- * - A starting point that does not resolve is noted `missing` as well: a World
- *   that outlived a member says so, as P11.10's export did. One the person
- *   unticked is not noted at all — the person chose, and membership dangles for
- *   nobody.
+ * - A starting point that does not resolve is noted ~~`missing` as well~~
+ *   `missingStart` (*2026-10-11, the P16.3g review*: the review's sentence for
+ *   `missing` says the file names the reference, and the file does not name a
+ *   starting point that is gone — `leftBehind` holds only references from
+ *   carried things): a World that outlived a member says so, as P11.10's
+ *   export did. One the person unticked is not noted at all — the person
+ *   chose, and membership dangles for nobody.
  * - Excluded members, orphans, a session's bindings staying behind, and an
  *   object that turns out to be only itself (*just the object* — [16 §2]'s case
  *   for offering Download instead).
@@ -602,8 +592,12 @@ export function fileSet(c: Closure, choices: Pick<PublishChoices, 'ticked' | 'hi
     if (target === undefined) continue;
 
     if (edge.from === null) {
+      // A key of its own since 2026-10-11 (the P16.3g review): a starting
+      // point that resolves to nothing is never in `leftBehind`, so the file
+      // neither holds nor names it — unlike a missing *reference*, which the
+      // file says is missing, and whose sentence said so of both.
       if (target.state === 'missing') {
-        note('publish.closure.missing', 'info', {
+        note('publish.closure.missingStart', 'info', {
           rule: edge.rule,
           id: target.ref.id ?? '',
           name: target.ref.name ?? '',

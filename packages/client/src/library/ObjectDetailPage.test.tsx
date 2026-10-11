@@ -28,6 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const readObject = vi.fn();
 const deleteObject = vi.fn();
 const takeFile = vi.fn();
+const publishRecords = vi.fn();
 const libraryErrors = vi.fn();
 const createObject = vi.fn();
 const authState = vi.fn();
@@ -52,6 +53,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     createObject: (...a: unknown[]) => createObject(...a) as unknown,
     authState: (...a: unknown[]) => authState(...a) as unknown,
     takeFile: (...a: unknown[]) => takeFile(...a) as unknown,
+    publishRecords: (...a: unknown[]) => publishRecords(...a) as unknown,
     libraryErrors: (...a: unknown[]) => libraryErrors(...a) as unknown,
   },
 }));
@@ -112,6 +114,7 @@ beforeEach(() => {
   authState.mockResolvedValue({ account: { handle: 'ned', locale: null } });
   listSessions.mockResolvedValue({ sessions: [] });
   libraryErrors.mockResolvedValue({ errors: [] });
+  publishRecords.mockResolvedValue({ count: 0, records: [] });
 });
 
 function renderPage(): void {
@@ -422,32 +425,33 @@ describe('taking an object with you', () => {
   });
 
   /**
-   * The World's export route takes an id and nothing narrower, so from a
-   * shadowed copy it would bundle the winner — offered nowhere rather than
-   * wrongly. (The package's, until [P16.0] renamed the kind and its route.)
+   * ~~*The World's export route takes an id and nothing narrower* — offered
+   * only on the copy its id resolves to, and the `.sepack.json` line under
+   * it.~~ ***Gone at [P16.3g]*** with the route: a World's page offers
+   * *Publish this world…* instead, held below, and nothing on any page says
+   * `.sepack` any more.
    */
-  it('offers a world bundle only on the copy its id resolves to', async () => {
+  it('offers no .sepack export, on a World or anywhere else', async () => {
     params = { kind: 'worlds', id: ACTOR_ID };
-    const world = {
-      schema: 'storyengine.world/1',
-      name: 'Harbour set',
-      slug: 'harbour-set',
-      object: { schema: 'storyengine.world/1', id: ACTOR_ID, name: 'Harbour set' },
-    };
-    readObject.mockResolvedValue(actor(world));
+    readObject.mockResolvedValue(
+      actor({
+        schema: 'storyengine.world/1',
+        name: 'Harbour set',
+        slug: 'harbour-set',
+        object: { schema: 'storyengine.world/1', id: ACTOR_ID, name: 'Harbour set' },
+      }),
+    );
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
-    expect(hrefOf('Export this world')).toBe(`/api/library/worlds/${ACTOR_ID}/export`);
-    // ***Still the Package's file*** ([P16 §1.1]: the envelope is not touched
-    // at P16.0), and the page says so rather than letting the kind's new name
-    // imply a new format.
-    expect(
-      screen.getByText('A .sepack.json file, the same format a package exported to.'),
-    ).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Export this world' })).toBeNull();
+    expect(document.body.textContent).not.toContain('.sepack');
+    for (const anchor of document.querySelectorAll('a')) {
+      expect(anchor.getAttribute('href') ?? '').not.toMatch(/\/worlds\/[^/]+\/export$/);
+    }
   });
 
-  it('withholds the world bundle on a shadowed copy', async () => {
+  it('still downloads a shadowed World as that copy', async () => {
     params = { kind: 'worlds', id: ACTOR_ID };
     search = { source: 'user', slug: 'harbour-set-2' };
     readObject.mockResolvedValue(
@@ -462,11 +466,163 @@ describe('taking an object with you', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Harbour set' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Export this world' })).toBeNull();
-    // The object itself still downloads, as that copy.
     expect(hrefOf('Download this world')).toBe(
       `/api/library/worlds/${ACTOR_ID}/download?source=user&slug=harbour-set-2`,
     );
+  });
+});
+
+/**
+ * ***The doors into Publish*** — [P16.3g](../../../../docs/design/workplan/35-p16-world.md),
+ * [16 §6](../../../../docs/design/16-publish.md)'s *an object's detail page …
+ * and a World's own page*, [10 §5.0a](../../../../docs/design/10-ui-surfaces.md)'s
+ * two doors.
+ *
+ * **Publish… sits beside Download on every kind but a World**, and a World's
+ * page has *Publish this world…* with how often it has left. **Neither on a
+ * shadowed copy**, whose id resolves to the other file — the review takes an id
+ * and would publish the winner under this copy's heading. Each door is a link
+ * to the review's address carrying its start (`?from=` / `?world=`), which is
+ * what makes the three doors one flow.
+ */
+describe('the doors into Publish', () => {
+  function door(name: string): { to: string; search: unknown } {
+    const anchor = screen.getByRole('link', { name });
+    return {
+      to: anchor.getAttribute('data-to') ?? '',
+      search: JSON.parse(anchor.getAttribute('data-search') ?? '{}') as unknown,
+    };
+  }
+
+  function world(over: Record<string, unknown> = {}) {
+    return actor({
+      schema: 'storyengine.world/1',
+      name: 'Rain City',
+      slug: 'rain-city',
+      object: { schema: 'storyengine.world/1', id: ACTOR_ID, name: 'Rain City' },
+      ...over,
+    });
+  }
+
+  it('offers Publish… beside Download, starting from this object', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(door('Publish…')).toEqual({ to: '/library/publish', search: { from: ACTOR_ID } });
+    // Beside Download, in the same section, and saying which promise it is.
+    const section = screen.getByRole('region', { name: 'Take it with you' });
+    const links = [...section.querySelectorAll('a')].map((anchor) => anchor.textContent);
+    expect(links.slice(0, 2)).toEqual(['Download this actor', 'Publish…']);
+    expect(section.textContent).toContain('With what it names');
+  });
+
+  /**
+   * ***An id is any string*** (2026-10-11, the P16.3g review): the door writes
+   * it into the address percent-encoded, so a comma or a space inside one is
+   * one id when the review reads it back (`joinIds` / `splitIds`).
+   */
+  it('writes an id with a comma or a space into the address whole', async () => {
+    readObject.mockResolvedValue(
+      actor({
+        id: 'vera, the elder ',
+        object: { schema: 'storyengine.actor/1', id: 'vera, the elder ', name: 'Vera Kohl' },
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(door('Publish…').search).toEqual({ from: 'vera%2C%20the%20elder%20' });
+  });
+
+  it('offers it for a system object too, which is published from the system’s copy', async () => {
+    readObject.mockResolvedValue(actor({ source: 'system' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(door('Publish…').search).toEqual({ from: ACTOR_ID });
+  });
+
+  it('offers no Publish… on a shadowed copy, whose id publishes the other file', async () => {
+    search = { source: 'user', slug: 'vera-kohl-2' };
+    readObject.mockResolvedValue(actor({ shadowed: true, slug: 'vera-kohl-2' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Vera Kohl' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Download this actor' })).toBeTruthy();
+  });
+
+  it('offers no Publish… on a book play wrote, which could only make a file of nothing', async () => {
+    params = { kind: 'lorebooks', id: ACTOR_ID };
+    readObject.mockResolvedValue(
+      actor({
+        schema: 'storyengine.lorebook/1',
+        name: 'What Vera remembers',
+        object: {
+          schema: 'storyengine.lorebook/1',
+          id: ACTOR_ID,
+          name: 'What Vera remembers',
+          provenance: { source: 'session' },
+        },
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'What Vera remembers' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Download this lorebook' })).toBeTruthy();
+  });
+
+  it('gives a World Publish this world…, starting from the World, and no Publish…', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    readObject.mockResolvedValue(world());
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Rain City' })).toBeTruthy();
+    expect(door('Publish this world…')).toEqual({
+      to: '/library/publish',
+      search: { world: ACTOR_ID },
+    });
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+  });
+
+  it('says how often the World has been published, from the ledger', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    readObject.mockResolvedValue(world());
+    publishRecords.mockResolvedValue({
+      count: 3,
+      records: [{ at: '2026-10-02T09:00:00.000Z' }],
+    });
+    renderPage();
+
+    expect(await screen.findByText(/^Published 3 times; the last on /)).toBeTruthy();
+    expect(publishRecords).toHaveBeenCalledWith(ACTOR_ID);
+  });
+
+  it('says never in its own words', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    readObject.mockResolvedValue(world());
+    renderPage();
+    expect(await screen.findByText('Not published yet.')).toBeTruthy();
+  });
+
+  it('says once in its own words, not as one of many', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    readObject.mockResolvedValue(world());
+    publishRecords.mockResolvedValue({ count: 1, records: [{ at: '2026-10-02T09:00:00.000Z' }] });
+    renderPage();
+    expect(await screen.findByText(/^Published once, on /)).toBeTruthy();
+  });
+
+  it('offers no Publish this world… on a shadowed World', async () => {
+    params = { kind: 'worlds', id: ACTOR_ID };
+    search = { source: 'user', slug: 'rain-city-2' };
+    readObject.mockResolvedValue(world({ shadowed: true, slug: 'rain-city-2' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Rain City' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Publish this world…' })).toBeNull();
+    expect(publishRecords).not.toHaveBeenCalled();
   });
 });
 
@@ -536,7 +692,7 @@ describe('what a download or an export says', () => {
   }
 
   function taken(over: Record<string, unknown> = {}) {
-    return { blob: new Blob(['{}']), fileName: 'Vera-Kohl.json', notes: [], missing: 0, ...over };
+    return { blob: new Blob(['{}']), fileName: 'Vera-Kohl.json', notes: [], ...over };
   }
 
   afterEach(() => {
@@ -564,29 +720,6 @@ describe('what a download or an export says', () => {
       '2 sections were folded into one description: Voice, Past.',
     );
     expect(saved).toEqual(['Vera-Kohl.json']);
-  });
-
-  it('says how many objects a world export could not include', async () => {
-    captureSaves();
-    params = { kind: 'worlds', id: ACTOR_ID };
-    readObject.mockResolvedValue(
-      actor({
-        schema: 'storyengine.world/1',
-        name: 'Harbour set',
-        slug: 'harbour-set',
-        object: { schema: 'storyengine.world/1', id: ACTOR_ID, name: 'Harbour set' },
-      }),
-    );
-    takeFile.mockResolvedValue(taken({ fileName: 'Harbour-set.sepack.json', missing: 2 }));
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('link', { name: 'Export this world' }));
-
-    expect(takeFile).toHaveBeenCalledWith(`/api/library/worlds/${ACTOR_ID}/export`);
-    expect((await screen.findByRole('status')).textContent).toBe(
-      '2 objects this world names are not in your library, so the file does not carry them.',
-    );
   });
 
   it('says why a download failed, and saves nothing', async () => {

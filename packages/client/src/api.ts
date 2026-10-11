@@ -14,6 +14,10 @@ import {
   type ImportedWorld,
   type ImportPreview,
   type NearMissOffer,
+  type PublishChoices,
+  type PublishPreview,
+  type PublishRecord,
+  type PublishStart,
   type Turn as TurnRecord,
   type TurnPreview,
 } from '@storyengine/shared';
@@ -589,8 +593,77 @@ export interface TakenFile {
   fileName: string | null;
   /** What an export left out — empty for a download, which converts nothing. */
   notes: Pick<ImportNote, 'key' | 'params'>[];
-  /** How many objects a World names and its export does not carry. */
+  /*
+   * ~~`missing`: how many objects a World names and its export does not
+   * carry~~ — gone with that export (2026-10-11, [P16.3g]). It was read from
+   * `x-storyengine-missing`, which only `GET /library/worlds/:id/export` sent,
+   * and that route is removed: a World leaves through Publish, whose answer
+   * {@link PublishedFile} reads the same header.
+   */
+}
+
+/**
+ * ***What `api.publish` hands back*** — the World file, and what its answer said
+ * beside it ([P16.3g](../../../docs/design/workplan/35-p16-world.md), the
+ * headers [docs/api.md](../../../docs/api.md)'s *Publish* section names).
+ *
+ * **Headers, because the body is the file** — P11.10's rule, which the confirm
+ * route keeps: everything the review says after a publish is read from here and
+ * nothing from the bytes, so the client never opens the zip it was handed.
+ */
+export interface PublishedFile {
+  blob: Blob;
+  /** `content-disposition`'s ASCII name — `<name>.seworld` — or null when it gave none. */
+  fileName: string | null;
+  /**
+   * `x-storyengine-world`: the World **this publish kept** — a selection of two
+   * or more kept as a World. `null` for a World start (the caller has its id,
+   * and nothing was kept), one object, and a snapshot.
+   */
+  world: string | null;
+  /**
+   * `x-storyengine-review-drift: 1` — the library changed between the review
+   * and the confirm, so the file is the library as it is now and not exactly
+   * what the person read ([16 §5]'s *the honest failure rather than a
+   * prevented one*).
+   */
+  drift: boolean;
+  /** What the file does not carry and says so — warnings first, capped; the manifest holds the rest. */
+  notes: Pick<ImportNote, 'key' | 'params'>[];
+  /** `x-storyengine-missing`: references the file would have followed and could not. */
   missing: number;
+}
+
+/**
+ * ***A refusal from `POST /api/publish` that names a World it kept*** —
+ * `409 publish.changed`, the one refusal that can leave one behind (docs/api.md).
+ *
+ * **Lifted onto the error for `ApiError.current`'s reason**: a caller digging
+ * `world` out of an untyped body is a caller that can read the wrong key, and
+ * this is the one fact the review must not lose — a World now exists that the
+ * person did not see made, and their next *Publish* would make a second.
+ */
+export class PublishError extends ApiError {
+  /**
+   * `name` is `null` for `publish.interrupted` — a `200` whose body failed after
+   * its headers, which name the World by id alone; the review has the name it
+   * sent (2026-10-11, the P16.3g review).
+   */
+  readonly world: { id: string; name: string | null } | null;
+
+  constructor(base: ApiError, world: { id: string; name: string | null } | null) {
+    super(base.status, base.code, base.message);
+    this.name = 'PublishError';
+    this.world = world;
+  }
+}
+
+/** The `world` a `409 publish.changed` names, when it names one. */
+function keptWorldOf(payload: Record<string, unknown> | null): { id: string; name: string } | null {
+  const world = payload?.['world'];
+  if (typeof world !== 'object' || world === null) return null;
+  const { id, name } = world as { id?: unknown; name?: unknown };
+  return typeof id === 'string' && typeof name === 'string' ? { id, name } : null;
 }
 
 /**
@@ -993,9 +1066,96 @@ export const api = {
       blob: await response.blob(),
       fileName: fileNameOf(response.headers.get('content-disposition')),
       notes: exportNotesOf(response.headers.get('x-storyengine-export-notes')),
-      missing: missingCountOf(response.headers.get('x-storyengine-missing')),
     };
   },
+
+  /**
+   * ***What a publish would send, and why*** — `POST /api/publish/preview`,
+   * [P16.3g](../../../docs/design/workplan/35-p16-world.md),
+   * [16 §5](../../../docs/design/16-publish.md).
+   *
+   * **Writes nothing**, on the server or here: the review runs `fileSet` over
+   * the closure this answers, live, as the person ticks — the one rule the
+   * confirm writes with — and sends the ticks back. A POST because the start is
+   * a body (up to `PUBLISH_MAX_START` ids), so it carries the CSRF header like
+   * any other.
+   */
+  previewPublish: (start: PublishStart): Promise<PublishPreview> =>
+    request('POST', '/api/publish/preview', { start }),
+
+  /**
+   * ***The file*** — `POST /api/publish`, [P16.3g].
+   *
+   * **`fetch` rather than `request`**, for `takeFile`'s reason one method up:
+   * the answer is bytes and its headers say what the review then says, which
+   * `request` (a JSON reader) would drop. The CSRF header rides as on every
+   * state-changing call — this is one: a selection kept as a World is the
+   * publish's one library write ([16 §3]).
+   *
+   * `reviewed` is the preview's hash, sent so a library that changed while the
+   * person looked is *reported* (`drift`) rather than silently published.
+   */
+  publish: async (
+    start: PublishStart,
+    choices: PublishChoices,
+    reviewed?: string,
+  ): Promise<PublishedFile> => {
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    const token = cookieValue(document.cookie, CSRF_COOKIE);
+    if (token !== null) headers[CSRF_HEADER] = token;
+    const response = await fetch('/api/publish', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ start, choices, ...(reviewed === undefined ? {} : { reviewed }) }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      throw new PublishError(refusalFrom(response.status, payload), keptWorldOf(payload));
+    }
+    /*
+     * ***Every header before the body*** (2026-10-11, the P16.3g review). A
+     * selection kept as a World is kept before the file streams, and the
+     * header names it; a body that fails part way — a restart, a dropped
+     * connection — rejected `blob()` before the header was read, so the review
+     * said *nothing was published* and offered Publish again, which keeps a
+     * second World (risk 14). So the headers are read first, and a body that
+     * does not arrive is a `PublishError` that still names what was kept.
+     */
+    const world = response.headers.get('x-storyengine-world');
+    const answer = {
+      fileName: fileNameOf(response.headers.get('content-disposition')),
+      world,
+      drift: response.headers.get('x-storyengine-review-drift') === '1',
+      notes: exportNotesOf(response.headers.get('x-storyengine-export-notes')),
+      missing: missingCountOf(response.headers.get('x-storyengine-missing')),
+    };
+    let blob: Blob;
+    try {
+      blob = await response.blob();
+    } catch {
+      throw new PublishError(
+        new ApiError(0, 'publish.interrupted', 'The file did not arrive.'),
+        world === null ? null : { id: world, name: null },
+      );
+    }
+    return { blob, ...answer };
+  },
+
+  /**
+   * ***What this account has published*** — `GET /api/publish/records`,
+   * newest first ([P16.3g]; [P16.3h]'s diff reads the same ledger through the
+   * preview's `previous`). `world` narrows to one World's — a World's page says
+   * how many times it has left, and when last.
+   */
+  publishRecords: (world?: string): Promise<{ count: number; records: PublishRecord[] }> =>
+    request(
+      'GET',
+      // Two whole literals, for `readNotifications`' reason: the route-callers
+      // scan reads a quoted `/api/…` with no whitespace in it.
+      world === undefined
+        ? '/api/publish/records'
+        : `/api/publish/records?world=${encodeURIComponent(world)}`,
+    ),
 
   /**
    * What that file *would* become, with nothing written ([10 §5], as amended).

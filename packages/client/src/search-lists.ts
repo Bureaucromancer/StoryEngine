@@ -20,6 +20,33 @@ export function parseList(raw: unknown): string[] {
 }
 
 /**
+ * ***Ids in an address, each kept whole*** — the publish review's `?from=`
+ * ([P16.3g](../../../docs/design/workplan/35-p16-world.md)).
+ *
+ * **Each id percent-encoded before the join, and decoded after the split**
+ * (2026-10-11, the P16.3g review). An id is any string — `schema/common.ts`:
+ * *ids are not pattern-constrained*, and commit 7e2cf68 kept one with a space
+ * at either end byte for byte — so a comma inside one would split it in two,
+ * and the review would publish a different object than the one on the page,
+ * or a missing one. An ordinary id encodes as itself, so the address stays
+ * readable. A part that will not decode (an address edited by hand) is
+ * dropped, as this module drops what it cannot read.
+ */
+export function joinIds(ids: readonly string[]): string {
+  return ids.map((id) => encodeURIComponent(id)).join(',');
+}
+
+export function splitIds(raw: unknown): string[] {
+  return parseList(raw).flatMap((part) => {
+    try {
+      return [decodeURIComponent(part)];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/**
  * The kinds an address names, in `LIBRARY_KINDS` order.
  *
  * **Unknown entries are dropped one by one**, so `?kind=actors,widgets` is the

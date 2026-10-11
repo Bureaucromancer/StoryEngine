@@ -128,7 +128,7 @@ edited in place, so the published file is the frozen image and the World is not.
 *That is already what `packaging/export.ts` does* — it reads every named object
 from the library at the moment of export — so the lean has been the shipped
 behaviour since [P11.10](workplan/28-p11-implementation.md), and this note makes
-it the design. *Show the diff* was the right instinct and belongs to §5:
+it the design. *(2026-10-11: `packaging/export.ts` is removed at [P16.3g](workplan/35-p16-world.md), with its route; the walker replaced it at P16.3a and the World file at P16.3c.)* *Show the diff* was the right instinct and belongs to §5:
 publishing a World you have published before opens on what changed.
 
 **One case stays a snapshot, and says so.** Publishing a selection you do not
@@ -183,7 +183,8 @@ itself says these and a walker is where they would be lost:
   [P16.0](workplan/35-p16-world.md), 2026-10-10) — which is why the omission of
   the hook rows cost nothing for three phases: *the walker does not exist either*.
   [P16.3](workplan/35-p16-world.md) builds it, and against the table as it stands
-  rather than as anybody remembers it.
+  rather than as anybody remembers it. *(Built at P16.3a, 2026-10-10; the
+  one-level writer was removed at P16.3g.)*
 - **A reference that resolves to nothing is reported, never dropped and never
   refused.** That is P11.10's rule for a Package and it holds for a closure: a
   set outlives an object it names, and the review says so where the export route
@@ -365,7 +366,14 @@ exists when a set of modes wants a layout the others cannot give them
 object's detail page, a selection in a library panel, and a World's own page —
 where it replaces today's *Export this package* link — *Export this world*
 since [P16.0](workplan/35-p16-world.md) renamed the kind (2026-10-10), still
-writing the same `.sepack.json`. **Sessions reach it through
+writing the same `.sepack.json`. *(2026-10-11, [P16.3g](workplan/35-p16-world.md):
+built — **Publish…** beside **Download** on every object's page, a selection on the
+shelves, and **Publish this world…** where *Export this world* was, which is gone
+with its `.sepack.json`. The review is the library page's own column, its own
+route, loaded only when opened: "in the panel" read as the surface the panel
+sits in, since a selection spans the shelves and a review of every level does
+not fit beside one. A file of nothing — a memory book alone, a snapshot whose
+every row is unticked — is said and not offered.)* **Sessions reach it through
 a World**, added from the session list or from the World's editor
 ([15 §3.2](15-world.md)), because a selection spanning the library and Play is a
 gesture neither surface has. Home does not carry it:

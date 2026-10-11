@@ -43,6 +43,13 @@ import { Folders, packageExportRoot, readPackageExport } from './legacy.js';
  * and cast name them, a preset, and a member deleted before the export, which
  * that writer reports as missing and leaves out of the file. Its bytes are the
  * response's, which is why `.prettierignore` keeps them as written.
+ *
+ * ***The route and its writer are gone since [P16.3g]*** (2026-10-11), with the
+ * client's *Export this world*; the fixture is what they wrote, kept, and the
+ * one case that exported a World of its own making now builds the frozen
+ * envelope with {@link legacyExport} below — P11.10's writer, line for line,
+ * as a test-local function, so the reader goes on being tested against the
+ * shape alpha 5 and alpha 6 handed out rather than against nothing.
  */
 
 const FIXTURE = readFileSync(join(import.meta.dirname, 'fixtures', 'package-export-1.sepack.json'));
@@ -82,6 +89,46 @@ async function upload(filename: string, bytes: Buffer) {
     payload,
     headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
   });
+}
+
+/**
+ * ***P11.10's writer, kept for the reader's tests*** — `packaging/export.ts`'s
+ * `exportPackage` as it stood when [P16.3g] removed it with its route, and
+ * nothing else: the World read by id; each `contents[]` id read whole and
+ * carried, in order, into `objects`; an id the library does not have left out
+ * of the file. The envelope is frozen ([P16 §1.1], [16 §5.1]), so this is not
+ * a second writer that may drift — it is the shape alpha 5 and alpha 6 wrote,
+ * and a reader test that built it any other way would test something nobody
+ * holds.
+ */
+function legacyExport(handle: string, worldId: string): PackageExport {
+  const library = server.services.library;
+  const held = read(library, handle, worldId).body as {
+    id: string;
+    name: string;
+    version: string;
+    contents?: { id?: unknown }[];
+  };
+  const contents: PackageExport['manifest']['contents'] = [];
+  const objects: unknown[] = [];
+  for (const entry of held.contents ?? []) {
+    const id = typeof entry.id === 'string' ? entry.id : null;
+    if (id === null) continue;
+    let row;
+    try {
+      row = read(library, handle, id);
+    } catch {
+      continue;
+    }
+    contents.push({ id, schema: row.schemaId, name: row.name });
+    objects.push(row.body);
+  }
+  return {
+    schema: PACKAGE_EXPORT_SCHEMA,
+    exportedBy: { version: null, at: new Date().toISOString() },
+    manifest: { id: held.id, name: held.name, version: held.version, contents },
+    objects,
+  };
 }
 
 describe('the frozen package export', () => {
@@ -184,8 +231,10 @@ describe('the frozen package export', () => {
    * P16.3e review's finding, blocking: the old format carries a World's name,
    * version and members and nothing else, and the blanks synthesised for the
    * rest were written over the World here by the default *replace* —
-   * description, gallery, requirements and metadata gone. Exported by P11.10's
-   * own route, and read back through the upload door.
+   * description, gallery, requirements and metadata gone. ~~Exported by
+   * P11.10's own route~~ — exported by P11.10's own writer, kept as
+   * {@link legacyExport} since [P16.3g] removed the route — and read back
+   * through the upload door.
    */
   it('leaves the World that wrote it as it was, gallery and all', async () => {
     const library = server.services.library;
@@ -218,15 +267,12 @@ describe('the frozen package export', () => {
       made.contentHash,
     );
     const before = read(library, 'ned', world.id, WORLD_SCHEMA);
-    const exportedHere = await server.request({
-      method: 'GET',
-      url: `/api/library/worlds/${world.id}/export`,
-    });
-    expect(exportedHere.status).toBe(200);
+    const exportedHere = legacyExport('ned', world.id);
+    expect(exportedHere.manifest.contents.map((entry) => entry.id)).toEqual([vera.id, harbour.id]);
 
     const response = await upload(
       'rain-city.sepack.json',
-      Buffer.from(JSON.stringify(exportedHere.body)),
+      Buffer.from(JSON.stringify(exportedHere)),
     );
 
     // 200, not 201: nothing was converted.

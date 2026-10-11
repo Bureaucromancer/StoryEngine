@@ -14,8 +14,8 @@ import type {
 } from '@storyengine/shared';
 
 import { api, type ImportReport, type UploadProgress } from '../api.js';
+import { megabytes } from '../format.js';
 import { useAuthState, usePatchPrefs, usePrefs } from '../queries.js';
-import { megabytes } from '../settings/Backups.js';
 import { Alert } from '../ui/Alert.js';
 import { Button } from '../ui/Button.js';
 import { control, disclosure } from '../ui/classes.js';
@@ -1479,7 +1479,7 @@ function UploadMeter(props: { progress: UploadProgress }): JSX.Element {
 }
 
 /**
- * *Always megabytes*, for the meter only. Not `settings/Backups.tsx`'s
+ * *Always megabytes*, for the meter only. Not `format.ts`'s (`settings/Backups.tsx`'s until P16.3g)
  * `megabytes`, which the chat question ([P14.8]) uses and which steps down to
  * KB and up to GB: a meter whose unit changed as the upload grew would read as
  * a number jumping backwards. The two arrived on two branches with one name,

@@ -48,9 +48,11 @@ import { respondToLibraryError } from './library.js';
  * Worlds — the client's pending-disable is the guard, and the plan's risk 14
  * names it.
  *
- * *The old `GET /library/worlds/:id/export` stays answering until [P16.3g]
+ * ~~*The old `GET /library/worlds/:id/export` stays answering until [P16.3g]
  * moves the client off it* — [P16 §6]'s open question, which this stage does
- * not answer.
+ * not answer.~~ *Removed at [P16.3g]* (2026-10-11), when the client's review
+ * and its *Publish this world…* replaced the link that called it;
+ * `routes/library.ts` keeps the note where the route stood.
  */
 
 /**
@@ -380,7 +382,7 @@ function refuse(reply: FastifyReply, refusal: PublishRefusal): FastifyReply {
  * The note that closes a notes header the budget cut short: how many the
  * manifest names that the header does not, at the level of the most serious
  * of them. A client sentence is owed at [P16.3g], as for every `publish.file.*`
- * key.
+ * key. *(Written there: `client/src/library/note-labels.ts`, 2026-10-11.)*
  */
 function moreInManifest(rest: readonly ImportNote[]): ImportNote {
   return {

@@ -401,7 +401,12 @@ describe('what is in the file', () => {
       .closure();
     const set = fileSet(closure, choose());
     expect(set.requiredLeftOut).toEqual([{ key: 'missing:0', by: ['rain'] }]);
-    expect(noteKeys(set)).toEqual(['publish.closure.missing', 'publish.closure.requiredMissing']);
+    // The member that is gone is a starting point, with a key of its own
+    // (2026-10-11, the P16.3g review): the file does not name it.
+    expect(noteKeys(set)).toEqual([
+      'publish.closure.missingStart',
+      'publish.closure.requiredMissing',
+    ]);
     expect(set.leftBehind).toEqual([
       {
         schema: LOREBOOK_SCHEMA,

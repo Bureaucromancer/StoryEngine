@@ -64,7 +64,8 @@ exist is designed against a guess.
 - **The audit that put the branch to the owner (2026-10-03) corrected the proof
   by half.** The code never stored copies. A stored Package's `contents` is a
   list of `{ schema, id, name }` envelopes — references — resolved against the
-  library when it is exported (`packaging/export.ts`). A Package has been a
+  library when it is exported (`packaging/export.ts`, *removed at
+  [P16.3g](workplan/35-p16-world.md), 2026-10-11; the walker replaced it*). A Package has been a
   library object since P1, and since
   [P7B.6](workplan/24-p7b-presets-and-prompts.md) one a person can edit. So on
   the install that made it, a Package never
@@ -280,8 +281,10 @@ through the ordinary review step ([10 §5](10-ui-surfaces.md)), and the World th
 arrives with them names what landed. References inside the file resolve within
 it first, then locally, then dangle visibly ([00 §3.3](00-stance.md)) — which is
 [04 §9](04-schemas.md)'s rule unchanged, now with somewhere for the result to be
-kept. *No build reads a `.sepack` today*; [P16.3](workplan/35-p16-world.md)
-builds the reader, and it reads the frozen package format as well as the new one.
+kept. ~~*No build reads a `.sepack` today*; [P16.3](workplan/35-p16-world.md)
+builds the reader, and it reads the frozen package format as well as the new one.~~
+*Built at [P16.3e](workplan/35-p16-world.md) (2026-10-10): the reader takes the World
+file and the frozen package format through one path.*
 
 **A member that is edited or deleted afterwards.** Edited: the World sees the
 edit, because it holds a reference and that is the point. Deleted: the reference

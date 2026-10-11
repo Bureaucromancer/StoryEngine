@@ -303,10 +303,13 @@ because a renamed kind is a new schema id:
 | a data directory it has opened | will not open it, if identified — the stamp ([P6A §1.7](19-p6a-alpha-1.md)). An unidentified dev build opens it and cannot see `library/worlds/`, which `parseObjectPath` cannot place; the Worlds are invisible and intact, and a later build sees them again |
 | a backup archive | imports everything else and reports each World's folder as `import.backup.unknownKind`, skipped |
 | one World, downloaded as stored | refuses it as `unknown-schema`, as it would any kind it has never heard of |
-| a World's file (P16.3) | refuses it at the import panel, as it refuses a `.sepack.json` today — no older build reads either |
+| a World's file (P16.3) | ~~refuses it at the import panel, as it refuses a `.sepack.json` today — no older build reads either~~ *checked against an alpha 6 build at P16.3g (2026-10-11): its picker does not offer `.seworld`; given one anyway it takes it as a folder in a file and brings in the objects alone, under their own ids — not the World, its sessions, a book scoped to a World (its closed union refuses one), or any picture but those inside a character's card; with history in the file, each object with history lands at an old version* |
 
 **That last row is said where the file is made**: P16.3's review states that the
-file needs a build from this phase on. It costs a sentence, and it is the honest
+file needs a build from this phase on. *(As checked, not as assumed: the review
+says "Alpha 6 and earlier builds cannot read this as a world", what alpha 6 does
+instead, and — when history is ticked — that objects would land at an earlier
+version.)* It costs a sentence, and it is the honest
 form of a fact no design choice here can change.
 
 ### 1.2 Membership lives on the World, once
@@ -1269,6 +1272,43 @@ and route removed.
 **Ends when** the client builds with the entry under 312 — **the ceiling is not
 raised for this stage**; the review is lazy, and the selection bar follows it if
 it must.
+
+**Built 2026-10-11, on `p16`**, by a builder, four reviewers — the person using
+it, client and server agreeing, what was removed and the older build, whether the
+tests can fail — and a fixer: twenty-four findings, one blocking, all fixed.
+**It ends as written**: the client tests pass, and the entry is **311.84 kB** of
+the 312 ceiling, **not raised** — the review is its own lazy route
+([21 §7.4](../21-client-loading.md)), and the selection bar fits on the entry.
+The alpha 6 check was run against a real alpha 6 build, and the review's sentence
+says what it found (§1.1's last row).
+
+- **The review** is one column, phone first: grouped by depth, every reason as
+  text, a found-by-name reference said, missing references under the row naming
+  them, orphans labelled with *leave these out too*, an unchecked required book
+  warned, the memory book shown staying home, each session off with what it would
+  bring and the corrections' sentences — its turns record which model answered,
+  its prompts may quote memory from other sessions. A row reached only through an
+  unticked session is hidden and counted on that session, so a ticked box always
+  means *in the file*. `reasons.ts` is a `Record` over every closure rule, so a
+  rule without a sentence does not compile.
+- **The blocking finding**: on a phone the sticky Publish strip covered the
+  review, and after a publish grew taller than the page. It now holds only the
+  totals, Publish and *Look again* — 115 px at 280 px wide, where it had been 703.
+- **What the review must not claim, fixed**: an object too large to travel drawn as
+  in the file; a missing starting point said to be recorded; a memory book chosen
+  alone producing an empty file (now not choosable, and *a file of nothing* is said
+  and Publish off); a download failing after the server kept a World losing the
+  World, and Publish free to keep a second (headers are now read before the body).
+  Focus returns where the person was; the outcome and the selection's count are
+  announced; the selection clears when another account signs in.
+- **Removed**: `packaging/export.ts`, `GET /api/library/worlds/:id/export`, the
+  *Export this world* link and its `.sepack.json` line. P16.3e's legacy tests that
+  exported through the route test against a test-local copy of P11.10's writer, line
+  for line, with every assertion kept; the reader keeps `PackageExport`.
+- *Found outside the stage*: at 280 px the app's header makes every page scroll
+  sideways — the review itself has nothing wider than the screen. Filed as a task
+  of its own. *Owed at the next tag*: the CHANGELOG's lines for publishing, the
+  selection, and the World export replaced.
 
 #### P16.3h — Re-publishing opens on the diff
 

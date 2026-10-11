@@ -33,6 +33,9 @@ const navigate = vi.fn();
 /** Mutable so a test can put the page under a kind filter. */
 let search: { kind?: string } = {};
 
+/** Mutable so a test can sign another account in under the page (P16.3g). */
+let handle = 'ned';
+
 /**
  * The dock's open state, as a store rather than a spy.
  *
@@ -58,7 +61,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     // mock replaces the whole `api` object, so an absent method is not a
     // fallback — it is a query that throws and a locale that is silently
     // undefined in every test.
-    authState: () => Promise.resolve({ account: { handle: 'ned', locale: null } }),
+    authState: () => Promise.resolve({ account: { handle, locale: null } }),
     readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
     patchPrefs: (patch: Record<string, unknown>) => {
       patchPrefs(patch);
@@ -73,7 +76,21 @@ vi.mock('../api.js', async (importOriginal) => ({
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useSearch: () => search }),
   useNavigate: () => navigate,
-  Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
+  // `data-to` and `data-search` since [P16.3g], so the selection bar's link
+  // can be read for where it goes; every other assertion here reads names.
+  Link: ({
+    children,
+    to,
+    search: linkSearch,
+  }: {
+    children: React.ReactNode;
+    to?: string;
+    search?: Record<string, unknown>;
+  }) => (
+    <a href="#" data-to={to ?? ''} data-search={JSON.stringify(linkSearch ?? {})}>
+      {children}
+    </a>
+  ),
 }));
 
 const { LibraryPage } = await import('./LibraryPage.js');
@@ -1217,5 +1234,361 @@ describe('deleting from the shelf', () => {
     expect(screen.getByRole('alert').textContent).toBe('The object has changed since it was read.');
     expect(screen.getByRole('button', { name: 'Delete Rain City' })).toBeTruthy();
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ***Choosing on the shelves*** — [P16.3g](../../../../docs/design/workplan/35-p16-world.md),
+ * [10 §5](../../../../docs/design/10-ui-surfaces.md)'s *bulk select*, and
+ * [16 §6](../../../../docs/design/16-publish.md)'s second door.
+ *
+ * **The selection is the page's, not the table's**, so it survives the kind
+ * bar remounting the table ([16 §2]: *in one panel or across several*); it is
+ * not in the address; Worlds and shadowed copies cannot be chosen, and say why
+ * to a screen reader; *Select all shown* takes what the shelf shows after its
+ * search; and the bar's *Publish…* is the review's address with the ids as its
+ * start — or, past the route's bound, a sentence instead of a door.
+ */
+describe('choosing on the shelves', () => {
+  const ids = {
+    vera: '01a008de-7e08-70d0-899c-f6869d6b9a01',
+    ash: '01a008de-7e08-70d0-899c-f6869d6b9a02',
+    harbour: '01a008de-7e08-70d0-899c-f6869d6b9a03',
+    world: '01a008de-7e08-70d0-899c-f6869d6b9a04',
+  };
+
+  function row(name: string, id: string, schema: string, over: Record<string, unknown> = {}) {
+    return {
+      ...object(name),
+      id,
+      schema,
+      slug: name.toLowerCase(),
+      contentHash: `sha256:${id}`,
+      object: { schema, id, name },
+      ...over,
+    };
+  }
+
+  const actors = () => [
+    row('Vera', ids.vera, 'storyengine.actor/1'),
+    row('Ash', ids.ash, 'storyengine.actor/1'),
+  ];
+  const lorebooks = () => [row('Harbour', ids.harbour, 'storyengine.lorebook/1')];
+
+  function stock(): void {
+    listLibrary.mockImplementation((kind?: string) =>
+      Promise.resolve({
+        objects:
+          kind === 'actors'
+            ? actors()
+            : kind === 'lorebooks'
+              ? lorebooks()
+              : [
+                  ...actors(),
+                  ...lorebooks(),
+                  row('Rain City', ids.world, 'storyengine.world/1'),
+                  row('Vera, copied', ids.vera, 'storyengine.actor/1', {
+                    slug: 'vera-2',
+                    shadowed: true,
+                  }),
+                ],
+      }),
+    );
+  }
+
+  afterEach(() => {
+    listLibrary.mockReset();
+    handle = 'ned';
+  });
+
+  function click(name: string | RegExp): void {
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name }));
+    });
+  }
+
+  function choose(name: string): void {
+    act(() => {
+      fireEvent.click(screen.getByRole('checkbox', { name: `Choose “${name}”` }));
+    });
+  }
+
+  /** The page, mounted so it can be drawn again under a new address — as a kind switch draws it. */
+  function mount(): { rerender: () => void } {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // A fresh element each time: the same one again is a render React skips.
+    const tree = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <LibraryPage />
+      </QueryClientProvider>
+    );
+    const view = render(tree());
+    return {
+      rerender: () => {
+        view.rerender(tree());
+      },
+    };
+  }
+
+  function bar(): { to: string; search: unknown } {
+    const link = screen.getByRole('link', { name: 'Publish…' });
+    return {
+      to: link.getAttribute('data-to') ?? '',
+      search: JSON.parse(link.getAttribute('data-search') ?? '{}') as unknown,
+    };
+  }
+
+  it('shows checkboxes only once Select is pressed', async () => {
+    stock();
+    renderPage();
+    await settled();
+
+    expect(screen.queryAllByRole('checkbox')).toEqual([]);
+    click('Select');
+    expect(screen.getByRole('button', { name: 'Select' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('checkbox', { name: 'Choose “Vera”' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Choose “Harbour”' })).toBeTruthy();
+  });
+
+  it('gives a World and a shadowed copy no checkbox, and says why to a screen reader', async () => {
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+
+    expect(screen.queryByRole('checkbox', { name: 'Choose “Rain City”' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Choose “Vera, copied”' })).toBeNull();
+    expect(
+      screen.getByText('A world is published from its own page, so it is not chosen here.')
+        .className,
+    ).toContain('sr-only');
+    expect(
+      screen.getByText('A shadowed copy cannot be chosen: its id names the other file.').className,
+    ).toContain('sr-only');
+  });
+
+  it('keeps the selection across a change of kind, and links the bar to the review', async () => {
+    search = { kind: 'actors' };
+    stock();
+    const view = mount();
+    await settled();
+    click('Select');
+    choose('Vera');
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+
+    // The kind bar moves to Lorebooks: the table remounts, the selection stays.
+    search = { kind: 'lorebooks' };
+    view.rerender();
+    await settled();
+    choose('Harbour');
+
+    expect(screen.getByText('2 chosen')).toBeTruthy();
+    expect(bar()).toEqual({
+      to: '/library/publish',
+      search: { from: `${ids.vera},${ids.harbour}` },
+    });
+    // Not in the address: nothing navigated to record it.
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('chooses all the shelf shows, and none that its search hides', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    click(/^search$/i);
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Search this shelf'), { target: { value: 'ash' } });
+    });
+
+    click('Select all shown');
+
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+    expect(bar().search).toEqual({ from: ids.ash });
+  });
+
+  it('clears what it chose', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    choose('Vera');
+    click('Clear');
+    expect(screen.queryByText('1 chosen')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+  });
+
+  /**
+   * ***Past the route's bound the door becomes a sentence*** — `PUBLISH_MAX_START`
+   * is shared so the client never builds a request the server refuses.
+   */
+  it('says to make a world, rather than offering Publish…, past two hundred', async () => {
+    search = { kind: 'actors' };
+    const many = Array.from({ length: 201 }, (_, index) =>
+      row(
+        `Actor ${String(index)}`,
+        `01a008de-7e08-70d0-899c-${String(index).padStart(12, '0')}`,
+        'storyengine.actor/1',
+      ),
+    );
+    listLibrary.mockResolvedValue({ objects: many });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.getByText('201 chosen')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+    expect(
+      screen.getByText(
+        'Too many to send as a selection — make a world of them in its editor, then publish the world.',
+      ),
+    ).toBeTruthy();
+  });
+
+  /**
+   * ***What the P16.3g review found, held*** (2026-10-11). Each failed before
+   * its fix, or under the mutation it names.
+   */
+
+  /** *Select all shown* on the mixed shelf: a World or a shadowed copy is never taken (R8, F19). */
+  it('takes neither a World nor a shadowed copy when choosing all the mixed shelf shows', async () => {
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.getByText('3 chosen')).toBeTruthy();
+    // In the order the shelf shows them, which is by name.
+    expect(bar().search).toEqual({ from: `${ids.ash},${ids.harbour},${ids.vera}` });
+  });
+
+  /** The bound is the route's `maxItems`, which takes two hundred: at two hundred the door stays. */
+  it('still offers Publish… at exactly two hundred', async () => {
+    search = { kind: 'actors' };
+    const many = Array.from({ length: 200 }, (_, index) =>
+      row(
+        `Actor ${String(index)}`,
+        `01a008de-7e08-70d0-899c-${String(index).padStart(12, '0')}`,
+        'storyengine.actor/1',
+      ),
+    );
+    listLibrary.mockResolvedValue({ objects: many });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.getByText('200 chosen')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Publish…' })).toBeTruthy();
+    expect(screen.queryByText(/^Too many to send as a selection/)).toBeNull();
+  });
+
+  /**
+   * ***A book play wrote is not chosen*** — it stays home whatever is ticked
+   * (`fileSet`, [P16.3d]), so a selection of it alone would publish a file of
+   * nothing; its own page offers no *Publish…* for the same reason.
+   */
+  it('gives a book play wrote no checkbox, and says why', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        row('What Ned remembers', ids.harbour, 'storyengine.lorebook/1', {
+          object: {
+            schema: 'storyengine.lorebook/1',
+            id: ids.harbour,
+            name: 'What Ned remembers',
+            provenance: { source: 'session' },
+          },
+        }),
+      ],
+    });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.queryByRole('checkbox', { name: 'Choose “What Ned remembers”' })).toBeNull();
+    expect(
+      screen.getByText('Play wrote this book, so it stays home and is not chosen here.').className,
+    ).toContain('sr-only');
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+  });
+
+  /**
+   * ***Said, as well as shown*** — the bar's count is a status that is on the
+   * page before the first tick, so the first *1 chosen* is heard
+   * (`ui/TwoStep.tsx`: a live region inserted holding its text is not read).
+   */
+  it('says the count in a status that was there before the first choice', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    const before = screen.getAllByRole('status');
+    choose('Vera');
+    const region = screen.getByText('1 chosen').closest('[role="status"]');
+    expect(region).not.toBeNull();
+    expect(before).toContain(region);
+  });
+
+  /** Clear unmounts the bar it is in; the keyboard goes to Select, not to the top of the page. */
+  it('gives the keyboard to Select when Clear takes the bar away', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    choose('Vera');
+    const clear = screen.getByRole('button', { name: 'Clear' });
+    clear.focus();
+    click('Clear');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Select' }));
+  });
+
+  /**
+   * ***The selection is the account's*** — another tab signs somebody else in,
+   * `App`'s gate resets every cache, and a selection of the last account's ids
+   * must not survive it under the new one's header.
+   */
+  it('lets go of the selection when another account is signed in', async () => {
+    search = { kind: 'actors' };
+    stock();
+    const client = renderPage();
+    await settled();
+    click('Select');
+    choose('Vera');
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+
+    handle = 'bob';
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['auth'] });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.queryByText('1 chosen')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+  });
+
+  /** An id is any string: the bar's address keeps one with a comma or a space whole. */
+  it('writes each id into the address so a comma or a space inside one survives', async () => {
+    search = { kind: 'actors' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        row('Vera', 'vera, the elder ', 'storyengine.actor/1'),
+        row('Ash', 'ash', 'storyengine.actor/1'),
+      ],
+    });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+    expect(bar().search).toEqual({ from: 'ash,vera%2C%20the%20elder%20' });
   });
 });

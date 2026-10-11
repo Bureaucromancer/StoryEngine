@@ -1215,6 +1215,16 @@ specified import at length and export not at all, and the surface matched: the
 object detail page carried a comment saying *there is no export path*, and it was
 accurate — nothing in the build downloaded a library object except a `.sepack`.
 
+*(2026-10-11, [P16.3g](workplan/35-p16-world.md): **a third door, Publish…**,
+sits beside Download on every object's page and is reached from a selection on
+the shelves and from a World's own page — [16](16-publish.md)'s closure, reviewed.
+Download stays the object as stored; Publish is what it names, every level, as a
+World file. **Bulk select is built** for it: *Select* beside the search box puts a
+checkbox on each row and *Select all shown*, and a bar says how many are chosen,
+announced as it changes; a World, a shadowed copy and a book play wrote cannot be
+chosen, each saying why to a screen reader. The selection survives a kind switch
+and nothing that changes who is signed in.)*
+
 That is the wrong kind of quiet for a surface whose whole claim (§2.1) is *the
 library is the model*: these are your objects, in folders you may open in a text
 editor. A library you can put things into and not get out of makes that claim and

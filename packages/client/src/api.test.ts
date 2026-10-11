@@ -13,6 +13,7 @@ import {
   kindOfSchema,
   LIBRARY_KINDS,
   listSessions,
+  PublishError,
   removeSessionHook,
   renameSession,
   setSessionLore,
@@ -39,7 +40,7 @@ describe('taking a file', () => {
     return urls;
   }
 
-  it('reads the name, the notes in their own characters, and the missing count', async () => {
+  it('reads the name and the notes in their own characters', async () => {
     const notes = [
       { key: 'export.card.noCastMember', params: { treatment: 'Café' }, level: 'info' },
     ];
@@ -49,7 +50,6 @@ describe('taking a file', () => {
         headers: {
           'content-disposition': 'attachment; filename="Cafe.json"',
           'x-storyengine-export-notes': Buffer.from(JSON.stringify(notes)).toString('base64'),
-          'x-storyengine-missing': '3',
         },
       }),
     );
@@ -59,7 +59,6 @@ describe('taking a file', () => {
     expect(urls).toEqual(['/api/library/treatments/t1/export/sillytavern.card']);
     expect(file.fileName).toBe('Cafe.json');
     expect(file.notes).toEqual(notes);
-    expect(file.missing).toBe(3);
     expect(await file.blob.text()).toBe('{}');
   });
 
@@ -85,8 +84,139 @@ describe('taking a file', () => {
     const file = await api.takeFile('/api/library/actors/a1/download');
 
     expect(file.notes).toEqual([]);
-    expect(file.missing).toBe(0);
     expect(file.fileName).toBeNull();
+  });
+});
+
+/**
+ * ***A publish, and what its answer said beside the file*** — [P16.3g](../../../docs/design/workplan/35-p16-world.md).
+ * The confirm's body is the file, so everything the review then says is a
+ * header: the World it kept, drift, the notes, the missing count. And a `409`
+ * that kept a World names it, which is the one refusal that must not lose it.
+ */
+describe('publishing', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function answer(response: Response): { url: string; init: RequestInit }[] {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('document', { cookie: 'se_csrf=tok%3D' });
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return Promise.resolve(response);
+    });
+    return calls;
+  }
+
+  it('posts the start, the ticks and the review hash with the CSRF header, and reads the answer', async () => {
+    const notes = [{ key: 'publish.file.pictureMissing', params: { name: 'Vera' }, level: 'info' }];
+    const calls = answer(
+      new Response('PK', {
+        status: 200,
+        headers: {
+          'content-disposition': 'attachment; filename="Rain-City.seworld"',
+          'x-storyengine-world': 'w-new',
+          'x-storyengine-review-drift': '1',
+          'x-storyengine-missing': '2',
+          'x-storyengine-export-notes': Buffer.from(JSON.stringify(notes)).toString('base64'),
+        },
+      }),
+    );
+
+    const file = await api.publish(
+      { kind: 'objects', ids: ['a', 'b'] },
+      { ticked: { c: false }, history: true, keep: 'world', name: 'Rain City' },
+      'sha256:r',
+    );
+
+    expect(calls[0]?.url).toBe('/api/publish');
+    expect(calls[0]?.init.method).toBe('POST');
+    expect((calls[0]?.init.headers as Record<string, string>)['x-csrf-token']).toBe('tok=');
+    expect(JSON.parse(calls[0]?.init.body as string)).toEqual({
+      start: { kind: 'objects', ids: ['a', 'b'] },
+      choices: { ticked: { c: false }, history: true, keep: 'world', name: 'Rain City' },
+      reviewed: 'sha256:r',
+    });
+    expect(file).toMatchObject({
+      fileName: 'Rain-City.seworld',
+      world: 'w-new',
+      drift: true,
+      missing: 2,
+      notes,
+    });
+  });
+
+  it('reads no World, no drift and nothing missing as such', async () => {
+    answer(new Response('PK', { status: 200 }));
+    const file = await api.publish(
+      { kind: 'world', id: 'w-1' },
+      { ticked: {}, history: false, keep: 'world' },
+    );
+    expect(file).toMatchObject({ world: null, drift: false, missing: 0, notes: [] });
+  });
+
+  it('carries the World a 409 kept on the refusal it throws', async () => {
+    answer(
+      new Response(
+        JSON.stringify({
+          error: 'publish.changed',
+          path: 'x',
+          world: { id: 'w-kept', name: 'Rain City' },
+          message: 'changed',
+        }),
+        { status: 409 },
+      ),
+    );
+    const refused = await api
+      .publish({ kind: 'objects', ids: ['a', 'b'] }, { ticked: {}, history: false, keep: 'world' })
+      .catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(PublishError);
+    expect(refused).toBeInstanceOf(ApiError);
+    expect(refused).toMatchObject({
+      status: 409,
+      code: 'publish.changed',
+      world: { id: 'w-kept', name: 'Rain City' },
+    });
+  });
+
+  /**
+   * ***A file that does not arrive still names the World it kept*** — the
+   * P16.3g review: a selection's World is kept before the body streams, and a
+   * body that failed part way rejected before the header naming it was read,
+   * so the review offered a second keep (risk 14).
+   */
+  it('names the World a selection kept when the body fails after the headers', async () => {
+    let sent = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (!sent) {
+          sent = true;
+          controller.enqueue(new Uint8Array([0x50, 0x4b]));
+          return;
+        }
+        controller.error(new TypeError('network error'));
+      },
+    });
+    answer(new Response(body, { status: 200, headers: { 'x-storyengine-world': 'w-kept' } }));
+    const refused = await api
+      .publish({ kind: 'objects', ids: ['a', 'b'] }, { ticked: {}, history: false, keep: 'world' })
+      .catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(PublishError);
+    expect(refused).toMatchObject({
+      code: 'publish.interrupted',
+      world: { id: 'w-kept', name: null },
+    });
+  });
+
+  it('asks the ledger for one World by its id', async () => {
+    const calls = answer(new Response(JSON.stringify({ count: 0, records: [] }), { status: 200 }));
+    await api.publishRecords('w 1');
+    await api.publishRecords();
+    expect(calls.map((call) => call.url)).toEqual([
+      '/api/publish/records?world=w%201',
+      '/api/publish/records',
+    ]);
   });
 });
 

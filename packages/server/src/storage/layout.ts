@@ -77,9 +77,10 @@ export const OBJECT_FILENAMES = {
   // defers its contents to §7, which describes the *format* rather than the
   // on-disk shape. A stored World holds **references** to its members —
   // `{ schema, id, name }` envelopes — and this file is the whole object; the
-  // copies exist only in the exported file, which `packaging/export.ts`
-  // resolves from them ([04 §9], corrected 2026-10-04; until then this comment
-  // said a stored package held embedded copies, which it never did).
+  // copies exist only in the exported file, which ~~`packaging/export.ts`~~ the
+  // World file's writer (`packaging/world-file.ts`, since [P16.3g] removed the
+  // old export) resolves from them ([04 §9], corrected 2026-10-04; until then
+  // this comment said a stored package held embedded copies, which it never did).
   // ***`package.json` until [P16.0]***, when the kind was renamed: the old name
   // is still read, and never written — {@link LEGACY_OBJECT_FILENAMES}.
   [WORLD_SCHEMA]: 'world.json',

@@ -1440,7 +1440,9 @@ container below with a new name and folder, and the jobs [15](15-world.md) gives
 it beyond travelling — membership, sessions among the members, contribution at
 session creation — are later stages'. **The file it travels as is not renamed
 yet**: still `storyengine.package-export/1`, as `.sepack.json`, until
-[P16.3](workplan/35-p16-world.md) defines the World's own.
+[P16.3](workplan/35-p16-world.md) defines the World's own. *(Defined and written
+at P16.3c as `.seworld`, [04 §9.3](04-schemas.md); the `.sepack.json` export is
+removed at P16.3g, 2026-10-11, and the format is still read.)*
 
 An earlier draft had a single `Package` doing both jobs: it carried an `entry`
 block defining the game *and* the bundling machinery for moving objects. Splitting

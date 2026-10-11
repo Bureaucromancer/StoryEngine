@@ -2051,7 +2051,9 @@ portable objects" the sketch above promises are, on disk, references to them —
 and they are **resolved against the library when the World is exported**:
 `packaging/export.ts` reads each named object at that moment and writes it into
 `storyengine.package-export/1` beside a manifest, reporting what no longer
-resolves ([P11.10](workplan/28-p11-implementation.md)). So:
+resolves ([P11.10](workplan/28-p11-implementation.md)). *(Since 2026-10-11 the
+World file does this, from the walker's closure; `packaging/export.ts` is
+removed at [P16.3g](workplan/35-p16-world.md).)* So:
 
 | | Holds | Because |
 |---|---|---|
@@ -2150,7 +2152,9 @@ precisely the 'only follows `cast`' walker the row exists to fail."*
 phase since describing a closure that stops at `cast`, `lore` and `preset`. **The only
 reason that has cost nothing is that the walker does not exist either** —
 `packaging/export.ts` resolves exactly one level, the `contents[]` a World
-(a package, when this was written) already declares — which means the omission was never going to be found by a bug
+(a package, when this was written) already declares *(it did; the walker built
+at [P16.3a](workplan/35-p16-world.md) follows every row, and the one-level
+writer is removed)* — which means the omission was never going to be found by a bug
 report. It was going to be found by somebody building the walker correctly
 against a table that was wrong.
 
@@ -2228,7 +2232,8 @@ which matters if packages are ever addressed by hash. Lean: re-resolve, and show
 the diff.~~ ***Closed 2026-10-04: it re-resolves, and the code answered first.***
 A World holds references and the objects are edited in place, so it cannot
 replay anything; the published file is the frozen image. `packaging/export.ts`
-has read every named object at export time since
+*(removed at [P16.3g](workplan/35-p16-world.md); the publish confirm walks the
+library afresh, which is the same answer)* has read every named object at export time since
 [P11.10](workplan/28-p11-implementation.md), so the lean was the shipped
 behaviour before it was the design. *Show the diff* is [16 §5](16-publish.md)'s:
 re-publishing opens on what changed. Addressing by hash, if it ever arrives,
