@@ -309,6 +309,23 @@ import review beside the frozen `.sepack.json`. What the reader decides:
   pictures or requirements, and reading it must not erase them.
 - The manifest's notes are taken only in the writer's own vocabulary, so a file
   cannot put words of its own into the import review.
+- ***Sessions*** ([P16.3f](workplan/35-p16-world.md)). A session lands as a session
+  of the importer's own, its turns keeping their ids unless another account on the
+  install holds them — then they are re-keyed, deterministically per account, and
+  every turn id inside the session follows, in values, in map keys and inside
+  composite strings (a channel's scope, a Scene lock's field path, a draw's
+  purpose), so opening it records no hand edit. **A session already here is asked
+  how it is keyed on disk**, never only the index, and takes what is new — turns
+  appended where nobody has played on, pictures for turns it already has, goals
+  written since, and, when nobody played here, the hook pool, cast and books —
+  and nothing it removed comes back. It is *already here* only when it has every
+  turn. **It lands quietly**: a World's sessions do not start the recipient's
+  summariser, since they are transcripts somebody sent, often read and never
+  played. It arrives unarchived.
+- ***The look before commit*** reads the manifest — the head of the file, or its
+  own entry found through the archive's directory — and says each object is
+  *new*, *here* or *built-in* for this account alone: an id only another account
+  holds is *new*, so the preview cannot be used to ask what somebody else has.
 
 **The question the pictures bullet defers**, and [P16](workplan/35-p16-world.md)'s
 revisit decides it before P16.3 writes a format, because that format is frozen

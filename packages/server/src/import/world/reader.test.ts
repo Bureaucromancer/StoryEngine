@@ -53,7 +53,7 @@ import {
 } from '../../library.js';
 import { storeAsset } from '../../library/assets.js';
 import { confirmPublish } from '../../packaging/confirm.js';
-import { createSession } from '../../sessions/store.js';
+import { appendTurnToSession, createSession } from '../../sessions/store.js';
 import { makePng, pixelBytes } from '../../storage/card/test-png.js';
 import { listTrash, restoreFromTrash } from '../../storage/trash.js';
 import { readZipDirectory, readZipEntry } from '../../storage/zip.js';
@@ -546,11 +546,28 @@ describe('a World file on an install that has none of it', () => {
     }
   });
 
-  it('says a session it carries is not taken yet, and names it nowhere', async () => {
+  /**
+   * ~~Says a session it carries is not taken yet~~ — *since P16.3f a session
+   * lands* (`session.ts`; its own tests are `session.test.ts` and the routes'
+   * `world-round-trip.test.ts`), **and this is the case that still records**:
+   * a sweep handed no session store, which is a request for library objects
+   * only, says so per session and names none in the World (2026-10-11).
+   */
+  it('with no session store, says a session it carries is not taken, and names it nowhere', async () => {
     const sent = await author();
     const path = await publish(sent.world.id, { ticked: { [sent.session.id]: true } });
+    const source = await openLandedZip(server.services, path);
+    if (!source.ok) throw new Error(`the archive refused: ${source.refusal}`);
+    opened.push(source.source);
 
-    const report = await imported('amy', path);
+    const outcome = await sweep({
+      library: server.services.library,
+      handle: 'amy',
+      tags: server.services.tags,
+      files: source.source,
+    });
+    if (!outcome.ok) throw new Error(outcome.refusal);
+    const report = outcome.report;
 
     expect(report.items).toContainEqual({
       source: `sessions/${sent.session.id}/session-export.json`,
@@ -843,6 +860,41 @@ describe('a World file on a second account of the same install', () => {
         expect(worldRow(report)?.disposition, path).toBe('unchanged');
       }
     }
+  });
+
+  /**
+   * ***A session joining is the merge, not keep-both's question*** ([P16.3f],
+   * `landing.ts`). Ned publishes without the session, then again with it
+   * ticked; Amy's keep-both import of the second lands the session and the
+   * World she has gains it — where the store, asked again, would have taken
+   * the merged-in session for a difference and made her a second World.
+   */
+  it('keep-both: a session newly ticked joins the World here, and makes no second World', async () => {
+    const sent = await author();
+    // A session with nothing in it is refused (`no-turns`), so one line is played.
+    await appendTurnToSession(server.services.sessions, 'ned', sent.session.id, {
+      id: uuidv7(),
+      sessionId: sent.session.id,
+      parentTurnId: null,
+      createdAt: AT,
+      status: 'complete',
+      effects: [],
+      tape: [],
+    } as never);
+    await imported('amy', await publish(sent.world.id));
+    const ticked = await publish(sent.world.id, { ticked: { [sent.session.id]: true } });
+
+    const report = await imported('amy', ticked, 'keep-both');
+
+    const worlds = own('amy', WORLD_SCHEMA);
+    expect(worlds).toHaveLength(1);
+    const sessions = (worlds[0]!.body as World).contents.filter(
+      (entry) => entry.schema === SESSION_SCHEMA,
+    );
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.id).not.toBe(sent.session.id);
+    expect(keys(report)).not.toContain('import.object.keptBoth');
+    expect(worldRow(report)?.disposition).toBe('converted');
   });
 
   /**

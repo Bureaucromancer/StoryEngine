@@ -109,6 +109,11 @@ import {
  *   ones included (the fact check of 2026-10-10). A turn's recorded calls keep
  *   the connection id that answered: an id is not a connection — no URL, no
  *   key — and the record of which model wrote a turn is the transcript's.
+ *   ***Nor its archive*** (2026-10-11, the P16.3f review): `archivedAt` is
+ *   the sender putting a session out of their own way, and an archived
+ *   session ticked here arrived archived — hidden from the recipient's list
+ *   while their review said it landed. The reader drops it too, for a file
+ *   an older writer made.
  * - **A carried object's history is re-encoded, not copied** (2026-10-10, the
  *   P16.3c review). Play writes into it: the session panel's promote control
  *   records *Plot hook saved from "<session name>"* on the treatment it saves
@@ -634,12 +639,12 @@ function exportedByOf(context: WorldFileContext): SessionExport['exportedBy'] {
 }
 
 /** The session fields that never leave this install — see the module comment. */
-const STRIPPED_SESSION_FIELDS: ReadonlySet<string> = new Set(['roles', 'stepRoles']);
+const STRIPPED_SESSION_FIELDS: ReadonlySet<string> = new Set(['roles', 'stepRoles', 'archivedAt']);
 
 /**
  * ***The session export as it travels*** — P11.10's envelope, unchanged but
- * for what the module comment says leaves: `roles`, `stepRoles`, and
- * `memory.associations`. The rest of `memory` stays (whether this session
+ * for what the module comment says leaves: `roles`, `stepRoles`,
+ * `memory.associations` — and `archivedAt` (2026-10-11, the P16.3f review). The rest of `memory` stays (whether this session
  * shares and draws on memories is the transcript's own setting), and an
  * absent `associations` reads as *auto* (`memory/config.ts`), so nothing on
  * the other side has to know it was removed. `exportedBy` is the manifest's,

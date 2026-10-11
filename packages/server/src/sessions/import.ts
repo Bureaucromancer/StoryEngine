@@ -20,7 +20,12 @@ import {
 
 import { findById } from '../index-db/query.js';
 import { sessionByOrigin, sessionHoldingTurns } from '../index-db/sessions.js';
-import { renditionFrom, sessionAssetsRoot, writeRendition } from '../renditions/store.js';
+import {
+  readRenditions,
+  renditionFrom,
+  sessionAssetsRoot,
+  writeRendition,
+} from '../renditions/store.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { ensureDirectory, readFileBytes, writeFileBytes } from '../storage/files.js';
 import { resolveWithin } from '../storage/paths.js';
@@ -198,6 +203,30 @@ export interface SessionImportOptions {
    * their cast onto cards before they build the document.
    */
   requireLinks?: boolean;
+  /**
+   * ***`false`: leave the summary chain to the first turn played*** —
+   * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the fact
+   * check's *landing a session warms the recipient's summariser*.
+   *
+   * Every door that imports a session warms its chain afterwards
+   * (`SessionContext.imported`, [P14.11]), because an imported chat is
+   * somebody's own story, about to be played, and [19 §7.5]'s cliff is the
+   * first turn played after it. **A World file's sessions are not that**: they
+   * are transcripts somebody else chose to send, arriving in the recipient's
+   * session list by a confirm they gave for the whole file, with no
+   * per-session choice ([P16.3]'s plan, R5) — read, more often than not,
+   * before or instead of being played. A warm there is a string of model
+   * calls, on the recipient's connections and their bill (`usage.jsonl`'s
+   * `summarise`), for stories nobody here may ever continue. So the World
+   * reader asks for none, and a landed session derives its chain the way a
+   * session grown turn by turn always has — lazily, on the first turn played
+   * (`ensureChain`), whose cost then falls on the one session somebody chose
+   * to continue. *Decided at P16.3f, against the alternative of warming and
+   * saying so in the preview*: a sentence about a bill is weaker than not
+   * sending it, and the cliff it trades for is one the lazy path already
+   * handles. Absent, or `true`, warms — every other door's behaviour, unchanged.
+   */
+  warm?: boolean;
 }
 
 /** The links a session names that resolve to nothing this account can read. */
@@ -347,7 +376,8 @@ export async function importSession(
 ): Promise<SessionImport> {
   const result = await loadSession(context, handle, document, options);
   /**
-   * ***And then the chain is warmed, outside this call*** — [P14.11],
+   * ***And then the chain is warmed, outside this call*** — unless the door
+   * asked for none (`SessionImportOptions.warm`, [P16.3f]) — [P14.11],
    * [19 §7.5]: *"an imported 2,000-turn chat at the default `span: 20` asks for
    * ~99 summariser calls, one after another, inside the first turn played
    * after import."* Told here rather than by each door, and after a sync as
@@ -357,7 +387,7 @@ export async function importSession(
    * chain the last warm did not finish — a restart, a failed link — is
    * finished by this one.
    */
-  if (result.ok) context.sessions.imported?.(handle, result.sessionId);
+  if (result.ok && options.warm !== false) context.sessions.imported?.(handle, result.sessionId);
   return result;
 }
 
@@ -571,6 +601,329 @@ function turnIdsOf(turns: readonly Turn[]): string[] {
   return turns.map((turn) => turn.id);
 }
 
+/** What {@link landNewTurns} did, or why it wrote nothing. */
+export type NewTurnsLanded =
+  | {
+      ok: true;
+      sessionId: string;
+      /** Turns written by this landing — `0` when every one the file has was here. */
+      appended: number;
+      renditions: number;
+      /** The head followed the file's, which only a session nobody played on here does. */
+      headMoved: boolean;
+    }
+  | {
+      ok: false;
+      /**
+       * `unrelated` — not one turn of the document is in this session (2026-10-11,
+       * the P16.3f review): whatever found the session, this is not its story.
+       */
+      reason:
+        'unreadable' | 'wrong-schema' | 'no-turns' | 'broken-tree' | 'already-here' | 'unrelated';
+    };
+
+/**
+ * ***A session published again: the turns this one lacks*** —
+ * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the fact check's
+ * second correction to the plan (*"already here only when every turn is
+ * held, else land what is new"*).
+ *
+ * **What it is for.** A World file's session that this account already has —
+ * an earlier arrival of the same file, or the sender reading their own back —
+ * is *already here* only when every turn the file holds is here. A sender who
+ * played on and published again sends the same session with more turns, and
+ * refusing it as *already here* would leave those turns behind with a row
+ * that says nothing was missing. So the new ones are appended to the session
+ * the earlier arrival made, which is what *the same file, newer* means
+ * everywhere else in a World file's reading.
+ *
+ * ***Not `extendSession`***, which is the chat doors' sync and is shaped by
+ * what a chat is: a three-way merge against a record a first chat import
+ * writes and a World landing does not, mutes read off a group's opening turns
+ * and written onto grafts — which, over a played session whose characters
+ * left the room by ordinary presence effects, would put them back — and no
+ * pictures, since a chat has none. This is the narrower thing a published
+ * session needs, and every rule in it is *append, never rewrite*:
+ *
+ * - **Turns** — each one the file has and this session does not is appended,
+ *   parents first, marked `foreign` as every imported turn is. One the index
+ *   files under this session and the disk does not show was deleted here, and
+ *   stays deleted; one whose parent is not here hangs from a deletion, and
+ *   stays out with it. *One another session holds refuses the whole landing
+ *   before anything is written* — `already-here`, the copy the reader's header
+ *   exists to prevent.
+ * - **Pictures** — the file's renditions this session lacks, for any turn now
+ *   here, with their pixels when the file carries them.
+ * - **Flags** — hidden, picture selection: the file's entries for the turns
+ *   this landed, and none for a turn already here, whose flags are the
+ *   person's.
+ * - **Where the session opens** — it follows the file's head only when nobody
+ *   has played here: no turn in it this install made (every turn carries
+ *   `foreign`), no turn in flight, and its head the tip of the path the file's
+ *   head continues. Then its channels are derived again along the new path
+ *   (`reconstructAlong`), so the first open records no hand edit. Otherwise
+ *   the head and the person's choices at forks stay as they are, and the
+ *   file's choices are kept only where the person has made none
+ *   (`keepThePerson`, the sync's own rule).
+ * - **Refs** — a branch ref the file has and this session does not is added;
+ *   one here is moved only when the head follows.
+ * - ***What the sender wrote without a turn*** (2026-10-11, the P16.3f
+ *   review). ~~Only turn-derived state follows~~: a goal written mid-game
+ *   (`POST …/goals`), a cast member added (`PUT …/cast`), a hook or a book
+ *   added to the session are writes to the session file, with no turn to
+ *   append — and the appended turns point at them (`se.goal.current` naming
+ *   the new goal, a hook's fired state, an arrival's presence). So, add-only,
+ *   never replacing an entry here: **goals** the session lacks, by id, always
+ *   — nothing removes a goal, so a goal missing here is one written since,
+ *   and the turns on the sender's path name it whether or not the head
+ *   follows; and the **hook pool** (by hook id and source), **`cast.actors`**
+ *   and **`lore`** entries it lacks *when the head follows* — when nobody has
+ *   played here, the session is the sender's as it now is, and a member
+ *   missing from it is one added since. When the head stays, the person's
+ *   cast, pool and books are theirs to have changed, and an entry they took
+ *   out is not put back.
+ * - ***A document of which no turn is here is not this session's*** (the same
+ *   review): `unrelated`, nothing written. Whatever found the session — an
+ *   arrival key, a hand-made file claiming one — a document that shares no
+ *   turn with it would be grafted beside its story as a second root.
+ *
+ * *The summary chain is warmed* unless the door asks for none, as
+ * {@link importSession} does — the World reader asks for none.
+ */
+export async function landNewTurns(
+  context: ImportContext,
+  handle: string,
+  sessionId: string,
+  document: unknown,
+  options: Pick<SessionImportOptions, 'pixels' | 'warm'> = {},
+): Promise<NewTurnsLanded> {
+  const read = readSessionExport(document);
+  if ('reason' in read) {
+    return { ok: false, reason: read.reason as 'unreadable' | 'wrong-schema' };
+  }
+  if (read.turns.length === 0) return { ok: false, reason: 'no-turns' };
+  const listed = (read.turns as unknown[]).filter(
+    (candidate): candidate is Turn =>
+      typeof candidate === 'object' &&
+      candidate !== null &&
+      typeof (candidate as { id?: unknown }).id === 'string',
+  );
+  const turns = treeOf(listed, read.session.headTurnId);
+  if (turns === null) return { ok: false, reason: 'broken-tree' };
+
+  const { sessions } = context;
+  const result = await withSessionLock(sessionId, async (): Promise<NewTurnsLanded> => {
+    const session = await readSession(sessions, handle, sessionId);
+    if (session === null) return { ok: false, reason: 'unreadable' };
+    const held = await readTurns(sessions, handle, sessionId);
+    if (!turns.some((turn) => held.has(turn.id))) return { ok: false, reason: 'unrelated' };
+    const was = read.session.id;
+
+    // ── Which turns are new — every one checked before the first is written ──
+    const fresh: Turn[] = [];
+    const coming = new Set<string>();
+    for (const turn of turns) {
+      if (held.has(turn.id)) continue;
+      const holder = sessionHoldingTurns(sessions.index, [turn.id]);
+      if (holder !== null && holder !== sessionId) return { ok: false, reason: 'already-here' };
+      // Filed here and not on disk: deleted here, and deleted it stays.
+      if (holder === sessionId) continue;
+      if (turn.removed === true) continue;
+      const parent = turn.parentTurnId;
+      // Hangs from a turn that is not here — a deletion, or one left above.
+      if (parent !== null && !held.has(parent) && !coming.has(parent)) continue;
+      fresh.push(turn);
+      coming.add(turn.id);
+    }
+
+    // ── Where the session opens — asked of it as it was, before the append ──
+    const tips = new Set(held.keys());
+    for (const turn of held.values()) {
+      if (turn.parentTurnId !== null) tips.delete(turn.parentTurnId);
+    }
+    const playedOn =
+      sessions.busy?.(sessionId) === true ||
+      [...held.values()].some((turn) => turn.foreign === undefined) ||
+      (session.headTurnId !== null && !tips.has(session.headTurnId));
+
+    const all = new Map(held);
+    for (const turn of fresh) {
+      const written: Turn = { ...foreignise(turn, was), sessionId };
+      await appendTurnOnly(sessions, handle, sessionId, written);
+      all.set(written.id, written);
+    }
+    const appendedIds = new Set(fresh.map((turn) => turn.id));
+
+    const renditions = await importRenditions(
+      context,
+      handle,
+      { id: sessionId, was },
+      read,
+      new Set(all.keys()),
+      options,
+      new Set((await readRenditions(sessions.layout, handle, sessionId)).keys()),
+    );
+
+    const fileHead =
+      typeof read.session.headTurnId === 'string' && all.has(read.session.headTurnId)
+        ? read.session.headTurnId
+        : null;
+    const continues =
+      fileHead !== null &&
+      (session.headTurnId === null ||
+        walkPath(all, fileHead).some((turn) => turn.id === session.headTurnId));
+    const follow = !playedOn && continues && fileHead !== session.headTurnId;
+
+    const remembered = rememberedFrom(read.session);
+    let headTurnId = session.headTurnId;
+    let channels = session.channels;
+    let lastSelectedChild = { ...(session.lastSelectedChild ?? {}) };
+    let branchRefs = [...(session.branchRefs ?? [])];
+    if (follow) {
+      headTurnId = fileHead;
+      for (const [parent, child] of Object.entries(remembered)) {
+        if (all.has(parent) && all.has(child)) lastSelectedChild[parent] = child;
+      }
+      channels = await reconstructAlong(sessions, handle, sessionId, walkPath(all, headTurnId));
+      branchRefs = branchRefs.map((ref) => {
+        const theirs = refsIn(read.session).find((one) => one.id === ref.id);
+        return theirs !== undefined && all.has(theirs.headTurnId)
+          ? { ...ref, headTurnId: theirs.headTurnId }
+          : ref;
+      });
+    } else {
+      lastSelectedChild = keepThePerson(lastSelectedChild, remembered, all, session.headTurnId);
+    }
+    for (const ref of refsIn(read.session)) {
+      if (!all.has(ref.headTurnId) || branchRefs.some((one) => one.id === ref.id)) continue;
+      branchRefs.push({ id: ref.id, name: ref.name, headTurnId: ref.headTurnId });
+    }
+
+    // The file's flags for the turns this landed, and none for a turn already here.
+    const hidden = { ...(session.hidden ?? {}) };
+    for (const [turnId, flag] of Object.entries(hiddenIn(read.session))) {
+      if (appendedIds.has(turnId)) hidden[turnId] = flag;
+    }
+    const selection = { ...(session.renditionSelection ?? {}) };
+    for (const [turnId, chosen] of Object.entries(selectionIn(read.session))) {
+      if (appendedIds.has(turnId)) selection[turnId] = chosen;
+    }
+
+    /**
+     * *An empty map or list where the session had none is not a change*
+     * (2026-10-11, the P16.3f review): a session already here is now always
+     * handed this, every turn here included, and one that never had a fork or a
+     * ref must be written exactly as it was — `unchanged` means no byte moved.
+     */
+    const next: SessionFile = {
+      ...session,
+      ...authoredSince(session, read.session, follow),
+      headTurnId,
+      channels,
+      ...(session.lastSelectedChild === undefined && Object.keys(lastSelectedChild).length === 0
+        ? {}
+        : { lastSelectedChild }),
+      ...(session.branchRefs === undefined && branchRefs.length === 0 ? {} : { branchRefs }),
+      ...(Object.keys(hidden).length === 0 ? {} : { hidden }),
+      ...(Object.keys(selection).length === 0 ? {} : { renditionSelection: selection }),
+    };
+    if (fresh.length > 0 || renditions > 0 || !same(visible(next), visible(session))) {
+      const written: SessionFile = { ...next, updatedAt: new Date().toISOString() };
+      await writeJsonAtomic(sessionFilePath(sessions.layout, handle, sessionId), written);
+      indexWrittenSession(sessions, handle, written);
+    }
+    return {
+      ok: true,
+      sessionId,
+      appended: fresh.length,
+      renditions,
+      headMoved: headTurnId !== session.headTurnId,
+    };
+  });
+  if (result.ok && result.appended > 0 && options.warm !== false) {
+    context.sessions.imported?.(handle, sessionId);
+  }
+  return result;
+}
+
+/**
+ * ***What the sender wrote without a turn, that this session lacks*** —
+ * {@link landNewTurns}' fifth rule: goals by id always; the hook pool, the
+ * cast's actors and the books only when the head follows. Add-only, in the
+ * document's order after what is here; only the fields that change are
+ * returned, so a session gaining nothing is written exactly as it was.
+ */
+function authoredSince(
+  session: SessionFile,
+  theirs: SessionExport['session'],
+  follow: boolean,
+): Partial<SessionFile> {
+  const out: Partial<SessionFile> = {};
+  const document = theirs as Record<string, unknown>;
+
+  const goals = session.goals ?? [];
+  const goalIds = new Set(goals.map((goal) => goal.id));
+  const newGoals = arrayIn(document['goals']).filter(
+    (goal): goal is NonNullable<SessionFile['goals']>[number] =>
+      isRecord(goal) && typeof goal['id'] === 'string' && !goalIds.has(goal['id']),
+  );
+  if (newGoals.length > 0) out.goals = [...goals, ...newGoals];
+  if (!follow) return out;
+
+  const pool = session.hooks ?? [];
+  const pooled = new Set(pool.map(poolKey));
+  const newHooks = arrayIn(document['hooks']).filter(
+    (row): row is NonNullable<SessionFile['hooks']>[number] =>
+      isRecord(row) &&
+      isRecord(row['hook']) &&
+      typeof row['hook']['id'] === 'string' &&
+      isRecord(row['source']) &&
+      !pooled.has(poolKey(row as unknown as NonNullable<SessionFile['hooks']>[number])),
+  );
+  if (newHooks.length > 0) out.hooks = [...pool, ...newHooks];
+
+  const cast = isRecord(document['cast']) ? document['cast'] : null;
+  const actors = session.cast?.actors ?? [];
+  const newActors = arrayIn(cast?.['actors']).filter(
+    (id): id is string => typeof id === 'string' && !actors.includes(id),
+  );
+  if (newActors.length > 0) {
+    out.cast = { persona: session.cast?.persona ?? null, actors: [...actors, ...newActors] };
+  }
+
+  const lore = session.lore ?? [];
+  const newLore = arrayIn(document['lore']).filter(
+    (id): id is string => typeof id === 'string' && !lore.includes(id),
+  );
+  if (newLore.length > 0) out.lore = [...lore, ...newLore];
+  return out;
+}
+
+/** A pooled hook's identity: the hook's id and where it came from — the same hook from two sources is two rows. */
+function poolKey(row: NonNullable<SessionFile['hooks']>[number]): string {
+  const source = row.source as { kind: string; id?: string };
+  return JSON.stringify([row.hook.id, source.kind, source.id ?? null]);
+}
+
+function arrayIn(value: unknown): unknown[] {
+  return Array.isArray(value) ? (value as unknown[]) : [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** `renditionSelection` as the document says it: turn id → rendition id, strings only. */
+function selectionIn(session: SessionExport['session']): Record<string, string> {
+  const map = session['renditionSelection'];
+  if (typeof map !== 'object' || map === null) return {};
+  return Object.fromEntries(
+    Object.entries(map as Record<string, unknown>).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
+}
+
 /**
  * ***The turns as a tree, parents first — or null when they are not one***
  * ([P13.10], 2026-09-29).
@@ -730,6 +1083,11 @@ async function importRenditions(
   read: SessionExport,
   turnIds: ReadonlySet<string>,
   options: SessionImportOptions,
+  /**
+   * Records the session holds already, by id — {@link landNewTurns}'s, which
+   * adds a published session's new pictures and never writes over one here.
+   */
+  held: ReadonlySet<string> = new Set(),
 ): Promise<number> {
   const listed = (read as unknown as Record<string, unknown>)['renditions'];
   if (!Array.isArray(listed)) return 0;
@@ -739,7 +1097,7 @@ async function importRenditions(
   let written = 0;
   for (const candidate of listed) {
     const record = renditionFrom(candidate);
-    if (record === null || !turnIds.has(record.turnId)) continue;
+    if (record === null || !turnIds.has(record.turnId) || held.has(record.id)) continue;
 
     let rendition: Rendition = {
       ...record,

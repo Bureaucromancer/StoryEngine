@@ -20,7 +20,13 @@ import type { Turn } from '../sessions/types.js';
 import { Layout } from '../storage/layout.js';
 import { openIndex, type OpenedIndex } from './open.js';
 import { rebuild } from './rebuild.js';
-import { listSessionRows, searchTurns, sessionSnapshot, turnText } from './sessions.js';
+import {
+  listSessionRows,
+  searchTurns,
+  sessionHolding,
+  sessionSnapshot,
+  turnText,
+} from './sessions.js';
 
 /**
  * Sessions and turns in the index — [20 §7.1], F10.
@@ -270,5 +276,42 @@ describe('search over turn text', () => {
     await deleteSession(context, ACCOUNT, sessionId);
 
     expect(searchTurns(index.db, [`user:${ACCOUNT}`], 'cathedral')).toEqual([]);
+  });
+});
+
+/**
+ * ***Whose turns these are*** — [P16.3f](../../../../docs/design/workplan/35-p16-world.md).
+ * The World file's session reader re-keys a session's turns only when somebody
+ * else holds them, so the holder's owner is the answer it acts on — and the
+ * fact check's correction is the second case: a turn row whose session row is
+ * gone is still a claim, and must read as *somebody else*, never as free.
+ */
+describe('which session holds a set of turns, and whose it is', () => {
+  it('names the session and its owner, and nothing for turns nobody holds', async () => {
+    const sessionId = await aSessionWith('Rain City', ['The cathedral.', 'The quay.']);
+    const turnIds = (
+      index.db.prepare('select turn_id from turn where session_id = ?').all(sessionId) as {
+        turn_id: string;
+      }[]
+    ).map((row) => row.turn_id);
+
+    expect(sessionHolding(index.db, [uuidv7(), ...turnIds])).toEqual({
+      sessionId,
+      owner: `user:${ACCOUNT}`,
+    });
+    expect(sessionHolding(index.db, [uuidv7(), uuidv7()])).toBeNull();
+    expect(sessionHolding(index.db, [])).toBeNull();
+  });
+
+  it('counts a turn row with no session row as held — by nobody this account is', () => {
+    const orphan = uuidv7();
+    index.db
+      .prepare('insert into turn (turn_id, session_id, segment, offset) values (?, ?, ?, ?)')
+      .run(orphan, uuidv7(), '000001', 0);
+
+    const holding = sessionHolding(index.db, [orphan]);
+
+    expect(holding).not.toBeNull();
+    expect(holding?.owner).toBeNull();
   });
 });

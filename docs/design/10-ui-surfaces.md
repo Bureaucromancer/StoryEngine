@@ -1186,6 +1186,14 @@ Where it should differ:
   one that does not fold. A stepper is refused on §1.1's grounds — and because
   the steps would be empty, the only decisions being *keep it or not* and, on a
   re-import, *replace or keep both*.
+
+  *(2026-10-10, [P16.3f](workplan/35-p16-world.md): **a World file previews from
+  its manifest**, under the same posture — nothing staged, the commit a second
+  upload. For a large file the client sends only the manifest's own entry, found
+  through the archive's directory, so *what is in this, and what of it do I
+  already have* is answered before the file is sent twice; the look is its own
+  chunk, loaded only when a World file is picked, and an ordinary zip falls back
+  to the folder look if it cannot load.)*
 - **Exchange below the object lives in the editors, not here.** A lorebook's
   entries import and export on their own (§11.2c), because the unit an author
   moves is often smaller than the unit the library browses. The library's job

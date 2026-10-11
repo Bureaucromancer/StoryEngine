@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -17,7 +20,7 @@ import { rebuild } from '../index-db/rebuild.js';
 import { sessionByOrigin, sessionSnapshot } from '../index-db/sessions.js';
 import { writeJsonAtomic } from '../storage/atomic.js';
 import { makeTestServer, setUpAdmin, type TestServer } from '../test-server.js';
-import { importSession, type ImportContext } from './import.js';
+import { importSession, landNewTurns, type ImportContext } from './import.js';
 import { producedTurnId } from './producer.js';
 import {
   appendTurnToSession,
@@ -1009,5 +1012,113 @@ describe('a producer, importing one story twice', () => {
     const amy = produce(derived('amy'));
     expect((await importSession(context(), 'ned', ned.document)).ok).toBe(true);
     expect((await importSession(context(), 'amy', amy.document)).ok).toBe(true);
+  });
+});
+
+// ── A published session, landing again ──────────────────────────────────────
+
+/**
+ * ***`landNewTurns`'s refusals and its one deletion rule*** —
+ * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the review of
+ * 2026-10-11, which found each could be removed with the whole suite green:
+ * the World file's round trip (`routes/world-round-trip.test.ts`) never meets
+ * a turn another session holds, a turn deleted here, or a document of some
+ * other story — so they are met here, against the function, on one install.
+ */
+describe('turns a session lacks, landed onto it', () => {
+  function bare(id: string, parentTurnId: string | null): Turn {
+    return {
+      id,
+      sessionId: 'elsewhere',
+      parentTurnId,
+      createdAt: '2026-10-11T09:00:00.000Z',
+      status: 'complete',
+      input: { actorId: null, kind: 'say', text: 'And then?', raw: '' },
+      output: { text: `Turn ${id}.` },
+      effects: [],
+      tape: [],
+    };
+  }
+
+  function documentOf(turns: Turn[], headTurnId: string): Record<string, unknown> {
+    return {
+      schema: 'storyengine.session-export/1',
+      exportedBy: { version: null, at: '2026-10-11T09:00:00.000Z' },
+      session: {
+        id: 'elsewhere',
+        name: 'Somewhere else',
+        createdAt: '2026-10-11T09:00:00.000Z',
+        updatedAt: '2026-10-11T09:00:00.000Z',
+        headTurnId,
+        channels: {},
+      },
+      turns,
+      renditions: [],
+    };
+  }
+
+  const context = (): ImportContext => ({ sessions: server.services.sessions });
+
+  async function landed(turns: Turn[], headTurnId: string): Promise<string> {
+    const result = await importSession(context(), 'ned', documentOf(turns, headTurnId), {
+      warm: false,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    return result.ok ? result.sessionId : '';
+  }
+
+  it('refuses, writing nothing, a turn another session already holds', async () => {
+    const [a, b] = [uuidv7(), uuidv7()];
+    const here = await landed([bare(a, null)], a);
+    // Another session of the same account holds `b`, as a root of its own.
+    await landed([bare(b, null)], b);
+    const before = await readFile(sessionFilePath(server.services.layout, 'ned', here), 'utf8');
+
+    const result = await landNewTurns(
+      context(),
+      'ned',
+      here,
+      documentOf([bare(a, null), bare(b, a)], b),
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'already-here' });
+    expect([...(await readTurns(server.services.sessions, 'ned', here)).keys()]).toEqual([a]);
+    expect(await readFile(sessionFilePath(server.services.layout, 'ned', here), 'utf8')).toBe(
+      before,
+    );
+  });
+
+  it('leaves a turn deleted here deleted', async () => {
+    const [a, b, c] = [uuidv7(), uuidv7(), uuidv7()];
+    const here = await landed([bare(a, null), bare(b, a)], b);
+    // `b` deleted here: its line a tombstone, its index row still filed here.
+    const segment = join(server.services.layout.sessionRoot('ned', here), 'turns', '000001.jsonl');
+    const lines = (await readFile(segment, 'utf8')).split('\n').filter(Boolean);
+    await writeFile(
+      segment,
+      `${lines[0]!}\n${JSON.stringify({ ...(JSON.parse(lines[1]!) as Turn), removed: true })}\n`,
+    );
+    expect([...(await readTurns(server.services.sessions, 'ned', here)).keys()]).toEqual([a]);
+
+    // The sender's file still has `b`, and a new `c` beside it from `a`.
+    const result = await landNewTurns(
+      context(),
+      'ned',
+      here,
+      documentOf([bare(a, null), bare(b, a), bare(c, a)], c),
+    );
+
+    expect(result).toMatchObject({ ok: true, appended: 1 });
+    expect([...(await readTurns(server.services.sessions, 'ned', here)).keys()]).toEqual([a, c]);
+  });
+
+  it('refuses a document none of whose turns is in the session', async () => {
+    const [a, b] = [uuidv7(), uuidv7()];
+    const here = await landed([bare(a, null)], a);
+
+    const result = await landNewTurns(context(), 'ned', here, documentOf([bare(b, null)], b));
+
+    expect(result).toEqual({ ok: false, reason: 'unrelated' });
+    expect([...(await readTurns(server.services.sessions, 'ned', here)).keys()]).toEqual([a]);
   });
 });

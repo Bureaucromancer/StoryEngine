@@ -1,16 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { inflateRawSync } from 'node:zlib';
+
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import type {
-  ImportDestination,
-  ImportItemReport,
-  ImportNote,
-  ImportPreview,
-  ImportReport,
-  NearMissOffer,
+import {
+  firstLocalEntry,
+  type ImportDestination,
+  type ImportedWorld,
+  type ImportItemReport,
+  type ImportNote,
+  type ImportPreview,
+  type ImportReport,
+  type NearMissOffer,
+  WORLD_FILE_MANIFEST,
+  WORLD_FILE_MANIFEST_MAX_BYTES,
+  type WorldFileManifest,
 } from '@storyengine/shared';
 
 import { type AppServices, requireAccount } from '../app.js';
@@ -48,6 +55,8 @@ import {
   type SweepRequest,
 } from '../import/sweep.js';
 import { packageExportRoot, readPackageExport } from '../import/world/legacy.js';
+import { previewWorld } from '../import/world/preview.js';
+import { manifestFromBytes, surveyManifest } from '../import/world/reader.js';
 import { ZipFileSource } from '../import/zip-source.js';
 import { LandedDatabaseSource, LandedZipSource } from '../import/landed-source.js';
 import type { FileSource } from '../import/source.js';
@@ -114,6 +123,13 @@ interface UploadResult {
    * object's page can say what the import said about it.
    */
   jobId?: string;
+  /**
+   * ***The World the file landed*** — [P16.3f], what the panel leads its
+   * review with: *a world named … landed, naming N objects and M sessions —
+   * Open it.* Read off the World's own row ({@link worldOf}); absent when the
+   * file landed none.
+   */
+  world?: ImportedWorld;
 }
 
 const MEGABYTE = 1024 * 1024;
@@ -1235,11 +1251,73 @@ async function previewUpload(
     reimport: 'unknown',
   });
 
+  const world = (
+    manifest: Parameters<typeof previewWorld>[1],
+    format: 'world-file' | 'package-export',
+  ) =>
+    previewWorld(
+      { library: services.library, sessions: services.sessions, handle },
+      manifest,
+      format,
+      filename,
+    );
+  const notAWorld = (): ImportPreview =>
+    blank(
+      'unrecognised',
+      [
+        {
+          key: 'import.file.refused',
+          params: { file: filename, refusal: 'unknown-format' },
+          level: 'warn',
+        },
+      ],
+      null,
+    );
+
   // Tried first and by signature rather than by parse, exactly as the import
   // path does: a zip is never JSON.
   if (looksLikeZip(bytes)) {
+    /**
+     * ***A whole archive is opened first, and a head is what does not open***
+     * (2026-10-11, the P16.3f review — ~~the head was read first~~, so a whole
+     * archive whose manifest is its first member was previewed from that
+     * member alone, past the classification below). A head has no central
+     * directory, so `ZipFileSource.open` refuses it, and only then is it read
+     * as one.
+     */
     const opened = ZipFileSource.open(bytes);
     if (!opened.ok) {
+      /**
+       * ***A World's file, from its head*** — [P16.3f], [16 §5.1], the plan's
+       * R4. The writer puts the manifest first, stored, its size in its local
+       * header, so the client sends **only the head of the file** — the local
+       * header and the manifest's bytes (`library/world-head.ts`,
+       * `worldHeadOf`) — and that is read here with the shared parser. One door
+       * and one parser, and the server parses rather than trusting a client's
+       * parse.
+       *
+       * ***And a manifest a tool deflated*** (2026-10-11, the review) — the
+       * ordinary course for a file unpacked and zipped again, which P16.3e's
+       * record names: ~~a deflated head, or one with a data descriptor, was not
+       * this arm's~~, and the panel, which never sends a zip whole, showed such
+       * a file as a folder. Now the client slices the manifest's local header
+       * and its *compressed* bytes, taking the sizes from the archive's
+       * directory when a data descriptor keeps them out of the header, and this
+       * inflates them, never past the manifest's ceiling ({@link manifestAtHead}).
+       *
+       * *What a head cannot see*: the rest of the archive. A manifest beside
+       * another probe's mark is a root the commit refuses as ambiguous, and
+       * from its head alone it previews as the World its manifest describes —
+       * the commit's refusal is the truth, as for every preview here. A whole
+       * archive is classified, below.
+       */
+      const head = firstLocalEntry(bytes);
+      if (head !== null && head.name === WORLD_FILE_MANIFEST) {
+        const atHead = manifestAtHead(bytes, head);
+        if (atHead !== NOT_AT_HEAD) {
+          return atHead === null ? notAWorld() : world(atHead, 'world-file');
+        }
+      }
       return blank(
         'unrecognised',
         [
@@ -1251,6 +1329,38 @@ async function previewUpload(
         ],
         null,
       );
+    }
+    /**
+     * ***A World's file sent whole*** — ~~whose manifest is not first~~
+     * *wherever its manifest is* (2026-10-11, the review) — [P16.3f], after
+     * P16.3e's probe, which finds the manifest anywhere so a file zipped again
+     * or by another tool is still read as the World it is. The head is the
+     * fast path; a whole archive small enough to send here — an API caller's,
+     * or a client's for a file it could not slice — wherever its manifest is,
+     * is answered as the commit will read it: ***classified first*** (2026-10-11,
+     * the review — ~~the survey alone~~ previewed as a World a root the commit
+     * refuses as ambiguous), then by the same survey (`surveyManifest`), so a
+     * whole archive the commit would refuse is never previewed as a World.
+     */
+    if (await opened.source.exists(WORLD_FILE_MANIFEST)) {
+      const classified = await classifyRoot(opened.source);
+      if (!classified.ok) {
+        return blank(
+          'unrecognised',
+          [
+            {
+              key: 'import.file.refused',
+              params: { file: filename, refusal: classified.refusal },
+              level: 'warn',
+            },
+          ],
+          null,
+        );
+      }
+      if (classified.kind === 'storyengine-world') {
+        const manifest = await surveyManifest(opened.source);
+        return manifest === null ? notAWorld() : world(manifest, 'world-file');
+      }
     }
     // Opened and discarded. The archive is validated so a broken one is refused
     // here rather than at commit; what is inside it is the sweep's business.
@@ -1352,6 +1462,21 @@ async function previewUpload(
     parsed = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     // Not JSON, which is very likely a card. The reader below decides.
+  }
+
+  /**
+   * ***The frozen `.sepack.json`, looked at as the World it imports as*** —
+   * [P16.3f], [16 §5.1]'s *it reads both formats*. The commit sweeps it over
+   * the root `legacy.ts` synthesises (`packageExportRoot`), and this reads the
+   * manifest that synthesis writes — so the look and the word read one
+   * manifest, its two notes (*no pictures*, *a blank card*) included. Asked
+   * before the envelope check, for the commit's reason: both are JSON roots,
+   * and the schema decides which.
+   */
+  const legacy = parsed === null ? null : readPackageExport(parsed);
+  if (legacy !== null) {
+    const manifest = await surveyManifest(packageExportRoot(legacy));
+    return manifest === null ? notAWorld() : world(manifest, 'package-export');
   }
 
   const envelope = parsed === null ? null : readEnvelope(parsed);
@@ -1907,9 +2032,87 @@ function summaryOf(report: ImportReport): ImportItemReport['disposition'] {
 
 function reportAsUpload(filename: string, report: ImportReport): UploadResult {
   const converted = report.items.find((row) => row.disposition === 'converted');
+  const world = worldOf(report);
   return {
     item: converted ?? { source: filename, disposition: summaryOf(report), notes: [] },
     notes: report.items.flatMap((row) => row.notes),
     report,
+    ...(world === null ? {} : { world }),
   };
+}
+
+/**
+ * ***The World a report landed***, off its own row — [P16.3f]. The row whose
+ * `import.world.landed` note names it (`landWorld` writes one exactly when a
+ * World was written or kept), its `objectId`, and the `import.world.dangling`
+ * beside it. Null when no row says so, which is every report but a World
+ * file's.
+ */
+function worldOf(report: ImportReport): ImportedWorld | null {
+  for (const row of report.items) {
+    const landed = row.notes.find((note) => note.key === 'import.world.landed');
+    if (landed === undefined || row.objectId === undefined) continue;
+    const dangling = row.notes.find((note) => note.key === 'import.world.dangling');
+    return {
+      id: row.objectId,
+      name: String(landed.params['world'] ?? ''),
+      members: Number(landed.params['members'] ?? 0),
+      sessions: Number(landed.params['sessions'] ?? 0),
+      dangling: Number(dangling?.params['count'] ?? 0),
+    };
+  }
+  return null;
+}
+
+/** Bit 3 of a local header's flags: the sizes are in a data descriptor after the data. */
+const DATA_DESCRIPTOR = 0x0008;
+const STORED = 0;
+const DEFLATED = 8;
+/** {@link manifestAtHead}'s *this is not a head this arm reads*: open the bytes as an archive. */
+const NOT_AT_HEAD = Symbol('not at head');
+
+/**
+ * ***The manifest a head carries*** — [P16.3f], and the review of 2026-10-11:
+ * the manifest, `null` for one that does not read (the commit's
+ * `unknown-format`), or {@link NOT_AT_HEAD} for bytes this arm cannot answer
+ * for, which are then opened as the archive they may be.
+ *
+ * - **Stored**, its sizes in its header: exactly its bytes, all of which must
+ *   be here — a head cut short is not this arm's.
+ * - **Deflated**: inflated, and **never past the manifest's ceiling**
+ *   (`maxOutputLength`) — a few kilobytes that inflate to gigabytes are
+ *   refused as the manifest that does not read, not decompressed to find out.
+ *   A deflate stream ends itself, so what follows it is left alone.
+ * - **A data descriptor** keeps the sizes out of the header, and the slice the
+ *   client sends ends where the archive's directory says the data does — so
+ *   the data is what is here. A whole archive with such a manifest first is
+ *   the same bytes followed by the rest of the archive: deflated, the stream
+ *   still ends itself; stored, the manifest then does not read, and the bytes
+ *   are opened whole instead of refused.
+ */
+function manifestAtHead(
+  bytes: Uint8Array,
+  head: NonNullable<ReturnType<typeof firstLocalEntry>>,
+): WorldFileManifest | null | typeof NOT_AT_HEAD {
+  if (head.method !== STORED && head.method !== DEFLATED) return NOT_AT_HEAD;
+  const sized = (head.flags & DATA_DESCRIPTOR) === 0;
+  if (sized && head.dataStart + head.size > bytes.length) return NOT_AT_HEAD;
+  if (sized && head.method === STORED && head.size > WORLD_FILE_MANIFEST_MAX_BYTES) {
+    return NOT_AT_HEAD;
+  }
+  const data = sized
+    ? bytes.subarray(head.dataStart, head.dataStart + head.size)
+    : bytes.subarray(head.dataStart);
+  let plain: Uint8Array;
+  if (head.method === STORED) {
+    plain = data;
+  } else {
+    try {
+      plain = inflateRawSync(data, { maxOutputLength: WORLD_FILE_MANIFEST_MAX_BYTES });
+    } catch {
+      return null;
+    }
+  }
+  const manifest = manifestFromBytes(plain);
+  return manifest === null && !sized && head.method === STORED ? NOT_AT_HEAD : manifest;
 }

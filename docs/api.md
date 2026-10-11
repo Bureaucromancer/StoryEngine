@@ -591,8 +591,16 @@ that names a member twice, lists a file or id twice, or carries a manifest of
 another schema or a later version is refused whole, before anything is written.
 An object whose id another account on this install holds lands under a new id,
 and the references to it follow; reading your own file back is `unchanged`.
-**Sessions are `recorded` and not yet landed** (`import.world.sessionsNotTaken`)
-— that is P16.3f's. A `.sepack.json`, P11.10's export, is read by the same reader
+~~**Sessions are `recorded` and not yet landed** (`import.world.sessionsNotTaken`)
+— that is P16.3f's.~~ ***Sessions land since [P16.3f](design/workplan/35-p16-world.md)***
+— each as a session of yours, its turns keeping their ids unless another account
+on this install holds them, when they are re-keyed; one already here takes only
+what is new — turns, pictures of turns it has, goals — and is `unchanged` when
+there is none; a document sharing no turn with the session it was matched to is
+refused (`import.world.sessionUnrelated`). A landed session is quiet: it does not
+start the summariser on your connections, which builds on the first turn played.
+It arrives unarchived. The answer carries `world` — the World's id and name and
+how many objects and sessions it names — for the panel's *Open it*. A `.sepack.json`, P11.10's export, is read by the same reader
 as a World with no pictures (`import.world.noPortrait` on an actor that lands on
 the blank card). A landed zip's read budget is the larger of 256 MiB and four
 times the bytes received, since a World file's members are read more than once.
@@ -722,6 +730,18 @@ change underneath, and the commit's answer is the real one.
 **A file this cannot identify is `200`, not `4xx`.** A file is a fact about the
 world rather than a malformed request, which is the shape `/import/file` already
 takes.
+
+**A World file previews from its manifest** —
+[P16.3f](design/workplan/35-p16-world.md). The answer's `world` is the World
+look: what the file carries by kind, each object as `new`, `here` or `built-in`
+for this account — **an id only another account holds previews as `new`**, so a
+preview never says what someone else has — its sessions with their turns and
+pictures, what it names that stays unresolved here, and what it requires that
+this install lacks. A whole archive is opened and classified first, as the commit
+will; the client, for a large one, sends only the manifest's own local entry,
+found through the archive's directory wherever it sits and stored or deflated, and
+the server reads that slice, inflating at most the manifest's ceiling. A
+`.sepack.json` previews the same way. Like every preview here, it writes nothing.
 
 **The commit is a second upload of the same bytes to `/import/file`**, not a
 `POST` of the object this returns. There is no staging area: nothing is written

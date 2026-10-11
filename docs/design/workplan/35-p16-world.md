@@ -1081,7 +1081,8 @@ on and off.
   length included — fails the publish whole, leaving no file. *(P16.3d added the
   World's own row to what a plan holds to: a World saved while it is being
   published refuses, rather than pairing the old `world.json` with the new
-  pictures.)* Session exports
+  pictures.)* *(P16.3f added a session's archived date to what is stripped: a
+  session landing archived was hidden from the person it was sent to.)* Session exports
   are streamed to scratch one turn at a time as they are surveyed, so a plan
   never holds every transcript at once, and one too large to travel stays home,
   named, rather than throwing.
@@ -1214,6 +1215,50 @@ and the look before commit, from the manifest's head bytes through the existing
 preview door.
 
 **Ends when** the first end clause, as a route test.
+
+**Built 2026-10-11, on `p16`**, by a builder, four reviewers — turns and identity,
+the landed session opened, the look before commit, whether the tests can fail —
+and a fixer: nineteen findings, all fixed with tests that fail without them.
+**P16.3's first end clause is a test, and it passes**:
+`routes/world-round-trip.test.ts` has account A publish a World through
+`POST /api/publish` with one session ticked, and account B import it through
+`POST /api/import/file`; B's World names exactly what landed, the session opens
+with its turns and pictures and **records no hand edit on opening**, A's session
+and turns are untouched, B importing again doubles nothing, A importing its own
+file finds the session already here, and a session A played on and published
+again lands only its new turns on B. [16 §5.2](../16-publish.md)'s *as built*
+bullets are what the reader decides about sessions; `docs/api.md` the contract.
+
+- **Turns keep their ids unless another account holds them**, then are re-keyed
+  per account — with a fallback for ids that are not v7, which chat and Aventuras
+  imports produce — and every id follows, in values, in map keys, and inside
+  composite strings: a channel's scope, Scene's locked and hidden field paths, a
+  draw's purpose. *The review found the last two left under the sender's actor
+  ids*, so a recipient's locks stopped holding and hidden fields showed.
+- **A session already here is asked how it is keyed on disk**, never the index
+  alone — *the review found a sender restoring a trashed session made the next
+  import append the whole story again* — and every re-import goes through one
+  append-only path that takes what is new: turns, where nobody has played on;
+  pictures for turns it has; goals written since; and, when nobody played here,
+  the hook pool, cast and books. What the recipient removed or changed stays as
+  they left it, and under keep-both a session already here keeps playing the
+  objects it played rather than the copies.
+- **Landing is quiet, decided here**: a World's sessions do not start the
+  summariser on the recipient's connections, on arrival or when grown —
+  transcripts somebody sent, often read and never played, should not spend a
+  person's model budget unasked. [19 §7.5](../19-session-import.md) carries the
+  note. A session arrives unarchived; the writer and the reader both strip the
+  date.
+- **The look before commit** reads only the manifest: from the file's head, or
+  its own entry found through the archive's directory, stored or deflated by a
+  tool that re-zipped it; a whole archive is classified first, as the commit
+  does. An id only another account holds previews as `new`. The look is its own
+  chunk, loaded when a World file is picked, and an ordinary zip falls back to
+  the folder look if it cannot load. **The entry is 309.69 kB** of the 312
+  ceiling, held under 310 by that `lazy()` — P16.3g's review is the next.
+- *Left*: a turn deleted locally whose index row was lost can come back on a
+  re-import, and a rendition deleted by hand comes back on any re-import — no
+  route deletes one. The trash risk P16.3e named holds for sessions too.
 
 #### P16.3g — The client: selection, the review, the doors
 

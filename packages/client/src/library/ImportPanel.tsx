@@ -6,6 +6,7 @@ import { useRef, useState, type ChangeEvent, type JSX, type ReactNode } from 're
 
 import type {
   ImportDestination,
+  ImportedWorld,
   ImportPreview,
   ImportPreviewBlock,
   ImportPreviewScenario,
@@ -21,6 +22,7 @@ import { control, disclosure } from '../ui/classes.js';
 import { CheckboxField } from '../ui/Field.js';
 import { Note, SubsectionTitle } from '../ui/Text.js';
 import { landedPreview, sniffImportFile } from './import-sniff.js';
+import { ImportWorldPreview, WorldLanded, worldSummary } from './ImportWorldLoad.js';
 import { sentence } from './note-labels.js';
 import { labels } from '../i18n/catalogue.js';
 
@@ -96,10 +98,10 @@ const VERDICT_LABELS: Record<string, string> = labels('import.verdict', {
     'An unpacked StoryEngine backup. Only its library is imported from here; its sessions, tags and settings are listed and left behind.',
   aventuras:
     'An Aventuras library. Its characters, lorebooks and scenarios are imported, and its stories too when that is ticked; everything else in it is listed and left behind for now.',
-  // [P16.3e]: the probe table's World file. Its sessions are named and wait
-  // for P16.3f; the sentence says what this build does with one.
+  // [P16.3e]: the probe table's World file. ~~Its sessions are named and wait
+  // for P16.3f~~ — since P16.3f they land, as sessions of your own in Play.
   'storyengine-world':
-    'A StoryEngine world. Its objects come into your library and the world lands naming what landed; its sessions are listed and left behind for now.',
+    'A StoryEngine world. Its objects come into your library, its sessions into Play, and the world lands naming what landed.',
   'loose-files':
     'Not a SillyTavern, Marinara or Aventuras folder. Anything importable in it will be taken one file at a time.',
 });
@@ -215,7 +217,12 @@ type Outcome =
        */
       destination: ImportDestination | null;
     }
-  | { kind: 'report'; report: ImportReport }
+  | {
+      kind: 'report';
+      report: ImportReport;
+      /** The World the file landed, which the review leads with — [P16.3f]. */
+      world?: ImportedWorld;
+    }
   /**
    * ***A picked folder with chats in it, waiting for the one question*** —
    * [P14.8]. The plan came back without them and said what they would add;
@@ -430,8 +437,32 @@ export function ImportPanel(): JSX.Element {
        * said, and then sent again on the word.
        */
       const landed = await sniffImportFile(file);
+      /**
+       * ***Except a World's file, whose head is sent*** — [P16.3f]. Its
+       * manifest says what is inside it, and is all the look needs; the slice
+       * (`worldHeadOf`) goes to the preview door as a file of its own, under
+       * the picked file's name, and the archive stays here until the word.
+       * The slicer is fetched with the pick, off the entry (`world-head.ts`).
+       *
+       * ***A slicer that cannot be fetched, or a file it cannot read, is no
+       * head*** (2026-10-11, the P16.3f review): every zip is sliced, not only a
+       * World's, and a tab opened before an upgrade has lost the chunk — ~~so
+       * the look at every archive failed with the browser's own words~~ — so the
+       * zip is looked at as a folder, as every zip was before this stage,
+       * without the network. The commit reads the file either way.
+       */
+      const head =
+        landed === 'zip'
+          ? await import('./world-head.js')
+              .then((module) => module.worldHeadOf(file))
+              .catch(() => null)
+          : null;
       const preview =
-        landed === null ? (await api.importFilePreview(file)).preview : landedPreview(file);
+        head !== null
+          ? (await api.importFilePreview(new File([head], file.name))).preview
+          : landed === null
+            ? (await api.importFilePreview(file)).preview
+            : landedPreview(file);
       if (asked.current !== mine) return;
       setOutcome({
         kind: 'preview',
@@ -529,6 +560,7 @@ export function ImportPanel(): JSX.Element {
           items: [result.item],
           counts: { [result.item.disposition]: 1 },
         },
+        ...(result.world === undefined ? {} : { world: result.world }),
       });
       await refresh();
     } catch (cause) {
@@ -745,7 +777,7 @@ export function ImportPanel(): JSX.Element {
               ref={fileInput}
               id="import-file"
               type="file"
-              accept=".png,.json,.charx,.seactor,.zip,.db,.avt"
+              accept=".png,.json,.charx,.seactor,.seworld,.zip,.db,.avt"
               onChange={(event) => void onFile(event)}
               disabled={pending}
               className="sr-only"
@@ -970,6 +1002,9 @@ export function ImportPanel(): JSX.Element {
         />
       ) : null}
 
+      {outcome?.kind === 'report' && outcome.world !== undefined ? (
+        <WorldLanded world={outcome.world} />
+      ) : null}
       {outcome?.kind === 'report' ? <Report report={outcome.report} /> : null}
       <PastImports
         disabled={pending}
@@ -1244,6 +1279,7 @@ function Preview(props: {
   const object = preview.object;
   const preset = object !== null && object.kind === 'preset' ? object : null;
   const scenario = object !== null && object.kind === 'scenario' ? object : null;
+  const world = object !== null && object.kind === 'world' ? object : null;
 
   return (
     <section aria-label="What this would import" className="flex flex-col gap-3">
@@ -1253,6 +1289,15 @@ function Preview(props: {
         <code className="block break-all text-xs text-ink">{preview.source}</code>
         <Note>{summary(preview)}</Note>
       </div>
+
+      {world !== null ? (
+        <ImportWorldPreview
+          world={world}
+          onConflict={props.onConflict}
+          busy={props.busy}
+          onPolicy={props.onPolicy}
+        />
+      ) : null}
 
       {scenario !== null ? (
         <div className="flex flex-col gap-2">
@@ -1450,6 +1495,7 @@ function summary(preview: ImportPreview): string {
   if (object === null) return 'Nothing would be imported from this file.';
   if (object.kind === 'sweep') return 'Everything inside would be imported.';
   if (object.kind === 'opaque') return `It would be imported as “${object.name}”.`;
+  if (object.kind === 'world') return worldSummary(object);
   if (object.kind === 'scenario') return scenarioSummary(object);
   return `It would become a preset called “${object.name}”.`;
 }

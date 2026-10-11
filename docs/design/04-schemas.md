@@ -2340,7 +2340,10 @@ is not in `PORTABLE_SCHEMAS` — an envelope is not an object somebody edits.
   lands. The manifest is written first, and *found* anywhere — a re-zipped World
   file is still a World file.
 - **What is never in it**: the index, a connection, an orphan picture, an
-  unticked session or any trace of one, an object play wrote, an absolute path.
+  unticked session or any trace of one, an object play wrote, an absolute path —
+  nor, since [P16.3f](workplan/35-p16-world.md), a session's archived date: an
+  archive is the sender's tidiness, and a session landing archived would be
+  hidden from the person it was sent to.
 
 ## 10. Not defined here, deliberately
 

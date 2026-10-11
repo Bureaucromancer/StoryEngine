@@ -509,6 +509,57 @@ export function sessionHoldingTurns(db: DatabaseSync, turnIds: Iterable<string>)
 }
 
 /**
+ * ***Which session holds these turns, and whose it is*** —
+ * [P16.3f](../../../../docs/design/workplan/35-p16-world.md), the World file's
+ * session reader, which has to decide *whose* turns they are before it decides
+ * what to do with a session it was handed: this account's own (the sender
+ * reading their file back, or an earlier arrival of it), so nothing is
+ * written twice; or **anybody else's**, so the turns are re-keyed rather than
+ * refused, because a turn id is one row on the install.
+ *
+ * ***The `session` join is a LEFT join, and the null it can produce is an
+ * answer*** — the fact check of 2026-10-10, which found the plan's
+ * `{ sessionId, owner }` reporting *nobody* for a turn row whose session row
+ * is gone. {@link sessionHoldingTurns}' reason holds here word for word: *a
+ * row is a claim whether or not its session row is there* — an import that
+ * kept such ids would take that row's search hits and location. So a turn
+ * with no session row comes back with `owner: null`, and the caller reads
+ * null as **another holder**, never as this account and never as free.
+ *
+ * The first turn found answers, as {@link sessionHoldingTurns}' does: a
+ * session's turns are one session's, and a caller that has to be sure of
+ * every one asks {@link turnsNotHeld} — whose answer, not this one's, is what
+ * *already here* means (the fact check's second correction).
+ */
+export function sessionHolding(
+  db: DatabaseSync,
+  turnIds: Iterable<string>,
+): { sessionId: string; owner: string | null } | null {
+  const find = db.prepare(
+    `select turn.session_id, session.owner
+       from turn left join session on session.session_id = turn.session_id
+      where turn.turn_id = ?`,
+  );
+  for (const turnId of turnIds) {
+    const row = find.get(turnId) as { session_id: string; owner: string | null } | undefined;
+    if (row !== undefined) return { sessionId: row.session_id, owner: row.owner ?? null };
+  }
+  return null;
+}
+
+/**
+ * ***Whose session this id is***, or null for none on this install — the
+ * owner key from the session row. For the World preview's *does this
+ * left-behind session resolve here* ([P16.3f]): a session link has no name to
+ * fall back on, so it resolves only when the session is the reader's own.
+ */
+export function sessionOwner(db: DatabaseSync, sessionId: string): string | null {
+  const row = db.prepare('select owner from session where session_id = ?').get(sessionId) as
+    { owner: string } | undefined;
+  return row?.owner ?? null;
+}
+
+/**
  * How many of these turns the index does not hold.
  *
  * ***The rest of the question `sessionHoldingTurns` stops asking at its first

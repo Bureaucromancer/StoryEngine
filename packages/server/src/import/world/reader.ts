@@ -19,6 +19,7 @@ import {
 
 import { contentHashOf } from '../../index-db/ingest.js';
 import type { LibraryContext } from '../../library.js';
+import type { SessionContext } from '../../sessions/store.js';
 import type { TagStore } from '../../tags/store.js';
 import type { ConflictPolicy } from '../identity.js';
 import type { FileSource, SourceItem, SourceReader, SourceSurvey } from '../source.js';
@@ -30,7 +31,15 @@ import {
   type WorldMember,
 } from './landing.js';
 import { LegacyWorldRoot } from './legacy.js';
-import { asLanded, type ArrivalObject, type ArrivalPlan, planArrivals } from './plan.js';
+import {
+  arrivalsHere,
+  asLanded,
+  type ArrivalObject,
+  type ArrivalPlan,
+  planArrivals,
+} from './plan.js';
+import { danglingHere } from './preview.js';
+import type { WorldSessionEntry } from './session.js';
 
 /**
  * ***A World file, read as a root*** —
@@ -44,8 +53,10 @@ import { asLanded, type ArrivalObject, type ArrivalPlan, planArrivals } from './
  * writer, `packaging/world-file.ts`). *First* is the writer's rule; the probe
  * finds the manifest wherever it is (`detect.ts`, corrected 2026-10-11), so a
  * file zipped again, or unpacked to a folder, is read here and not loose. The objects land as library objects; the
- * World lands **last**, naming what landed ([16 §5.1]); the sessions are
- * recorded, and land at [P16.3f].
+ * World lands **last**, naming what landed ([16 §5.1]); ~~the sessions are
+ * recorded, and land at [P16.3f]~~ *the sessions land between the two, each
+ * as a new session of this account's, through `session.ts` ([P16.3f]) — so
+ * the World, last, names the ones that did.*
  *
  * **In this order, and the order is the safety** ([P4 §1.3]: *a refusal after
  * the first object is written is a half-import*):
@@ -100,14 +111,28 @@ import { asLanded, type ArrivalObject, type ArrivalPlan, planArrivals } from './
 /** The World's landing, handed to the Writer last — `Writer.#worldLanding`. */
 export const WORLD_LANDING_FORMAT = 'storyengine.world-landing';
 
-/** A session the file carries — `Writer.#worldSession`, which records it until [P16.3f]. */
+/**
+ * A session the file carries — `Writer.#worldSession`, which ~~records it
+ * until [P16.3f]~~ lands it (`session.ts`) when the sweep was handed a session
+ * store, and records it when it was not.
+ */
 export const WORLD_SESSION_FORMAT = 'storyengine.world-session';
 
-/** What a session candidate carries: where it is in the file, and its names. */
-export interface WorldSessionPayload {
-  fileSessionId: string;
-  folder: string;
-  name: string;
+/**
+ * What a session candidate carries: where it is in the file, its name — and,
+ * from [P16.3f], **the plan's ids**: file id to landed id for every object of
+ * the file, so the session's links and its actor-keyed state follow a re-mint
+ * exactly as the objects' references did. Computed once, before the first
+ * object was yielded; never anything the file says.
+ */
+export interface WorldSessionPayload extends WorldSessionEntry {
+  ids: ReadonlyMap<string, string>;
+  /**
+   * ***This account's arrivals of each file object, before this import*** —
+   * (2026-10-11, the P16.3f review) what a session already here is followed
+   * by in place of a keep-both copy (`session.ts`, `asPlayed`).
+   */
+  arrivals: ReadonlyMap<string, readonly string[]>;
 }
 
 export interface WorldReaderContext {
@@ -116,6 +141,12 @@ export interface WorldReaderContext {
   policy: ConflictPolicy;
   /** The account's tag registry, which arriving `tagIds` are filtered to; null keeps them. */
   tags: TagStore | null;
+  /**
+   * The session store, for what the World's row says dangles ([P16.3f]): a
+   * left-behind session resolves only when it is this account's. Absent, none
+   * does. The sessions themselves are the Writer's to land.
+   */
+  sessions?: SessionContext | null;
 }
 
 export class WorldFileReader implements SourceReader {
@@ -139,13 +170,7 @@ export class WorldFileReader implements SourceReader {
 
   /** The manifest, if the file is one this build reads as a whole — see the module comment, step 1. */
   async #surveyed(): Promise<WorldFileManifest | null> {
-    if ((this.#files.duplicateNames?.() ?? []).length > 0) return null;
-    const manifest = await readManifest(this.#files);
-    if (manifest === null) return null;
-    const rows = [...manifest.objects, ...(manifest.world === null ? [] : [manifest.world])];
-    if (new Set(rows.map((row) => row.file)).size !== rows.length) return null;
-    if (new Set(rows.map((row) => row.id)).size !== rows.length) return null;
-    return { ...manifest, requires: wellFormedRequires(manifest.requires) };
+    return surveyManifest(this.#files);
   }
 
   async *items(): AsyncIterable<SourceItem> {
@@ -238,6 +263,15 @@ export class WorldFileReader implements SourceReader {
       this.#context.tags === null
         ? null
         : new Set((await this.#context.tags.read(this.#context.handle)).tags.map((tag) => tag.id));
+    // Asked before the plan, which asks nothing it writes, and before the
+    // first write — and only of a file that carries a session to need it.
+    const arrivals =
+      manifest.sessions.length === 0
+        ? new Map<string, string[]>()
+        : arrivalsHere(
+            candidates.map((one) => one.object),
+            this.#context,
+          );
     const plan = await planArrivals(
       candidates.map((one) => one.object),
       {
@@ -331,12 +365,14 @@ export class WorldFileReader implements SourceReader {
       };
     }
 
-    // ── The sessions: recorded here, landed from [P16.3f] ──
+    // ── The sessions: after every object they could link, before the World that names them ──
     for (const session of manifest.sessions) {
       const payload: WorldSessionPayload = {
         fileSessionId: session.id,
         folder: session.folder,
         name: session.name,
+        ids: plan.ids,
+        arrivals,
       };
       yield {
         outcome: 'candidate',
@@ -363,6 +399,7 @@ export class WorldFileReader implements SourceReader {
       arrival,
       entries: entriesOf(world.object.members ?? [], plan),
       requires: manifest.requires,
+      dangling: danglingHere(this.#context, manifest),
       omitted: [
         ...notes,
         ...omitted.filter((note) => !ownIds.has(String(note.params['id'] ?? ''))),
@@ -573,12 +610,26 @@ interface Landable {
 }
 
 /**
- * The manifest, or null when there is none this build reads: absent, past its
- * ceiling, not JSON, or `readWorldFileManifest`'s refusal — the wrong schema,
- * a later version, a field a reader acts on missing.
+ * ***The manifest of a file, as the survey takes it*** — or null when the
+ * file is not one this build reads as a whole (the module comment, step 1).
+ * Exported for the preview ([P16.3f], `preview.ts`), which answers from the
+ * same manifest the commit will read, so a file the commit would refuse as
+ * `unknown-format` is never previewed as a World.
  */
-async function readManifest(files: FileSource): Promise<WorldFileManifest | null> {
-  const bytes = await files.read(WORLD_FILE_MANIFEST);
+export async function surveyManifest(files: FileSource): Promise<WorldFileManifest | null> {
+  if ((files.duplicateNames?.() ?? []).length > 0) return null;
+  return manifestFromBytes(await files.read(WORLD_FILE_MANIFEST));
+}
+
+/**
+ * The manifest in these bytes, or null when there is none this build reads:
+ * absent, past its ceiling, not JSON, or `readWorldFileManifest`'s refusal —
+ * the wrong schema, a later version, a field a reader acts on missing — or a
+ * manifest listing one file or one id twice; with `requires` kept to its shape.
+ * *The bytes alone* — what the head of a file holds ([P16.3f]: the preview
+ * reads this off `firstLocalEntry`'s slice, with no archive around it).
+ */
+export function manifestFromBytes(bytes: Uint8Array | null): WorldFileManifest | null {
   if (bytes === null || bytes.byteLength > WORLD_FILE_MANIFEST_MAX_BYTES) return null;
   let parsed: unknown;
   try {
@@ -587,7 +638,11 @@ async function readManifest(files: FileSource): Promise<WorldFileManifest | null
     return null;
   }
   const manifest = readWorldFileManifest(parsed);
-  return 'refusal' in manifest ? null : manifest;
+  if ('refusal' in manifest) return null;
+  const rows = [...manifest.objects, ...(manifest.world === null ? [] : [manifest.world])];
+  if (new Set(rows.map((row) => row.file)).size !== rows.length) return null;
+  if (new Set(rows.map((row) => row.id)).size !== rows.length) return null;
+  return { ...manifest, requires: wellFormedRequires(manifest.requires) };
 }
 
 /**
@@ -722,7 +777,7 @@ function entriesOf(members: readonly WorldMember[], plan: ArrivalPlan): WorldLan
  * the legacy synthesis itself, and flat parameters — a string or a finite
  * number, what every sentence's placeholders take.
  */
-function wellFormedNotes(notes: readonly unknown[], legacy: boolean): ImportNote[] {
+export function wellFormedNotes(notes: readonly unknown[], legacy: boolean): ImportNote[] {
   const out: ImportNote[] = [];
   for (const note of notes) {
     if (typeof note !== 'object' || note === null) continue;

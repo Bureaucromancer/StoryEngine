@@ -75,6 +75,7 @@ import { convertLorebook as convertMarinaraLorebook } from './marinara/lorebook.
 import { convertPreset as convertMarinaraPreset } from './marinara/preset.js';
 import { BackupReader } from './storyengine/reader.js';
 import { landWorld, type WorldLanding } from './world/landing.js';
+import { landWorldSession } from './world/session.js';
 import {
   WORLD_LANDING_FORMAT,
   WORLD_SESSION_FORMAT,
@@ -528,6 +529,7 @@ function readerFor(kind: string, request: SweepRequest): SourceReader | null {
       handle: request.handle,
       policy: request.onConflict ?? 'replace',
       tags: request.tags,
+      sessions: request.sessions ?? null,
     });
   }
   // A whole Aventuras install — [P13.2]. Given the library's own layout,
@@ -593,8 +595,9 @@ class Writer {
   readonly #vaultTags: VaultTagMerge;
   /**
    * ***A World file's sessions, by their id in the file, as they landed*** —
-   * what `landWorld` names a session by. Empty at [P16.3e], which records
-   * sessions and lands none; [P16.3f]'s `#worldSession` fills it.
+   * what `landWorld` names a session by. ~~Empty at [P16.3e], which records
+   * sessions and lands none~~; filled by `#worldSession` since [P16.3f], each
+   * under the id of the session it landed as or found here.
    */
   readonly #worldSessions = new Map<string, { id: string; name: string }>();
 
@@ -712,7 +715,7 @@ class Writer {
        */
       case WORLD_LANDING_FORMAT:
         return this.#worldLanding(candidate);
-      /** A World file's session — recorded at [P16.3e]; landed from [P16.3f]. */
+      /** A World file's session — recorded at [P16.3e]; landed from [P16.3f] (`#worldSession`). */
       case WORLD_SESSION_FORMAT:
         return this.#worldSession(candidate);
 
@@ -1249,25 +1252,61 @@ class Writer {
   }
 
   /**
-   * ***A World file's session, recorded*** — [P16.3e]. Named in the review,
-   * with what it is, and not landed: the session reader that re-keys turns
-   * another account holds is [P16.3f]'s, and until it lands one the World
-   * names none (`#worldSessions` stays empty), so a World is never written
-   * naming a session that is not here.
+   * ***A World file's session*** — ~~recorded~~ *landed*, [P16.3f]
+   * (`world/session.ts`): as a new session of this account's, its turns
+   * re-keyed only where somebody else holds them, or found here already and
+   * given only what it lacks. What landed goes into `#worldSessions`, which
+   * the World's own row — yielded after every session — names it by.
+   *
+   * ***Recorded, as at [P16.3e], when the sweep has no session store*** — the
+   * same answer `SweepRequest.sessions` gives a chat with none: a request for
+   * library objects only, said rather than silent. Every route passes one.
+   *
+   * *A throw is this row's*, never the sweep's, for `#worldLanding`'s reason:
+   * the World after it would otherwise not land, and the objects before it are
+   * already in.
    */
-  #worldSession(candidate: ImportCandidate): ImportItemReport {
+  async #worldSession(candidate: ImportCandidate): Promise<ImportItemReport> {
     const session = candidate.payload as WorldSessionPayload;
-    return {
-      source: candidate.source,
-      disposition: 'recorded',
-      notes: [
-        {
-          key: 'import.world.sessionsNotTaken',
-          params: { session: session.name },
-          level: 'info',
-        },
-      ],
-    };
+    const { sessions, handle, files } = this.#request;
+    if (sessions === undefined) {
+      return {
+        source: candidate.source,
+        disposition: 'recorded',
+        notes: [
+          {
+            key: 'import.world.sessionsNotTaken',
+            params: { session: session.name },
+            level: 'info',
+          },
+        ],
+      };
+    }
+    try {
+      const { row, landed } = await landWorldSession(
+        { sessions, files, handle },
+        session,
+        session.ids,
+        session.arrivals,
+      );
+      if (landed !== null) this.#worldSessions.set(session.fileSessionId, landed);
+      return row;
+    } catch (error) {
+      return {
+        source: candidate.source,
+        disposition: 'unrecognised',
+        notes: [
+          {
+            key: 'import.file.notStored',
+            params: {
+              object: session.name,
+              reason: error instanceof Error ? error.name : 'unknown',
+            },
+            level: 'warn',
+          },
+        ],
+      };
+    }
   }
 
   async #card(candidate: ImportCandidate): Promise<ImportItemReport> {
@@ -1580,6 +1619,14 @@ class Writer {
      * filename, which is `identifyNative`'s whole argument.
      */
     native = this.#request.fromHandle !== undefined,
+    /**
+     * ***The policy for this one write*** — [P16.3f], `landWorld`'s alone: a
+     * World the plan found here (not a copy) is written onto as an update even
+     * under *keep-both*, because what differs by then is only the sessions the
+     * landing merged in, which keep-both's comparison leaves out
+     * (`world/landing.ts`). Absent is the request's.
+     */
+    onConflict: ConflictPolicy | undefined = this.#request.onConflict,
   ): Promise<'created' | 'unchanged' | 'replaced' | 'kept-both' | 'skipped' | 'failed'> {
     const { library, handle } = this.#request;
     /**
@@ -1604,7 +1651,7 @@ class Writer {
     }
 
     if (identity.kind === 'changed') {
-      switch (this.#request.onConflict ?? 'replace') {
+      switch (onConflict ?? 'replace') {
         case 'skip':
           notes.push({
             key: 'import.object.differsAndKept',

@@ -130,9 +130,11 @@ export interface ArrivalObject {
    * ***The World's members, as the landing will name them*** — its entries in
    * file ids, each marked when the reader refused it. A World is compared as
    * it would land (`worldAsMerged`), and what it would land naming is what
-   * `landWorld` names: not a session until [P16.3f] lands one, not a refused
-   * member, not a World. Absent, the body's own `contents` are read, none of
-   * them refused — for a caller with no reader in front of it.
+   * `landWorld` names — not a refused member, not a World, and not a session,
+   * which keep-both's comparison leaves out ~~until [P16.3f] lands one~~
+   * *deliberately, since [P16.3f]* (see `worldAsMerged`). Absent, the body's
+   * own `contents` are read, none of them refused — for a caller with no
+   * reader in front of it.
    */
   members?: readonly WorldMember[];
   /**
@@ -189,6 +191,40 @@ export interface ArrivalContext {
    * keeps every id, for a caller with no registry to ask.
    */
   tags: ReadonlySet<string> | null;
+}
+
+/**
+ * ***Every object of this account's that is already an arrival of each file
+ * object*** — [P16.3f], the review of 2026-10-11: its own row under the file's
+ * id, and every row under the arrival key (`seworld:<id>`), keep-both's copies
+ * included, in `findPriorImports`' order. Read before anything is written, for
+ * the one reader that needs more than the plan's single answer: a session
+ * already here, whose turns name whichever of these an earlier import landed
+ * (`session.ts`, `asPlayed`) — where the plan, under keep-both, may now name a
+ * fresh copy. Empty lists are left out.
+ */
+export function arrivalsHere(
+  objects: readonly ArrivalObject[],
+  context: Pick<ArrivalContext, 'library' | 'handle'>,
+): Map<string, string[]> {
+  const owner = `user:${context.handle}`;
+  const out = new Map<string, string[]>();
+  for (const object of objects) {
+    if (out.has(object.id)) continue;
+    const found = new Set<string>();
+    const row = findById(context.library.db, object.id);
+    if (row !== null && row.owner === owner && row.schemaId === object.schemaId) found.add(row.id);
+    for (const prior of findPriorImports(
+      context.library.db,
+      owner,
+      object.schemaId,
+      arrivalKey(object.id),
+    )) {
+      found.add(prior.id);
+    }
+    if (found.size > 0) out.set(object.id, [...found]);
+  }
+  return out;
 }
 
 /** The arrival key a World file stamps on what it lands new — per account, per file id. */
@@ -395,11 +431,15 @@ async function differs(
  * ***A World is compared as it would land*** — `landWorld`'s rule, from the
  * same entries by the same reading (`entryKind`): its `contents` merged into
  * the one here, never shrinking it, gaining each member that will land under
- * the id it will land as, and nothing else — no session until [P16.3f] lands
- * one, no member the reader refused, no World, no member the file does not
- * carry unless it is here already. *Counting more than the landing adds* was
- * the review's finding: a ticked session or a damaged member made the World
- * here differ on every keep-both import, and each one made a new World.
+ * the id it will land as, and nothing else — no member the reader refused, no
+ * World, no member the file does not carry unless it is here already, and ~~no
+ * session until [P16.3f] lands one~~ **no session, deliberately** ([P16.3f]):
+ * a session's landed id is not known until it has landed, after this plan,
+ * and a session is never replaced or copied, so it joins whichever World the
+ * plan settles on by the merge rule (`landing.ts`). *Counting more than the
+ * landing adds* was the review's finding: a ticked session or a damaged member
+ * made the World here differ on every keep-both import, and each one made a
+ * new World.
  *
  * A **partial** World — the legacy file — lands onto the one here as its
  * name, its version and that list, and is compared so.

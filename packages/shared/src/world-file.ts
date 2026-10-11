@@ -222,10 +222,16 @@ export function readWorldFileManifest(
  * that may be gigabytes (P16.3f). This returns what the header *says*; the
  * caller decides whether it can be trusted:
  *
- * - `method !== 0` — deflated — has no slice to take; the bytes are a stream.
+ * - `method !== 0` — deflated — ~~has no slice to take; the bytes are a
+ *   stream~~: *its slice is its compressed bytes, which the server inflates,
+ *   bounded by the manifest's ceiling* (2026-10-11, the P16.3f review — every
+ *   tool that zips a folder again deflates the manifest). `size` is the
+ *   compressed size, offset 18, as the header wrote it.
  * - `flags & 0x0008` — a data descriptor — means the sizes here are zero or
  *   wrong, and the real ones are after the data. `size` is reported as the
- *   header wrote it, which for such an entry is not the entry's size.
+ *   header wrote it, which for such an entry is not the entry's size; the
+ *   client takes the size from the archive's directory instead, and slices
+ *   to the data's end.
  * - `size` past what the caller holds means the head was cut too short.
  *
  * **Null when the bytes are not a local header**, or are cut off inside the

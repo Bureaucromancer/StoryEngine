@@ -36,8 +36,21 @@ import type { Arrival } from './plan.js';
  * not validate, or was refused by the library is not named, and the row says
  * so (`import.world.memberNotLanded`), because a World naming an object its
  * owner does not have is the dangling reference [00 §3.3] makes visible, not one
- * an import should mint. Sessions join it as they land ([P16.3f]; until then
- * none do, and each session's own row says why).
+ * an import should mint. Sessions join it as they land ~~([P16.3f]; until then
+ * none do, and each session's own row says why)~~ — *from [P16.3f], under the
+ * id each landed as: a new session of this account's, or the one here the file
+ * found already (`session.ts`); one that did not land says why on its own row,
+ * and is not named.*
+ *
+ * ***A session joining is the merge, never keep-both's question*** ([P16.3f]).
+ * The plan compares a World here with the file's without its sessions
+ * (`plan.ts`, `worldAsMerged`) — it cannot know the id a session will land
+ * under until it has, and a session is never replaced and never copied, so
+ * *is the file's World the one here* is a question about the set's own fields
+ * and objects. So when the plan found this World here and not a copy, the
+ * write onto it is an update whatever the policy: under *keep-both*, the store
+ * asking again would have seen the sessions just merged in as a difference and
+ * made a second World of every import that brought a session.
  *
  * **What it never names**: a World. A set of sets is a question nobody has
  * asked ([15 §3.1]), and `addMembers` refuses one on the way in — but only on
@@ -137,6 +150,13 @@ export interface WorldLanding {
   entries: readonly WorldLandingEntry[];
   /** The manifest's `requires`: stored ∪ derived ([P16.3]'s plan, R12) — the warning's source. */
   requires: World['requires'];
+  /**
+   * ***How many of the file's `leftBehind` resolve to nothing here*** —
+   * [16 §5.1]'s *what dangles*, counted by the preview's own reading
+   * (`preview.ts`, `danglingHere`) before anything was written, and said once
+   * on the World's row (`import.world.dangling`). Absent is none.
+   */
+  dangling?: number;
   /** What the file says it does not carry that names no object of its own — said on this row. */
   omitted: readonly ImportNote[];
   /**
@@ -160,6 +180,8 @@ export interface WorldStore {
     pixels?: Uint8Array | null,
     media?: BlobStore,
     native?: boolean,
+    /** The request's policy, overridden for this one write — see the module comment on sessions. */
+    onConflict?: ConflictPolicy,
   ): Promise<'created' | 'unchanged' | 'replaced' | 'kept-both' | 'skipped' | 'failed'>;
 }
 
@@ -226,6 +248,13 @@ export async function landWorld(
   }
 
   notes.push(...requiresNotes(payload.requires));
+  if ((payload.dangling ?? 0) > 0) {
+    notes.push({
+      key: 'import.world.dangling',
+      params: { count: payload.dangling ?? 0 },
+      level: 'info',
+    });
+  }
 
   // ── The World itself, by the plan's decision and the policy ──
   const { arrival } = payload;
@@ -237,9 +266,9 @@ export async function landWorld(
    * row names the World by what was written rather than by what was planned.
    */
   let written: World | null = null;
-  const store = async (body: World): Promise<typeof outcome> => {
+  const store = async (body: World, onConflict?: ConflictPolicy): Promise<typeof outcome> => {
     written = body;
-    return writer.store(body, WORLD_SCHEMA, notes, null, undefined, true);
+    return writer.store(body, WORLD_SCHEMA, notes, null, undefined, true, onConflict);
   };
   if (arrival.decision === 'system') {
     // The built-in library's own World, unchanged: read-only, and already
@@ -263,10 +292,16 @@ export async function landWorld(
       // The legacy file's World onto the one here: its name, its version, the
       // merged list — and the rest as it is here, pictures included, so there
       // are none of the file's to carry (it has none).
-      outcome = await store(onto(local, payload.body, mergeContents(local.contents, contents)));
+      outcome = await store(
+        onto(local, payload.body, mergeContents(local.contents, contents)),
+        ONTO_THE_ONE_HERE,
+      );
       carry = false;
     } else {
-      outcome = await store(worldWith(payload.body, mergeContents(local.contents, contents)));
+      outcome = await store(
+        worldWith(payload.body, mergeContents(local.contents, contents)),
+        ONTO_THE_ONE_HERE,
+      );
     }
   } else {
     outcome = await store(worldWith(payload.body, contents));
@@ -294,6 +329,15 @@ export async function landWorld(
   };
   return { row, carry: failed || !carry || outcome === 'skipped' ? null : landedId };
 }
+
+/**
+ * ***Onto the World here, as an update*** — the plan already answered
+ * keep-both's question for it (not a copy), and what the merge adds since is
+ * the file's sessions, which that question leaves out (the module comment).
+ * *Replace* here is not the request's policy changing: it is the only write
+ * that lands what the plan decided.
+ */
+const ONTO_THE_ONE_HERE: ConflictPolicy = 'replace';
 
 /**
  * ***Skip: the members the World here lacks, and nothing else*** —
@@ -420,9 +464,7 @@ function requiresNotes(requires: World['requires']): ImportNote[] {
     if (typeof wanted['id'] !== 'string' || typeof wanted['minVersion'] !== 'string') continue;
     const mode = wanted['id'];
     const minVersion = wanted['minVersion'];
-    const have = modeById(mode)?.definition.version;
-    const enough = have !== undefined && (compareVersions(have, minVersion) ?? -1) >= 0;
-    if (enough) continue;
+    if (modeIsHere(mode, minVersion)) continue;
     notes.push({
       key: 'import.world.requiresMode',
       params: { mode, minVersion },
@@ -430,6 +472,16 @@ function requiresNotes(requires: World['requires']): ImportNote[] {
     });
   }
   return notes;
+}
+
+/**
+ * Whether this install has a mode, at this version or later — the warning's
+ * test, and the preview's (`preview.ts`), so the look before commit and the
+ * row after it cannot disagree about a requirement.
+ */
+export function modeIsHere(mode: string, minVersion: string): boolean {
+  const have = modeById(mode)?.definition.version;
+  return have !== undefined && (compareVersions(have, minVersion) ?? -1) >= 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

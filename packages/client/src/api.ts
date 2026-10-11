@@ -11,6 +11,7 @@ import {
   TREATMENT_SCHEMA,
   type ImportDestination,
   type ImportNote,
+  type ImportedWorld,
   type ImportPreview,
   type NearMissOffer,
   type Turn as TurnRecord,
@@ -529,6 +530,12 @@ export interface ImportFileResult {
   report?: ImportReport;
   /** The recorded upload (2026-09-28), which *Earlier imports* can open again. */
   jobId: string;
+  /**
+   * ***The World the file landed*** — [P16.3f]: what the panel leads its
+   * review with, read by the server off the World's own row. Absent when the
+   * file landed none.
+   */
+  world?: ImportedWorld;
 }
 
 export interface Credentials {

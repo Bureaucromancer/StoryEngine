@@ -184,9 +184,9 @@ if anything looks missing.
 | A downloaded object (`.json`), or a downloaded character (`.png`) | The same object, under its own identity. Importing it where it already is, unchanged, counts as **Already here**. If you have edited it since the download, the import puts the downloaded version back without asking, and your edited one stays in its history. A package downloaded from an earlier version arrives as a world. |
 | An unpacked backup folder | Your own library objects from it. Sessions, tags and settings are listed and left behind; to bring them, import from the backup archive itself with Settings → **Backups** → **Import from a backup**, which lists archives in the install's data directory (see [Moving an archive to another install](backups-and-trash.md#moving-an-archive-to-another-install)). |
 | A session export (`.session.json`) | Load it on the sessions page — see below. |
+| A world file (`.seworld`), or a `.sepack.json` from **Export this world** | A world in your library, naming everything in the file that landed, with its characters (portraits and expressions included), lorebooks and their pictures, treatments, setups and presets — and its sessions, which appear on the sessions page. Before you import, the review lists what the file holds and which of it you already have. Anything whose identity another account on this server already uses arrives as your own copy. Importing the same file again adds only what is new; a session you have played on keeps your turns. A `.sepack.json` has no pictures, so its characters arrive on a blank card. |
 
-Backup archives (`.tar.gz`) and the `.sepack.json` files **Export this world** writes
-cannot be imported through this panel.
+Backup archives (`.tar.gz`) cannot be imported through this panel.
 
 ## Chats and sessions
 

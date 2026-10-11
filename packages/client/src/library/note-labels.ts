@@ -153,7 +153,12 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
    * things it deliberately never says: *which* objects arrived under a fresh
    * id (a re-mint) — an id another account holds and an id nobody holds must
    * read the same, or the review would describe other people's libraries — and
-   * anything about the sessions beyond their names, which land at P16.3f.
+   * ~~anything about the sessions beyond their names, which land at P16.3f~~
+   * *whether a session's turns were re-keyed* (2026-10-11, [P16.3f]: sessions
+   * land now, and a re-key is the turns' re-mint — said of no session, for the
+   * same reason). What a session's row says is what a person can act on: it
+   * landed, with how much; it was here already; it was here and gained the
+   * turns its sender played since; or it could not come, and why.
    */
   'import.world.landed':
     'The world “{world}” landed, naming {members} objects and {sessions} sessions.',
@@ -182,8 +187,29 @@ export const NOTE_LABELS: Record<string, string> = labels('import.note', {
     '{count} tags on {objects} objects belong to the library that wrote this file; they came in as plain names.',
   'import.world.requiresMode':
     'This world asks for the {mode} mode, at version {minVersion} or later, which this install does not have. It came in anyway; what needs that mode may not play.',
+  // ~~This build does not bring sessions in from a world’s file yet~~ — since
+  // P16.3f only an import asked for library objects alone says this.
   'import.world.sessionsNotTaken':
-    'The session “{session}” is in this file. This build does not bring sessions in from a world’s file yet.',
+    'The session “{session}” is in this file. This import brings library objects only, so it was left in the file.',
+  'import.world.sessionLanded':
+    'The session “{session}” landed in Play, with {turns} turns and {pictures} pictures.',
+  'import.world.sessionAlreadyHere':
+    'The session “{session}” is already here, every turn of it, so nothing was written.',
+  'import.world.sessionGrew':
+    'The session “{session}” was already here; the {turns} turns played in it since were added to it.',
+  'import.world.sessionRefused': 'The session “{session}” could not be brought in ({reason}).',
+  'import.world.sessionLinksMissing':
+    '{count} of the characters, books or treatment “{session}” links are not in your library; it plays without them until they arrive.',
+  'import.world.sessionPicturesLost':
+    '{count} pictures shown in “{session}” could not be kept; the moves that showed them keep their words.',
+  // Worded so one and many both read (2026-10-11, the P16.3f review): the
+  // count is a session's link as well as an object's.
+  'import.world.dangling':
+    'Left behind by its sender and not in your library: {count} of what this world names.',
+  'import.world.sessionPicturesAdded':
+    'The session “{session}” was already here, every turn of it. Pictures it did not have were added: {pictures}.',
+  'import.world.sessionUnrelated':
+    '“{session}” came from this file before, as “{here}”, but shares no turn with it now, so nothing was added to it.',
   'import.world.legacyNoPictures':
     'This file is the older kind, which carries no pictures: portraits, galleries and other images stayed with the install that wrote it.',
   'import.world.noPortrait':

@@ -369,6 +369,9 @@ async function build(): Promise<Fixture> {
       associations: { [secret.id]: 'never' },
       acrossPersonas: false,
     },
+    // And the sender's housekeeping (2026-10-11, the P16.3f review): an
+    // archived session is still ticked and travels, but not as archived.
+    archivedAt: '2026-10-09T00:00:00.000Z',
   });
 
   // The sessions join the World, and the World is edited once more, so a
@@ -701,7 +704,7 @@ describe('a World published from a real walk', () => {
     );
   });
 
-  it('strips roles, stepRoles and memory.associations from the session export, and keeps the rest', () => {
+  it('strips roles, stepRoles, memory.associations and archivedAt from the session export, and keeps the rest', () => {
     for (const file of [plain, withHistory]) {
       const exported = json(file.entries, `sessions/${fixture.night.id}/session-export.json`) as {
         session: Record<string, unknown>;
@@ -710,6 +713,7 @@ describe('a World published from a real walk', () => {
       };
       expect(exported.session).not.toHaveProperty('roles');
       expect(exported.session).not.toHaveProperty('stepRoles');
+      expect(exported.session).not.toHaveProperty('archivedAt');
       expect(exported.session['memory']).toEqual({
         share: true,
         intake: true,
