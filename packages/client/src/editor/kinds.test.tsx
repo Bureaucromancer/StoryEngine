@@ -8,9 +8,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  newPackage,
   newSetup,
   newTreatment,
+  newWorld,
   TREATMENT_SCHEMA,
   type PlotHook,
 } from '@storyengine/shared';
@@ -42,9 +42,10 @@ import { descriptorFor, type SimpleKind } from './SimpleEditorPage.js';
  * the first save conflict, inside a dialog whose entire offer is *reapply my
  * edits*.
  *
- * *The package editor is here for the same reason the six-kind loop in
+ * *The World editor is here for the same reason the six-kind loop in
  * [contract.test.tsx](./contract.test.tsx) is*: a claim about which kinds have
- * an affordance is worth nothing without a kind that must not have it.
+ * an affordance is worth nothing without a kind that must not have it. (It was
+ * the package editor until [P16.0] renamed the kind; the reason did not move.)
  */
 
 const ACCOUNT: Account = {
@@ -73,10 +74,12 @@ const WAR = newHook('The Flower Kingdom declares war');
 const TREATMENT_ID = '01a008de-7e08-70d0-899c-0000000000a0';
 const BARE_TREATMENT_ID = '01a008de-7e08-70d0-899c-0000000000a1';
 const SETUP_ID = '01a008de-7e08-70d0-899c-0000000000a2';
-const PACKAGE_ID = '01a008de-7e08-70d0-899c-0000000000a3';
+const WORLD_ID = '01a008de-7e08-70d0-899c-0000000000a3';
 const BROKEN_HOOKS_ID = '01a008de-7e08-70d0-899c-0000000000a4';
 const IDLESS_HOOK_ID = '01a008de-7e08-70d0-899c-0000000000a5';
-const HOOKED_PACKAGE_ID = '01a008de-7e08-70d0-899c-0000000000a6';
+const HOOKED_WORLD_ID = '01a008de-7e08-70d0-899c-0000000000a6';
+const BROKEN_CONTENTS_ID = '01a008de-7e08-70d0-899c-0000000000a7';
+const BOOK_ID = '01a008de-7e08-70d0-899c-0000000000a8';
 
 const OBJECTS: Record<string, Record<string, unknown>> = {
   [TREATMENT_ID]: {
@@ -95,9 +98,9 @@ const OBJECTS: Record<string, Record<string, unknown>> = {
     ...(newSetup('A night at the docks') as unknown as Record<string, unknown>),
     id: SETUP_ID,
   },
-  [PACKAGE_ID]: {
-    ...(newPackage('The harbour set') as unknown as Record<string, unknown>),
-    id: PACKAGE_ID,
+  [WORLD_ID]: {
+    ...(newWorld('The harbour set') as unknown as Record<string, unknown>),
+    id: WORLD_ID,
   },
   /**
    * ***Three hand-edited files, because the storage thesis invites them.***
@@ -116,12 +119,36 @@ const OBJECTS: Record<string, Record<string, unknown>> = {
     id: IDLESS_HOOK_ID,
     hooks: [{ title: 'No id at all' }],
   },
-  [HOOKED_PACKAGE_ID]: {
-    ...(newPackage('The harbour set') as unknown as Record<string, unknown>),
-    id: HOOKED_PACKAGE_ID,
+  [HOOKED_WORLD_ID]: {
+    ...(newWorld('The harbour set') as unknown as Record<string, unknown>),
+    id: HOOKED_WORLD_ID,
     hooks: 'none',
   },
+  /** `contents` that is not a list — the member list walks it, as `HookList` walks `hooks`. */
+  [BROKEN_CONTENTS_ID]: {
+    ...(newWorld('The harbour set') as unknown as Record<string, unknown>),
+    id: BROKEN_CONTENTS_ID,
+    contents: 'none',
+  },
 };
+
+/**
+ * ***The shelf the World's member picker reads*** — [P16.1]. Only the
+ * unfiltered read answers it: `HookList` asks for actors and gets none, which
+ * is all it has ever needed here.
+ */
+const SHELF: LibraryObject[] = [
+  {
+    id: BOOK_ID,
+    schema: 'storyengine.lorebook/1',
+    name: 'Rain City',
+    slug: 'rain-city',
+    source: 'user',
+    contentHash: 'sha256:book',
+    shadowed: false,
+    object: {},
+  },
+];
 
 function envelopeFor(id: string): LibraryObject {
   const object = OBJECTS[id] ?? {};
@@ -145,12 +172,18 @@ vi.mock('../api.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api.js')>();
   return {
     ...actual,
+    // The World's member list resolves sessions too [P16.1]; real, it would be
+    // a fetch into jsdom on every World this file opens.
+    listSessions: () => Promise.resolve({ sessions: [] }),
     api: {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
       // `HookList` fetches its own actor options, and an empty library is
       // enough here: what the pickers offer is `HookList.test.tsx`'s claim.
-      listLibrary: () => Promise.resolve({ objects: [] }),
+      // The World's member picker reads the whole shelf [P16.1], which is the
+      // one call that gets something back.
+      listLibrary: (kind?: unknown) =>
+        Promise.resolve({ objects: kind === undefined ? structuredClone(SHELF) : [] }),
       readPrefs: () => Promise.resolve({ prefs: {} }),
       patchPrefs: (patch: Record<string, unknown>) => Promise.resolve({ prefs: patch }),
       listTags: () => Promise.resolve({ tags: [] }),
@@ -239,16 +272,30 @@ describe('a carrier whose hooks a hand edit broke', () => {
 
   /**
    * ***And the guard is about what this page dereferences, not about what the
-   * schema permits.*** A package does not author hooks, so a `hooks` a hand edit
+   * schema permits.*** A World does not author hooks, so a `hooks` a hand edit
    * left on one still goes through the opaque fallback and still renders — and a
    * guard that refused it would be inventing a validity rule for a kind that has
    * no such field.
    */
-  it('opens a package with a stray hooks field, because nothing draws it', async () => {
+  it('opens a world with a stray hooks field, because nothing draws it', async () => {
     renderApp();
-    await openEditor('packages', HOOKED_PACKAGE_ID);
+    await openEditor('worlds', HOOKED_WORLD_ID);
 
     expect(screen.queryByRole('region', { name: 'Plot hooks' })).toBeNull();
+  });
+
+  /**
+   * ***And a World's `contents`, now that something walks it*** — [P16.1].
+   * The member list keys every row on a member's id, so the guard grew the
+   * same check for the same reason, gated on the same kind of flag.
+   */
+  it('refuses to open a world whose contents is not a list', async () => {
+    renderApp();
+
+    const alert = await openBroken('worlds', BROKEN_CONTENTS_ID);
+
+    expect(alert.textContent).toContain('its "contents" is not a list');
+    expect(screen.queryByRole('region', { name: 'Members' })).toBeNull();
   });
 });
 
@@ -401,18 +448,57 @@ describe('the carriers that author their own hooks', () => {
   });
 
   /**
-   * ***The kind that must not have one.*** A Package carries the objects that
-   * hold hooks and holds none itself ([03 §4.1]), so a hook list here would be
-   * the fifth source that section declines by name — and an assertion that only
-   * ever looked at the two kinds with the flag would not notice a flag set on
-   * all three.
+   * ***The kind that must not have one.*** A World carries the objects that
+   * hold hooks and holds none itself ([03 §4.1]; a Package did, before [P16.0]
+   * renamed the kind), so a hook list here would be the fifth source that
+   * section declines by name — and an assertion that only ever looked at the
+   * two kinds with the flag would not notice a flag set on all three.
    */
-  it('gives a package no hook editor at all', async () => {
+  it('gives a world no hook editor at all', async () => {
     renderApp();
-    await openEditor('packages', PACKAGE_ID);
+    await openEditor('worlds', WORLD_ID);
 
     expect(screen.queryByRole('region', { name: 'Plot hooks' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add a hook' })).toBeNull();
+  });
+});
+
+/**
+ * ***A World's members, picked here and saved with the rest*** — [P16.1].
+ *
+ * `MembersField.test.tsx` holds what the field draws and offers; this is the
+ * half only the page can show — that the flag on `WORLDS` mounts it in place of
+ * the generic renderer's *shown as stored*, and that what it adds is in the
+ * object the editor's Save sends, which is the only way a picked member
+ * reaches the disk.
+ */
+describe('the World editor’s members', () => {
+  it('draws contents as a member list rather than as stored', async () => {
+    renderApp();
+    await openEditor('worlds', WORLD_ID);
+
+    expect(screen.getByRole('region', { name: 'Members' })).toBeDefined();
+    expect(screen.getByText('Nothing here yet.')).toBeDefined();
+    // Both halves, for the hook list's reason above: `contents` left out of
+    // `handled` would draw the list a second time as JSON under the key's own
+    // label, and the section alone would still be found.
+    expect(screen.queryByText('Contents')).toBeNull();
+  });
+
+  it('saves a picked member as an envelope in contents', async () => {
+    renderApp();
+    await openEditor('worlds', WORLD_ID);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add members' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add Rain City' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(saved).toHaveLength(1);
+    });
+    expect(saved[0]?.['contents']).toEqual([
+      { schema: 'storyengine.lorebook/1', id: BOOK_ID, name: 'Rain City' },
+    ]);
   });
 });
 
@@ -533,7 +619,7 @@ describe('reapplying my edits onto a newer carrier', () => {
   });
 
   /**
-   * ***And a kind without the flag is left exactly as it was.*** A package's
+   * ***And a kind without the flag is left exactly as it was.*** A World's
    * draft has no `hooks`, and a merge that wrote one would be inventing a key
    * out of a page that never showed the field — which no schema would then
    * accept.
@@ -544,5 +630,45 @@ describe('reapplying my edits onto a newer carrier', () => {
 
     expect(Object.hasOwn(merged, 'hooks')).toBe(false);
     expect(merged['name']).toBe('Renamed');
+  });
+
+  /**
+   * ***`contents`, member by member, on the kind that declares `members`*** —
+   * [P16.1]. The race this is for is a session added from its own page while
+   * the World's editor was open: that add is what made the Save come back
+   * 412, and the field rule would have dropped it on *reapply my edits*.
+   * `members-form.test.ts` holds the three cases; this holds that the
+   * descriptor routes the field through them.
+   */
+  it('keeps a member added elsewhere beside the one I added', () => {
+    const book = { schema: 'storyengine.lorebook/1', id: 'book-rain', name: 'Rain City' };
+    const actor = { schema: 'storyengine.actor/1', id: 'actor-vera', name: 'Vera' };
+    const session = { schema: 'storyengine.session/1', id: 's-1', name: 'The docks' };
+    const pristine: Draft = { name: 'The harbour set', contents: [book] };
+
+    const merged = descriptorFor({ ...kindWith(false), members: true }).reapply(
+      pristine,
+      { ...pristine, name: 'Renamed', contents: [book, actor] },
+      { ...pristine, contents: [book, session] },
+    );
+
+    expect(merged['name']).toBe('Renamed');
+    expect(merged['contents']).toEqual([book, session, actor]);
+  });
+
+  /** Mutation guard: without the flag the field rule stands, and mine wins whole. */
+  it('leaves contents to the field rule on a kind without the flag', () => {
+    const book = { schema: 'storyengine.lorebook/1', id: 'book-rain' };
+    const actor = { schema: 'storyengine.actor/1', id: 'actor-vera' };
+    const session = { schema: 'storyengine.session/1', id: 's-1' };
+    const pristine: Draft = { name: 'The harbour set', contents: [book] };
+
+    const merged = descriptorFor(kindWith(false)).reapply(
+      pristine,
+      { ...pristine, contents: [book, actor] },
+      { ...pristine, contents: [book, session] },
+    );
+
+    expect(merged['contents']).toEqual([book, actor]);
   });
 });

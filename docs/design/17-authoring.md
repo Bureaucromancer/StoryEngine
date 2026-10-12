@@ -95,7 +95,7 @@ Three seams touch, and all three are additive:
 against, not what consumes the result.** What a rules-less Campaign cannot do is
 let somebody else author one: every authored quest completes narratively or
 manually, and a shipped Package — *a World, from
-[P16.0](workplan/35-p16-world.md)* — can declare a Corruption channel without stating
+[P16.0](workplan/34-p16-world.md)* — can declare a Corruption channel without stating
 a rule about it. That is a real hole and it is a hole in the *authoring* story,
 which is why it is patched here rather than at 5.0.
 

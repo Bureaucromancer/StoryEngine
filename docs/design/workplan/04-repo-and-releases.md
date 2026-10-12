@@ -26,7 +26,7 @@ what is deferred rather than forgotten.
 modes — Scene and Freeform — chosen as the ones this project has opinions about,
 with Write, the Character Studio, World and Campaign held for later series
 ([work plan §0](01-work-plan.md)). *(2026-10-04: World's set half — the kind,
-membership, contribution, transport — is 1.0's, at [P16](35-p16-world.md); what
+membership, contribution, transport — is 1.0's, at [P16](34-p16-world.md); what
 is held is its continuity.)*
 The release model already handles the shape: `release/1.0` persists and takes
 hotfixes, `main` moves on.

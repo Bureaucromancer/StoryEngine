@@ -13,14 +13,15 @@ import { LorebookEditorPage, NewLorebookPage } from './editor/LorebookEditorPage
 import { HomePage } from './home/HomePage.js';
 import { NewPresetPage, PresetEditorPage } from './editor/PresetEditorPage.js';
 import {
-  NewPackagePage,
   NewSetupPage,
   NewTreatmentPage,
-  PackageEditorPage,
+  NewWorldPage,
   SetupEditorPage,
   TreatmentEditorPage,
+  WorldEditorPage,
 } from './editor/kinds.js';
 import { LibraryPage } from './library/LibraryPage.js';
+import { PublishRoute } from './library/publish/PublishRoute.js';
 import { ObjectDetailPage } from './library/ObjectDetailPage.js';
 import { PlayPage } from './play/PlayPage.js';
 import { SettingsPage } from './settings/SettingsPage.js';
@@ -68,6 +69,19 @@ export interface LibrarySearch {
  */
 export interface SessionsSearch {
   mode?: string;
+  /**
+   * ***A World to start the new session in*** — [P16.2](../../../docs/design/workplan/34-p16-world.md).
+   *
+   * What a World's page links to as *Choose first…*: the session form, with
+   * that World chosen and its books and treatment filled in for the person to
+   * change — *and, since the owner's answer of 2026-10-12, its Setup chosen
+   * when it holds exactly one*. **Checked only as a non-empty string**, for
+   * `mode`'s reason one
+   * field up — the Worlds are the account's, which the router cannot know — and
+   * the page drops an id that is not one of the person's own Worlds rather than
+   * choosing nothing loudly.
+   */
+  world?: string;
 }
 
 /**
@@ -82,7 +96,11 @@ export function validateLibrarySearch(search: Record<string, unknown>): LibraryS
 
 export function validateSessionsSearch(search: Record<string, unknown>): SessionsSearch {
   const modes = parseList(search['mode']);
-  return modes.length === 0 ? {} : { mode: modes.join(',') };
+  const world = typeof search['world'] === 'string' ? search['world'].trim() : '';
+  return {
+    ...(modes.length === 0 ? {} : { mode: modes.join(',') }),
+    ...(world === '' ? {} : { world }),
+  };
 }
 
 /**
@@ -141,6 +159,44 @@ export function validateObjectSearch(search: Record<string, unknown>): ObjectSea
       : {}),
     ...(typeof search['entry'] === 'string' ? { entry: search['entry'] } : {}),
   };
+}
+
+/**
+ * ***Where a publish starts*** — [P16.3g](../../../docs/design/workplan/34-p16-world.md),
+ * [16 §6](../../../docs/design/16-publish.md)'s three doors.
+ *
+ * **The address carries the start, and nothing else.** An object's page links
+ * here with `?from=<id>`, the selection bar with `?from=<id>,<id>,…`, and a
+ * World's page with `?world=<id>` — so all three doors are one link to one
+ * page, and a review can be reloaded or opened in a tab without losing what it
+ * was about ([P16.3]'s plan, §3: *the address carries the start points*). The
+ * ticks are not here: they are the review's, live, and a reload re-walks the
+ * library and starts from the defaults, which is [16 §5]'s *the review stages
+ * nothing* read from the browser's side.
+ *
+ * Validated as this router validates everything — **dropped rather than
+ * rejected**: `from` is a comma list split by `parseList` (empty entries and
+ * duplicates gone, the order kept), each entry an id percent-encoded by
+ * `joinIds`, and `world` a string. *A World wins over a list*: the two are
+ * different starts ([P16.3]'s plan, R8: a World is never part of a
+ * selection), and an address carrying both is one somebody edited by hand,
+ * which reads most plainly as the World it names.
+ *
+ * ***Never trimmed*** (2026-10-11, the P16.3g review): ~~a trimmed string~~.
+ * An id is any string, and one with a space at either end is a different id
+ * from the one without; trimming named a different object than the server
+ * would, which the server reads verbatim. Only an empty one is dropped.
+ */
+export interface PublishSearch {
+  from?: string;
+  world?: string;
+}
+
+export function validatePublishSearch(search: Record<string, unknown>): PublishSearch {
+  const world = search['world'];
+  if (typeof world === 'string' && world !== '') return { world };
+  const from = parseList(search['from']);
+  return from.length === 0 ? {} : { from: from.join(',') };
 }
 
 const rootRoute = createRootRoute({ component: Shell });
@@ -510,20 +566,57 @@ const newSetupRoute = createRoute({
   path: '/library/setups/new',
   component: localised(NewSetupPage),
 });
-const packageEditorRoute = createRoute({
+/**
+ * ***`/library/worlds/…` since [P16.0]***, and `/library/packages/…` is not
+ * kept beside it — the line [P16 §1.1](../../../docs/design/workplan/34-p16-world.md)
+ * takes for the server's routes, on the ground that their only caller is the
+ * client that ships with them. **A page address has one more caller, a
+ * bookmark, which that ground does not cover**, and it is not redirected: an
+ * old editor address matches no route, and an old object address
+ * (`/library/packages/<id>`) reaches `objectRoute` and says it does not name a
+ * known kind. That is the cost of the line, and §6 of the same plan holds the
+ * old routes open as a revisit question rather than a settled one — a
+ * redirect for `packages` is the answer if real bookmarks turn up.
+ */
+const worldEditorRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/library/packages/$id/edit',
-  component: localised(PackageEditorPage),
+  path: '/library/worlds/$id/edit',
+  component: localised(WorldEditorPage),
 });
-const newPackageRoute = createRoute({
+const newWorldRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/library/packages/new',
-  component: localised(NewPackagePage),
+  path: '/library/worlds/new',
+  component: localised(NewWorldPage),
+});
+
+/**
+ * ***The publish review*** — [P16.3g](../../../docs/design/workplan/34-p16-world.md),
+ * [16 §5](../../../docs/design/16-publish.md).
+ *
+ * **Its own route rather than a dialog or the dock** ([P16.3]'s plan, §3): 16
+ * §5 refuses a modal, the dock collapses on a preference and carries no
+ * selection between routes, and an address is what lets three doors be one
+ * link. **Two segments, so it cannot collide with `/library/$kind/$id`**, which
+ * is three; there is no `/library/$kind` route for `publish` to be mistaken
+ * for a kind of.
+ *
+ * ***The page behind it is a chunk of its own*** ([21 §7](../../../docs/design/21-client-loading.md)):
+ * `PublishRoute` is the small half the entry carries — the address read, the
+ * sentence while the chunk arrives, and a boundary for a chunk that does not —
+ * and the review itself is `lazy()` from there, as the setup wizard, the
+ * changelog readers and the World file's look are.
+ */
+const publishRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/library/publish',
+  validateSearch: validatePublishSearch,
+  component: localised(PublishRoute),
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   libraryRoute,
+  publishRoute,
   objectRoute,
   actorEditorRoute,
   newActorRoute,
@@ -535,8 +628,8 @@ const routeTree = rootRoute.addChildren([
   newTreatmentRoute,
   setupEditorRoute,
   newSetupRoute,
-  packageEditorRoute,
-  newPackageRoute,
+  worldEditorRoute,
+  newWorldRoute,
   sessionsRoute,
   playRoute,
   compareRoute,

@@ -512,6 +512,17 @@ function BookHeader({ book, locale }: { book: Lorebook; locale: string | undefin
            *
            * Every setting below this line does decide something, which is what
            * the strip is for.
+           *
+           * *(2026-10-10, [P16.2]: "decides nothing" stopped being true of one
+           * arm — `{ kind: 'world' }` decides what a session started in those
+           * Worlds is offered at its start ([15 §5.3]). It stays off this strip
+           * anyway, for a narrower reason than the one above: this strip is
+           * what decides whether an entry fires on a turn, and the arm decides
+           * nothing on any turn — it is read once, before the first, and what
+           * it chose is the session's list from then on. Its surfaces are the
+           * editor's scope control, where it is set, and the shelf's* World
+           * *badge, where it is found; here, it is in* As stored *with every
+           * other field the strip does not carry.)*
            */}
           <Setting label="Scan depth">{formatCount(book.scanDepth, locale)}</Setting>
           <Setting label="Token budget">{formatCount(book.tokenBudget, locale)}</Setting>

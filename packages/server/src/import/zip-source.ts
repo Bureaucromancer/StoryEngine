@@ -10,7 +10,7 @@ import {
   type ZipRefusal,
 } from '../storage/zip.js';
 
-import { scope } from './memory-source.js';
+import { duplicatesOf, scope } from './memory-source.js';
 import type { FileSource } from './source.js';
 
 /**
@@ -35,12 +35,15 @@ import type { FileSource } from './source.js';
 export class ZipFileSource implements FileSource {
   readonly #bytes: Uint8Array;
   readonly #entries: Map<string, ZipEntry>;
+  /** Names more than one member carries — `FileSource.duplicateNames`. */
+  readonly #duplicates: readonly string[];
   readonly #limits: ZipLimits;
 
   private constructor(bytes: Uint8Array, entries: readonly ZipEntry[], limits: ZipLimits) {
     this.#bytes = bytes;
     this.#limits = limits;
     this.#entries = new Map(entries.map((entry) => [entry.name, entry]));
+    this.#duplicates = duplicatesOf(entries);
   }
 
   /**
@@ -68,6 +71,11 @@ export class ZipFileSource implements FileSource {
     for (const name of this.#entries.keys()) {
       if (within(name)) yield name;
     }
+  }
+
+  /** Names more than one member carries — the last is what `read` answers with. */
+  duplicateNames(): readonly string[] {
+    return this.#duplicates;
   }
 
   read(path: string): Promise<Uint8Array | null> {

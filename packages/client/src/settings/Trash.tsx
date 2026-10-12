@@ -4,8 +4,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
-import { errorCode, readTrash, restoreFromTrash, type TrashEntry } from '../api.js';
+import type { ImportNote } from '@storyengine/shared';
+
+import { errorCode, isLibraryKind, readTrash, restoreFromTrash, type TrashEntry } from '../api.js';
 import { formatTimestamp } from '../format.js';
+import { labels } from '../i18n/catalogue.js';
+import { KIND_WORDS } from '../library/labels.js';
+import { fill } from '../library/note-labels.js';
 import { Button } from '../ui/Button.js';
 import { Fine, Note, SectionTitle } from '../ui/Text.js';
 
@@ -54,6 +59,14 @@ export function Trash(props: {
         </p>
       ) : null}
 
+      {/* ***What the restore did besides*** (2026-10-11, the [P16 audit]):
+          a note the answer carries is said where the person pressed. */}
+      {(restore.data?.notes ?? []).map((note, index) => (
+        <p key={`${note.key}-${String(index)}`} role="status" className="text-ink">
+          {restoreNoteLine(note)}
+        </p>
+      ))}
+
       {trash.isPending ? <Note>Loading…</Note> : null}
 
       {/* ***A trash that could not be read is not an empty one*** (2026-10-01,
@@ -75,7 +88,7 @@ export function Trash(props: {
               className="flex flex-wrap items-center gap-3 rounded-panel border border-line p-3"
             >
               <span className="text-ink">{entry.name}</span>
-              <Fine>{entry.kind}</Fine>
+              <Fine>{kindWord(entry.kind)}</Fine>
               <Fine>{whenLine(entry, props.locale)}</Fine>
               <Button
                 type="button"
@@ -93,6 +106,53 @@ export function Trash(props: {
       )}
     </section>
   );
+}
+
+/**
+ * ***Folders a kind used to live in, as the kind they hold now*** —
+ * [P16 §1.1](../../../../docs/design/workplan/34-p16-world.md).
+ *
+ * A trash entry's `kind` is the folder it was deleted from, and a Package
+ * deleted before [P16.0] was deleted from `packages/`. `storage/trash.ts` keeps
+ * that folder as a legacy kind so the entry is still listed, restorable and
+ * expired rather than stranded — and its restore lands in `library/worlds/`,
+ * because a restore is a write and every write writes the new form. So the
+ * entry *is* a World in every sense but its address, and labelling it by the
+ * address would name a kind this build no longer has, on the one row whose
+ * button is about to make it a World.
+ *
+ * **The same alias the registry's `LEGACY_LIBRARY_DIRECTORIES` holds**, written
+ * here rather than imported because that table maps a folder to a *schema id*
+ * and this one needs the folder's successor; one entry, and it goes when the
+ * legacy read does.
+ */
+const LEGACY_TRASH_KINDS: Readonly<Record<string, string>> = { packages: 'worlds' };
+
+/** The trash's one kind that is not a library kind ([03 §10.3]). */
+const TRASH_KIND_WORDS: Readonly<Record<string, string>> = labels('settings.trash.kind', {
+  sessions: 'session',
+});
+
+/**
+ * The word for a trash entry's kind, in the singular — one row, one object.
+ *
+ * ***A word rather than the folder name since 2026-10-10*** ([P16.0]). The row
+ * printed `entry.kind` as it came — `lorebooks`, `sessions` — which was a
+ * folder name standing in for a word, and harmless while every folder was the
+ * name of a kind. The legacy `packages` entry above is the case where it
+ * stops being harmless, and once that row needed a word the others needed one
+ * too, or one row in the list would read differently from its neighbours. A
+ * library kind takes `KIND_WORDS`, the same singular the object page's
+ * sentences use; a session takes `TRASH_KIND_WORDS`' one word; and a folder this build
+ * has no word for is shown as itself, `UsedBy`'s rule for a kind a newer
+ * server knows.
+ */
+function kindWord(folder: string): string {
+  const kind = Object.hasOwn(LEGACY_TRASH_KINDS, folder)
+    ? (LEGACY_TRASH_KINDS[folder] ?? folder)
+    : folder;
+  if (isLibraryKind(kind)) return KIND_WORDS[kind];
+  return Object.hasOwn(TRASH_KIND_WORDS, kind) ? (TRASH_KIND_WORDS[kind] ?? kind) : kind;
 }
 
 /**
@@ -122,6 +182,36 @@ function whenLine(entry: TrashEntry, locale: string | undefined): string {
   const deleted = formatTimestamp(new Date(entry.deletedAt).toISOString(), locale);
   if (entry.expiresAt === null) return `Deleted ${deleted}.`;
   return `Deleted ${deleted}; removed after ${formatTimestamp(new Date(entry.expiresAt).toISOString(), locale)}.`;
+}
+
+/**
+ * ***The restore's notes, worded here*** — 2026-10-11, the [P16 audit]
+ * (safety finding 1). The server sends `{ key, params }` and never a sentence
+ * ([P4 §1.4]); the trash panel is the one surface a restore answers on, so
+ * its words live with it. One today:
+ *
+ * - `trash.restore.reminted` — a World deleted before this version, whose id
+ *   was brought back since (an import of its file, an old backup), came back
+ *   as a separate World under a new id, so the one in use keeps its own.
+ *
+ * A key this build has no words for is shown as itself, the import review's
+ * rule for a class a newer server knows.
+ */
+const RESTORE_NOTES: Readonly<Record<string, string>> = labels('settings.trash.note', {
+  /*
+   * ~~*A world you already have uses the same id … the one you have been
+   * using is unchanged*~~ (2026-10-11, the review of the audit's fixes): ids
+   * are the install's, not the account's, so the holder may be another
+   * account's import of the same file — and then the person has no such
+   * world. The sentence says only what is true either way, and nothing of
+   * whose it is.
+   */
+  'trash.restore.reminted':
+    '“{name}” came back as a separate world under a new id: its own is already in use on this server, and whatever uses it is unchanged.',
+});
+
+function restoreNoteLine(note: Pick<ImportNote, 'key' | 'params'>): string {
+  return fill(Object.hasOwn(RESTORE_NOTES, note.key) ? RESTORE_NOTES[note.key] : undefined, note);
 }
 
 /**

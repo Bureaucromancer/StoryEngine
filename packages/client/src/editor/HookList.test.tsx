@@ -92,7 +92,7 @@ function Harness(props: { hooks: PlotHook[] }): JSX.Element {
   );
 }
 
-function mount(hooks: PlotHook[]): void {
+function mount(hooks: PlotHook[]): QueryClient {
   latest = hooks;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -100,6 +100,9 @@ function mount(hooks: PlotHook[]): void {
       <Harness hooks={hooks} />
     </QueryClientProvider>,
   );
+  // Handed back for the one claim that needs a refetch on demand — a poll
+  // failing after an answer — and ignored everywhere else.
+  return client;
 }
 
 /**
@@ -146,6 +149,21 @@ function mountWithAssist(hooks: PlotHook[]): void {
       </AssistProvider>
     </QueryClientProvider>,
   );
+}
+
+/**
+ * The token field a combobox belongs to — its label, its chips and its box.
+ *
+ * *Needed since 2026-10-10*, when a chip's remove button began saying what the
+ * chip shows (`SiblingHooks`' `nameOf`): a gate on *The marriage* is removed by
+ * *Remove The marriage*, which is also the name of the button on that hook's
+ * own card, and the field is the only thing telling the two apart.
+ */
+function fieldOf(box: HTMLElement): HTMLElement {
+  // The box sits in a positioning wrapper one level inside the field's root.
+  const root = box.parentElement?.parentElement;
+  if (root === null || root === undefined) throw new Error('no token field around this box');
+  return root;
 }
 
 /** The subject for this path as the fields offer it now — what an assist started now would hold. */
@@ -381,10 +399,15 @@ describe('the list', () => {
     await userEvent.click(within(popup!).getByRole('option', { name: 'The marriage' }));
     expect(latest[0]?.blockedBy).toEqual([latest[1]!.id]);
 
-    // The token's own control, which `TokenField` names by the stored **value**
-    // rather than by the title it draws — so this cannot land on the card's
-    // *Remove The marriage* button beside it.
-    await userEvent.click(screen.getByRole('button', { name: `Remove ${latest[1]!.id}` }));
+    // ~~The token's own control, which `TokenField` names by the stored
+    // **value** rather than by the title it draws — so this cannot land on the
+    // card's *Remove The marriage* button beside it.~~ *Corrected 2026-10-10*:
+    // naming it by the value was the flaw — a uuid read out as hex — and it is
+    // named by the title it draws now, the card's button's words exactly. So
+    // the query is scoped to the field, which is what tells the two apart.
+    await userEvent.click(
+      within(fieldOf(box)).getByRole('button', { name: 'Remove The marriage' }),
+    );
 
     expect(Object.hasOwn(latest[0]!, 'blockedBy')).toBe(false);
     expect(JSON.stringify(latest[0])).toBe(JSON.stringify(plain));
@@ -441,6 +464,128 @@ describe('the list', () => {
       .getAllByRole('option')
       .map((option) => option.textContent);
     expect(options).toEqual(['The marriage']);
+  });
+});
+
+/**
+ * ***The actors, as the pickers are handed them*** (2026-10-10) — the half of
+ * the id-safe pickers that lives here, because this is where the library is
+ * read. `HookFields.test.tsx` holds the pickers themselves: what they commit,
+ * how they speak, and what they draw for a list that has or has not answered.
+ * What is claimed below is that *has not answered* is what this component
+ * says while the request is in flight, and what it says when it fails.
+ */
+describe('the actors the pickers are handed', () => {
+  /** What the old `involves` field made of *Old Tom* typed and Entered. */
+  const OLD_TOM = { id: 'Old Tom', name: 'Old Tom' };
+
+  /**
+   * ***A list in flight is not a deletion*** — `MembersField.test.tsx`'s rule,
+   * here for `involves`. Falsified by handing the fields `cast ?? []`, which
+   * is what this component did until today: every actor a hook names would be
+   * *Missing* for as long as the request took.
+   */
+  it('marks a typed-in actor Missing only once the library has answered', async () => {
+    let answer: (value: { objects: (typeof VERA)[] }) => void = () => undefined;
+    listLibrary.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    mount([hook('The war', { involves: [OLD_TOM] })]);
+    await screen.findByLabelText('Title');
+    await waitFor(() => {
+      expect(listLibrary).toHaveBeenCalled();
+    });
+
+    expect(screen.getByRole('button', { name: 'Remove Old Tom' })).toBeTruthy();
+    expect(screen.queryByText('Missing')).toBeNull();
+
+    await act(async () => {
+      answer({ objects: [VERA] });
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByText('Missing')).toBeTruthy();
+    // Drawn and kept — the answer marks it, and changes nothing in the hook.
+    expect(latest[0]?.involves).toEqual([OLD_TOM]);
+  });
+
+  /**
+   * ***Said once, when the list never arrives.*** A strict picker over no list
+   * offers nobody, and *Nothing matches Vera* would blame the name for the
+   * request. Nothing is marked missing either: an unread list knows nothing.
+   */
+  it('says the library could not be read, and marks nobody Missing', async () => {
+    listLibrary.mockRejectedValue(new Error('the server is down'));
+    mount([hook('The war', { involves: [OLD_TOM] })]);
+
+    expect(await screen.findByText(/^Your library could not be read/)).toBeTruthy();
+    expect(screen.queryByText('Missing')).toBeNull();
+  });
+
+  /**
+   * ***A poll failing after an answer is not an unread library*** — React
+   * Query keeps the list it has and sets `isError`, and the picker still
+   * offers everybody, so a note saying nobody can be chosen would be the field
+   * contradicting itself. Falsified by `unread` read off `isError` alone
+   * (2026-10-10's review found the claim in a comment and nowhere else).
+   */
+  it('keeps the list it has when a later poll fails, and says nothing', async () => {
+    const client = mount([hook('The war')]);
+    const box = screen.getByRole('combobox', { name: 'Involves' });
+    await userEvent.click(box);
+    // The popup's options, not the arrival select's folded further down.
+    const offered = (): HTMLElement[] =>
+      within(document.getElementById(box.getAttribute('aria-controls') ?? '')!).queryAllByRole(
+        'option',
+      );
+    await waitFor(() => {
+      expect(offered().map((option) => option.textContent)).toEqual(['Vera Kohl']);
+    });
+
+    listLibrary.mockRejectedValue(new Error('the server is down'));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['library', 'actors'] });
+      // React Query tells its observers on a timer of its own (`notifyManager`),
+      // so the render that would draw the note comes a task after the fetch —
+      // and an assertion before it passes against the render before the
+      // failure, which is how this test first passed with `unread` broken.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // The poll really did fail, or the claim below is about nothing.
+    expect(client.getQueryState(['library', 'actors'])?.status).toBe('error');
+    expect(screen.queryByText(/^Your library could not be read/)).toBeNull();
+    expect(offered().map((option) => option.textContent)).toEqual(['Vera Kohl']);
+  });
+
+  /**
+   * ***The winner, once.*** A shadowed copy shares its winner's id, and both
+   * were offered: two options with one value, under whichever name came last.
+   * Falsified by the `shadowed` filter taken out of `HookList`.
+   */
+  it('offers an actor with a shadowed copy once, under the winner’s name', async () => {
+    listLibrary.mockResolvedValue({
+      objects: [VERA, { ...VERA, name: 'Vera, an older copy', shadowed: true }],
+    });
+    mount([hook('The war')]);
+    await waitFor(() => {
+      expect(listLibrary).toHaveBeenCalled();
+    });
+
+    const box = screen.getByRole('combobox', { name: 'Involves' });
+    await userEvent.click(box);
+    const popup = document.getElementById(box.getAttribute('aria-controls') ?? '');
+    await waitFor(() => {
+      expect(within(popup!).queryAllByRole('option')).not.toHaveLength(0);
+    });
+
+    expect(
+      within(popup!)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Vera Kohl']);
   });
 });
 

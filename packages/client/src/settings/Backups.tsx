@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
 import { backupApi, errorCode, type BackupRecord, type BackupSettings } from '../api.js';
-import { formatTimestamp } from '../format.js';
+import { formatTimestamp, megabytes } from '../format.js';
 import { Button } from '../ui/Button.js';
 import { CheckboxField, SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
@@ -40,12 +40,7 @@ function storedLine(count: number, bytes: number): string {
   return `${String(count)} backups, taking ${megabytes(bytes)} between them.`;
 }
 
-export function megabytes(bytes: number): string {
-  if (bytes < 1024) return `${String(bytes)} bytes`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
+// `megabytes` moved to `format.ts` at [P16.3g] — see its docstring there.
 
 /**
  * ***What is in the file, said before somebody puts it somewhere else.***

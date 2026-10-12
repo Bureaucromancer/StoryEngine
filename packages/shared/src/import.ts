@@ -171,6 +171,31 @@ export interface ImportReport {
   counts: Record<ImportDisposition, number>;
 }
 
+/**
+ * ***The World a file landed, in one line*** —
+ * [P16.3f](../../../docs/design/workplan/34-p16-world.md), the upload door's
+ * `world` beside its report, which the import panel leads with after the
+ * commit: *a world named Rain City landed, naming 7 objects and 1 session —
+ * Open it.*
+ *
+ * **Read off the World's own row**, its `import.world.landed` note and the
+ * `import.world.dangling` beside it, rather than computed a second time: the
+ * row is what the ledger keeps, and a line that could disagree with the review
+ * under it would be a second account of one import. Absent when the file
+ * landed no World — a single object, a snapshot, or a World that failed.
+ */
+export interface ImportedWorld {
+  /** The World as it now is here — the one written, or the one here it merged into. */
+  id: string;
+  name: string;
+  /** Library objects it names that landed. */
+  members: number;
+  /** Sessions it names that landed, or were here already. */
+  sessions: number;
+  /** References the file left behind that resolve to nothing here. */
+  dangling: number;
+}
+
 /** Every arm, for exhaustiveness checks and for the coverage tests to iterate. */
 export const IMPORT_DISPOSITIONS = [
   'converted',

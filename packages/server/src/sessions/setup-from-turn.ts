@@ -334,7 +334,10 @@ export interface SetupTexts {
  * The texts come from the wizard, and the carry is the server's own reading of
  * the turn. `provenance.source` is `session` — honest about where it came from,
  * and safe on a Setup because only lorebooks are read for that marker
- * (`retrieval/blocks.ts`, [P15 §0.3]).
+ * (`retrieval/blocks.ts`, [P15 §0.3]). *(2026-10-11, the [P16 audit], privacy
+ * finding 2: [P16.3d]'s publish rule read it on every kind, which left a Setup
+ * made here at home whatever was ticked; `isWrittenByPlay` in shared now takes
+ * the kind and reads it on lorebooks only, so this sentence is true again.)*
  *
  * *`companion` is the facts lorebook when one was kept*, linked `required`: the
  * Setup's story was written against those facts, so a session that cannot find

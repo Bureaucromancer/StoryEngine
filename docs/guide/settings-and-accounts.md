@@ -141,7 +141,7 @@ development build says it has neither) and states the licence: StoryEngine is fr
 software under the GNU Affero General Public License, version 3 — most of it also under any
 later version, except a few files holding code from projects licensed under version 3 alone,
 which [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) lists. **What
-you write is yours**: actors, treatments, lorebooks, presets, sessions and packages
+you write is yours**: actors, treatments, lorebooks, presets, sessions and worlds
 are data the program produced, not derivative works of it.
 
 Administrators also see an update note here: whether a newer build exists on the

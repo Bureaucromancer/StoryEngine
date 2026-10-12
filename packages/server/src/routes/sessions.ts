@@ -21,6 +21,7 @@ import {
 
 import { type AppServices, requireAccount } from '../app.js';
 import { LibraryError, read } from '../library.js';
+import { addMembers, worldContribution, type WorldContribution } from '../library/worlds.js';
 import { walkPath } from '../sessions/segments.js';
 import {
   childrenByParent,
@@ -416,9 +417,21 @@ const CreateBody = Type.Object(
      *
      * `lore` is extras *beyond* whatever the treatment already links ([03 §7]),
      * so both may be given, and giving neither is the pre-P5.6 session.
+     *
+     * ***`treatment: null` is "none", said out loud*** (2026-10-10, [P16.2]).
+     * Absent means *take the default* — the Setup's, then a World's only one —
+     * and until a World could supply a treatment there was never a default to
+     * refuse; a form showing *None* beside a World that holds one treatment had
+     * no way to send it. `null` is that way, and it overrides every rung, as the
+     * lore route's `treatment: null` already means.
+     *
+     * ***And up to 512 books***, from 64 (2026-10-10, [P16.2]): a World's books
+     * arrive here as an explicit list when a form shows them, and a World is a
+     * set somebody fills from a whole library — the bound is on the request, not
+     * on how much somebody owns. The lore route below takes the same.
      */
-    treatment: Type.Optional(Type.String({ maxLength: 200 })),
-    lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 })),
+    treatment: Type.Optional(Type.Union([Type.String({ maxLength: 200 }), Type.Null()])),
+    lore: Type.Optional(Type.Array(Type.String({ maxLength: 200 }), { maxItems: 512 })),
     /**
      * The wizard's answers — [06 §7.3], [P7.4].
      *
@@ -454,8 +467,65 @@ const CreateBody = Type.Object(
      *
      * The session keeps a **copy**, so editing the Setup afterwards cannot reach
      * a running game ([00 §3.1]) — the same asymmetry the preset has.
+     *
+     * ***Absent beside a `world` is the World's own Setup, when it holds
+     * exactly one*** — **the owner's answer of 2026-10-12**, *"Use the World's
+     * Setup when it holds exactly one"* ([04 §9], [03 §7.2]; the `world`
+     * field's note says how). ***And so `setup: null` is "none", said out
+     * loud***, for `treatment: null`'s reason exactly: until a World could
+     * supply a Setup, absent had nothing to default to, and a form showing
+     * *None* beside a World that holds one Setup had no way to send it. `null`
+     * starts with no Setup, the World's included; beside no World it is the
+     * same as absent.
      */
-    setup: Type.Optional(Type.String({ maxLength: 200 })),
+    setup: Type.Optional(Type.Union([Type.String({ maxLength: 200 }), Type.Null()])),
+    /**
+     * ***A World to start in*** — [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md),
+     * [P16.2], [15 §3.2](../../../../docs/design/15-world.md).
+     *
+     * **What it contributes is copied once, here, and is a default every other
+     * field overrides** — the Setup's layering one rung further down: the
+     * caller's `lore` and `treatment` first, then the Setup's, then the World's.
+     * Its lorebook members join the Setup's books (both are the session's
+     * books, so the two are a union rather than a choice), and its treatment is
+     * used **only when it holds exactly one**, because the first of several
+     * would be the server choosing a story; the form offers them all. A person
+     * who unticked one of the World's books in the form sends the rest as
+     * `lore`, and the server does not put it back: prefill, never binding
+     * ([00 §3.1]).
+     *
+     * ***This is not P5.7 again***, and the difference is the whole of
+     * [P16 §1.3](../../../../docs/design/workplan/34-p16-world.md): a World is a
+     * subset somebody named, and its books land in `session.lore` — on disk,
+     * editable, the one list the retriever reads — rather than being admitted by
+     * a query that re-decides each turn. Nothing reaches the prompt that is not
+     * selected there.
+     *
+     * **And the session joins the World** — written on the World, the one place
+     * membership lives (P16 §1.2), after the session exists. Refused when the
+     * World is not there, for the Setup's reason: the World decides what the
+     * session starts with, so a dangling one would start something other than
+     * what was asked for.
+     *
+     * ***And its Setup, when it holds exactly one and the caller named none***
+     * — **the owner's answer of 2026-10-12**: *"Use the World's Setup when it
+     * holds exactly one."* [04 §9] and [03 §7.2] say a World holding a Setup
+     * is started *through* it, and [P16.2] built this field from the World's
+     * books and treatment alone, which the P16 final audit recorded as an open
+     * disagreement. So with `setup` absent, the World's sole Setup member is
+     * the Setup — **exactly as if the caller had named it**: its mode and
+     * answers, opening, persona and party, preset, hooks and goals, its name
+     * for an unnamed session, and the session's copy of it in `session.setup`,
+     * which the session page and [P15]'s *make a setup from here* read as they
+     * read a Setup named outright. The layering above is unchanged, with the
+     * World's Setup on the Setup's rung: the caller's `lore` and `treatment`
+     * first, then the Setup's, then the World's — the World's books still
+     * joining the Setup's, and its treatment used only when the Setup names
+     * none. **Two or more Setups choose none**, the treatment's rule. A sole
+     * Setup member that no longer resolves starts the session **without** it,
+     * logged, rather than refusing the World — `worldContribution` says why.
+     */
+    world: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     /**
      * Which of the Setup's written openings to start with — [03 §6],
      * [P15.3](../../../../docs/design/workplan/33-p15-setup-from-a-turn.md).
@@ -464,6 +534,10 @@ const CreateBody = Type.Object(
      * Setup* means; **`null` is start cold**, 03 §6's third choice, and a choice
      * rather than an absence; an id names one. An id with no Setup beside it, or
      * one the Setup does not hold, is a 422 rather than a quiet substitution —
+     * *the Setup beside it being, since the owner's answer of 2026-10-12, the
+     * caller's or else a `world`'s only Setup*, so an opening sent with a World
+     * alone is that Setup's opening, and still refused for a World that supplies
+     * no Setup —
      * a story somebody did not choose is the dangling Setup's failure one field
      * smaller. ~~`unknown-opening`~~ ***`unknown-setup-opening`*** —
      * *recommended answer, owner deferred, 2026-10-03*: [P14.4] chose
@@ -765,7 +839,8 @@ const PresetBody = Type.Object(
 const LoreBody = Type.Object(
   {
     treatment: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
-    lore: Type.Array(Type.String({ maxLength: 200 }), { maxItems: 64 }),
+    // 512 rather than 64 since [P16.2], for the create body's reason.
+    lore: Type.Array(Type.String({ maxLength: 200 }), { maxItems: 512 }),
   },
   { additionalProperties: false },
 );
@@ -1140,14 +1215,15 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
       mode?: string;
       preset?: string;
       modeConfig?: Record<string, unknown>;
-      setup?: string;
+      setup?: string | null;
       opening?: string | null;
       /** Checked against `HookInput`, so a hook may arrive without its id. */
       hooks?: (Omit<PlotHook, 'id'> & { id?: string })[];
       cast?: { persona: string | null; actors: string[] };
-      treatment?: string;
+      treatment?: string | null;
       lore?: string[];
       openings?: Record<string, string>;
+      world?: string;
     };
 
     /**
@@ -1165,9 +1241,13 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
      * created as something other than what was asked for, because the Setup is
      * *what to create*. Another account's is the same 422 by way of a 404
      * inside: the path is the owner.
+     *
+     * ***The caller's Setup here; a World's below, once the World is read***
+     * (2026-10-12, the owner's answer). `null` is *no Setup*, the World's
+     * included, and reads nothing.
      */
     let from: Setup | undefined;
-    if (body.setup !== undefined) {
+    if (typeof body.setup === 'string') {
       try {
         const row = read(services.library, account.handle, body.setup, SETUP_SCHEMA);
         from = row.body as Setup;
@@ -1177,12 +1257,69 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
     }
 
     /**
+     * The World, read beside the Setup and for the same two reasons — it is a
+     * default the parameters below override, and a dangling one is refused
+     * rather than ignored ([P16.2]; the `world` field's note says why).
+     *
+     * ***Read before the opening is checked, and before anything reads
+     * `from`*** (2026-10-12, the owner's answer): it may supply the Setup, so
+     * nothing that consults the Setup can be decided until it has been read.
+     * Until then the opening below was checked between the two reads, which
+     * put an opening sent with a World alone beyond any Setup the World could
+     * have given it — and a request naming both a stray opening and a World
+     * that is not there now hears `unknown-world`, the first thing wrong with
+     * it, where it heard `unknown-setup-opening`.
+     */
+    let world: WorldContribution | undefined;
+    if (body.world !== undefined) {
+      try {
+        world = worldContribution(services.library, account.handle, body.world);
+      } catch (error) {
+        if (!(error instanceof LibraryError)) throw error;
+        return reply.code(422).send({ error: 'unknown-world', message: 'No such world.' });
+      }
+    }
+
+    /**
+     * ***The World's Setup, when it holds exactly one and the caller named
+     * none*** — **the owner's answer of 2026-10-12**, *"Use the World's Setup
+     * when it holds exactly one"* ([04 §9], [03 §7.2], [P16.2]'s open
+     * disagreement closed). It becomes `from` here, before the opening, the
+     * mode, the answers, the persona and party, the preset, the hooks, the
+     * goals, the lore and the treatment read it — so every one of them takes it
+     * **exactly as if the caller had named it**, and the session keeps its copy
+     * in `session.setup` as it would. *Absent* only: a named Setup is the
+     * caller's, and the World adds under it as it always did; `null` is none.
+     *
+     * ***A sole Setup that no longer resolves is started without, not
+     * refused*** — the treatment's rule mirrored, and `worldContribution` says
+     * why it is not `unknown-setup`: the caller asked for a World, which is
+     * there, and the treatment rule beside it refuses nothing. The session
+     * starts with the World's books and treatment, as this start did before the
+     * answer, and the log says which Setup it could not read; the World's page
+     * already marks the member *Missing*, and the session form never offers it.
+     */
+    if (body.setup === undefined && world !== undefined && world.setup !== null) {
+      try {
+        from = read(services.library, account.handle, world.setup, SETUP_SCHEMA).body as Setup;
+      } catch (error) {
+        if (!(error instanceof LibraryError)) throw error;
+        request.log.warn(
+          { event: 'world.setupMissing', world: world.world.id, setup: world.setup },
+          'The world’s only setup is not in the library, so the session starts without it',
+        );
+      }
+    }
+
+    /**
      * The Setup's opening, resolved before anything is written — [03 §6],
      * [P15.3]. A named opening that is not there is refused here, while the
      * refusal still costs nobody a half-made session; its code is its own
      * (`unknown-setup-opening`, the `opening` field's note says why). An
      * `opening` of `null` with no Setup asks for no opening, which is what it
-     * gets.
+     * gets. *No Setup* is the caller's and the World's both, since 2026-10-12:
+     * an opening sent with a World alone is its Setup's, and one sent with a
+     * World that supplies none is refused as it was.
      */
     if (from === undefined && typeof body.opening === 'string') {
       return reply.code(422).send({
@@ -1190,6 +1327,7 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
         message: 'An opening was chosen with no setup to take it from.',
       });
     }
+
     const opening = from === undefined ? null : chooseOpening(from.openings, body.opening);
     if (opening === 'unknown') {
       return reply
@@ -1283,8 +1421,21 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               ),
             ],
           });
-    const treatment = body.treatment ?? from?.treatment?.id;
-    const lore = body.lore ?? from?.lore.map((link) => link.ref.id);
+    // The parameter, then the Setup's, then the World's ([P16.2]) — and the
+    // World's books join the Setup's rather than lose to them, because both are
+    // simply the session's books; the caller's own list still wins outright.
+    // *The Setup's rung may be the World's own Setup* (2026-10-12, the owner's
+    // answer): it sits there exactly as a named one does, so its treatment
+    // beats the World's and its books lead the World's, which follow.
+    const treatment =
+      body.treatment === null
+        ? undefined
+        : (body.treatment ?? from?.treatment?.id ?? world?.treatment ?? undefined);
+    const lore =
+      body.lore ??
+      (from === undefined && world === undefined
+        ? undefined
+        : [...new Set([...(from?.lore.map((link) => link.ref.id) ?? []), ...(world?.lore ?? [])])]);
     const misfit = setupMisfit(mode.definition.setup, answers);
     if (misfit !== null) {
       return reply.code(422).send({
@@ -1472,6 +1623,39 @@ export function registerSessionRoutes(app: FastifyInstance, services: AppService
               }),
         }),
       });
+
+      /**
+       * ***The session joins the World it was started in*** — [P16.2],
+       * [P16 §1.2](../../../../docs/design/workplan/34-p16-world.md): the same
+       * write *Add to a World* makes, on the World and nowhere else, since the
+       * session carries no World of its own.
+       *
+       * **After the session exists, and not able to undo it.** The session is
+       * the thing asked for and it is already on disk; a World deleted or
+       * refusing a write in the moment since it was read costs the membership,
+       * which is one click to add again, and is said in the log rather than
+       * turned into a failed start that left a session behind anyway.
+       */
+      if (world !== undefined) {
+        try {
+          await addMembers(services.library, account.handle, world.world.id, [
+            {
+              schema: 'storyengine.session/1',
+              id: session.id,
+              ...(session.name === '' ? {} : { name: session.name }),
+            },
+          ]);
+        } catch (error) {
+          request.log.warn(
+            {
+              event: 'world.memberNotAdded',
+              world: world.world.id,
+              message: error instanceof Error ? error.message : String(error),
+            },
+            'The session was started, and could not be added to its world',
+          );
+        }
+      }
 
       /**
        * **A mode that generates makes its world on the session's first turn** —

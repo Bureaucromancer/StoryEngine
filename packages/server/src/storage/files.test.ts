@@ -13,6 +13,7 @@ import {
   ensureWritableDirectory,
   fileExists,
   unlinkFile,
+  writeNewTextFile,
 } from './files.js';
 import { listVersions, snapshotReplaced } from './history.js';
 
@@ -97,6 +98,34 @@ describe('appendLine', () => {
       'one',
       'two',
     ]);
+  });
+});
+
+/**
+ * ***A file written a piece at a time*** — [P16.3c]'s staged session exports
+ * (2026-10-10). The pieces join to exactly the text, across the batch
+ * boundary; the answer is the UTF-8 size; and `wx` means it never writes over
+ * a file that is there.
+ */
+describe('writeNewTextFile', () => {
+  it('writes the pieces as one text, across batches, and answers its UTF-8 size', async () => {
+    const path = join(dir, 'nested', 'export.json');
+    const pieces = [
+      '{"turns":[',
+      ...Array.from({ length: 3 }, () => `"${'é'.repeat(400_000)}",`),
+      '0]}',
+    ];
+    const size = await writeNewTextFile(path, pieces);
+    const text = pieces.join('');
+    expect(await readFile(path, 'utf8')).toBe(text);
+    expect(size).toBe(Buffer.byteLength(text, 'utf8'));
+  });
+
+  it('refuses to write over a file that is there, and leaves it as it was', async () => {
+    const path = join(dir, 'taken.json');
+    await writeFile(path, 'somebody else');
+    await expect(writeNewTextFile(path, ['mine'])).rejects.toMatchObject({ code: 'EEXIST' });
+    expect(await readFile(path, 'utf8')).toBe('somebody else');
   });
 });
 

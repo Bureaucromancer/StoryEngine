@@ -33,6 +33,9 @@ const navigate = vi.fn();
 /** Mutable so a test can put the page under a kind filter. */
 let search: { kind?: string } = {};
 
+/** Mutable so a test can sign another account in under the page (P16.3g). */
+let handle = 'ned';
+
 /**
  * The dock's open state, as a store rather than a spy.
  *
@@ -58,7 +61,7 @@ vi.mock('../api.js', async (importOriginal) => ({
     // mock replaces the whole `api` object, so an absent method is not a
     // fallback — it is a query that throws and a locale that is silently
     // undefined in every test.
-    authState: () => Promise.resolve({ account: { handle: 'ned', locale: null } }),
+    authState: () => Promise.resolve({ account: { handle, locale: null } }),
     readPrefs: () => Promise.resolve({ prefs: { ...prefsStore } }),
     patchPrefs: (patch: Record<string, unknown>) => {
       patchPrefs(patch);
@@ -73,7 +76,21 @@ vi.mock('../api.js', async (importOriginal) => ({
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useSearch: () => search }),
   useNavigate: () => navigate,
-  Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
+  // `data-to` and `data-search` since [P16.3g], so the selection bar's link
+  // can be read for where it goes; every other assertion here reads names.
+  Link: ({
+    children,
+    to,
+    search: linkSearch,
+  }: {
+    children: React.ReactNode;
+    to?: string;
+    search?: Record<string, unknown>;
+  }) => (
+    <a href="#" data-to={to ?? ''} data-search={JSON.stringify(linkSearch ?? {})}>
+      {children}
+    </a>
+  ),
 }));
 
 const { LibraryPage } = await import('./LibraryPage.js');
@@ -355,7 +372,7 @@ describe('making an actor', () => {
     ['presets', 'New preset'],
     ['treatments', 'New treatment'],
     ['setups', 'New setup'],
-    ['packages', 'New package'],
+    ['worlds', 'New world'],
   ])('offers a New control on %s, naming the kind', async (kind, control) => {
     search = { kind };
     renderPage();
@@ -578,6 +595,53 @@ describe('the Lorebooks panel', () => {
     expect(badgesInRows('Linked')).toHaveLength(1);
   });
 
+  /**
+   * ***Linked to nobody is the default now, and gets no badge*** — [P16.2],
+   * 26 §B15. Every new book and every standalone SillyTavern import is
+   * `{ kind: 'linked', actorIds: [] }` from P16.2 on, so a badge on `linked`
+   * alone would be on nearly every book — furniture, the argument `global` was
+   * left unbadged by. The badge is for a book that names somebody.
+   */
+  it('badges a book linked to characters, and not one linked to nobody', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { scope: { kind: 'linked', actorIds: ['a1'] } }),
+        book('Brine', { scope: { kind: 'linked', actorIds: [] } }, 'brine'),
+        book('Cinder', { scope: { kind: 'linked' } }, 'cinder'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(badgesInRows('Linked')).toHaveLength(1);
+  });
+
+  /**
+   * ***A book for particular worlds is badged, because that arm does
+   * something*** — [P16.2], [15 §5.3]: a session started in one of them gets
+   * it ticked at the start. Only when it names one, `Linked`'s rule; and a
+   * scope of a kind this build does not know gets no badge at all
+   * ([26 B16]: kept and ignored, not guessed into a word).
+   */
+  it('badges a book that names a world, and not one naming none or of a kind it does not know', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        book('Ardent', { scope: { kind: 'world', worldIds: ['w1'] } }),
+        book('Brine', { scope: { kind: 'world', worldIds: [] } }, 'brine'),
+        book('Cinder', { scope: { kind: 'campaign', campaignIds: ['c'] } }, 'cinder'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const badges = badgesInRows('World');
+    expect(badges).toHaveLength(1);
+    expect(badges[0]?.getAttribute('title')).toMatch(/^Offered to sessions started in the worlds/);
+    expect(badgesInRows('Linked')).toHaveLength(0);
+  });
+
   it('reads the tags nothing has ever read', async () => {
     search = { kind: 'lorebooks' };
     listLibrary.mockResolvedValue({ objects: [book('Ardent', { tags: ['noir', 'city'] })] });
@@ -640,6 +704,11 @@ describe('the Lorebooks panel', () => {
       return [
         book('Ardent', { tags: ['noir'], scope: { kind: 'linked', actorIds: ['a'] } }),
         book('Rain City', { tags: ['city'], enabled: false }, 'rain-city'),
+        // The factory's default since [P16.2] — linked, to nobody.
+        book('Brine', { scope: { kind: 'linked', actorIds: [] } }, 'brine'),
+        // The `world` arm, and a kind from a newer build ([26 B16]).
+        book('Docks', { scope: { kind: 'world', worldIds: ['w1'] } }, 'docks'),
+        book('Elsewhere', { scope: { kind: 'campaign', campaignIds: ['c'] } }, 'elsewhere'),
       ];
     }
 
@@ -684,6 +753,38 @@ describe('the Lorebooks panel', () => {
       expect(names()).toEqual(['Ardent']);
     });
 
+    /**
+     * ***Three scopes since [P16.2]***, because `linked` started meaning two
+     * things: a book authored for particular characters, and — the new
+     * default — a book linked to nobody. *Linked to characters* is the
+     * question worth asking, and it would have no answer if every new book
+     * answered it too. `global` keeps its own option, since it is what an
+     * older book's file still says.
+     */
+    it('tells a book linked to characters from one linked to nobody, and both from global', async () => {
+      await shelved();
+      choose('Scope', 'nobody');
+      expect(names()).toEqual(['Brine']);
+      choose('Scope', 'global');
+      expect(names()).toEqual(['Rain City']);
+    });
+
+    /**
+     * ***For worlds*** — [P16.2]'s arm, by kind. A scope of a kind this build
+     * does not know is on the unfiltered shelf and under no option at all:
+     * kept and ignored, never guessed into one of the four ([26 B16]).
+     */
+    it('narrows to books for worlds, and puts an unknown kind under no option but Any', async () => {
+      await shelved();
+      expect(names()).toContain('Elsewhere');
+      choose('Scope', 'world');
+      expect(names()).toEqual(['Docks']);
+      for (const value of ['global', 'linked', 'nobody', 'world']) {
+        choose('Scope', value);
+        expect(names()).not.toContain('Elsewhere');
+      }
+    });
+
     it('narrows by whether the book is switched on', async () => {
       await shelved();
       choose('Enabled', 'off');
@@ -709,7 +810,13 @@ describe('the Lorebooks panel', () => {
       const options = [...screen.getByLabelText('Scope').querySelectorAll('option')].map(
         (node) => node.textContent,
       );
-      expect(options).toEqual(['Any', 'Global', 'Linked']);
+      expect(options).toEqual([
+        'Any',
+        'Global',
+        'Linked to characters',
+        'Linked to nobody',
+        'For worlds',
+      ]);
     });
 
     /**
@@ -753,6 +860,130 @@ describe('the Lorebooks panel', () => {
 
     const cached = client.getQueryData<{ objects: { name: string }[] }>(['library', 'lorebooks']);
     expect(cached?.objects.map((entry) => entry.name)).toEqual(['Ardent', 'Rain City']);
+  });
+});
+
+/**
+ * ***The Worlds panel*** — [P16.1](../../../../docs/design/workplan/34-p16-world.md).
+ *
+ * **The generic table said nothing about a set**: a name and the word *World*
+ * on every row, so telling *five characters and a lorebook* from *my six Rain
+ * City sessions* meant opening each one. The two columns are what answer that,
+ * and the empty sentence is for a person who never saw the Packages it
+ * replaces (AA10).
+ */
+describe('the Worlds panel', () => {
+  function world(name: string, contents: { schema: string; id: string }[], updatedAt: string) {
+    const slug = name.toLowerCase().replace(/ /g, '-');
+    return {
+      ...object(name),
+      id: `world-${slug}`,
+      schema: 'storyengine.world/1',
+      slug,
+      contentHash: `sha256:${slug}`,
+      object: {
+        schema: 'storyengine.world/1',
+        name,
+        contents,
+        provenance: { updatedAt },
+      },
+    };
+  }
+
+  const member = (schema: string, id: string) => ({ schema: `storyengine.${schema}/1`, id });
+
+  function headers(): string[] {
+    return [...document.querySelectorAll('th')].map((node) => node.textContent);
+  }
+
+  function names(): (string | null)[] {
+    return [...document.querySelectorAll('tbody tr')].map(
+      (row) => row.querySelector('td a')?.textContent ?? null,
+    );
+  }
+
+  it('carries members and sessions after the name, then source and updated', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({ objects: [world('Rain City', [], '2026-10-01T00:00:00Z')] });
+    renderPage();
+    await settled();
+
+    expect(headers()).toEqual(['Name', 'Members', 'Sessions', 'Source', 'Updated', 'Actions']);
+  });
+
+  /**
+   * By kind, in the library's kind order, omitting kinds with none — and
+   * sessions counted in their own column rather than in this line. A kind this
+   * build does not know is *other* rather than dropped, because the World
+   * still carries it.
+   */
+  it('says what it holds by kind, and counts its sessions apart', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        world(
+          'Rain City',
+          [
+            member('treatment', 't1'),
+            member('actor', 'a1'),
+            member('session', 's1'),
+            member('lorebook', 'b1'),
+            member('actor', 'a2'),
+            member('session', 's2'),
+            member('campaign', 'c1'),
+          ],
+          '2026-10-01T00:00:00Z',
+        ),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    const cells = [...document.querySelectorAll('tbody td')].map((node) => node.textContent);
+    expect(cells[1]).toBe('2 actors · 1 lorebook · 1 treatment · 1 other');
+    expect(cells[2]).toBe('2');
+  });
+
+  it('sorts by name, by recent update, and by most members', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        world('Ardent', [member('actor', 'a1')], '2026-10-03T00:00:00Z'),
+        world('Brine', [member('actor', 'a1'), member('session', 's1')], '2026-10-01T00:00:00Z'),
+        world('Cinder', [], '2026-10-02T00:00:00Z'),
+      ],
+    });
+    renderPage();
+    await settled();
+
+    expect(names()).toEqual(['Ardent', 'Brine', 'Cinder']);
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'updated' } });
+    });
+    expect(names()).toEqual(['Ardent', 'Cinder', 'Brine']);
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'members' } });
+    });
+    expect(names()).toEqual(['Brine', 'Ardent', 'Cinder']);
+  });
+
+  /**
+   * AA10: somebody who never saw Packages. What a world is, and how to make
+   * one — and not a promise that sessions start from it, which is P16.2's and
+   * not built.
+   */
+  it('says what a world is, and how to make one, on an empty shelf', async () => {
+    search = { kind: 'worlds' };
+    listLibrary.mockResolvedValue({ objects: [] });
+    renderPage();
+    await settled();
+
+    const shown = screen.getByText(/^No worlds yet/);
+    expect(shown.textContent).toContain('named set of library objects and sessions');
+    expect(shown.textContent).toContain('New world');
+    expect(screen.getByRole('button', { name: 'New world' })).toBeTruthy();
   });
 });
 
@@ -1003,5 +1234,391 @@ describe('deleting from the shelf', () => {
     expect(screen.getByRole('alert').textContent).toBe('The object has changed since it was read.');
     expect(screen.getByRole('button', { name: 'Delete Rain City' })).toBeTruthy();
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ***Choosing on the shelves*** — [P16.3g](../../../../docs/design/workplan/34-p16-world.md),
+ * [10 §5](../../../../docs/design/10-ui-surfaces.md)'s *bulk select*, and
+ * [16 §6](../../../../docs/design/16-publish.md)'s second door.
+ *
+ * **The selection is the page's, not the table's**, so it survives the kind
+ * bar remounting the table ([16 §2]: *in one panel or across several*); it is
+ * not in the address; Worlds and shadowed copies cannot be chosen, and say why
+ * to a screen reader; *Select all shown* takes what the shelf shows after its
+ * search; and the bar's *Publish…* is the review's address with the ids as its
+ * start — or, past the route's bound, a sentence instead of a door.
+ */
+describe('choosing on the shelves', () => {
+  const ids = {
+    vera: '01a008de-7e08-70d0-899c-f6869d6b9a01',
+    ash: '01a008de-7e08-70d0-899c-f6869d6b9a02',
+    harbour: '01a008de-7e08-70d0-899c-f6869d6b9a03',
+    world: '01a008de-7e08-70d0-899c-f6869d6b9a04',
+  };
+
+  function row(name: string, id: string, schema: string, over: Record<string, unknown> = {}) {
+    return {
+      ...object(name),
+      id,
+      schema,
+      slug: name.toLowerCase(),
+      contentHash: `sha256:${id}`,
+      object: { schema, id, name },
+      ...over,
+    };
+  }
+
+  const actors = () => [
+    row('Vera', ids.vera, 'storyengine.actor/1'),
+    row('Ash', ids.ash, 'storyengine.actor/1'),
+  ];
+  const lorebooks = () => [row('Harbour', ids.harbour, 'storyengine.lorebook/1')];
+
+  function stock(): void {
+    listLibrary.mockImplementation((kind?: string) =>
+      Promise.resolve({
+        objects:
+          kind === 'actors'
+            ? actors()
+            : kind === 'lorebooks'
+              ? lorebooks()
+              : [
+                  ...actors(),
+                  ...lorebooks(),
+                  row('Rain City', ids.world, 'storyengine.world/1'),
+                  row('Vera, copied', ids.vera, 'storyengine.actor/1', {
+                    slug: 'vera-2',
+                    shadowed: true,
+                  }),
+                ],
+      }),
+    );
+  }
+
+  afterEach(() => {
+    listLibrary.mockReset();
+    handle = 'ned';
+  });
+
+  function click(name: string | RegExp): void {
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name }));
+    });
+  }
+
+  function choose(name: string): void {
+    act(() => {
+      fireEvent.click(screen.getByRole('checkbox', { name: `Choose “${name}”` }));
+    });
+  }
+
+  /** The page, mounted so it can be drawn again under a new address — as a kind switch draws it. */
+  function mount(): { rerender: () => void } {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // A fresh element each time: the same one again is a render React skips.
+    const tree = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <LibraryPage />
+      </QueryClientProvider>
+    );
+    const view = render(tree());
+    return {
+      rerender: () => {
+        view.rerender(tree());
+      },
+    };
+  }
+
+  function bar(): { to: string; search: unknown } {
+    const link = screen.getByRole('link', { name: 'Publish…' });
+    return {
+      to: link.getAttribute('data-to') ?? '',
+      search: JSON.parse(link.getAttribute('data-search') ?? '{}') as unknown,
+    };
+  }
+
+  it('shows checkboxes only once Select is pressed', async () => {
+    stock();
+    renderPage();
+    await settled();
+
+    expect(screen.queryAllByRole('checkbox')).toEqual([]);
+    click('Select');
+    expect(screen.getByRole('button', { name: 'Select' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('checkbox', { name: 'Choose “Vera”' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Choose “Harbour”' })).toBeTruthy();
+  });
+
+  it('gives a World and a shadowed copy no checkbox, and says why to a screen reader', async () => {
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+
+    expect(screen.queryByRole('checkbox', { name: 'Choose “Rain City”' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Choose “Vera, copied”' })).toBeNull();
+    expect(
+      screen.getByText('A world is published from its own page, so it is not chosen here.')
+        .className,
+    ).toContain('sr-only');
+    expect(
+      screen.getByText('A shadowed copy cannot be chosen: its id names the other file.').className,
+    ).toContain('sr-only');
+  });
+
+  it('keeps the selection across a change of kind, and links the bar to the review', async () => {
+    search = { kind: 'actors' };
+    stock();
+    const view = mount();
+    await settled();
+    click('Select');
+    choose('Vera');
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+
+    // The kind bar moves to Lorebooks: the table remounts, the selection stays.
+    search = { kind: 'lorebooks' };
+    view.rerender();
+    await settled();
+    choose('Harbour');
+
+    expect(screen.getByText('2 chosen')).toBeTruthy();
+    expect(bar()).toEqual({
+      to: '/library/publish',
+      search: { from: `${ids.vera},${ids.harbour}` },
+    });
+    // Not in the address: nothing navigated to record it.
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('chooses all the shelf shows, and none that its search hides', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    click(/^search$/i);
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Search this shelf'), { target: { value: 'ash' } });
+    });
+
+    click('Select all shown');
+
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+    expect(bar().search).toEqual({ from: ids.ash });
+  });
+
+  it('clears what it chose', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    choose('Vera');
+    click('Clear');
+    expect(screen.queryByText('1 chosen')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+  });
+
+  /**
+   * ***Past the route's bound the door becomes a sentence*** — `PUBLISH_MAX_START`
+   * is shared so the client never builds a request the server refuses.
+   */
+  it('says to make a world, rather than offering Publish…, past two hundred', async () => {
+    search = { kind: 'actors' };
+    const many = Array.from({ length: 201 }, (_, index) =>
+      row(
+        `Actor ${String(index)}`,
+        `01a008de-7e08-70d0-899c-${String(index).padStart(12, '0')}`,
+        'storyengine.actor/1',
+      ),
+    );
+    listLibrary.mockResolvedValue({ objects: many });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.getByText('201 chosen')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+    expect(
+      screen.getByText(
+        'Too many to send as a selection — make a world of them in its editor, then publish the world.',
+      ),
+    ).toBeTruthy();
+  });
+
+  /**
+   * ***What the P16.3g review found, held*** (2026-10-11). Each failed before
+   * its fix, or under the mutation it names.
+   */
+
+  /** *Select all shown* on the mixed shelf: a World or a shadowed copy is never taken (R8, F19). */
+  it('takes neither a World nor a shadowed copy when choosing all the mixed shelf shows', async () => {
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.getByText('3 chosen')).toBeTruthy();
+    // In the order the shelf shows them, which is by name.
+    expect(bar().search).toEqual({ from: `${ids.ash},${ids.harbour},${ids.vera}` });
+  });
+
+  /** The bound is the route's `maxItems`, which takes two hundred: at two hundred the door stays. */
+  it('still offers Publish… at exactly two hundred', async () => {
+    search = { kind: 'actors' };
+    const many = Array.from({ length: 200 }, (_, index) =>
+      row(
+        `Actor ${String(index)}`,
+        `01a008de-7e08-70d0-899c-${String(index).padStart(12, '0')}`,
+        'storyengine.actor/1',
+      ),
+    );
+    listLibrary.mockResolvedValue({ objects: many });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.getByText('200 chosen')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Publish…' })).toBeTruthy();
+    expect(screen.queryByText(/^Too many to send as a selection/)).toBeNull();
+  });
+
+  /**
+   * ***A book play wrote is not chosen*** — it stays home whatever is ticked
+   * (`fileSet`, [P16.3d]), so a selection of it alone would publish a file of
+   * nothing; its own page offers no *Publish…* for the same reason.
+   */
+  it('gives a book play wrote no checkbox, and says why', async () => {
+    search = { kind: 'lorebooks' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        row('What Ned remembers', ids.harbour, 'storyengine.lorebook/1', {
+          object: {
+            schema: 'storyengine.lorebook/1',
+            id: ids.harbour,
+            name: 'What Ned remembers',
+            provenance: { source: 'session' },
+          },
+        }),
+      ],
+    });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+
+    expect(screen.queryByRole('checkbox', { name: 'Choose “What Ned remembers”' })).toBeNull();
+    expect(
+      screen.getByText('Play wrote this book, so it stays home and is not chosen here.').className,
+    ).toContain('sr-only');
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+  });
+
+  /**
+   * ***A Setup made from a turn is chosen like any Setup*** (2026-10-11, the
+   * [P16 audit], privacy finding 2): it carries the same marking, which [P15
+   * §0.3] reads on lorebooks only, and it travels — so it has its checkbox,
+   * and no *Memories* badge.
+   */
+  it('gives a Setup made from a turn its checkbox, and no Memories badge', async () => {
+    search = { kind: 'setups' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        row('After the flood', ids.harbour, 'storyengine.setup/1', {
+          object: {
+            schema: 'storyengine.setup/1',
+            id: ids.harbour,
+            name: 'After the flood',
+            provenance: { source: 'session' },
+          },
+        }),
+      ],
+    });
+    renderPage();
+    await settled();
+    expect(screen.queryByText('Memories')).toBeNull();
+    click('Select');
+    choose('After the flood');
+
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Publish…' })).toBeTruthy();
+  });
+
+  /**
+   * ***Said, as well as shown*** — the bar's count is a status that is on the
+   * page before the first tick, so the first *1 chosen* is heard
+   * (`ui/TwoStep.tsx`: a live region inserted holding its text is not read).
+   */
+  it('says the count in a status that was there before the first choice', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    const before = screen.getAllByRole('status');
+    choose('Vera');
+    const region = screen.getByText('1 chosen').closest('[role="status"]');
+    expect(region).not.toBeNull();
+    expect(before).toContain(region);
+  });
+
+  /** Clear unmounts the bar it is in; the keyboard goes to Select, not to the top of the page. */
+  it('gives the keyboard to Select when Clear takes the bar away', async () => {
+    search = { kind: 'actors' };
+    stock();
+    renderPage();
+    await settled();
+    click('Select');
+    choose('Vera');
+    const clear = screen.getByRole('button', { name: 'Clear' });
+    clear.focus();
+    click('Clear');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Select' }));
+  });
+
+  /**
+   * ***The selection is the account's*** — another tab signs somebody else in,
+   * `App`'s gate resets every cache, and a selection of the last account's ids
+   * must not survive it under the new one's header.
+   */
+  it('lets go of the selection when another account is signed in', async () => {
+    search = { kind: 'actors' };
+    stock();
+    const client = renderPage();
+    await settled();
+    click('Select');
+    choose('Vera');
+    expect(screen.getByText('1 chosen')).toBeTruthy();
+
+    handle = 'bob';
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['auth'] });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.queryByText('1 chosen')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Publish…' })).toBeNull();
+  });
+
+  /** An id is any string: the bar's address keeps one with a comma or a space whole. */
+  it('writes each id into the address so a comma or a space inside one survives', async () => {
+    search = { kind: 'actors' };
+    listLibrary.mockResolvedValue({
+      objects: [
+        row('Vera', 'vera, the elder ', 'storyengine.actor/1'),
+        row('Ash', 'ash', 'storyengine.actor/1'),
+      ],
+    });
+    renderPage();
+    await settled();
+    click('Select');
+    click('Select all shown');
+    expect(bar().search).toEqual({ from: 'ash,vera%2C%20the%20elder%20' });
   });
 });

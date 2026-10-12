@@ -96,3 +96,15 @@ export function scope(under: string | undefined): (path: string) => boolean {
   const prefix = `${normalise(under).replace(/\/+$/, '')}/`;
   return (path) => path.startsWith(prefix);
 }
+
+/**
+ * The names more than one entry carries, each once — `FileSource.duplicateNames`
+ * for the two archive sources, which key their entries by name and so keep the
+ * last of a name ([P16.3e]'s review).
+ */
+export function duplicatesOf(entries: readonly { name: string }[]): string[] {
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  for (const { name } of entries) (seen.has(name) ? twice : seen).add(name);
+  return [...twice];
+}

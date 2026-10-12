@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -9,13 +9,16 @@ import {
   newActor,
   newLoreEntry,
   newLorebook,
+  newWorld,
   type EmbeddedMedia,
   type PortableSchemaId,
+  WORLD_SCHEMA,
 } from '@storyengine/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { backupContextOf, findBackup, takeBackup } from '../../backup/archive.js';
-import { create, read, readMedia, remove, update } from '../../library.js';
+import { ingestFile } from '../../index-db/ingest.js';
+import { create, inObjectTurn, read, readMedia, remove, update } from '../../library.js';
 import { storeAsset } from '../../library/assets.js';
 import { makePng, pixelBytes } from '../../storage/card/test-png.js';
 import { readFileBytes } from '../../storage/files.js';
@@ -247,6 +250,70 @@ describe('a backup as an import source', () => {
  * 1×1 card with every expression answering *the bytes are missing*, and a
  * book's gallery named files that were not there. The review said `created`.
  */
+/**
+ * ***An archive taken before Package was renamed World*** — [P16 §1.1]. It
+ * holds `library/packages/<slug>/package.json`, saying `storyengine.package/1`,
+ * and the reader knows `packages` as the World's old folder. **The first case
+ * fails with that alias removed** — each Package is then an `unknownKind` row,
+ * skipped — and with the body's upgrade removed, a `wrongKind` one.
+ */
+describe('a backup holding Packages, from before P16.0', () => {
+  /** A Package's folder as a pre-P16.0 build wrote it, in the live library. */
+  async function plantPackage(slug: string): Promise<{ id: string; path: string }> {
+    const world = newWorld('Rain City');
+    const folder = join(server.dataDir, 'users', 'ned', 'library', 'packages', slug);
+    await mkdir(folder, { recursive: true });
+    const path = join(folder, 'package.json');
+    await writeFile(
+      path,
+      `${JSON.stringify({ ...world, schema: 'storyengine.package/1' }, null, 2)}\n`,
+    );
+    return { id: world.id, path };
+  }
+
+  it('imports each Package as a World, written where Worlds go', async () => {
+    const planted = await plantPackage('rain-city');
+    const files = await archiveOf();
+    // Gone from this install, so the archive is the only copy.
+    await rm(join(server.dataDir, 'users', 'ned', 'library', 'packages'), {
+      recursive: true,
+      force: true,
+    });
+
+    const report = await importInto(files, 'skip');
+    const item = report.items.find((one) => one.source.includes('/packages/rain-city/'));
+    expect(item?.disposition, JSON.stringify(item)).toBe('converted');
+
+    const world = read(server.services.library, 'ned', planted.id, WORLD_SCHEMA);
+    expect((world.body as { schema: string }).schema).toBe(WORLD_SCHEMA);
+    const written = JSON.parse(
+      await readFile(
+        join(server.dataDir, 'users', 'ned', 'library', 'worlds', 'rain-city', 'world.json'),
+        'utf8',
+      ),
+    ) as { schema: string; id: string };
+    expect(written).toMatchObject({ schema: WORLD_SCHEMA, id: planted.id });
+  });
+
+  /**
+   * ***Over the library it came from, with the Package not yet moved*** — the
+   * file on disk still says the old id and the object arriving has been read as
+   * a World, so their bytes can never match. It is the same object, and an
+   * import over it writes nothing (`identifyNative`).
+   */
+  it('finds an unmoved Package unchanged, rather than different from itself', async () => {
+    const planted = await plantPackage('rain-city');
+    await ingestFile(server.services.index.db, server.services.layout, planted.path);
+    const files = await archiveOf();
+
+    const report = await importInto(files, 'skip');
+    const item = report.items.find((one) => one.source.includes('/packages/rain-city/'));
+    expect(item?.disposition, JSON.stringify(item)).toBe('unchanged');
+    // And nothing moved: an import that wrote nothing is not a write.
+    await expect(readFile(planted.path, 'utf8')).resolves.toContain('storyengine.package/1');
+  });
+});
+
 describe('what comes back with an object', () => {
   /** Six bytes of GIF header: an image a browser would take, and not a card. */
   const GIF = Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
@@ -316,6 +383,84 @@ describe('what comes back with an object', () => {
 
     await importInto(files, 'skip');
 
+    const media = await readMedia(server.services.library, 'ned', id, 'm-map');
+    expect(plain(media.bytes)).toEqual(plain(GIF));
+  });
+
+  /**
+   * ***A picture carried back is written in the object's turn*** (2026-10-11,
+   * the [P16 audit], safety finding 2). The carry runs after an `unchanged`
+   * too, and it read the object's folder and then awaited the archive with
+   * no turn held — so a save landing in that gap (the first write to a World
+   * still in `packages/` moves its folder) had the picture written into a
+   * folder the object had left. **Deterministic, by a gate on the archive's
+   * read**: while the carry is waiting on it, a task queued on the object's
+   * turn must not run. Without the turn it runs at once.
+   */
+  it('carries a missing picture back inside the object’s turn', async () => {
+    const id = await addLorebook('Rain City', 'It rains.');
+    const stored = await storeAsset(server.services.library, 'ned', id, GIF, 'image/gif');
+    const current = read(server.services.library, 'ned', id);
+    await update(
+      server.services.library,
+      'ned',
+      id,
+      {
+        ...(current.body as Record<string, unknown>),
+        media: [row('m-map', 'gallery', stored.ref, stored.digest)],
+      },
+      current.contentHash,
+    );
+    const files = await archiveOf();
+    // The object stays, and its picture goes: the import finds it unchanged
+    // and carries the picture back.
+    const folder = server.services.library.layout.folderOf(
+      read(server.services.library, 'ned', id).path,
+    );
+    await rm(join(folder, stored.ref));
+
+    let reached: () => void = () => undefined;
+    const atGate = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const gated = new Proxy(files, {
+      get(target, property) {
+        if (property === 'read') {
+          return async (path: string) => {
+            if (path.includes('/assets/')) {
+              reached();
+              await gate;
+            }
+            return target.read(path);
+          };
+        }
+        const value: unknown = Reflect.get(target, property, target);
+        return typeof value === 'function'
+          ? (value as (...args: unknown[]) => unknown).bind(target)
+          : value;
+      },
+    });
+
+    const running = importInto(gated, 'skip');
+    await atGate;
+    let ranWhileHeld = false;
+    const probe = inObjectTurn(id, () => {
+      ranWhileHeld = true;
+      return Promise.resolve();
+    });
+    // A macrotask: every microtask an idle queue would need has run by now.
+    await new Promise((resolve) => setImmediate(resolve));
+    const during = ranWhileHeld;
+    open();
+    const report = await running;
+    await probe;
+
+    expect(during).toBe(false);
+    expect(report.items.find((item) => item.objectId === id)?.disposition).toBe('unchanged');
     const media = await readMedia(server.services.library, 'ned', id, 'm-map');
     expect(plain(media.bytes)).toEqual(plain(GIF));
   });

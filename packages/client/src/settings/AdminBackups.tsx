@@ -5,14 +5,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
 import { backupApi, errorCode, type BackupManifest, type BackupRecord } from '../api.js';
-import { formatTimestamp } from '../format.js';
+import { formatTimestamp, megabytes } from '../format.js';
 import { useNotices } from '../queries.js';
 import { Button } from '../ui/Button.js';
 import { Dialog } from '../ui/Dialog.js';
 import { Field, SelectField } from '../ui/Field.js';
 import { link } from '../ui/classes.js';
 import { Fine, Note } from '../ui/Text.js';
-import { megabytes, takeFailure } from './Backups.js';
+import { takeFailure } from './Backups.js';
 import { ImportBackup } from './ImportBackup.js';
 
 /**

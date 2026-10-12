@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 StoryEngine contributors
 
+import { crc32 } from 'node:zlib';
+
 import { describe, expect, it } from 'vitest';
 
 import { makeZip } from './test-zip.js';
@@ -38,6 +40,36 @@ describe('reading an archive', () => {
     ]);
     expect(text(readZipEntry(zip, directory.entries[0]!))).toBe('{"name":"Vera"}');
     expect(text(readZipEntry(zip, directory.entries[1]!))).toBe('PNGDATA');
+  });
+
+  /**
+   * ***The CRC is parsed and never enforced*** — [P16.3c], and [P16.3]'s
+   * plan R9: the field is there so the World file's writer can be checked
+   * against these readers, and a stated CRC that is wrong is still read,
+   * because changing what a third-party archive is held to was ruled out.
+   */
+  it('parses each entry’s CRC from the central record, and does not check it', () => {
+    const zip = makeZip([
+      { name: 'card.json', body: '{"name":"Vera"}' },
+      { name: 'assets/portrait.png', body: 'PNGDATA', deflate: true },
+    ]);
+    const directory = readZipDirectory(zip);
+    if (!directory.ok) throw new Error(directory.refusal);
+    const encoder = new TextEncoder();
+    expect(directory.entries.map((entry) => entry.crc32)).toEqual([
+      crc32(encoder.encode('{"name":"Vera"}')) >>> 0,
+      crc32(encoder.encode('PNGDATA')) >>> 0,
+    ]);
+
+    // Wrong on purpose, in the central record (offset 16 of the first): read
+    // as stated, and the entry's bytes still come back.
+    const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+    const central = view.getUint32(zip.length - 22 + 16, true);
+    view.setUint32(central + 16, 0xdeadbeef, true);
+    const lying = readZipDirectory(zip);
+    if (!lying.ok) throw new Error(lying.refusal);
+    expect(lying.entries[0]!.crc32).toBe(0xdeadbeef);
+    expect(text(readZipEntry(zip, lying.entries[0]!))).toBe('{"name":"Vera"}');
   });
 
   it('does not mistake something else for an archive', () => {

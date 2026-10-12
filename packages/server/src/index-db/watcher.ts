@@ -505,6 +505,9 @@ export class LibraryWatcher {
         parsed.slug,
         error,
         Date.now(),
+        // The folder it was found in, which for a World may be the legacy
+        // `packages/` rather than the kind's own ([P16 §1.1]).
+        dirname(dirname(path)),
       );
       this.#emit({ type: 'refused', path });
       return;

@@ -62,10 +62,19 @@ const MAX_DEPTH = 3;
 /** Keys an object may carry that name it to a reader. In preference order. */
 const NAMING_KEYS = ['title', 'name', 'label'] as const;
 
-export function ByField({ schemaId, value }: { schemaId: string; value: unknown }): JSX.Element {
+export function ByField({
+  schemaId,
+  value,
+  omit,
+}: {
+  schemaId: string;
+  value: unknown;
+  /** Fields the page draws itself — a World's `contents` (2026-10-11, the [P16 audit]). */
+  omit?: string;
+}): JSX.Element {
   return (
     <FieldGroups
-      groups={groupsOf(objectFieldsOf(schemaId, value))}
+      groups={groupsOf(objectFieldsOf(schemaId, value).filter((row) => row.key !== omit))}
       value={value}
       headingAs={undefined}
     />

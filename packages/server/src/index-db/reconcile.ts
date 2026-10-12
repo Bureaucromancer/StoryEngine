@@ -128,58 +128,74 @@ export async function reconcileIndex(
 
   for (const owner of await libraryOwners(layout)) {
     for (const schemaId of Object.keys(LIBRARY_DIRECTORIES) as PortableSchemaId[]) {
-      const kindRoot = layout.kindRoot(owner, schemaId);
-      for (const slug of await listDirectoryNames(kindRoot)) {
-        let path: string;
-        try {
-          path = layout.objectFile(owner, schemaId, slug);
-        } catch (error) {
-          // The rebuild's rule for a folder whose name this build refuses,
-          // through the same function, and its row stays while the folder does.
-          if (!(error instanceof PathEscapeError)) throw error;
-          recordUnusableName(db, layout, owner, schemaId, slug, error, now);
-          present.add(join(kindRoot, slug));
-          continue;
-        }
+      // Every folder the kind is read from, the legacy one included, for the
+      // rebuild's reason ([P16 §1.1]) and with a sharper edge here: a row this
+      // check did not find on disk is forgotten below, so walking only
+      // `worlds/` would forget every Package made before P16.0 at the first
+      // start after the upgrade.
+      for (const kindRoot of layout.kindRoots(owner, schemaId)) {
+        for (const slug of await listDirectoryNames(kindRoot)) {
+          let candidates: string[];
+          try {
+            // The name rule, asked of the builder every other path into a
+            // folder goes through — the watcher's way, so the two producers
+            // refuse the same names ([P6B.1]) — and then the files this folder
+            // could hold, which for a legacy one are not where `objectFile` points.
+            layout.objectFile(owner, schemaId, slug);
+            candidates = layout.objectFilesIn(kindRoot, schemaId, slug);
+          } catch (error) {
+            // The rebuild's rule for a folder whose name this build refuses,
+            // through the same function, and its row stays while the folder does.
+            if (!(error instanceof PathEscapeError)) throw error;
+            recordUnusableName(db, layout, owner, schemaId, slug, error, now, kindRoot);
+            present.add(join(kindRoot, slug));
+            continue;
+          }
 
-        // A stat that fails for any reason but absence is a file to read, and
-        // the read records why it could not be.
-        let facts: FileFacts | null | 'unknown';
-        try {
-          facts = await statFile(path);
-        } catch {
-          facts = 'unknown';
-        }
-        // A folder with no object file in it holds nothing to index, and
-        // whatever the index held for the path is forgotten below.
-        if (facts === null) continue;
-        present.add(path);
-        result.scanned += 1;
+          // A World's folder may hold its current name, its old one, or — the
+          // move stopped between its two renames — both; each is its own file
+          // and is checked as one.
+          for (const path of candidates) {
+            // A stat that fails for any reason but absence is a file to read,
+            // and the read records why it could not be.
+            let facts: FileFacts | null | 'unknown';
+            try {
+              facts = await statFile(path);
+            } catch {
+              facts = 'unknown';
+            }
+            // A folder with no object file in it holds nothing to index, and
+            // whatever the index held for the path is forgotten below.
+            if (facts === null) continue;
+            present.add(path);
+            result.scanned += 1;
 
-        // A live row whose recorded size and time are the file's, and no
-        // error on record: nothing to read.
-        const row = recorded.get(path);
-        const unchanged =
-          facts !== 'unknown' &&
-          row?.tombstoned_at === null &&
-          row.mtime_ms === facts.mtimeMs &&
-          row.size === facts.size;
-        if (unchanged && !erred.has(path)) continue;
+            // A live row whose recorded size and time are the file's, and no
+            // error on record: nothing to read.
+            const row = recorded.get(path);
+            const unchanged =
+              facts !== 'unknown' &&
+              row?.tombstoned_at === null &&
+              row.mtime_ms === facts.mtimeMs &&
+              row.size === facts.size;
+            if (unchanged && !erred.has(path)) continue;
 
-        result.reread += 1;
-        const outcome = await takeInForeignEdit({
-          db,
-          layout,
-          parsed: { owner, schemaId, slug, path },
-          keepPerObject: options.keepHistoryPerObject,
-          now,
-        });
-        if (
-          outcome.kind === 'skipped' &&
-          (outcome.reason === 'invalid' || outcome.reason === 'refused') &&
-          !erred.has(path)
-        ) {
-          result.broken.push(layout.portablePath(path) ?? path);
+            result.reread += 1;
+            const outcome = await takeInForeignEdit({
+              db,
+              layout,
+              parsed: layout.parseObjectPath(path) ?? { owner, schemaId, slug, path },
+              keepPerObject: options.keepHistoryPerObject,
+              now,
+            });
+            if (
+              outcome.kind === 'skipped' &&
+              (outcome.reason === 'invalid' || outcome.reason === 'refused') &&
+              !erred.has(path)
+            ) {
+              result.broken.push(layout.portablePath(path) ?? path);
+            }
+          }
         }
       }
     }

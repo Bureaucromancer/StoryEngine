@@ -10,10 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   newActor,
   newLorebook,
-  newPackage,
   newPreset,
   newSetup,
   newTreatment,
+  newWorld,
 } from '@storyengine/shared';
 
 import { LIBRARY_KINDS, type Account, type LibraryKind, type LibraryObject } from '../api.js';
@@ -82,7 +82,7 @@ const FIXTURES: Record<LibraryKind, Record<string, unknown>> = {
   treatments: { ...(newTreatment('Rain City') as unknown as Record<string, unknown>) },
   setups: { ...(newSetup('A night at the docks') as unknown as Record<string, unknown>) },
   presets: { ...(newPreset('House style') as unknown as Record<string, unknown>) },
-  packages: { ...(newPackage('The harbour set') as unknown as Record<string, unknown>) },
+  worlds: { ...(newWorld('The harbour set') as unknown as Record<string, unknown>) },
 };
 
 for (const [kind, object] of Object.entries(FIXTURES)) {
@@ -141,6 +141,9 @@ vi.mock('../api.js', async (importOriginal) => {
       }
       return Promise.resolve(answer('A wet quay under sodium light.'));
     },
+    // The World's member list resolves sessions [P16.1]; real, it is a fetch
+    // into jsdom whenever the six-kind loop opens the World.
+    listSessions: () => Promise.resolve({ sessions: [] }),
     api: {
       ...actual.api,
       authState: () => Promise.resolve({ setupRequired: false, account: ACCOUNT }),
@@ -179,7 +182,7 @@ const ROUTES: Record<LibraryKind, string> = {
   treatments: '/library/treatments/$id/edit',
   setups: '/library/setups/$id/edit',
   presets: '/library/presets/$id/edit',
-  packages: '/library/packages/$id/edit',
+  worlds: '/library/worlds/$id/edit',
 };
 
 async function openEditor(kind: LibraryKind): Promise<void> {

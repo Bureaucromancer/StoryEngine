@@ -2,6 +2,8 @@
 // Copyright (C) 2026 StoryEngine contributors
 
 import type { ImportDestination, ImportDisposition, ImportNote } from './import.js';
+import type { LeftBehind, PublishOrigin } from './publish.js';
+import type { LIBRARY_DIRECTORIES } from './schema/registry.js';
 
 /**
  * What a commit of these bytes *would* do, worked out without writing any of it.
@@ -94,7 +96,98 @@ export type ImportPreviewObject =
    */
   | { kind: 'sweep' }
   /** Converts, and this build has no summary for its kind yet. */
-  | { kind: 'opaque'; name: string };
+  | { kind: 'opaque'; name: string }
+  | ImportPreviewWorld;
+
+/**
+ * ***A World's file, looked at before anything lands*** —
+ * [16 §5.1](../../../docs/design/16-publish.md),
+ * [10 §5](../../../docs/design/10-ui-surfaces.md),
+ * [P16.3f](../../../docs/design/workplan/34-p16-world.md).
+ *
+ * **The one root this preview reads rather than calling a folder in a file.**
+ * Every other archive is a sweep, and a look at one would be a dry run of it;
+ * a World's file says what is inside it in its manifest, at its head, written
+ * so that *do I want these in my library* can be answered before a byte is
+ * written ([16 §5.1]). So this is built **from the manifest alone** — sent as
+ * the head of the file (`firstLocalEntry`), or read out of a whole archive
+ * small enough to send — and the commit re-derives everything from the file,
+ * the posture every preview here has: a prediction, and the commit's report
+ * the truth ([P16.3]'s plan, risk 9).
+ *
+ * ***`here` is the commit's own lookups, and nothing more*** — and therein the
+ * one rule this shape exists to keep, **an id another account holds previews
+ * as `new`**. The commit re-mints such an object without saying so
+ * (`import/world/plan.ts`), and a preview that said *already here* — or
+ * anything that differed from an id nobody holds — would tell one account
+ * which ids another holds, which is the oracle the reader is built not to be.
+ *
+ * ***What it decides***: nothing per row. The choices are *keep it or not*
+ * and, when anything is `here`, *replace or keep both* ([10 §5]; the plan's
+ * R5) — a sender chose which sessions travel, and a recipient takes the file
+ * or does not.
+ */
+export interface ImportPreviewWorld {
+  kind: 'world';
+  /** The zip `.seworld`, or the frozen `.sepack.json` P11.10 wrote, read as one. */
+  format: 'world-file' | 'package-export';
+  /** How the sender started — `null` for the legacy file, which never said. */
+  origin: PublishOrigin | null;
+  /** What wrote it, and when: a header for the review, never a gate. */
+  writtenBy: { version: string | null; at: string };
+  /** The set itself; `null` for a file of one object, or a selection sent as a snapshot. */
+  world: { id: string; name: string; description: string; here: boolean } | null;
+  /** In the manifest's order — members first, then what the walk reached beside them. */
+  objects: ImportPreviewWorldObject[];
+  sessions: ImportPreviewWorldSession[];
+  /** What the carried things name and the file does not carry — and whether each resolves here. */
+  leftBehind: (LeftBehind & { resolvesHere: boolean })[];
+  requires: {
+    /** `here`: this install has the mode, at that version or later. */
+    modes: { id: string; minVersion: string; here: boolean }[];
+    /** No registry here to ask; named, so a person knows to look. */
+    extensions: { id: string; minVersion: string }[];
+    capabilities: string[];
+  };
+  /** Whether the sender carried each object's version history. */
+  history: boolean;
+  /** What the file says it does not carry, in the writer's vocabulary only. */
+  omitted: ImportNote[];
+}
+
+export interface ImportPreviewWorldObject {
+  schema: string;
+  id: string;
+  name: string;
+  /** Named by the World — `false` for what travels beside its members. */
+  member: boolean;
+  /** The library folder its kind lives in, or `null` for a kind this build does not know. */
+  kind: (typeof LIBRARY_DIRECTORIES)[keyof typeof LIBRARY_DIRECTORIES] | null;
+  /**
+   * `here`: this account holds it, or holds an earlier arrival of it — a
+   * replace updates it, a keep-both lands a copy beside it. `built-in`: the
+   * built-in library's own, which is not written when it is the same.
+   * `new`: anything else — **an id another account holds included**.
+   */
+  here: 'new' | 'here' | 'built-in';
+}
+
+export interface ImportPreviewWorldSession {
+  id: string;
+  name: string;
+  turns: number;
+  /** Rendition pixels the file carries for it. */
+  pictures: number;
+  /** Pictures its moves carried. */
+  attachments: number;
+  /** The mode it plays, which a person needs to play it on. */
+  mode: string | null;
+  /**
+   * This account has it already — an earlier arrival of the file, or its own
+   * session read back. Turns the file has and it lacks still land, appended.
+   */
+  here: boolean;
+}
 
 /**
  * A scenario file, summarised — and the one preview that carries a **question**

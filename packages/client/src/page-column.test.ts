@@ -100,6 +100,9 @@ function filesFor(component: string): string[] {
     'editor/PresetEditorPage.tsx',
     'editor/SimpleEditorPage.tsx',
     'editor/kinds.tsx',
+    // [P16.3g]: the publish review's route — the entry half, which owns the
+    // column; the review itself is a lazy chunk drawn inside it.
+    'library/publish/PublishRoute.tsx',
   ];
   const owner = candidates.find((path) =>
     new RegExp(`export function ${component}\\b|function ${component}\\(`).test(read(path)),

@@ -127,7 +127,9 @@ describe('a treatment, written as an Aventuras scenario', () => {
 
   it('reports a cast member the library no longer has', () => {
     // [00 §3.3]: a dangling ref is visible and non-blocking, never fatal — the
-    // same posture `exportPackage` takes when it reports `missing`.
+    // same posture ~~`exportPackage` takes~~ `exportPackage` took when it
+    // reported `missing` (that writer was removed at P16.3g, 2026-10-11; the
+    // World file's `leftBehind` is the posture's heir).
     const { treatment } = imported();
     const written = EXPORT_WRITERS['aventuras.scenario']?.(treatment, () => null);
     expect(keys(written?.notes ?? [])).toContain('export.cast.unresolved');

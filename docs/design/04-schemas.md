@@ -23,7 +23,7 @@ Internal structures can be migrated on upgrade because we own every copy.
 
 | Tier | Structures | Commitment |
 |---|---|---|
-| **Stable** | Actor, Lorebook, Treatment, Setup, Package — *World from [P16.0](workplan/35-p16-world.md), the same kind renamed ([§9](#9-package--a-bundle-and-nothing-else))* — and the shared substructures in §3 | Define now, change only additively, version on breakage |
+| **Stable** | Actor, Lorebook, Treatment, Setup, World — *Package until [P16.0](workplan/34-p16-world.md), the same kind renamed ([§9](#9-world--a-named-set-held-by-reference))* — and the shared substructures in §3 | Define now, change only additively, version on breakage |
 | **Provisional** | Preset (§8) | Portable, so it needs a schema — but at `/0`, which says the shape will move |
 | **Free to move** | Session, Turn record, Channel state, rule vocabulary | Internal. Migrate at will |
 
@@ -37,9 +37,13 @@ was a contradiction with [03 §1](03-data-model.md), which lists it as portable.
 unstable because it carried a game definition — an `entry` block naming a mode,
 a treatment and a cast — that nobody had tested against real authored content.
 Splitting that out into Setup (§7) leaves Package as a self-describing container
-(§8) with almost no surface of its own: it does not enumerate the kinds it
+(~~§8~~ §9) with almost no surface of its own: it does not enumerate the kinds it
 holds, so a new portable kind does not change it. What was genuinely unstable was
 the game definition, and that is now a normal object versioned like the rest.
+*(2026-10-10: the container is the World since [P16.0](workplan/34-p16-world.md)
+renamed the kind, and the argument transfers unchanged — the World's fields are
+the Package's. The section reference read §8, which is Preset's; corrected in
+the same change.)*
 
 The asymmetry that justified the exception still holds and is worth keeping in
 mind: **breaking a container costs a re-export; breaking an Actor costs somebody's
@@ -488,6 +492,8 @@ interface Lorebook {
 type LoreScope =
   | { kind: "global" }
   | { kind: "linked"; actorIds: string[] }    // personas are actors
+  | { kind: "world"; worldIds: string[] }     // P16.2 — read once, at creation in one
+  | { kind: string /* any other */ }          // open (26 B16): kept, read by nothing
 
 // Session scoping is NOT here. Session ids are install-local, so a shared
 // lorebook carrying them exports identifiers that are meaningless everywhere
@@ -513,7 +519,7 @@ type LoreScope =
 // recommended answers, owner deferred.)
 //
 // DECIDED 2026-10-04, AND NOT YET BUILT ([15 §5.3](15-world.md),
-// [P16.2](workplan/35-p16-world.md)). The union gains a third arm,
+// [P16.2](workplan/34-p16-world.md)). The union gains a third arm,
 //   | { kind: "world"; worldIds: string[] }
 // read once, at session creation in one of those Worlds, by copying the book
 // into `session.lore`; `global` and `linked` stay read by nothing. World ids
@@ -524,6 +530,20 @@ type LoreScope =
 // recommended answer, owner deferred (26 B14/B15), and neither waits on B16.
 // Adding an arm to this closed union inside `/1` is
 // [26 B16](26-open-questions.md)'s question, and the arm waits on its answer.
+//
+// BUILT 2026-10-10, ON BRANCH `p16` ([P16.2](workplan/34-p16-world.md)). The
+// owner answered B16 the same day: OPEN THE UNIONS. So the `world` arm is in
+// the union inside `/1`, and so is an open fourth arm — any `kind` this build
+// does not know, validated as a string that is none of the three it does, kept
+// verbatim and read by nothing — which is what makes a book a newer build scoped
+// some new way open here instead of failing whole, as `ActorRole` and `CallKind`
+// already do. A known kind with the wrong fields still fails: a `world` without
+// `worldIds` is a malformed book, not an unknown one. At creation in a World, a
+// book in the person's library whose scope names it is copied into
+// `session.lore` after the World's own lorebook members, ordered by name; a
+// request's own `lore` overrides both. The lorebook editor sets it. A build
+// from before the opening still refuses a book with an arm it lacks — opening
+// helps every build after it.
 
 interface LoreFolder {
   id: string
@@ -745,7 +765,7 @@ work: a Treatment of Rain City does not describe Rain City.
 > *(2026-10-03: it will be spent on one —
 > [26 B17](26-open-questions.md) makes World the named set that replaces
 > Package, so Package's library label is the one it takes, ~~when the design
-> step lands it~~ *at [P16.0](workplan/35-p16-world.md), now that the design
+> step lands it~~ *at [P16.0](workplan/34-p16-world.md), now that the design
 > step has landed — [15](15-world.md), rewritten 2026-10-04*. The reservation
 > did its job: the word is free for that.)*
 
@@ -1269,8 +1289,8 @@ where the *"running session can emit a Setup"* promised above was first built.
 Setup is a starting point: the person picks the node they want to start from
 again, and everything below is read *at that node* — the state on that path,
 not the head's. The wizard condenses the story up to it, and what it writes is
-an ordinary Setup, editable in the library and shareable in a package like any
-hand-written one.
+an ordinary Setup, editable in the library and shareable in a World (*a package*
+until [P16.0](workplan/34-p16-world.md)) like any hand-written one.
 
 **Two fields exist for it, and both are optional**, so neither is a `/2`
 change (§2):
@@ -1924,29 +1944,48 @@ dislikes how "hard" behaves can read the fragment that caused it and change it.
 
 ---
 
-## 9. Package — a bundle, and nothing else
+## 9. World — a named set, held by reference
 
-***To be renamed World, at [P16.0](workplan/35-p16-world.md)*** — and this
-section keeps the name the code and the files have until then. The owner decided
-on 2026-10-03 ([26 B17](26-open-questions.md)) that a World is the durable named
-set and **replaces Package**, and [15](15-world.md) was rewritten against that on
-2026-10-04: membership, transport through [16](16-publish.md), and contribution to
-a session's lore through a `world` arm on `LoreScope` (§5). **The kind is renamed,
-not joined**: the six portable kinds stay six, the schema below becomes
-`storyengine.world/1` with its fields unchanged, and a reader keeps accepting
-`storyengine.package/1` and upgrading it in memory, by §2's read-compatible rule
-applied to a rename ([P16 §1.1](workplan/35-p16-world.md)). **This step renames
-nothing in the schema**; the rename is the phase's, as a migration, because
-installs hold Packages and P11.10 froze `storyengine.package-export/1`.
-[26 B16](26-open-questions.md) is the deadline B17 gives it.
+***Renamed from Package at [P16.0](workplan/34-p16-world.md), 2026-10-10*** — on
+branch `p16`. ~~*To be renamed World, at P16.0* — and this section keeps the name
+the code and the files have until then.~~ The section was headed *Package — a
+bundle, and nothing else* until then, and says World now because the code and
+the files do. The owner decided on 2026-10-03 ([26 B17](26-open-questions.md))
+that a World is the durable named set and **replaces Package**, and
+[15](15-world.md) was rewritten against that on 2026-10-04: membership, transport
+through [16](16-publish.md), and contribution to a session's lore through a
+`world` arm on `LoreScope` (§5). **The kind is renamed, not joined**: the six
+portable kinds stay six, the schema below is `storyengine.world/1` with the
+Package's fields unchanged, and a reader keeps accepting `storyengine.package/1`
+and upgrading it in memory, by §2's read-compatible rule applied to a rename
+([P16 §1.1](workplan/34-p16-world.md)) — `upgradeLegacySchema` in
+`shared/src/schema/world.ts`, applied at every door a stored or archived body
+comes in through. A read never rewrites the file; the object's next write does. ~~**This step renames
+nothing in the schema**; the rename is the phase's~~ *The design step of
+2026-10-04 renamed nothing in the schema*; P16.0 renamed it, as a migration,
+because installs hold Packages. **What P16.0 did not rename is the file**: ~~the
+export still writes P11.10's frozen `storyengine.package-export/1` as
+`.sepack.json`, and~~ [P16.3](workplan/34-p16-world.md) defines the World's format
+once and reads that one beside it. *(Corrected 2026-10-11, the
+[P16](workplan/34-p16-world.md) final audit: the `.sepack.json` export was removed
+at P16.3g, and P11.10's format is only read now — by P16.3e's reader, which lands
+one as a World.)* [26 B16](26-open-questions.md) was the
+deadline B17 gave the rename, and the rename shipped as the migration B17's note
+of 2026-10-04 expected; ~~the `world` arm still waits on B16~~ *the `world` arm is
+built (corrected 2026-10-11): B16 was answered on 2026-10-10 — open the unions —
+and P16.2 built the arm the same day, with `LoreScope` opened inside
+`storyengine.lorebook/1` (§5).*
 
-With Setup carrying the game definition, a Package is reduced to what it always
-should have been: **an arbitrary bundle of portable objects, for moving them
-between installs.**
+With Setup carrying the game definition, the container was reduced to what it
+always should have been: **an arbitrary bundle of portable objects, for moving
+them between installs** — and the World keeps that and adds what
+[15](15-world.md) gives it: a set a person names and keeps, sessions among its
+members, and being read when a session starts in it. None of the three needs a
+field the Package did not already have.
 
 ```ts
-interface Package {
-  schema: "storyengine.package/1"
+interface World {
+  schema: "storyengine.world/1"   // "storyengine.package/1" until P16.0 — still read
   id: string
   name: string
   version: string
@@ -1954,7 +1993,7 @@ interface Package {
   media: EmbeddedMedia[]
 
   /** Self-describing portable objects — each carries its own `schema`. The
-   *  package does not enumerate kinds, which is exactly why it stays stable
+   *  World does not enumerate kinds, which is exactly why it stays stable
    *  when a new kind appears (as Setup just did). */
   contents: PortableObject[]
 
@@ -1968,9 +2007,9 @@ interface Package {
   metadata: Record<string, unknown>
 }
 
-/** Open, not closed. The comment above says the package does not enumerate
+/** Open, not closed. The comment above says the container does not enumerate
  *  kinds; an earlier draft then enumerated them one line later, which meant an
- *  older reader would reject a package containing a kind it had never heard of
+ *  older reader would reject a container holding a kind it had never heard of
  *  — exactly the stranding [§2](#2-versioning-and-compatibility) forbids. */
 type PortableObject =
   | Actor | Lorebook | Treatment | Setup | Preset
@@ -1978,7 +2017,11 @@ type PortableObject =
 
 /** Any self-describing object this reader does not know. Preserved verbatim,
  *  round-tripped intact, shown in the import review as "1 object of an
- *  unrecognised kind (storyengine.campaign/1) — kept, not usable here". */
+ *  unrecognised kind (storyengine.campaign/1) — kept, not usable here".
+ *  (2026-10-10, P16.3e: the World reader REPORTS one and does not keep it —
+ *  the library has nowhere to keep an object of no kind, and a World names
+ *  only what landed — `import.world.unknownKind`; the sender's review names
+ *  such a member as left behind. "Kept" waits for a home to keep it in.) */
 interface UnknownPortableObject {
   schema: string
   id: string
@@ -1990,14 +2033,48 @@ interface UnknownPortableObject {
 **The container validates the envelope, never the payload kind.** A reader
 checks that each entry has a `schema` and an `id`, resolves what it recognises
 through the registry, and carries the rest through untouched. That is what makes
-Package stable when a new kind appears, and it is the same rule as
+the World stable when a new kind appears, and it is the same rule as
 [§2](#2-versioning-and-compatibility)'s unknown-field preservation applied one
 level up.
 
-**No `entry` field.** A package containing one or more Setups is startable, and
-that is the whole mechanism — "start this" is "start that Setup". A package with
+*(2026-10-11, the [P16](workplan/34-p16-world.md) final audit — the same
+disagreement the code block's comment above records, here where the rule is
+stated: **the stored World** keeps an envelope of a kind this build does not
+know, and **the World file** does not carry it through. Publishing excludes such
+a member (`unknown-kind`, left behind and said in the review); the World file
+reader, given one another build wrote, reports it (`import.world.unknownKind`),
+does not keep it, and the landed World does not name it
+(`import.world.memberNotLanded`). So "carries the rest through untouched" holds of
+the store and not of the file, until the library has somewhere to keep an object
+of no kind. The docstrings in `shared/src/schema/world.ts` still say the
+opposite, and are owed the same note.)*
+
+**No `entry` field.** A World containing one or more Setups is startable, and
+that is the whole mechanism — "start this" is "start that Setup". A World with
 no Setup is a content drop, which is a perfectly good thing to share and had no
 home before. *"Here are five characters and a lorebook"* is now expressible.
+
+***A disagreement, recorded 2026-10-11 at the [P16](workplan/34-p16-world.md)
+final audit, and open for the owner.*** [P16.2](workplan/34-p16-world.md) built a
+second way to start, [15 §5.3](15-world.md)'s contribution — *Start a session in
+this world*, and the World picked on the new-session form — and it reads the
+World's lorebook and treatment members (and the books scoped to it), and **never a
+Setup member**: a Setup's mode, preset, cast and opening are not used, and a Setup
+member is started from its own page. So a World with no Setup is startable too,
+and the sentence above is no longer *the whole mechanism*. **The question for the
+owner: should Start in a world use the World's Setup when it holds exactly
+one?** Until it is answered neither text is struck, and the emitted
+`storyengine.world.1.json` description, which says the same as this paragraph, is
+left as it is. ***Answered by the owner, 2026-10-12: yes.*** A session started in a World that holds
+exactly one Setup, with no Setup named, starts *through* it — as if the caller
+had named it: its mode, opening, persona, party, preset, hooks and goals, with the
+World's books joining its own and the World's treatment used only if the Setup
+names none ([P16.2](workplan/34-p16-world.md), the owner's answer). So the
+paragraph above is true again of a World with one Setup, and the emitted
+description needs no change; a World with several Setups chooses none, and a World
+with none starts from its books and treatment, as P16.2 built. A sole Setup that is
+no longer in the library is started without, the member kept and marked
+*Missing*.
 
 **It is stable now, and can be `/1`.** §1 marked it `/0` because it was
 carrying a game definition nobody had tested. As a self-describing container it
@@ -2007,27 +2084,45 @@ made of independently-versioned objects.
 ~~Contents are **embedded copies resolved on import**, not links~~ ***Corrected
 2026-10-04: the stored form holds references, and only the file holds copies.***
 The sentence described the wire and was read as describing the store, and the
-code never did what it said. **A stored Package's `contents` is a list of
-`{ schema, id, name }` envelopes** — `PortableObjectEnvelope` in
-`shared/src/schema/package.ts`, so the "self-describing portable objects" the
-sketch above promises are, on disk, references to them — and they are **resolved
-against the library when the package is exported**: `packaging/export.ts` reads
-each named object at that moment and writes it into
+code never did what it said. **A stored ~~Package's~~ World's `contents` is a list
+of `{ schema, id, name }` envelopes** — `PortableObjectEnvelope` in
+`shared/src/schema/world.ts` (`package.ts` until P16.0), so the "self-describing
+portable objects" the sketch above promises are, on disk, references to them —
+and they are **resolved against the library when the World is exported**:
+`packaging/export.ts` reads each named object at that moment and writes it into
 `storyengine.package-export/1` beside a manifest, reporting what no longer
-resolves ([P11.10](workplan/28-p11-implementation.md)). So:
+resolves ([P11.10](workplan/28-p11-implementation.md)). *(Since 2026-10-11 the
+World file does this, from the walker's closure; `packaging/export.ts` is
+removed at [P16.3g](workplan/34-p16-world.md).)* So:
 
 | | Holds | Because |
 |---|---|---|
-| **Stored** — `library/packages/<slug>/package.json` | references | the objects live in the library and are edited there; a container holding copies would be a second representation of each of them ([00 §2.8](00-stance.md)) |
-| **Wire** — the exported file | the objects, each as stored | a file naming ids is useless on the install it is sent to |
+| **Stored** — `library/worlds/<slug>/world.json`; *`library/packages/<slug>/package.json` before [P16.0](workplan/34-p16-world.md), still read as a World, and moved to `worlds/` — under a fresh slug if a World already holds its own — by its first write* | references | the objects live in the library and are edited there; a container holding copies would be a second representation of each of them ([00 §2.8](00-stance.md)) |
+| **Wire** — the exported file | the objects, each as stored — *since [P16.3](workplan/34-p16-world.md), the World file, `.seworld` ([§9.3](#93-the-world-file-manifest--what-a-seworld-says-it-carries)); P11.10's `.sepack.json` is still read* | a file naming ids is useless on the install it is sent to |
 
 [15 §3.1](15-world.md) makes that distinction the World's, and it is unchanged by
 the rename. **On import**, references inside the file resolve within it first,
-then locally, then dangle visibly ([00 §3.3](00-stance.md)) — *no build reads the
-file yet*; [P16.3](workplan/35-p16-world.md) builds the reader, for the World's
-format and the frozen package one. `requires` is checked at import and produces a
+then locally, then dangle visibly ([00 §3.3](00-stance.md)) — ~~*no build reads the
+file yet*; [P16.3](workplan/34-p16-world.md) builds the reader, for the World's
+format and the frozen package one~~ *the reader is built at
+[P16.3e](workplan/34-p16-world.md) (2026-10-10), for the World file and the
+frozen `.sepack.json` through one path; [16 §5.2](16-publish.md) records what it
+decides*.
+A malformed `requires` entry is dropped ~~with the warning~~, never a block. `requires` is checked at import and produces a
 clear warning with a degraded-start option rather than a hard block where
 possible.
+
+***A disagreement, recorded 2026-10-11 at the [P16](workplan/34-p16-world.md)
+final audit, and open for the owner.*** As built at P16.3e, a mode the install
+lacks, or holds at an older version, is warned per mode
+(`import.world.requiresMode`); `requires.extensions` and `requires.capabilities`
+are listed in the import's preview and checked against nothing — there is no
+registry of either to ask; and a malformed entry is dropped **without a word**,
+which is why *with the warning* is struck above. **No degraded-start option exists
+anywhere.** Whether the reader should warn about extensions and capabilities, say
+what it dropped, and offer a degraded start — or this paragraph and
+[03 §7.2](03-data-model.md)'s should be narrowed to what was built — is the
+owner's.
 
 ### 9.1 One action produces a package
 
@@ -2053,7 +2148,8 @@ follow outbound references transitively and collect what they reach:
 | Setup | `preset` | included, can be unchecked — a preset is tuning, and some authors ship it while others would not |
 | Lorebook | `hooks[].introduces.actor`, and its bare `hooks[].involves[]` `Ref`s with it | included |
 | World | every member in `contents`, and each member's closure | included; each member individually uncheckable |
-| Session (a World's member) | its `treatment`, its `lore[]` and its `cast` (persona and actors), and their closures; the session itself as its session export | the session **excluded until ticked**; never a sibling session |
+| World | every lorebook whose `scope` is `{ kind: 'world' }` naming it ([§5](#5-lorebook)), and each one's closure — *added 2026-10-10* | included, each individually uncheckable |
+| Session (a World's member) | its `treatment`, its `lore[]` and its **played** cast — the persona, and `cast.actors` together with every actor the session's channels hold state for, the set a turn is played with (*corrected 2026-10-10*) — and their closures; **the actors its hook pool names** — each pooled hook's bare `involves[]` `Ref`s and its `introduces.actor`, ~~for a hook not yet fired~~ fired or not (*added, then corrected, 2026-10-10*); the session itself as its session export | the session **excluded until ticked**; never a sibling session |
 
 ***The last two rows were added 2026-10-04, with [16](16-publish.md)***, for the
 kinds [15](15-world.md) puts in a set. A World is a list of starting points, so its
@@ -2070,6 +2166,31 @@ because *this story* and *my six stories* are different things to send. Sessions
 default to unticked for [16 §5](16-publish.md)'s reason — sending somebody your
 transcripts is a thing to choose.
 
+***Two edges added 2026-10-10, by the owner's answers at
+[P16.3](workplan/34-p16-world.md)'s plan.*** **A World reaches the books scoped to
+it.** P16.2 built `LoreScope`'s `world` arm, which offers a book to every session
+started in a World it names — and that is an *inbound* link, from the book to the
+World, which a walk that follows only outbound references never sees. Without the
+row, a World published and imported would start sessions with fewer books than
+it starts with here, which is the set failing to travel. The row is a query, not
+an edge any field holds, and it is the only one in this table; it is included by
+default because the book's author said the book belongs with the World, and
+uncheckable because the person sending is the one who decides. **A ticked
+session reaches the actors its hooks name.** The paragraph above is right that a
+session's hook pool is a *copy*, carried inside its session export and needing no
+walk — but the copy's `Ref`s point out of it, at actors in the library, for the
+same reason the Treatment and Setup hook rows exist: a pooled arrival whose
+subject did not come along lands as *"an arrival with nobody to arrive"*, retired
+quietly on the other side. ~~A fired arrival's subject has arrived already and is in
+the cast, which the row reaches anyway.~~ *(Corrected the same day, at
+[P16.3b](workplan/34-p16-world.md), whose review found it false: a fired
+arrival's subject is in the cast a turn is **played** with, but not in
+`cast.actors` — firing writes only the hook's channel, and an arrived character
+joins the played cast through its channel state (`resolveCast`). So the row reads
+"its cast" as the played cast, and follows every pooled arrival's subject, fired
+or not; an arrived character no longer drops out of a published session or out
+of its own* Used by.*)*
+
 Every level is shown, not just the first: the actor two steps out whose lorebook
 came along is named in the review, because "why is this package 40 MB" should be
 answerable before the file exists rather than after.
@@ -2082,8 +2203,10 @@ precisely the 'only follows `cast`' walker the row exists to fail."*
 `introduces` landed at P7.5 and the rows did not, so the table has spent every
 phase since describing a closure that stops at `cast`, `lore` and `preset`. **The only
 reason that has cost nothing is that the walker does not exist either** —
-`packaging/export.ts` resolves exactly one level, the `contents[]` a package
-already declares — which means the omission was never going to be found by a bug
+`packaging/export.ts` resolves exactly one level, the `contents[]` a World
+(a package, when this was written) already declares *(it did; the walker built
+at [P16.3a](workplan/34-p16-world.md) follows every row, and the one-level
+writer is removed)* — which means the omission was never going to be found by a bug
 report. It was going to be found by somebody building the walker correctly
 against a table that was wrong.
 
@@ -2161,7 +2284,8 @@ which matters if packages are ever addressed by hash. Lean: re-resolve, and show
 the diff.~~ ***Closed 2026-10-04: it re-resolves, and the code answered first.***
 A World holds references and the objects are edited in place, so it cannot
 replay anything; the published file is the frozen image. `packaging/export.ts`
-has read every named object at export time since
+*(removed at [P16.3g](workplan/34-p16-world.md); the publish confirm walks the
+library afresh, which is the same answer)* has read every named object at export time since
 [P11.10](workplan/28-p11-implementation.md), so the lean was the shipped
 behaviour before it was the design. *Show the diff* is [16 §5](16-publish.md)'s:
 re-publishing opens on what changed. Addressing by hash, if it ever arrives,
@@ -2219,6 +2343,88 @@ wrong one for a backup.
 a file that travels.
 
 ---
+
+## 9.3 The World file manifest — what a `.seworld` says it carries
+
+*Added at [P16.3c](workplan/34-p16-world.md), read at
+[P16.3e](workplan/34-p16-world.md).* `storyengine-world.json`, written as the
+first member of every World file — a stored zip of the members' own folders,
+[16 §5.2](16-publish.md)'s decision — carrying
+`schema: "storyengine.world-file/1"`.
+
+```ts
+interface WorldFileManifest {
+  schema: "storyengine.world-file/1"
+  exportedBy: { version: string | null; at: string }   // a header, never a gate
+  origin: "object" | "selection" | "world"
+  world: (WorldFileObject & { description: string }) | null  // null: one object, or a snapshot
+  objects: WorldFileObject[]        // members first, then what the walk brought
+  sessions: WorldFileSession[]
+  leftBehind: LeftBehind[]          // what a carried thing names and the file does not hold
+  requires: World["requires"]       // the World's own, joined with what the closure needs
+  history: boolean
+  omitted: ImportNote[]             // a picture or a session too large, damaged, unreadable
+}
+interface WorldFileObject {
+  schema: string; id: string; name: string
+  folder: string                    // library/<kind-dir>/<folder>/ inside the zip
+  file: string                      // its stored file's name there
+  contentHash: string               // sha256 of those bytes, in this zip
+  member: boolean                   // named by the World, or brought by the walk
+}
+interface WorldFileSession {
+  id: string; name: string; folder: string   // sessions/<id>/
+  turns: number; headTurnId: string | null
+  pictures: number; attachments: number; mode: string | null
+}
+```
+
+**Here for §9.2's reason**: it travels, so it has a schema and a version, and it
+is not in `PORTABLE_SCHEMAS` — an envelope is not an object somebody edits.
+
+- **The layout mirrors `data/`**: `library/<kind-dir>/<folder>/` holds an
+  object's stored file byte for byte, its pictures under `assets/` — only those
+  its media rows name — and, when asked for, `history/`; `sessions/<id>/` holds
+  the session's export and its pictures and attachments. A person who knows the
+  data directory can read the file.
+  *(Qualified 2026-10-11, the [P16](workplan/34-p16-world.md) final audit. Each
+  exception is the file naming nothing its carried things do not, and each was
+  recorded at [P16.3c](workplan/34-p16-world.md) without reaching this bullet.
+  **Byte for byte, except** the World's `world.json`, re-encoded so its `contents`
+  lists only what travels, and never with `history/`, whatever the choice — its
+  versions name what the publish left out; a card holding a picture no media row
+  names, re-spliced without it; and each `history/index.jsonl`, re-encoded with
+  the sessions play recorded in it scrubbed. `contentHash` is the hash of the
+  bytes in this zip, so it holds of all three. **And the names are current
+  ones**, since the audit's fixes: `folder` is the slug of the thing's current
+  name — never the folder on disk, whose slug is frozen at creation — suffixed on
+  a collision, and each envelope in `world.json` carries its member's current
+  name. A `Ref` inside a carried body keeps the name it was linked under, because
+  the body is the stored file; whether a rename should refresh the links to it is
+  open, in P16's record. **And a ticked session's prompt blocks the budget
+  dropped** travel as their rows with empty `text` — the session never sent
+  those words.)*
+- **The manifest is the integrity check.** Each object's `contentHash` is checked
+  on arrival and a mismatch refuses that object alone; a picture is checked
+  against its `sha256` name. The zip's CRCs are parsed and enforced nowhere, as
+  for every other archive this reads. *A row whose id is not its body's is
+  refused alone too (corrected 2026-10-11, the [P16](workplan/34-p16-world.md)
+  final audit, and struck from the next bullet): `import.world.damaged`, and the
+  rest lands.*
+- **A reader holds the file to its manifest before it writes**: a member named
+  twice, a file or id listed twice, ~~a row whose id is not its body's,~~ or a
+  manifest of another schema or a later version is refused whole, and nothing
+  lands. The manifest is written first, and *found* anywhere — a re-zipped World
+  file is still a World file.
+- **What is never in it**: the index, a connection, an orphan picture, an
+  unticked session or any trace of one, ~~an object play wrote~~ *a lorebook play
+  wrote — a memory book (corrected 2026-10-11, the [P16](workplan/34-p16-world.md)
+  final audit: the rule held any kind marked as written by a session, so a Setup
+  made from a turn never travelled, against [P15 §0.3](workplan/33-p15-setup-from-a-turn.md),
+  which reads that marking on lorebooks only)*, an absolute path —
+  nor, since [P16.3f](workplan/34-p16-world.md), a session's archived date: an
+  archive is the sender's tidiness, and a session landing archived would be
+  hidden from the person it was sent to.
 
 ## 10. Not defined here, deliberately
 

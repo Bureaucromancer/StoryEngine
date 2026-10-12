@@ -29,8 +29,8 @@ import { useCreateObject, useSaveObject } from '../queries.js';
  * a two-line predicate: Edit and Delete grew separate spellings and disagreed on
  * `shadowed`, and the disagreement was a control that deleted the wrong folder.
  * A state machine this size, spelled four more times for presets, treatments,
- * setups and packages, is that bug with more surface and no natural place for
- * anyone to notice.
+ * setups and packages (Worlds, since [P16.0] renamed the kind), is that bug
+ * with more surface and no natural place for anyone to notice.
  *
  * **What is deliberately not here: the fields.** A preset's block list, a
  * lorebook's entry list and an actor's sections are genuinely different

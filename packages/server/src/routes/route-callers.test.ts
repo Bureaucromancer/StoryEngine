@@ -295,6 +295,15 @@ const OWED = new Map<string, string>([
    * control (`ModeActions`, from the session read's `actions`), and `api.ts`'s
    * `runSessionStep` names the address. Discharged by building the surface.
    */
+  /**
+   * ***The three publish routes were owed here for the stages between the
+   * server and its surface, and were paid at [P16.3g].*** [P16.3d] built the
+   * routes and the ledger a stage before the review that calls them; P16.3g
+   * built the review as its own lazy route, the selection and the doors, and
+   * `api.ts` names all three addresses — `previewPublish`, `publish` and
+   * `publishRecords` — so the scan reaches them. Discharged by building the
+   * surface, which is the only way out this map has.
+   */
   [
     'PUT /api/sessions/:p/roles',
     "P7.3 built the route, the layering and the tests, and no control. Its own docstring says where the surface goes: 'beside the lore panel's disclosure'. Found by this check rather than by the sweep — P7B §1.12.",

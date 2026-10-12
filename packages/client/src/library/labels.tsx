@@ -19,7 +19,7 @@ export const KIND_LABELS: Record<LibraryKind, string> = labels('library.kind', {
   treatments: 'Treatments',
   setups: 'Setups',
   presets: 'Presets',
-  packages: 'Packages',
+  worlds: 'Worlds',
 });
 
 /**
@@ -37,7 +37,24 @@ export const KIND_WORDS: Record<LibraryKind, string> = labels('library.kind-word
   treatments: 'treatment',
   setups: 'setup',
   presets: 'preset',
-  packages: 'package',
+  worlds: 'world',
+});
+
+/**
+ * ***And in the plural, in a sentence*** — [P16.1].
+ *
+ * `KIND_LABELS` is a tab's word and capitalised; a count inside a line — the
+ * Worlds panel's *2 actors · 1 lorebook* — needs the plural a sentence uses,
+ * and lower-casing the tab's word would be a rule about English applied to
+ * every catalogue. So it is its own table, for `KIND_WORDS`' reason.
+ */
+export const KIND_PLURALS: Record<LibraryKind, string> = labels('library.kind-plural', {
+  actors: 'actors',
+  lorebooks: 'lorebooks',
+  treatments: 'treatments',
+  setups: 'setups',
+  presets: 'presets',
+  worlds: 'worlds',
 });
 
 /**

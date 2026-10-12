@@ -1503,6 +1503,86 @@ over `rendition-ready`: so its second instance would not require renaming it.
 
 ---
 
+## 9. `PublishRecord` — the publish ledger
+
+*Added 2026-10-10, built at [P16.3d](workplan/34-p16-world.md).*
+
+[16 §5](16-publish.md)'s *re-publishing opens on the diff* needs to know what
+left last time, and [16 §8](16-publish.md)'s three watches — does anyone publish
+twice from one World, what gets unchecked, is the session box ever ticked — need
+somewhere to count from. Neither is the library's to hold: a sidecar inside the
+World's folder would have no home for a snapshot or a one-object publish, and
+would travel with the World it describes. So it is an account-level, append-only
+log beside `usage.jsonl`, `users/<handle>/publishes.jsonl`, one JSON line per
+delivered file, and an account archive carries it as it carries the usage log.
+
+**Admitted by §6's rule**: two readers are built against it — the diff
+(P16.3h) and `GET /api/publish/records` — and it is not a portable object. It
+has a `schema`, `storyengine.publish-record/1`, because it is a file a later
+build reads, not because it travels.
+
+```ts
+interface PublishRecord {
+  schema: 'storyengine.publish-record/1'
+  at: string                       // when the confirm planned the file — the
+                                   //   manifest's exportedBy.at; the line is
+                                   //   written once the file finished sending
+                                   //   (corrected 2026-10-11: was "when the
+                                   //   file finished sending")
+  build: string | null             // the build that wrote it
+  origin: 'object' | 'selection' | 'world'
+  start: string[]                  // the ids it started from
+  world: { id: string; name: string; kept: 'created' | 'existing';
+           version: string; about: string } | null   // P16.3h
+  fileName: string
+  bytes: number
+  entries: number
+  objects: { schema: string; id: string; name: string; contentHash: string }[]
+  sessions: { id: string; name: string; headTurnId: string | null;
+              turns: number; updatedAt: string; digest: string }[]   // digest: P16.3h
+  offered: { objects: number; sessions: number }
+  unticked: { id: string; required: boolean }[]   // overrides, both ways,
+  ticked: string[]                                //   on rows a person could change
+  history: boolean
+  justTheObject: boolean
+  missing: number
+  drift: boolean                   // the library changed between review and confirm
+}
+```
+
+- **What left, not what was offered.** `objects` and `sessions` are the file's
+  contents; `offered` counts the review's rows, and `ticked`/`unticked` only the
+  choices a person made against the defaults — which is what *what gets
+  unchecked* is counted from.
+- **An object's `contentHash` is its stored hash**, not the hash of its bytes in
+  the file: a card re-spliced to drop a removed picture ([P16.3c](workplan/34-p16-world.md))
+  is not a changed object, and the diff compares stored hash with stored hash. A
+  session is compared by its head and `updatedAt`, since a rename or a hide moves
+  no head. *(2026-10-11, [P16.3h](workplan/34-p16-world.md): **by its `digest`
+  now** — a `sha256` of the session's export as it travels, leaving out
+  `exportedBy` and the session's `updatedAt`, together with the names of the
+  pictures and attachments that travel beside it. A picture drawn since is a
+  change; archiving the session or changing its model settings, which never
+  leave, is not. An older line without a digest falls back to head and time;
+  an unreadable session's is empty.)*
+- **The World is recorded as it was sent** — its name, its `version` and an
+  `about` hash of its description, its pictures and the requirements its author
+  wrote, but not its members (the diff compares those one by one) or its
+  provenance, which every save stamps. So *send them 1.2* is a change the diff
+  can name: renamed, re-versioned, re-described.
+- **Written when a `200`'s file has been sent to its end**, and only then — never
+  for a refusal, an unreadable file, or a download abandoned part-way. *Its `at`
+  is not that moment (corrected 2026-10-11, the [P16](workplan/34-p16-world.md)
+  final audit): it is the manifest's `exportedBy.at`, taken when the confirm
+  planned the file, so the line and the file it describes carry one time, and on
+  a slow download the diff's "since" is the time the file was made.* A World
+  a selection kept and whose download was abandoned therefore has no line; that
+  is the cost, and [16 §8](16-publish.md) reads it as a publish nobody received.
+- **Appending never throws**: a ledger that cannot be written costs its line,
+  logged, not the file somebody is downloading. **Reading skips** a torn last
+  line and a line of a schema it does not know, so a later build's records do not
+  make this one's unreadable.
+
 ## 6. What is deliberately still absent
 
 | Structure | Why not here |
